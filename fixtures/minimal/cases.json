@@ -1,0 +1,48 @@
+{
+  "fixture": "packsage-minimal",
+  "cases": [
+    {
+      "id": "recipe.vanilla-torch-replaced",
+      "kind": "recipe",
+      "resource": "minecraft:torch",
+      "expectedStatus": "replaced",
+      "expectedVisibility": "active",
+      "expectedCount": 1,
+      "winningResource": "packsage_fixture:data/minecraft/recipe/torch.json",
+      "expectedInputs": [["minecraft:coal", "minecraft:charcoal"]]
+    },
+    {
+      "id": "recipe.fixture-lantern-tag-or",
+      "kind": "recipe",
+      "resource": "packsage:fixture_lantern",
+      "expectedStatus": "active",
+      "expectedVisibility": "active",
+      "expectedCount": 1,
+      "winningResource": "packsage_fixture:data/packsage/recipe/fixture_lantern.json",
+      "expectedInputs": [["minecraft:coal", "minecraft:charcoal"]],
+      "tag": "packsage:fixture_inputs"
+    },
+    {
+      "id": "quest.fixture.chapter",
+      "kind": "ftbquest",
+      "resource": "A000000000000001",
+      "expectedStatus": "active",
+      "expectedVisibility": "visible",
+      "expectedCount": 3,
+      "winningResource": "config/ftbquests/quests/chapters/packsage_fixture.snbt",
+      "questIds": ["1000000000000001", "1000000000000002", "1000000000000003"],
+      "dependencyEdges": [["1000000000000001", "1000000000000002"], ["1000000000000001", "1000000000000003"]]
+    },
+    {
+      "id": "patchouli.naturesaura-aura",
+      "kind": "patchouli-entry",
+      "resource": "naturesaura:book/intro/aura",
+      "expectedStatus": "active",
+      "expectedVisibility": "visible",
+      "expectedCount": 1,
+      "winningResource": "packsage_resourcepack:assets/naturesaura/patchouli_books/book/en_us/entries/intro/aura.json",
+      "expectedTextMarker": "PackSage fixture override",
+      "book": "naturesaura:book"
+    }
+  ]
+}

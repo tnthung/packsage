@@ -103,6 +103,7 @@ public final class ClientAssistant {
     private long providerRuntimeEpoch;
 
     public ClientAssistant(KeyMapping openAssistant) {
+        this.openAssistant = openAssistant;
         client = Minecraft.getInstance();
         clientExecutor = client::execute;
         workerExecutor = Executors.newFixedThreadPool(2, runnable -> {

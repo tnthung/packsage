@@ -256,7 +256,7 @@ public final class FtbProvider implements KnowledgeProvider {
                     if (maximum >= 0) itemCount = maximum;
                 }
                 return new TaskRecord(id, type, progress, maximum < 0 ? null : maximum, completed,
-                        itemId, itemCount, task instanceof ItemTask);
+                        itemId, itemCount, supportedType(type));
             } catch (RuntimeException failure) {
                 errors.add("task " + id + " capture failed: " + failure);
                 return new TaskRecord(id, "unsupported:" + task.getClass().getName(), null, null, null,
@@ -277,7 +277,7 @@ public final class FtbProvider implements KnowledgeProvider {
                     if (item != null && !item.isEmpty()) itemId = BuiltInRegistries.ITEM.getKey(item.getItem()).toString();
                     count = (long) itemReward.getCount();
                 }
-                return new RewardRecord(id, type, claimed, itemId, count, reward instanceof ItemReward);
+                return new RewardRecord(id, type, claimed, itemId, count, supportedType(type));
             } catch (RuntimeException failure) {
                 errors.add("reward " + id + " capture failed: " + failure);
                 return new RewardRecord(id, "unsupported:" + reward.getClass().getName(), null, null, null, false);
@@ -350,12 +350,6 @@ public final class FtbProvider implements KnowledgeProvider {
         this.liveFileNavigation = liveFileNavigation;
     }
 
-    public FtbProvider(ClientQuestFile file, Supplier<Evidence.Scope> scopeSource, UUID playerId,
-                       Executor clientExecutor) {
-        this(() -> Snapshot.capture(file, scopeSource.get(), playerId), clientExecutor, scopeSource,
-                () -> file, () -> true, false);
-    }
-
     /** Builds a provider that resolves the current global FTB file for every client-thread capture. */
     public static FtbProvider forMinecraft(Supplier<Evidence.Scope> scopeSource, Executor clientExecutor) {
         Objects.requireNonNull(scopeSource);
@@ -366,6 +360,20 @@ public final class FtbProvider implements KnowledgeProvider {
             return Snapshot.capture(file, scopeSource.get(), player == null ? null : player.getUUID());
         }, clientExecutor, scopeSource, () -> ClientQuestFile.INSTANCE,
                 () -> Minecraft.getInstance().isSameThread(), true);
+    }
+
+    /** Returns a copied client-thread token for the loaded file and team overlay. */
+    public static String scopeToken() {
+        var minecraft = Minecraft.getInstance();
+        if (!minecraft.isSameThread()) throw new IllegalStateException("FTB Quests scope must be read on the client thread");
+        var file = ClientQuestFile.INSTANCE;
+        if (file == null) return "ftbquests:unavailable";
+        var teamData = file.selfTeamData;
+        var teamId = teamData == null ? "none" : String.valueOf(teamData.getTeamId());
+        var locked = teamData == null ? "unknown" : Boolean.toString(teamData.isLocked());
+        var folder = file.getFolder();
+        return "ftbquests:" + Integer.toUnsignedString(System.identityHashCode(file)) + ":"
+                + (folder == null ? "" : folder.toString()) + ":" + teamId + ":" + locked;
     }
 
     public static boolean isRuntimeAvailable() { return ClientQuestFile.INSTANCE != null; }
@@ -397,7 +405,7 @@ public final class FtbProvider implements KnowledgeProvider {
                     if (generation != lifecycleGeneration || disabled) return;
                     if (snapshot == null) {
                         current = null;
-                        failure = "FTB Quests client data unavailable";
+                        failure = null;
                     } else if (!scopeIsCurrent(snapshot.scope())) {
                         current = null;
                         failure = "FTB Quests client data belongs to an inactive scope";
@@ -442,8 +450,8 @@ public final class FtbProvider implements KnowledgeProvider {
                 }
                 if (snapshot == null) {
                     current = null;
-                    failure = "FTB Quests client data unavailable";
-                    return unavailableResult(failure);
+                    failure = null;
+                    return unavailableResult("FTB Quests client data unavailable");
                 }
                 if (disabled || generation != lifecycleGeneration)
                     return unavailableResult("FTB Quests client data unavailable");
@@ -554,7 +562,7 @@ public final class FtbProvider implements KnowledgeProvider {
         var source = new Evidence.Source(snapshot.scope(), ID, VERSION, chapter.id(), snapshot.generation(), Instant.now(),
                 Evidence.Activity.ACTIVE, coverage, Evidence.Authority.LOADED, List.of("ftbquests:client-quest-file"));
         return new Evidence.Record(source, Evidence.RecordKind.QUEST, chapter.title(), new Evidence.JsonObject(values),
-                List.of(new Evidence.NavigationTarget(snapshot.scope(), ID, chapter.id(), chapter.id())));
+                List.of());
     }
 
     private static Evidence.Record toRecord(QuestRecord quest, Snapshot snapshot) {
@@ -588,7 +596,8 @@ public final class FtbProvider implements KnowledgeProvider {
                 .map(value -> (Evidence.JsonValue) value).toList()));
         values.put("rewards", new Evidence.JsonArray(rewards.stream().map(FtbProvider::rewardJson)
                 .map(value -> (Evidence.JsonValue) value).toList()));
-        var opaque = tasks.stream().anyMatch(task -> !task.supported()) || rewards.stream().anyMatch(reward -> !reward.supported());
+        var opaque = tasks.stream().anyMatch(task -> !task.supported() || !taskMetadataComplete(task))
+                || rewards.stream().anyMatch(reward -> !reward.supported() || !rewardMetadataComplete(reward));
         var progressUnknown = progress == null || progress.dependenciesVisible() == null
                 || progress.dependenciesComplete() == null || progress.visible() == null
                 || progress.completed() == null || progress.rewardClaimed() == null;
@@ -611,6 +620,7 @@ public final class FtbProvider implements KnowledgeProvider {
         values.put("item", task.itemId() == null ? new Evidence.JsonNull() : new Evidence.JsonString(task.itemId()));
         values.put("count", task.itemCount() == null ? new Evidence.JsonNull() : number(task.itemCount()));
         values.put("supported", new Evidence.JsonBoolean(task.supported()));
+        values.put("metadataComplete", new Evidence.JsonBoolean(taskMetadataComplete(task)));
         return new Evidence.JsonObject(values);
     }
 
@@ -622,6 +632,7 @@ public final class FtbProvider implements KnowledgeProvider {
         values.put("item", reward.itemId() == null ? new Evidence.JsonNull() : new Evidence.JsonString(reward.itemId()));
         values.put("count", reward.count() == null ? new Evidence.JsonNull() : number(reward.count()));
         values.put("supported", new Evidence.JsonBoolean(reward.supported()));
+        values.put("metadataComplete", new Evidence.JsonBoolean(rewardMetadataComplete(reward)));
         return new Evidence.JsonObject(values);
     }
 
@@ -669,6 +680,16 @@ public final class FtbProvider implements KnowledgeProvider {
         return !type.startsWith("unknown:") && !type.startsWith("unsupported:") && !type.endsWith(":custom");
     }
 
+    private static boolean taskMetadataComplete(TaskRecord task) {
+        return task.supported() && ("ftbquests:checkmark".equals(task.type())
+                || "ftbquests:item".equals(task.type()) && task.itemId() != null && task.itemCount() != null);
+    }
+
+    private static boolean rewardMetadataComplete(RewardRecord reward) {
+        return reward.supported() && "ftbquests:item".equals(reward.type())
+                && reward.itemId() != null && reward.count() != null;
+    }
+
     private static boolean incomplete(Snapshot snapshot) {
         return !snapshot.errors().isEmpty() || snapshot.quests().isEmpty() && snapshot.chapters().isEmpty()
                 || snapshot.chapters().stream().anyMatch(chapter -> chapter.visible() == null)
@@ -678,10 +699,13 @@ public final class FtbProvider implements KnowledgeProvider {
                 || progress.dependenciesComplete() == null || progress.visible() == null
                 || progress.completed() == null || progress.rewardClaimed() == null)
                 || snapshot.quests().stream().anyMatch(quest -> quest.dependencyRequirement() == null)
-                || snapshot.quests().stream().anyMatch(quest -> quest.tasks().stream().anyMatch(task -> !task.supported())
-                || quest.rewards().stream().anyMatch(reward -> !reward.supported()))
-                || snapshot.progress().stream().anyMatch(progress -> progress.tasks().stream().anyMatch(task -> !task.supported())
-                || progress.rewards().stream().anyMatch(reward -> !reward.supported()));
+                || snapshot.quests().stream().anyMatch(quest -> quest.tasks().stream()
+                .anyMatch(task -> !task.supported() || !taskMetadataComplete(task))
+                || quest.rewards().stream().anyMatch(reward -> !reward.supported() || !rewardMetadataComplete(reward)))
+                || snapshot.progress().stream().anyMatch(progress -> progress.tasks().stream()
+                .anyMatch(task -> !task.supported() || !taskMetadataComplete(task))
+                || progress.rewards().stream().anyMatch(reward -> !reward.supported()
+                || !rewardMetadataComplete(reward)));
     }
 
     private boolean scopeIsCurrent(Evidence.Scope captured) {

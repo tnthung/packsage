@@ -163,6 +163,18 @@ public final class AssistantRuntime implements ChatActions {
         }
     }
 
+    public List<ModelBackend.ModelInfo> modelCatalog() {
+        synchronized (stateLock) {
+            return capabilities.modelCatalog();
+        }
+    }
+
+    public String providerSelectedModelId() {
+        synchronized (stateLock) {
+            return capabilities.selectedModelId();
+        }
+    }
+
     @Override
     public ChatContracts.View view() {
         return wrap(controller.view());
@@ -266,11 +278,15 @@ public final class AssistantRuntime implements ChatActions {
                     runtimeErrors.add("A request is already active");
                     return;
                 }
-                ModelBackend.ModelInfo selected = capabilities.selectedModelId() == null ? null
-                        : capabilities.modelCatalog().stream()
-                        .filter(model -> model.id().equals(capabilities.selectedModelId())).findFirst().orElse(null);
+                String configuredModelId = settings.modelId();
+                ModelBackend.ModelInfo selected = capabilities.modelCatalog().stream()
+                        .filter(model -> model.id().equals(configuredModelId == null ? capabilities.selectedModelId() : configuredModelId))
+                        .findFirst().orElse(null);
                 if (selected == null) {
-                    runtimeErrors.add("No selected model is available in the account model catalog");
+                    runtimeErrors.add(configuredModelId == null
+                            ? "No selected model is available in the account model catalog"
+                            : "Configured model is unavailable in the account model catalog: " + configuredModelId);
+                    publishCurrentView(worldEpoch);
                     return;
                 }
                 ModelBackend.SearchMode searchMode = searchMode(selected, settings.automaticWebSearch(), explicitWebSearch);
@@ -303,7 +319,8 @@ public final class AssistantRuntime implements ChatActions {
                         scope.playerTeam(), scope.providerRuntime(), scope.requestGeneration() + 1);
                 try {
                     submission = new ChatContracts.Submission(new ChatContracts.RequestId(UUID.randomUUID().toString()), world,
-                            nextScope, question, includeScreenshot, historyLimits, selected, searchMode, budget);
+                            nextScope, question, includeScreenshot, historyLimits, selected, searchMode, budget,
+                            settings.reasoningEffort());
                 } catch (RuntimeException failure) {
                     runtimeErrors.add("Request settings are invalid: " + failureMessage(failure));
                     return;

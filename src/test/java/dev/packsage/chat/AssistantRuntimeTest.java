@@ -57,6 +57,61 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void selectedModelAndReasoningEffortAreSnapshotBeforeCaptureSettingsChange() throws Exception {
+        AtomicReference<Evidence.Scope> currentScope = new AtomicReference<>();
+        AtomicReference<ModelBackend.Request> request = new AtomicReference<>();
+        FakeBackend backend = new FakeBackend();
+        ModelBackend.ModelInfo alternate = new ModelBackend.ModelInfo("alternate-model", "Alternate Model", true, true, 16_000, 2_048);
+        PackSageSettings settings = PackSageSettings.defaults();
+        settings.setModelId(alternate.id());
+        settings.setReasoningEffort(ModelBackend.ReasoningEffort.HIGH);
+        var runtime = runtime(backend, scope -> new GameplayContextCapture(() -> {
+            settings.setModelId(MODEL.id());
+            settings.setReasoningEffort(ModelBackend.ReasoningEffort.LOW);
+            return new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block");
+        }, ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, scope),
+                currentScope, request, settings, model -> 777);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL, alternate), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+        settings.setModelId(alternate.id());
+        settings.setReasoningEffort(ModelBackend.ReasoningEffort.HIGH);
+
+        runtime.send("question", false, false);
+
+        assertEquals(alternate.id(), request.get().modelId());
+        assertEquals(ModelBackend.ReasoningEffort.HIGH, request.get().reasoningEffort());
+    }
+
+    @Test
+    void unavailableConfiguredModelIsVisibleAndDoesNotStartBackend() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        AtomicInteger captures = new AtomicInteger();
+        PackSageSettings settings = PackSageSettings.defaults();
+        settings.setModelId("missing-model");
+        var runtime = runtime(backend, scope -> new GameplayContextCapture(() -> {
+            captures.incrementAndGet();
+            return new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block");
+        }, ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, scope),
+                new AtomicReference<>(), new AtomicReference<>(), settings, model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+        var screen = runtime.openScreen();
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                MODEL.contextTokens(), MODEL.outputTokens()));
+        captures.set(0);
+
+        runtime.send("question", false, false);
+
+        assertEquals(0, backend.starts);
+        assertEquals(0, captures.get());
+        assertTrue(screen.view().errors().stream().anyMatch(error -> error.contains("Configured model is unavailable")));
+    }
+
+    @Test
     void unsupportedModelAndMissingWorldAreVisibleAndDoNotStartBackend() throws Exception {
         AtomicReference<Evidence.Scope> currentScope = new AtomicReference<>();
         FakeBackend backend = new FakeBackend();
@@ -459,18 +514,20 @@ class AssistantRuntimeTest {
                                             java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService> knowledgeFactory,
                                             Executor storeExecutor) throws Exception {
         var directory = Files.createTempDirectory("packsage-runtime-test");
-        return new AssistantRuntime(new ConversationStore(directory, storeExecutor), backend, captureFactory, DIRECT, DIRECT,
+        var runtime = new AssistantRuntime(new ConversationStore(directory, storeExecutor), backend, captureFactory, DIRECT, DIRECT,
                 knowledgeFactory,
                 turn -> turn.tokenCount(), prepared -> {
                     ModelBackend.Request result = new ModelBackend.Request(prepared.submission().selectedModel().id(),
                             "instructions", List.of(new ModelBackend.Message(ModelBackend.Role.USER,
                             List.of(new ModelBackend.TextContent(prepared.submission().question())))), List.of(),
                             prepared.submission().searchMode(), prepared.submission().requestId().value(),
-                            prepared.submission().outputBudget());
+                            prepared.submission().outputBudget(), prepared.submission().reasoningEffort());
                     request.set(result);
                     preparedRequest.set(prepared);
                     return result;
                 }, budget, pauseGame, externalNavigation);
+        runtime.setSettings(settings);
+        return runtime;
     }
 
     private static final class FakeBackend implements ModelBackend {

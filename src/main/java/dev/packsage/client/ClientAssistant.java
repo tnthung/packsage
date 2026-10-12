@@ -462,7 +462,11 @@ public final class ClientAssistant {
 
     private void openSettings() {
         settingsOpen = true;
-        client.setScreen(new AssistantSettingsScreen(settings, settingsPath));
+        client.setScreen(new AssistantSettingsScreen(settings, settingsPath, net.minecraft.network.chat.Component.literal("PackSage Settings"),
+                runtime.modelCatalog(), runtime.providerSelectedModelId(), () -> {
+                    settingsOpen = false;
+                    if (assistantScreen != null) client.setScreen(assistantScreen);
+                }));
     }
 
     private void openExternal(String value) {

@@ -5,6 +5,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.nio.file.Files;
+import java.util.Properties;
+import java.io.InputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -55,5 +57,21 @@ class PackSageSettingsTest {
 
         assertEquals(31, loaded.historyTurns());
         assertEquals(PackSageSettings.DEFAULT_HISTORICAL_TOKENS, loaded.historicalTokens());
+    }
+
+    @Test
+    void modelAndReasoningSettingsSurvivePropertiesRoundTrip() throws Exception {
+        Path input = temporaryDirectory.resolve("selected.properties");
+        Files.writeString(input, "modelId=gpt-5-mini\nreasoningEffort=high\n");
+        Path output = temporaryDirectory.resolve("saved.properties");
+
+        PackSageSettings.load(input).save(output);
+
+        Properties properties = new Properties();
+        try (InputStream stream = Files.newInputStream(output)) {
+            properties.load(stream);
+        }
+        assertEquals("gpt-5-mini", properties.getProperty("modelId"));
+        assertEquals("high", properties.getProperty("reasoningEffort"));
     }
 }

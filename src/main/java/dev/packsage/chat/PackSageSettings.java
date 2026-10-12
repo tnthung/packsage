@@ -1,5 +1,7 @@
 package dev.packsage.chat;
 
+import dev.packsage.model.ModelBackend;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -17,6 +19,8 @@ public final class PackSageSettings {
     private boolean automaticWebSearch;
     private int historyTurns;
     private int historicalTokens;
+    private String modelId;
+    private ModelBackend.ReasoningEffort reasoningEffort;
 
     public PackSageSettings(boolean openPaused, boolean automaticWebSearch, int historyTurns, int historicalTokens) {
         this.openPaused = openPaused;
@@ -25,6 +29,8 @@ public final class PackSageSettings {
         if (historicalTokens < 1 || historicalTokens > MAX_HISTORICAL_TOKENS) throw new IllegalArgumentException("historicalTokens is out of bounds");
         this.historyTurns = historyTurns;
         this.historicalTokens = historicalTokens;
+        modelId = null;
+        reasoningEffort = ModelBackend.ReasoningEffort.DEFAULT;
     }
 
     public static PackSageSettings defaults() {
@@ -43,6 +49,11 @@ public final class PackSageSettings {
                 int turns = Integer.parseInt(properties.getProperty("historyTurns", Integer.toString(settings.historyTurns)));
                 if (turns >= 1 && turns <= MAX_HISTORY_TURNS) settings.historyTurns = turns;
             } catch (NumberFormatException ignored) { }
+            String configuredModelId = properties.getProperty("modelId", "");
+            settings.modelId = configuredModelId.isBlank() ? null : configuredModelId;
+            try {
+                settings.reasoningEffort = ModelBackend.ReasoningEffort.valueOf(properties.getProperty("reasoningEffort", "DEFAULT").toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException ignored) { }
             try {
                 int tokens = Integer.parseInt(properties.getProperty("historicalTokens", Integer.toString(settings.historicalTokens)));
                 if (tokens >= 1 && tokens <= MAX_HISTORICAL_TOKENS) settings.historicalTokens = tokens;
@@ -59,6 +70,8 @@ public final class PackSageSettings {
         properties.setProperty("automaticWebSearch", Boolean.toString(automaticWebSearch));
         properties.setProperty("historyTurns", Integer.toString(historyTurns));
         properties.setProperty("historicalTokens", Integer.toString(historicalTokens));
+        if (modelId != null) properties.setProperty("modelId", modelId);
+        properties.setProperty("reasoningEffort", reasoningEffort.name().toLowerCase(java.util.Locale.ROOT));
         try {
             if (path.getParent() != null) Files.createDirectories(path.getParent());
             try (OutputStream output = Files.newOutputStream(path)) {
@@ -73,9 +86,13 @@ public final class PackSageSettings {
     public boolean automaticWebSearch() { return automaticWebSearch; }
     public int historyTurns() { return historyTurns; }
     public int historicalTokens() { return historicalTokens; }
+    public String modelId() { return modelId; }
+    public ModelBackend.ReasoningEffort reasoningEffort() { return reasoningEffort; }
 
     public void setOpenPaused(boolean value) { openPaused = value; }
     public void setAutomaticWebSearch(boolean value) { automaticWebSearch = value; }
+    public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; }
+    public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; }
 
     public boolean setHistoryTurns(int value) {
         if (value < 1 || value > MAX_HISTORY_TURNS) return false;

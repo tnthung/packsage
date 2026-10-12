@@ -8,6 +8,7 @@ import java.util.function.Consumer;
 public interface ModelBackend {
     enum AuthStatus { UNKNOWN, SIGNED_OUT, SIGNING_IN, SIGNED_IN, EXPIRED, FAILED }
     enum SearchMode { AUTOMATIC, EXPLICIT_ONLY, EXPLICIT_REQUEST, DISABLED }
+    enum ReasoningEffort { DEFAULT, NONE, MINIMAL, LOW, MEDIUM, HIGH, XHIGH, MAX }
     /**
      * REASONING carries no payload: it only signals that the model is reasoning. HOSTED_SEARCH without blocks signals a search in progress.
      * RETRYING signals that the backend discarded an unfinished response and is issuing its single retry; text streamed by the
@@ -123,7 +124,7 @@ public interface ModelBackend {
     }
 
     record Request(String modelId, String instructions, List<InputItem> input, List<ToolDefinition> tools,
-                   SearchMode searchMode, String requestId, int outputBudget) {
+                   SearchMode searchMode, String requestId, int outputBudget, ReasoningEffort reasoningEffort) {
         public Request {
             Objects.requireNonNull(modelId);
             Objects.requireNonNull(instructions);
@@ -131,7 +132,13 @@ public interface ModelBackend {
             tools = List.copyOf(tools);
             Objects.requireNonNull(searchMode);
             Objects.requireNonNull(requestId);
+            Objects.requireNonNull(reasoningEffort);
             if (outputBudget < 1) throw new IllegalArgumentException("outputBudget must be positive");
+        }
+
+        public Request(String modelId, String instructions, List<InputItem> input, List<ToolDefinition> tools,
+                       SearchMode searchMode, String requestId, int outputBudget) {
+            this(modelId, instructions, input, tools, searchMode, requestId, outputBudget, ReasoningEffort.DEFAULT);
         }
     }
 

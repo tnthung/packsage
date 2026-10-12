@@ -83,6 +83,30 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void requestsExplicitlyAllowParallelToolCalls() {
+        ModelBackend.Request request = new ModelBackend.Request("gpt-5-mini", "Answer from evidence.", List.of(),
+                List.of(new ModelBackend.ToolDefinition("search_pack", "Search", "{}")),
+                ModelBackend.SearchMode.DISABLED, "parallel-1", 512);
+
+        JsonObject body = JsonParser.parseString(ChatGptBackend.requestBody(request)).getAsJsonObject();
+
+        assertTrue(body.has("parallel_tool_calls"));
+        assertTrue(body.get("parallel_tool_calls").getAsBoolean());
+    }
+
+    @Test
+    void reasoningEffortIsOmittedByDefaultAndSerializedWhenSelected() {
+        ModelBackend.Request defaultRequest = new ModelBackend.Request("gpt-5-mini", "Answer.", List.of(), List.of(),
+                ModelBackend.SearchMode.DISABLED, "reasoning-default", 512);
+        ModelBackend.Request highRequest = new ModelBackend.Request("gpt-5-mini", "Answer.", List.of(), List.of(),
+                ModelBackend.SearchMode.DISABLED, "reasoning-high", 512, ModelBackend.ReasoningEffort.HIGH);
+        JsonObject defaultBody = JsonParser.parseString(ChatGptBackend.requestBody(defaultRequest)).getAsJsonObject();
+        JsonObject highBody = JsonParser.parseString(ChatGptBackend.requestBody(highRequest)).getAsJsonObject();
+        assertFalse(defaultBody.has("reasoning"));
+        assertEquals("high", highBody.getAsJsonObject("reasoning").get("effort").getAsString());
+    }
+
+    @Test
     void searchPolicyKeepsExplicitOnlyAvailableAndForcesExplicitPerSend() {
         ModelBackend.Request explicitOnly = new ModelBackend.Request("gpt-5-mini", "Answer from evidence.",
                 List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("Explain this")))), List.of(),
@@ -248,6 +272,88 @@ class ChatGptBackendTest {
         assertEquals(1, fallback.getAsJsonArray("input").get(0).getAsJsonObject().getAsJsonArray("content").size());
         assertFalse(fallback.toString().contains("input_image"));
         assertTrue(fallback.get("instructions").getAsString().contains("screenshot was omitted"));
+    }
+
+    @Test
+    void unsupportedReasoningCapabilityDoesNotPoisonLaterImageOrSearchRequests() {
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        CapturingHttpClient client = new CapturingHttpClient(List.of(400, 200), List.of(
+                "{\"error\":{\"code\":\"subscription_sharing_unsupported_capability\",\"message\":\"reasoning effort with web search is unavailable\",\"param\":\"reasoning.effort\"}}",
+                "data: {\"type\":\"response.completed\",\"sequence_number\":1,\"response\":{\"status\":\"completed\"}}\n\n"));
+        ChatGptBackend backend = new ChatGptBackend(auth, client, Runnable::run);
+        ModelBackend.Request first = new ModelBackend.Request("gpt-route", "Answer.", List.of(new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent("Search")))),
+                List.of(), ModelBackend.SearchMode.EXPLICIT_REQUEST, "reasoning-failure", 512, ModelBackend.ReasoningEffort.HIGH);
+        List<ModelBackend.Event> events = new ArrayList<>();
+        backend.start(first, events::add);
+        backend.start(new ModelBackend.Request("gpt-route", "Answer.", List.of(new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent("Search"), new ModelBackend.ImageContent("data:image/png;base64,ZmFrZQ==")))),
+                List.of(), ModelBackend.SearchMode.EXPLICIT_REQUEST, "after-reasoning", 512), ignored -> { });
+
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.FAILED).count());
+        assertEquals(0, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.RETRYING).count());
+        JsonObject second = JsonParser.parseString(requestBody(client.requests.get(1))).getAsJsonObject();
+        assertTrue(second.toString().contains("input_image"));
+        assertTrue(second.toString().contains("web_search"));
+    }
+
+    @Test
+    void streamedUnsupportedReasoningCapabilityDoesNotPoisonLaterRequests() {
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        CapturingHttpClient client = new CapturingHttpClient(List.of(
+                "data: {\"type\":\"response.failed\",\"sequence_number\":1,\"response\":{\"status\":\"failed\",\"error\":{\"code\":\"subscription_sharing_unsupported_capability\",\"message\":\"reasoning effort with image input is unavailable\",\"param\":\"reasoning.effort\"}}}\n\n",
+                "data: {\"type\":\"response.completed\",\"sequence_number\":1,\"response\":{\"status\":\"completed\"}}\n\n"));
+        ChatGptBackend backend = new ChatGptBackend(auth, client, Runnable::run);
+        ModelBackend.Request first = new ModelBackend.Request("gpt-route", "Answer.", List.of(new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent("Search"), new ModelBackend.ImageContent("data:image/png;base64,ZmFrZQ==")))),
+                List.of(), ModelBackend.SearchMode.DISABLED, "stream-reasoning-failure", 512, ModelBackend.ReasoningEffort.HIGH);
+        List<ModelBackend.Event> firstEvents = new ArrayList<>();
+        backend.start(first, firstEvents::add);
+        List<ModelBackend.Event> events = new ArrayList<>();
+        backend.start(new ModelBackend.Request("gpt-route", "Answer.", List.of(new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent("Search"), new ModelBackend.ImageContent("data:image/png;base64,ZmFrZQ==")))),
+                List.of(), ModelBackend.SearchMode.EXPLICIT_REQUEST, "after-stream-reasoning", 512), events::add);
+
+        assertEquals(1, firstEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.FAILED).count());
+        assertEquals(0, firstEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.RETRYING).count());
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+        JsonObject second = JsonParser.parseString(requestBody(client.requests.get(1))).getAsJsonObject();
+        assertTrue(second.toString().contains("input_image"));
+        assertTrue(second.toString().contains("web_search"));
+    }
+
+    @Test
+    void unsupportedToolsWhenSearchWasDisabledDoesNotDisableLaterSearch() {
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        CapturingHttpClient client = new CapturingHttpClient(List.of(
+                "data: {\"type\":\"response.failed\",\"sequence_number\":1,\"response\":{\"status\":\"failed\",\"error\":{\"code\":\"unsupported_capability\",\"message\":\"tools unavailable\",\"param\":\"tools\"}}}\n\n",
+                "data: {\"type\":\"response.completed\",\"sequence_number\":1,\"response\":{\"status\":\"completed\"}}\n\n"));
+        ChatGptBackend backend = new ChatGptBackend(auth, client, Runnable::run);
+        ModelBackend.Request first = new ModelBackend.Request("gpt-route", "Answer.", List.of(), List.of(),
+                ModelBackend.SearchMode.DISABLED, "disabled-tools", 512);
+        backend.start(first, ignored -> { });
+        backend.start(new ModelBackend.Request("gpt-route", "Answer.", List.of(), List.of(),
+                ModelBackend.SearchMode.EXPLICIT_REQUEST, "after-disabled-tools", 512), ignored -> { });
+        assertTrue(requestBody(client.requests.get(1)).contains("web_search"));
+    }
+
+    @Test
+    void unsupportedInputWhenImageWasAbsentDoesNotDisableLaterImage() {
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        CapturingHttpClient client = new CapturingHttpClient(List.of(
+                "data: {\"type\":\"response.failed\",\"sequence_number\":1,\"response\":{\"status\":\"failed\",\"error\":{\"code\":\"unsupported_capability\",\"message\":\"input unavailable\",\"param\":\"input\"}}}\n\n",
+                "data: {\"type\":\"response.completed\",\"sequence_number\":1,\"response\":{\"status\":\"completed\"}}\n\n"));
+        ChatGptBackend backend = new ChatGptBackend(auth, client, Runnable::run);
+        backend.start(new ModelBackend.Request("gpt-route", "Answer.", List.of(), List.of(),
+                ModelBackend.SearchMode.DISABLED, "absent-input", 512), ignored -> { });
+        backend.start(new ModelBackend.Request("gpt-route", "Answer.", List.of(new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.ImageContent("data:image/png;base64,ZmFrZQ==")))), List.of(),
+                ModelBackend.SearchMode.DISABLED, "after-absent-input", 512), ignored -> { });
+        assertTrue(requestBody(client.requests.get(1)).contains("input_image"));
     }
 
     @Test
@@ -971,17 +1077,26 @@ class ChatGptBackendTest {
 
     private static final class CapturingHttpClient extends HttpClient {
         private final ArrayDeque<String> responses;
+        private final ArrayDeque<Integer> statuses;
         private final String catalog;
         private final List<HttpRequest> requests = new ArrayList<>();
         private String streamRequestId;
 
         private CapturingHttpClient(List<String> responses) {
-            this(null, responses);
+            this((String) null, responses);
         }
 
         private CapturingHttpClient(String catalog, List<String> responses) {
             this.catalog = catalog;
             this.responses = new ArrayDeque<>(responses);
+            this.statuses = new ArrayDeque<>();
+            responses.forEach(ignored -> statuses.add(200));
+        }
+
+        private CapturingHttpClient(List<Integer> statuses, List<String> responses) {
+            this.catalog = null;
+            this.responses = new ArrayDeque<>(responses);
+            this.statuses = new ArrayDeque<>(statuses);
         }
 
         @Override public Optional<CookieHandler> cookieHandler() { return Optional.empty(); }
@@ -1002,7 +1117,8 @@ class ChatGptBackendTest {
                 return CompletableFuture.completedFuture((HttpResponse<T>) new StringResponse(request, 200, catalog));
             }
             String body = responses.removeFirst();
-            return CompletableFuture.completedFuture((HttpResponse<T>) new InputStreamResponse(request, body, streamRequestId));
+            return CompletableFuture.completedFuture((HttpResponse<T>) new InputStreamResponse(request, body, streamRequestId,
+                    statuses.removeFirst()));
         }
         @Override public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler, HttpResponse.PushPromiseHandler<T> pushPromiseHandler) {
             return sendAsync(request, responseBodyHandler);
@@ -1102,8 +1218,8 @@ class ChatGptBackendTest {
         }
     }
 
-    private record InputStreamResponse(HttpRequest request, String content, String requestId) implements HttpResponse<ByteArrayInputStream> {
-        @Override public int statusCode() { return 200; }
+    private record InputStreamResponse(HttpRequest request, String content, String requestId, int status) implements HttpResponse<ByteArrayInputStream> {
+        @Override public int statusCode() { return status; }
         @Override public Optional<HttpResponse<ByteArrayInputStream>> previousResponse() { return Optional.empty(); }
         @Override public HttpHeaders headers() {
             return HttpHeaders.of(requestId == null ? Map.of() : Map.of("x-request-id", List.of(requestId)), (name, value) -> true);

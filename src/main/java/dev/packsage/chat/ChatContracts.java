@@ -56,7 +56,7 @@ public final class ChatContracts {
     public record Submission(RequestId requestId, WorldIdentity world, Evidence.Scope scope, String question,
                              boolean includeScreenshot, HistoryLimits historyLimits,
                              ModelBackend.ModelInfo selectedModel, ModelBackend.SearchMode searchMode,
-                             int outputBudget) {
+                             int outputBudget, ModelBackend.ReasoningEffort reasoningEffort) {
         public Submission {
             Objects.requireNonNull(requestId);
             Objects.requireNonNull(world);
@@ -65,7 +65,16 @@ public final class ChatContracts {
             Objects.requireNonNull(historyLimits);
             Objects.requireNonNull(selectedModel);
             Objects.requireNonNull(searchMode);
+            Objects.requireNonNull(reasoningEffort);
             if (outputBudget < 1) throw new IllegalArgumentException("outputBudget must be positive");
+        }
+
+        public Submission(RequestId requestId, WorldIdentity world, Evidence.Scope scope, String question,
+                          boolean includeScreenshot, HistoryLimits historyLimits,
+                          ModelBackend.ModelInfo selectedModel, ModelBackend.SearchMode searchMode,
+                          int outputBudget) {
+            this(requestId, world, scope, question, includeScreenshot, historyLimits, selectedModel, searchMode,
+                    outputBudget, ModelBackend.ReasoningEffort.DEFAULT);
         }
     }
 

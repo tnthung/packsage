@@ -184,12 +184,12 @@ public final class ChatGptBackend implements ModelBackend {
             }
             effective = new Request(effective.modelId(), effective.instructions()
                     + " Image input was previously rejected for this account and model. The screenshot was omitted; state this when it affects the answer.",
-                    input, effective.tools(), effective.searchMode(), effective.requestId(), effective.outputBudget());
+                    input, effective.tools(), effective.searchMode(), effective.requestId(), effective.outputBudget(), effective.reasoningEffort());
         }
         if (request.searchMode() != SearchMode.DISABLED && Boolean.FALSE.equals(hostedSearch)) {
             effective = new Request(request.modelId(), effective.instructions()
                     + " Hosted web search was previously rejected for this account and model. Answer from local evidence and state that current public lookup is unavailable.",
-                    effective.input(), request.tools(), SearchMode.DISABLED, request.requestId(), request.outputBudget());
+                    effective.input(), request.tools(), SearchMode.DISABLED, request.requestId(), request.outputBudget(), request.reasoningEffort());
         }
         ExchangeImpl exchange = new ExchangeImpl(effective, events, requestAccountEpoch);
         ExchangeImpl previous;
@@ -231,15 +231,17 @@ public final class ChatGptBackend implements ModelBackend {
             if (response.statusCode() / 100 != 2) {
                 byte[] body = input.readNBytes(MAX_ERROR_BYTES + 1);
                 String responseBody = new String(body, 0, Math.min(body.length, MAX_ERROR_BYTES), StandardCharsets.UTF_8);
-                if (responseBody.contains("subscription_sharing_unsupported_capability") || responseBody.contains("unsupported_capability")) {
-                    boolean searchFailure = exchange.request.searchMode() != SearchMode.DISABLED
-                            && (!exchange.usesImage || responseBody.contains("web search") || responseBody.contains("\"param\":\"tools\""));
-                    boolean imageFailure = exchange.usesImage && (exchange.request.searchMode() == SearchMode.DISABLED
-                            || responseBody.contains("image") || responseBody.contains("\"param\":\"input\""));
-                    recordCapabilities(exchange.request.modelId(), imageFailure ? false : null, searchFailure ? false : null, exchange.requestAccountEpoch);
-                }
                 String detail = httpFailure(response.statusCode(), responseBody,
                         response.headers().firstValue("x-request-id").orElse(null));
+                if (responseBody.contains("subscription_sharing_unsupported_capability") || responseBody.contains("unsupported_capability")) {
+                    String lowerDetail = detail.toLowerCase(Locale.ROOT);
+                    boolean hasParam = lowerDetail.contains("(param ");
+                    boolean searchFailure = exchange.request.searchMode() != SearchMode.DISABLED
+                            && (lowerDetail.contains("(param tools)") || (!hasParam && lowerDetail.contains("web search")));
+                    boolean imageFailure = exchange.usesImage
+                            && (lowerDetail.contains("(param input)") || (!hasParam && lowerDetail.contains("image")));
+                    recordCapabilities(exchange.request.modelId(), imageFailure ? false : null, searchFailure ? false : null, exchange.requestAccountEpoch);
+                }
                 if (body.length > MAX_ERROR_BYTES) detail += " [body truncated]";
                 exchange.transportFailure(generation, detail);
                 return;
@@ -281,6 +283,12 @@ public final class ChatGptBackend implements ModelBackend {
         body.add("input", serializedInput);
         body.addProperty("store", false);
         body.addProperty("stream", true);
+        body.addProperty("parallel_tool_calls", true);
+        if (request.reasoningEffort() != ReasoningEffort.DEFAULT) {
+            JsonObject reasoning = new JsonObject();
+            reasoning.addProperty("effort", request.reasoningEffort().name().toLowerCase(java.util.Locale.ROOT));
+            body.add("reasoning", reasoning);
+        }
         JsonArray tools = new JsonArray();
         if (!request.tools().isEmpty()) {
             JsonObject namespace = new JsonObject();
@@ -606,7 +614,7 @@ public final class ChatGptBackend implements ModelBackend {
                     // same input once without web search; earlier call/result pairs are already in currentInput.
                     searchRetried = true;
                     request = new Request(request.modelId(), request.instructions() + SEARCH_RETRY_INSTRUCTION, request.input(),
-                            request.tools(), SearchMode.DISABLED, request.requestId(), request.outputBudget());
+                            request.tools(), SearchMode.DISABLED, request.requestId(), request.outputBudget(), request.reasoningEffort());
                     retry = currentInput;
                     publish = true;
                     publishedEvent = new Event(EventKind.RETRYING, null, null, List.of(), event.detail());
@@ -622,12 +630,15 @@ public final class ChatGptBackend implements ModelBackend {
                     if (event.detail() != null
                             && (event.detail().contains("subscription_sharing_unsupported_capability")
                             || event.detail().contains("unsupported_capability"))) {
+                        String lowerDetail = event.detail().toLowerCase(Locale.ROOT);
+                        boolean hasParam = lowerDetail.contains("(param ");
                         if (request.searchMode() != SearchMode.DISABLED
-                                && (!usesImage || event.detail().contains("web search") || event.detail().contains("param tools"))) {
+                                && (lowerDetail.contains("(param tools)")
+                                || (!hasParam && lowerDetail.contains("web search")))) {
                             searchCapability = false;
                         }
-                        if (usesImage && (request.searchMode() == SearchMode.DISABLED
-                                || event.detail().contains("image") || event.detail().contains("param input"))) {
+                        if (usesImage && (lowerDetail.contains("(param input)")
+                                || (!hasParam && lowerDetail.contains("image")))) {
                             imageCapability = false;
                         }
                     }

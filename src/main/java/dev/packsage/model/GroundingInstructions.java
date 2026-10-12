@@ -54,7 +54,7 @@ public final class GroundingInstructions {
         }
         input.add(new ModelBackend.Message(ModelBackend.Role.USER, content));
         return new ModelBackend.Request(submission.selectedModel().id(), INSTRUCTIONS, input, PackSageTools.definitions(),
-                submission.searchMode(), submission.requestId().value(), submission.outputBudget());
+                submission.searchMode(), submission.requestId().value(), submission.outputBudget(), submission.reasoningEffort());
     }
 
     /** The input items one historical turn contributes to a request: its question, its replay items and, if needed, its answer. */

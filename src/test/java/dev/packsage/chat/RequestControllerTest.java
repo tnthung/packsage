@@ -399,6 +399,34 @@ class RequestControllerTest {
     }
 
     @Test
+    void startsIndependentToolsBeforeEitherFutureCompletesAndSubmitsEachOutOfOrder() {
+        FakeBackend backend = new FakeBackend();
+        List<CompletableFuture<ChatContracts.ToolResponse>> responses = new ArrayList<>();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { }, request -> {
+                    CompletableFuture<ChatContracts.ToolResponse> response = new CompletableFuture<>();
+                    responses.add(response);
+                    return response;
+                }, ignored -> { });
+        controller.begin(submission("parallel-tools", WORLD_A, SCOPE_A, false, new ChatContracts.HistoryLimits(10, 12_000),
+                ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+        ModelBackend.ToolCall first = new ModelBackend.ToolCall("first", "lookup", "{}");
+        ModelBackend.ToolCall second = new ModelBackend.ToolCall("second", "lookup", "{}");
+        backend.emit("parallel-tools", toolEvent(first.callId(), first.name(), first.serializedArguments()));
+        backend.emit("parallel-tools", toolEvent(second.callId(), second.name(), second.serializedArguments()));
+
+        assertEquals(2, responses.size());
+        responses.get(1).complete(new ChatContracts.ToolResponse(new ModelBackend.ToolResult("second", "second", false),
+                new ChatContracts.EvidenceSelection(List.of(), List.of())));
+        responses.getFirst().complete(new ChatContracts.ToolResponse(new ModelBackend.ToolResult("first", "first", false),
+                new ChatContracts.EvidenceSelection(List.of(), List.of())));
+
+        assertEquals(List.of("second", "first"), backend.submittedByRequest.get("parallel-tools").stream()
+                .map(ModelBackend.ToolResult::serializedResult).toList());
+    }
+
+    @Test
     void rejectsARequestBuilderThatChangesTheSubmissionSnapshot() {
         FakeBackend backend = new FakeBackend();
         RequestController controller = new RequestController(new ConversationStore(temporaryDirectory, DIRECT), backend, DIRECT,

@@ -1,0 +1,9 @@
+{
+  "book": "fixture:book",
+  "entry": "fixture:book/intro",
+  "pages": [
+    {"type": "text", "text": "fixture.patchouli.intro"},
+    {"type": "fixture:custom", "payload": "retained"}
+  ],
+  "extra_recipe_mappings": {"minecraft:stone": 1}
+}

@@ -54,12 +54,14 @@ class AssistantIntegrationTest {
 
         var response = new PackSageTools(service::execute).execute(new ModelBackend.ToolCall("search", "search_pack", "{\"text\":\"torch\"}"), SCOPE)
                 .toCompletableFuture().get();
-        assertEquals(List.of(loaded), response.records());
+        assertTrue(response.records().contains(loaded));
+        assertTrue(response.records().stream().anyMatch(record -> record.source().providerId().equals("broken")
+                && record.source().coverage() == Evidence.Coverage.ERROR));
         assertTrue(response.result().serializedResult().contains("PARTIAL"));
     }
 
     @Test
-    void rejectsLateEvidenceAfterWorldChangeAndCursorReuseWithAnotherQuery() throws Exception {
+    void rejectsLateEvidenceAfterWorldChange() throws Exception {
         var pending = new CompletableFuture<Evidence.Result>();
         var current = new AtomicReference<>(SCOPE);
         KnowledgeProvider provider = new Provider("native", List.of(), false) {

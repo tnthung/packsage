@@ -20,6 +20,22 @@ class ContextCaptureTest {
     private static final ChatContracts.WorldIdentity WORLD = new ChatContracts.WorldIdentity("world", "World");
 
     @Test
+    void cancellingAnOldRequestCannotCancelANewerCapture() {
+        var queued = new java.util.ArrayDeque<Runnable>();
+        var capture = new GameplayContextCapture(
+                () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                request -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH),
+                queued::add, () -> SCOPE);
+        var newer = new ChatContracts.RequestId("new");
+        var result = capture.capture(new ChatContracts.RequestCapture(newer, WORLD, SCOPE), true).toCompletableFuture();
+
+        capture.cancel(new ChatContracts.RequestId("old"));
+        while (!queued.isEmpty()) queued.remove().run();
+
+        assertEquals("new.png", result.join().context().screenshot().assetId());
+    }
+
+    @Test
     void captureUsesFreshImmutableObservationAndOptionalScreenshot() {
         Executor direct = Runnable::run;
         var observations = new GameplayContextCapture.ObservationSource() {

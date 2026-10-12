@@ -65,17 +65,18 @@ class AssistantScreenStateTest {
 
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
     private static final Evidence.NavigationTarget TARGET = new Evidence.NavigationTarget(SCOPE, "provider", "source", "target");
+    private static final Evidence.Source SOURCE = new Evidence.Source(SCOPE, "provider", "1", "source", 1,
+            Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
 
     private static final class FakeActions implements ChatActions {
         private final List<String> calls = new ArrayList<>();
         private final ChatContracts.View view = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT,
                 true, new ChatContracts.Conversation("conversation", new ChatContracts.WorldIdentity("world", "World"),
                 List.of(new ChatContracts.Turn(new ChatContracts.RequestId("request"), "question", "answer", List.of(),
-                        new ChatContracts.Context("{}", null, SCOPE), List.of(new Evidence.Source(SCOPE, "provider", "1", "source", 1,
-                                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of())),
+                        new ChatContracts.Context("{}", null, SCOPE), List.of(SOURCE),
                         new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
-                new ChatContracts.Context("{}", null, SCOPE), List.of(), List.of(TARGET), List.of());
+                new ChatContracts.Context("{}", null, SCOPE), List.of(SOURCE), List.of(TARGET), List.of());
 
         @Override public ChatContracts.View view() { return view; }
         @Override public void signIn() { calls.add("signIn"); }

@@ -273,9 +273,12 @@ public final class GameplayContextCapture {
         onRenderGuiPost();
     }
 
-    public void cancel() {
+    public void cancel(ChatContracts.RequestId requestId) {
+        Objects.requireNonNull(requestId);
         PendingFrame pending;
         synchronized (frameLock) {
+            var request = activeRequest.get();
+            if (request == null || !request.requestId().equals(requestId)) return;
             captureEpoch.incrementAndGet();
             activeRequest.set(null);
             pending = pendingFrame.getAndSet(null);

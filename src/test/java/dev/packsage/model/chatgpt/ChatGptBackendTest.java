@@ -171,6 +171,63 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void acceptedImageAndSearchBecomeVerifiedWithoutInventingTokenLimits() {
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        CapturingHttpClient client = new CapturingHttpClient(
+                "{\"models\":[{\"slug\":\"gpt-route\",\"visibility\":\"list\",\"display_name\":\"GPT Route\"}]}", List.of(
+                "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":1,\"item\":{\"id\":\"msg_image\",\"type\":\"message\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"image accepted\",\"annotations\":[]}]}}\n\n"
+                        + "data: {\"type\":\"response.completed\",\"sequence_number\":2,\"response\":{\"status\":\"completed\"}}\n\n",
+                "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":1,\"item\":{\"id\":\"ws_route\",\"type\":\"web_search_call\",\"status\":\"completed\",\"action\":{\"type\":\"search\",\"queries\":[\"fixture\"]}}}\n\n"
+                        + "data: {\"type\":\"response.completed\",\"sequence_number\":2,\"response\":{\"status\":\"completed\"}}\n\n"));
+        ChatGptBackend backend = new ChatGptBackend(auth, client, Runnable::run);
+
+        ModelBackend.Capabilities unknown = backend.capabilities().toCompletableFuture().join();
+        backend.start(new ModelBackend.Request("gpt-route", "Describe the image.",
+                List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("Describe it"),
+                        new ModelBackend.ImageContent("data:image/png;base64,ZmFrZQ==")))), List.of(), ModelBackend.SearchMode.DISABLED,
+                "image-capability", 512), ignored -> { });
+        ModelBackend.Capabilities imageVerified = backend.capabilities().toCompletableFuture().join();
+        backend.start(new ModelBackend.Request("gpt-route", "Search.",
+                List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("Search")))),
+                List.of(), ModelBackend.SearchMode.EXPLICIT_REQUEST, "search-capability", 512), ignored -> { });
+        ModelBackend.Capabilities bothVerified = backend.capabilities().toCompletableFuture().join();
+
+        assertEquals("GPT Route", unknown.modelCatalog().getFirst().displayName());
+        assertNull(unknown.imageInput());
+        assertNull(unknown.hostedSearch());
+        assertEquals(true, imageVerified.imageInput());
+        assertNull(imageVerified.hostedSearch());
+        assertEquals(true, bothVerified.imageInput());
+        assertEquals(true, bothVerified.hostedSearch());
+        assertNull(bothVerified.contextTokens());
+        assertNull(bothVerified.outputTokens());
+    }
+
+    @Test
+    void explicitlyRejectedImageIsOmittedFromLaterRequests() {
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        CapturingHttpClient client = new CapturingHttpClient(List.of(
+                "data: {\"type\":\"response.failed\",\"sequence_number\":1,\"response\":{\"status\":\"failed\",\"error\":{\"code\":\"subscription_sharing_unsupported_capability\",\"message\":\"image input is unavailable\",\"param\":\"input\"}}}\n\n",
+                "data: {\"type\":\"response.completed\",\"sequence_number\":1,\"response\":{\"status\":\"completed\"}}\n\n"));
+        ChatGptBackend backend = new ChatGptBackend(auth, client, Runnable::run);
+        ModelBackend.Request image = new ModelBackend.Request("gpt-route", "Describe the image.",
+                List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("Describe it"),
+                        new ModelBackend.ImageContent("data:image/png;base64,ZmFrZQ==")))), List.of(), ModelBackend.SearchMode.DISABLED,
+                "image-1", 512);
+
+        backend.start(image, ignored -> { });
+        backend.start(new ModelBackend.Request(image.modelId(), image.instructions(), image.input(), image.tools(), image.searchMode(),
+                "image-2", image.outputBudget()), ignored -> { });
+
+        JsonObject fallback = JsonParser.parseString(requestBody(client.requests.get(1))).getAsJsonObject();
+        assertEquals(1, fallback.getAsJsonArray("input").get(0).getAsJsonObject().getAsJsonArray("content").size());
+        assertFalse(fallback.toString().contains("input_image"));
+        assertTrue(fallback.get("instructions").getAsString().contains("screenshot was omitted"));
+    }
+
+    @Test
     void mapsRouteFailuresWithoutPretendingInferenceIsAvailable() {
         assertEquals(ModelBackend.AuthStatus.FAILED, ChatGptBackend.authStatusForHttpFailure(403, "subscription_sharing_user_not_eligible"));
         assertEquals(ModelBackend.AuthStatus.EXPIRED, ChatGptBackend.authStatusForHttpFailure(401, "invalid_token"));
@@ -582,9 +639,15 @@ class ChatGptBackendTest {
 
     private static final class CapturingHttpClient extends HttpClient {
         private final ArrayDeque<String> responses;
+        private final String catalog;
         private final List<HttpRequest> requests = new ArrayList<>();
 
         private CapturingHttpClient(List<String> responses) {
+            this(null, responses);
+        }
+
+        private CapturingHttpClient(String catalog, List<String> responses) {
+            this.catalog = catalog;
             this.responses = new ArrayDeque<>(responses);
         }
 
@@ -602,6 +665,9 @@ class ChatGptBackendTest {
         @SuppressWarnings("unchecked")
         @Override public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
             requests.add(request);
+            if (catalog != null && request.uri().getPath().endsWith("/models")) {
+                return CompletableFuture.completedFuture((HttpResponse<T>) new StringResponse(request, 200, catalog));
+            }
             String body = responses.removeFirst();
             return CompletableFuture.completedFuture((HttpResponse<T>) new InputStreamResponse(request, body));
         }

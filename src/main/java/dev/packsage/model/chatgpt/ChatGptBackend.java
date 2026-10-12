@@ -36,6 +36,8 @@ public final class ChatGptBackend implements ModelBackend {
     private final Executor executor;
     private final ChatGptAuth auth;
     private final Object exchangeLock = new Object();
+    private final Map<String, Boolean> verifiedImageInput = new LinkedHashMap<>();
+    private final Map<String, Boolean> verifiedHostedSearch = new LinkedHashMap<>();
     private volatile Capabilities capabilities = new Capabilities(List.of(), null, null, null, null, null);
     private volatile CompletionStage<String> signOutStatus = CompletableFuture.completedFuture("Signed out");
     private ExchangeImpl activeExchange;
@@ -55,12 +57,16 @@ public final class ChatGptBackend implements ModelBackend {
     public CompletionStage<AuthState> signIn() {
         return auth.signIn().thenApply(state -> {
             if (state.status() == AuthStatus.SIGNED_IN) {
+                ExchangeImpl previous;
                 synchronized (exchangeLock) {
                     accountEpoch++;
-                    if (activeExchange != null) activeExchange.cancel();
+                    verifiedImageInput.clear();
+                    verifiedHostedSearch.clear();
+                    previous = activeExchange;
                     activeExchange = null;
                     capabilities = new Capabilities(List.of(), null, null, null, null, null);
                 }
+                if (previous != null) previous.cancel();
             }
             return state;
         });
@@ -70,12 +76,16 @@ public final class ChatGptBackend implements ModelBackend {
 
     @Override
     public void signOut() {
+        ExchangeImpl previous;
         synchronized (exchangeLock) {
             accountEpoch++;
-            if (activeExchange != null) activeExchange.cancel();
+            verifiedImageInput.clear();
+            verifiedHostedSearch.clear();
+            previous = activeExchange;
             activeExchange = null;
             capabilities = new Capabilities(List.of(), null, null, null, null, null);
         }
+        if (previous != null) previous.cancel();
         signOutStatus = auth.signOut();
     }
 
@@ -92,7 +102,16 @@ public final class ChatGptBackend implements ModelBackend {
                 if (response.statusCode() / 100 != 2) throw new IllegalStateException(httpFailure(response.statusCode(), response.body(), response.headers().firstValue("x-request-id").orElse(null)));
                 synchronized (exchangeLock) {
                     if (accountEpoch != epoch) throw new java.util.concurrent.CancellationException("model catalog belongs to an inactive account session");
-                    capabilities = capabilitiesFromCatalog(response.body(), capabilities.selectedModelId());
+                    Capabilities found = capabilitiesFromCatalog(response.body(), capabilities.selectedModelId());
+                    List<ModelInfo> models = new ArrayList<>();
+                    for (ModelInfo model : found.modelCatalog()) {
+                        models.add(new ModelInfo(model.id(), model.displayName(), verifiedImageInput.containsKey(model.id())
+                                ? verifiedImageInput.get(model.id()) : model.imageInput(), verifiedHostedSearch.containsKey(model.id())
+                                ? verifiedHostedSearch.get(model.id()) : model.hostedSearch(), model.contextTokens(), model.outputTokens()));
+                    }
+                    ModelInfo selected = models.stream().filter(model -> model.id().equals(found.selectedModelId())).findFirst().orElse(null);
+                    capabilities = new Capabilities(models, selected == null ? null : selected.id(), selected == null ? null : selected.imageInput(),
+                            selected == null ? null : selected.hostedSearch(), selected == null ? null : selected.contextTokens(), selected == null ? null : selected.outputTokens());
                     return capabilities;
                 }
             });
@@ -112,17 +131,51 @@ public final class ChatGptBackend implements ModelBackend {
     @Override
     public Exchange start(Request request, Consumer<Event> events) {
         Request effective = request;
-        if (request.searchMode() != SearchMode.DISABLED && Boolean.FALSE.equals(capabilities.hostedSearch())) {
-            effective = new Request(request.modelId(), request.instructions()
-                    + " Hosted web search was previously rejected for this account and model. Answer from local evidence and state that current public lookup is unavailable.",
-                    request.input(), request.tools(), SearchMode.DISABLED, request.requestId(), request.outputBudget());
-        }
-        ExchangeImpl exchange = new ExchangeImpl(effective, events);
+        Boolean imageInput;
+        Boolean hostedSearch;
+        long requestAccountEpoch;
         synchronized (exchangeLock) {
-            if (activeExchange != null) activeExchange.cancel();
-            activeExchange = exchange;
+            imageInput = verifiedImageInput.get(request.modelId());
+            hostedSearch = verifiedHostedSearch.get(request.modelId());
+            requestAccountEpoch = accountEpoch;
         }
-        exchange.issue(request.input());
+        if (Boolean.FALSE.equals(imageInput)) {
+            List<InputItem> input = new ArrayList<>();
+            for (InputItem item : effective.input()) {
+                if (item instanceof Message message) {
+                    List<Content> content = message.content().stream().filter(part -> !(part instanceof ImageContent)).toList();
+                    if (!content.isEmpty()) input.add(new Message(message.role(), content));
+                } else {
+                    input.add(item);
+                }
+            }
+            effective = new Request(effective.modelId(), effective.instructions()
+                    + " Image input was previously rejected for this account and model. The screenshot was omitted; state this when it affects the answer.",
+                    input, effective.tools(), effective.searchMode(), effective.requestId(), effective.outputBudget());
+        }
+        if (request.searchMode() != SearchMode.DISABLED && Boolean.FALSE.equals(hostedSearch)) {
+            effective = new Request(request.modelId(), effective.instructions()
+                    + " Hosted web search was previously rejected for this account and model. Answer from local evidence and state that current public lookup is unavailable.",
+                    effective.input(), request.tools(), SearchMode.DISABLED, request.requestId(), request.outputBudget());
+        }
+        ExchangeImpl exchange = new ExchangeImpl(effective, events, requestAccountEpoch);
+        ExchangeImpl previous;
+        boolean inactive;
+        synchronized (exchangeLock) {
+            inactive = accountEpoch != requestAccountEpoch;
+            previous = activeExchange;
+            if (!inactive) activeExchange = exchange;
+        }
+        if (inactive) {
+            exchange.cancel();
+            events.accept(new Event(EventKind.FAILED, null, null, List.of(), "request belongs to an inactive account session"));
+            return exchange;
+        }
+        if (previous != null) previous.cancel();
+        synchronized (exchangeLock) {
+            if (activeExchange != exchange) return exchange;
+        }
+        exchange.issue(effective.input());
         return exchange;
     }
 
@@ -145,15 +198,12 @@ public final class ChatGptBackend implements ModelBackend {
             if (response.statusCode() / 100 != 2) {
                 byte[] body = input.readNBytes(MAX_ERROR_BYTES + 1);
                 String responseBody = new String(body, 0, Math.min(body.length, MAX_ERROR_BYTES), StandardCharsets.UTF_8);
-                if (exchange.request.searchMode() != SearchMode.DISABLED
-                        && (responseBody.contains("subscription_sharing_unsupported_capability") || responseBody.contains("unsupported_capability"))) {
-                    Capabilities current = capabilities;
-                    List<ModelInfo> updated = new ArrayList<>();
-                    for (ModelInfo model : current.modelCatalog()) {
-                        updated.add(model.id().equals(exchange.request.modelId())
-                                ? new ModelInfo(model.id(), model.displayName(), model.imageInput(), false, model.contextTokens(), model.outputTokens()) : model);
-                    }
-                    capabilities = new Capabilities(updated, current.selectedModelId(), current.imageInput(), false, current.contextTokens(), current.outputTokens());
+                if (responseBody.contains("subscription_sharing_unsupported_capability") || responseBody.contains("unsupported_capability")) {
+                    boolean searchFailure = exchange.request.searchMode() != SearchMode.DISABLED
+                            && (!exchange.usesImage || responseBody.contains("web search") || responseBody.contains("\"param\":\"tools\""));
+                    boolean imageFailure = exchange.usesImage && (exchange.request.searchMode() == SearchMode.DISABLED
+                            || responseBody.contains("image") || responseBody.contains("\"param\":\"input\""));
+                    recordCapabilities(exchange.request.modelId(), imageFailure ? false : null, searchFailure ? false : null, exchange.requestAccountEpoch);
                 }
                 String detail = httpFailure(response.statusCode(), responseBody,
                         response.headers().firstValue("x-request-id").orElse(null));
@@ -372,6 +422,25 @@ public final class ChatGptBackend implements ModelBackend {
         return AuthStatus.UNKNOWN;
     }
 
+    private void recordCapabilities(String modelId, Boolean imageInput, Boolean hostedSearch, long epoch) {
+        if (imageInput == null && hostedSearch == null) return;
+        synchronized (exchangeLock) {
+            if (accountEpoch != epoch) return;
+            if (imageInput != null) verifiedImageInput.put(modelId, imageInput);
+            if (hostedSearch != null) verifiedHostedSearch.put(modelId, hostedSearch);
+            Capabilities current = capabilities;
+            List<ModelInfo> models = new ArrayList<>();
+            for (ModelInfo model : current.modelCatalog()) {
+                models.add(model.id().equals(modelId)
+                        ? new ModelInfo(model.id(), model.displayName(), imageInput == null ? model.imageInput() : imageInput,
+                        hostedSearch == null ? model.hostedSearch() : hostedSearch, model.contextTokens(), model.outputTokens()) : model);
+            }
+            ModelInfo selected = models.stream().filter(model -> model.id().equals(current.selectedModelId())).findFirst().orElse(null);
+            capabilities = new Capabilities(models, selected == null ? null : selected.id(), selected == null ? null : selected.imageInput(),
+                    selected == null ? null : selected.hostedSearch(), selected == null ? null : selected.contextTokens(), selected == null ? null : selected.outputTokens());
+        }
+    }
+
     private static String httpFailure(int status, String body, String headerRequestId) {
         String code = null;
         String message = null;
@@ -397,6 +466,8 @@ public final class ChatGptBackend implements ModelBackend {
         private final Request request;
         private final Consumer<Event> events;
         private final Object lock = new Object();
+        private final long requestAccountEpoch;
+        private final boolean usesImage;
         private final Set<String> staleCallIds = new LinkedHashSet<>();
         private long generation;
         private boolean cancelled;
@@ -412,9 +483,12 @@ public final class ChatGptBackend implements ModelBackend {
         private InputStream responseInput;
         private ChatGptStream stream;
 
-        private ExchangeImpl(Request request, Consumer<Event> events) {
+        private ExchangeImpl(Request request, Consumer<Event> events, long requestAccountEpoch) {
             this.request = request;
             this.events = events;
+            this.requestAccountEpoch = requestAccountEpoch;
+            usesImage = request.input().stream().anyMatch(item -> item instanceof Message message
+                    && message.content().stream().anyMatch(content -> content instanceof ImageContent));
         }
 
         private void issue(List<InputItem> input) {
@@ -453,6 +527,8 @@ public final class ChatGptBackend implements ModelBackend {
         private void handleEvent(long eventGeneration, Event event) {
             List<InputItem> continuation = null;
             boolean publish = false;
+            Boolean imageCapability = null;
+            Boolean searchCapability = null;
             Event publishedEvent = event;
             synchronized (lock) {
                 if (!isCurrentLocked(eventGeneration)) return;
@@ -468,6 +544,8 @@ public final class ChatGptBackend implements ModelBackend {
                     try {
                         List<InputItem> stepReplay = projectOutputLocked();
                         durableReplay.addAll(stepReplay);
+                        if (usesImage) imageCapability = true;
+                        if (stepReplay.stream().anyMatch(item -> item instanceof WebSearchCall)) searchCapability = true;
                         if (calls.isEmpty()) {
                             terminal = true;
                             publish = true;
@@ -481,17 +559,17 @@ public final class ChatGptBackend implements ModelBackend {
                         publishedEvent = new Event(EventKind.FAILED, null, null, List.of(), "response output cannot be replayed: " + error.getMessage());
                     }
                 } else if (event.kind() == EventKind.FAILED) {
-                    if (request.searchMode() != SearchMode.DISABLED && event.detail() != null
+                    if (event.detail() != null
                             && (event.detail().contains("subscription_sharing_unsupported_capability")
                             || event.detail().contains("unsupported_capability"))) {
-                        Capabilities current = capabilities;
-                        List<ModelInfo> updated = new ArrayList<>();
-                        for (ModelInfo model : current.modelCatalog()) {
-                            updated.add(model.id().equals(request.modelId())
-                                    ? new ModelInfo(model.id(), model.displayName(), model.imageInput(), false, model.contextTokens(), model.outputTokens()) : model);
+                        if (request.searchMode() != SearchMode.DISABLED
+                                && (!usesImage || event.detail().contains("web search") || event.detail().contains("param tools"))) {
+                            searchCapability = false;
                         }
-                        capabilities = new Capabilities(updated, current.selectedModelId(), current.imageInput(), false,
-                                current.contextTokens(), current.outputTokens());
+                        if (usesImage && (request.searchMode() == SearchMode.DISABLED
+                                || event.detail().contains("image") || event.detail().contains("param input"))) {
+                            imageCapability = false;
+                        }
                     }
                     terminal = true;
                     publish = true;
@@ -499,6 +577,7 @@ public final class ChatGptBackend implements ModelBackend {
                     publish = true;
                 }
             }
+            recordCapabilities(request.modelId(), imageCapability, searchCapability, requestAccountEpoch);
             if (publish) events.accept(publishedEvent);
             if (continuation != null) issue(continuation);
             if (publishedEvent.kind() == EventKind.COMPLETED || publishedEvent.kind() == EventKind.FAILED) clearIfFinished();

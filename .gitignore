@@ -1,0 +1,7 @@
+GLOSSARY.md
+CONTEXT.md
+AGENTS.md
+.*
+!.gitignore
+build/
+dist/

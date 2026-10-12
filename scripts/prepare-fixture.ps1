@@ -1,17 +1,32 @@
 [CmdletBinding()]
 param(
     [string]$SourceRoot,
-    [string]$OutputRoot
+    [string]$OutputRoot,
+    [ValidateSet('full', 'no-jei', 'no-ftb-quests', 'no-patchouli')]
+    [string]$Variant = 'full'
 )
 
 $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path $PSScriptRoot -Parent
+$VariantSuffix = if ($Variant -eq 'full') { '' } else { "-$Variant" }
 $SourceRoot = if ($SourceRoot) { $SourceRoot } else { Join-Path $RepoRoot '.superpowers/scratch-artifacts' }
-$OutputRoot = if ($OutputRoot) { $OutputRoot } else { Join-Path $RepoRoot 'instances/packsage-minimal' }
+$OutputRoot = if ($OutputRoot) { $OutputRoot } else { Join-Path $RepoRoot "instances/packsage-minimal$VariantSuffix" }
 $FixtureRoot = Join-Path $RepoRoot 'fixtures/minimal'
 $Manifest = Get-Content (Join-Path $FixtureRoot 'manifest.json') -Raw | ConvertFrom-Json
+$ExcludedArtifacts = switch ($Variant) {
+    'no-jei' { @('jei') }
+    'no-ftb-quests' { @('ftbquests', 'ftblibrary', 'ftbteams') }
+    'no-patchouli' { @('patchouli', 'naturesaura') }
+    default { @() }
+}
+$Artifacts = @($Manifest.artifacts | Where-Object { $ExcludedArtifacts -notcontains $_.id })
+foreach ($ExcludedArtifact in $Manifest.artifacts | Where-Object { $ExcludedArtifacts -contains $_.id }) {
+    if (Test-Path -LiteralPath (Join-Path $OutputRoot "mods/$($ExcludedArtifact.file)")) {
+        throw "Excluded mod is already present in $OutputRoot; use a fresh variant instance."
+    }
+}
 $ToolsRoot = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot '.tools'))
-$ImportRoot = [System.IO.Path]::GetFullPath((Join-Path $ToolsRoot 'fixture-import'))
+$ImportRoot = [System.IO.Path]::GetFullPath((Join-Path $ToolsRoot "fixture-import$VariantSuffix"))
 $ToolsPrefix = $ToolsRoot.TrimEnd('\') + '\'
 if (-not $ImportRoot.StartsWith($ToolsPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Import staging path escaped the repository tools directory: $ImportRoot"
@@ -31,7 +46,7 @@ if (Test-Path -LiteralPath $ImportRoot) {
         throw "Import staging path is not a directory: $ImportRoot"
     }
 }
-$ImportZip = Join-Path $RepoRoot 'dist/packsage-minimal-fixture.zip'
+$ImportZip = Join-Path $RepoRoot "dist/packsage-minimal-fixture$VariantSuffix.zip"
 
 New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $OutputRoot 'mods') | Out-Null
@@ -39,7 +54,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $OutputRoot 'datapacks') | 
 New-Item -ItemType Directory -Force -Path (Join-Path $OutputRoot 'config/ftbquests/quests/chapters') | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $OutputRoot 'resourcepacks') | Out-Null
 
-foreach ($Artifact in $Manifest.artifacts) {
+foreach ($Artifact in $Artifacts) {
     $RelativeSource = $Artifact.source -replace '^\.superpowers/scratch-artifacts[/\\]', ''
     $Source = Join-Path $SourceRoot ($RelativeSource -replace '/', '\')
     if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) {
@@ -92,18 +107,15 @@ New-Item -ItemType Directory -Force -Path (Join-Path $ImportRoot 'overrides') | 
 $CurseForgeManifest = [ordered]@{
     manifestType = 'minecraftModpack'
     manifestVersion = 1
-    name = 'PackSage Minimal Fixture'
+    name = "PackSage Minimal Fixture$VariantSuffix"
     version = '1.0.0'
     author = 'PackSage'
-    files = @(
-        [ordered]@{ projectID = 238222; fileID = 7420587; required = $true },
-        [ordered]@{ projectID = 289412; fileID = 8885017; required = $true },
-        [ordered]@{ projectID = 404465; fileID = 9008089; required = $true },
-        [ordered]@{ projectID = 404468; fileID = 8724782; required = $true },
-        [ordered]@{ projectID = 306770; fileID = 6842247; required = $true },
-        [ordered]@{ projectID = 306626; fileID = 8809415; required = $true },
-        [ordered]@{ projectID = 419699; fileID = 8492726; required = $true }
-    )
+    files = @($Artifacts | ForEach-Object {
+        if ($_.curseforge -notmatch '^curse\.maven:.*-(\d+):(\d+)$') {
+            throw "Invalid pinned CurseForge coordinate for $($_.id)"
+        }
+        [ordered]@{ projectID = [int]$Matches[1]; fileID = [int]$Matches[2]; required = $true }
+    })
     overrides = 'overrides'
     minecraft = [ordered]@{
         version = '1.21.1'
@@ -157,6 +169,6 @@ foreach ($DataFile in $DataFiles) {
 }
 
 Write-Output "Prepared PackSage minimal fixture at $OutputRoot"
-Write-Output "Validated and copied $($Manifest.artifacts.Count) pinned jars"
+Write-Output "Validated and copied $($Artifacts.Count) pinned jars for variant $Variant"
 Write-Output "Datapack, FTB Quests chapter and Patchouli resource override are ready"
 Write-Output "CurseForge import archive: $ImportZip"

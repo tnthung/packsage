@@ -1,0 +1,8 @@
+{
+  "scope": "fixture",
+  "recipes": [
+    {"id": "minecraft:torch", "activity": "ACTIVE", "input": "minecraft:coal", "output": "minecraft:torch", "quantity": 4},
+    {"id": "minecraft:torch", "activity": "SHIPPED", "input": "minecraft:charcoal", "output": "minecraft:torch", "quantity": 4},
+    {"id": "packsage:removed", "activity": "INACTIVE"}
+  ]
+}

@@ -78,7 +78,6 @@ public final class KnowledgeService {
                                 return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
                             }
                             var provider = providers.stream().filter(value -> value.id().equals(record.source().providerId())).findFirst().orElse(null);
-                            if (provider == null) return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null));
                             records.add(record);
                             providersForHandles.add(provider);
                         }
@@ -88,39 +87,76 @@ public final class KnowledgeService {
                     for (var index = 0; index < records.size(); index++) {
                         var selectedIndex = index;
                         refreshed = refreshed.thenCompose(previous -> {
-                            if (previous.coverage() == Evidence.Coverage.ERROR || previous.coverage() == Evidence.Coverage.UNAVAILABLE) {
-                                return CompletableFuture.completedFuture(previous);
-                            }
-                            var queryArguments = Map.of("id", (Evidence.JsonValue) new Evidence.JsonString(
-                                    records.get(selectedIndex).source().sourceHandle()));
+                            var observedRecord = records.get(selectedIndex);
                             CompletionStage<Evidence.Result> current;
-                            try {
-                                current = providersForHandles.get(selectedIndex).query(new Evidence.Query(Evidence.Operation.GET,
-                                        new Evidence.JsonObject(queryArguments), 1, null, null), request.scope());
-                            } catch (RuntimeException failure) {
-                                return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR,
-                                        Evidence.Outcome.ERROR, null));
+                            if (providersForHandles.get(selectedIndex) == null) {
+                                current = CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                                        Evidence.Outcome.UNKNOWN, null));
+                            } else {
+                                var queryArguments = Map.of("id", (Evidence.JsonValue) new Evidence.JsonString(
+                                        observedRecord.source().sourceHandle()));
+                                try {
+                                    current = providersForHandles.get(selectedIndex).query(new Evidence.Query(Evidence.Operation.GET,
+                                            new Evidence.JsonObject(queryArguments), 1, null, null), request.scope());
+                                } catch (RuntimeException failure) {
+                                    current = CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR,
+                                            Evidence.Outcome.ERROR, null));
+                                }
                             }
-                            return current.thenApply(retrieved -> {
-                                if (retrieved.coverage() == Evidence.Coverage.ERROR
+                            return current.handle((retrieved, failure) -> {
+                                Evidence.Coverage failureCoverage = null;
+                                Evidence.Outcome failureOutcome = null;
+                                String failureDetail = null;
+                                Evidence.Record currentRecord = null;
+                                if (failure != null || retrieved == null) {
+                                    failureCoverage = Evidence.Coverage.ERROR;
+                                    failureOutcome = Evidence.Outcome.ERROR;
+                                    failureDetail = "provider progress query failed";
+                                } else if (retrieved.coverage() == Evidence.Coverage.ERROR
                                         || retrieved.coverage() == Evidence.Coverage.UNAVAILABLE) {
-                                    return new Evidence.Result(List.of(), retrieved.coverage(), retrieved.outcome(), null);
+                                    failureCoverage = retrieved.coverage();
+                                    failureOutcome = retrieved.outcome();
+                                    failureDetail = retrieved.coverage() == Evidence.Coverage.UNAVAILABLE
+                                            ? "provider progress is unavailable" : "provider progress query failed";
+                                } else if (retrieved.records().isEmpty()) {
+                                    failureCoverage = retrieved.coverage() == Evidence.Coverage.COMPLETE
+                                            ? Evidence.Coverage.UNAVAILABLE : retrieved.coverage();
+                                    failureOutcome = retrieved.coverage() == Evidence.Coverage.COMPLETE
+                                            ? Evidence.Outcome.UNKNOWN : retrieved.outcome();
+                                    failureDetail = retrieved.coverage() == Evidence.Coverage.COMPLETE
+                                            ? "quest is absent from the current provider snapshot" : "current quest progress is incomplete";
+                                } else if (retrieved.records().size() != 1) {
+                                    failureCoverage = Evidence.Coverage.ERROR;
+                                    failureOutcome = Evidence.Outcome.ERROR;
+                                    failureDetail = "provider returned an invalid quest result";
+                                } else {
+                                    currentRecord = retrieved.records().get(0);
+                                    if (!currentRecord.source().scope().equals(request.scope())
+                                            || !currentRecord.source().providerId().equals(observedRecord.source().providerId())
+                                            || !currentRecord.source().sourceHandle().equals(observedRecord.source().sourceHandle())
+                                            || currentRecord.kind() != Evidence.RecordKind.QUEST) {
+                                        currentRecord = null;
+                                        failureCoverage = Evidence.Coverage.ERROR;
+                                        failureOutcome = Evidence.Outcome.ERROR;
+                                        failureDetail = "provider returned a stale or mismatched quest result";
+                                    }
                                 }
-                                if (retrieved.records().isEmpty()) {
-                                    return retrieved.coverage() == Evidence.Coverage.COMPLETE
-                                            ? new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)
-                                            : new Evidence.Result(List.of(), retrieved.coverage(), retrieved.outcome(), null);
-                                }
-                                if (retrieved.records().size() != 1) {
-                                    return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null);
-                                }
-                                var currentRecord = retrieved.records().get(0);
-                                var observedRecord = records.get(selectedIndex);
-                                if (!currentRecord.source().scope().equals(request.scope())
-                                        || !currentRecord.source().providerId().equals(observedRecord.source().providerId())
-                                        || !currentRecord.source().sourceHandle().equals(observedRecord.source().sourceHandle())
-                                        || currentRecord.kind() != Evidence.RecordKind.QUEST) {
-                                    return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null);
+                                if (failureCoverage != null) {
+                                    var statusHandle = "progress-status:" + observedRecord.source().sourceHandle();
+                                    var payload = new Evidence.JsonObject(Map.of(
+                                            "handle", new Evidence.JsonString(observedRecord.source().sourceHandle()),
+                                            "status", new Evidence.JsonString(failureCoverage.name()),
+                                            "outcome", new Evidence.JsonString(failureOutcome.name()),
+                                            "detail", new Evidence.JsonString(failureDetail)));
+                                    var status = new Evidence.Record(new Evidence.Source(request.scope(),
+                                            observedRecord.source().providerId(), observedRecord.source().providerVersion(), statusHandle,
+                                            request.scope().requestGeneration(), Instant.now(), Evidence.Activity.UNKNOWN,
+                                            failureCoverage, Evidence.Authority.UNKNOWN, List.of("read_progress")),
+                                            Evidence.RecordKind.OTHER, "Quest progress refresh unavailable", payload, List.of());
+                                    var recordsWithStatus = new ArrayList<>(previous.records());
+                                    recordsWithStatus.add(status);
+                                    return new Evidence.Result(recordsWithStatus, Evidence.Coverage.PARTIAL,
+                                            Evidence.Outcome.PARTIAL, null);
                                 }
                                 var refreshedRecords = new ArrayList<>(previous.records());
                                 refreshedRecords.add(currentRecord);

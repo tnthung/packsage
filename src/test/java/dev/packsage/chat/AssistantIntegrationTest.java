@@ -182,8 +182,64 @@ class AssistantIntegrationTest {
         var unavailable = service.execute(new PackSageTools.ReadRequest("read_progress",
                 new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString("ftb_quests:quest"))))), SCOPE))
                 .toCompletableFuture().get();
-        assertEquals(Evidence.Coverage.UNAVAILABLE, unavailable.coverage());
-        assertTrue(unavailable.records().isEmpty());
+        assertEquals(Evidence.Coverage.PARTIAL, unavailable.coverage());
+        assertEquals(Evidence.Outcome.PARTIAL, unavailable.outcome());
+        assertEquals(1, unavailable.records().size());
+        assertEquals(Evidence.Coverage.UNAVAILABLE, unavailable.records().get(0).source().coverage());
+        assertEquals(Evidence.RecordKind.OTHER, unavailable.records().get(0).kind());
+    }
+
+    @Test
+    void readProgressKeepsFreshHandlesWhenAnotherSelectedProviderIsUnavailable() throws Exception {
+        var unavailableInitial = questRecord("quest-a", "ftb_quests", false);
+        var freshInitial = questRecord("quest-b", "other_quests", false);
+        var freshCurrent = questRecord("quest-b", "other_quests", true);
+        var unavailableQueries = new ArrayList<Evidence.Query>();
+        var freshQueries = new ArrayList<Evidence.Query>();
+        KnowledgeProvider unavailableProvider = new Provider("ftb_quests", List.of(unavailableInitial), false) {
+            @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                unavailableQueries.add(query);
+                return query.operation() == Evidence.Operation.SEARCH
+                        ? CompletableFuture.completedFuture(new Evidence.Result(List.of(unavailableInitial), Evidence.Coverage.COMPLETE,
+                        Evidence.Outcome.COMPLETE, null))
+                        : CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                        Evidence.Outcome.UNKNOWN, null));
+            }
+        };
+        KnowledgeProvider freshProvider = new Provider("other_quests", List.of(freshInitial), false) {
+            @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                freshQueries.add(query);
+                return query.operation() == Evidence.Operation.SEARCH
+                        ? CompletableFuture.completedFuture(new Evidence.Result(List.of(freshInitial), Evidence.Coverage.COMPLETE,
+                        Evidence.Outcome.COMPLETE, null))
+                        : CompletableFuture.completedFuture(new Evidence.Result(List.of(freshCurrent), Evidence.Coverage.COMPLETE,
+                        Evidence.Outcome.COMPLETE, null));
+            }
+        };
+        var service = new KnowledgeService(List.of(unavailableProvider, freshProvider), () -> SCOPE,
+                request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                        Evidence.Outcome.UNKNOWN, null)),
+                (identities, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                        Evidence.Outcome.UNKNOWN, null)));
+
+        service.execute(new PackSageTools.ReadRequest("search_pack",
+                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("quest"))), SCOPE))
+                .toCompletableFuture().get();
+        var progress = service.execute(new PackSageTools.ReadRequest("read_progress",
+                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(
+                        new Evidence.JsonString("ftb_quests:quest-a"), new Evidence.JsonString("other_quests:quest-b"))))), SCOPE))
+                .toCompletableFuture().get();
+
+        assertEquals(Evidence.Coverage.PARTIAL, progress.coverage());
+        assertEquals(Evidence.Outcome.PARTIAL, progress.outcome());
+        assertTrue(progress.records().contains(freshCurrent));
+        assertFalse(progress.records().contains(unavailableInitial));
+        var failure = progress.records().stream().filter(record -> record.source().providerId().equals("ftb_quests")).findFirst().orElseThrow();
+        assertEquals(Evidence.RecordKind.OTHER, failure.kind());
+        assertEquals(Evidence.Coverage.UNAVAILABLE, failure.source().coverage());
+        assertEquals("quest-a", ((Evidence.JsonString) failure.payload().values().get("handle")).value());
+        assertEquals(Evidence.Operation.GET, unavailableQueries.get(1).operation());
+        assertEquals(Evidence.Operation.GET, freshQueries.get(1).operation());
     }
 
     @Test
@@ -223,7 +279,11 @@ class AssistantIntegrationTest {
     }
 
     private static Evidence.Record questRecord(boolean completed) {
-        return new Evidence.Record(new Evidence.Source(SCOPE, "ftb_quests", "fixture", "quest", SCOPE.requestGeneration(),
+        return questRecord("quest", "ftb_quests", completed);
+    }
+
+    private static Evidence.Record questRecord(String handle, String provider, boolean completed) {
+        return new Evidence.Record(new Evidence.Source(SCOPE, provider, "fixture", handle, SCOPE.requestGeneration(),
                 Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
                 Evidence.RecordKind.QUEST, "Quest", new Evidence.JsonObject(Map.of("completed", new Evidence.JsonBoolean(completed))), List.of());
     }

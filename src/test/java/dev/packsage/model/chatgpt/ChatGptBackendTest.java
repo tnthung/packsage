@@ -568,6 +568,25 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void streamErrorInsideASuccessfulResponseKeepsTheResponseRequestId() {
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        CapturingHttpClient client = new CapturingHttpClient(List.of(
+                "data: {\"type\":\"error\",\"sequence_number\":1,\"error\":{\"code\":\"server_error\",\"message\":\"Stream broke.\"}}\n\n"));
+        client.streamRequestId = "req_header_1";
+        List<ModelBackend.Event> events = new ArrayList<>();
+
+        new ChatGptBackend(auth, client, Runnable::run).start(new ModelBackend.Request("gpt-5-mini", "Answer from evidence.",
+                List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("question")))),
+                List.of(), ModelBackend.SearchMode.DISABLED, "stream-error", 512), events::add);
+
+        String detail = events.stream().filter(event -> event.kind() == ModelBackend.EventKind.FAILED).findFirst().orElseThrow().detail();
+        assertTrue(detail.startsWith("Response error: server_error: Stream broke."), detail);
+        assertTrue(detail.contains("[request req_header_1]"), detail);
+        assertFalse(detail.contains("access-1"), detail);
+    }
+
+    @Test
     void rejectedHostedSearchFallsBackLocallyWithoutRepeatingTheUnsupportedTool() {
         ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
         auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
@@ -786,6 +805,7 @@ class ChatGptBackendTest {
         private final ArrayDeque<String> responses;
         private final String catalog;
         private final List<HttpRequest> requests = new ArrayList<>();
+        private String streamRequestId;
 
         private CapturingHttpClient(List<String> responses) {
             this(null, responses);
@@ -814,7 +834,7 @@ class ChatGptBackendTest {
                 return CompletableFuture.completedFuture((HttpResponse<T>) new StringResponse(request, 200, catalog));
             }
             String body = responses.removeFirst();
-            return CompletableFuture.completedFuture((HttpResponse<T>) new InputStreamResponse(request, body));
+            return CompletableFuture.completedFuture((HttpResponse<T>) new InputStreamResponse(request, body, streamRequestId));
         }
         @Override public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler, HttpResponse.PushPromiseHandler<T> pushPromiseHandler) {
             return sendAsync(request, responseBodyHandler);
@@ -914,10 +934,12 @@ class ChatGptBackendTest {
         }
     }
 
-    private record InputStreamResponse(HttpRequest request, String content) implements HttpResponse<ByteArrayInputStream> {
+    private record InputStreamResponse(HttpRequest request, String content, String requestId) implements HttpResponse<ByteArrayInputStream> {
         @Override public int statusCode() { return 200; }
         @Override public Optional<HttpResponse<ByteArrayInputStream>> previousResponse() { return Optional.empty(); }
-        @Override public HttpHeaders headers() { return HttpHeaders.of(Map.of(), (name, value) -> true); }
+        @Override public HttpHeaders headers() {
+            return HttpHeaders.of(requestId == null ? Map.of() : Map.of("x-request-id", List.of(requestId)), (name, value) -> true);
+        }
         @Override public ByteArrayInputStream body() { return new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8)); }
         @Override public Optional<SSLSession> sslSession() { return Optional.empty(); }
         @Override public URI uri() { return request.uri(); }

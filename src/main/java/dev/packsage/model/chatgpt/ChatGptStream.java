@@ -14,6 +14,7 @@ import java.util.function.Consumer;
 
 public final class ChatGptStream {
     private static final int MAX_PENDING_BYTES = 1_048_576;
+    private static final int MAX_ERROR_MESSAGE_CHARS = 240;
     private final Consumer<ModelBackend.Event> events;
     private final Consumer<JsonObject> outputItems;
     private final ByteArrayOutputStream pending = new ByteArrayOutputStream();
@@ -167,28 +168,40 @@ public final class ChatGptStream {
             events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), null));
         } else if ("response.failed".equals(type)) {
             JsonObject response = event.has("response") && event.get("response").isJsonObject() ? event.getAsJsonObject("response") : event;
-            JsonObject error = response.has("error") && response.get("error").isJsonObject() ? response.getAsJsonObject("error") : null;
-            String detail = "response failed";
-            if (error != null) {
-                if (error.has("code") && !error.get("code").isJsonNull()) detail += ": " + error.get("code").getAsString();
-                if (error.has("message") && !error.get("message").isJsonNull()) detail += " - " + error.get("message").getAsString();
-                if (error.has("param") && !error.get("param").isJsonNull()) detail += " (param " + error.get("param").getAsString() + ")";
-            }
-            if (event.has("request_id") && !event.get("request_id").isJsonNull()) detail += " [request " + event.get("request_id").getAsString() + "]";
-            fail(detail);
+            JsonObject error = response.has("error") && response.get("error").isJsonObject() ? response.getAsJsonObject("error") : response;
+            fail(errorDetail("Response failed", error, event));
         } else if ("response.incomplete".equals(type)) {
             JsonObject response = event.has("response") && event.get("response").isJsonObject() ? event.getAsJsonObject("response") : event;
             JsonObject incomplete = response.has("incomplete_details") && response.get("incomplete_details").isJsonObject()
                     ? response.getAsJsonObject("incomplete_details") : null;
             fail("response incomplete" + (incomplete != null && incomplete.has("reason") ? ": " + incomplete.get("reason").getAsString() : ""));
         } else if ("error".equals(type)) {
-            String detail = "response error";
-            if (event.has("code") && !event.get("code").isJsonNull()) detail += ": " + event.get("code").getAsString();
-            if (event.has("message") && !event.get("message").isJsonNull()) detail += " - " + event.get("message").getAsString();
-            if (event.has("param") && !event.get("param").isJsonNull()) detail += " (param " + event.get("param").getAsString() + ")";
-            if (event.has("request_id") && !event.get("request_id").isJsonNull()) detail += " [request " + event.get("request_id").getAsString() + "]";
-            fail(detail);
+            JsonObject error = event.has("error") && event.get("error").isJsonObject() ? event.getAsJsonObject("error") : event;
+            fail(errorDetail("Response error", error, event));
         }
+    }
+
+    private static String errorDetail(String prefix, JsonObject error, JsonObject event) {
+        String code = text(error, "code", 100);
+        String message = text(error, "message", MAX_ERROR_MESSAGE_CHARS);
+        String param = text(error, "param", 100);
+        String requestId = text(event, "request_id", 100);
+        if (requestId == null) requestId = text(error, "request_id", 100);
+        StringBuilder detail = new StringBuilder(prefix);
+        if (code == null && message == null) detail.append(": no error detail was provided");
+        if (code != null) detail.append(": ").append(code);
+        if (message != null) detail.append(": ").append(message);
+        if (param != null) detail.append(" (param ").append(param).append(')');
+        if (requestId != null) detail.append(" [request ").append(requestId).append(']');
+        return detail.toString();
+    }
+
+    private static String text(JsonObject object, String name, int limit) {
+        JsonElement value = object.get(name);
+        if (value == null || !value.isJsonPrimitive()) return null;
+        String text = value.getAsString().strip();
+        if (text.isEmpty()) return null;
+        return text.length() > limit ? text.substring(0, limit) + "..." : text;
     }
 
     private void fail(String detail) {

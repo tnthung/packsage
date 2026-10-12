@@ -14,6 +14,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ClientAssistantTest {
     @Test
+    void optionalVersionPinsAcceptOnlyTheTestedVersionWithItsKnownLoaderSuffix() {
+        assertTrue(ClientAssistant.versionMatches("1.21.1-92", "1.21.1-92-NEOFORGE"));
+        assertTrue(ClientAssistant.versionMatches("1.21.1-92", "1.21.1-92"));
+        assertFalse(ClientAssistant.versionMatches("1.21.1-92", "1.21.1-93-NEOFORGE"));
+        assertFalse(ClientAssistant.versionMatches("1.21.1-92", "1.21.1-920-NEOFORGE"));
+        assertFalse(ClientAssistant.versionMatches("1.21.1-92", "1.21.1-92-FORGE"));
+        assertFalse(ClientAssistant.versionMatches("1.21.1-92", "unknown"));
+        assertTrue(ClientAssistant.versionMatches("19.27.0.340", "19.27.0.340"));
+        assertFalse(ClientAssistant.versionMatches("19.27.0.340", "19.27.0.341"));
+        assertTrue(ClientAssistant.versionMatches("2101.1.36", "2101.1.36"));
+        assertFalse(ClientAssistant.versionMatches("2101.1.36", "2101.1.37"));
+    }
+
+    @Test
     void privateWorldIdentityIsOpaqueAndStableWhileKeepingItsLabel() {
         ClientAssistant.CopiedWorld first = new ClientAssistant.CopiedWorld(
                 "private:C:/instances/fixture/saves/Test World", "Test World", true,

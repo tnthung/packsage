@@ -64,6 +64,52 @@ class ChatGptStreamTest {
     }
 
     @Test
+    void nestedStreamErrorShowsCodeAndMessage() {
+        List<ModelBackend.Event> events = new ArrayList<>();
+        ChatGptStream stream = new ChatGptStream(events::add);
+
+        stream.accept(("data: {\"type\":\"error\",\"sequence_number\":3,\"error\":{\"type\":\"invalid_request_error\",\"code\":\"context_length_exceeded\",\"message\":\"Input is too long.\",\"param\":\"input\"}}\n\n")
+                .getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(1, events.size());
+        assertEquals(ModelBackend.EventKind.FAILED, events.getFirst().kind());
+        assertTrue(events.getFirst().detail().startsWith("Response error: context_length_exceeded: Input is too long."),
+                events.getFirst().detail());
+        assertTrue(events.getFirst().detail().contains("(param input)"), events.getFirst().detail());
+    }
+
+    @Test
+    void topLevelStreamErrorKeepsTheSameReadableShape() {
+        List<ModelBackend.Event> events = new ArrayList<>();
+        ChatGptStream stream = new ChatGptStream(events::add);
+
+        stream.accept(("data: {\"type\":\"error\",\"code\":\"server_error\",\"message\":\"Try again.\"}\n\n").getBytes(StandardCharsets.UTF_8));
+
+        assertEquals("Response error: server_error: Try again.", events.getFirst().detail());
+    }
+
+    @Test
+    void streamErrorWithoutDetailsSaysSoAndLongMessagesAreTruncated() {
+        List<ModelBackend.Event> events = new ArrayList<>();
+        new ChatGptStream(events::add).accept("data: {\"type\":\"error\"}\n\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals("Response error: no error detail was provided", events.getFirst().detail());
+
+        List<ModelBackend.Event> longEvents = new ArrayList<>();
+        new ChatGptStream(longEvents::add).accept(("data: {\"type\":\"error\",\"error\":{\"code\":\"x\",\"message\":\""
+                + "m".repeat(2000) + "\"}}\n\n").getBytes(StandardCharsets.UTF_8));
+        assertTrue(longEvents.getFirst().detail().length() <= 400, Integer.toString(longEvents.getFirst().detail().length()));
+        assertTrue(longEvents.getFirst().detail().startsWith("Response error: x: mmm"));
+    }
+
+    @Test
+    void responseFailedReadsTheNestedErrorAndRequestId() {
+        List<ModelBackend.Event> events = new ArrayList<>();
+        new ChatGptStream(events::add).accept(("data: {\"type\":\"response.failed\",\"response\":{\"status\":\"failed\",\"error\":{\"code\":\"server_error\",\"message\":\"Internal failure.\"}},\"request_id\":\"req_1\"}\n\n")
+                .getBytes(StandardCharsets.UTF_8));
+        assertEquals("Response failed: server_error: Internal failure. [request req_1]", events.getFirst().detail());
+    }
+
+    @Test
     void cancellationStopsEventsAlreadyBufferedAfterCancellation() {
         List<ModelBackend.Event> events = new ArrayList<>();
         ChatGptStream stream = new ChatGptStream(events::add);

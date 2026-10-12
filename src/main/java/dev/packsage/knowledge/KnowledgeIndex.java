@@ -115,6 +115,8 @@ public final class KnowledgeIndex {
         }
         if (id != null && !(id.equals(record.source().sourceHandle()) || id.equals(string(record.payload().values().get("id")))
                 || id.equals(string(record.payload().values().get("identity"))))) return false;
+        if (args.get("kinds") instanceof Evidence.JsonArray kinds && !kinds.values().isEmpty()
+                && kinds.values().stream().noneMatch(kind -> record.kind().name().equals(string(kind)))) return false;
         String text = string(args.get("text"));
         if (text != null && !containsText(record, text.toLowerCase(Locale.ROOT))) return false;
         String tag = string(args.get("tag"));

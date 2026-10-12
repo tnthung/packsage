@@ -1,5 +1,6 @@
 package dev.packsage.client;
 
+import dev.packsage.PackSageLog;
 import dev.packsage.chat.AssistantRuntime;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.ConversationStore;
@@ -57,6 +58,7 @@ public final class ClientAssistant {
     private static final String JEI_VERSION = "19.27.0.340";
     private static final String FTB_VERSION = "2101.1.36";
     private static final String PATCHOULI_VERSION = "1.21.1-92";
+    private static final String LOADER_VERSION_SUFFIX = "-NEOFORGE";
 
     public record CopiedWorld(String source, String readableLabel, boolean privateSingleplayer,
                               String serverConfigPath) {
@@ -414,7 +416,8 @@ public final class ClientAssistant {
             }
             return unavailableProvider(status, key + " factory returned no knowledge provider");
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
-            return unavailableProvider(status, key + " factory could not be loaded");
+            PackSageLog.LOGGER.warn("PackSage optional provider {} factory could not be loaded", key, failure);
+            return unavailableProvider(status, key + " factory could not be loaded: " + PackSageLog.describe(failure));
         }
     }
 
@@ -440,15 +443,21 @@ public final class ClientAssistant {
             Object info = container instanceof Optional<?> optional && optional.isPresent()
                     ? optional.get().getClass().getMethod("getModInfo").invoke(optional.get()) : null;
             String actualVersion = info == null ? "unknown" : String.valueOf(info.getClass().getMethod("getVersion").invoke(info));
-            if (!expectedVersion.equals(actualVersion)) {
+            if (!versionMatches(expectedVersion, actualVersion)) {
                 return new OptionalStatus(id, modId, expectedVersion, actualVersion, false, true,
                         modId + " version " + actualVersion + " is outside tested version " + expectedVersion);
             }
             return new OptionalStatus(id, modId, expectedVersion, actualVersion, true, true, modId + " tested version loaded");
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+            PackSageLog.LOGGER.warn("PackSage could not verify the {} version", modId, failure);
             return new OptionalStatus(id, modId, expectedVersion, "unknown", false, false,
                     modId + " version could not be verified");
         }
+    }
+
+    static boolean versionMatches(String expectedVersion, String actualVersion) {
+        if (expectedVersion.equals(actualVersion)) return true;
+        return actualVersion != null && actualVersion.equals(expectedVersion + LOADER_VERSION_SUFFIX);
     }
 
     private void openSettings() {
@@ -486,8 +495,9 @@ public final class ClientAssistant {
                         status.id() + " runtime is unavailable");
             }
             try { return provider.status(); } catch (RuntimeException | LinkageError failure) {
+                PackSageLog.LOGGER.warn("PackSage optional provider {} status failed", status.id(), failure);
                 return new ProviderStatus(Availability.ERROR, status.expectedVersion(),
-                        status.id() + " status failed");
+                        status.id() + " status failed: " + PackSageLog.describe(failure));
             }
         }
 
@@ -499,11 +509,15 @@ public final class ClientAssistant {
             try {
                 CompletionStage<Evidence.Result> result = provider.query(query, scope);
                 return result == null ? statusResult(scope, status.id(), status.expectedVersion(), Evidence.Coverage.ERROR,
-                        status.id() + " returned no result") : result.exceptionally(failure -> statusResultNow(scope,
-                        status.id(), status.expectedVersion(), Evidence.Coverage.ERROR, status.id() + " query failed"));
+                        status.id() + " returned no result") : result.exceptionally(failure -> {
+                    PackSageLog.LOGGER.warn("PackSage optional provider {} query failed", status.id(), failure);
+                    return statusResultNow(scope, status.id(), status.expectedVersion(), Evidence.Coverage.ERROR,
+                            status.id() + " query failed: " + PackSageLog.describe(failure));
+                });
             } catch (RuntimeException | LinkageError failure) {
+                PackSageLog.LOGGER.warn("PackSage optional provider {} query failed", status.id(), failure);
                 return statusResult(scope, status.id(), status.expectedVersion(), Evidence.Coverage.ERROR,
-                        status.id() + " query failed");
+                        status.id() + " query failed: " + PackSageLog.describe(failure));
             }
         }
 
@@ -515,6 +529,7 @@ public final class ClientAssistant {
                         status.id() + " runtime is unavailable");
             }
             try { return provider.open(target, scope); } catch (RuntimeException | LinkageError failure) {
+                PackSageLog.LOGGER.warn("PackSage optional provider {} navigation failed", status.id(), failure);
                 return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, status.id() + " navigation failed");
             }
         }
@@ -566,7 +581,7 @@ public final class ClientAssistant {
         return new Evidence.Result(List.of(record), coverage,
                 coverage == Evidence.Coverage.ERROR ? Evidence.Outcome.ERROR
                         : coverage == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE
-                        : coverage == Evidence.Coverage.PARTIAL ? Evidence.Outcome.PARTIAL : Evidence.Outcome.UNKNOWN, null);
+                        : coverage == Evidence.Coverage.PARTIAL ? Evidence.Outcome.PARTIAL : Evidence.Outcome.UNKNOWN, null, detail);
     }
 
     private static String digest(String value) {

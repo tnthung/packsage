@@ -75,6 +75,25 @@ class PackSageToolsTest {
     }
 
     @Test
+    void serializesResultDetailSoTheModelCanCorrectItself() throws Exception {
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, "cursor does not match this query")));
+
+        var response = tools.execute(new ModelBackend.ToolCall("a", "search_pack", "{\"text\":\"none\"}"), SCOPE)
+                .toCompletableFuture().get();
+
+        assertTrue(response.result().error());
+        var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals("cursor does not match this query", json.get("detail").getAsString());
+
+        var plain = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+        var plainJson = JsonParser.parseString(plain.execute(new ModelBackend.ToolCall("b", "search_pack", "{\"text\":\"none\"}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        assertFalse(plainJson.has("detail"));
+    }
+
+    @Test
     void distinguishesEmptyMatchesFromFailedExtractionAndRejectsForeignScope() throws Exception {
         var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
                 Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));

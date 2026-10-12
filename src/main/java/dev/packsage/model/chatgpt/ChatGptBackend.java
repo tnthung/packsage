@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.packsage.PackSageLog;
 import dev.packsage.model.ModelBackend;
 
 import java.io.IOException;
@@ -240,6 +241,7 @@ public final class ChatGptBackend implements ModelBackend {
                 exchange.transportFailure(generation, detail);
                 return;
             }
+            exchange.recordResponse(generation, response.statusCode(), response.headers().firstValue("x-request-id").orElse(null));
             byte[] buffer = new byte[4096];
             int count;
             while (exchange.isCurrent(generation) && (count = input.read(buffer)) >= 0) {
@@ -512,6 +514,8 @@ public final class ChatGptBackend implements ModelBackend {
         private CompletableFuture<HttpResponse<InputStream>> responseFuture;
         private InputStream responseInput;
         private ChatGptStream stream;
+        private int responseStatus;
+        private String responseRequestId;
 
         private ExchangeImpl(Request request, Consumer<Event> events, long requestAccountEpoch) {
             this.request = request;
@@ -534,7 +538,9 @@ public final class ChatGptBackend implements ModelBackend {
                 outputItems = new ArrayList<>();
                 calls = new LinkedHashMap<>();
                 results = new LinkedHashMap<>();
-                nextStream = new ChatGptStream(event -> handleEvent(nextGeneration, event), item -> captureOutput(nextGeneration, item));
+                responseStatus = 0;
+                responseRequestId = null;
+                nextStream =new ChatGptStream(event -> handleEvent(nextGeneration, event), item -> captureOutput(nextGeneration, item));
                 stream = nextStream;
                 responseFuture = send(request, currentInput);
             }
@@ -589,6 +595,11 @@ public final class ChatGptBackend implements ModelBackend {
                         publishedEvent = new Event(EventKind.FAILED, null, null, List.of(), "response output cannot be replayed: " + error.getMessage());
                     }
                 } else if (event.kind() == EventKind.FAILED) {
+                    String detail = event.detail() == null ? "response failed without detail" : event.detail();
+                    if (responseRequestId != null && !detail.contains("[request ")) detail += " [request " + responseRequestId + "]";
+                    publishedEvent = new Event(EventKind.FAILED, null, null, List.of(), detail);
+                    PackSageLog.LOGGER.warn("PackSage model response failed: HTTP {} request {}: {}", responseStatus,
+                            responseRequestId == null ? "unknown" : responseRequestId, detail);
                     if (event.detail() != null
                             && (event.detail().contains("subscription_sharing_unsupported_capability")
                             || event.detail().contains("unsupported_capability"))) {
@@ -801,11 +812,20 @@ public final class ChatGptBackend implements ModelBackend {
             return !cancelled && !terminal && generation == eventGeneration;
         }
 
+        private void recordResponse(long eventGeneration, int status, String requestId) {
+            synchronized (lock) {
+                if (!isCurrentLocked(eventGeneration)) return;
+                responseStatus = status;
+                responseRequestId = requestId;
+            }
+        }
+
         private void transportFailure(long eventGeneration, String detail) {
             synchronized (lock) {
                 if (!isCurrentLocked(eventGeneration)) return;
                 failLocked(detail);
             }
+            PackSageLog.LOGGER.warn("PackSage model request failed: {}", detail);
             events.accept(new Event(EventKind.FAILED, null, null, List.of(), detail));
             clearIfFinished();
         }

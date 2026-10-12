@@ -64,6 +64,24 @@ class KnowledgeIndexTest {
     }
 
     @Test
+    void kindFilterIsAppliedBeforeTheOffsetSoCursorsCountOnlyMatchingKinds() {
+        var index = new KnowledgeIndex();
+        var recipe = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "recipe:mod:torch", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("fixture")),
+                Evidence.RecordKind.RECIPE, "Torch recipe", new Evidence.JsonObject(Map.of()), List.of());
+        index.replace(new NativeSnapshot(SCOPE, List.of(record("mod:torch", "Torch", "#lights", "a"),
+                record("mod:torchflower", "Torchflower", "#flowers", "b"), recipe)));
+
+        var page = index.search(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(Map.of(
+                "text", new Evidence.JsonString("torch"),
+                "kinds", new Evidence.JsonArray(List.of(new Evidence.JsonString("RECIPE"))))), 1, null, null), SCOPE)
+                .toCompletableFuture().join();
+
+        assertEquals(List.of("recipe:mod:torch"), page.records().stream().map(record -> record.source().sourceHandle()).toList());
+        assertEquals(null, page.nextCursor());
+    }
+
+    @Test
     void emptySnapshotIsUnavailableInsteadOfCompleteNoMatch() {
         var index = new KnowledgeIndex();
         index.replace(new NativeSnapshot(SCOPE, List.of()));

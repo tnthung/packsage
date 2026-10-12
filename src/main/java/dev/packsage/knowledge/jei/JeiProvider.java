@@ -1,5 +1,6 @@
 package dev.packsage.knowledge.jei;
 
+import dev.packsage.PackSageLog;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 
@@ -200,6 +201,7 @@ public final class JeiProvider implements KnowledgeProvider {
             current = refreshSnapshot.get();
             runtimeAvailable = true;
         } catch (RuntimeException failure) {
+            PackSageLog.LOGGER.warn("PackSage JEI snapshot refresh failed", failure);
             current = null;
             runtimeAvailable = false;
         }
@@ -216,7 +218,7 @@ public final class JeiProvider implements KnowledgeProvider {
         Objects.requireNonNull(scope);
         if (!runtimeAvailable) return CompletableFuture.completedFuture(unavailableResult());
         var cursor = parseCursor(query.cursor());
-        if (cursor < 0) return CompletableFuture.completedFuture(errorResult());
+        if (cursor < 0) return CompletableFuture.completedFuture(errorResult("JEI cursor is invalid; repeat the search without a cursor"));
         return CompletableFuture.supplyAsync(() -> snapshots.capture(scope, query), clientExecutor)
                 .handle((snapshot, failure) -> {
                     if (failure != null || !runtimeAvailable || snapshot == null) return unavailableOrError(failure);
@@ -349,19 +351,16 @@ public final class JeiProvider implements KnowledgeProvider {
 
     private Evidence.Result unavailableOrError(Throwable failure) {
         if (!runtimeAvailable) return unavailableResult();
-        return errorResult(failure == null ? null : failure.toString());
+        if (failure != null) PackSageLog.LOGGER.warn("PackSage JEI query failed", failure);
+        return errorResult(failure == null ? "JEI returned no snapshot" : "JEI query failed: " + PackSageLog.describe(failure));
     }
 
     private static Evidence.Result unavailableResult() {
-        return new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null);
-    }
-
-    private static Evidence.Result errorResult() {
-        return errorResult(null);
+        return new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null, "JEI runtime is unavailable");
     }
 
     private static Evidence.Result errorResult(String detail) {
-        return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null);
+        return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, detail);
     }
 
     private static Evidence.NavigationResult navigate(Snapshot snapshot, String handle) {

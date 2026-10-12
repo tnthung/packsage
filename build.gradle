@@ -61,6 +61,7 @@ if (project.hasProperty('packsageBootstrapOnly')) {
     sourceSets.main.java.srcDirs = [sourceSets.main.java.srcDirs, sourceSets.bootstrap.java.srcDirs].flatten()
     sourceSets.main.java.setIncludes([
             'dev/packsage/PackSage.java',
+            'dev/packsage/PackSageLog.java',
             'dev/packsage/knowledge/Evidence.java',
             'dev/packsage/knowledge/KnowledgeProvider.java',
             'dev/packsage/model/ModelBackend.java',

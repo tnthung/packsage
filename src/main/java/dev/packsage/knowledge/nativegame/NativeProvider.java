@@ -1,5 +1,6 @@
 package dev.packsage.knowledge.nativegame;
 
+import dev.packsage.PackSageLog;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeIndex;
 import dev.packsage.knowledge.KnowledgeProvider;
@@ -69,7 +70,8 @@ public final class NativeProvider implements KnowledgeProvider {
         Objects.requireNonNull(identities);
         Objects.requireNonNull(scope);
         if (identities.isEmpty() || identities.size() > 32 || identities.stream().anyMatch(identity -> identity == null || identity.isBlank())) {
-            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null,
+                    "select 1 to 32 non-blank item identities"));
         }
         var requested = List.copyOf(identities);
         return execute(scope, requested, index -> index.search(new Evidence.Query(Evidence.Operation.SEARCH,
@@ -85,11 +87,15 @@ public final class NativeProvider implements KnowledgeProvider {
         try {
             captured = capture(scope, selectedIdentities);
         } catch (RuntimeException failure) {
-            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
+            PackSageLog.LOGGER.warn("PackSage native capture could not start", failure);
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null,
+                    "native capture could not start: " + PackSageLog.describe(failure)));
         }
         return captured.handle((result, failure) -> new CaptureResult(result, failure)).thenApplyAsync(result -> {
+            if (result.failure() != null) PackSageLog.LOGGER.warn("PackSage native capture failed", result.failure());
             if (result.failure() != null || result.captured() == null) return new Indexed(null, 0,
-                    new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
+                    new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, result.failure() == null
+                            ? "native capture returned no snapshot" : "native capture failed: " + PackSageLog.describe(result.failure())));
             if (!scope.equals(activeScope.get())) return new Indexed(result.captured().snapshot(), result.captured().levelToken(),
                     new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null));
             if (result.captured().snapshot() == null || !result.captured().snapshot().scope().equals(scope)) return new Indexed(
@@ -103,8 +109,10 @@ public final class NativeProvider implements KnowledgeProvider {
                 index.replace(result.captured().snapshot());
                 return new Indexed(result.captured().snapshot(), result.captured().levelToken(), operation.apply(index));
             } catch (RuntimeException failure) {
+                PackSageLog.LOGGER.warn("PackSage native index query failed", failure);
                 return new Indexed(result.captured().snapshot(), result.captured().levelToken(),
-                        new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
+                        new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null,
+                                "native index query failed: " + PackSageLog.describe(failure)));
             }
         }, executor).thenCompose(indexed -> publish(indexed, scope, publishSnapshot));
     }
@@ -137,7 +145,9 @@ public final class NativeProvider implements KnowledgeProvider {
                 return indexed.result();
             });
         } catch (RuntimeException failure) {
-            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
+            PackSageLog.LOGGER.warn("PackSage native result could not be published", failure);
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null,
+                    "native result could not be published: " + PackSageLog.describe(failure)));
         }
     }
 

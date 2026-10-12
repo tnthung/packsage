@@ -212,11 +212,19 @@ public final class Evidence {
         }
     }
 
-    public record Result(List<Record> records, Coverage coverage, Outcome outcome, String nextCursor) {
+    public record Result(List<Record> records, Coverage coverage, Outcome outcome, String nextCursor, String detail) {
         public Result {
             records = List.copyOf(records);
             Objects.requireNonNull(coverage);
             Objects.requireNonNull(outcome);
+        }
+
+        public Result(List<Record> records, Coverage coverage, Outcome outcome, String nextCursor) {
+            this(records, coverage, outcome, nextCursor, null);
+        }
+
+        public Result withDetail(String value) {
+            return new Result(records, coverage, outcome, nextCursor, value);
         }
     }
 

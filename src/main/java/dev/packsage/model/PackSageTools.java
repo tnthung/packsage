@@ -45,14 +45,16 @@ public final class PackSageTools {
                 "list_configs", "search_config", "read_config")) {
             var properties = new JsonObject();
             var description = switch (name) {
-                case "search_pack" -> "Search current client-visible pack evidence. Preserve partial coverage and source authority.";
+                case "search_pack" -> "Search current client-visible pack evidence. Preserve partial coverage and source authority. "
+                        + "A non-null nextCursor means more matches may exist; detail explains errors and bounded partial results.";
                 case "read_evidence" -> "Read only previously observed provider-qualified source handles in this request.";
                 case "plan_recipe" -> "Retrieve bounded recipe routes, preserving alternatives, quantities and unknown semantics.";
                 case "read_inventory" -> "Read current player inventory observations for selected item identities.";
                 case "read_progress" -> "Read selected accessible quest handles and observed team progression.";
                 case "list_configs" -> "List accessible observed configuration values and handles; saved and loaded views differ.";
                 case "search_config" -> "Search bounded accessible config keys and comments.";
-                case "read_config" -> "Read a key or bounded section from an observed config handle. No paths, writes or reloads.";
+                case "read_config" -> "Read a key or bounded section from an observed config handle, either a returned reference "
+                        + "config:<owner>:<SCOPE>:<file>#<key> or its entry handle <owner>:<SCOPE>:<file>. No paths, writes or reloads.";
                 default -> throw new IllegalStateException(name);
             };
             if (name.equals("search_pack") || name.equals("search_config")) {
@@ -149,6 +151,7 @@ public final class PackSageTools {
                 json.addProperty("coverage", result.coverage().name());
                 json.addProperty("outcome", result.outcome().name());
                 json.addProperty("nextCursor", result.nextCursor());
+                if (result.detail() != null) json.addProperty("detail", result.detail());
                 var records = new JsonArray();
                 var accepted = new ArrayList<Evidence.Record>();
                 for (var record : result.records()) {

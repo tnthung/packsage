@@ -1,12 +1,16 @@
 package dev.packsage.knowledge;
 
+import dev.packsage.PackSageLog;
 import dev.packsage.model.PackSageTools;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.time.Instant;
 import java.math.BigDecimal;
@@ -17,6 +21,20 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class KnowledgeService {
+    /**
+     * Upper bound on provider page requests made by one search_pack, list_configs or search_config call.
+     * A call stops earlier when it has {@code limit} matching records or every eligible provider is exhausted.
+     * Reaching this bound returns a cursor and a detail so the model can decide whether to continue.
+     */
+    public static final int MAX_PROVIDER_PAGES_PER_CALL = 8;
+    private static final String SCOPE_CHANGED = "evidence scope changed (world, resources or providers reloaded); repeat the lookup";
+    private static final String CONFIG_FORM = "config:<owner>:<SCOPE>:<file>#<key>";
+    private static final Map<String, Set<Evidence.RecordKind>> PROVIDER_KINDS = Map.of(
+            "native", EnumSet.of(Evidence.RecordKind.ITEM, Evidence.RecordKind.BLOCK, Evidence.RecordKind.RECIPE, Evidence.RecordKind.OTHER),
+            "jei", EnumSet.of(Evidence.RecordKind.RECIPE),
+            "ftb_quests", EnumSet.of(Evidence.RecordKind.QUEST),
+            "config", EnumSet.of(Evidence.RecordKind.CONFIG),
+            "patchouli", EnumSet.of(Evidence.RecordKind.GUIDE));
     private final List<KnowledgeProvider> providers;
     private final Supplier<Evidence.Scope> currentScope;
     private final Function<RecipePlan, CompletionStage<Evidence.Result>> planner;
@@ -40,7 +58,7 @@ public final class KnowledgeService {
     }
 
     public CompletionStage<Evidence.Result> execute(PackSageTools.ReadRequest request) {
-        if (!request.scope().equals(currentScope.get())) return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
+        if (!request.scope().equals(currentScope.get())) return failed(SCOPE_CHANGED);
         synchronized (this) {
             if (!request.scope().equals(cacheScope)) {
                 cacheScope = request.scope();
@@ -58,7 +76,8 @@ public final class KnowledgeService {
                         for (var handle : ((Evidence.JsonArray) arguments.get("handles")).values()) {
                             var record = observed.get(((Evidence.JsonString) handle).value());
                             if (record == null || !record.source().scope().equals(request.scope())) {
-                                return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
+                                return failed("handle " + shorten(((Evidence.JsonString) handle).value())
+                                        + " was not observed in this request; use a reference returned by search_pack");
                             }
                             records.add(record);
                         }
@@ -75,7 +94,8 @@ public final class KnowledgeService {
                             var record = observed.get(((Evidence.JsonString) handle).value());
                             if (record == null || !record.source().scope().equals(request.scope())
                                     || record.kind() != Evidence.RecordKind.QUEST) {
-                                return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
+                                return failed("handle " + shorten(((Evidence.JsonString) handle).value())
+                                        + " is not a quest observed in this request; use a QUEST reference returned by search_pack");
                             }
                             var provider = providers.stream().filter(value -> value.id().equals(record.source().providerId())).findFirst().orElse(null);
                             records.add(record);
@@ -99,6 +119,8 @@ public final class KnowledgeService {
                                     current = providersForHandles.get(selectedIndex).query(new Evidence.Query(Evidence.Operation.GET,
                                             new Evidence.JsonObject(queryArguments), 1, null, null), request.scope());
                                 } catch (RuntimeException failure) {
+                                    PackSageLog.LOGGER.warn("PackSage provider {} failed during read_progress",
+                                            providersForHandles.get(selectedIndex).id(), failure);
                                     current = CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR,
                                             Evidence.Outcome.ERROR, null));
                                 }
@@ -109,9 +131,12 @@ public final class KnowledgeService {
                                 String failureDetail = null;
                                 Evidence.Record currentRecord = null;
                                 if (failure != null || retrieved == null) {
+                                    if (failure != null) PackSageLog.LOGGER.warn("PackSage provider {} failed during read_progress",
+                                            observedRecord.source().providerId(), failure);
                                     failureCoverage = Evidence.Coverage.ERROR;
                                     failureOutcome = Evidence.Outcome.ERROR;
-                                    failureDetail = "provider progress query failed";
+                                    failureDetail = failure == null ? "provider progress query failed"
+                                            : "provider progress query failed: " + PackSageLog.describe(failure);
                                 } else if (retrieved.coverage() == Evidence.Coverage.ERROR
                                         || retrieved.coverage() == Evidence.Coverage.UNAVAILABLE) {
                                     failureCoverage = retrieved.coverage();
@@ -156,7 +181,8 @@ public final class KnowledgeService {
                                     var recordsWithStatus = new ArrayList<>(previous.records());
                                     recordsWithStatus.add(status);
                                     return new Evidence.Result(recordsWithStatus, Evidence.Coverage.PARTIAL,
-                                            Evidence.Outcome.PARTIAL, null);
+                                            Evidence.Outcome.PARTIAL, null, previous.detail() == null ? failureDetail
+                                            : previous.detail() + "; " + failureDetail);
                                 }
                                 var refreshedRecords = new ArrayList<>(previous.records());
                                 refreshedRecords.add(currentRecord);
@@ -166,7 +192,7 @@ public final class KnowledgeService {
                                         || retrieved.outcome() != Evidence.Outcome.COMPLETE;
                                 return new Evidence.Result(refreshedRecords,
                                         partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                                        partial ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE, null);
+                                        partial ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE, null, previous.detail());
                             });
                         });
                     }
@@ -178,102 +204,192 @@ public final class KnowledgeService {
                 case "read_inventory" -> result = inventory.apply(((Evidence.JsonArray) arguments.get("identities")).values().stream()
                         .map(value -> ((Evidence.JsonString) value).value()).toList(), request.scope());
                 case "read_config" -> {
+                    var requested = ((Evidence.JsonString) arguments.get("handle")).value();
                     Evidence.Record observedConfig;
-                    synchronized (this) { observedConfig = observed.get(((Evidence.JsonString) arguments.get("handle")).value()); }
-                    if (observedConfig == null || observedConfig.kind() != Evidence.RecordKind.CONFIG) return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
-                    var provider = providers.stream().filter(value -> value.id().equals(observedConfig.source().providerId())).findFirst().orElse(null);
-                    if (provider == null) return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null));
+                    String example = null;
+                    boolean ambiguous = false;
+                    synchronized (this) {
+                        observedConfig = observed.get(requested);
+                        if (observedConfig == null || observedConfig.kind() != Evidence.RecordKind.CONFIG) {
+                            observedConfig = null;
+                            var entries = new LinkedHashMap<String, Evidence.Record>();
+                            var entryHandle = requested.contains("#") ? requested.substring(0, requested.indexOf('#')) : requested;
+                            for (var record : observed.values()) {
+                                if (record.kind() != Evidence.RecordKind.CONFIG || !record.source().scope().equals(request.scope())
+                                        || !(record.payload().values().get("handle") instanceof Evidence.JsonString handle)) continue;
+                                if (example == null) example = record.source().providerId() + ":" + record.source().sourceHandle();
+                                var qualified = record.source().providerId() + ":" + handle.value();
+                                if (entryHandle.equals(handle.value()) || entryHandle.equals(qualified)) entries.putIfAbsent(qualified, record);
+                            }
+                            if (entries.size() == 1) observedConfig = entries.values().iterator().next();
+                            ambiguous = entries.size() > 1;
+                        }
+                    }
+                    if (observedConfig == null) return failed(ambiguous
+                            ? "config handle matches several observed config entries; use the full reference " + CONFIG_FORM
+                            : "unknown config handle; use a reference returned by search_pack or search_config in the form " + CONFIG_FORM
+                            + (example == null ? "" : ", such as " + shorten(example)));
+                    var selectedConfig = observedConfig;
+                    var provider = providers.stream().filter(value -> value.id().equals(selectedConfig.source().providerId())).findFirst().orElse(null);
+                    if (provider == null) return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                            Evidence.Outcome.UNKNOWN, null, "config provider " + selectedConfig.source().providerId() + " is unavailable"));
                     var queryArguments = new LinkedHashMap<String, Evidence.JsonValue>();
-                    queryArguments.put("id", observedConfig.payload().values().get("handle"));
+                    queryArguments.put("id", selectedConfig.payload().values().get("handle"));
                     var key = arguments.get("key");
                     queryArguments.put(key instanceof Evidence.JsonString ? "key" : "text", key instanceof Evidence.JsonString ? key : arguments.get("section"));
                     int limit = arguments.get("limit") instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 16;
                     result = provider.query(new Evidence.Query(key instanceof Evidence.JsonString ? Evidence.Operation.GET : Evidence.Operation.SEARCH,
-                            new Evidence.JsonObject(queryArguments), limit, null, null), request.scope());
+                            new Evidence.JsonObject(queryArguments), limit, null, null), request.scope())
+                            .thenApply(read -> read == null || read.nextCursor() == null ? read
+                                    : new Evidence.Result(read.records(), read.coverage(), read.outcome(), null, read.detail() != null ? read.detail()
+                                    : "more config keys match than this limit returned; read a specific key or raise limit (maximum 64)"));
                 }
                 case "search_pack", "list_configs", "search_config" -> {
                     var signature = new LinkedHashMap<>(arguments);
                     signature.remove("cursor");
+                    signature.remove("limit");
                     Cursor cursor = null;
                     if (arguments.get("cursor") instanceof Evidence.JsonString text) {
                         synchronized (this) { cursor = cursors.get(text.value()); }
-                        if (cursor == null || !cursor.scope().equals(request.scope()) || !cursor.tool().equals(request.tool())
-                                || !cursor.arguments().equals(signature)) return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
+                        if (cursor == null) return failed("unknown or expired cursor; repeat the search without a cursor");
+                        if (!cursor.scope().equals(request.scope())) return failed("cursor belongs to an earlier evidence scope; repeat the search without a cursor");
+                        if (!cursor.tool().equals(request.tool()) || !cursor.arguments().equals(signature)) {
+                            return failed("cursor does not match this query; reuse it only with the same tool, text and kinds");
+                        }
                     }
                     int limit = arguments.get("limit") instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 16;
-                    result = search(request, signature, cursor == null ? 0 : cursor.providerIndex(), cursor == null ? null : cursor.providerCursor(),
-                            limit, new ArrayList<>(), false);
+                    var selectedKinds = EnumSet.noneOf(Evidence.RecordKind.class);
+                    if (signature.get("kinds") instanceof Evidence.JsonArray kinds) {
+                        for (var kind : kinds.values()) selectedKinds.add(Evidence.RecordKind.valueOf(((Evidence.JsonString) kind).value()));
+                    }
+                    result = search(request, signature, selectedKinds, cursor == null ? 0 : cursor.providerIndex(),
+                            cursor == null ? null : cursor.providerCursor(), limit, new ArrayList<>(), 0, false, 0, new ArrayList<>());
                 }
-                default -> { return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null)); }
+                default -> { return failed("unknown read tool " + shorten(request.tool())); }
             }
             return result.handle((retrieved, failure) -> {
-                if (failure != null || retrieved == null || !request.scope().equals(currentScope.get())
+                if (failure != null) {
+                    PackSageLog.LOGGER.warn("PackSage tool {} failed", request.tool(), failure);
+                    return error(request.tool() + " failed: " + PackSageLog.describe(failure));
+                }
+                if (retrieved == null) return error(request.tool() + " returned no result");
+                if (!request.scope().equals(currentScope.get())
                         || retrieved.records().stream().anyMatch(record -> !record.source().scope().equals(request.scope()))) {
-                    return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null);
+                    return error(SCOPE_CHANGED);
                 }
                 synchronized (this) {
-                    if (!request.scope().equals(cacheScope) || !request.scope().equals(currentScope.get())) return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null);
+                    if (!request.scope().equals(cacheScope) || !request.scope().equals(currentScope.get())) return error(SCOPE_CHANGED);
                     for (var record : retrieved.records()) {
                         observed.put(record.source().providerId() + ":" + record.source().sourceHandle(), record);
                         while (observed.size() > 512) observed.remove(observed.keySet().iterator().next());
                     }
                 }
+                if (retrieved.detail() == null && retrieved.coverage() == Evidence.Coverage.UNAVAILABLE) {
+                    return retrieved.withDetail(request.tool() + " evidence is unavailable in the current world or provider state");
+                }
+                if (retrieved.detail() == null && retrieved.outcome() == Evidence.Outcome.ERROR) {
+                    return retrieved.withDetail(request.tool() + " failed in its provider without further detail");
+                }
                 return retrieved;
             });
         } catch (RuntimeException failure) {
-            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
+            PackSageLog.LOGGER.warn("PackSage tool {} rejected its arguments", request.tool(), failure);
+            return failed("invalid arguments for " + request.tool() + ": " + PackSageLog.describe(failure));
         }
     }
 
+    private static Evidence.Result error(String detail) {
+        return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, detail);
+    }
+
+    private static CompletionStage<Evidence.Result> failed(String detail) {
+        return CompletableFuture.completedFuture(error(detail));
+    }
+
+    private static String shorten(String value) {
+        return value.length() > 200 ? value.substring(0, 200) + "..." : value;
+    }
+
+    private boolean eligible(PackSageTools.ReadRequest request, Set<Evidence.RecordKind> selectedKinds, KnowledgeProvider provider) {
+        if (!request.tool().equals("search_pack")) return provider.id().equals("config");
+        if (selectedKinds.isEmpty()) return true;
+        var produced = PROVIDER_KINDS.get(provider.id());
+        return produced == null || produced.stream().anyMatch(selectedKinds::contains);
+    }
+
+    private static boolean statusRecord(Evidence.Record record) {
+        return record.source().sourceHandle().startsWith("status:");
+    }
+
     private CompletionStage<Evidence.Result> search(PackSageTools.ReadRequest request, Map<String, Evidence.JsonValue> signature,
-                                                    int providerIndex, String providerCursor, int limit,
-                                                    List<Evidence.Record> records, boolean partial) {
-        if (!request.scope().equals(currentScope.get())) return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
-        if (providerIndex == providers.size()) return CompletableFuture.completedFuture(new Evidence.Result(records,
-                partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, partial ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE, null));
+                                                    Set<Evidence.RecordKind> selectedKinds, int providerIndex, String providerCursor,
+                                                    int limit, List<Evidence.Record> records, int matched, boolean partial,
+                                                    int pages, List<String> notes) {
+        if (!request.scope().equals(currentScope.get())) return failed(SCOPE_CHANGED);
+        if (providerCursor == null) {
+            while (providerIndex < providers.size() && !eligible(request, selectedKinds, providers.get(providerIndex))) providerIndex++;
+        }
+        if (providerIndex >= providers.size()) return CompletableFuture.completedFuture(new Evidence.Result(records,
+                partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, partial ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE,
+                null, notes.isEmpty() ? null : String.join("; ", notes)));
+        if (matched >= limit || pages >= MAX_PROVIDER_PAGES_PER_CALL) {
+            boolean bound = matched < limit;
+            if (bound) notes.add(matched == 0
+                    ? "no matching records within the search work bound of " + MAX_PROVIDER_PAGES_PER_CALL
+                    + " provider pages; more provider pages remain, so pass nextCursor to continue or narrow text or kinds"
+                    : "search work bound of " + MAX_PROVIDER_PAGES_PER_CALL + " provider pages reached with " + matched
+                    + " matching records; pass nextCursor to continue");
+            var token = UUID.randomUUID().toString();
+            synchronized (this) {
+                if (!request.scope().equals(cacheScope)) return failed(SCOPE_CHANGED);
+                cursors.put(token, new Cursor(request.tool(), Map.copyOf(signature), request.scope(), providerIndex, providerCursor));
+                while (cursors.size() > 256) cursors.remove(cursors.keySet().iterator().next());
+            }
+            boolean incomplete = partial || bound;
+            return CompletableFuture.completedFuture(new Evidence.Result(records, incomplete ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                    incomplete ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE, token, notes.isEmpty() ? null : String.join("; ", notes)));
+        }
         var provider = providers.get(providerIndex);
-        if (!request.tool().equals("search_pack") && !provider.id().equals("config")) return search(request, signature, providerIndex + 1, null, limit, records, partial);
         var arguments = new LinkedHashMap<String, Evidence.JsonValue>();
         arguments.put("text", signature.getOrDefault("text", new Evidence.JsonString("")));
+        if (!selectedKinds.isEmpty()) arguments.put("kinds", signature.get("kinds"));
         CompletionStage<Evidence.Result> page;
         try {
             page = provider.query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(arguments),
-                    Math.max(1, limit - records.size()), providerCursor == null ? null : request.scope(), providerCursor), request.scope());
+                    Math.max(1, limit - matched), providerCursor == null ? null : request.scope(), providerCursor), request.scope());
         } catch (RuntimeException failure) {
             page = CompletableFuture.failedFuture(failure);
         }
+        int currentProvider = providerIndex;
         return page.handle((result, failure) -> {
             if (failure != null || result == null) {
+                if (failure != null) PackSageLog.LOGGER.warn("PackSage provider {} failed during {}", provider.id(), request.tool(), failure);
+                var detail = failure == null ? provider.id() + " returned no result"
+                        : provider.id() + " extraction failed: " + PackSageLog.describe(failure);
+                notes.add(detail);
                 return new Evidence.Result(List.of(new Evidence.Record(new Evidence.Source(request.scope(), provider.id(),
                         "unknown", "status:" + provider.id(), request.scope().requestGeneration(), Instant.now(), Evidence.Activity.UNKNOWN,
                         Evidence.Coverage.ERROR, Evidence.Authority.UNKNOWN, List.of()), Evidence.RecordKind.OTHER,
-                        provider.id() + " extraction failed", new Evidence.JsonObject(Map.of("detail", new Evidence.JsonString("provider extraction failed"))), List.of())),
+                        provider.id() + " extraction failed", new Evidence.JsonObject(Map.of("detail", new Evidence.JsonString(detail))), List.of())),
                         Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null);
             }
+            if (result.detail() != null && result.outcome() == Evidence.Outcome.ERROR) notes.add(provider.id() + ": " + result.detail());
             return result;
         }).thenCompose(pageResult -> {
-            if (!request.scope().equals(currentScope.get()) || pageResult.records().stream().anyMatch(record -> !record.source().scope().equals(request.scope()))) return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
-            var selectedKinds = signature.get("kinds") instanceof Evidence.JsonArray kinds ? kinds.values() : List.<Evidence.JsonValue>of();
+            if (!request.scope().equals(currentScope.get()) || pageResult.records().stream().anyMatch(record -> !record.source().scope().equals(request.scope()))) return failed(SCOPE_CHANGED);
+            int found = matched;
             for (var record : pageResult.records()) {
-                if ((selectedKinds.isEmpty() || selectedKinds.stream().anyMatch(kind -> ((Evidence.JsonString) kind).value().equals(record.kind().name())))
-                        && records.size() < limit) records.add(record);
+                if (statusRecord(record)) {
+                    records.add(record);
+                } else if ((selectedKinds.isEmpty() || selectedKinds.contains(record.kind())) && found < limit) {
+                    records.add(record);
+                    found++;
+                }
             }
             boolean incomplete = partial || pageResult.coverage() != Evidence.Coverage.COMPLETE;
-            if (records.size() >= limit || pageResult.nextCursor() != null) {
-                int nextProvider = pageResult.nextCursor() == null ? providerIndex + 1 : providerIndex;
-                String token = null;
-                if (nextProvider < providers.size()) {
-                    token = UUID.randomUUID().toString();
-                    synchronized (this) {
-                        if (!request.scope().equals(cacheScope)) return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
-                        cursors.put(token, new Cursor(request.tool(), Map.copyOf(signature), request.scope(), nextProvider, pageResult.nextCursor()));
-                        while (cursors.size() > 256) cursors.remove(cursors.keySet().iterator().next());
-                    }
-                }
-                return CompletableFuture.completedFuture(new Evidence.Result(records, incomplete ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                        incomplete ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE, token));
-            }
-            return search(request, signature, providerIndex + 1, null, limit, records, incomplete);
+            return pageResult.nextCursor() != null
+                    ? search(request, signature, selectedKinds, currentProvider, pageResult.nextCursor(), limit, records, found, incomplete, pages + 1, notes)
+                    : search(request, signature, selectedKinds, currentProvider + 1, null, limit, records, found, incomplete, pages + 1, notes);
         });
     }
 

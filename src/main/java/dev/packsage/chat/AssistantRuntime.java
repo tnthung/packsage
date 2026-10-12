@@ -181,10 +181,28 @@ public final class AssistantRuntime implements ChatActions {
         try {
             attempt = backend.signIn();
         } catch (RuntimeException failure) {
-            finishSignIn(epoch, null, failure);
+            finishSignIn(epoch, null, failure, false);
             return;
         }
-        attempt.whenCompleteAsync((state, failure) -> finishSignIn(epoch, state, failure), clientExecutor);
+        attempt.whenCompleteAsync((state, failure) -> finishSignIn(epoch, state, failure, false), clientExecutor);
+    }
+
+    public void restoreSession() {
+        long epoch;
+        synchronized (stateLock) {
+            if (signIn != ChatContracts.SignInState.SIGNED_OUT) return;
+            epoch = ++authEpoch;
+            signIn = ChatContracts.SignInState.SIGNING_IN;
+        }
+        publishCurrentView(worldEpoch);
+        CompletionStage<ModelBackend.AuthState> attempt;
+        try {
+            attempt = backend.restoreSession();
+        } catch (RuntimeException failure) {
+            finishSignIn(epoch, null, failure, true);
+            return;
+        }
+        attempt.whenCompleteAsync((state, failure) -> finishSignIn(epoch, state, failure, true), clientExecutor);
     }
 
     @Override
@@ -419,10 +437,12 @@ public final class AssistantRuntime implements ChatActions {
         });
     }
 
-    private void finishSignIn(long epoch, ModelBackend.AuthState state, Throwable failure) {
+    private void finishSignIn(long epoch, ModelBackend.AuthState state, Throwable failure, boolean restore) {
         synchronized (stateLock) {
             if (authEpoch != epoch || signIn != ChatContracts.SignInState.SIGNING_IN) return;
-            if (failure != null) {
+            if (restore && (failure != null || state == null || state.status() != ModelBackend.AuthStatus.SIGNED_IN)) {
+                signIn = ChatContracts.SignInState.SIGNED_OUT;
+            } else if (failure != null) {
                 signIn = ChatContracts.SignInState.FAILED;
                 runtimeErrors.add("Sign-in failed: " + failureMessage(failure));
             } else if (state == null || state.status() == ModelBackend.AuthStatus.FAILED
@@ -438,32 +458,46 @@ public final class AssistantRuntime implements ChatActions {
             }
         }
         publishCurrentView(worldEpoch);
-        if (failure == null && state != null && state.status() == ModelBackend.AuthStatus.SIGNED_IN) loadCapabilities(epoch);
+        if (failure == null && state != null && state.status() == ModelBackend.AuthStatus.SIGNED_IN) loadCapabilities(epoch, restore);
     }
 
-    private void loadCapabilities(long epoch) {
+    private void loadCapabilities(long epoch, boolean restored) {
         CompletionStage<ModelBackend.Capabilities> loading;
         try {
             loading = backend.capabilities();
         } catch (RuntimeException failure) {
-            finishCapabilities(epoch, null, failure);
+            finishCapabilities(epoch, null, failure, restored);
             return;
         }
-        loading.whenCompleteAsync((found, failure) -> finishCapabilities(epoch, found, failure), clientExecutor);
+        loading.whenCompleteAsync((found, failure) -> finishCapabilities(epoch, found, failure, restored), clientExecutor);
     }
 
-    private void finishCapabilities(long epoch, ModelBackend.Capabilities found, Throwable failure) {
+    private void finishCapabilities(long epoch, ModelBackend.Capabilities found, Throwable failure, boolean restored) {
+        boolean stillSaved = true;
+        if (restored && (failure != null || found == null)) {
+            try {
+                ModelBackend.AuthState saved = backend.restoreSession().toCompletableFuture().getNow(null);
+                stillSaved = saved != null && saved.status() == ModelBackend.AuthStatus.SIGNED_IN;
+            } catch (RuntimeException ignored) {
+                stillSaved = false;
+            }
+        }
         synchronized (stateLock) {
             if (authEpoch != epoch || signIn != ChatContracts.SignInState.SIGNED_IN) return;
-            if (failure != null || found == null) {
+            if (!stillSaved) {
+                signIn = ChatContracts.SignInState.SIGNED_OUT;
+                capabilities = new ModelBackend.Capabilities(List.of(), null, null, null, null, null);
+                runtimeErrors.add("Saved sign-in is no longer valid; sign in again");
+            } else if (failure != null || found == null) {
                 runtimeErrors.add("Model catalog unavailable: " + failureMessage(failure == null
                         ? new IllegalStateException("empty catalog response") : failure));
                 return;
-            }
-            capabilities = found;
-            if (found.selectedModelId() == null || found.modelCatalog().stream()
-                    .noneMatch(model -> model.id().equals(found.selectedModelId()))) {
-                runtimeErrors.add("No selected model is available in the account model catalog");
+            } else {
+                capabilities = found;
+                if (found.selectedModelId() == null || found.modelCatalog().stream()
+                        .noneMatch(model -> model.id().equals(found.selectedModelId()))) {
+                    runtimeErrors.add("No selected model is available in the account model catalog");
+                }
             }
         }
         publishCurrentView(worldEpoch);

@@ -420,6 +420,32 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void restoreSessionReportsSavedCredentialWithoutOpeningBrowser() {
+        Path credentials = temporaryDirectory.resolve("credentials.json");
+        new ChatGptAuth(credentials, signedOutFlow()).saveCredential(credential("access-1", "refresh-1", 0));
+        AtomicInteger opens = new AtomicInteger();
+        ChatGptAuth auth = new ChatGptAuth(credentials, new StringHttpClient(500, "unused"), uri -> opens.incrementAndGet());
+
+        ModelBackend.AuthState restored = new ChatGptBackend(auth, new StringHttpClient(500, "unused"), Runnable::run)
+                .restoreSession().toCompletableFuture().join();
+
+        assertEquals(ModelBackend.AuthStatus.SIGNED_IN, restored.status());
+        assertEquals(0, opens.get());
+    }
+
+    @Test
+    void restoreSessionStaysSignedOutWithoutUsableCredential() throws Exception {
+        Path missing = temporaryDirectory.resolve("missing.json");
+        assertEquals(ModelBackend.AuthStatus.SIGNED_OUT, new ChatGptBackend(new ChatGptAuth(missing, signedOutFlow()),
+                new StringHttpClient(500, "unused"), Runnable::run).restoreSession().toCompletableFuture().join().status());
+
+        Path garbage = temporaryDirectory.resolve("garbage.json");
+        Files.writeString(garbage, "not json");
+        assertEquals(ModelBackend.AuthStatus.SIGNED_OUT, new ChatGptBackend(new ChatGptAuth(garbage, signedOutFlow()),
+                new StringHttpClient(500, "unused"), Runnable::run).restoreSession().toCompletableFuture().join().status());
+    }
+
+    @Test
     void returningCallbackRejectsADifferentClientId() throws Exception {
         Path credentials = temporaryDirectory.resolve("credentials.json");
         new ChatGptAuth(credentials, signedOutFlow()).saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));

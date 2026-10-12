@@ -126,6 +126,7 @@ public final class ClientAssistant {
                 model -> model.outputTokens() == null ? 4096 : Math.min(4096, model.outputTokens()),
                 ignored -> { }, this::openExternal);
         runtime.setSettings(settings);
+        runtime.restoreSession();
 
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post ignored) -> tick());
         NeoForge.EVENT_BUS.addListener((RenderGuiEvent.Post ignored) -> runtime.onRenderGuiPost());

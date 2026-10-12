@@ -269,6 +269,105 @@ class AssistantRuntimeTest {
         assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("world history is still loading")));
     }
 
+    @Test
+    void restoredSessionReachesSignedInAndLoadsCatalogWithoutSignInFlow() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                PackSageSettings.defaults(), model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+
+        runtime.restoreSession();
+        assertEquals(ChatContracts.SignInState.SIGNING_IN, runtime.view().signIn());
+        backend.restore.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+
+        assertEquals(ChatContracts.SignInState.SIGNED_IN, runtime.view().signIn());
+        assertEquals(0, backend.signIns);
+        assertTrue(runtime.view().errors().isEmpty(), runtime.view().errors().toString());
+        runtime.send("question", false, false);
+        assertEquals(1, backend.starts, runtime.view().errors().toString());
+    }
+
+    @Test
+    void restoreWithoutSavedCredentialStaysSignedOutWithoutError() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                PackSageSettings.defaults(), model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+
+        runtime.restoreSession();
+        backend.restore.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_OUT, null, null));
+
+        assertEquals(ChatContracts.SignInState.SIGNED_OUT, runtime.view().signIn());
+        assertTrue(runtime.view().errors().isEmpty(), runtime.view().errors().toString());
+        assertEquals(0, backend.signIns);
+    }
+
+    @Test
+    void signOutRacingRestoreWinsAndLateRestoreDoesNotResurrectSession() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                PackSageSettings.defaults(), model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+
+        runtime.restoreSession();
+        runtime.signOut();
+        backend.restore.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+
+        assertEquals(ChatContracts.SignInState.SIGNED_OUT, runtime.view().signIn());
+        assertEquals(0, backend.catalogLoads);
+    }
+
+    @Test
+    void cancelSignInRacingRestoreWins() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                PackSageSettings.defaults(), model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+
+        runtime.restoreSession();
+        runtime.cancelSignIn();
+        backend.restore.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+
+        assertEquals(ChatContracts.SignInState.SIGNED_OUT, runtime.view().signIn());
+        assertEquals(0, backend.catalogLoads);
+    }
+
+    @Test
+    void rejectedRestoredCredentialReturnsToSignedOutSoSignInCanRestart() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                PackSageSettings.defaults(), model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+
+        runtime.restoreSession();
+        backend.restore.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.restore = CompletableFuture.completedFuture(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_OUT, null, null));
+        backend.catalog.completeExceptionally(new IllegalStateException("refresh rejected"));
+
+        assertEquals(ChatContracts.SignInState.SIGNED_OUT, runtime.view().signIn());
+        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("sign in again")));
+        runtime.signIn();
+        assertEquals(1, backend.signIns);
+        assertEquals(ChatContracts.SignInState.SIGNING_IN, runtime.view().signIn());
+    }
+
+    @Test
+    void transientCatalogFailureOfRestoredSessionKeepsSignedInWithError() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                PackSageSettings.defaults(), model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+
+        runtime.restoreSession();
+        backend.restore.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.completeExceptionally(new IllegalStateException("network down"));
+
+        assertEquals(ChatContracts.SignInState.SIGNED_IN, runtime.view().signIn());
+        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("Model catalog unavailable")));
+    }
+
     private static java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory() {
         return scope -> new GameplayContextCapture(
                 () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
@@ -341,6 +440,9 @@ class AssistantRuntimeTest {
 
     private static final class FakeBackend implements ModelBackend {
         private final CompletableFuture<AuthState> signIn = new CompletableFuture<>();
+        private CompletableFuture<AuthState> restore = new CompletableFuture<>();
+        private int signIns;
+        private int catalogLoads;
         private final CompletableFuture<Capabilities> catalog = new CompletableFuture<>();
         private final List<Request> requests = new ArrayList<>();
         private java.util.function.Consumer<Event> events;
@@ -349,7 +451,13 @@ class AssistantRuntimeTest {
 
         @Override
         public CompletionStage<AuthState> signIn() {
+            signIns++;
             return signIn;
+        }
+
+        @Override
+        public CompletionStage<AuthState> restoreSession() {
+            return restore;
         }
 
         @Override
@@ -363,6 +471,7 @@ class AssistantRuntimeTest {
 
         @Override
         public CompletionStage<Capabilities> capabilities() {
+            catalogLoads++;
             return catalog;
         }
 

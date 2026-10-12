@@ -219,6 +219,10 @@ public interface ModelBackend {
 
     CompletionStage<AuthState> signIn();
 
+    default CompletionStage<AuthState> restoreSession() {
+        return java.util.concurrent.CompletableFuture.completedFuture(new AuthState(AuthStatus.SIGNED_OUT, null, null));
+    }
+
     void cancelSignIn();
 
     void signOut();

@@ -72,6 +72,16 @@ public final class ChatGptBackend implements ModelBackend {
         });
     }
 
+    @Override
+    public CompletionStage<AuthState> restoreSession() {
+        ChatGptAuth.Credential saved = auth.credential();
+        if (saved == null || !ChatGptAuth.hasDirectScope(saved.grantedScopes())
+                || saved.refreshToken() == null || saved.refreshToken().isBlank()) {
+            return CompletableFuture.completedFuture(new AuthState(AuthStatus.SIGNED_OUT, null, null));
+        }
+        return CompletableFuture.completedFuture(new AuthState(AuthStatus.SIGNED_IN, saved.subject(), "Restored saved ChatGPT sign-in"));
+    }
+
     @Override public void cancelSignIn() { auth.cancelSignIn(); }
 
     @Override

@@ -374,7 +374,7 @@ public final class ConversationStore {
                 action.addProperty("url", find.url());
                 action.addProperty("pattern", find.pattern());
             }
-            value.add("action", action);
+            if (search.action() != null) value.add("action", action);
         }
         return value;
     }
@@ -497,6 +497,10 @@ public final class ConversationStore {
                     content);
         }
         if ("webSearchCall".equals(type)) {
+            if (!value.has("action") || value.get("action").isJsonNull()) {
+                return new dev.packsage.model.ModelBackend.WebSearchCall(value.get("id").getAsString(),
+                        dev.packsage.model.ModelBackend.WebSearchStatus.valueOf(value.get("status").getAsString()), null);
+            }
             JsonObject action = value.getAsJsonObject("action");
             dev.packsage.model.ModelBackend.WebSearchAction searchAction;
             if ("search".equals(action.get("type").getAsString())) {

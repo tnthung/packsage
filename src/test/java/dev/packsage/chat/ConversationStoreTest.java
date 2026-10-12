@@ -43,6 +43,7 @@ class ConversationStoreTest {
                 new ModelBackend.ToolResult("call-1", "{\"ok\":true}", false),
                 new ModelBackend.WebSearchCall("search-1", ModelBackend.WebSearchStatus.COMPLETED,
                         new ModelBackend.OpenPageAction("https://example.test")),
+                new ModelBackend.WebSearchCall("search-2", ModelBackend.WebSearchStatus.FAILED, null),
                 new ModelBackend.AssistantOutput("message-1", ModelBackend.OutputStatus.COMPLETED,
                         ModelBackend.OutputPhase.FINAL_ANSWER,
                         List.of(new ModelBackend.OutputText("Here.", List.of())))), context, List.of(source),

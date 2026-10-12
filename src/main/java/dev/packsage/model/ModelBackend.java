@@ -114,7 +114,6 @@ public interface ModelBackend {
         public WebSearchCall {
             if (id == null || id.isBlank()) throw new IllegalArgumentException("web search call id is required");
             Objects.requireNonNull(status);
-            Objects.requireNonNull(action);
         }
     }
 

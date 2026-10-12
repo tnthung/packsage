@@ -81,6 +81,7 @@ class ChatContractsTest {
         assertEquals("packsage", new ModelBackend.ToolCall("call-1", "packsage", "lookup", "{}").namespace());
         assertEquals(null, new ModelBackend.ToolCall("call-1", "lookup", "{}").namespace());
         assertEquals(List.of(), new ModelBackend.SearchAction(null, List.of(), List.of()).queries());
+        assertEquals(null, new ModelBackend.WebSearchCall("search", ModelBackend.WebSearchStatus.FAILED, null).action());
         assertEquals(null, new ModelBackend.Capabilities(List.of(selected), null,
                 null, null, null, null).selectedModelId());
     }

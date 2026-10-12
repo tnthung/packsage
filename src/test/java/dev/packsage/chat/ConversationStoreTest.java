@@ -39,7 +39,7 @@ class ConversationStoreTest {
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("pack"));
         ChatContracts.Turn turn = new ChatContracts.Turn(new ChatContracts.RequestId("request-1"), "Where?",
                 "Here.", List.of(new ModelBackend.EncryptedReasoning("reasoning-1", "encrypted", "[]"),
-                new ModelBackend.ToolCall("call-1", "lookup", "{}"),
+                new ModelBackend.ToolCall("call-1", "packsage", "lookup", "{}"),
                 new ModelBackend.ToolResult("call-1", "{\"ok\":true}", false),
                 new ModelBackend.WebSearchCall("search-1", ModelBackend.WebSearchStatus.COMPLETED,
                         new ModelBackend.OpenPageAction("https://example.test")),

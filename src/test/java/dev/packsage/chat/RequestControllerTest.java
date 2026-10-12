@@ -115,6 +115,51 @@ class RequestControllerTest {
     }
 
     @Test
+    void newChatWinsAPendingLatestWorldLoadAndSendWaitsForTheReplacement() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+
+        CompletionStage<ChatContracts.Conversation> staleLatest = controller.openWorld(WORLD_A, SCOPE_A);
+        assertTrue(controller.begin(submission("too-early", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))
+                .toCompletableFuture().isCompletedExceptionally());
+        controller.newChat();
+        storeExecutor.drain();
+
+        assertTrue(staleLatest.toCompletableFuture().isCompletedExceptionally());
+        assertEquals(WORLD_A, controller.view().conversation().world());
+        assertEquals(SCOPE_A, controller.view().context().scope());
+        assertTrue(controller.view().conversation().turns().isEmpty());
+        String replacementId = controller.view().conversation().id();
+        CompletionStage<ChatContracts.Conversation> reopened = store.openLatest(WORLD_A);
+        storeExecutor.drain();
+        assertEquals(replacementId, reopened.toCompletableFuture().join().id());
+    }
+
+    @Test
+    void newerWorldLoadSuppressesTheOlderCompletion() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, storeExecutor), new FakeBackend(),
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+
+        CompletionStage<ChatContracts.Conversation> old = controller.openWorld(WORLD_A, SCOPE_A);
+        CompletionStage<ChatContracts.Conversation> current = controller.openWorld(WORLD_B, SCOPE_B);
+        storeExecutor.drain();
+
+        assertTrue(old.toCompletableFuture().isCompletedExceptionally());
+        assertEquals(WORLD_B, current.toCompletableFuture().join().world());
+        assertEquals(WORLD_B, controller.view().conversation().world());
+        assertEquals(SCOPE_B, controller.view().context().scope());
+    }
+
+    @Test
     void synchronousCompletionAndPublisherReentryCannotInstallTheOldExchange() {
         FakeBackend backend = new FakeBackend();
         backend.completeSynchronouslyOnce = true;

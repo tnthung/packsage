@@ -46,8 +46,12 @@ public final class RequestController {
     private List<Evidence.NavigationTarget> navigationTargets = List.of();
     private ChatContracts.RequestId visibleRequest;
     private ActiveRequest active;
+    private WorldLoad worldLoad;
+    private ChatContracts.WorldIdentity openedWorld;
+    private Evidence.Scope openedScope;
     private boolean forceNew;
     private long generation;
+    private long worldLoadGeneration;
 
     public RequestController(ConversationStore store, ModelBackend backend, Executor executor,
                              ContextCapture contextCapture, Consumer<ChatContracts.RequestId> captureCancellation,
@@ -77,11 +81,14 @@ public final class RequestController {
         ChatContracts.Conversation reusableConversation;
         synchronized (stateLock) {
             if (active != null) return CompletableFuture.failedFuture(new IllegalStateException("a request is already active"));
+            if (worldLoad != null) return CompletableFuture.failedFuture(new IllegalStateException("world history is still loading"));
             generation++;
             createNew = forceNew;
             forceNew = false;
             request = new ActiveRequest(submission, generation);
             active = request;
+            openedWorld = submission.world();
+            openedScope = submission.scope();
             visibleRequest = submission.requestId();
             errors.clear();
             context = new ChatContracts.Context("", null, submission.scope());
@@ -124,15 +131,34 @@ public final class RequestController {
         return request.started;
     }
 
+    public CompletionStage<ChatContracts.Conversation> openWorld(ChatContracts.WorldIdentity world, Evidence.Scope scope) {
+        return startWorldLoad(world, scope, false, "world changed");
+    }
+
     public void stop() {
         cancelActive("stopped");
     }
 
     public void newChat() {
+        ChatContracts.WorldIdentity world;
+        Evidence.Scope scope;
         synchronized (stateLock) {
-            forceNew = true;
+            if (active != null) {
+                world = active.submission.world();
+                scope = active.submission.scope();
+            } else if (worldLoad != null) {
+                world = worldLoad.world;
+                scope = worldLoad.scope;
+            } else {
+                world = openedWorld;
+                scope = openedScope;
+            }
+            if (world == null || scope == null) {
+                forceNew = true;
+            }
         }
-        cancelActive("new chat");
+        if (world == null || scope == null) cancelActive("new chat");
+        else startWorldLoad(world, scope, true, "new chat");
     }
 
     public void disconnect() {
@@ -151,6 +177,74 @@ public final class RequestController {
         synchronized (stateLock) {
             return currentView();
         }
+    }
+
+    private CompletionStage<ChatContracts.Conversation> startWorldLoad(ChatContracts.WorldIdentity world,
+                                                                        Evidence.Scope scope, boolean createNew,
+                                                                        String cancellationDetail) {
+        WorldLoad load;
+        WorldLoad superseded;
+        boolean hadActive;
+        synchronized (stateLock) {
+            worldLoadGeneration++;
+            load = new WorldLoad(world, scope, worldLoadGeneration);
+            superseded = worldLoad;
+            worldLoad = load;
+            hadActive = active != null;
+            forceNew = false;
+            openedWorld = null;
+            openedScope = null;
+            visibleRequest = null;
+            errors.clear();
+            conversation = new ChatContracts.Conversation("pending-world:" + worldLoadGeneration, world, List.of(),
+                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null));
+            context = new ChatContracts.Context("", null, scope);
+            sources = List.of();
+            navigationTargets = List.of();
+        }
+        if (superseded != null) {
+            superseded.result.completeExceptionally(new IllegalStateException("world load was superseded"));
+        }
+        if (hadActive) cancelActive(cancellationDetail);
+        else publish();
+
+        CompletionStage<ChatContracts.Conversation> operation;
+        try {
+            operation = createNew ? store.newConversation(world) : store.openLatest(world);
+        } catch (RuntimeException exception) {
+            worldLoadReady(load, null, exception);
+            return load.result;
+        }
+        operation.whenCompleteAsync((loaded, failure) -> worldLoadReady(load, loaded, failure), executor);
+        return load.result;
+    }
+
+    private void worldLoadReady(WorldLoad load, ChatContracts.Conversation loaded, Throwable failure) {
+        ChatContracts.View snapshot = null;
+        boolean current;
+        synchronized (stateLock) {
+            current = worldLoad == load && worldLoadGeneration == load.generation;
+            if (current) {
+                worldLoad = null;
+                if (failure == null && loaded.world().equals(load.world)) {
+                    openedWorld = load.world;
+                    openedScope = load.scope;
+                    conversation = loaded;
+                    context = new ChatContracts.Context("", null, load.scope);
+                } else {
+                    errors.add(failure == null ? "loaded conversation belongs to another world" : failureMessage(failure));
+                }
+                snapshot = currentView();
+            }
+        }
+        if (!current) {
+            load.result.completeExceptionally(new IllegalStateException("world load was superseded"));
+            return;
+        }
+        if (snapshot != null) publisher.accept(snapshot);
+        if (failure == null && loaded.world().equals(load.world)) load.result.complete(loaded);
+        else load.result.completeExceptionally(failure == null
+                ? new IllegalStateException("loaded conversation belongs to another world") : failure);
     }
 
     private void targetReady(ActiveRequest request, ChatContracts.Conversation loaded, Throwable failure) {
@@ -367,7 +461,9 @@ public final class RequestController {
             captured = request.captured == null
                     ? new ChatContracts.CapturedContext(new ChatContracts.Context("", null, request.submission.scope()), new byte[0])
                     : request.captured;
-            context = captured.context();
+            if (visibleRequest != null && visibleRequest.equals(request.submission.requestId())) {
+                context = captured.context();
+            }
         }
         captureCancellation.accept(request.submission.requestId());
         if (exchange != null) exchange.cancel();
@@ -527,6 +623,19 @@ public final class RequestController {
 
         private ActiveRequest(ChatContracts.Submission submission, long generation) {
             this.submission = submission;
+            this.generation = generation;
+        }
+    }
+
+    private static final class WorldLoad {
+        private final ChatContracts.WorldIdentity world;
+        private final Evidence.Scope scope;
+        private final long generation;
+        private final CompletableFuture<ChatContracts.Conversation> result = new CompletableFuture<>();
+
+        private WorldLoad(ChatContracts.WorldIdentity world, Evidence.Scope scope, long generation) {
+            this.world = world;
+            this.scope = scope;
             this.generation = generation;
         }
     }

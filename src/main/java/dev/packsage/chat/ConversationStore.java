@@ -316,6 +316,7 @@ public final class ConversationStore {
         } else if (item instanceof dev.packsage.model.ModelBackend.ToolCall call) {
             value.addProperty("type", "toolCall");
             value.addProperty("callId", call.callId());
+            if (call.namespace() != null) value.addProperty("namespace", call.namespace());
             value.addProperty("name", call.name());
             value.addProperty("serializedArguments", call.serializedArguments());
         } else if (item instanceof dev.packsage.model.ModelBackend.ToolResult result) {
@@ -466,7 +467,8 @@ public final class ConversationStore {
                 value.get("id").getAsString(), value.get("encryptedContent").getAsString(),
                 value.get("serializedSummary").getAsString());
         if ("toolCall".equals(type)) return new dev.packsage.model.ModelBackend.ToolCall(value.get("callId").getAsString(),
-                value.get("name").getAsString(), value.get("serializedArguments").getAsString());
+                value.has("namespace") ? value.get("namespace").getAsString() : null, value.get("name").getAsString(),
+                value.get("serializedArguments").getAsString());
         if ("toolResult".equals(type)) return new dev.packsage.model.ModelBackend.ToolResult(
                 value.get("callId").getAsString(), value.get("serializedResult").getAsString(),
                 value.get("error").getAsBoolean());

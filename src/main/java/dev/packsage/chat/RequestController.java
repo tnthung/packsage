@@ -373,7 +373,7 @@ public final class RequestController {
                 if (request.activity.equals(ActivityLabels.THINKING)) return;
                 request.activity = ActivityLabels.THINKING;
             } else if (event.kind() == ModelBackend.EventKind.HOSTED_SEARCH
-                    && event.blocks().stream().noneMatch(block -> block.kind() == ModelBackend.ResponseKind.CITATION)) {
+                    && event.blocks().isEmpty()) {
                 if (request.activity.equals(ActivityLabels.SEARCHING_WEB)) return;
                 request.activity = ActivityLabels.SEARCHING_WEB;
             }
@@ -426,6 +426,7 @@ public final class RequestController {
                 if (!mergedTargets.contains(target)) mergedTargets.add(target);
             });
             request.evidence = new ChatContracts.EvidenceSelection(mergedSources, mergedTargets);
+            request.activity = ActivityLabels.WAITING;
             sources = request.evidence.sources();
             navigationTargets = request.evidence.navigationTargets();
             if (request.exchange != null && request.submittedResults.add(call.callId())) targetExchange = request.exchange;

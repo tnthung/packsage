@@ -399,6 +399,29 @@ class RequestControllerTest {
         assertFalse(controller.view().active());
     }
 
+    @Test
+    void activityMovesOnToWaitingWhenToolsReturnAndFinishedSearchItemsDoNotReopenSearching() {
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.View> published = new ArrayList<>();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> CompletableFuture.completedFuture(new ChatContracts.ToolResponse(
+                        new ModelBackend.ToolResult(request.call().callId(), "{}", false),
+                        new ChatContracts.EvidenceSelection(List.of(), List.of()))), published::add);
+        controller.begin(submission("activity-return", WORLD_A, SCOPE_A, false, new ChatContracts.HistoryLimits(10, 12_000),
+                ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+
+        backend.emit("activity-return", toolEvent("call-1", "read_progress", "{\"handles\":[\"x\"]}"));
+        assertEquals("Waiting for the model…", published.getLast().activity());
+
+        backend.emit("activity-return", new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), null));
+        backend.emit("activity-return", new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH, null, null,
+                List.of(new ModelBackend.ResponseBlock(ModelBackend.ResponseKind.TEXT, "{\"type\":\"web_search_call\"}", null)), null));
+        assertEquals("Thinking…", published.getLast().activity());
+        assertEquals(controller.view().activity(), "Thinking…");
+    }
+
     private static RequestController controller(ConversationStore store, FakeBackend backend,
                                                 RequestController.ContextCapture capture,
                                                 Consumer<ChatContracts.RequestId> cancelCapture,

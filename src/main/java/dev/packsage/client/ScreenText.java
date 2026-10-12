@@ -21,7 +21,7 @@ final class ScreenText {
     static final int CODE_COLOR = 0xffd27f;
     static final int DIM_COLOR = 0x808080;
     private static final String CELL_GAP = "   ";
-    private static final Pattern CITATION_MARKER = Pattern.compile("\\[(?!https?:)([a-z][a-z0-9_]*):([^\\]\\s]+)\\]");
+    private static final Pattern CITATION_MARKER = Pattern.compile("\\[(native|jei|ftb_quests|patchouli|config):([^\\]\\s]+)\\]");
     private static final String BULLET = "• ";
     private static final String SEPARATOR = " · ";
     private static final Pattern HEADING = Pattern.compile("^(#{1,6}) +(.*)$");
@@ -101,7 +101,7 @@ final class ScreenText {
             case "ftb_quests" -> "quest";
             case "patchouli" -> "book";
             case "jei" -> handle.contains("recipe") ? "recipe" : "jei";
-            default -> provider;
+            default -> provider; // config
         } + "]";
     }
 

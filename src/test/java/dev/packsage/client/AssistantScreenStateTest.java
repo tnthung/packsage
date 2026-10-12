@@ -11,6 +11,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
@@ -137,23 +138,103 @@ class AssistantScreenStateTest {
         assertTrue(screen.followingBottom());
     }
 
+    private static ChatContracts.View withTargets(ChatContracts.View base, boolean active, String streaming,
+                                                  List<Evidence.NavigationTarget> targets) {
+        return new ChatContracts.View(active, ChatContracts.SignInState.SIGNED_OUT, false, base.conversation(),
+                base.context(), base.sources(), targets, base.errors(), streaming, active ? "Writing answer…" : "");
+    }
+
     @Test
-    void navigationButtonsAppearOnlyOnceTheAnswerTextHasStarted() {
+    void navigationButtonsAreHiddenWhileTheRequestRunsAndAppearAllTogetherOnCompletion() {
         FakeActions actions = new FakeActions();
         AssistantScreen screen = new AssistantScreen(actions);
         screen.init();
 
-        screen.refresh(active(actions, "", "Searching pack: x (step 1)"));
+        screen.refresh(withTargets(actions.view, true, "", List.of(TARGET)));
+        assertEquals(0, screen.navigationButtonCount());
+        screen.refresh(withTargets(actions.view, true, "Commentary before a tool round", List.of(TARGET)));
+        assertEquals(0, screen.navigationButtonCount());
+        screen.refresh(withTargets(actions.view, true, "More text", List.of(TARGET, TARGET_TWO, TARGET_THREE)));
         assertEquals(0, screen.navigationButtonCount());
 
-        screen.refresh(active(actions, "Torch", "Writing answer…"));
+        screen.refresh(withTargets(actions.view, false, "", List.of(TARGET, TARGET_TWO, TARGET_THREE)));
+        assertEquals(3, screen.navigationButtonCount());
+
+        screen.refresh(withTargets(actions.view, true, "", List.of(TARGET, TARGET_TWO, TARGET_THREE)));
+        assertEquals(0, screen.navigationButtonCount());
+    }
+
+    @Test
+    void unchangedTargetsKeepTheSameButtonInstancesAndNewButtonsAreNotDrawnUnplaced() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.init();
+
+        screen.refresh(withTargets(actions.view, false, "", List.of(TARGET, TARGET_TWO)));
+        List<net.minecraft.client.gui.components.Button> built = screen.navigationButtons();
+        assertEquals(2, built.size());
+        for (var button : built) {
+            assertFalse(button.visible);
+            assertFalse(button.active);
+        }
+
+        screen.refresh(withTargets(actions.view, false, "", List.of(TARGET, TARGET_TWO)));
+        screen.refresh(withTargets(actions.view, false, "ignored", List.of(TARGET, TARGET_TWO)));
+        List<net.minecraft.client.gui.components.Button> again = screen.navigationButtons();
+        assertEquals(2, again.size());
+        assertSame(built.get(0), again.get(0));
+        assertSame(built.get(1), again.get(1));
+
+        screen.refresh(withTargets(actions.view, false, "", List.of(TARGET)));
         assertEquals(1, screen.navigationButtonCount());
+    }
+
+    @Test
+    void streamingPublicationsNeverTouchTheWidgets() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.init();
+        screen.refresh(withTargets(actions.view, true, "", List.of(TARGET, TARGET_TWO)));
+        int widgets = screen.children().size();
+
+        for (int index = 0; index < 5; index++) {
+            screen.refresh(withTargets(actions.view, true, "delta".repeat(index + 1), List.of(TARGET, TARGET_TWO)));
+        }
+
+        assertEquals(widgets, screen.children().size());
+        assertEquals(0, screen.navigationButtonCount());
+    }
+
+    @Test
+    void followingContinuesThroughCompletionSoTheFinishedAnswerStaysVisible() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.refresh(active(actions, "partial", "Writing answer…"));
+        screen.updateContentMetrics(1000, 200);
+        assertEquals(800, screen.scrollOffset());
+
+        screen.refresh(withTargets(actions.view, false, "", List.of(TARGET, TARGET_TWO)));
+        screen.updateContentMetrics(1200, 200);
+        assertEquals(1000, screen.scrollOffset());
 
         screen.refresh(actions.view);
-        assertEquals(1, screen.navigationButtonCount());
+        screen.updateContentMetrics(1400, 200);
+        assertEquals(1000, screen.scrollOffset());
+    }
 
-        screen.refresh(active(actions, "", "Thinking…"));
-        assertEquals(0, screen.navigationButtonCount());
+    @Test
+    void completionDoesNotPullAPlayerWhoScrolledUp() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.refresh(active(actions, "partial", "Writing answer…"));
+        screen.updateContentMetrics(1000, 200);
+        screen.mouseScrolled(50, 200, 0, 5);
+        assertEquals(700, screen.scrollOffset());
+
+        screen.refresh(actions.view);
+        screen.updateContentMetrics(1200, 200);
+
+        assertEquals(700, screen.scrollOffset());
     }
 
     @Test
@@ -214,6 +295,8 @@ class AssistantScreenStateTest {
 
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
     private static final Evidence.NavigationTarget TARGET = new Evidence.NavigationTarget(SCOPE, "provider", "source", "target");
+    private static final Evidence.NavigationTarget TARGET_TWO = new Evidence.NavigationTarget(SCOPE, "provider", "source2", "target2");
+    private static final Evidence.NavigationTarget TARGET_THREE = new Evidence.NavigationTarget(SCOPE, "provider", "source3", "target3");
     private static final Evidence.Source SOURCE = new Evidence.Source(SCOPE, "provider", "1", "source", 1,
             Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
 

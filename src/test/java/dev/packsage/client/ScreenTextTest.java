@@ -83,10 +83,18 @@ class ScreenTextTest {
     void citationMarkersBecomeShortDimTags() {
         List<Component> lines = ScreenText.markdownLines("Torch [native:minecraft:torch] and "
                 + "[jei:jei/1/1/minecraft:crafting/recipe-packsage:fixture_lantern-123] then [ftb_quests:1000000000000002] "
-                + "[patchouli:fixture:book#fixture:book/intro#0] [config:cfg/x] [other:abc].");
+                + "[patchouli:fixture:book#fixture:book/intro#0] [config:cfg/x] [jei:other/handle].");
 
-        assertEquals("Torch [game] and [recipe] then [quest] [book] [config] [other].", lines.get(0).getString());
-        assertEquals(List.of("[game]", "[recipe]", "[quest]", "[book]", "[config]", "[other]"), dimRuns(lines.get(0)));
+        assertEquals("Torch [game] and [recipe] then [quest] [book] [config] [jei].", lines.get(0).getString());
+        assertEquals(List.of("[game]", "[recipe]", "[quest]", "[book]", "[config]", "[jei]"), dimRuns(lines.get(0)));
+    }
+
+    @Test
+    void bracketedTextThatIsNotAPackSageProviderMarkerIsPreservedVerbatim() {
+        String text = "Use [minecraft:torch] or [todo:fix] or [other:abc] or [Native:x]";
+
+        assertEquals(text, ScreenText.markdownLines(text).get(0).getString());
+        assertEquals(List.of(), dimRuns(ScreenText.markdownLines(text).get(0)));
     }
 
     @Test

@@ -39,7 +39,10 @@ public final class AssistantScreen extends Screen {
     private int contentHeight;
     private int viewportHeight = 1;
     private boolean followBottom = true;
+    private boolean followOnCompletion;
+    private List<Evidence.NavigationTarget> builtTargets = List.of();
     private int navigationContentY;
+    private boolean navigationPlaced;
     private static final int NAVIGATION_WIDTH = 160;
     private static final int NAVIGATION_GAP = 6;
     private static final int NAVIGATION_ROW = 22;
@@ -152,10 +155,11 @@ public final class AssistantScreen extends Screen {
         if (view.active() && !view.streamingAnswer().isEmpty()) {
             graphics.drawString(font, Component.literal("PackSage:"), 20, y, 0x90d0ff);
             y += 12;
-            y = drawMarkdown(graphics, view.streamingAnswer(), view.navigationTargets(), y);
+            y = drawMarkdown(graphics, view.streamingAnswer(), List.of(), y);
         }
         if (!sourceButtons.isEmpty()) {
             navigationContentY = y + scrollOffset;
+            navigationPlaced = true;
             y += navigationRows() * NAVIGATION_ROW + 4;
         }
         if (!view.errors().isEmpty()) {
@@ -171,8 +175,10 @@ public final class AssistantScreen extends Screen {
     void updateContentMetrics(int contentHeight, int viewportHeight) {
         this.contentHeight = Math.max(0, contentHeight);
         this.viewportHeight = Math.max(1, viewportHeight);
-        if (followBottom && view.active()) scrollOffset = maxScroll();
+        if (followBottom && (view.active() || followOnCompletion)) scrollOffset = maxScroll();
         else scrollOffset = Math.max(0, Math.min(maxScroll(), scrollOffset));
+        followOnCompletion = false;
+        if (scrollOffset >= maxScroll()) followBottom = true;
     }
 
     int maxScroll() {
@@ -197,8 +203,13 @@ public final class AssistantScreen extends Screen {
         return sourceButtons.size();
     }
 
+    List<Button> navigationButtons() {
+        return List.copyOf(sourceButtons);
+    }
+
     private List<Evidence.NavigationTarget> visibleNavigationTargets() {
-        return view.active() && view.streamingAnswer().isEmpty() ? List.of() : view.navigationTargets();
+        // later tool rounds can still add targets, so they are shown once, with the completed answer
+        return view.active() ? List.of() : view.navigationTargets();
     }
 
     private int navigationColumns() {
@@ -237,8 +248,10 @@ public final class AssistantScreen extends Screen {
 
     public void refresh(ChatContracts.View next) {
         if (inputBox != null) input = inputBox.getValue();
+        boolean completed = view.active() && !next.active();
         view = Objects.requireNonNull(next);
-        rebuildSourceButtons();
+        if (completed) followOnCompletion = followBottom;
+        if (!visibleNavigationTargets().equals(builtTargets)) rebuildSourceButtons();
         updateButtons();
     }
 
@@ -344,6 +357,8 @@ public final class AssistantScreen extends Screen {
     private void rebuildSourceButtons() {
         for (Button button : sourceButtons) removeWidget(button);
         sourceButtons.clear();
+        builtTargets = visibleNavigationTargets();
+        navigationPlaced = false;
         for (Evidence.NavigationTarget target : visibleNavigationTargets()) {
             String label = ScreenText.navigationLabel(target);
             int labelWidth = NAVIGATION_WIDTH - 10;
@@ -352,6 +367,9 @@ public final class AssistantScreen extends Screen {
             }
             Button button = Button.builder(Component.literal(label),
                     ignored -> navigate(target)).bounds(20, 116, NAVIGATION_WIDTH, 20).build();
+            // hidden until render has measured where the flow places it, so it is never drawn at the placeholder
+            button.visible = false;
+            button.active = false;
             sourceButtons.add(addRenderableWidget(button));
         }
     }
@@ -364,7 +382,7 @@ public final class AssistantScreen extends Screen {
             int y = navigationContentY - scrollOffset + (index / columns) * NAVIGATION_ROW;
             button.setY(y);
             button.setX(20 + (index % columns) * (NAVIGATION_WIDTH + NAVIGATION_GAP));
-            button.visible = y >= contentTop && y + 20 <= contentBottom;
+            button.visible = navigationPlaced && y >= contentTop && y + 20 <= contentBottom;
             button.active = button.visible;
         }
     }

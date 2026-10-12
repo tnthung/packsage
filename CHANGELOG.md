@@ -9,11 +9,12 @@
 - Added native recipe, tag, resource and inventory evidence, plus optional JEI, FTB Quests, config and Patchouli adapters with scoped sources and explicit coverage states.
 - Added local JSONL conversations and screenshot assets, whole-turn history limits, cancellation and recovery from interrupted writes.
 - Added assistant and settings screens, fresh gameplay context, removable screenshots, pause controls and validated source navigation.
-- Added bounded tool dispatch, grounding instructions and client lifecycle wiring. The production entrypoint remains the development probe pending the live sign-in gate.
+- Added bounded tool dispatch, grounding instructions and client lifecycle wiring. Activated the full assistant after successful live sign-in/inference/tool checks, with initialization deferred until the client thread is ready; retained a separate bootstrap probe build.
 - Fixed stale account, world, history and tool callbacks; typed replay ordering; provider extraction, pagination and visibility handling; and the fixture's FTB chapter identity.
 - Added valid provider-absent fixture archives and mocked multi-tool conversation coverage; refreshed quest progress at read time with isolated failures, exposed streamed text in the screen, and corrected vanilla pause-menu usage.
 - Added bounded sign-out discovery/revocation retries, repeated sign-out outcome handling, nullable hosted-search replay and clickable probe citations.
 - Fixed duplicate background rendering that blurred custom text in the probe, assistant and settings screens.
 - Fixed sign-in browser launching in Minecraft's headless Java runtime by using the native Minecraft URL launcher.
+- Fixed Windows fixture ZIP paths and bootstrap source filtering with Gradle's configuration cache. Installed the deterministic fixture data into the player's test profile.
 
-Live Minecraft and ChatGPT route acceptance remain pending; automated checks do not establish those results.
+Live ChatGPT text, fixture-tool, image-input and hosted-search checks passed with GPT-6-Luna. Full-assistant Minecraft/provider/lifecycle acceptance remains pending; automated checks do not establish those results.

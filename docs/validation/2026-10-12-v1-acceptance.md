@@ -6,15 +6,19 @@ Release acceptance is open. The player launched the `Packsage` instance and comp
 
 ## Automated build checkpoint
 
-The coordinator ran `scripts/build.ps1` using Oracle Java 21.0.12.1, Gradle 8.11.1 and ModDevGradle 2.0.147 against committed rendering fix `30f90cb`. The full build succeeded: 168 tests found, 167 passed, no failures or errors, and one skipped test. `ConversationStoreTest.latestMarkerLinkCannotRedirectConversationSelectionOutsideTheRoot` could not create a Windows symbolic link; its assertion remains unverified in this environment.
+The coordinator ran `scripts/build.ps1` using Oracle Java 21.0.12.1, Gradle 8.11.1 and ModDevGradle 2.0.147 against source through `de47f8b`, including activation `482d136` and registered-key fix `7b6d792`. The full build succeeded: 168 tests found, 167 passed, no failures or errors, and one skipped test. `ConversationStoreTest.latestMarkerLinkCannotRedirectConversationSelectionOutsideTheRoot` could not create a Windows symbolic link; its assertion remains unverified in this environment.
 
-The resulting development JAR is `dist/packsage.jar`, version 0.1.0, for Minecraft 1.21.1 and NeoForge 21.1.202. SHA-256: `791E8FDEA72CB3456106F856A32B2BD3157FF24599508BB0467CD245A4594603`. It contains 193 PackSage classes and no bundled JEI, FTB or Patchouli classes. Its entrypoint still opens the G1 development probe; the authored complete assistant binding is not activated.
+The resulting G2 candidate is `dist/packsage.jar`, version 0.1.0, for Minecraft 1.21.1 and NeoForge 21.1.202. SHA-256: `6BF4A403C6288526BE4B799DA82BC5F39365C2C2A66E325DDB99F1B9BCBE915D`. It contains 193 PackSage classes and no bundled JEI, FTB or Patchouli classes. Its entrypoint opens the full assistant. The build installed it as `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\mods\packsage.jar`; the installed hash matches.
+
+Pinned startup inspection established that mod constructors run on a parallel loading executor before Minecraft assigns its language manager. The production entrypoint therefore registers key/reload listeners early and creates the eager assistant on the first client-thread tick. Initial reloads before activation have no evidence to invalidate; subsequent reloads delegate to the active assistant. Compilation/tests verify the wiring's build contract; a full-assistant game launch remains a G2 observation.
+
+The existing `New World` now contains the four authored datapack files. The profile contains the fixture quest chapter/translations and a resource ZIP whose metadata and book entry use forward-slash paths. The complete fixture and three provider-absent import ZIPs were regenerated and checked for portable paths. All seven active profile mod hashes match the pinned manifest after retaining Patchouli 93 as a disabled backup and installing supported 92. These are filesystem checks, not observed in-game recipe, quest or book results.
 
 The scoped sign-in re-review closed all six prior P1 findings. Integration re-review closed JEI runtime-loss invalidation, the bounded current-progress read contract, streamed-answer projection and screen pause handling. JEI loss is observed on the next client tick. `read_progress` refreshes selected observed quest handles; `read_evidence` retains timestamped earlier observations. In-place quest changes do not automatically cancel a request. The full suite includes fresh-progress failure isolation across selected handles.
 
 ## G1 probe handoff
 
-The coordinator ran `scripts/build.ps1 -Bootstrap` against browser-launch fix `8de090e`: 42 tests passed, none failed or skipped. The full development JAR above predates that narrow fix. Use `dist/packsage-bootstrap.jar` for G1. It contains 100 PackSage contract/probe classes and no optional adapter classes. Version and loader pins match the full development JAR.
+The coordinator reran `scripts/build.ps1 -Bootstrap` against the separate bootstrap entrypoint and Gradle-cache fix `de47f8b`: all 42 focused tests passed, none failed or skipped. Its probe code includes browser-launch fix `8de090e`. `dist/packsage-bootstrap.jar` remains available for isolated G1 diagnosis and contains 100 PackSage contract/probe classes with no optional adapter classes. Version and loader pins match the full candidate. The full build ran afterward and replaced the installed probe with the assistant.
 
 Probe SHA-256: `3EFA55121085E3672DF4A1DAADFAEF46ADE257280C8495DB723AFA67FF341D90`.
 

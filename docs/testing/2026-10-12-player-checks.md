@@ -27,9 +27,9 @@ The assistant handles builds, automated tests and fixes. These game/browser obse
 ## Create the focused test world
 
 1. Create a new survival or creative singleplayer world named `packsage-fixture`.
-2. In the instance folder, copy the prepared `datapacks/packsage_fixture` folder into the new world's `datapacks` folder. If the launcher has an instance file browser, use it to open the world's folder.
+2. Save and quit to the title screen so the world is closed. In the instance folder, copy the prepared `datapacks/packsage_fixture` folder into the new world's `datapacks` folder. If the launcher has an instance file browser, use it to open the world's folder.
 3. In Minecraft's Resource Packs screen, enable `PackSage deterministic fixture resource override`; the imported profile already contains `resourcepacks/packsage_resourcepack.zip`.
-4. Return to the world after the resource reload. Open the FTB Quests screen and confirm the `PackSage Fixture` chapter is present.
+4. Reopen the world so its datapack loads, then open the FTB Quests screen and confirm the `PackSage Fixture` chapter is present.
 
 ## Focused observations
 

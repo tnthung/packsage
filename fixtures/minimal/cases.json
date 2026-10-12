@@ -25,7 +25,7 @@
     {
       "id": "quest.fixture.chapter",
       "kind": "ftbquest",
-      "resource": "A000000000000001",
+      "resource": "7000000000000001",
       "expectedStatus": "active",
       "expectedVisibility": "visible",
       "expectedCount": 3,

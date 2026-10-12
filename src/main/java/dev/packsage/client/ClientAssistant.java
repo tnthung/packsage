@@ -1,6 +1,5 @@
 package dev.packsage.client;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import dev.packsage.chat.AssistantRuntime;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.ConversationStore;
@@ -21,18 +20,14 @@ import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.world.level.storage.LevelResource;
-import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RecipesUpdatedEvent;
-import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
-import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
 import net.minecraft.client.multiplayer.ClientLevel;
-import org.lwjgl.glfw.GLFW;
 
 import java.lang.reflect.Field;
 import java.net.URI;
@@ -107,7 +102,7 @@ public final class ClientAssistant {
     private String locale;
     private long providerRuntimeEpoch;
 
-    public ClientAssistant(IEventBus modEventBus) {
+    public ClientAssistant(KeyMapping openAssistant) {
         client = Minecraft.getInstance();
         clientExecutor = client::execute;
         workerExecutor = Executors.newFixedThreadPool(2, runnable -> {
@@ -120,8 +115,6 @@ public final class ClientAssistant {
                 "jei", optionalStatus("jei", JEI_VERSION),
                 "ftb_quests", optionalStatus("ftb_quests", "ftbquests", FTB_VERSION),
                 "patchouli", optionalStatus("patchouli", PATCHOULI_VERSION));
-        openAssistant = new KeyMapping("key.packsage.open", InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_P, "key.categories.packsage");
         settingsPath = client.gameDirectory.toPath().resolve("config").resolve("packsage.properties");
         settings = PackSageSettings.load(settingsPath);
         var backend = new ChatGptBackend(new ChatGptAuth(ChatGptAuth.defaultCredentialFile()));
@@ -133,8 +126,6 @@ public final class ClientAssistant {
                 ignored -> { }, this::openExternal);
         runtime.setSettings(settings);
 
-        modEventBus.addListener((RegisterKeyMappingsEvent event) -> event.register(openAssistant));
-        modEventBus.addListener((RegisterClientReloadListenersEvent event) -> event.registerReloadListener(new ResourceReload()));
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post ignored) -> tick());
         NeoForge.EVENT_BUS.addListener((RenderGuiEvent.Post ignored) -> runtime.onRenderGuiPost());
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingIn ignored) -> loggingIn());
@@ -144,6 +135,12 @@ public final class ClientAssistant {
         NeoForge.EVENT_BUS.addListener((LevelEvent.Unload event) -> levelUnloaded(event));
         NeoForge.EVENT_BUS.addListener((RecipesUpdatedEvent ignored) -> invalidateEvidence());
         NeoForge.EVENT_BUS.addListener((TagsUpdatedEvent ignored) -> invalidateEvidence());
+    }
+
+    public void resourceReloaded() {
+        resourcesEpoch++;
+        locale = client.getLanguageManager().getSelected();
+        invalidateEvidence();
     }
 
     static ChatContracts.WorldIdentity identityFor(CopiedWorld world) {
@@ -464,21 +461,6 @@ public final class ClientAssistant {
                     || uri.getHost() == null || uri.getHost().isBlank() || uri.getUserInfo() != null) return;
             if (client.screen != null) ConfirmLinkScreen.confirmLinkNow(client.screen, uri, true);
         } catch (Exception ignored) {
-        }
-    }
-
-    private final class ResourceReload implements net.minecraft.server.packs.resources.PreparableReloadListener {
-        @Override
-        public CompletableFuture<Void> reload(PreparationBarrier barrier,
-                                              net.minecraft.server.packs.resources.ResourceManager resourceManager,
-                                              net.minecraft.util.profiling.ProfilerFiller preparationsProfiler,
-                                              net.minecraft.util.profiling.ProfilerFiller reloadProfiler,
-                                              Executor backgroundExecutor, Executor gameExecutor) {
-            return barrier.wait(null).thenRunAsync(() -> {
-                resourcesEpoch++;
-                locale = client.getLanguageManager().getSelected();
-                invalidateEvidence();
-            }, gameExecutor);
         }
     }
 

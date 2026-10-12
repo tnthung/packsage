@@ -77,6 +77,26 @@ class ChatGptStreamTest {
         assertEquals("before", events.getFirst().text());
     }
 
+    @Test
+    void reasoningAndHostedSearchItemsEmitSecretFreeProgressEvents() {
+        List<ModelBackend.Event> events = new ArrayList<>();
+        ChatGptStream stream = new ChatGptStream(events::add);
+
+        String stream1 = "data: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"id\":\"rs_1\",\"type\":\"reasoning\","
+                + "\"encrypted_content\":\"SECRET-BLOB\",\"summary\":[]}}\n\n"
+                + "data: {\"type\":\"response.reasoning_summary_text.delta\",\"delta\":\"private thoughts\"}\n\n"
+                + "data: {\"type\":\"response.output_item.added\",\"output_index\":1,\"item\":{\"id\":\"ws_1\",\"type\":\"web_search_call\","
+                + "\"status\":\"in_progress\"}}\n\n"
+                + "data: {\"type\":\"response.output_item.added\",\"output_index\":2,\"item\":{\"id\":\"msg_1\",\"type\":\"message\"}}\n\n";
+        stream.accept(stream1.getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(List.of(
+                new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), null),
+                new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), null),
+                new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH, null, null, List.of(), null)
+        ), events);
+    }
+
     private static final class ChatGptStreamTestFixtures {
         private static String unicodeAndToolStream() {
             return "data: " + textDelta("你") + "\r\n\r\n"

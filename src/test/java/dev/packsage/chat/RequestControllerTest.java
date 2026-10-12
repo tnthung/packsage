@@ -327,6 +327,78 @@ class RequestControllerTest {
         assertFalse(controller.view().errors().isEmpty());
     }
 
+    private RequestController activityController(FakeBackend backend, List<ChatContracts.View> published, String requestId) {
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> new CompletableFuture<>(), published::add);
+        controller.begin(submission(requestId, WORLD_A, SCOPE_A, false, new ChatContracts.HistoryLimits(10, 12_000),
+                ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+        return controller;
+    }
+
+    private static ModelBackend.Event toolEvent(String callId, String name, String arguments) {
+        return new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall(callId, name, arguments), List.of(), List.of(), null);
+    }
+
+    @Test
+    void toolStartPublishesActivityWithStepNumberAndAllowlistedArgument() {
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.View> published = new ArrayList<>();
+        RequestController controller = activityController(backend, published, "activity-tool");
+
+        backend.emit("activity-tool", toolEvent("call-1", "search_pack",
+                "{\"text\":\"packsage:fixture_lantern\",\"kinds\":null,\"limit\":null,\"cursor\":\"SECRET-CURSOR\"}"));
+        assertEquals("Searching pack: packsage:fixture_lantern (step 1)", published.getLast().activity());
+        assertEquals(published.getLast(), controller.view());
+
+        backend.emit("activity-tool", toolEvent("call-2", "read_progress", "{\"handles\":[\"ftb_quests:1000000000000002\"]}"));
+        assertEquals("Reading quest progress (step 2)", published.getLast().activity());
+        assertFalse(published.getLast().activity().contains("SECRET"));
+    }
+
+    @Test
+    void activityLabelOmitsUnlistedArgumentsAndTruncatesLongOnes() {
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.View> published = new ArrayList<>();
+        activityController(backend, published, "activity-secret");
+
+        backend.emit("activity-secret", toolEvent("call-1", "lookup", "{\"token\":\"sk-secret\",\"text\":\"sk-secret\"}"));
+        assertEquals("Using tool: lookup (step 1)", published.getLast().activity());
+
+        backend.emit("activity-secret", toolEvent("call-2", "search_pack", "{\"text\":\"" + "a".repeat(200) + "\"}"));
+        String label = published.getLast().activity();
+        assertTrue(label.startsWith("Searching pack: aaaa"));
+        assertTrue(label.length() < 90, label);
+        assertTrue(label.endsWith("… (step 2)"), label);
+    }
+
+    @Test
+    void reasoningHostedSearchAndTextDeltasDriveTheActivityAndItClearsWhenDone() {
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.View> published = new ArrayList<>();
+        RequestController controller = activityController(backend, published, "activity-flow");
+        assertTrue(controller.view().active());
+        assertFalse(controller.view().activity().isEmpty());
+
+        backend.emit("activity-flow", new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), null));
+        assertEquals("Thinking…", published.getLast().activity());
+        int before = published.size();
+        backend.emit("activity-flow", new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH, null, null, List.of(), null));
+        assertEquals("Searching the web…", published.getLast().activity());
+        assertEquals(before + 1, published.size());
+        backend.emit("activity-flow", new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "hi", null, List.of(), null));
+        assertEquals("Writing answer…", published.getLast().activity());
+        assertEquals("hi", published.getLast().streamingAnswer());
+        backend.emit("activity-flow", new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH, null, null,
+                List.of(new ModelBackend.ResponseBlock(ModelBackend.ResponseKind.CITATION, "{}", "https://example.test")), null));
+        assertEquals("Writing answer…", published.getLast().activity());
+        backend.emit("activity-flow", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        assertEquals("", controller.view().activity());
+        assertFalse(controller.view().active());
+    }
+
     private static RequestController controller(ConversationStore store, FakeBackend backend,
                                                 RequestController.ContextCapture capture,
                                                 Consumer<ChatContracts.RequestId> cancelCapture,

@@ -52,6 +52,123 @@ class AssistantScreenStateTest {
         assertEquals("answer", screen.answer());
     }
 
+    private static ChatContracts.View active(FakeActions actions, String streaming, String activity) {
+        return new ChatContracts.View(true, ChatContracts.SignInState.SIGNED_OUT, false, actions.view.conversation(),
+                actions.view.context(), actions.view.sources(), actions.view.navigationTargets(), actions.view.errors(),
+                streaming, activity);
+    }
+
+    @Test
+    void refreshKeepsTheScrollOffsetWhenThePlayerScrolledUp() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.refresh(actions.view);
+        screen.updateContentMetrics(1000, 200);
+        screen.mouseScrolled(50, 200, 0, -5);
+        screen.mouseScrolled(50, 200, 0, 2);
+        int offset = screen.scrollOffset();
+        assertEquals(60, offset);
+
+        screen.refresh(active(actions, "partial", "Writing answer…"));
+        screen.refresh(actions.view);
+        screen.updateContentMetrics(1000, 200);
+
+        assertEquals(offset, screen.scrollOffset());
+        assertFalse(screen.followingBottom());
+    }
+
+    @Test
+    void streamingFollowsTheBottomUntilThePlayerScrollsUpAndResumesAtTheBottom() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.refresh(active(actions, "a", "Thinking…"));
+        screen.updateContentMetrics(1000, 200);
+        assertEquals(800, screen.maxScroll());
+        assertEquals(800, screen.scrollOffset());
+
+        screen.refresh(active(actions, "ab", "Writing answer…"));
+        screen.updateContentMetrics(1100, 200);
+        assertEquals(900, screen.scrollOffset());
+
+        screen.mouseScrolled(50, 200, 0, 1);
+        assertEquals(880, screen.scrollOffset());
+        assertFalse(screen.followingBottom());
+        screen.updateContentMetrics(1300, 200);
+        assertEquals(880, screen.scrollOffset());
+
+        screen.mouseScrolled(50, 200, 0, -100);
+        assertEquals(1100, screen.scrollOffset());
+        assertTrue(screen.followingBottom());
+        screen.updateContentMetrics(1400, 200);
+        assertEquals(1200, screen.scrollOffset());
+    }
+
+    @Test
+    void maxScrollUsesTheMeasuredContentHeightAndShrinkingContentClampsTheOffset() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.refresh(actions.view);
+        screen.updateContentMetrics(5000, 100);
+        screen.mouseScrolled(50, 200, 0, -1000);
+        assertEquals(4900, screen.scrollOffset());
+
+        screen.updateContentMetrics(300, 100);
+        assertEquals(200, screen.maxScroll());
+        assertEquals(200, screen.scrollOffset());
+        screen.updateContentMetrics(50, 100);
+        assertEquals(0, screen.maxScroll());
+        assertEquals(0, screen.scrollOffset());
+    }
+
+    @Test
+    void submittingAQuestionScrollsToTheBottomAndFollows() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.refresh(actions.view);
+        screen.updateContentMetrics(1000, 200);
+        screen.mouseScrolled(50, 200, 0, 10);
+        assertFalse(screen.followingBottom());
+
+        screen.setInput("how do I craft a lantern?");
+        screen.submit();
+
+        assertEquals(List.of("send"), actions.calls);
+        assertEquals(800, screen.scrollOffset());
+        assertTrue(screen.followingBottom());
+    }
+
+    @Test
+    void navigationButtonsAppearOnlyOnceTheAnswerTextHasStarted() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.init();
+
+        screen.refresh(active(actions, "", "Searching pack: x (step 1)"));
+        assertEquals(0, screen.navigationButtonCount());
+
+        screen.refresh(active(actions, "Torch", "Writing answer…"));
+        assertEquals(1, screen.navigationButtonCount());
+
+        screen.refresh(actions.view);
+        assertEquals(1, screen.navigationButtonCount());
+
+        screen.refresh(active(actions, "", "Thinking…"));
+        assertEquals(0, screen.navigationButtonCount());
+    }
+
+    @Test
+    void statusLineShowsTheActivityWhileActiveAndIdleOtherwise() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+
+        screen.refresh(active(actions, "", "Reading quest progress (step 2)"));
+        assertEquals("Reading quest progress (step 2)", screen.statusLine());
+        screen.refresh(active(actions, "", ""));
+        assertEquals("Working…", screen.statusLine());
+        screen.refresh(actions.view);
+        assertEquals("Request: idle", screen.statusLine());
+    }
+
     @Test
     void navigationRequiresTheRegisteredTargetTuple() {
         FakeActions actions = new FakeActions();

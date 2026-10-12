@@ -209,7 +209,7 @@ public final class ChatContracts {
 
     public record View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
                        Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
-                       List<String> errors, String streamingAnswer) {
+                       List<String> errors, String streamingAnswer, String activity) {
         public View {
             Objects.requireNonNull(signIn);
             Objects.requireNonNull(conversation);
@@ -218,6 +218,13 @@ public final class ChatContracts {
             navigationTargets = List.copyOf(navigationTargets);
             errors = List.copyOf(errors);
             Objects.requireNonNull(streamingAnswer);
+            Objects.requireNonNull(activity);
+        }
+
+        public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    List<String> errors, String streamingAnswer) {
+            this(active, signIn, paused, conversation, context, sources, navigationTargets, errors, streamingAnswer, "");
         }
 
         public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,

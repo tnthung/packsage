@@ -36,6 +36,13 @@ public final class AssistantScreen extends Screen {
     private Runnable settingsOpener = () -> { };
     private RuntimeState runtimeState = new RuntimeState(true, true, false);
     private int scrollOffset;
+    private int contentHeight;
+    private int viewportHeight = 1;
+    private boolean followBottom = true;
+    private int navigationContentY;
+    private static final int NAVIGATION_WIDTH = 160;
+    private static final int NAVIGATION_GAP = 6;
+    private static final int NAVIGATION_ROW = 22;
 
     public AssistantScreen(ChatActions actions) {
         this(actions, Component.literal("PackSage Assistant"));
@@ -93,12 +100,16 @@ public final class AssistantScreen extends Screen {
         updateButtons();
         int contentTop = 116;
         int contentBottom = Math.max(contentTop + 1, height - 10);
-        graphics.drawString(font, Component.literal("Request: " + (view.active() ? "streaming" : "idle")), 20, 102, 0xffffff);
-        graphics.drawString(font, Component.literal("Sign in: " + view.signIn().name()), 150, 102, 0xffffff);
+        graphics.drawString(font, Component.literal("Sign in: " + view.signIn().name()), 20, 102, 0xffffff);
         graphics.drawString(font, Component.literal("Pause effective: "
-                + (effectivePause(actualRuntimeState()) ? "on" : "off")), 300, 102, 0xffffff);
+                + (effectivePause(actualRuntimeState()) ? "on" : "off")), 130, 102, 0xffffff);
+        int statusWidth = Math.max(40, width - 270);
+        String status = statusLine();
+        if (font.width(status) > statusWidth) status = font.plainSubstrByWidth(status, statusWidth - font.width("…")) + "…";
+        graphics.drawString(font, Component.literal(status), 250, 102, view.active() ? 0xffd27f : 0xffffff);
         graphics.enableScissor(10, contentTop, Math.max(11, width - 10), contentBottom);
-        int y = contentTop + 4 - scrollOffset;
+        int contentOrigin = contentTop + 4;
+        int y = contentOrigin - scrollOffset;
         for (var line : font.split(Component.literal(ScreenText.contextSummary(view.context())), Math.max(1, width - 40))) {
             graphics.drawString(font, line, 20, y, 0xb0b0b0);
             y += 10;
@@ -115,7 +126,8 @@ public final class AssistantScreen extends Screen {
             y += 12;
             graphics.drawString(font, Component.literal("PackSage:"), 20, y, 0x90d0ff);
             y += 12;
-            y = drawMarkdown(graphics, turn.answer(), y);
+            boolean latest = turn == view.conversation().turns().getLast();
+            y = drawMarkdown(graphics, turn.answer(), latest && !view.active() ? view.navigationTargets() : List.of(), y);
             String outcome = ScreenText.outcomeLine(turn.outcome());
             if (outcome != null) {
                 for (var line : font.split(Component.literal(outcome), Math.max(1, width - 40))) {
@@ -140,17 +152,65 @@ public final class AssistantScreen extends Screen {
         if (view.active() && !view.streamingAnswer().isEmpty()) {
             graphics.drawString(font, Component.literal("PackSage:"), 20, y, 0x90d0ff);
             y += 12;
-            y = drawMarkdown(graphics, view.streamingAnswer(), y);
+            y = drawMarkdown(graphics, view.streamingAnswer(), view.navigationTargets(), y);
+        }
+        if (!sourceButtons.isEmpty()) {
+            navigationContentY = y + scrollOffset;
+            y += navigationRows() * NAVIGATION_ROW + 4;
         }
         if (!view.errors().isEmpty()) {
             graphics.drawString(font, Component.literal("Error: " + view.errors().get(view.errors().size() - 1)), 20, y, 0xff5555);
+            y += 12;
         }
         graphics.disableScissor();
+        updateContentMetrics(y + scrollOffset - contentOrigin + 4, contentBottom - contentTop);
         updateSourceButtons(contentTop, contentBottom);
     }
 
-    private int drawMarkdown(GuiGraphics graphics, String text, int y) {
-        for (Component markdown : ScreenText.markdownLines(text)) {
+    /** Records the measured content and viewport heights, then clamps or follows the bottom. */
+    void updateContentMetrics(int contentHeight, int viewportHeight) {
+        this.contentHeight = Math.max(0, contentHeight);
+        this.viewportHeight = Math.max(1, viewportHeight);
+        if (followBottom && view.active()) scrollOffset = maxScroll();
+        else scrollOffset = Math.max(0, Math.min(maxScroll(), scrollOffset));
+    }
+
+    int maxScroll() {
+        return Math.max(0, contentHeight - viewportHeight);
+    }
+
+    boolean followingBottom() {
+        return followBottom;
+    }
+
+    private void scrollToBottom() {
+        followBottom = true;
+        scrollOffset = maxScroll();
+    }
+
+    String statusLine() {
+        if (!view.active()) return "Request: idle";
+        return view.activity().isEmpty() ? "Working…" : view.activity();
+    }
+
+    int navigationButtonCount() {
+        return sourceButtons.size();
+    }
+
+    private List<Evidence.NavigationTarget> visibleNavigationTargets() {
+        return view.active() && view.streamingAnswer().isEmpty() ? List.of() : view.navigationTargets();
+    }
+
+    private int navigationColumns() {
+        return Math.max(1, (width - 40 + NAVIGATION_GAP) / (NAVIGATION_WIDTH + NAVIGATION_GAP));
+    }
+
+    private int navigationRows() {
+        return (sourceButtons.size() + navigationColumns() - 1) / navigationColumns();
+    }
+
+    private int drawMarkdown(GuiGraphics graphics, String text, List<Evidence.NavigationTarget> covered, int y) {
+        for (Component markdown : ScreenText.markdownLines(text, covered)) {
             for (var line : font.split(markdown, Math.max(1, width - 40))) {
                 graphics.drawString(font, line, 20, y, 0xffffff);
                 y += 10;
@@ -163,10 +223,8 @@ public final class AssistantScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         if (mouseY < 116) return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
-        int available = Math.max(1, height - 126);
-        int maxScroll = Math.max(0, view.conversation().turns().size() * 400
-                + view.navigationTargets().size() * 22 - available);
-        scrollOffset = Math.max(0, Math.min(maxScroll, scrollOffset - (int) (scrollY * 20)));
+        scrollOffset = Math.max(0, Math.min(maxScroll(), scrollOffset - (int) (scrollY * 20)));
+        followBottom = scrollOffset >= maxScroll();
         updateSourceButtons(116, Math.max(117, height - 10));
         return true;
     }
@@ -180,7 +238,6 @@ public final class AssistantScreen extends Screen {
     public void refresh(ChatContracts.View next) {
         if (inputBox != null) input = inputBox.getValue();
         view = Objects.requireNonNull(next);
-        scrollOffset = 0;
         rebuildSourceButtons();
         updateButtons();
     }
@@ -201,7 +258,9 @@ public final class AssistantScreen extends Screen {
     public int scrollOffset() { return scrollOffset; }
 
     public void submit() {
-        if (!input.isBlank()) actions.send(input, includeScreenshot, explicitWebSearch);
+        if (input.isBlank()) return;
+        actions.send(input, includeScreenshot, explicitWebSearch);
+        scrollToBottom();
     }
 
     public void close() {
@@ -285,22 +344,27 @@ public final class AssistantScreen extends Screen {
     private void rebuildSourceButtons() {
         for (Button button : sourceButtons) removeWidget(button);
         sourceButtons.clear();
-        for (Evidence.NavigationTarget target : view.navigationTargets()) {
+        for (Evidence.NavigationTarget target : visibleNavigationTargets()) {
             String label = ScreenText.navigationLabel(target);
-            if (font != null && font.width(label) > 150) label = font.plainSubstrByWidth(label, 150 - font.width("...")) + "...";
+            int labelWidth = NAVIGATION_WIDTH - 10;
+            if (font != null && font.width(label) > labelWidth) {
+                label = font.plainSubstrByWidth(label, labelWidth - font.width("...")) + "...";
+            }
             Button button = Button.builder(Component.literal(label),
-                    ignored -> navigate(target)).bounds(Math.max(20, width - 180), 116, 160, 20).build();
+                    ignored -> navigate(target)).bounds(20, 116, NAVIGATION_WIDTH, 20).build();
             sourceButtons.add(addRenderableWidget(button));
         }
     }
 
+    /** Buttons sit in the content flow under the latest answer, so they scroll with it. */
     private void updateSourceButtons(int contentTop, int contentBottom) {
+        int columns = navigationColumns();
         for (int index = 0; index < sourceButtons.size(); index++) {
             Button button = sourceButtons.get(index);
-            int y = contentTop + index * 22 - scrollOffset;
+            int y = navigationContentY - scrollOffset + (index / columns) * NAVIGATION_ROW;
             button.setY(y);
-            button.setX(Math.max(20, width - 180));
-            button.visible = y + 20 > contentTop && y < contentBottom;
+            button.setX(20 + (index % columns) * (NAVIGATION_WIDTH + NAVIGATION_GAP));
+            button.visible = y >= contentTop && y + 20 <= contentBottom;
             button.active = button.visible;
         }
     }

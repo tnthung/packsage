@@ -624,7 +624,7 @@ public final class AssistantRuntime implements ChatActions {
             }
         }
         return new ChatContracts.View(view.active(), currentSignIn, paused, view.conversation(), view.context(),
-                sources, targets, errors, view.streamingAnswer());
+                sources, targets, errors, view.streamingAnswer(), view.activity());
     }
 
     private Evidence.Scope currentScope() {

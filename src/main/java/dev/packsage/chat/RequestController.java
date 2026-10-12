@@ -285,6 +285,7 @@ public final class RequestController {
         synchronized (stateLock) {
             if (isCurrent(request)) {
                 request.captured = captured;
+                request.activity = ActivityLabels.WAITING;
                 context = captured.context();
                 sources = request.evidence.sources();
                 navigationTargets = request.evidence.navigationTargets();
@@ -365,7 +366,17 @@ public final class RequestController {
         ChatContracts.View snapshot = null;
         synchronized (stateLock) {
             if (!isCurrent(request)) return;
-            if (event.kind() == ModelBackend.EventKind.TEXT_DELTA && event.text() != null) request.answer.append(event.text());
+            if (event.kind() == ModelBackend.EventKind.TEXT_DELTA && event.text() != null) {
+                request.answer.append(event.text());
+                request.activity = ActivityLabels.WRITING;
+            } else if (event.kind() == ModelBackend.EventKind.REASONING) {
+                if (request.activity.equals(ActivityLabels.THINKING)) return;
+                request.activity = ActivityLabels.THINKING;
+            } else if (event.kind() == ModelBackend.EventKind.HOSTED_SEARCH
+                    && event.blocks().stream().noneMatch(block -> block.kind() == ModelBackend.ResponseKind.CITATION)) {
+                if (request.activity.equals(ActivityLabels.SEARCHING_WEB)) return;
+                request.activity = ActivityLabels.SEARCHING_WEB;
+            }
             snapshot = currentView();
         }
         publisher.accept(snapshot);
@@ -373,11 +384,15 @@ public final class RequestController {
 
     private void startTool(ActiveRequest request, ModelBackend.ToolCall call) {
         ChatContracts.ToolRequest toolRequest;
+        ChatContracts.View started;
         synchronized (stateLock) {
             if (!isCurrent(request) || !request.toolCalls.add(call.callId())) return;
             request.partialReplay.add(call);
             toolRequest = new ChatContracts.ToolRequest(request.submission, call);
+            request.activity = ActivityLabels.tool(call, request.toolCalls.size());
+            started = currentView();
         }
+        publisher.accept(started);
         CompletionStage<ChatContracts.ToolResponse> execution;
         try {
             execution = toolExecutor.execute(toolRequest);
@@ -582,7 +597,8 @@ public final class RequestController {
 
     private ChatContracts.View currentView() {
         return new ChatContracts.View(active != null, ChatContracts.SignInState.SIGNED_OUT, false, conversation, context,
-                sources, navigationTargets, List.copyOf(errors), active == null ? "" : active.answer.toString());
+                sources, navigationTargets, List.copyOf(errors), active == null ? "" : active.answer.toString(),
+                active == null ? "" : active.activity);
     }
 
     private static List<ModelBackend.InputItem> validateReplay(List<ModelBackend.InputItem> providerReplay,
@@ -625,6 +641,7 @@ public final class RequestController {
         private final long generation;
         private final CompletableFuture<ChatContracts.RequestId> started = new CompletableFuture<>();
         private final StringBuilder answer = new StringBuilder();
+        private String activity = ActivityLabels.PREPARING;
         private final List<ModelBackend.InputItem> partialReplay = new ArrayList<>();
         private final Set<String> toolCalls = new LinkedHashSet<>();
         private final Map<String, ModelBackend.ToolResult> toolResults = new LinkedHashMap<>();

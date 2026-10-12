@@ -70,6 +70,75 @@ class ScreenTextTest {
         assertEquals(List.of("Title", "• item", "plain"), lines.stream().map(Component::getString).toList());
     }
 
+    private static List<String> dimRuns(Component component) {
+        List<String> runs = new ArrayList<>();
+        component.visit((style, text) -> {
+            if (style.getColor() != null && style.getColor().getValue() == ScreenText.DIM_COLOR && !text.isEmpty()) runs.add(text);
+            return java.util.Optional.empty();
+        }, net.minecraft.network.chat.Style.EMPTY);
+        return runs;
+    }
+
+    @Test
+    void citationMarkersBecomeShortDimTags() {
+        List<Component> lines = ScreenText.markdownLines("Torch [native:minecraft:torch] and "
+                + "[jei:jei/1/1/minecraft:crafting/recipe-packsage:fixture_lantern-123] then [ftb_quests:1000000000000002] "
+                + "[patchouli:fixture:book#fixture:book/intro#0] [config:cfg/x] [other:abc].");
+
+        assertEquals("Torch [game] and [recipe] then [quest] [book] [config] [other].", lines.get(0).getString());
+        assertEquals(List.of("[game]", "[recipe]", "[quest]", "[book]", "[config]", "[other]"), dimRuns(lines.get(0)));
+    }
+
+    @Test
+    void citationMarkerIsOmittedWhenANavigationTargetCoversIt() {
+        var target = new Evidence.NavigationTarget(SCOPE, "native", "minecraft:torch", "minecraft:torch");
+
+        List<Component> lines = ScreenText.markdownLines("Makes 4 [native:minecraft:torch]. See [native:minecraft:coal].", List.of(target));
+
+        assertEquals("Makes 4. See [game].", lines.get(0).getString());
+    }
+
+    @Test
+    void nonMarkerBracketsAndLinksStayVisible() {
+        assertEquals("a [note: see this] b [x](https://e.test) [https://e.test] [1]",
+                ScreenText.markdownLines("a [note: see this] b [x](https://e.test) [https://e.test] [1]").get(0).getString());
+    }
+
+    @Test
+    void tableRowsRenderWithoutRawPipesAndSeparatorRowsAreDropped() {
+        List<Component> lines = ScreenText.markdownLines("Intro\n| Item | Count |\n|---|:---:|\n| **Torch** | 4 |\nAfter");
+
+        assertEquals(List.of("Intro", "Item   Count", "Torch   4", "After"), lines.stream().map(Component::getString).toList());
+        assertEquals("Item   Count", String.join("", boldRuns(lines.get(1))));
+        assertEquals(List.of("Torch"), boldRuns(lines.get(2)));
+    }
+
+    @Test
+    void pipesOutsideTablesAreLeftAlone() {
+        assertEquals("a | b", ScreenText.markdownLines("a | b").get(0).getString());
+        assertEquals("x -|- y", ScreenText.markdownLines("x -|- y").get(0).getString());
+    }
+
+    @Test
+    void codeFenceLinesAreNotDrawnAndBodyIsPlainColouredText() {
+        List<Component> lines = ScreenText.markdownLines("Before\n```json\n{\"a\": **1**}\n\n`x`\n```\nAfter **b**");
+
+        assertEquals(List.of("Before", "{\"a\": **1**}", "", "`x`", "After b"), lines.stream().map(Component::getString).toList());
+        List<String> coloured = new ArrayList<>();
+        lines.get(1).visit((style, text) -> {
+            if (style.getColor() != null && style.getColor().getValue() == ScreenText.CODE_COLOR && !text.isEmpty()) coloured.add(text);
+            return java.util.Optional.empty();
+        }, net.minecraft.network.chat.Style.EMPTY);
+        assertEquals(List.of("{\"a\": **1**}"), coloured);
+    }
+
+    @Test
+    void unclosedFenceKeepsTheRestAsCode() {
+        List<Component> lines = ScreenText.markdownLines("```\nline one\nline two");
+
+        assertEquals(List.of("line one", "line two"), lines.stream().map(Component::getString).toList());
+    }
+
     @Test
     void contextSummaryIsCompact() {
         String json = "{\"requestId\":\"r\",\"dimension\":\"minecraft:overworld\","

@@ -109,6 +109,17 @@ public final class ChatGptStream {
                 return;
             }
             events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, event.get("delta").getAsString(), null, List.of(), null));
+        } else if ("response.output_item.added".equals(type)) {
+            String itemType = event.has("item") && event.get("item").isJsonObject()
+                    && event.getAsJsonObject("item").has("type") && event.getAsJsonObject("item").get("type").isJsonPrimitive()
+                    ? event.getAsJsonObject("item").get("type").getAsString() : "";
+            if ("reasoning".equals(itemType)) {
+                events.accept(new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), null));
+            } else if ("web_search_call".equals(itemType)) {
+                events.accept(new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH, null, null, List.of(), null));
+            }
+        } else if (type.startsWith("response.reasoning") && type.endsWith(".delta")) {
+            events.accept(new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), null));
         } else if ("response.function_call_arguments.done".equals(type)) {
             if (!event.has("item_id") || !event.has("arguments")) {
                 fail("function arguments event is incomplete");

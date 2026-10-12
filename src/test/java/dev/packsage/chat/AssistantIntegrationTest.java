@@ -36,9 +36,9 @@ class AssistantIntegrationTest {
         var documentation = record(SCOPE, "guide", "torch", Evidence.Authority.INSTALLED_DOCUMENTATION,
                 "4 torches", new Evidence.NavigationTarget(SCOPE, "guide", "torch", "guide-page"));
         var backend = new RuntimeBackend();
-        var currentScope = new AtomicReference<>(new Evidence.Scope("world", "resources", "team", "runtime", 0));
         var captures = new AtomicInteger();
         var storeRoot = Files.createTempDirectory("packsage-integration");
+        var opened = new AtomicReference<String>();
         var runtime = new AssistantRuntime(new ConversationStore(storeRoot, DIRECT), backend,
                 scope -> new GameplayContextCapture(
                         () -> new GameplayContextCapture.Observation("held-" + captures.incrementAndGet(), "target", "overworld",
@@ -47,6 +47,7 @@ class AssistantIntegrationTest {
                         DIRECT, scope), DIRECT, DIRECT,
                 current -> new KnowledgeService(List.of(new Provider("native", List.of(loaded), false) {
                                     @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                                        opened.set(target.targetId());
                                         return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, target.targetId());
                                     }
                                 },
@@ -66,6 +67,7 @@ class AssistantIntegrationTest {
         runtime.send("How do I make a torch?", true, false);
         assertEquals(1, backend.requests.size());
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Checking installed evidence. ", null, List.of(), List.of(), null));
+        assertEquals(List.of("Checking installed evidence. "), backend.deltas);
         var searchCall = new ModelBackend.ToolCall("search-1", "search_pack", "{\"text\":\"torch\"}");
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, searchCall, List.of(), List.of(), null));
         assertEquals(1, backend.submitted.size());
@@ -92,21 +94,26 @@ class AssistantIntegrationTest {
         assertTrue(firstView.sources().stream().anyMatch(source -> source.providerId().equals("web")
                 && source.authority() == Evidence.Authority.EXTERNAL));
         assertEquals(3, firstView.navigationTargets().size());
-        runtime.navigate(firstView.navigationTargets().stream().filter(target -> target.providerId().equals("native")).findFirst().orElseThrow());
-        assertEquals("torch-view", firstView.navigationTargets().stream().filter(target -> target.providerId().equals("native")).findFirst().orElseThrow().targetId());
-        assertTrue(Files.walk(storeRoot).anyMatch(path -> path.getFileName().toString().endsWith(".jsonl")));
-        var persisted = Files.walk(storeRoot).filter(path -> path.getFileName().toString().endsWith(".jsonl")).findFirst().orElseThrow();
-        var persistedText = Files.readString(persisted);
+        var localTarget = firstView.navigationTargets().stream().filter(target -> target.providerId().equals("native")).findFirst().orElseThrow();
+        runtime.navigate(localTarget);
+        assertEquals("torch-view", opened.get());
+        String persistedText;
+        try (var files = Files.walk(storeRoot)) {
+            var persisted = files.filter(path -> path.getFileName().toString().endsWith(".jsonl")).findFirst().orElseThrow();
+            persistedText = Files.readString(persisted);
+        }
         assertTrue(persistedText.contains("toolCall") && persistedText.contains("toolResult") && persistedText.contains("answer-1"));
 
         runtime.send("What did the earlier evidence say?", false, false);
         assertEquals(2, backend.requests.size());
         var replayed = backend.requests.get(1).input();
-        assertTrue(replayed.stream().anyMatch(item -> item instanceof ModelBackend.ToolCall call && call.callId().equals("search-1")));
-        assertTrue(replayed.stream().anyMatch(item -> item instanceof ModelBackend.ToolResult result && result.callId().equals("read-1")));
-        assertTrue(replayed.stream().filter(ModelBackend.Message.class::isInstance).map(ModelBackend.Message.class::cast)
-                .flatMap(message -> message.content().stream()).anyMatch(content -> content instanceof ModelBackend.TextContent text
-                        && text.text().contains("Fresh gameplay observation:")));
+        assertEquals(List.of(searchCall, backend.submitted.get(0), readCall, backend.submitted.get(1), assistant),
+                replayed.stream().filter(item -> !(item instanceof ModelBackend.Message)).toList());
+        var currentMessage = replayed.stream().filter(ModelBackend.Message.class::isInstance).map(ModelBackend.Message.class::cast)
+                .reduce((first, second) -> second).orElseThrow();
+        assertTrue(currentMessage.content().stream().anyMatch(content -> content instanceof ModelBackend.TextContent text
+                && text.text().contains("held-2")));
+        assertTrue(currentMessage.content().stream().noneMatch(ModelBackend.ImageContent.class::isInstance));
         assertEquals(2, runtime.view().context().scope().requestGeneration());
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
                 List.of(new ModelBackend.AssistantOutput("answer-2", ModelBackend.OutputStatus.COMPLETED,
@@ -209,6 +216,7 @@ class AssistantIntegrationTest {
         private final CompletableFuture<Capabilities> catalog = new CompletableFuture<>();
         private final List<Request> requests = new ArrayList<>();
         private final List<ToolResult> submitted = new ArrayList<>();
+        private final List<String> deltas = new ArrayList<>();
         private java.util.function.Consumer<Event> events;
 
         @Override public CompletionStage<AuthState> signIn() { return signIn; }
@@ -224,6 +232,9 @@ class AssistantIntegrationTest {
             };
         }
 
-        private void emit(Event event) { events.accept(event); }
+        private void emit(Event event) {
+            if (event.kind() == EventKind.TEXT_DELTA) deltas.add(event.text());
+            events.accept(event);
+        }
     }
 }

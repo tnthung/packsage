@@ -1,0 +1,3 @@
+# The fixture intentionally differs from the loaded snapshot.
+[feature]
+enabled = false

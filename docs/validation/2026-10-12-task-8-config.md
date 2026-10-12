@@ -1,0 +1,9 @@
+# Task 8 config bridge validation
+
+The pinned loader is NeoForge 21.1.202. The read-only bridge targets `net.neoforged.fml.config.ConfigTracker.INSTANCE` and reads only its final `configSets` and `configsByMod` fields. The fields are accessed reflectively because the inspected loader source marks the tracker internal and exposes no public global enumeration method. Each catalog entry uses the public `ModConfig` getters `getModId()`, `getType()`, `getFileName()`, `getSpec()`, `getLoadedConfig()` and `getFullPath()`.
+
+For a `ModConfigSpec`, the bridge copies the `getSpec()` value tree and reads `ValueSpec.getDefault()`, `getComment()`, `getRange().getMin()/getMax()` and `restartType()`. Loaded values are copied from the loaded config's `config()` value tree. The reader is refreshed on each snapshot request; it does not subscribe to PackSage's event bus and never calls config setters, save or reload methods.
+
+The supported gate is intentionally narrow: the expected tracker class, singleton and field names must be present and readable. Any reflective failure returns an unsupported reader. In that state the provider retains bounded TOML inspection for catalog entries with a path, reports `PARTIAL`, and clears loaded values so they remain unknown. A synchronized `SERVER` config can therefore retain loaded values with a null local path; an unsynchronized remote config with no catalog entry is not inferred from local files.
+
+Focused fixture coverage is in `ConfigProviderTest`: saved and loaded values remain separate, defaults/comments/restart/range metadata remain distinct, server values can have no path, unsupported access retains saved values while loaded state is unknown, and normalized/link-escaping paths are rejected. The coordinator must run the focused test/build; this worker did not run Gradle or formatting tools.

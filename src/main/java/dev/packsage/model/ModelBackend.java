@@ -11,8 +11,11 @@ public interface ModelBackend {
     enum EventKind { TEXT_DELTA, CLIENT_TOOL_CALL, HOSTED_SEARCH, COMPLETED, FAILED }
     enum ResponseKind { TEXT, CITATION, IMAGE, SPOILER_RESERVED }
     enum Role { USER, ASSISTANT, SYSTEM }
+    enum OutputStatus { IN_PROGRESS, COMPLETED, INCOMPLETE }
+    enum OutputPhase { COMMENTARY, FINAL_ANSWER }
+    enum WebSearchStatus { IN_PROGRESS, SEARCHING, COMPLETED, FAILED, INCOMPLETE }
 
-    sealed interface InputItem permits Message, EncryptedReasoning, ToolCall, ToolResult, OpaqueHostedOutput {
+    sealed interface InputItem permits Message, EncryptedReasoning, ToolCall, ToolResult, AssistantOutput, WebSearchCall {
     }
 
     sealed interface Content permits TextContent, ImageContent {
@@ -45,10 +48,76 @@ public interface ModelBackend {
         }
     }
 
-    record OpaqueHostedOutput(String type, String serializedContent) implements InputItem {
-        public OpaqueHostedOutput {
-            Objects.requireNonNull(type);
-            Objects.requireNonNull(serializedContent);
+    sealed interface OutputContent permits OutputText, Refusal {
+    }
+
+    record UrlCitation(int startIndex, int endIndex, String title, String url) {
+        public UrlCitation {
+            if (startIndex < 0 || endIndex < startIndex) throw new IllegalArgumentException("invalid citation range");
+            Objects.requireNonNull(title);
+            Objects.requireNonNull(url);
+        }
+    }
+
+    record OutputText(String text, List<UrlCitation> citations) implements OutputContent {
+        public OutputText {
+            Objects.requireNonNull(text);
+            citations = List.copyOf(citations);
+        }
+    }
+
+    record Refusal(String refusal) implements OutputContent {
+        public Refusal {
+            Objects.requireNonNull(refusal);
+        }
+    }
+
+    record AssistantOutput(String id, OutputStatus status, OutputPhase phase,
+                           List<OutputContent> content) implements InputItem {
+        public AssistantOutput {
+            if (id == null || id.isBlank()) throw new IllegalArgumentException("assistant output id is required");
+            Objects.requireNonNull(status);
+            content = List.copyOf(content);
+        }
+    }
+
+    sealed interface WebSearchAction permits SearchAction, OpenPageAction, FindInPageAction {
+    }
+
+    record WebSearchSource(String url) {
+        public WebSearchSource {
+            if (url == null || url.isBlank()) throw new IllegalArgumentException("web search source URL is required");
+        }
+    }
+
+    record SearchAction(String query, List<String> queries, List<WebSearchSource> sources) implements WebSearchAction {
+        public SearchAction {
+            queries = List.copyOf(queries);
+            sources = List.copyOf(sources);
+            if ((query == null || query.isBlank()) && queries.isEmpty()) {
+                throw new IllegalArgumentException("web search query is required");
+            }
+            if (queries.stream().anyMatch(value -> value == null || value.isBlank())) {
+                throw new IllegalArgumentException("web search queries cannot contain blanks");
+            }
+        }
+    }
+
+    record OpenPageAction(String url) implements WebSearchAction {
+    }
+
+    record FindInPageAction(String url, String pattern) implements WebSearchAction {
+        public FindInPageAction {
+            Objects.requireNonNull(url);
+            Objects.requireNonNull(pattern);
+        }
+    }
+
+    record WebSearchCall(String id, WebSearchStatus status, WebSearchAction action) implements InputItem {
+        public WebSearchCall {
+            if (id == null || id.isBlank()) throw new IllegalArgumentException("web search call id is required");
+            Objects.requireNonNull(status);
+            Objects.requireNonNull(action);
         }
     }
 

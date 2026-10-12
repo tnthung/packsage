@@ -36,7 +36,13 @@ class ChatContractsTest {
         List<ModelBackend.InputItem> replay = List.of(
                 new ModelBackend.EncryptedReasoning("reasoning-1", "encrypted", "[]"),
                 new ModelBackend.ToolCall("call-1", "lookup", "{}"),
-                new ModelBackend.ToolResult("call-1", "{\"ok\":true}", false));
+                new ModelBackend.ToolResult("call-1", "{\"ok\":true}", false),
+                new ModelBackend.WebSearchCall("search-1", ModelBackend.WebSearchStatus.COMPLETED,
+                        new ModelBackend.SearchAction("packsage", List.of("packsage"),
+                                List.of(new ModelBackend.WebSearchSource("https://example.test")))),
+                new ModelBackend.AssistantOutput("message-1", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("answer",
+                        List.of(new ModelBackend.UrlCitation(0, 6, "Example", "https://example.test"))))));
         ChatContracts.Turn turn = new ChatContracts.Turn(new ChatContracts.RequestId("request-1"), "question", "answer",
                 replay, new ChatContracts.Context("fresh", null, SCOPE), List.of(),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 3);

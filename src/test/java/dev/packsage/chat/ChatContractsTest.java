@@ -15,6 +15,42 @@ class ChatContractsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world-a", "en_us", "team-a", "provider-1", 2);
 
     @Test
+    void turnOwnsNavigationTargetsAndRejectsUnboundTargets() {
+        Evidence.Source source = new Evidence.Source(SCOPE, "provider", "1", "entry", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        Evidence.NavigationTarget target = new Evidence.NavigationTarget(SCOPE, "provider", "entry", "page");
+        var targets = new java.util.ArrayList<>(List.of(target));
+        ChatContracts.Turn turn = new ChatContracts.Turn(new ChatContracts.RequestId("navigation"), "question", "answer",
+                List.of(), new ChatContracts.Context("fresh", null, SCOPE), List.of(source), targets,
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+        targets.clear();
+
+        assertEquals(List.of(target), turn.navigationTargets());
+        assertThrows(UnsupportedOperationException.class, () -> turn.navigationTargets().clear());
+        assertThrows(IllegalArgumentException.class, () -> new ChatContracts.Turn(new ChatContracts.RequestId("unbound"),
+                "question", "answer", List.of(), turn.context(), List.of(source),
+                List.of(new Evidence.NavigationTarget(SCOPE, "provider", "different", "page")), turn.outcome(), 1));
+        assertEquals(List.of(), new ChatContracts.Turn(new ChatContracts.RequestId("legacy"), "question", "answer",
+                List.of(), turn.context(), List.of(source), turn.outcome(), 1).navigationTargets());
+    }
+
+    @Test
+    void readOnlyViewRetainsTheActiveGameWorldSeparatelyFromHistory() {
+        ChatContracts.WorldIdentity activeWorld = new ChatContracts.WorldIdentity("active", "Active World");
+        ChatContracts.Conversation historical = new ChatContracts.Conversation("session",
+                new ChatContracts.WorldIdentity("other", "Other World"), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null));
+        ChatContracts.View view = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_IN, false, historical,
+                new ChatContracts.Context("fresh", null, SCOPE), List.of(), List.of(), List.of(), "", "",
+                activeWorld, true);
+
+        assertEquals(activeWorld, view.activeWorld());
+        assertEquals(true, view.readOnly());
+        assertThrows(IllegalArgumentException.class, () -> new ChatContracts.View(true, view.signIn(), false, historical,
+                view.context(), List.of(), List.of(), List.of(), "", "", activeWorld, true));
+    }
+
+    @Test
     void capturedContextOwnsScreenshotBytesAndRequiresMatchingMetadata() {
         byte[] bytes = {1, 2, 3};
         ChatContracts.CapturedContext captured = new ChatContracts.CapturedContext(new ChatContracts.Context("fresh",

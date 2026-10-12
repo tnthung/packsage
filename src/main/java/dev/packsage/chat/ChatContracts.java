@@ -150,7 +150,8 @@ public final class ChatContracts {
     }
 
     public record Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
-                       Context context, List<Evidence.Source> sources, Outcome outcome, int tokenCount) {
+                       Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                       Outcome outcome, int tokenCount) {
         public Turn {
             Objects.requireNonNull(requestId);
             Objects.requireNonNull(question);
@@ -158,8 +159,39 @@ public final class ChatContracts {
             replayItems = List.copyOf(replayItems);
             Objects.requireNonNull(context);
             sources = List.copyOf(sources);
+            navigationTargets = List.copyOf(navigationTargets);
+            for (Evidence.NavigationTarget target : navigationTargets) {
+                if (!context.scope().equals(target.scope()) || sources.stream().noneMatch(source ->
+                        source.scope().equals(target.scope()) && source.providerId().equals(target.providerId())
+                                && source.sourceHandle().equals(target.sourceHandle()))) {
+                    throw new IllegalArgumentException("turn navigation target is not bound to a source");
+                }
+            }
             Objects.requireNonNull(outcome);
             if (tokenCount < 0) throw new IllegalArgumentException("tokenCount cannot be negative");
+        }
+
+        public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
+                    Context context, List<Evidence.Source> sources, Outcome outcome, int tokenCount) {
+            this(requestId, question, answer, replayItems, context, sources, List.of(), outcome, tokenCount);
+        }
+    }
+
+    public record SessionSummary(WorldIdentity world, String id, String title, String lastMessage, Instant updatedAt) {
+        public SessionSummary {
+            Objects.requireNonNull(world);
+            Objects.requireNonNull(id);
+            Objects.requireNonNull(title);
+            Objects.requireNonNull(lastMessage);
+            Objects.requireNonNull(updatedAt);
+            if (id.isBlank()) throw new IllegalArgumentException("session id cannot be blank");
+        }
+    }
+
+    public record AccountInfo(ModelBackend.ProviderInfo provider, String hint) {
+        public AccountInfo {
+            Objects.requireNonNull(provider);
+            hint = hint == null ? "" : hint;
         }
     }
 
@@ -197,7 +229,7 @@ public final class ChatContracts {
 
     public record View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
                        Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
-                       List<String> errors, String streamingAnswer, String activity) {
+                       List<String> errors, String streamingAnswer, String activity, WorldIdentity activeWorld, boolean readOnly) {
         public View {
             Objects.requireNonNull(signIn);
             Objects.requireNonNull(conversation);
@@ -207,6 +239,15 @@ public final class ChatContracts {
             errors = List.copyOf(errors);
             Objects.requireNonNull(streamingAnswer);
             Objects.requireNonNull(activity);
+            Objects.requireNonNull(activeWorld);
+            if (readOnly && active) throw new IllegalArgumentException("a read-only history view cannot have an active request");
+        }
+
+        public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    List<String> errors, String streamingAnswer, String activity) {
+            this(active, signIn, paused, conversation, context, sources, navigationTargets, errors, streamingAnswer,
+                    activity, conversation.world(), false);
         }
 
         public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,

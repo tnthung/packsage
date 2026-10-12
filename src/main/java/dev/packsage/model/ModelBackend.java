@@ -6,6 +6,16 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 
 public interface ModelBackend {
+    record ProviderInfo(String id, String displayName) {
+        public ProviderInfo {
+            Objects.requireNonNull(id);
+            Objects.requireNonNull(displayName);
+            if (id.isBlank() || displayName.isBlank()) throw new IllegalArgumentException("provider identity cannot be blank");
+        }
+    }
+
+    default ProviderInfo providerInfo() { return new ProviderInfo("unknown", "Provider"); }
+
     enum AuthStatus { UNKNOWN, SIGNED_OUT, SIGNING_IN, SIGNED_IN, EXPIRED, FAILED }
     enum SearchMode { AUTOMATIC, EXPLICIT_ONLY, EXPLICIT_REQUEST, DISABLED }
     enum ReasoningEffort { DEFAULT, NONE, MINIMAL, LOW, MEDIUM, HIGH, XHIGH, MAX }

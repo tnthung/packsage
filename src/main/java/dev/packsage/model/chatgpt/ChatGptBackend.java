@@ -30,6 +30,9 @@ import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 public final class ChatGptBackend implements ModelBackend {
+    @Override
+    public ProviderInfo providerInfo() { return new ProviderInfo("openai", "OpenAI"); }
+
     private static final URI MODELS_URI = URI.create("https://api.openai.com/v1/models");
     private static final URI RESPONSES_URI = URI.create("https://api.openai.com/v1/responses");
     private static final int MAX_ERROR_BYTES = 65_536;

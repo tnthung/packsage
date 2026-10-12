@@ -64,6 +64,13 @@ class ScreenTextTest {
     }
 
     @Test
+    void crlfLinesAreTreatedLikeLf() {
+        List<Component> lines = ScreenText.markdownLines("# Title\r\n- item\r\nplain");
+
+        assertEquals(List.of("Title", "• item", "plain"), lines.stream().map(Component::getString).toList());
+    }
+
+    @Test
     void contextSummaryIsCompact() {
         String json = "{\"requestId\":\"r\",\"dimension\":\"minecraft:overworld\","
                 + "\"position\":\"BlockPos{x=39, y=63, z=24}\",\"biome\":\"minecraft:taiga\",\"time\":\"4016\"}";
@@ -100,7 +107,19 @@ class ScreenTextTest {
                 "jei/4/9/minecraft:crafting/recipe-minecraft:torch-331");
         assertEquals("Open recipe: Torch", ScreenText.navigationLabel(jei));
 
-        var ftb = new Evidence.NavigationTarget(SCOPE, "ftb", "abcd", "abcd");
+        var slashed = new Evidence.NavigationTarget(SCOPE, "jei", "jei/4/9/minecraft:crafting/recipe-create:crafting/foo_bar-3",
+                "jei/4/9/minecraft:crafting/recipe-create:crafting/foo_bar-3");
+        assertEquals("Open recipe: Foo Bar", ScreenText.navigationLabel(slashed));
+
+        var noCanonical = new Evidence.NavigationTarget(SCOPE, "jei",
+                "jei/4/9/minecraft:crafting/net.example.Recipe-1a2b3c-7", "jei/4/9/minecraft:crafting/net.example.Recipe-1a2b3c-7");
+        assertEquals("Open recipe", ScreenText.navigationLabel(noCanonical));
+
+        var category = new Evidence.NavigationTarget(SCOPE, "jei", "jei/4/9/minecraft:crafting/category",
+                "jei/4/9/minecraft:crafting/category");
+        assertEquals("Open recipe", ScreenText.navigationLabel(category));
+
+        var ftb =new Evidence.NavigationTarget(SCOPE, "ftb", "abcd", "abcd");
         assertEquals("Open ftb: abcd", ScreenText.navigationLabel(ftb));
 
         var web = new Evidence.NavigationTarget(SCOPE, "native", "minecraft:torch", "minecraft:torch");

@@ -22,7 +22,7 @@ final class ScreenText {
     private static final Pattern HEADING = Pattern.compile("^(#{1,6}) +(.*)$");
     private static final Pattern LIST_ITEM = Pattern.compile("^(\\s*)[-*] +(.*)$");
     private static final Pattern COORDINATE = Pattern.compile("([xyz])=(-?\\d+)");
-    private static final Pattern RECIPE_TAIL = Pattern.compile("^recipe-(.+?)-\\d+$");
+    private static final Pattern JEI_RECIPE = Pattern.compile("^jei/\\d+/\\d+/.+?/recipe-(.+)-\\d+$");
     private static final Pattern HASH_SUFFIX = Pattern.compile("#\\d+$");
 
     private ScreenText() {
@@ -30,7 +30,7 @@ final class ScreenText {
 
     static List<Component> markdownLines(String text) {
         List<Component> lines = new ArrayList<>();
-        for (String line : text.split("\n", -1)) {
+        for (String line : text.split("\r?\n", -1)) {
             Matcher heading = HEADING.matcher(line);
             if (heading.matches()) {
                 lines.add(inline(heading.group(2)).withStyle(style -> style.withBold(true)));
@@ -141,19 +141,21 @@ final class ScreenText {
 
     static String navigationLabel(Evidence.NavigationTarget target) {
         String id = target.targetId();
-        String tail = id.substring(id.lastIndexOf('/') + 1);
-        Matcher recipe = RECIPE_TAIL.matcher(tail);
-        if (target.providerId().equals("jei") && recipe.matches()) {
-            return "Open recipe: " + displayName(recipe.group(1));
+        if (target.providerId().equals("jei")) {
+            // handle format from PackSageJeiPlugin.sourceHandle: jei/<gen>/<ver>/<category>/recipe-<id>-<ordinal>
+            Matcher recipe = JEI_RECIPE.matcher(id);
+            return recipe.matches() ? "Open recipe: " + displayName(recipe.group(1)) : "Open recipe";
         }
+        String tail = id.substring(id.lastIndexOf('/') + 1);
         String readable = HASH_SUFFIX.matcher(tail.isEmpty() ? id : tail).replaceFirst("");
         return "Open " + target.providerId() + ": " + readable;
     }
 
     private static String displayName(String resourceId) {
         String path = withoutNamespace(resourceId);
+        path = path.substring(path.lastIndexOf('/') + 1);
         StringBuilder name = new StringBuilder();
-        for (String word : path.split("[_/]+")) {
+        for (String word : path.split("_+")) {
             if (word.isEmpty()) continue;
             if (name.length() > 0) name.append(' ');
             name.append(Character.toUpperCase(word.charAt(0))).append(word.substring(1));

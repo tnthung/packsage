@@ -162,14 +162,17 @@ public final class RequestController {
     }
 
     public void disconnect() {
+        cancelWorldLoad("world load was cancelled by disconnect");
         cancelActive("disconnected");
     }
 
     public void worldChanged() {
+        cancelWorldLoad("world load was cancelled by world change");
         cancelActive("world changed");
     }
 
     public void invalidate(String scope) {
+        cancelWorldLoad("world load was invalidated: " + scope);
         cancelActive("invalidated: " + scope);
     }
 
@@ -245,6 +248,17 @@ public final class RequestController {
         if (failure == null && loaded.world().equals(load.world)) load.result.complete(loaded);
         else load.result.completeExceptionally(failure == null
                 ? new IllegalStateException("loaded conversation belongs to another world") : failure);
+    }
+
+    private void cancelWorldLoad(String detail) {
+        WorldLoad load;
+        synchronized (stateLock) {
+            load = worldLoad;
+            if (load == null) return;
+            worldLoad = null;
+            worldLoadGeneration++;
+        }
+        load.result.completeExceptionally(new IllegalStateException(detail));
     }
 
     private void targetReady(ActiveRequest request, ChatContracts.Conversation loaded, Throwable failure) {

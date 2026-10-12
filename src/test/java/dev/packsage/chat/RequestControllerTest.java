@@ -160,6 +160,28 @@ class RequestControllerTest {
     }
 
     @Test
+    void disconnectWorldChangeAndInvalidationSuppressPendingWorldLoads() {
+        for (String action : List.of("disconnect", "world", "invalidate")) {
+            ManualExecutor storeExecutor = new ManualExecutor();
+            RequestController controller = controller(new ConversationStore(temporaryDirectory.resolve(action), storeExecutor),
+                    new FakeBackend(), (capture, ignored) -> CompletableFuture.completedFuture(
+                    new ChatContracts.CapturedContext(new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])),
+                    ignored -> { }, ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")),
+                    ignored -> { });
+            CompletionStage<ChatContracts.Conversation> pending = controller.openWorld(WORLD_A, SCOPE_A);
+
+            if (action.equals("disconnect")) controller.disconnect();
+            if (action.equals("world")) controller.worldChanged();
+            if (action.equals("invalidate")) controller.invalidate("resources-locale");
+
+            assertTrue(pending.toCompletableFuture().isCompletedExceptionally(), action);
+            String visibleId = controller.view().conversation().id();
+            storeExecutor.drain();
+            assertEquals(visibleId, controller.view().conversation().id(), action);
+        }
+    }
+
+    @Test
     void synchronousCompletionAndPublisherReentryCannotInstallTheOldExchange() {
         FakeBackend backend = new FakeBackend();
         backend.completeSynchronouslyOnce = true;

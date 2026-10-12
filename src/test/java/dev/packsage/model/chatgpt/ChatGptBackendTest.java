@@ -151,6 +151,28 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void webSearchOutputWithoutActionCompletesAndReplaysWithoutInventedData() {
+        Path credentials = temporaryDirectory.resolve("credentials.json");
+        ChatGptAuth auth = new ChatGptAuth(credentials, signedOutFlow());
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        CapturingHttpClient client = new CapturingHttpClient(List.of(
+                "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":1,\"item\":{\"id\":\"ws_1\",\"type\":\"web_search_call\",\"status\":\"failed\"}}\n\n"
+                        + "data: {\"type\":\"response.completed\",\"sequence_number\":2,\"response\":{\"status\":\"completed\"}}\n\n"));
+        List<ModelBackend.Event> events = new ArrayList<>();
+
+        new ChatGptBackend(auth, client, Runnable::run).start(new ModelBackend.Request("gpt-5-mini", "Answer from evidence.",
+                List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("question")))),
+                List.of(), ModelBackend.SearchMode.DISABLED, "actionless-search", 512), events::add);
+
+        ModelBackend.Event completed = events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).findFirst().orElseThrow();
+        assertEquals(List.of(new ModelBackend.WebSearchCall("ws_1", ModelBackend.WebSearchStatus.FAILED, null)), completed.replayItems());
+        JsonObject replayed = JsonParser.parseString(ChatGptBackend.requestBody(new ModelBackend.Request("gpt-5-mini", "Continue.",
+                completed.replayItems(), List.of(), ModelBackend.SearchMode.DISABLED, "actionless-search-replay", 512)))
+                .getAsJsonObject().getAsJsonArray("input").get(0).getAsJsonObject();
+        assertFalse(replayed.has("action"));
+    }
+
+    @Test
     void modelCatalogPreservesDocumentedNameOrderAndSelectsFirstVisibleModel() {
         String catalog = """
                 {"models":[
@@ -550,14 +572,50 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void signOutRetainsCredentialUntilTransientRevocationFailureIsRetried() {
+        Path credentials = temporaryDirectory.resolve("credentials.json");
+        RevocationHttpClient revocation = new RevocationHttpClient(503, 200);
+        ChatGptAuth auth = new ChatGptAuth(credentials, revocation, ignored -> { });
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+
+        CompletionStage<String> outcome = auth.signOut();
+
+        assertNull(auth.credential());
+        assertTrue(Files.exists(credentials));
+        assertEquals("Signed out and remote revocation was confirmed", outcome.toCompletableFuture().join());
+        assertEquals(3, revocation.requests.size());
+        assertFalse(Files.exists(credentials));
+    }
+
+    @Test
+    void oldSignOutCannotDeleteCredentialSavedByANewerSession() {
+        Path credentials = temporaryDirectory.resolve("credentials.json");
+        RevocationHttpClient revocation = new RevocationHttpClient(503, 200);
+        ChatGptAuth auth = new ChatGptAuth(credentials, revocation, ignored -> { });
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+
+        CompletionStage<String> oldSignOut = auth.signOut();
+        ChatGptAuth.Credential replacement = credential("access-2", "refresh-2", Long.MAX_VALUE);
+        auth.saveCredential(replacement);
+
+        assertEquals("Sign-out outcome belongs to an inactive session", oldSignOut.toCompletableFuture().join());
+        assertEquals(replacement, auth.credential());
+        assertEquals(replacement, new ChatGptAuth(credentials, signedOutFlow()).credential());
+    }
+
+    @Test
     void backendExposesUnconfirmedRemoteRevocationOutcome() {
-        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), new RevocationHttpClient(503), ignored -> { });
+        Path credentials = temporaryDirectory.resolve("credentials.json");
+        RevocationHttpClient revocation = new RevocationHttpClient(503, 503, 503);
+        ChatGptAuth auth = new ChatGptAuth(credentials, revocation, ignored -> { });
         auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
         ChatGptBackend backend = new ChatGptBackend(auth, new StringHttpClient(500, "unused"), Runnable::run);
 
         backend.signOut();
 
         assertEquals("Signed out locally; remote revocation was not confirmed", backend.signOutStatus().toCompletableFuture().join());
+        assertEquals(4, revocation.requests.size());
+        assertFalse(Files.exists(credentials));
     }
 
     @Test
@@ -731,11 +789,11 @@ class ChatGptBackendTest {
     }
 
     private static final class RevocationHttpClient extends HttpClient {
-        private final int revocationStatus;
+        private final ArrayDeque<Integer> revocationStatuses;
         private final List<HttpRequest> requests = new ArrayList<>();
 
-        private RevocationHttpClient(int revocationStatus) {
-            this.revocationStatus = revocationStatus;
+        private RevocationHttpClient(Integer... revocationStatuses) {
+            this.revocationStatuses = new ArrayDeque<>(List.of(revocationStatuses));
         }
 
         @Override public Optional<CookieHandler> cookieHandler() { return Optional.empty(); }
@@ -753,7 +811,7 @@ class ChatGptBackendTest {
         @Override public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
             requests.add(request);
             return CompletableFuture.completedFuture((HttpResponse<T>) new StringResponse(request,
-                    request.uri().toString().endsWith("/.well-known/openid-configuration") ? 200 : revocationStatus,
+                    request.uri().toString().endsWith("/.well-known/openid-configuration") ? 200 : revocationStatuses.removeFirst(),
                     request.uri().toString().endsWith("/.well-known/openid-configuration")
                             ? "{\"revocation_endpoint\":\"https://auth.openai.test/revoke\"}" : "{}"));
         }

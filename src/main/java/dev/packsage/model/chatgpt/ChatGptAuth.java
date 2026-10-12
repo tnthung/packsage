@@ -65,6 +65,7 @@ public final class ChatGptAuth {
     public static final String REQUIRED_SCOPE = "chatgpt.tokens.use.direct";
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
     private static final Duration CALLBACK_TIMEOUT = Duration.ofMinutes(5);
+    private static final int REVOCATION_ATTEMPTS = 3;
     private final Path credentialFile;
     private final Path registrationFile;
     private final Path hostIdFile;
@@ -176,51 +177,60 @@ public final class ChatGptAuth {
             refreshInFlight = null;
         }
         if (refresh != null) refresh.completeExceptionally(new CancellationException("signed out during token refresh"));
-        String deletionFailure = null;
-        try {
-            Files.deleteIfExists(credentialFile);
-        } catch (IOException error) {
-            deletionFailure = error.getMessage();
-        }
-        lastDetail = deletionFailure == null ? "Signed out locally; remote revocation is pending"
-                : "Local credential deletion failed; remote revocation is pending: " + deletionFailure;
-        if (current == null || httpClient == null) {
-            lastDetail = deletionFailure == null ? "Signed out" : "Signed out in memory, but local credential deletion failed: " + deletionFailure;
+        if (current == null) return CompletableFuture.completedFuture("Signed out");
+        if (httpClient == null) {
+            try {
+                Files.deleteIfExists(credentialFile);
+                lastDetail = "Signed out";
+            } catch (IOException error) {
+                lastDetail = "Signed out in memory, but local credential deletion failed: " + error.getMessage();
+            }
             return CompletableFuture.completedFuture(lastDetail);
         }
-        String initialDeletionFailure = deletionFailure;
-        CompletableFuture<String> result = new CompletableFuture<>();
-        fetchOpenIdConfiguration(httpClient).thenCompose(configuration -> {
+        lastDetail = "Signed out in memory; remote revocation is pending";
+        return fetchOpenIdConfiguration(httpClient).thenCompose(configuration -> {
             if (!configuration.has("revocation_endpoint")) return CompletableFuture.failedFuture(new IllegalStateException("revocation endpoint is unavailable"));
             HttpRequest request = HttpRequest.newBuilder(URI.create(configuration.get("revocation_endpoint").getAsString())).timeout(REQUEST_TIMEOUT)
                     .header("Content-Type", "application/x-www-form-urlencoded")
                     .POST(HttpRequest.BodyPublishers.ofString(form(Map.of("token", current.refreshToken(), "token_type_hint", "refresh_token", "client_id", current.clientId())))).build();
-            return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        }).whenComplete((response, failure) -> {
+            return revoke(request, 1);
+        }).handle((response, failure) -> {
             synchronized (lock) {
                 if (sessionEpoch != epoch) {
-                    result.complete("Sign-out outcome belongs to an inactive session");
-                    return;
+                    return "Sign-out outcome belongs to an inactive session";
                 }
-            }
-            if (failure != null || response.statusCode() / 100 != 2) {
-                lastDetail = initialDeletionFailure == null ? "Signed out locally; remote revocation was not confirmed"
-                        : "Remote revocation was not confirmed and local credential deletion failed: " + initialDeletionFailure;
-            } else {
-                String retryFailure = null;
-                if (initialDeletionFailure != null) {
-                    try {
-                        Files.deleteIfExists(credentialFile);
-                    } catch (IOException error) {
-                        retryFailure = error.getMessage();
-                    }
+                String deletionFailure = null;
+                try {
+                    Files.deleteIfExists(credentialFile);
+                } catch (IOException error) {
+                    deletionFailure = error.getMessage();
                 }
-                lastDetail = retryFailure == null ? "Signed out and remote revocation was confirmed"
-                        : "Remote revocation was confirmed, but local credential deletion failed: " + retryFailure;
+                if (failure != null || response.statusCode() / 100 != 2) {
+                    lastDetail = deletionFailure == null ? "Signed out locally; remote revocation was not confirmed"
+                            : "Remote revocation was not confirmed and local credential deletion failed: " + deletionFailure;
+                } else {
+                    lastDetail = deletionFailure == null ? "Signed out and remote revocation was confirmed"
+                            : "Remote revocation was confirmed, but local credential deletion failed: " + deletionFailure;
+                }
+                return lastDetail;
             }
-            result.complete(lastDetail);
         });
-        return result;
+    }
+
+    private CompletableFuture<HttpResponse<String>> revoke(HttpRequest request, int attempt) {
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).handle((response, failure) -> {
+            if ((failure != null || response.statusCode() / 100 == 5) && attempt < REVOCATION_ATTEMPTS) {
+                CompletableFuture<HttpResponse<String>> retry = new CompletableFuture<>();
+                CompletableFuture.delayedExecutor(200L << (attempt - 1), TimeUnit.MILLISECONDS).execute(() ->
+                        revoke(request, attempt + 1).whenComplete((retried, retryFailure) -> {
+                            if (retryFailure == null) retry.complete(retried);
+                            else retry.completeExceptionally(retryFailure);
+                        }));
+                return retry;
+            }
+            if (failure != null) return CompletableFuture.<HttpResponse<String>>failedFuture(failure);
+            return CompletableFuture.completedFuture(response);
+        }).thenCompose(value -> value);
     }
 
     public CompletionStage<String> accessToken() {

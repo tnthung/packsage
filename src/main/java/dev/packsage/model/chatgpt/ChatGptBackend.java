@@ -366,6 +366,7 @@ public final class ChatGptBackend implements ModelBackend {
             value.addProperty("id", call.id());
             value.addProperty("type", "web_search_call");
             value.addProperty("status", call.status().name().toLowerCase(Locale.ROOT));
+            if (call.action() == null) return value;
             JsonObject action = new JsonObject();
             if (call.action() instanceof SearchAction search) {
                 action.addProperty("type", "search");
@@ -667,42 +668,45 @@ public final class ChatGptBackend implements ModelBackend {
                     replay.add(new AssistantOutput(item.get("id").getAsString(),
                             OutputStatus.valueOf(item.get("status").getAsString().toUpperCase(Locale.ROOT)), phase, content));
                 } else if ("web_search_call".equals(type)) {
-                    if (!item.has("id") || !item.has("status") || !item.has("action") || !item.get("action").isJsonObject()) {
+                    if (!item.has("id") || !item.has("status")
+                            || item.has("action") && !item.get("action").isJsonNull() && !item.get("action").isJsonObject()) {
                         throw new IllegalArgumentException("completed web search call is incomplete");
                     }
-                    JsonObject action = item.getAsJsonObject("action");
-                    if (!action.has("type")) throw new IllegalArgumentException("web search action type is missing");
-                    WebSearchAction projected;
-                    if ("search".equals(action.get("type").getAsString())) {
-                        List<String> queries = new ArrayList<>();
-                        if (action.has("queries") && !action.get("queries").isJsonArray()) {
-                            throw new IllegalArgumentException("web search queries are malformed");
-                        }
-                        if (action.has("queries") && action.get("queries").isJsonArray()) {
-                            for (JsonElement query : action.getAsJsonArray("queries")) queries.add(query.getAsString());
-                        }
-                        List<WebSearchSource> sources = new ArrayList<>();
-                        if (action.has("sources") && !action.get("sources").isJsonArray()) {
-                            throw new IllegalArgumentException("web search sources are malformed");
-                        }
-                        if (action.has("sources") && action.get("sources").isJsonArray()) {
-                            for (JsonElement sourceValue : action.getAsJsonArray("sources")) {
-                                if (!sourceValue.isJsonObject() || !sourceValue.getAsJsonObject().has("type")
-                                        || !"url".equals(sourceValue.getAsJsonObject().get("type").getAsString())
-                                        || !sourceValue.getAsJsonObject().has("url")) {
-                                    throw new IllegalArgumentException("web search source is incomplete");
-                                }
-                                sources.add(new WebSearchSource(sourceValue.getAsJsonObject().get("url").getAsString()));
+                    WebSearchAction projected = null;
+                    if (item.has("action") && !item.get("action").isJsonNull()) {
+                        JsonObject action = item.getAsJsonObject("action");
+                        if (!action.has("type")) throw new IllegalArgumentException("web search action type is missing");
+                        if ("search".equals(action.get("type").getAsString())) {
+                            List<String> queries = new ArrayList<>();
+                            if (action.has("queries") && !action.get("queries").isJsonArray()) {
+                                throw new IllegalArgumentException("web search queries are malformed");
                             }
+                            if (action.has("queries") && action.get("queries").isJsonArray()) {
+                                for (JsonElement query : action.getAsJsonArray("queries")) queries.add(query.getAsString());
+                            }
+                            List<WebSearchSource> sources = new ArrayList<>();
+                            if (action.has("sources") && !action.get("sources").isJsonArray()) {
+                                throw new IllegalArgumentException("web search sources are malformed");
+                            }
+                            if (action.has("sources") && action.get("sources").isJsonArray()) {
+                                for (JsonElement sourceValue : action.getAsJsonArray("sources")) {
+                                    if (!sourceValue.isJsonObject() || !sourceValue.getAsJsonObject().has("type")
+                                            || !"url".equals(sourceValue.getAsJsonObject().get("type").getAsString())
+                                            || !sourceValue.getAsJsonObject().has("url")) {
+                                        throw new IllegalArgumentException("web search source is incomplete");
+                                    }
+                                    sources.add(new WebSearchSource(sourceValue.getAsJsonObject().get("url").getAsString()));
+                                }
+                            }
+                            projected = new SearchAction(action.has("query") && !action.get("query").isJsonNull() ? action.get("query").getAsString() : null,
+                                    queries, sources);
+                        } else if ("open_page".equals(action.get("type").getAsString())) {
+                            projected = new OpenPageAction(action.has("url") && !action.get("url").isJsonNull() ? action.get("url").getAsString() : null);
+                        } else if ("find_in_page".equals(action.get("type").getAsString()) && action.has("url") && action.has("pattern")) {
+                            projected = new FindInPageAction(action.get("url").getAsString(), action.get("pattern").getAsString());
+                        } else {
+                            throw new IllegalArgumentException("unsupported web search action cannot be replayed");
                         }
-                        projected = new SearchAction(action.has("query") && !action.get("query").isJsonNull() ? action.get("query").getAsString() : null,
-                                queries, sources);
-                    } else if ("open_page".equals(action.get("type").getAsString())) {
-                        projected = new OpenPageAction(action.has("url") && !action.get("url").isJsonNull() ? action.get("url").getAsString() : null);
-                    } else if ("find_in_page".equals(action.get("type").getAsString()) && action.has("url") && action.has("pattern")) {
-                        projected = new FindInPageAction(action.get("url").getAsString(), action.get("pattern").getAsString());
-                    } else {
-                        throw new IllegalArgumentException("unsupported web search action cannot be replayed");
                     }
                     replay.add(new WebSearchCall(item.get("id").getAsString(),
                             WebSearchStatus.valueOf(item.get("status").getAsString().toUpperCase(Locale.ROOT)), projected));

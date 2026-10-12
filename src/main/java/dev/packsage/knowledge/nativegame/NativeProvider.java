@@ -87,7 +87,7 @@ public final class NativeProvider implements KnowledgeProvider {
             return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
         }
         return captured.handle((result, failure) -> new CaptureResult(result, failure)).thenApplyAsync(result -> {
-            if (result.failure() != null || result.captured() == null) return new Indexed(null, null,
+            if (result.failure() != null || result.captured() == null) return new Indexed(null, 0,
                     new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
             if (sequence != querySequence.get()) return new Indexed(result.captured().snapshot(), result.captured().levelToken(),
                     new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null));

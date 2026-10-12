@@ -162,7 +162,8 @@ public final class PackSageTools {
                     encoded.addProperty("title", record.title());
                     encoded.add("payload", JsonParser.parseString(Evidence.serialize(record.payload())));
                     encoded.add("recipe", JSON.toJsonTree(record.recipePayload()));
-                    if (accepted.size() == 64 || records.toString().length() + encoded.toString().length() > 131_072) {
+                    if (!record.source().sourceHandle().startsWith("status:")
+                            && accepted.stream().filter(value -> !value.source().sourceHandle().startsWith("status:")).count() == 64 ||records.toString().length() + encoded.toString().length() > 131_072) {
                         json.addProperty("coverage", "PARTIAL");
                         json.addProperty("outcome", "PARTIAL");
                         json.addProperty("detail", "tool output limit reached; narrow the lookup");

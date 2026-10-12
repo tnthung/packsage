@@ -94,6 +94,27 @@ class PackSageToolsTest {
     }
 
     @Test
+    void providerStatusRecordsDoNotCountTowardTheRecordCap() throws Exception {
+        var records = new java.util.ArrayList<Evidence.Record>();
+        records.add(new Evidence.Record(new Evidence.Source(SCOPE, "jei", "fixture", "status:jei", 1, Instant.EPOCH,
+                Evidence.Activity.UNKNOWN, Evidence.Coverage.UNAVAILABLE, Evidence.Authority.UNKNOWN, List.of()),
+                Evidence.RecordKind.OTHER, "JEI unavailable", new Evidence.JsonObject(Map.of()), List.of()));
+        for (int index = 0; index < 64; index++) {
+            records.add(new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "item:" + index, 1, Instant.EPOCH,
+                    Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                    Evidence.RecordKind.ITEM, "Item " + index, new Evidence.JsonObject(Map.of()), List.of()));
+        }
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+
+        var response = tools.execute(new ModelBackend.ToolCall("a", "search_pack", "{\"text\":\"item\"}"), SCOPE)
+                .toCompletableFuture().get();
+
+        assertEquals(65, response.records().size());
+        assertEquals("COMPLETE", JsonParser.parseString(response.result().serializedResult()).getAsJsonObject().get("outcome").getAsString());
+    }
+
+    @Test
     void distinguishesEmptyMatchesFromFailedExtractionAndRejectsForeignScope() throws Exception {
         var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
                 Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));

@@ -124,14 +124,24 @@ public final class JeiProvider implements KnowledgeProvider {
     private final Supplier<Snapshot> refreshSnapshot;
     private final Executor clientExecutor;
     private final BooleanSupplier owningThread;
+    private final java.util.function.LongSupplier clientTick;
+    private final Executor laterTick;
+    private long lastCaptureTick = Long.MIN_VALUE;
     private volatile Snapshot current;
     private volatile boolean runtimeAvailable;
 
     public JeiProvider(SnapshotSource snapshots, Executor clientExecutor, BooleanSupplier owningThread) {
+        this(snapshots, clientExecutor, owningThread, new java.util.concurrent.atomic.AtomicLong()::getAndIncrement, clientExecutor);
+    }
+
+    public JeiProvider(SnapshotSource snapshots, Executor clientExecutor, BooleanSupplier owningThread,
+                       java.util.function.LongSupplier clientTick, Executor laterTick) {
         this.snapshots = Objects.requireNonNull(snapshots);
         this.refreshSnapshot = null;
         this.clientExecutor = Objects.requireNonNull(clientExecutor);
         this.owningThread = Objects.requireNonNull(owningThread);
+        this.clientTick = Objects.requireNonNull(clientTick);
+        this.laterTick = Objects.requireNonNull(laterTick);
         runtimeAvailable = true;
     }
 
@@ -174,6 +184,8 @@ public final class JeiProvider implements KnowledgeProvider {
         this.refreshSnapshot = Objects.requireNonNull(refreshSnapshot);
         this.clientExecutor = Objects.requireNonNull(clientExecutor);
         this.owningThread = Objects.requireNonNull(owningThread);
+        this.clientTick = new java.util.concurrent.atomic.AtomicLong()::getAndIncrement;
+        this.laterTick = clientExecutor;
         runtimeAvailable = true;
     }
 
@@ -219,7 +231,25 @@ public final class JeiProvider implements KnowledgeProvider {
         if (!runtimeAvailable) return CompletableFuture.completedFuture(unavailableResult());
         var cursor = parseCursor(query.cursor());
         if (cursor < 0) return CompletableFuture.completedFuture(errorResult("JEI cursor is invalid; repeat the search without a cursor"));
-        return CompletableFuture.supplyAsync(() -> snapshots.capture(scope, query), clientExecutor)
+        var captured = new CompletableFuture<Snapshot>();
+        clientExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                // At most one scan window per client tick: the client drains chained tasks within one tick.
+                long tick = clientTick.getAsLong();
+                if (tick == lastCaptureTick) {
+                    laterTick.execute(this);
+                    return;
+                }
+                lastCaptureTick = tick;
+                try {
+                    captured.complete(snapshots.capture(scope, query));
+                } catch (Throwable failure) {
+                    captured.completeExceptionally(failure);
+                }
+            }
+        });
+        return captured
                 .handle((snapshot, failure) -> {
                     if (failure != null || !runtimeAvailable || snapshot == null) return unavailableOrError(failure);
                     if (!sameScope(snapshot.scope(), scope) || query.cursor() != null && query.cursorScope() != null

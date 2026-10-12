@@ -18,18 +18,24 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.common.NeoForge;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 @JeiPlugin
 public final class PackSageJeiPlugin implements IModPlugin {
     private static final AtomicLong GENERATION = new AtomicLong();
     private static final AtomicLong RUNTIME_GENERATION = new AtomicLong();
+    private static final AtomicLong CLIENT_TICKS = new AtomicLong();
+    private static boolean tickListenerRegistered;
     public static volatile KnowledgeProvider activeProvider;
     private volatile JeiProvider provider;
     private volatile RuntimeState runtimeState;
@@ -46,7 +52,12 @@ public final class PackSageJeiPlugin implements IModPlugin {
         var oldProvider = provider;
         if (oldProvider != null) oldProvider.unavailable();
         var state = new RuntimeState(runtime, GENERATION.incrementAndGet());
-        var next = new JeiProvider(state::snapshot, state.clientExecutor(), state::owningThread);
+        if (!tickListenerRegistered) {
+            tickListenerRegistered = true;
+            NeoForge.EVENT_BUS.addListener((ClientTickEvent.Pre ignored) -> clientTicked());
+        }
+        var next = new JeiProvider(state::snapshot, state.clientExecutor(), state::owningThread, CLIENT_TICKS::get,
+                CompletableFuture.delayedExecutor(50, TimeUnit.MILLISECONDS, state.clientExecutor()));
         runtimeState = state;
         provider = next;
         activeProvider = next;
@@ -66,6 +77,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
     }
 
     public static long runtimeGeneration() { return RUNTIME_GENERATION.get(); }
+
+    static void clientTicked() { CLIENT_TICKS.incrementAndGet(); }
 
     public JeiProvider provider() {
         var current = provider;

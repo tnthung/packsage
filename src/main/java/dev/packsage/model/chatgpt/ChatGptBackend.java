@@ -540,7 +540,7 @@ public final class ChatGptBackend implements ModelBackend {
                 results = new LinkedHashMap<>();
                 responseStatus = 0;
                 responseRequestId = null;
-                nextStream =new ChatGptStream(event -> handleEvent(nextGeneration, event), item -> captureOutput(nextGeneration, item));
+                nextStream = new ChatGptStream(event -> handleEvent(nextGeneration, event), item -> captureOutput(nextGeneration, item));
                 stream = nextStream;
                 responseFuture = send(request, currentInput);
             }

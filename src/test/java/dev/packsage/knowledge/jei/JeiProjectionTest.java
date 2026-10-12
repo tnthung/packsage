@@ -22,7 +22,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JeiProjectionTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "jei-1", 1);
@@ -107,6 +109,40 @@ class JeiProjectionTest {
                 new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("recipe"))), 1, SCOPE, "-1"), SCOPE)
                 .toCompletableFuture().get();
         assertEquals(Evidence.Coverage.ERROR, negative.coverage());
+    }
+
+    @Test
+    void consecutiveScanWindowsOfOneSearchRunOnDifferentClientTicks() {
+        var tick = new long[1];
+        var clientTasks = new java.util.ArrayDeque<Runnable>();
+        var laterTick = new java.util.ArrayList<Runnable>();
+        var captureTicks = new java.util.ArrayList<Long>();
+        var provider = new JeiProvider((scope, query) -> {
+            captureTicks.add(tick[0]);
+            int next = query.cursor() == null ? 1 : Integer.parseInt(query.cursor()) + 1;
+            return new JeiProvider.Snapshot(scope, 1, next, List.of(), ignored -> { }, Evidence.Coverage.COMPLETE, true,
+                    Integer.toString(next));
+        }, clientTasks::add, () -> true, () -> tick[0], laterTick::add);
+        var service = new dev.packsage.knowledge.KnowledgeService(List.of(provider), () -> SCOPE,
+                plan -> java.util.concurrent.CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                        Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
+                (identities, scope) -> java.util.concurrent.CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                        Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)));
+
+        var result = service.execute(new dev.packsage.model.PackSageTools.ReadRequest("search_pack",
+                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("nothing"))), SCOPE)).toCompletableFuture();
+        while (!result.isDone() && tick[0] < 100) {
+            while (!clientTasks.isEmpty()) clientTasks.poll().run();
+            tick[0]++;
+            clientTasks.addAll(laterTick);
+            laterTick.clear();
+        }
+
+        assertTrue(result.isDone());
+        assertEquals(dev.packsage.knowledge.KnowledgeService.MAX_PROVIDER_PAGES_PER_CALL, captureTicks.size());
+        assertEquals(captureTicks.size(), new java.util.HashSet<>(captureTicks).size(),
+                "JEI scan windows ran in the same client tick: " + captureTicks);
+        assertNotNull(result.join().nextCursor());
     }
 
     @Test
@@ -268,12 +304,14 @@ class JeiProjectionTest {
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("2049"))), 1, null, null), SCOPE)
                     .toCompletableFuture().get();
             assertEquals("2048", first.nextCursor());
+            PackSageJeiPlugin.clientTicked();
             var second = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("2049"))), 1, SCOPE,
                     first.nextCursor()), SCOPE).toCompletableFuture().get();
             assertEquals(1, second.records().size());
 
             recipes.set(List.of("recipe"));
+            PackSageJeiPlugin.clientTicked();
             var noMatch = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("absent"))), 1, null, null), SCOPE)
                     .toCompletableFuture().get();

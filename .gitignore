@@ -7,3 +7,5 @@ build/
 dist/
 instances/
 /packsage/
+/logs/
+/crash-reports/

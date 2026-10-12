@@ -481,34 +481,33 @@ public final class PatchouliProvider implements KnowledgeProvider {
                 || !scopeIsCurrent(snapshot.scope()))
             return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "Patchouli target is outside the active runtime scope");
         var sourceHandle = target.sourceHandle();
-        Long targetGeneration = null;
-        var generationMarker = sourceHandle.indexOf("@lifecycle=");
-        if (generationMarker >= 0) {
-            if (!sourceHandle.startsWith(target.targetId())
-                    || generationMarker + "@lifecycle=".length() >= sourceHandle.length()) {
-                return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
-                        "Patchouli target identity does not match its source");
-            }
-            try {
-                targetGeneration = Long.parseLong(sourceHandle.substring(generationMarker + "@lifecycle=".length()));
-            } catch (NumberFormatException malformedGeneration) {
-                return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "malformed Patchouli target generation");
-            }
-        } else if (!sourceHandle.equals(target.targetId())) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
-                    "Patchouli target identity does not match its source");
-        }
         var parts = target.targetId().split("#", -1);
         if (parts.length != 3) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "malformed Patchouli page target");
         }
+        var generationMarker = parts[2].indexOf("@lifecycle=");
+        if (generationMarker <= 0 || !sourceHandle.equals(parts[0] + "#" + parts[1])
+                || generationMarker + "@lifecycle=".length() >= parts[2].length()) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
+                    "Patchouli target identity does not match its source");
+        }
+        final long targetGeneration;
+        try {
+            targetGeneration = Long.parseLong(parts[2].substring(generationMarker + "@lifecycle=".length()));
+        } catch (NumberFormatException malformedGeneration) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "malformed Patchouli target generation");
+        }
         final int page;
         try {
-            page = Integer.parseInt(parts[2]);
+            page = Integer.parseInt(parts[2].substring(0, generationMarker));
         } catch (NumberFormatException malformedPage) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "malformed Patchouli page target");
         }
-        if (page < 0 || targetGeneration != null && targetGeneration != lifecycleGeneration) {
+        if (!target.targetId().equals(parts[0] + "#" + parts[1] + "#" + page + "@lifecycle=" + targetGeneration)) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
+                    "Patchouli target identity is not canonical");
+        }
+        if (page < 0 || targetGeneration != lifecycleGeneration) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "Patchouli target is stale");
         }
         var entry = snapshot.books().stream().filter(book -> book.id().equals(parts[0])).flatMap(book -> book.entries().stream())
@@ -641,7 +640,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
                 .map(index -> {
                     var pageHandle = sourceHandle + "#" + index;
                     return new Evidence.NavigationTarget(snapshot.scope(), ID,
-                            pageHandle + "@lifecycle=" + lifecycleGeneration, pageHandle);
+                            sourceHandle, pageHandle + "@lifecycle=" + lifecycleGeneration);
                 }).toList();
         return new Evidence.Record(source, Evidence.RecordKind.GUIDE, entry.title(), new Evidence.JsonObject(payloadValues), targets);
     }

@@ -67,7 +67,7 @@ class AssistantIntegrationTest {
         runtime.send("How do I make a torch?", true, false);
         assertEquals(1, backend.requests.size());
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Checking installed evidence. ", null, List.of(), List.of(), null));
-        assertEquals(List.of("Checking installed evidence. "), backend.deltas);
+        assertEquals("Checking installed evidence. ", runtime.view().streamingAnswer());
         var searchCall = new ModelBackend.ToolCall("search-1", "search_pack", "{\"text\":\"torch\"}");
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, searchCall, List.of(), List.of(), null));
         assertEquals(1, backend.submitted.size());
@@ -85,6 +85,7 @@ class AssistantIntegrationTest {
                 List.of(searchCall, backend.submitted.get(0), readCall, backend.submitted.get(1), assistant), null));
 
         var firstView = runtime.view();
+        assertEquals("", firstView.streamingAnswer());
         assertEquals(ChatContracts.OutcomeStatus.COMPLETED, firstView.conversation().turns().get(0).outcome().status());
         assertEquals(1, firstView.conversation().turns().size());
         assertTrue(firstView.sources().stream().anyMatch(source -> source.providerId().equals("native")
@@ -216,7 +217,6 @@ class AssistantIntegrationTest {
         private final CompletableFuture<Capabilities> catalog = new CompletableFuture<>();
         private final List<Request> requests = new ArrayList<>();
         private final List<ToolResult> submitted = new ArrayList<>();
-        private final List<String> deltas = new ArrayList<>();
         private java.util.function.Consumer<Event> events;
 
         @Override public CompletionStage<AuthState> signIn() { return signIn; }
@@ -233,7 +233,6 @@ class AssistantIntegrationTest {
         }
 
         private void emit(Event event) {
-            if (event.kind() == EventKind.TEXT_DELTA) deltas.add(event.text());
             events.accept(event);
         }
     }

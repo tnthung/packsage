@@ -38,6 +38,21 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void activeStreamingAnswerIsVisibleAndCompletedAnswerDoesNotDuplicateIt() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        ChatContracts.View streaming = new ChatContracts.View(true, ChatContracts.SignInState.SIGNED_OUT,
+                true, actions.view.conversation(), actions.view.context(), actions.view.sources(),
+                actions.view.navigationTargets(), actions.view.errors(), "partial");
+
+        screen.refresh(streaming);
+        assertEquals("partial", screen.answer());
+
+        screen.refresh(actions.view);
+        assertEquals("answer", screen.answer());
+    }
+
+    @Test
     void navigationRequiresTheRegisteredTargetTuple() {
         FakeActions actions = new FakeActions();
         AssistantScreen screen = new AssistantScreen(actions);

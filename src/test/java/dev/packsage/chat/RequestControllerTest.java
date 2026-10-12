@@ -231,6 +231,7 @@ class RequestControllerTest {
                 List.of(), List.of(), null));
         backend.emit("tool-request", new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "answer", null,
                 List.of(), List.of(), null));
+        assertEquals("answer", controller.view().streamingAnswer());
         backend.emit("tool-request", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
                 new ModelBackend.EncryptedReasoning("reasoning-1", "encrypted", "[]"), firstCall, secondCall,
                 new ModelBackend.ToolResult("call-1", "{\"found\":\"call-1\"}", false),
@@ -239,6 +240,7 @@ class RequestControllerTest {
                         ModelBackend.OutputPhase.FINAL_ANSWER,
                         List.of(new ModelBackend.OutputText("answer", List.of())))), null));
 
+        assertEquals("", controller.view().streamingAnswer());
         ChatContracts.Turn turn = controller.view().conversation().turns().getFirst();
         assertEquals(List.of(new ModelBackend.EncryptedReasoning("reasoning-1", "encrypted", "[]"), firstCall, secondCall,
                 new ModelBackend.ToolResult("call-1", "{\"found\":\"call-1\"}", false),

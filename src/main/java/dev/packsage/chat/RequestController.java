@@ -582,7 +582,7 @@ public final class RequestController {
 
     private ChatContracts.View currentView() {
         return new ChatContracts.View(active != null, ChatContracts.SignInState.SIGNED_OUT, false, conversation, context,
-                sources, navigationTargets, List.copyOf(errors));
+                sources, navigationTargets, List.copyOf(errors), active == null ? "" : active.answer.toString());
     }
 
     private static List<ModelBackend.InputItem> validateReplay(List<ModelBackend.InputItem> providerReplay,

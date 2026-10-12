@@ -144,6 +144,14 @@ public final class AssistantScreen extends Screen {
             }
             y += 6;
         }
+        if (view.active() && !view.streamingAnswer().isEmpty()) {
+            graphics.drawString(font, Component.literal("PackSage:"), 20, y, 0x90d0ff);
+            y += 12;
+            for (var line : font.split(Component.literal(view.streamingAnswer()), Math.max(1, width - 40))) {
+                graphics.drawString(font, line, 20, y, 0xffffff);
+                y += 10;
+            }
+        }
         if (!view.errors().isEmpty()) {
             graphics.drawString(font, Component.literal("Error: " + view.errors().get(view.errors().size() - 1)), 20, y, 0xff5555);
         }
@@ -238,6 +246,7 @@ public final class AssistantScreen extends Screen {
     public List<Evidence.Source> sourceReferences() { return view.sources(); }
 
     public String answer() {
+        if (view.active() && !view.streamingAnswer().isEmpty()) return view.streamingAnswer();
         List<ChatContracts.Turn> turns = view.conversation().turns();
         return turns.isEmpty() ? "" : turns.get(turns.size() - 1).answer();
     }

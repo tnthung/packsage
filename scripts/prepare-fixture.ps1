@@ -98,7 +98,7 @@ $ResourceZip = Join-Path $OutputRoot 'resourcepacks/packsage_resourcepack.zip'
 if (Test-Path -LiteralPath $ResourceZip) {
     Remove-Item -LiteralPath $ResourceZip -Force
 }
-Add-Type -AssemblyName System.IO.Compression.FileSystem
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
 $ResourceArchive = [System.IO.Compression.ZipFile]::Open($ResourceZip, [System.IO.Compression.ZipArchiveMode]::Create)
 try {
     Get-ChildItem -LiteralPath $ResourceSource -File -Recurse | ForEach-Object {

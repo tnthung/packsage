@@ -12,7 +12,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -21,7 +21,7 @@ public final class NativeProvider implements KnowledgeProvider {
     private final Supplier<NativeSnapshot> snapshotSource;
     private final Minecraft client;
     private final Executor executor;
-    private final AtomicLong querySequence = new AtomicLong();
+    private final AtomicReference<Evidence.Scope> activeScope = new AtomicReference<>();
     private volatile NativeSnapshot current;
 
     public NativeProvider(Supplier<NativeSnapshot> snapshotSource, Executor executor) {
@@ -79,7 +79,8 @@ public final class NativeProvider implements KnowledgeProvider {
     private CompletionStage<Evidence.Result> execute(Evidence.Scope scope, List<String> selectedIdentities,
                                                      Function<KnowledgeIndex, Evidence.Result> operation,
                                                      boolean emptySelectionIsComplete, boolean publishSnapshot) {
-        long sequence = querySequence.incrementAndGet();
+        var previousScope = activeScope.getAndSet(scope);
+        if (previousScope != null && !previousScope.equals(scope)) current = null;
         CompletionStage<Captured> captured;
         try {
             captured = capture(scope, selectedIdentities);
@@ -89,7 +90,7 @@ public final class NativeProvider implements KnowledgeProvider {
         return captured.handle((result, failure) -> new CaptureResult(result, failure)).thenApplyAsync(result -> {
             if (result.failure() != null || result.captured() == null) return new Indexed(null, 0,
                     new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
-            if (sequence != querySequence.get()) return new Indexed(result.captured().snapshot(), result.captured().levelToken(),
+            if (!scope.equals(activeScope.get())) return new Indexed(result.captured().snapshot(), result.captured().levelToken(),
                     new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null));
             if (result.captured().snapshot() == null || !result.captured().snapshot().scope().equals(scope)) return new Indexed(
                     result.captured().snapshot(), result.captured().levelToken(), new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL,
@@ -105,7 +106,7 @@ public final class NativeProvider implements KnowledgeProvider {
                 return new Indexed(result.captured().snapshot(), result.captured().levelToken(),
                         new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
             }
-        }, executor).thenCompose(indexed -> publish(indexed, scope, sequence, publishSnapshot));
+        }, executor).thenCompose(indexed -> publish(indexed, scope, publishSnapshot));
     }
 
     private CompletionStage<Captured> capture(Evidence.Scope scope, List<String> selectedIdentities) {
@@ -120,15 +121,17 @@ public final class NativeProvider implements KnowledgeProvider {
         });
     }
 
-    private CompletionStage<Evidence.Result> publish(Indexed indexed, Evidence.Scope scope, long sequence, boolean publishSnapshot) {
+    private CompletionStage<Evidence.Result> publish(Indexed indexed, Evidence.Scope scope, boolean publishSnapshot) {
         if (client == null) {
+            if (!scope.equals(activeScope.get())) return CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                    Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null));
             if (publishSnapshot && indexed.snapshot() != null && indexed.snapshot().scope().equals(scope)) current = indexed.snapshot();
             return CompletableFuture.completedFuture(indexed.result());
         }
         try {
             return client.submit(() -> {
                 int levelToken = client.level == null ? 0 : System.identityHashCode(client.level);
-                if (sequence != querySequence.get() || levelToken != indexed.levelToken()) return new Evidence.Result(List.of(),
+                if (!scope.equals(activeScope.get()) || levelToken != indexed.levelToken()) return new Evidence.Result(List.of(),
                         Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null);
                 if (publishSnapshot && indexed.snapshot() != null && indexed.snapshot().scope().equals(scope)) current = indexed.snapshot();
                 return indexed.result();

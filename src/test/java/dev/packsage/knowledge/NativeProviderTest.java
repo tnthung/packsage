@@ -5,8 +5,10 @@ import dev.packsage.knowledge.nativegame.NativeSnapshot;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -83,6 +85,45 @@ class NativeProviderTest {
         assertEquals(Evidence.Outcome.COMPLETE, planned.outcome());
         assertEquals(List.of("inventory:mod:selected"), inventory.records().stream()
                 .map(record -> record.source().sourceHandle()).toList());
+    }
+
+    @Test
+    void sameScopeParallelRequestsBothPublishEvidence() throws Exception {
+        var queued = new ArrayDeque<Runnable>();
+        Executor executor = command -> queued.add(command);
+        var provider = new NativeProvider(() -> new NativeSnapshot(SCOPE, List.of(recipe("mod:parallel"))), executor);
+        var query = new Evidence.Query(Evidence.Operation.GET,
+                new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("mod:parallel"))), 10, null, null);
+
+        var first = provider.query(query, SCOPE).toCompletableFuture();
+        var second = provider.planRecipe("mod:parallel", 1, SCOPE, 4).toCompletableFuture();
+        while (!queued.isEmpty()) queued.removeFirst().run();
+
+        assertEquals(Evidence.Outcome.COMPLETE, first.get().outcome());
+        assertEquals(Evidence.Outcome.COMPLETE, second.get().outcome());
+    }
+
+    @Test
+    void scopeChangeRejectsOlderCompletion() throws Exception {
+        var otherScope = new Evidence.Scope("other", "en_us", "team", "native", 2);
+        var queued = new ArrayDeque<Runnable>();
+        Executor executor = command -> queued.add(command);
+        var provider = new NativeProvider(() -> new NativeSnapshot(SCOPE, List.of(record("mod:scope", Evidence.Activity.ACTIVE,
+                "Scope", "minecraft:stone"))), executor);
+        var query = new Evidence.Query(Evidence.Operation.GET,
+                new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("mod:scope"))), 10, null, null);
+
+        var initial = provider.query(query, SCOPE).toCompletableFuture();
+        while (!queued.isEmpty()) queued.removeFirst().run();
+        assertEquals(Evidence.Outcome.COMPLETE, initial.get().outcome());
+
+        var older = provider.query(query, SCOPE).toCompletableFuture();
+        var newer = provider.query(query, otherScope).toCompletableFuture();
+        while (!queued.isEmpty()) queued.removeFirst().run();
+
+        assertEquals(Evidence.Outcome.UNKNOWN, older.get().outcome());
+        assertEquals(Evidence.Outcome.UNKNOWN, newer.get().outcome());
+        assertEquals(KnowledgeProvider.Availability.UNAVAILABLE, provider.status().availability());
     }
 
     private static Evidence.Record record(String id, Evidence.Activity activity, String title, String input) {

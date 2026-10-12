@@ -40,3 +40,15 @@ The assistant handles builds, automated tests and fixes. These game/browser obse
 5. Record the visible chapter, recipe, tag alternatives and book text. A loader error, missing provider, missing chapter or missing override is a failed check and should be copied into the task report with its exact text.
 
 The fixture is intended to establish data presence and navigation only. No startup duration, memory, responsiveness or server compatibility claim is made by these checks.
+
+## Prepared optional-provider variants
+
+After the integrated G2 candidate is available, G3 can use separate CurseForge imports without editing the main profile:
+
+| Archive in `dist/` | Excluded mods | Pinned mods retained |
+|---|---|---|
+| `packsage-minimal-fixture-no-jei.zip` | JEI | 6 |
+| `packsage-minimal-fixture-no-ftb-quests.zip` | FTB Quests, FTB Library and FTB Teams | 4 |
+| `packsage-minimal-fixture-no-patchouli.zip` | Patchouli and Nature's Aura, which requires it | 5 |
+
+The assistant has prepared and checked these archives and mod hashes. They have not been launched in Minecraft. Each later check uses the same candidate PackSage JAR in its own profile and verifies that missing evidence is visible while unrelated evidence remains usable. The concrete G3 questions and remote/LAN checks will accompany that candidate.

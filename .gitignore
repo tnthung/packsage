@@ -5,3 +5,5 @@ AGENTS.md
 !.gitignore
 build/
 dist/
+instances/
+/packsage/

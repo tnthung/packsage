@@ -6,11 +6,19 @@ Release acceptance is open. No live Minecraft or authenticated ChatGPT result ha
 
 ## Automated build checkpoint
 
-The coordinator ran `scripts/build.ps1` using Oracle Java 21.0.12.1, Gradle 8.11.1 and ModDevGradle 2.0.147 against the implementation through `5db0fa2`. The full build succeeded: 157 tests found, 156 passed, no failures or errors, and one skipped test. `ConversationStoreTest.latestMarkerLinkCannotRedirectConversationSelectionOutsideTheRoot` could not create a Windows symbolic link; its assertion remains unverified in this environment.
+The coordinator ran `scripts/build.ps1` using Oracle Java 21.0.12.1, Gradle 8.11.1 and ModDevGradle 2.0.147 against committed implementation `8bdcdbd`. The full build succeeded: 168 tests found, 167 passed, no failures or errors, and one skipped test. `ConversationStoreTest.latestMarkerLinkCannotRedirectConversationSelectionOutsideTheRoot` could not create a Windows symbolic link; its assertion remains unverified in this environment.
 
-The resulting development JAR is `dist/packsage.jar`, version 0.1.0, for Minecraft 1.21.1 and NeoForge 21.1.202. SHA-256: `65341868D5461FAC8C2F012DD4C28DF3726AF120EAE7BB8E5B1D3B9963C076B3`. It contains 193 PackSage classes and no bundled JEI, FTB or Patchouli classes. Its entrypoint still opens the G1 development probe; the authored complete assistant binding is not activated.
+The resulting development JAR is `dist/packsage.jar`, version 0.1.0, for Minecraft 1.21.1 and NeoForge 21.1.202. SHA-256: `113A3C9BA65AE73F32B47C923630D82BCCA3C0C463DB18B05968DC3D118B3FA7`. It contains 193 PackSage classes and no bundled JEI, FTB or Patchouli classes. Its entrypoint still opens the G1 development probe; the authored complete assistant binding is not activated.
 
-Later integration and review fixes require a new build before their behavior can be included in this checkpoint.
+The scoped sign-in re-review closed all six prior P1 findings. Integration re-review closed JEI runtime-loss invalidation, the bounded current-progress read contract, streamed-answer projection and screen pause handling. JEI loss is observed on the next client tick. `read_progress` refreshes selected observed quest handles; `read_evidence` retains timestamped earlier observations. In-place quest changes do not automatically cancel a request. The full suite includes fresh-progress failure isolation across selected handles.
+
+## G1 probe handoff
+
+The coordinator also ran `scripts/build.ps1 -Bootstrap` against the same committed implementation: 42 tests passed, none failed or skipped. Copy `dist/packsage-bootstrap.jar` for G1. It contains 100 PackSage contract/probe classes and no optional adapter classes. Version and loader pins match the full development JAR.
+
+Probe SHA-256: `B52B095F10005485C6E1CF3F5B1098441488D290A091182345A151C2FC43A735`.
+
+This replaces the earlier probe build. The [G1 checklist](../testing/2026-10-12-player-checks.md#g1-packsage-load-and-chatgpt-route) covers browser sign-in, text, a read-only fixture tool, a synthetic image, hosted search and cancellation. No real account result has been inferred from the tests.
 
 ## Specification release gates
 
@@ -24,7 +32,7 @@ Later integration and review fixes require a new build before their behavior can
 | Config bridge | Automated bounded catalog/file fallback, scope labels, malformed values and failure isolation. | Pinned catalog runtime, saved/loaded/restart behavior and remote synchronized/unknown settings. |
 | Context and history | Automated capture cancellation, image omission, JSONL/media round trips, recovery and history limits. | Clean fresh screenshot, screenshot removal, restart/reopening and game context. |
 | Lifecycle and UI | Automated active-request, cancellation, late callback and world-history guards. | Streamed screen rendering, close/reopen, Stop/New chat, world/reload changes and effective pause/run. |
-| Optional integrations | Compile-only dependencies, no bundled optional classes, automated unavailable/error paths. | Valid provider-absent fixture variants and live loading/isolation. |
+| Optional integrations | Compile-only dependencies, no bundled optional classes, automated unavailable/error paths; prepared and hash-checked provider-absent fixture archives. | Live loading/isolation in those valid dependency variants. |
 | Reusability | Production collectors consume scoped data; fixture data is separate from mod code. | Minimal fixture and representative pack observations, plus client-only remote/LAN behavior and measured performance. |
 
 Build and mocked tests establish only their recorded automated behavior. Live route, provider lifecycle, screenshots, pause and navigation remain pending; no universal compatibility or performance result is claimed.

@@ -11,5 +11,7 @@
 - Added assistant and settings screens, fresh gameplay context, removable screenshots, pause controls and validated source navigation.
 - Added bounded tool dispatch, grounding instructions and client lifecycle wiring. The production entrypoint remains the development probe pending the live sign-in gate.
 - Fixed stale account, world, history and tool callbacks; typed replay ordering; provider extraction, pagination and visibility handling; and the fixture's FTB chapter identity.
+- Added valid provider-absent fixture archives and mocked multi-tool conversation coverage; refreshed quest progress at read time with isolated failures, exposed streamed text in the screen, and corrected vanilla pause-menu usage.
+- Added bounded sign-out discovery/revocation retries, repeated sign-out outcome handling, nullable hosted-search replay and clickable probe citations.
 
 Live Minecraft and ChatGPT route acceptance remain pending; automated checks do not establish those results.

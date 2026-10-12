@@ -20,6 +20,7 @@ This first JAR opens the development sign-in probe. The complete assistant and p
 2. Launch the fixture and enter a world. Press **P** to open PackSage. If another mod uses P, change **Open PackSage** under **Options → Controls → Key Binds → PackSage**.
 3. Click **Sign in**, complete the system-browser ChatGPT flow, and return to the game. Record the resulting status. Do not send tokens, callback URLs or credential files.
 4. Once the model name appears, click **Text**, then **Read-only tool**, then **Synthetic image**, then **Search**, waiting for each result. Record successful replies and any unsupported or failed status exactly as shown.
+   When Search returns a citation, click its **Open citation** button and confirm Minecraft offers the returned source link.
 5. Try **Stop** while a request is running, and **Cancel sign-in** during another browser attempt. Record whether the request stops and the screen remains usable.
 
 The assistant handles builds, automated tests and fixes. These game/browser observations are the live gate; the JAR build alone does not prove sign-in, account eligibility, images or hosted search.

@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @JeiPlugin
 public final class PackSageJeiPlugin implements IModPlugin {
     private static final AtomicLong GENERATION = new AtomicLong();
+    private static final AtomicLong RUNTIME_GENERATION = new AtomicLong();
     public static volatile KnowledgeProvider activeProvider;
     private volatile JeiProvider provider;
     private volatile RuntimeState runtimeState;
@@ -49,6 +50,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
         runtimeState = state;
         provider = next;
         activeProvider = next;
+        RUNTIME_GENERATION.incrementAndGet();
     }
 
     @Override
@@ -60,7 +62,10 @@ public final class PackSageJeiPlugin implements IModPlugin {
         if (activeProvider == current) activeProvider = null;
         runtimeState = null;
         provider = null;
+        RUNTIME_GENERATION.incrementAndGet();
     }
+
+    public static long runtimeGeneration() { return RUNTIME_GENERATION.get(); }
 
     public JeiProvider provider() {
         var current = provider;

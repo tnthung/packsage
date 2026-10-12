@@ -2,6 +2,7 @@ package dev.packsage.client;
 
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.jei.PackSageJeiPlugin;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -51,5 +52,14 @@ class ClientAssistantTest {
         assertTrue(first.playerTeam().startsWith("player-id:"));
         assertFalse(first.playerTeam().contains("team-token"));
         assertEquals("runtime-7", first.providerRuntime());
+    }
+
+    @Test
+    void jeiRuntimeLossAdvancesTheObservedRuntimeGeneration() {
+        long before = PackSageJeiPlugin.runtimeGeneration();
+
+        new PackSageJeiPlugin().onRuntimeUnavailable();
+
+        assertTrue(PackSageJeiPlugin.runtimeGeneration() > before);
     }
 }

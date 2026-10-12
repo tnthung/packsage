@@ -17,8 +17,11 @@ import net.minecraft.core.registries.BuiltInRegistries;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -362,7 +365,7 @@ public final class FtbProvider implements KnowledgeProvider {
                 () -> Minecraft.getInstance().isSameThread(), true);
     }
 
-    /** Returns a copied client-thread token for the loaded file and team overlay. */
+    /** Returns a copied client-thread token for the loaded file, team overlay, and progress state. */
     public static String scopeToken() {
         var minecraft = Minecraft.getInstance();
         if (!minecraft.isSameThread()) throw new IllegalStateException("FTB Quests scope must be read on the client thread");
@@ -372,8 +375,15 @@ public final class FtbProvider implements KnowledgeProvider {
         var teamId = teamData == null ? "none" : String.valueOf(teamData.getTeamId());
         var locked = teamData == null ? "unknown" : Boolean.toString(teamData.isLocked());
         var folder = file.getFolder();
-        return "ftbquests:" + Integer.toUnsignedString(System.identityHashCode(file)) + ":"
-                + (folder == null ? "" : folder.toString()) + ":" + teamId + ":" + locked;
+        try {
+            return "ftbquests:" + Integer.toUnsignedString(System.identityHashCode(file)) + ":"
+                    + (folder == null ? "" : folder.toString()) + ":" + teamId + ":" + locked + ":"
+                    + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(
+                    (teamData == null ? "none" : String.valueOf(teamData.serializeNBT()))
+                            .getBytes(StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
     }
 
     public static boolean isRuntimeAvailable() { return ClientQuestFile.INSTANCE != null; }

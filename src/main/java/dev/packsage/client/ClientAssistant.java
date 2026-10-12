@@ -97,6 +97,7 @@ public final class ClientAssistant {
     private ChatContracts.WorldIdentity activeIdentity;
     private String activePlayerUuid;
     private String activeFtbScopeToken;
+    private String activeJeiRuntimeGeneration;
     private Evidence.Scope activeScope;
     private PendingInitialization pendingInitialization;
     private int levelToken;
@@ -176,13 +177,27 @@ public final class ClientAssistant {
         if (copied == null) return;
         String playerUuid = copyPlayerUuid();
         String ftbScopeToken = copyFtbScopeToken();
+        String jeiRuntimeGeneration = copyJeiRuntimeGeneration();
+        boolean providerChanged = false;
+        if (activeWorld != null && !Objects.equals(activeJeiRuntimeGeneration, jeiRuntimeGeneration)) {
+            activeJeiRuntimeGeneration = jeiRuntimeGeneration;
+            providerChanged = true;
+        }
+        boolean ftbScopeChanged = !Objects.equals(activeFtbScopeToken, ftbScopeToken);
+        if (activeWorld != null && ftbScopeChanged) {
+            activeFtbScopeToken = ftbScopeToken;
+            providerChanged = true;
+        }
+        if (providerChanged) {
+            invalidateEvidence();
+        }
         if (activeWorld == null || !activeWorld.source().equals(copied.source())
-                || !Objects.equals(activePlayerUuid, playerUuid)
-                || !Objects.equals(activeFtbScopeToken, ftbScopeToken)) {
+                || !Objects.equals(activePlayerUuid, playerUuid)) {
             beginInitialization(copied, playerUuid, ftbScopeToken);
         } else if (pendingInitialization != null
                 && (pendingInitialization.levelToken() != levelToken
-                || pendingInitialization.sessionEpoch() != sessionEpoch)) {
+                || pendingInitialization.sessionEpoch() != sessionEpoch
+                || !Objects.equals(pendingInitialization.ftbScopeToken(), ftbScopeToken))) {
             beginInitialization(copied, playerUuid, ftbScopeToken);
         }
     }
@@ -235,6 +250,7 @@ public final class ClientAssistant {
         activeIdentity = result.world();
         activePlayerUuid = pending.playerUuid();
         activeFtbScopeToken = pending.ftbScopeToken();
+        activeJeiRuntimeGeneration = copyJeiRuntimeGeneration();
         activeScope = result.scope();
         runtime.enterWorld(activeIdentity, activeScope);
     }
@@ -276,6 +292,7 @@ public final class ClientAssistant {
         activeIdentity = null;
         activePlayerUuid = null;
         activeFtbScopeToken = null;
+        activeJeiRuntimeGeneration = null;
         activeScope = null;
         settingsOpen = false;
         if (client.screen == assistantScreen) {
@@ -330,6 +347,17 @@ public final class ClientAssistant {
         try {
             Class<?> type = Class.forName(FTB_CLASS, false, ClientAssistant.class.getClassLoader());
             return String.valueOf(type.getMethod("scopeToken").invoke(null));
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            return "unavailable";
+        }
+    }
+
+    private String copyJeiRuntimeGeneration() {
+        OptionalStatus status = optionalStatuses.get("jei");
+        if (status == null || !status.supported()) return "unavailable";
+        try {
+            Class<?> type = Class.forName(JEI_CLASS, false, ClientAssistant.class.getClassLoader());
+            return String.valueOf(type.getMethod("runtimeGeneration").invoke(null));
         } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
             return "unavailable";
         }

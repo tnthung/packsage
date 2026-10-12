@@ -93,6 +93,6 @@
   },
   "secondaryPack": {
     "name": "FTB Evolution",
-    "status": "pending-pinned-release"
+    "status": "no-release-matches-current-contract"
   }
 }

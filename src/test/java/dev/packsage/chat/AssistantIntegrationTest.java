@@ -1,23 +1,118 @@
 package dev.packsage.chat;
 
+import dev.packsage.client.GameplayContextCapture;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.KnowledgeService;
+import dev.packsage.model.GroundingInstructions;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class AssistantIntegrationTest {
+    private static final Executor DIRECT = Runnable::run;
+    private static final ChatContracts.WorldIdentity WORLD = new ChatContracts.WorldIdentity("world", "World");
+    private static final ModelBackend.ModelInfo MODEL = new ModelBackend.ModelInfo("fixture-model", "Fixture Model",
+            true, true, 16_000, 2_048);
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
+
+    @Test
+    void completesGroundedMultiToolTurnPersistsItAndReplaysItWithFreshContext() throws Exception {
+        var loaded = record(SCOPE, "native", "torch", Evidence.Authority.LOADED, "7 torches",
+                new Evidence.NavigationTarget(SCOPE, "native", "torch", "torch-view"));
+        var documentation = record(SCOPE, "guide", "torch", Evidence.Authority.INSTALLED_DOCUMENTATION,
+                "4 torches", new Evidence.NavigationTarget(SCOPE, "guide", "torch", "guide-page"));
+        var backend = new RuntimeBackend();
+        var currentScope = new AtomicReference<>(new Evidence.Scope("world", "resources", "team", "runtime", 0));
+        var captures = new AtomicInteger();
+        var storeRoot = Files.createTempDirectory("packsage-integration");
+        var runtime = new AssistantRuntime(new ConversationStore(storeRoot, DIRECT), backend,
+                scope -> new GameplayContextCapture(
+                        () -> new GameplayContextCapture.Observation("held-" + captures.incrementAndGet(), "target", "overworld",
+                                "1,2,3", "plains", "1", "block"),
+                        ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1, 2, 3}, Instant.EPOCH),
+                        DIRECT, scope), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(new Provider("native", List.of(loaded), false) {
+                                    @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                                        return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, target.targetId());
+                                    }
+                                },
+                                new Provider("guide", List.of(documentation), false)), current,
+                        ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                                Evidence.Outcome.UNKNOWN, null)),
+                        (ignored, ignoredScope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                                Evidence.Outcome.UNKNOWN, null))),
+                turn -> turn.tokenCount(), GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+
+        runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                MODEL.contextTokens(), MODEL.outputTokens()));
+
+        runtime.send("How do I make a torch?", true, false);
+        assertEquals(1, backend.requests.size());
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Checking installed evidence. ", null, List.of(), List.of(), null));
+        var searchCall = new ModelBackend.ToolCall("search-1", "search_pack", "{\"text\":\"torch\"}");
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, searchCall, List.of(), List.of(), null));
+        assertEquals(1, backend.submitted.size());
+        assertTrue(backend.submitted.get(0).serializedResult().contains("native:torch"));
+        var readCall = new ModelBackend.ToolCall("read-1", "read_evidence", "{\"handles\":[\"native:torch\"]}");
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, readCall, List.of(), List.of(), null));
+        assertEquals(2, backend.submitted.size());
+        assertEquals(backend.submitted.get(0).callId(), "search-1");
+        assertEquals(backend.submitted.get(1).callId(), "read-1");
+        var assistant = new ModelBackend.AssistantOutput("answer-1", ModelBackend.OutputStatus.COMPLETED,
+                ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(
+                        "Use the loaded recipe; the installed guide differs. See the external version note.",
+                        List.of(new ModelBackend.UrlCitation(0, 7, "Version note", "https://example.test/torch")) )));
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                List.of(searchCall, backend.submitted.get(0), readCall, backend.submitted.get(1), assistant), null));
+
+        var firstView = runtime.view();
+        assertEquals(ChatContracts.OutcomeStatus.COMPLETED, firstView.conversation().turns().get(0).outcome().status());
+        assertEquals(1, firstView.conversation().turns().size());
+        assertTrue(firstView.sources().stream().anyMatch(source -> source.providerId().equals("native")
+                && source.authority() == Evidence.Authority.LOADED));
+        assertTrue(firstView.sources().stream().anyMatch(source -> source.providerId().equals("guide")
+                && source.authority() == Evidence.Authority.INSTALLED_DOCUMENTATION));
+        assertTrue(firstView.sources().stream().anyMatch(source -> source.providerId().equals("web")
+                && source.authority() == Evidence.Authority.EXTERNAL));
+        assertEquals(3, firstView.navigationTargets().size());
+        runtime.navigate(firstView.navigationTargets().stream().filter(target -> target.providerId().equals("native")).findFirst().orElseThrow());
+        assertEquals("torch-view", firstView.navigationTargets().stream().filter(target -> target.providerId().equals("native")).findFirst().orElseThrow().targetId());
+        assertTrue(Files.walk(storeRoot).anyMatch(path -> path.getFileName().toString().endsWith(".jsonl")));
+        var persisted = Files.walk(storeRoot).filter(path -> path.getFileName().toString().endsWith(".jsonl")).findFirst().orElseThrow();
+        var persistedText = Files.readString(persisted);
+        assertTrue(persistedText.contains("toolCall") && persistedText.contains("toolResult") && persistedText.contains("answer-1"));
+
+        runtime.send("What did the earlier evidence say?", false, false);
+        assertEquals(2, backend.requests.size());
+        var replayed = backend.requests.get(1).input();
+        assertTrue(replayed.stream().anyMatch(item -> item instanceof ModelBackend.ToolCall call && call.callId().equals("search-1")));
+        assertTrue(replayed.stream().anyMatch(item -> item instanceof ModelBackend.ToolResult result && result.callId().equals("read-1")));
+        assertTrue(replayed.stream().filter(ModelBackend.Message.class::isInstance).map(ModelBackend.Message.class::cast)
+                .flatMap(message -> message.content().stream()).anyMatch(content -> content instanceof ModelBackend.TextContent text
+                        && text.text().contains("Fresh gameplay observation:")));
+        assertEquals(2, runtime.view().context().scope().requestGeneration());
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                List.of(new ModelBackend.AssistantOutput("answer-2", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("replayed", List.of())))), null));
+        assertEquals(2, runtime.view().conversation().turns().size());
+    }
 
     @Test
     void searchesIndependentProvidersAndReadsOnlyObservedScopedHandles() throws Exception {
@@ -77,9 +172,14 @@ class AssistantIntegrationTest {
     }
 
     private static Evidence.Record record(String provider, String handle, Evidence.Authority authority, String title) {
-        return new Evidence.Record(new Evidence.Source(SCOPE, provider, "fixture", handle, 1, Instant.EPOCH,
+        return record(SCOPE, provider, handle, authority, title);
+    }
+
+    private static Evidence.Record record(Evidence.Scope scope, String provider, String handle, Evidence.Authority authority,
+                                          String title, Evidence.NavigationTarget... targets) {
+        return new Evidence.Record(new Evidence.Source(scope, provider, "fixture", handle, scope.requestGeneration(), Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, authority, List.of()), Evidence.RecordKind.RECIPE,
-                title, new Evidence.JsonObject(Map.of()), List.of());
+                title, new Evidence.JsonObject(Map.of()), List.of(targets));
     }
 
     private static class Provider implements KnowledgeProvider {
@@ -102,5 +202,28 @@ class AssistantIntegrationTest {
         @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "fixture");
         }
+    }
+
+    private static final class RuntimeBackend implements ModelBackend {
+        private final CompletableFuture<AuthState> signIn = new CompletableFuture<>();
+        private final CompletableFuture<Capabilities> catalog = new CompletableFuture<>();
+        private final List<Request> requests = new ArrayList<>();
+        private final List<ToolResult> submitted = new ArrayList<>();
+        private java.util.function.Consumer<Event> events;
+
+        @Override public CompletionStage<AuthState> signIn() { return signIn; }
+        @Override public void cancelSignIn() { signIn.cancel(false); }
+        @Override public void signOut() { }
+        @Override public CompletionStage<Capabilities> capabilities() { return catalog; }
+        @Override public Exchange start(Request request, java.util.function.Consumer<Event> events) {
+            requests.add(request);
+            this.events = events;
+            return new Exchange() {
+                @Override public void submit(ToolResult result) { submitted.add(result); }
+                @Override public void cancel() { }
+            };
+        }
+
+        private void emit(Event event) { events.accept(event); }
     }
 }

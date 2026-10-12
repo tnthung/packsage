@@ -98,7 +98,17 @@ $ResourceZip = Join-Path $OutputRoot 'resourcepacks/packsage_resourcepack.zip'
 if (Test-Path -LiteralPath $ResourceZip) {
     Remove-Item -LiteralPath $ResourceZip -Force
 }
-Compress-Archive -Path (Join-Path $ResourceSource '*') -DestinationPath $ResourceZip -CompressionLevel Optimal
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$ResourceArchive = [System.IO.Compression.ZipFile]::Open($ResourceZip, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    Get-ChildItem -LiteralPath $ResourceSource -File -Recurse | ForEach-Object {
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($ResourceArchive, $_.FullName,
+                $_.FullName.Substring($ResourceSource.Length).TrimStart('\').Replace('\', '/'),
+                [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+    }
+} finally {
+    $ResourceArchive.Dispose()
+}
 
 if (Test-Path -LiteralPath $ImportRoot) {
     Remove-Item -LiteralPath $ImportRoot -Recurse -Force
@@ -150,7 +160,16 @@ New-Item -ItemType Directory -Force -Path (Split-Path $ImportZip -Parent) | Out-
 if (Test-Path -LiteralPath $ImportZip) {
     Remove-Item -LiteralPath $ImportZip -Force
 }
-Compress-Archive -Path (Join-Path $ImportRoot '*') -DestinationPath $ImportZip -CompressionLevel Optimal
+$ImportArchive = [System.IO.Compression.ZipFile]::Open($ImportZip, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    Get-ChildItem -LiteralPath $ImportRoot -File -Recurse | ForEach-Object {
+        [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($ImportArchive, $_.FullName,
+                $_.FullName.Substring($ImportRoot.Length).TrimStart('\').Replace('\', '/'),
+                [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+    }
+} finally {
+    $ImportArchive.Dispose()
+}
 
 $DataFiles = @(
     (Join-Path $DatapackDestination 'pack.mcmeta'),

@@ -99,11 +99,7 @@ public final class AssistantScreen extends Screen {
                 + (effectivePause(actualRuntimeState()) ? "on" : "off")), 300, 102, 0xffffff);
         graphics.enableScissor(10, contentTop, Math.max(11, width - 10), contentBottom);
         int y = contentTop + 4 - scrollOffset;
-        String currentContext = view.context().serializedGameplayContext();
-        boolean currentScreenshot = view.context().screenshot() != null
-                && !view.context().screenshot().assetId().equals("none");
-        for (var line : font.split(Component.literal("Attached context: " + currentContext
-                + (currentScreenshot ? " [screenshot attached]" : " [screenshot removed]")), Math.max(1, width - 40))) {
+        for (var line : font.split(Component.literal(ScreenText.contextSummary(view.context())), Math.max(1, width - 40))) {
             graphics.drawString(font, line, 20, y, 0xb0b0b0);
             y += 10;
         }
@@ -119,26 +115,20 @@ public final class AssistantScreen extends Screen {
             y += 12;
             graphics.drawString(font, Component.literal("PackSage:"), 20, y, 0x90d0ff);
             y += 12;
-            for (var line : font.split(Component.literal(turn.answer()), Math.max(1, width - 40))) {
-                graphics.drawString(font, line, 20, y, 0xffffff);
-                y += 10;
+            y = drawMarkdown(graphics, turn.answer(), y);
+            String outcome = ScreenText.outcomeLine(turn.outcome());
+            if (outcome != null) {
+                for (var line : font.split(Component.literal(outcome), Math.max(1, width - 40))) {
+                    graphics.drawString(font, line, 20, y, 0xb0b0b0);
+                    y += 10;
+                }
+                y += 2;
             }
-            graphics.drawString(font, Component.literal("Outcome: " + turn.outcome().status()
-                    + (turn.outcome().detail() == null ? "" : " (" + turn.outcome().detail() + ")")), 20, y, 0xb0b0b0);
-            y += 12;
-            String turnContext = turn.context().serializedGameplayContext();
-            boolean turnScreenshot = turn.context().screenshot() != null
-                    && !turn.context().screenshot().assetId().equals("none");
-            for (var line : font.split(Component.literal("Context: " + turnContext
-                    + (turnScreenshot ? " [screenshot attached]" : " [no screenshot]")), Math.max(1, width - 40))) {
+            for (var line : font.split(Component.literal(ScreenText.contextSummary(turn.context())), Math.max(1, width - 40))) {
                 graphics.drawString(font, line, 20, y, 0xb0b0b0);
                 y += 10;
             }
             y += 2;
-            if (!turn.replayItems().isEmpty()) {
-                graphics.drawString(font, Component.literal("Replay items: " + turn.replayItems().size()), 20, y, 0xb0b0b0);
-                y += 12;
-            }
             if (!turn.sources().isEmpty()) {
                 graphics.drawString(font, Component.literal("Sources: " + turn.sources().stream()
                         .map(Evidence.Source::providerId).distinct().reduce((first, next) -> first + ", " + next).orElse("")),
@@ -150,16 +140,24 @@ public final class AssistantScreen extends Screen {
         if (view.active() && !view.streamingAnswer().isEmpty()) {
             graphics.drawString(font, Component.literal("PackSage:"), 20, y, 0x90d0ff);
             y += 12;
-            for (var line : font.split(Component.literal(view.streamingAnswer()), Math.max(1, width - 40))) {
-                graphics.drawString(font, line, 20, y, 0xffffff);
-                y += 10;
-            }
+            y = drawMarkdown(graphics, view.streamingAnswer(), y);
         }
         if (!view.errors().isEmpty()) {
             graphics.drawString(font, Component.literal("Error: " + view.errors().get(view.errors().size() - 1)), 20, y, 0xff5555);
         }
         graphics.disableScissor();
         updateSourceButtons(contentTop, contentBottom);
+    }
+
+    private int drawMarkdown(GuiGraphics graphics, String text, int y) {
+        for (Component markdown : ScreenText.markdownLines(text)) {
+            for (var line : font.split(markdown, Math.max(1, width - 40))) {
+                graphics.drawString(font, line, 20, y, 0xffffff);
+                y += 10;
+            }
+            if (markdown.getString().isEmpty()) y += 10;
+        }
+        return y;
     }
 
     @Override
@@ -288,7 +286,9 @@ public final class AssistantScreen extends Screen {
         for (Button button : sourceButtons) removeWidget(button);
         sourceButtons.clear();
         for (Evidence.NavigationTarget target : view.navigationTargets()) {
-            Button button = Button.builder(Component.literal("Open " + target.providerId() + ":" + target.targetId()),
+            String label = ScreenText.navigationLabel(target);
+            if (font != null && font.width(label) > 150) label = font.plainSubstrByWidth(label, 150 - font.width("...")) + "...";
+            Button button = Button.builder(Component.literal(label),
                     ignored -> navigate(target)).bounds(Math.max(20, width - 180), 116, 160, 20).build();
             sourceButtons.add(addRenderableWidget(button));
         }

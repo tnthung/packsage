@@ -1,0 +1,16 @@
+{
+  "providers": [
+    {
+      "type": "ttf",
+      "file": "packsage:ui.ttf",
+      "size": 11.0,
+      "oversample": 2.0,
+      "shift": [0.0, 0.0],
+      "skip": ""
+    },
+    {
+      "type": "reference",
+      "id": "minecraft:default"
+    }
+  ]
+}

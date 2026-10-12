@@ -51,6 +51,9 @@ try {
         scope = if ($Bootstrap) { 'bootstrap' } else { 'full' }
         sha256 = $hash.Hash
     } | ConvertTo-Json | Set-Content (Join-Path $dist 'build-metadata.json')
+    $mods = 'C:\Users\hung1\curseforge\minecraft\Instances\Packsage\mods'
+    New-Item -ItemType Directory -Force -Path $mods | Out-Null
+    Copy-Item -LiteralPath (Join-Path $dist $distJar) -Destination (Join-Path $mods 'packsage.jar') -Force
 } finally {
     Pop-Location
     $env:JAVA_HOME = $oldJavaHome

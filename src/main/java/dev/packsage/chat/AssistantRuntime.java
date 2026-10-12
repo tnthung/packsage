@@ -7,7 +7,10 @@ import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.PackSageTools;
 
+import java.net.URI;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -28,9 +31,11 @@ public final class AssistantRuntime implements ChatActions {
     private final Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder;
     private final ToIntFunction<ModelBackend.ModelInfo> outputBudget;
     private final Consumer<Boolean> pauseGame;
+    private final Consumer<String> externalNavigation;
     private final KnowledgeService knowledge;
     private final PackSageTools tools;
     private final Object stateLock = new Object();
+    private final Object sendLock = new Object();
     private final List<String> runtimeErrors = new ArrayList<>();
     private final RequestController controller;
     private ChatContracts.WorldIdentity world;
@@ -40,8 +45,10 @@ public final class AssistantRuntime implements ChatActions {
     private PackSageSettings settings = PackSageSettings.defaults();
     private AssistantScreen currentScreen;
     private long worldEpoch;
+    private long publicationEpoch;
     private long authEpoch;
     private boolean requestedPaused;
+    private boolean newChatPending;
 
     public AssistantRuntime(ConversationStore store, ModelBackend backend,
                             Function<Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory,
@@ -50,6 +57,18 @@ public final class AssistantRuntime implements ChatActions {
                             Function<ChatContracts.Turn, Integer> historyCounter,
                             Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder,
                             ToIntFunction<ModelBackend.ModelInfo> outputBudget, Consumer<Boolean> pauseGame) {
+        this(store, backend, captureFactory, controllerExecutor, clientExecutor, knowledgeFactory, historyCounter,
+                requestBuilder, outputBudget, pauseGame, ignored -> { });
+    }
+
+    public AssistantRuntime(ConversationStore store, ModelBackend backend,
+                            Function<Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory,
+                            Executor controllerExecutor, Executor clientExecutor,
+                            Function<Supplier<Evidence.Scope>, KnowledgeService> knowledgeFactory,
+                            Function<ChatContracts.Turn, Integer> historyCounter,
+                            Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder,
+                            ToIntFunction<ModelBackend.ModelInfo> outputBudget, Consumer<Boolean> pauseGame,
+                            Consumer<String> externalNavigation) {
         Objects.requireNonNull(store);
         this.backend = Objects.requireNonNull(backend);
         this.controllerExecutor = Objects.requireNonNull(controllerExecutor);
@@ -58,6 +77,7 @@ public final class AssistantRuntime implements ChatActions {
         this.requestBuilder = Objects.requireNonNull(requestBuilder);
         this.outputBudget = Objects.requireNonNull(outputBudget);
         this.pauseGame = Objects.requireNonNull(pauseGame);
+        this.externalNavigation = Objects.requireNonNull(externalNavigation);
         this.knowledge = Objects.requireNonNull(knowledgeFactory).apply(this::currentScope);
         this.tools = new PackSageTools(this.knowledge::execute);
         this.capture = Objects.requireNonNull(Objects.requireNonNull(captureFactory).apply(this::currentScope));
@@ -72,19 +92,23 @@ public final class AssistantRuntime implements ChatActions {
         long epoch;
         synchronized (stateLock) {
             epoch = ++worldEpoch;
+            publicationEpoch++;
             this.world = world;
             this.scope = scope;
             runtimeErrors.clear();
             requestedPaused = settings.openPaused();
+            newChatPending = false;
         }
-        controller.worldChanged();
+        controller.openWorld(world, scope);
         publishCurrentView(epoch);
     }
 
     public void invalidate(Evidence.Scope newScope) {
         Objects.requireNonNull(newScope);
         synchronized (stateLock) {
+            publicationEpoch++;
             scope = newScope;
+            newChatPending = false;
         }
         controller.invalidate(newScope.worldSession());
         publishCurrentView(worldEpoch);
@@ -93,9 +117,11 @@ public final class AssistantRuntime implements ChatActions {
     public void disconnect() {
         synchronized (stateLock) {
             worldEpoch++;
+            publicationEpoch++;
             world = null;
             scope = EMPTY_SCOPE;
             requestedPaused = false;
+            newChatPending = false;
         }
         controller.disconnect();
     }
@@ -160,7 +186,7 @@ public final class AssistantRuntime implements ChatActions {
             if (cancel) {
                 authEpoch++;
                 signIn = ChatContracts.SignInState.SIGNED_OUT;
-                capabilities = emptyCapabilities();
+                capabilities = new ModelBackend.Capabilities(List.of(), null, null, null, null, null);
             }
         }
         if (cancel) {
@@ -178,7 +204,7 @@ public final class AssistantRuntime implements ChatActions {
         synchronized (stateLock) {
             authEpoch++;
             signIn = ChatContracts.SignInState.SIGNED_OUT;
-            capabilities = emptyCapabilities();
+            capabilities = new ModelBackend.Capabilities(List.of(), null, null, null, null, null);
         }
         controller.stop();
         try {
@@ -192,68 +218,85 @@ public final class AssistantRuntime implements ChatActions {
     @Override
     public void send(String question, boolean includeScreenshot, boolean explicitWebSearch) {
         Objects.requireNonNull(question);
-        ChatContracts.Submission submission;
-        long epoch;
-        synchronized (stateLock) {
-            if (question.isBlank()) {
-                runtimeErrors.add("Question cannot be blank");
-                return;
+        synchronized (sendLock) {
+            ChatContracts.Submission submission;
+            long epoch;
+            Evidence.Scope previousScope;
+            synchronized (stateLock) {
+                if (question.isBlank()) {
+                    runtimeErrors.add("Question cannot be blank");
+                    return;
+                }
+                if (world == null) {
+                    runtimeErrors.add("Cannot send without an active world");
+                    return;
+                }
+                if (signIn != ChatContracts.SignInState.SIGNED_IN) {
+                    runtimeErrors.add("Sign in before sending a question");
+                    return;
+                }
+                if (controller.view().active()) {
+                    runtimeErrors.add("A request is already active");
+                    return;
+                }
+                ModelBackend.ModelInfo selected = capabilities.selectedModelId() == null ? null
+                        : capabilities.modelCatalog().stream()
+                        .filter(model -> model.id().equals(capabilities.selectedModelId())).findFirst().orElse(null);
+                if (selected == null) {
+                    runtimeErrors.add("No selected model is available in the account model catalog");
+                    return;
+                }
+                ModelBackend.SearchMode searchMode = searchMode(selected, settings.automaticWebSearch(), explicitWebSearch);
+                if (explicitWebSearch && searchMode == ModelBackend.SearchMode.DISABLED) {
+                    runtimeErrors.add("Hosted web search is unavailable for the selected model; using local evidence");
+                }
+                if (includeScreenshot && Boolean.FALSE.equals(selected.imageInput())) {
+                    runtimeErrors.add("Screenshot omitted from the model request because image input is unsupported");
+                }
+                int budget;
+                try {
+                    budget = outputBudget.applyAsInt(selected);
+                } catch (RuntimeException failure) {
+                    runtimeErrors.add("Output budget is unavailable: " + failureMessage(failure));
+                    return;
+                }
+                if (budget < 1) {
+                    runtimeErrors.add("Output budget is unavailable");
+                    return;
+                }
+                ChatContracts.HistoryLimits historyLimits;
+                try {
+                    historyLimits = settings.historyLimits();
+                } catch (RuntimeException failure) {
+                    runtimeErrors.add("Request settings are invalid: " + failureMessage(failure));
+                    return;
+                }
+                previousScope = scope;
+                Evidence.Scope nextScope = new Evidence.Scope(scope.worldSession(), scope.resourcesLocale(),
+                        scope.playerTeam(), scope.providerRuntime(), scope.requestGeneration() + 1);
+                try {
+                    submission = new ChatContracts.Submission(new ChatContracts.RequestId(UUID.randomUUID().toString()), world,
+                            nextScope, question, includeScreenshot, historyLimits, selected, searchMode, budget);
+                } catch (RuntimeException failure) {
+                    runtimeErrors.add("Request settings are invalid: " + failureMessage(failure));
+                    return;
+                }
+                scope = nextScope;
+                newChatPending = false;
+                epoch = worldEpoch;
             }
-            if (world == null) {
-                runtimeErrors.add("Cannot send without an active world");
-                return;
-            }
-            if (signIn != ChatContracts.SignInState.SIGNED_IN) {
-                runtimeErrors.add("Sign in before sending a question");
-                return;
-            }
-            ModelBackend.ModelInfo selected = selectedModel(capabilities);
-            if (selected == null) {
-                runtimeErrors.add("No selected model is available in the account model catalog");
-                return;
-            }
-            Evidence.Scope nextScope = new Evidence.Scope(scope.worldSession(), scope.resourcesLocale(),
-                    scope.playerTeam(), scope.providerRuntime(), scope.requestGeneration() + 1);
-            scope = nextScope;
-            ModelBackend.SearchMode searchMode = searchMode(selected, settings.automaticWebSearch(), explicitWebSearch);
-            if (explicitWebSearch && searchMode == ModelBackend.SearchMode.DISABLED) {
-                runtimeErrors.add("Hosted web search is unavailable for the selected model; using local evidence");
-            } else if (searchMode == ModelBackend.SearchMode.DISABLED && selected.hostedSearch() == null) {
-                runtimeErrors.add("Hosted search capability is unknown; using local evidence");
-            }
-            if (includeScreenshot && Boolean.FALSE.equals(selected.imageInput())) {
-                runtimeErrors.add("Screenshot omitted from the model request because image input is unsupported");
-            } else if (includeScreenshot && selected.imageInput() == null) {
-                runtimeErrors.add("Screenshot capability is unknown; the model request will omit it unless verified");
-            }
-            int budget;
             try {
-                budget = outputBudget.applyAsInt(selected);
+                controller.begin(submission).whenCompleteAsync((ignored, failure) -> {
+                    if (failure != null) publishCurrentView(epoch);
+                }, controllerExecutor);
             } catch (RuntimeException failure) {
-                runtimeErrors.add("Output budget is unavailable: " + failureMessage(failure));
-                return;
+                synchronized (stateLock) {
+                    if (scope.requestGeneration() == submission.scope().requestGeneration()) scope = previousScope;
+                }
+                addError("Request could not start: " + failureMessage(failure));
             }
-            if (budget < 1) {
-                runtimeErrors.add("Output budget is unavailable");
-                return;
-            }
-            try {
-                submission = new ChatContracts.Submission(new ChatContracts.RequestId(UUID.randomUUID().toString()), world,
-                        nextScope, question, includeScreenshot, settings.historyLimits(), selected, searchMode, budget);
-            } catch (RuntimeException failure) {
-                runtimeErrors.add("Request settings are invalid: " + failureMessage(failure));
-                return;
-            }
-            epoch = worldEpoch;
+            publishCurrentView(epoch);
         }
-        try {
-            controller.begin(submission).whenCompleteAsync((ignored, failure) -> {
-                if (failure != null) publishCurrentView(epoch);
-            }, controllerExecutor);
-        } catch (RuntimeException failure) {
-            addError("Request could not start: " + failureMessage(failure));
-        }
-        publishCurrentView(epoch);
     }
 
     @Override
@@ -263,6 +306,10 @@ public final class AssistantRuntime implements ChatActions {
 
     @Override
     public void newChat() {
+        synchronized (stateLock) {
+            publicationEpoch++;
+            newChatPending = true;
+        }
         controller.newChat();
     }
 
@@ -290,11 +337,33 @@ public final class AssistantRuntime implements ChatActions {
             return;
         }
         Evidence.Scope expected;
+        long epoch;
         synchronized (stateLock) {
             expected = scope;
+            epoch = worldEpoch;
         }
         if (!target.scope().equals(expected)) {
             addError("Navigation target is stale");
+            return;
+        }
+        boolean stale;
+        synchronized (stateLock) {
+            stale = epoch != worldEpoch || !expected.equals(scope);
+        }
+        if (stale) {
+            addError("Navigation target is stale");
+            return;
+        }
+        if ("web".equals(target.providerId())) {
+            if (!target.sourceHandle().equals(target.targetId()) || externalUrl(target.targetId()) == null) {
+                addError("Navigation target is invalid");
+                return;
+            }
+            try {
+                externalNavigation.accept(target.targetId());
+            } catch (RuntimeException failure) {
+                addError("Navigation failed: " + failureMessage(failure));
+            }
             return;
         }
         Evidence.NavigationResult result;
@@ -334,7 +403,7 @@ public final class AssistantRuntime implements ChatActions {
                 runtimeErrors.add(state.detail() == null ? "Sign-in was not completed" : state.detail());
             } else {
                 signIn = ChatContracts.SignInState.SIGNED_IN;
-                capabilities = emptyCapabilities();
+                capabilities = new ModelBackend.Capabilities(List.of(), null, null, null, null, null);
             }
         }
         publishCurrentView(worldEpoch);
@@ -361,7 +430,10 @@ public final class AssistantRuntime implements ChatActions {
                 return;
             }
             capabilities = found;
-            if (selectedModel(found) == null) runtimeErrors.add("No selected model is available in the account model catalog");
+            if (found.selectedModelId() == null || found.modelCatalog().stream()
+                    .noneMatch(model -> model.id().equals(found.selectedModelId()))) {
+                runtimeErrors.add("No selected model is available in the account model catalog");
+            }
         }
         publishCurrentView(worldEpoch);
     }
@@ -370,30 +442,53 @@ public final class AssistantRuntime implements ChatActions {
         ChatContracts.WorldIdentity expectedWorld;
         Evidence.Scope expectedScope;
         long epoch;
+        long publication;
         synchronized (stateLock) {
             expectedWorld = world;
             expectedScope = scope;
             epoch = worldEpoch;
+            publication = publicationEpoch;
         }
         if (expectedWorld == null || !expectedWorld.equals(view.conversation().world())) return;
-        if (!"none".equals(view.context().scope().worldSession())
-                && !expectedScope.worldSession().equals(view.context().scope().worldSession())) return;
+        if (!expectedScope.equals(view.context().scope())) return;
         long callbackEpoch = epoch;
+        long callbackPublication = publication;
         clientExecutor.execute(() -> {
+            AssistantScreen screen;
             synchronized (stateLock) {
-                if (callbackEpoch != worldEpoch || currentScreen == null || world == null
-                        || !world.equals(view.conversation().world())) return;
+                if (callbackEpoch != worldEpoch || callbackPublication != publicationEpoch || currentScreen == null
+                        || world == null || !world.equals(expectedWorld) || !expectedScope.equals(scope)) return;
+                screen = currentScreen;
             }
-            currentScreen.refresh(wrap(view));
+            ChatContracts.View latest = view();
+            synchronized (stateLock) {
+                if (callbackEpoch != worldEpoch || callbackPublication != publicationEpoch || currentScreen != screen
+                        || !expectedScope.equals(scope) || !expectedScope.equals(latest.context().scope())) return;
+            }
+            screen.refresh(latest);
         });
     }
 
     private void publishCurrentView(long epoch) {
+        Evidence.Scope expectedScope;
+        long publication;
+        synchronized (stateLock) {
+            expectedScope = scope;
+            publication = publicationEpoch;
+        }
         clientExecutor.execute(() -> {
+            AssistantScreen screen;
             synchronized (stateLock) {
-                if (epoch != worldEpoch || currentScreen == null) return;
+                if (epoch != worldEpoch || publication != publicationEpoch || currentScreen == null
+                        || !expectedScope.equals(scope)) return;
+                screen = currentScreen;
             }
-            currentScreen.refresh(view());
+            ChatContracts.View latest = view();
+            synchronized (stateLock) {
+                if (epoch != worldEpoch || publication != publicationEpoch || currentScreen != screen
+                        || !expectedScope.equals(scope) || !expectedScope.equals(latest.context().scope())) return;
+            }
+            screen.refresh(latest);
         });
     }
 
@@ -401,14 +496,79 @@ public final class AssistantRuntime implements ChatActions {
         ChatContracts.SignInState currentSignIn;
         boolean paused;
         List<String> errors;
+        Evidence.Scope currentScope;
+        ChatContracts.WorldIdentity currentWorld;
+        boolean hideConversation;
         synchronized (stateLock) {
             currentSignIn = signIn;
             paused = requestedPaused;
             errors = new ArrayList<>(view.errors());
             errors.addAll(runtimeErrors);
+            currentScope = scope;
+            currentWorld = world;
+            hideConversation = newChatPending;
+        }
+        List<Evidence.Source> sources = new ArrayList<>();
+        List<Evidence.NavigationTarget> targets = new ArrayList<>();
+        if (!hideConversation) {
+            view.sources().forEach(source -> {
+                if (source.scope().equals(currentScope) && sources.stream().noneMatch(existing ->
+                        existing.providerId().equals(source.providerId())
+                                && existing.sourceHandle().equals(source.sourceHandle()))) sources.add(source);
+            });
+            view.navigationTargets().forEach(target -> {
+                if (target.scope().equals(currentScope)
+                        && sources.stream().anyMatch(source -> source.providerId().equals(target.providerId())
+                        && source.sourceHandle().equals(target.sourceHandle()))
+                        && !targets.contains(target)) targets.add(target);
+            });
+        }
+        if (!hideConversation && currentWorld != null && currentWorld.equals(view.conversation().world())
+                && !view.conversation().turns().isEmpty()) {
+            ChatContracts.Turn turn = view.conversation().turns().get(view.conversation().turns().size() - 1);
+            if (turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED
+                    && turn.context().scope().equals(currentScope)) {
+                LinkedHashSet<String> urls = new LinkedHashSet<>();
+                turn.replayItems().forEach(item -> {
+                    if (item instanceof ModelBackend.AssistantOutput output
+                            && output.status() == ModelBackend.OutputStatus.COMPLETED) {
+                        output.content().forEach(content -> {
+                            if (content instanceof ModelBackend.OutputText text) {
+                                text.citations().forEach(citation -> {
+                                    if (externalUrl(citation.url()) != null) urls.add(citation.url());
+                                });
+                            }
+                        });
+                    } else if (item instanceof ModelBackend.WebSearchCall search
+                            && search.status() == ModelBackend.WebSearchStatus.COMPLETED) {
+                        if (search.action() instanceof ModelBackend.SearchAction action) {
+                            action.sources().forEach(source -> {
+                                if (externalUrl(source.url()) != null) urls.add(source.url());
+                            });
+                        } else if (search.action() instanceof ModelBackend.OpenPageAction action
+                                && externalUrl(action.url()) != null) {
+                            urls.add(action.url());
+                        } else if (search.action() instanceof ModelBackend.FindInPageAction action
+                                && externalUrl(action.url()) != null) {
+                            urls.add(action.url());
+                        }
+                    }
+                });
+                Instant receivedAt = Instant.now();
+                urls.forEach(url -> {
+                    if (sources.stream().noneMatch(source -> source.providerId().equals("web")
+                            && source.sourceHandle().equals(url))) {
+                        sources.add(new Evidence.Source(currentScope, "web", "typed-replay", url,
+                                currentScope.requestGeneration(), receivedAt, Evidence.Activity.ACTIVE,
+                                Evidence.Coverage.COMPLETE, Evidence.Authority.EXTERNAL, List.of(url)));
+                    }
+                    Evidence.NavigationTarget target = new Evidence.NavigationTarget(currentScope, "web", url, url);
+                    if (!targets.contains(target)) targets.add(target);
+                });
+            }
         }
         return new ChatContracts.View(view.active(), currentSignIn, paused, view.conversation(), view.context(),
-                view.sources(), view.navigationTargets(), errors);
+                sources, targets, errors);
     }
 
     private Evidence.Scope currentScope() {
@@ -424,20 +584,21 @@ public final class AssistantRuntime implements ChatActions {
         publishCurrentView(worldEpoch);
     }
 
-    private static ModelBackend.Capabilities emptyCapabilities() {
-        return new ModelBackend.Capabilities(List.of(), null, null, null, null, null);
-    }
-
-    private static ModelBackend.ModelInfo selectedModel(ModelBackend.Capabilities capabilities) {
-        if (capabilities.selectedModelId() == null) return null;
-        return capabilities.modelCatalog().stream().filter(model -> model.id().equals(capabilities.selectedModelId()))
-                .findFirst().orElse(null);
-    }
-
     private static ModelBackend.SearchMode searchMode(ModelBackend.ModelInfo model, boolean automatic, boolean explicit) {
-        if (!Boolean.TRUE.equals(model.hostedSearch())) return ModelBackend.SearchMode.DISABLED;
+        if (Boolean.FALSE.equals(model.hostedSearch())) return ModelBackend.SearchMode.DISABLED;
         if (explicit) return ModelBackend.SearchMode.EXPLICIT_REQUEST;
         return automatic ? ModelBackend.SearchMode.AUTOMATIC : ModelBackend.SearchMode.EXPLICIT_ONLY;
+    }
+
+    private static String externalUrl(String value) {
+        try {
+            URI uri = new URI(value);
+            if (!("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+                    || uri.getHost() == null || uri.getHost().isBlank()) return null;
+            return value;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private static String failureMessage(Throwable failure) {

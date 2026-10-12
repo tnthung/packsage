@@ -16,7 +16,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantRuntimeTest {
@@ -25,6 +26,8 @@ class AssistantRuntimeTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 0);
     private static final ModelBackend.ModelInfo MODEL = new ModelBackend.ModelInfo("catalog-model", "Catalog Model",
             true, true, 16_000, 2_048);
+    private static final ModelBackend.ModelInfo UNKNOWN_MODEL = new ModelBackend.ModelInfo("unknown-model", "Unknown Model",
+            null, null, 16_000, 2_048);
 
     @Test
     void sendInstallsNextScopeAndSnapshotsCatalogSettingsBeforeCapture() throws Exception {
@@ -91,6 +94,120 @@ class AssistantRuntimeTest {
         assertTrue(runtime.view().errors().stream().noneMatch(error -> error.contains("catalog-model")));
     }
 
+    @Test
+    void unknownHostedSearchKeepsAutomaticExplicitOnlyAndExplicitRequestModes() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                PackSageSettings.defaults(), model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(UNKNOWN_MODEL), UNKNOWN_MODEL.id(), null, null,
+                UNKNOWN_MODEL.contextTokens(), UNKNOWN_MODEL.outputTokens()));
+
+        runtime.send("automatic", false, false);
+        runtime.stop();
+        PackSageSettings explicitOnly = new PackSageSettings(true, false, 10, 12_000);
+        runtime.setSettings(explicitOnly);
+        runtime.send("explicit only", false, false);
+        runtime.stop();
+        runtime.send("explicit request", false, true);
+
+        assertEquals(List.of(ModelBackend.SearchMode.AUTOMATIC, ModelBackend.SearchMode.EXPLICIT_ONLY,
+                ModelBackend.SearchMode.EXPLICIT_REQUEST), backend.requests.stream().map(ModelBackend.Request::searchMode).toList());
+    }
+
+    @Test
+    void unknownImageCapabilityStaysAttachedWithoutUnsupportedMessage() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        AtomicReference<ChatContracts.PreparedRequest> prepared = new AtomicReference<>();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(), prepared,
+                PackSageSettings.defaults(), model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(UNKNOWN_MODEL), UNKNOWN_MODEL.id(), null, null,
+                UNKNOWN_MODEL.contextTokens(), UNKNOWN_MODEL.outputTokens()));
+
+        runtime.send("question", true, false);
+
+        assertNotNull(prepared.get().capturedContext().context().screenshot());
+        assertTrue(runtime.view().errors().stream().noneMatch(error -> error.contains("will omit unless verified")));
+    }
+
+    @Test
+    void secondSendIsRejectedBeforeScopeAdvances() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                PackSageSettings.defaults(), model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+
+        runtime.send("first", false, false);
+        runtime.send("second", false, false);
+
+        assertEquals(1, backend.starts);
+        assertTrue(runtime.view().active());
+        assertEquals(1, runtime.view().context().scope().requestGeneration());
+        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("already active")));
+    }
+
+    @Test
+    void outputBudgetFailureDoesNotAdvanceScope() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                PackSageSettings.defaults(), model -> 0);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+
+        runtime.send("question", false, false);
+
+        assertEquals(0, runtime.view().context().scope().requestGeneration());
+        assertEquals(0, backend.starts);
+        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("Output budget")));
+    }
+
+    @Test
+    void completedTypedExternalCitationCreatesValidatedNavigationTarget() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        AtomicReference<String> opened = new AtomicReference<>();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, opened::set);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+        runtime.send("question", false, false);
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("answer", List.of(
+                        new ModelBackend.UrlCitation(0, 6, "Example", "https://example.test/path"),
+                        new ModelBackend.UrlCitation(0, 6, "Invalid", "ftp://example.test/path"))))),
+                new ModelBackend.WebSearchCall("search", ModelBackend.WebSearchStatus.COMPLETED,
+                        new ModelBackend.SearchAction("query", List.of("query"),
+                                List.of(new ModelBackend.WebSearchSource("https://example.test/search"))))), null));
+
+        ChatContracts.View view = runtime.view();
+        assertEquals(2, view.navigationTargets().size());
+        assertTrue(view.sources().stream().allMatch(source -> source.providerId().equals("web")
+                && source.authority() == Evidence.Authority.EXTERNAL
+                && source.observedAt() != null));
+        Evidence.NavigationTarget target = view.navigationTargets().get(0);
+        runtime.navigate(target);
+        assertEquals(target.targetId(), opened.get());
+        opened.set(null);
+        runtime.newChat();
+        runtime.navigate(target);
+        assertNull(opened.get());
+    }
+
     private static java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory() {
         return scope -> new GameplayContextCapture(
                 () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
@@ -119,6 +236,16 @@ class AssistantRuntimeTest {
                                             AtomicReference<ChatContracts.PreparedRequest> preparedRequest,
                                             PackSageSettings settings, java.util.function.ToIntFunction<ModelBackend.ModelInfo> budget,
                                             java.util.function.Consumer<Boolean> pauseGame) throws Exception {
+        return runtime(backend, captureFactory, scope, request, preparedRequest, settings, budget, pauseGame, ignored -> { });
+    }
+
+    private static AssistantRuntime runtime(FakeBackend backend,
+                                            java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory,
+                                            AtomicReference<Evidence.Scope> scope, AtomicReference<ModelBackend.Request> request,
+                                            AtomicReference<ChatContracts.PreparedRequest> preparedRequest,
+                                            PackSageSettings settings, java.util.function.ToIntFunction<ModelBackend.ModelInfo> budget,
+                                            java.util.function.Consumer<Boolean> pauseGame,
+                                            java.util.function.Consumer<String> externalNavigation) throws Exception {
         var directory = Files.createTempDirectory("packsage-runtime-test");
         return new AssistantRuntime(new ConversationStore(directory, DIRECT), backend, captureFactory, DIRECT, DIRECT,
                 current -> new KnowledgeService(List.of(), current, ignored -> CompletableFuture.completedFuture(
@@ -134,13 +261,14 @@ class AssistantRuntimeTest {
                     request.set(result);
                     preparedRequest.set(prepared);
                     return result;
-                }, budget, pauseGame);
+                }, budget, pauseGame, externalNavigation);
     }
 
     private static final class FakeBackend implements ModelBackend {
         private final CompletableFuture<AuthState> signIn = new CompletableFuture<>();
         private final CompletableFuture<Capabilities> catalog = new CompletableFuture<>();
         private final List<Request> requests = new ArrayList<>();
+        private java.util.function.Consumer<Event> events;
         private int starts;
 
         @Override
@@ -166,10 +294,15 @@ class AssistantRuntimeTest {
         public Exchange start(Request request, java.util.function.Consumer<Event> events) {
             starts++;
             requests.add(request);
+            this.events = events;
             return new Exchange() {
                 @Override public void submit(ToolResult result) { }
                 @Override public void cancel() { }
             };
+        }
+
+        private void emit(Event event) {
+            events.accept(event);
         }
     }
 }

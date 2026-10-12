@@ -41,7 +41,8 @@ public final class HistorySelector {
             }
             int tokens = tokenCounter.applyAsInt(turn);
             if (tokens < 0) throw new IllegalArgumentException("token counter returned a negative value");
-            if (tokenCount + tokens > limits.historicalTokens()) continue;
+            // Drop the oldest whole turns: once a turn no longer fits, no older turn is replayed either.
+            if (tokenCount + tokens > limits.historicalTokens()) break;
             selected.add(0, turn);
             tokenCount += tokens;
             completed++;

@@ -11,6 +11,7 @@ final class ActivityLabels {
     static final String THINKING = "Thinking…";
     static final String SEARCHING_WEB = "Searching the web…";
     static final String WRITING = "Writing answer…";
+    static final String RETRYING_WITHOUT_WEB_SEARCH = "Retrying without web search…";
     private static final int ARGUMENT_LIMIT = 60;
     private static final int NAME_LIMIT = 40;
 

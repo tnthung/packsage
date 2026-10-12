@@ -37,14 +37,7 @@ public final class GroundingInstructions {
 
     public static ModelBackend.Request build(ChatContracts.PreparedRequest prepared) {
         var input = new ArrayList<ModelBackend.InputItem>();
-        for (var turn : prepared.history().turns()) {
-            input.add(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
-                    "Historical question: " + turn.question() + "\nEarlier gameplay observation: " + turn.context().serializedGameplayContext()))));
-            input.addAll(turn.replayItems());
-            if (turn.replayItems().stream().noneMatch(ModelBackend.AssistantOutput.class::isInstance)) {
-                input.add(new ModelBackend.Message(ModelBackend.Role.ASSISTANT, List.of(new ModelBackend.TextContent(turn.answer()))));
-            }
-        }
+        for (var turn : prepared.history().turns()) input.addAll(historyInput(turn));
         var submission = prepared.submission();
         var content = new ArrayList<ModelBackend.Content>();
         content.add(new ModelBackend.TextContent("Current question: " + submission.question()
@@ -64,8 +57,25 @@ public final class GroundingInstructions {
                 submission.searchMode(), submission.requestId().value(), submission.outputBudget());
     }
 
-    /** Conservative text-history estimate, not the server's full request/image/reasoning token count. */
+    /** The input items one historical turn contributes to a request: its question, its replay items and, if needed, its answer. */
+    private static List<ModelBackend.InputItem> historyInput(ChatContracts.Turn turn) {
+        var input = new ArrayList<ModelBackend.InputItem>();
+        input.add(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                "Historical question: " + turn.question() + "\nEarlier gameplay observation: " + turn.context().serializedGameplayContext()))));
+        input.addAll(turn.replayItems());
+        if (turn.replayItems().stream().noneMatch(ModelBackend.AssistantOutput.class::isInstance)) {
+            input.add(new ModelBackend.Message(ModelBackend.Role.ASSISTANT, List.of(new ModelBackend.TextContent(turn.answer()))));
+        }
+        return input;
+    }
+
+    /**
+     * Conservative text-history estimate of what the turn replays into a later request (see {@link #historyInput}),
+     * not the server's full request/image/reasoning token count. Saved sources and other local-only fields are not counted.
+     */
     public static int historyTextBudget(ChatContracts.Turn turn) {
-        return JSON.toJson(turn).getBytes(StandardCharsets.UTF_8).length;
+        int total = 0;
+        for (var item : historyInput(turn)) total += JSON.toJson(item).getBytes(StandardCharsets.UTF_8).length;
+        return total;
     }
 }

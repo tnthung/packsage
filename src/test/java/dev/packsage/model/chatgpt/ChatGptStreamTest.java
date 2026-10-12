@@ -110,6 +110,31 @@ class ChatGptStreamTest {
     }
 
     @Test
+    void incompleteResponseKeepsTheProviderReasonAndSummarizesOutputTypesWithoutContent() {
+        String incomplete = "{\"type\":\"response.incomplete\",\"sequence_number\":40,\"response\":{\"status\":\"incomplete\","
+                + "\"incomplete_details\":{\"reason\":\"max_messages\"},\"output\":["
+                + "{\"id\":\"rs_1\",\"type\":\"reasoning\",\"encrypted_content\":\"SECRET-BLOB\",\"summary\":[]},"
+                + "{\"id\":\"ws_1\",\"type\":\"web_search_call\",\"status\":\"completed\",\"action\":{\"type\":\"search\",\"query\":\"private query\"}},"
+                + "{\"id\":\"ws_2\",\"type\":\"web_search_call\",\"status\":\"completed\"},"
+                + "{\"id\":\"rs_2\",\"type\":\"reasoning\",\"encrypted_content\":\"SECRET-BLOB\",\"summary\":[]},"
+                + "{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"secret answer\"}]}],"
+                + "\"usage\":{\"output_tokens\":321}}}";
+        List<ModelBackend.Event> events = new ArrayList<>();
+        new ChatGptStream(events::add).accept(("data: " + incomplete + "\n\n").getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(1, events.size());
+        assertEquals(ModelBackend.EventKind.FAILED, events.getFirst().kind());
+        assertEquals("response incomplete: max_messages", events.getFirst().detail());
+        String summary = ChatGptStream.incompleteSummary(com.google.gson.JsonParser.parseString(incomplete).getAsJsonObject()
+                .getAsJsonObject("response"));
+        assertEquals("reason=max_messages output: reasoning=2 web_search_call=2 function_call=0 message=1 output_tokens=321", summary);
+        assertTrue(!summary.contains("SECRET") && !summary.contains("secret") && !summary.contains("private"), summary);
+
+        assertEquals("reason=unknown output: reasoning=0 web_search_call=0 function_call=0 message=0",
+                ChatGptStream.incompleteSummary(new com.google.gson.JsonObject()));
+    }
+
+    @Test
     void cancellationStopsEventsAlreadyBufferedAfterCancellation() {
         List<ModelBackend.Event> events = new ArrayList<>();
         ChatGptStream stream = new ChatGptStream(events::add);

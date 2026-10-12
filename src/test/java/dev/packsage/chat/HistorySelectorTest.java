@@ -41,6 +41,17 @@ class HistorySelectorTest {
     }
 
     @Test
+    void overBudgetRecentTurnStopsSelectionInsteadOfKeepingAnOlderTurn() {
+        List<ChatContracts.Turn> turns = List.of(turn(1, 1), turn(2, 1), turn(3, 50), turn(4, 1));
+
+        ChatContracts.HistorySelection selection = HistorySelector.select(turns,
+                new ChatContracts.HistoryLimits(10, 10), ChatContracts.Turn::tokenCount);
+
+        assertEquals(List.of("request-4"), selection.turns().stream().map(turn -> turn.requestId().value()).toList());
+        assertEquals(1, selection.tokenCount());
+    }
+
+    @Test
     void activeExchangeAndFreshContextAreSeparateFromHistoricalSelection() {
         ChatContracts.HistorySelection selection = HistorySelector.select(List.of(turn(1, 3)),
                 new ChatContracts.HistoryLimits(10, 12_000), turn -> 100);

@@ -139,6 +139,39 @@ public final class RequestController {
         cancelActive("stopped");
     }
 
+    /**
+     * Starts a new chat for the caller's current world and evidence scope, so the published views pass the caller's
+     * scope filter even after an invalidation. An already empty loaded conversation, or a New chat that is still
+     * loading, is reused and republished instead of creating another empty conversation file.
+     */
+    public void newChat(ChatContracts.WorldIdentity currentWorld, Evidence.Scope currentScope) {
+        if (currentWorld == null || currentScope == null) {
+            newChat();
+            return;
+        }
+        boolean reused = false;
+        synchronized (stateLock) {
+            if (active == null && worldLoad != null && worldLoad.createNew && worldLoad.world.equals(currentWorld)) {
+                worldLoad.scope = currentScope;
+                context = new ChatContracts.Context("", null, currentScope);
+                reused = true;
+            } else if (active == null && worldLoad == null && conversation.world().equals(currentWorld)
+                    && !conversation.id().startsWith("pending") && conversation.turns().isEmpty()) {
+                forceNew = false;
+                openedWorld = currentWorld;
+                openedScope = currentScope;
+                visibleRequest = null;
+                errors.clear();
+                context = new ChatContracts.Context("", null, currentScope);
+                sources = List.of();
+                navigationTargets = List.of();
+                reused = true;
+            }
+        }
+        if (reused) publish();
+        else startWorldLoad(currentWorld, currentScope, true, "new chat");
+    }
+
     public void newChat() {
         ChatContracts.WorldIdentity world;
         Evidence.Scope scope;
@@ -190,7 +223,7 @@ public final class RequestController {
         boolean hadActive;
         synchronized (stateLock) {
             worldLoadGeneration++;
-            load = new WorldLoad(world, scope, worldLoadGeneration);
+            load = new WorldLoad(world, scope, createNew, worldLoadGeneration);
             superseded = worldLoad;
             worldLoad = load;
             hadActive = active != null;
@@ -369,6 +402,9 @@ public final class RequestController {
             if (event.kind() == ModelBackend.EventKind.TEXT_DELTA && event.text() != null) {
                 request.answer.append(event.text());
                 request.activity = ActivityLabels.WRITING;
+            } else if (event.kind() == ModelBackend.EventKind.RETRYING) {
+                request.answer.setLength(0);
+                request.activity = ActivityLabels.RETRYING_WITHOUT_WEB_SEARCH;
             } else if (event.kind() == ModelBackend.EventKind.REASONING) {
                 if (request.activity.equals(ActivityLabels.THINKING)) return;
                 request.activity = ActivityLabels.THINKING;
@@ -451,12 +487,16 @@ public final class RequestController {
                 ? event.detail() == null ? "model failed" : event.detail() : null;
         synchronized (stateLock) {
             if (!isCurrent(request)) return;
-            try {
-                replay = validateReplay(event.replayItems(), request.toolResults);
-            } catch (RuntimeException exception) {
-                replay = List.copyOf(request.partialReplay);
-                status = ChatContracts.OutcomeStatus.FAILED;
-                detail = exception.getMessage();
+            if (status == ChatContracts.OutcomeStatus.COMPLETED) {
+                try {
+                    replay = validateReplay(event.replayItems(), request.toolResults);
+                } catch (RuntimeException exception) {
+                    replay = completePairs(request);
+                    status = ChatContracts.OutcomeStatus.FAILED;
+                    detail = exception.getMessage();
+                }
+            } else {
+                replay = completePairs(request);
             }
             active = null;
             target = request.target.join();
@@ -602,6 +642,15 @@ public final class RequestController {
                 active == null ? "" : active.activity);
     }
 
+    /** The request's tool calls that received a result, each followed by its results, in their original order. */
+    private static List<ModelBackend.InputItem> completePairs(ActiveRequest request) {
+        List<ModelBackend.InputItem> pairs = new ArrayList<>();
+        for (ModelBackend.InputItem item : request.partialReplay) {
+            if (!(item instanceof ModelBackend.ToolCall call) || request.toolResults.containsKey(call.callId())) pairs.add(item);
+        }
+        return List.copyOf(pairs);
+    }
+
     private static List<ModelBackend.InputItem> validateReplay(List<ModelBackend.InputItem> providerReplay,
                                                                 Map<String, ModelBackend.ToolResult> submittedResults) {
         Set<String> calls = new LinkedHashSet<>();
@@ -661,13 +710,15 @@ public final class RequestController {
 
     private static final class WorldLoad {
         private final ChatContracts.WorldIdentity world;
-        private final Evidence.Scope scope;
+        private Evidence.Scope scope;
+        private final boolean createNew;
         private final long generation;
         private final CompletableFuture<ChatContracts.Conversation> result = new CompletableFuture<>();
 
-        private WorldLoad(ChatContracts.WorldIdentity world, Evidence.Scope scope, long generation) {
+        private WorldLoad(ChatContracts.WorldIdentity world, Evidence.Scope scope, boolean createNew, long generation) {
             this.world = world;
             this.scope = scope;
+            this.createNew = createNew;
             this.generation = generation;
         }
     }

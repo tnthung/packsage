@@ -255,6 +255,117 @@ class RequestControllerTest {
     }
 
     @Test
+    void providerFailureAfterToolResultsKeepsProviderDetailAndPartialPairs() {
+        FakeBackend backend = new FakeBackend();
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> request.call().callId().equals("call-1")
+                        ? CompletableFuture.completedFuture(new ChatContracts.ToolResponse(
+                        new ModelBackend.ToolResult("call-1", "{\"found\":1}", false),
+                        new ChatContracts.EvidenceSelection(List.of(), List.of())))
+                        : new CompletableFuture<>(), ignored -> { });
+        controller.begin(submission("provider-failure", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+        ModelBackend.ToolCall firstCall = new ModelBackend.ToolCall("call-1", "search_pack", "{}");
+        ModelBackend.ToolCall pendingCall = new ModelBackend.ToolCall("call-2", "read_evidence", "{}");
+
+        backend.emit("provider-failure", new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, firstCall,
+                List.of(), List.of(), null));
+        backend.emit("provider-failure", new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, pendingCall,
+                List.of(), List.of(), null));
+        backend.emit("provider-failure", new ModelBackend.Event(ModelBackend.EventKind.FAILED, null, null, List.of(), List.of(),
+                "response incomplete: max_messages"));
+
+        ChatContracts.Turn visible = controller.view().conversation().turns().getFirst();
+        assertEquals(new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, "response incomplete: max_messages"),
+                visible.outcome());
+        assertEquals(List.of(firstCall, new ModelBackend.ToolResult("call-1", "{\"found\":1}", false)), visible.replayItems());
+        ChatContracts.Turn persisted = store.openLatest(WORLD_A).toCompletableFuture().join().turns().getFirst();
+        assertEquals(visible.outcome(), persisted.outcome());
+        assertEquals(visible.replayItems(), persisted.replayItems());
+    }
+
+    @Test
+    void retryEventShowsRetryActivityAndDropsTheAbandonedPartialAnswer() {
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.View> published = new ArrayList<>();
+        RequestController controller = activityController(backend, published, "activity-retry");
+
+        backend.emit("activity-retry", new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "partial", null, List.of(), null));
+        backend.emit("activity-retry", new ModelBackend.Event(ModelBackend.EventKind.RETRYING, null, null, List.of(), null));
+
+        assertEquals("Retrying without web search…", published.getLast().activity());
+        assertEquals("", published.getLast().streamingAnswer());
+        assertTrue(controller.view().active());
+    }
+
+    @Test
+    void newChatUsesTheSuppliedCurrentScopeForPublishedViews() {
+        List<ChatContracts.View> published = new ArrayList<>();
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), published::add);
+        controller.openWorld(WORLD_A, SCOPE_A).toCompletableFuture().join();
+        controller.begin(submission("before-new-chat", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+        backend.emit("before-new-chat", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        String previousId = controller.view().conversation().id();
+        Evidence.Scope invalidated = new Evidence.Scope("session-a", "en_us", "team-a", "provider-2", 7);
+        published.clear();
+
+        controller.newChat(WORLD_A, invalidated);
+
+        assertFalse(published.isEmpty());
+        assertTrue(published.stream().allMatch(view -> view.context().scope().equals(invalidated)), published.toString());
+        assertTrue(published.getLast().conversation().turns().isEmpty());
+        assertFalse(published.getLast().conversation().id().equals(previousId));
+        assertFalse(published.getLast().conversation().id().startsWith("pending"));
+    }
+
+    @Test
+    void repeatedNewChatPressesDoNotLeaveEmptyConversationFiles() throws Exception {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.View> published = new ArrayList<>();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), published::add);
+        controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        controller.begin(submission("answered", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096));
+        storeExecutor.drain();
+        backend.emit("answered", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        Path worldDirectory = store.conversationPath(WORLD_A, controller.view().conversation().id()).getParent();
+
+        controller.newChat(WORLD_A, SCOPE_B);
+        controller.newChat(WORLD_A, SCOPE_B);
+        storeExecutor.drain();
+        String freshId = controller.view().conversation().id();
+        controller.newChat(WORLD_A, SCOPE_B);
+        controller.newChat(WORLD_A, SCOPE_B);
+        storeExecutor.drain();
+
+        assertEquals(freshId, controller.view().conversation().id());
+        assertTrue(controller.view().conversation().turns().isEmpty());
+        assertEquals(SCOPE_B, controller.view().context().scope());
+        assertEquals(SCOPE_B, published.getLast().context().scope());
+        try (var files = Files.list(worldDirectory)) {
+            assertEquals(2, files.filter(path -> path.getFileName().toString().endsWith(".jsonl")).count());
+        }
+        CompletionStage<ChatContracts.Conversation> reopened = store.openLatest(WORLD_A);
+        storeExecutor.drain();
+        assertEquals(freshId, reopened.toCompletableFuture().join().id());
+    }
+
+    @Test
     void staleToolCompletionWithReusedCallIdCannotSubmitIntoTheNewRequest() {
         FakeBackend backend = new FakeBackend();
         List<CompletableFuture<ChatContracts.ToolResponse>> toolResponses = new ArrayList<>();

@@ -3,13 +3,16 @@ package dev.packsage.model.chatgpt;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.packsage.PackSageLog;
 import dev.packsage.model.ModelBackend;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Consumer;
 
 public final class ChatGptStream {
@@ -174,11 +177,44 @@ public final class ChatGptStream {
             JsonObject response = event.has("response") && event.get("response").isJsonObject() ? event.getAsJsonObject("response") : event;
             JsonObject incomplete = response.has("incomplete_details") && response.get("incomplete_details").isJsonObject()
                     ? response.getAsJsonObject("incomplete_details") : null;
+            PackSageLog.LOGGER.warn("PackSage model response incomplete: {}", incompleteSummary(response));
             fail("response incomplete" + (incomplete != null && incomplete.has("reason") ? ": " + incomplete.get("reason").getAsString() : ""));
         } else if ("error".equals(type)) {
             JsonObject error = event.has("error") && event.get("error").isJsonObject() ? event.getAsJsonObject("error") : event;
             fail(errorDetail("Response error", error, event));
         }
+    }
+
+    /**
+     * One log-safe line for an incomplete response: its reason, a count of output item types and the output token
+     * count when reported. Never includes item content, arguments, queries or identifiers.
+     */
+    static String incompleteSummary(JsonObject response) {
+        String reason = null;
+        if (response.has("incomplete_details") && response.get("incomplete_details").isJsonObject()) {
+            reason = text(response.getAsJsonObject("incomplete_details"), "reason", 100);
+        }
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (String type : List.of("reasoning", "web_search_call", "function_call", "message")) counts.put(type, 0);
+        Map<String, Integer> others = new TreeMap<>();
+        if (response.has("output") && response.get("output").isJsonArray()) {
+            for (JsonElement item : response.getAsJsonArray("output")) {
+                String type = item.isJsonObject() ? text(item.getAsJsonObject(), "type", 60) : null;
+                if (type == null || !type.matches("[A-Za-z0-9_.-]+")) type = "unknown";
+                if (counts.containsKey(type)) counts.merge(type, 1, Integer::sum);
+                else others.merge(type, 1, Integer::sum);
+            }
+        }
+        counts.putAll(others);
+        StringBuilder summary = new StringBuilder("reason=").append(reason == null ? "unknown" : reason).append(" output:");
+        counts.forEach((type, count) -> summary.append(' ').append(type).append('=').append(count));
+        if (response.has("usage") && response.get("usage").isJsonObject()) {
+            JsonElement outputTokens = response.getAsJsonObject("usage").get("output_tokens");
+            if (outputTokens != null && outputTokens.isJsonPrimitive() && outputTokens.getAsJsonPrimitive().isNumber()) {
+                summary.append(" output_tokens=").append(outputTokens.getAsLong());
+            }
+        }
+        return summary.toString();
     }
 
     private static String errorDetail(String prefix, JsonObject error, JsonObject event) {

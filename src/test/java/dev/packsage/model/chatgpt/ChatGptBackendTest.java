@@ -548,6 +548,174 @@ class ChatGptBackendTest {
         ), completed.replayItems());
     }
 
+    private static final String TOOL_CALL_RESPONSE =
+            "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":1,\"item\":{\"id\":\"fc_a\",\"type\":\"function_call\",\"call_id\":\"call_a\",\"namespace\":\"packsage\",\"name\":\"search_pack\",\"arguments\":\"{}\",\"status\":\"completed\"}}\n\n"
+                    + "data: {\"type\":\"response.completed\",\"sequence_number\":2,\"response\":{\"status\":\"completed\"}}\n\n";
+    private static final String TWO_TOOL_CALL_RESPONSE =
+            "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":1,\"item\":{\"id\":\"fc_a\",\"type\":\"function_call\",\"call_id\":\"call_a\",\"namespace\":\"packsage\",\"name\":\"search_pack\",\"arguments\":\"{}\",\"status\":\"completed\"}}\n\n"
+                    + "data: {\"type\":\"response.output_item.done\",\"output_index\":1,\"sequence_number\":2,\"item\":{\"id\":\"fc_b\",\"type\":\"function_call\",\"call_id\":\"call_b\",\"namespace\":\"packsage\",\"name\":\"read_evidence\",\"arguments\":\"{}\",\"status\":\"completed\"}}\n\n"
+                    + "data: {\"type\":\"response.completed\",\"sequence_number\":3,\"response\":{\"status\":\"completed\"}}\n\n";
+    private static final String MAX_MESSAGES_RESPONSE =
+            "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":1,\"item\":{\"id\":\"ws_loop\",\"type\":\"web_search_call\",\"status\":\"completed\"}}\n\n"
+                    + "data: {\"type\":\"response.incomplete\",\"sequence_number\":2,\"response\":{\"status\":\"incomplete\",\"incomplete_details\":{\"reason\":\"max_messages\"},\"output\":[{\"id\":\"ws_loop\",\"type\":\"web_search_call\",\"status\":\"completed\"}]}}\n\n";
+    private static final String ANSWER_RESPONSE =
+            "data: {\"type\":\"response.output_text.delta\",\"sequence_number\":1,\"delta\":\"local answer\"}\n\n"
+                    + "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":2,\"item\":{\"id\":\"msg_1\",\"type\":\"message\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"local answer\",\"annotations\":[]}]}}\n\n"
+                    + "data: {\"type\":\"response.completed\",\"sequence_number\":3,\"response\":{\"status\":\"completed\"}}\n\n";
+
+    private ModelBackend.Request searchRequest(String requestId, ModelBackend.SearchMode searchMode) {
+        return new ModelBackend.Request("gpt-5-mini", "Answer from evidence.",
+                List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("question")))),
+                List.of(new ModelBackend.ToolDefinition("search_pack", "Search", "{\"type\":\"object\"}")), searchMode, requestId, 512);
+    }
+
+    private ChatGptAuth signedInAuth() {
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        return auth;
+    }
+
+    private static boolean offersWebSearch(JsonObject body) {
+        if (!body.has("tools")) return false;
+        for (var tool : body.getAsJsonArray("tools")) {
+            if ("web_search".equals(tool.getAsJsonObject().get("type").getAsString())) return true;
+        }
+        return false;
+    }
+
+    @Test
+    void maxMessagesIncompleteWithWebSearchRetriesOnceWithoutWebSearchAndKeepsPairs() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(TOOL_CALL_RESPONSE, MAX_MESSAGES_RESPONSE, ANSWER_RESPONSE));
+        List<ModelBackend.Event> events = new ArrayList<>();
+
+        ModelBackend.Exchange exchange = new ChatGptBackend(signedInAuth(), client, Runnable::run)
+                .start(searchRequest("retry-1", ModelBackend.SearchMode.AUTOMATIC), events::add);
+        exchange.submit(new ModelBackend.ToolResult("call_a", "{\"found\":true}", false));
+
+        assertEquals(3, client.requests.size());
+        JsonObject incomplete = JsonParser.parseString(requestBody(client.requests.get(1))).getAsJsonObject();
+        JsonObject retry = JsonParser.parseString(requestBody(client.requests.get(2))).getAsJsonObject();
+        assertTrue(offersWebSearch(incomplete));
+        assertFalse(offersWebSearch(retry));
+        assertTrue(retry.has("tools"));
+        assertEquals(incomplete.getAsJsonArray("input"), retry.getAsJsonArray("input"));
+        assertTrue(retry.get("instructions").getAsString().contains("web lookup was cut short"));
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.RETRYING).count());
+        assertFalse(events.stream().anyMatch(event -> event.kind() == ModelBackend.EventKind.FAILED));
+        ModelBackend.Event completed = events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED)
+                .findFirst().orElseThrow();
+        assertEquals(List.of(new ModelBackend.ToolCall("call_a", "packsage", "search_pack", "{}"),
+                new ModelBackend.ToolResult("call_a", "{\"found\":true}", false),
+                new ModelBackend.AssistantOutput("msg_1", ModelBackend.OutputStatus.COMPLETED, null,
+                        List.of(new ModelBackend.OutputText("local answer", List.of())))), completed.replayItems());
+    }
+
+    @Test
+    void maxMessagesAfterAClientCallDoesNotPublishTheIncompleteCallBeforeRetry() {
+        String incompleteClientCall =
+                "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":1,\"item\":{\"id\":\"fc_b\",\"type\":\"function_call\",\"call_id\":\"call_b\",\"namespace\":\"packsage\",\"name\":\"read_evidence\",\"arguments\":\"{}\",\"status\":\"completed\"}}\n\n"
+                        + "data: {\"type\":\"response.incomplete\",\"sequence_number\":2,\"response\":{\"status\":\"incomplete\",\"incomplete_details\":{\"reason\":\"max_messages\"},\"output\":[{\"id\":\"fc_b\",\"type\":\"function_call\",\"call_id\":\"call_b\",\"namespace\":\"packsage\",\"name\":\"read_evidence\",\"arguments\":\"{}\",\"status\":\"completed\"}]}}\n\n";
+        CapturingHttpClient client = new CapturingHttpClient(List.of(TOOL_CALL_RESPONSE, incompleteClientCall, ANSWER_RESPONSE));
+        List<ModelBackend.Event> events = new ArrayList<>();
+
+        ModelBackend.Exchange exchange = new ChatGptBackend(signedInAuth(), client, Runnable::run)
+                .start(searchRequest("retry-client-call", ModelBackend.SearchMode.AUTOMATIC), events::add);
+        exchange.submit(new ModelBackend.ToolResult("call_a", "{\"found\":true}", false));
+
+        assertEquals(3, client.requests.size());
+        JsonObject incomplete = JsonParser.parseString(requestBody(client.requests.get(1))).getAsJsonObject();
+        JsonObject retry = JsonParser.parseString(requestBody(client.requests.get(2))).getAsJsonObject();
+        assertEquals(incomplete.getAsJsonArray("input"), retry.getAsJsonArray("input"));
+        assertTrue(incomplete.getAsJsonArray("input").toString().contains("call_a"));
+        assertFalse(incomplete.getAsJsonArray("input").toString().contains("call_b"));
+        assertFalse(offersWebSearch(retry));
+        assertFalse(retry.has("tool_choice"));
+        assertTrue(events.stream().noneMatch(event -> event.kind() == ModelBackend.EventKind.CLIENT_TOOL_CALL
+                && event.toolCall() != null && event.toolCall().callId().equals("call_b")));
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.RETRYING).count());
+        assertFalse(events.stream().anyMatch(event -> event.kind() == ModelBackend.EventKind.FAILED));
+        assertTrue(events.stream().anyMatch(event -> event.kind() == ModelBackend.EventKind.COMPLETED));
+        ModelBackend.Event completed = events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED)
+                .findFirst().orElseThrow();
+        assertEquals(List.of(new ModelBackend.ToolCall("call_a", "packsage", "search_pack", "{}"),
+                new ModelBackend.ToolResult("call_a", "{\"found\":true}", false),
+                new ModelBackend.AssistantOutput("msg_1", ModelBackend.OutputStatus.COMPLETED, null,
+                        List.of(new ModelBackend.OutputText("local answer", List.of())))), completed.replayItems());
+    }
+
+    @Test
+    void cancellingFirstPublishedCallSuppressesLaterCallsAndContinuation() {
+        List<ModelBackend.Event> events = new ArrayList<>();
+        java.util.concurrent.atomic.AtomicReference<ModelBackend.Exchange> holder = new java.util.concurrent.atomic.AtomicReference<>();
+        ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        CapturingHttpClient client = new CapturingHttpClient(List.of(TWO_TOOL_CALL_RESPONSE));
+        holder.set(new ChatGptBackend(signedInAuth(), client, tasks::add)
+                .start(searchRequest("cancel-buffered-calls", ModelBackend.SearchMode.DISABLED), event -> {
+                    events.add(event);
+                    if (event.kind() == ModelBackend.EventKind.CLIENT_TOOL_CALL) holder.get().cancel();
+                }));
+        while (!tasks.isEmpty()) tasks.removeFirst().run();
+
+        assertEquals(1, client.requests.size());
+        assertEquals(List.of("call_a"), events.stream().filter(event -> event.kind() == ModelBackend.EventKind.CLIENT_TOOL_CALL)
+                .map(event -> event.toolCall().callId()).toList());
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.CLIENT_TOOL_CALL).count());
+        assertTrue(events.stream().noneMatch(event -> event.kind() == ModelBackend.EventKind.COMPLETED
+                || event.kind() == ModelBackend.EventKind.FAILED));
+    }
+
+    @Test
+    void secondMaxMessagesIncompleteFailsWithTheProviderReasonWithoutAnotherRetry() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(MAX_MESSAGES_RESPONSE, MAX_MESSAGES_RESPONSE, ANSWER_RESPONSE));
+        List<ModelBackend.Event> events = new ArrayList<>();
+
+        new ChatGptBackend(signedInAuth(), client, Runnable::run)
+                .start(searchRequest("retry-twice", ModelBackend.SearchMode.EXPLICIT_REQUEST), events::add);
+
+        assertEquals(2, client.requests.size());
+        assertFalse(JsonParser.parseString(requestBody(client.requests.get(1))).getAsJsonObject().has("tool_choice"));
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.RETRYING).count());
+        List<ModelBackend.Event> failures = events.stream().filter(event -> event.kind() == ModelBackend.EventKind.FAILED).toList();
+        assertEquals(1, failures.size());
+        assertTrue(failures.getFirst().detail().startsWith("response incomplete: max_messages"), failures.getFirst().detail());
+    }
+
+    @Test
+    void otherIncompleteReasonsAndSearchlessRequestsFailWithoutRetry() {
+        String maxOutput = MAX_MESSAGES_RESPONSE.replace("max_messages", "max_output_tokens");
+        CapturingHttpClient client = new CapturingHttpClient(List.of(maxOutput, MAX_MESSAGES_RESPONSE, ANSWER_RESPONSE));
+        ChatGptBackend backend = new ChatGptBackend(signedInAuth(), client, Runnable::run);
+        List<ModelBackend.Event> otherReason = new ArrayList<>();
+        List<ModelBackend.Event> searchless = new ArrayList<>();
+
+        backend.start(searchRequest("other-reason", ModelBackend.SearchMode.AUTOMATIC), otherReason::add);
+        backend.start(searchRequest("searchless", ModelBackend.SearchMode.DISABLED), searchless::add);
+
+        assertEquals(2, client.requests.size());
+        assertTrue(otherReason.getLast().detail().startsWith("response incomplete: max_output_tokens"), otherReason.getLast().detail());
+        assertTrue(searchless.getLast().detail().startsWith("response incomplete: max_messages"), searchless.getLast().detail());
+        assertTrue(otherReason.stream().noneMatch(event -> event.kind() == ModelBackend.EventKind.RETRYING));
+        assertTrue(searchless.stream().noneMatch(event -> event.kind() == ModelBackend.EventKind.RETRYING));
+    }
+
+    @Test
+    void cancellingWhenTheRetryIsAnnouncedPreventsTheRetryRequest() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(TOOL_CALL_RESPONSE, MAX_MESSAGES_RESPONSE, ANSWER_RESPONSE));
+        List<ModelBackend.Event> events = new ArrayList<>();
+        java.util.concurrent.atomic.AtomicReference<ModelBackend.Exchange> holder = new java.util.concurrent.atomic.AtomicReference<>();
+
+        holder.set(new ChatGptBackend(signedInAuth(), client, Runnable::run).start(searchRequest("retry-cancel",
+                ModelBackend.SearchMode.AUTOMATIC), event -> {
+            events.add(event);
+            if (event.kind() == ModelBackend.EventKind.RETRYING) holder.get().cancel();
+        }));
+        holder.get().submit(new ModelBackend.ToolResult("call_a", "{}", false));
+
+        assertEquals(2, client.requests.size());
+        assertTrue(events.stream().noneMatch(event -> event.kind() == ModelBackend.EventKind.COMPLETED
+                || event.kind() == ModelBackend.EventKind.FAILED));
+    }
+
     @Test
     void unsupportedProviderOutputFailsInsteadOfEnteringDurableReplay() {
         ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());

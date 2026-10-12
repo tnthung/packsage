@@ -8,8 +8,12 @@ import java.util.function.Consumer;
 public interface ModelBackend {
     enum AuthStatus { UNKNOWN, SIGNED_OUT, SIGNING_IN, SIGNED_IN, EXPIRED, FAILED }
     enum SearchMode { AUTOMATIC, EXPLICIT_ONLY, EXPLICIT_REQUEST, DISABLED }
-    /** REASONING carries no payload: it only signals that the model is reasoning. HOSTED_SEARCH without blocks signals a search in progress. */
-    enum EventKind { TEXT_DELTA, CLIENT_TOOL_CALL, HOSTED_SEARCH, REASONING, COMPLETED, FAILED }
+    /**
+     * REASONING carries no payload: it only signals that the model is reasoning. HOSTED_SEARCH without blocks signals a search in progress.
+     * RETRYING signals that the backend discarded an unfinished response and is issuing its single retry; text streamed by the
+     * discarded response is void.
+     */
+    enum EventKind { TEXT_DELTA, CLIENT_TOOL_CALL, HOSTED_SEARCH, REASONING, RETRYING, COMPLETED, FAILED }
     enum ResponseKind { TEXT, CITATION, IMAGE, SPOILER_RESERVED }
     enum Role { USER, ASSISTANT, SYSTEM }
     enum OutputStatus { IN_PROGRESS, COMPLETED, INCOMPLETE }

@@ -347,11 +347,16 @@ public final class AssistantRuntime implements ChatActions {
 
     @Override
     public void newChat() {
+        ChatContracts.WorldIdentity currentWorld;
+        Evidence.Scope currentScope;
         synchronized (stateLock) {
             publicationEpoch++;
             newChatPending = true;
+            currentWorld = world;
+            currentScope = scope;
         }
-        controller.newChat();
+        if (currentWorld == null) controller.newChat();
+        else controller.newChat(currentWorld, currentScope);
     }
 
     @Override

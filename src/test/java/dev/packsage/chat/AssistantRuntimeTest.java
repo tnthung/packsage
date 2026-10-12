@@ -210,6 +210,42 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void newChatAfterInvalidationRefreshesTheOpenScreenImmediately() throws Exception {
+        assertNewChatRefreshesTheOpenScreen(true);
+    }
+
+    @Test
+    void newChatWithoutInvalidationRefreshesTheOpenScreenImmediately() throws Exception {
+        assertNewChatRefreshesTheOpenScreen(false);
+    }
+
+    private static void assertNewChatRefreshesTheOpenScreen(boolean invalidate) throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                PackSageSettings.defaults(), model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+        runtime.send("question", false, false);
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("answer", List.of())))), null));
+        var screen = runtime.openScreen();
+        screen.refresh(runtime.view());
+        String previousId = screen.view().conversation().id();
+        assertEquals(1, screen.view().conversation().turns().size());
+        if (invalidate) runtime.invalidate(new Evidence.Scope("world", "resources", "team", "runtime-2", 5));
+
+        runtime.newChat();
+
+        assertTrue(screen.view().conversation().turns().isEmpty(), screen.view().conversation().toString());
+        assertTrue(!screen.view().conversation().id().equals(previousId) && !screen.view().conversation().id().startsWith("pending"),
+                screen.view().conversation().id());
+    }
+
+    @Test
     void worldSwitchRebuildsKnowledgeAndDropsLateToolResult() throws Exception {
         FakeBackend backend = new FakeBackend();
         AtomicInteger factoryCalls = new AtomicInteger();

@@ -61,4 +61,32 @@ class GroundingInstructionsTest {
         var unicode = new ChatContracts.Turn(ascii.requestId(), "龍", "b", List.of(), ascii.context(), ascii.sources(), ascii.outcome(), 0);
         assertTrue(GroundingInstructions.historyTextBudget(unicode) > GroundingInstructions.historyTextBudget(ascii));
     }
+
+    @Test
+    void historyBudgetCountsOnlyTheReplayedTurnContent() {
+        var replay = List.<ModelBackend.InputItem>of(new ModelBackend.ToolCall("call", "search_pack", "{\"text\":\"lantern\"}"),
+                new ModelBackend.ToolResult("call", "{\"records\":[1,2,3]}", false));
+        var bare = new ChatContracts.Turn(new ChatContracts.RequestId("history"), "question", "answer", replay,
+                new ChatContracts.Context("{\"time\":1}", new ChatContracts.Screenshot("old.png", "image/png", 3, Instant.EPOCH), SCOPE),
+                List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0);
+        var sources = new java.util.ArrayList<Evidence.Source>();
+        for (int index = 0; index < 50; index++) {
+            sources.add(new Evidence.Source(SCOPE, "native", "1", "recipe:" + index, 2, Instant.EPOCH,
+                    Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("snippet " + index)));
+        }
+        var withSources = new ChatContracts.Turn(bare.requestId(), bare.question(), bare.answer(), bare.replayItems(),
+                bare.context(), sources, bare.outcome(), 0);
+
+        assertEquals(GroundingInstructions.historyTextBudget(bare), GroundingInstructions.historyTextBudget(withSources));
+        var request = GroundingInstructions.build(new ChatContracts.PreparedRequest(new ChatContracts.Submission(
+                new ChatContracts.RequestId("current"), new ChatContracts.WorldIdentity("world", "World"), SCOPE, "current", false,
+                new ChatContracts.HistoryLimits(10, 12_000), new ModelBackend.ModelInfo("catalog-model", null, null, null, null),
+                ModelBackend.SearchMode.DISABLED, 2048), new ChatContracts.HistorySelection(List.of(withSources), 0),
+                new ChatContracts.CapturedContext(new ChatContracts.Context("{}", null, SCOPE), new byte[0]),
+                new ChatContracts.EvidenceSelection(List.of(), List.of())));
+        var historical = request.input().subList(0, request.input().size() - 1);
+        assertEquals(GroundingInstructions.historyTextBudget(withSources), historical.stream()
+                .mapToInt(item -> new com.google.gson.GsonBuilder().serializeNulls().create().toJson(item)
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8).length).sum());
+    }
 }

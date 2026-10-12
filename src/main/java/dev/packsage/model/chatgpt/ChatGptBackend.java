@@ -33,6 +33,9 @@ public final class ChatGptBackend implements ModelBackend {
     private static final URI MODELS_URI = URI.create("https://api.openai.com/v1/models");
     private static final URI RESPONSES_URI = URI.create("https://api.openai.com/v1/responses");
     private static final int MAX_ERROR_BYTES = 65_536;
+    private static final String MAX_MESSAGES_DETAIL = "response incomplete: max_messages";
+    private static final String SEARCH_RETRY_INSTRUCTION = " The previous attempt at this response stopped at the provider's"
+            + " message limit while using web search. Answer from the evidence already gathered and state that web lookup was cut short.";
     private final HttpClient client;
     private final Executor executor;
     private final ChatGptAuth auth;
@@ -495,7 +498,7 @@ public final class ChatGptBackend implements ModelBackend {
     }
 
     private final class ExchangeImpl implements Exchange {
-        private final Request request;
+        private volatile Request request;
         private final Consumer<Event> events;
         private final Object lock = new Object();
         private final long requestAccountEpoch;
@@ -506,6 +509,7 @@ public final class ChatGptBackend implements ModelBackend {
         private boolean terminal;
         private boolean responseFinished;
         private boolean continuationStarted;
+        private boolean searchRetried;
         private List<InputItem> currentInput = List.of();
         private final List<InputItem> durableReplay = new ArrayList<>();
         private List<JsonObject> outputItems = new ArrayList<>();
@@ -562,6 +566,8 @@ public final class ChatGptBackend implements ModelBackend {
 
         private void handleEvent(long eventGeneration, Event event) {
             List<InputItem> continuation = null;
+            List<InputItem> retry = null;
+            List<ToolCall> bufferedCalls = List.of();
             boolean publish = false;
             Boolean imageCapability = null;
             Boolean searchCapability = null;
@@ -574,7 +580,6 @@ public final class ChatGptBackend implements ModelBackend {
                         failLocked("duplicate function call id: " + call.callId());
                         return;
                     }
-                    publish = true;
                 } else if (event.kind() == EventKind.COMPLETED) {
                     responseFinished = true;
                     try {
@@ -582,6 +587,7 @@ public final class ChatGptBackend implements ModelBackend {
                         durableReplay.addAll(stepReplay);
                         if (usesImage) imageCapability = true;
                         if (stepReplay.stream().anyMatch(item -> item instanceof WebSearchCall)) searchCapability = true;
+                        bufferedCalls = new ArrayList<>(calls.values());
                         if (calls.isEmpty()) {
                             terminal = true;
                             publish = true;
@@ -594,6 +600,19 @@ public final class ChatGptBackend implements ModelBackend {
                         publish = true;
                         publishedEvent = new Event(EventKind.FAILED, null, null, List.of(), "response output cannot be replayed: " + error.getMessage());
                     }
+                } else if (event.kind() == EventKind.FAILED && !searchRetried && request.searchMode() != SearchMode.DISABLED
+                        && MAX_MESSAGES_DETAIL.equals(event.detail())) {
+                    // The provider stopped this response at its message cap while hosted search was offered. Re-issue the
+                    // same input once without web search; earlier call/result pairs are already in currentInput.
+                    searchRetried = true;
+                    request = new Request(request.modelId(), request.instructions() + SEARCH_RETRY_INSTRUCTION, request.input(),
+                            request.tools(), SearchMode.DISABLED, request.requestId(), request.outputBudget());
+                    retry = currentInput;
+                    publish = true;
+                    publishedEvent = new Event(EventKind.RETRYING, null, null, List.of(), event.detail());
+                    PackSageLog.LOGGER.warn("PackSage model response incomplete (max_messages) with hosted web search: HTTP {} request {};"
+                                    + " retrying once without web search with {} input items", responseStatus,
+                            responseRequestId == null ? "unknown" : responseRequestId, currentInput.size());
                 } else if (event.kind() == EventKind.FAILED) {
                     String detail = event.detail() == null ? "response failed without detail" : event.detail();
                     if (responseRequestId != null && !detail.contains("[request ")) detail += " [request " + responseRequestId + "]";
@@ -620,7 +639,12 @@ public final class ChatGptBackend implements ModelBackend {
             }
             recordCapabilities(request.modelId(), imageCapability, searchCapability, requestAccountEpoch);
             if (publish) events.accept(publishedEvent);
+            for (ToolCall call : bufferedCalls) {
+                if (!isCurrent(eventGeneration)) break;
+                events.accept(new Event(EventKind.CLIENT_TOOL_CALL, null, call, List.of(), List.of(), null));
+            }
             if (continuation != null) issue(continuation);
+            if (retry != null) issue(retry);
             if (publishedEvent.kind() == EventKind.COMPLETED || publishedEvent.kind() == EventKind.FAILED) clearIfFinished();
         }
 

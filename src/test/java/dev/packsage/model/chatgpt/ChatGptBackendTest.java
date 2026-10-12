@@ -321,6 +321,25 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void browserOpenFailureDoesNotWedgeTheNextSignInAttempt() {
+        AtomicInteger opens = new AtomicInteger();
+        CompletableFuture<URI> retried = new CompletableFuture<>();
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), new StringHttpClient(500, "unused"), uri -> {
+            if (opens.incrementAndGet() == 1) throw new IllegalStateException("browser failed");
+            retried.complete(uri);
+        });
+
+        assertEquals(ModelBackend.AuthStatus.FAILED, auth.signIn().toCompletableFuture().join().status());
+        CompletionStage<ModelBackend.AuthState> second = auth.signIn();
+
+        assertTrue(java.net.URLDecoder.decode(retried.join().getRawQuery(), StandardCharsets.UTF_8)
+                .contains("redirect_uri=http://127.0.0.1:"));
+        auth.cancelSignIn();
+        assertEquals(ModelBackend.AuthStatus.SIGNED_OUT, second.toCompletableFuture().join().status());
+        assertEquals(2, opens.get());
+    }
+
+    @Test
     void returningCallbackRejectsADifferentClientId() throws Exception {
         Path credentials = temporaryDirectory.resolve("credentials.json");
         new ChatGptAuth(credentials, signedOutFlow()).saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
@@ -350,8 +369,8 @@ class ChatGptBackendTest {
         auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
         CapturingHttpClient client = new CapturingHttpClient(List.of(
                 "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":1,\"item\":{\"id\":\"rs_1\",\"type\":\"reasoning\",\"encrypted_content\":\"encrypted-fixture\",\"summary\":[]}}\n\n"
-                        + "data: {\"type\":\"response.output_item.done\",\"output_index\":1,\"sequence_number\":2,\"item\":{\"id\":\"fc_a\",\"type\":\"function_call\",\"call_id\":\"call_a\",\"name\":\"read_evidence\",\"arguments\":\"{\\\"id\\\":\\\"a\\\"}\",\"status\":\"completed\"}}\n\n"
-                        + "data: {\"type\":\"response.output_item.done\",\"output_index\":2,\"sequence_number\":3,\"item\":{\"id\":\"fc_b\",\"type\":\"function_call\",\"call_id\":\"call_b\",\"name\":\"read_evidence\",\"arguments\":\"{\\\"id\\\":\\\"b\\\"}\",\"status\":\"completed\"}}\n\n"
+                        + "data: {\"type\":\"response.output_item.done\",\"output_index\":1,\"sequence_number\":2,\"item\":{\"id\":\"fc_a\",\"type\":\"function_call\",\"call_id\":\"call_a\",\"namespace\":\"packsage\",\"name\":\"read_evidence\",\"arguments\":\"{\\\"id\\\":\\\"a\\\"}\",\"status\":\"completed\"}}\n\n"
+                        + "data: {\"type\":\"response.output_item.done\",\"output_index\":2,\"sequence_number\":3,\"item\":{\"id\":\"fc_b\",\"type\":\"function_call\",\"call_id\":\"call_b\",\"namespace\":\"packsage\",\"name\":\"read_evidence\",\"arguments\":\"{\\\"id\\\":\\\"b\\\"}\",\"status\":\"completed\"}}\n\n"
                         + "data: {\"type\":\"response.completed\",\"sequence_number\":4,\"response\":{\"status\":\"completed\"}}\n\n",
                 "data: {\"type\":\"response.output_text.delta\",\"sequence_number\":1,\"delta\":\"finished\"}\n\n"
                         + "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":2,\"item\":{\"id\":\"ws_1\",\"type\":\"web_search_call\",\"status\":\"completed\",\"action\":{\"type\":\"search\",\"query\":\"fixture\",\"queries\":[\"fixture\"],\"sources\":[{\"type\":\"url\",\"url\":\"https://example.test\"}]}}}\n\n"
@@ -375,6 +394,8 @@ class ChatGptBackendTest {
         assertEquals("encrypted-fixture", continuation.get(1).getAsJsonObject().get("encrypted_content").getAsString());
         assertEquals("call_a", continuation.get(2).getAsJsonObject().get("call_id").getAsString());
         assertEquals("call_b", continuation.get(3).getAsJsonObject().get("call_id").getAsString());
+        assertEquals("packsage", continuation.get(2).getAsJsonObject().get("namespace").getAsString());
+        assertEquals("packsage", continuation.get(3).getAsJsonObject().get("namespace").getAsString());
         assertEquals("call_a", continuation.get(4).getAsJsonObject().get("call_id").getAsString());
         assertEquals("call_b", continuation.get(5).getAsJsonObject().get("call_id").getAsString());
         assertTrue(events.stream().anyMatch(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA && "finished".equals(event.text())));
@@ -382,8 +403,8 @@ class ChatGptBackendTest {
         ModelBackend.Event completed = events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).findFirst().orElseThrow();
         assertEquals(List.of(
                 new ModelBackend.EncryptedReasoning("rs_1", "encrypted-fixture", "[]"),
-                new ModelBackend.ToolCall("call_a", "read_evidence", "{\"id\":\"a\"}"),
-                new ModelBackend.ToolCall("call_b", "read_evidence", "{\"id\":\"b\"}"),
+                new ModelBackend.ToolCall("call_a", "packsage", "read_evidence", "{\"id\":\"a\"}"),
+                new ModelBackend.ToolCall("call_b", "packsage", "read_evidence", "{\"id\":\"b\"}"),
                 new ModelBackend.ToolResult("call_a", "{\"value\":\"a\"}", false),
                 new ModelBackend.ToolResult("call_b", "{\"value\":\"b\"}", false),
                 new ModelBackend.WebSearchCall("ws_1", ModelBackend.WebSearchStatus.COMPLETED,
@@ -435,6 +456,51 @@ class ChatGptBackendTest {
         assertFalse(fallback.has("tool_choice"));
         assertTrue(fallback.get("instructions").getAsString().contains("previously rejected"));
         assertTrue(fallback.get("instructions").getAsString().contains("current public lookup is unavailable"));
+    }
+
+    @Test
+    void signedOutAccountCannotRestoreAStaleModelCatalog() {
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        DeferredStringHttpClient client = new DeferredStringHttpClient();
+        ChatGptBackend backend = new ChatGptBackend(auth, client, Runnable::run);
+
+        CompletionStage<ModelBackend.Capabilities> loading = backend.capabilities();
+        backend.signOut();
+        client.response.complete(new StringResponse(client.request, 200,
+                "{\"models\":[{\"slug\":\"stale-model\",\"visibility\":\"list\",\"display_name\":\"Stale\"}]}"));
+
+        RuntimeException failure = assertThrows(RuntimeException.class, () -> loading.toCompletableFuture().join());
+        assertTrue(failure instanceof java.util.concurrent.CancellationException
+                || failure.getCause() instanceof java.util.concurrent.CancellationException);
+        assertFalse(backend.selectModel("stale-model"));
+    }
+
+    @Test
+    void backendExposesConfirmedRemoteRevocationOutcome() {
+        Path credentials = temporaryDirectory.resolve("credentials.json");
+        RevocationHttpClient revocation = new RevocationHttpClient(200);
+        ChatGptAuth auth = new ChatGptAuth(credentials, revocation, ignored -> { });
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        ChatGptBackend backend = new ChatGptBackend(auth, new StringHttpClient(500, "unused"), Runnable::run);
+
+        backend.signOut();
+
+        assertEquals("Signed out and remote revocation was confirmed", backend.signOutStatus().toCompletableFuture().join());
+        assertEquals(List.of(ChatGptAuth.ISSUER + "/.well-known/openid-configuration", "https://auth.openai.test/revoke"),
+                revocation.requests.stream().map(request -> request.uri().toString()).toList());
+        assertFalse(Files.exists(credentials));
+    }
+
+    @Test
+    void backendExposesUnconfirmedRemoteRevocationOutcome() {
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), new RevocationHttpClient(503), ignored -> { });
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        ChatGptBackend backend = new ChatGptBackend(auth, new StringHttpClient(500, "unused"), Runnable::run);
+
+        backend.signOut();
+
+        assertEquals("Signed out locally; remote revocation was not confirmed", backend.signOutStatus().toCompletableFuture().join());
     }
 
     @Test
@@ -567,6 +633,63 @@ class ChatGptBackendTest {
         @SuppressWarnings("unchecked")
         @Override public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
             return CompletableFuture.completedFuture((HttpResponse<T>) new StringResponse(request, status, response));
+        }
+        @Override public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler, HttpResponse.PushPromiseHandler<T> pushPromiseHandler) {
+            return sendAsync(request, responseBodyHandler);
+        }
+    }
+
+    private static final class DeferredStringHttpClient extends HttpClient {
+        private final CompletableFuture<HttpResponse<String>> response = new CompletableFuture<>();
+        private HttpRequest request;
+
+        @Override public Optional<CookieHandler> cookieHandler() { return Optional.empty(); }
+        @Override public Optional<Duration> connectTimeout() { return Optional.of(Duration.ofSeconds(1)); }
+        @Override public Redirect followRedirects() { return Redirect.NEVER; }
+        @Override public Optional<ProxySelector> proxy() { return Optional.empty(); }
+        @Override public SSLContext sslContext() { return null; }
+        @Override public SSLParameters sslParameters() { return new SSLParameters(); }
+        @Override public Optional<Authenticator> authenticator() { return Optional.empty(); }
+        @Override public Version version() { return Version.HTTP_1_1; }
+        @Override public Optional<Executor> executor() { return Optional.empty(); }
+        @Override public WebSocket.Builder newWebSocketBuilder() { throw new UnsupportedOperationException(); }
+        @Override public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) throws IOException { throw new UnsupportedOperationException(); }
+        @SuppressWarnings("unchecked")
+        @Override public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
+            this.request = request;
+            return (CompletableFuture<HttpResponse<T>>) (CompletableFuture<?>) response;
+        }
+        @Override public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler, HttpResponse.PushPromiseHandler<T> pushPromiseHandler) {
+            return sendAsync(request, responseBodyHandler);
+        }
+    }
+
+    private static final class RevocationHttpClient extends HttpClient {
+        private final int revocationStatus;
+        private final List<HttpRequest> requests = new ArrayList<>();
+
+        private RevocationHttpClient(int revocationStatus) {
+            this.revocationStatus = revocationStatus;
+        }
+
+        @Override public Optional<CookieHandler> cookieHandler() { return Optional.empty(); }
+        @Override public Optional<Duration> connectTimeout() { return Optional.of(Duration.ofSeconds(1)); }
+        @Override public Redirect followRedirects() { return Redirect.NEVER; }
+        @Override public Optional<ProxySelector> proxy() { return Optional.empty(); }
+        @Override public SSLContext sslContext() { return null; }
+        @Override public SSLParameters sslParameters() { return new SSLParameters(); }
+        @Override public Optional<Authenticator> authenticator() { return Optional.empty(); }
+        @Override public Version version() { return Version.HTTP_1_1; }
+        @Override public Optional<Executor> executor() { return Optional.empty(); }
+        @Override public WebSocket.Builder newWebSocketBuilder() { throw new UnsupportedOperationException(); }
+        @Override public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) throws IOException { throw new UnsupportedOperationException(); }
+        @SuppressWarnings("unchecked")
+        @Override public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
+            requests.add(request);
+            return CompletableFuture.completedFuture((HttpResponse<T>) new StringResponse(request,
+                    request.uri().toString().endsWith("/.well-known/openid-configuration") ? 200 : revocationStatus,
+                    request.uri().toString().endsWith("/.well-known/openid-configuration")
+                            ? "{\"revocation_endpoint\":\"https://auth.openai.test/revoke\"}" : "{}"));
         }
         @Override public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler, HttpResponse.PushPromiseHandler<T> pushPromiseHandler) {
             return sendAsync(request, responseBodyHandler);

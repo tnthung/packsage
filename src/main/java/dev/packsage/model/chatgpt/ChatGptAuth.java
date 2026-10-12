@@ -162,7 +162,7 @@ public final class ChatGptAuth {
         }
     }
 
-    public void signOut() {
+    public CompletionStage<String> signOut() {
         cancelSignIn();
         Credential current;
         CompletableFuture<Credential> refresh;
@@ -176,17 +176,20 @@ public final class ChatGptAuth {
             refreshInFlight = null;
         }
         if (refresh != null) refresh.completeExceptionally(new CancellationException("signed out during token refresh"));
+        String deletionFailure = null;
         try {
             Files.deleteIfExists(credentialFile);
         } catch (IOException error) {
-            lastDetail = "Signed out, but local credential deletion failed: " + error.getMessage();
-            return;
+            deletionFailure = error.getMessage();
         }
-        lastDetail = "Signed out locally; remote revocation is pending";
+        lastDetail = deletionFailure == null ? "Signed out locally; remote revocation is pending"
+                : "Local credential deletion failed; remote revocation is pending: " + deletionFailure;
         if (current == null || httpClient == null) {
-            lastDetail = "Signed out";
-            return;
+            lastDetail = deletionFailure == null ? "Signed out" : "Signed out in memory, but local credential deletion failed: " + deletionFailure;
+            return CompletableFuture.completedFuture(lastDetail);
         }
+        String initialDeletionFailure = deletionFailure;
+        CompletableFuture<String> result = new CompletableFuture<>();
         fetchOpenIdConfiguration(httpClient).thenCompose(configuration -> {
             if (!configuration.has("revocation_endpoint")) return CompletableFuture.failedFuture(new IllegalStateException("revocation endpoint is unavailable"));
             HttpRequest request = HttpRequest.newBuilder(URI.create(configuration.get("revocation_endpoint").getAsString())).timeout(REQUEST_TIMEOUT)
@@ -195,14 +198,29 @@ public final class ChatGptAuth {
             return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         }).whenComplete((response, failure) -> {
             synchronized (lock) {
-                if (sessionEpoch != epoch) return;
+                if (sessionEpoch != epoch) {
+                    result.complete("Sign-out outcome belongs to an inactive session");
+                    return;
+                }
             }
             if (failure != null || response.statusCode() / 100 != 2) {
-                lastDetail = "Signed out locally; remote revocation was not confirmed";
+                lastDetail = initialDeletionFailure == null ? "Signed out locally; remote revocation was not confirmed"
+                        : "Remote revocation was not confirmed and local credential deletion failed: " + initialDeletionFailure;
             } else {
-                lastDetail = "Signed out and remote revocation was confirmed";
+                String retryFailure = null;
+                if (initialDeletionFailure != null) {
+                    try {
+                        Files.deleteIfExists(credentialFile);
+                    } catch (IOException error) {
+                        retryFailure = error.getMessage();
+                    }
+                }
+                lastDetail = retryFailure == null ? "Signed out and remote revocation was confirmed"
+                        : "Remote revocation was confirmed, but local credential deletion failed: " + retryFailure;
             }
+            result.complete(lastDetail);
         });
+        return result;
     }
 
     public CompletionStage<String> accessToken() {
@@ -648,6 +666,7 @@ public final class ChatGptAuth {
         @Override
         public CompletionStage<ModelBackend.AuthState> start(ChatGptAuth auth, CompletableFuture<ModelBackend.AuthState> cancellation) {
             HttpServer server = null;
+            Attempt attempt = null;
             try {
                 String verifier = codeVerifier();
                 String state = randomState();
@@ -658,11 +677,12 @@ public final class ChatGptAuth {
                 server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
                 String redirect = "http://127.0.0.1:" + server.getAddress().getPort() + "/auth/callback";
                 CompletableFuture<Map<String, String>> callback = new CompletableFuture<>();
-                Attempt attempt = new Attempt(server, callback, state, saved, cancellation);
-                server.createContext("/auth/callback", exchange -> receiveCallback(exchange, attempt));
+                Attempt startedAttempt = new Attempt(server, callback, state, saved, cancellation);
+                attempt = startedAttempt;
+                server.createContext("/auth/callback", exchange -> receiveCallback(exchange, startedAttempt));
                 synchronized (lock) {
                     if (active != null) throw new IllegalStateException("a sign-in listener is already active");
-                    active = attempt;
+                    active = startedAttempt;
                 }
                 server.start();
                 String clientId = saved == null ? "dynamic_agent_client" : saved.clientId();
@@ -670,9 +690,10 @@ public final class ChatGptAuth {
                 CompletableFuture.delayedExecutor(CALLBACK_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS).execute(() ->
                         callback.completeExceptionally(new TimeoutException("browser sign-in timed out")));
                 return callback.thenCompose(values -> exchangeCode(values, clientId, verifier, redirect, auth, nonce, hostId, cancellation))
-                        .whenComplete((ignored, failure) -> stop(attempt));
+                        .whenComplete((ignored, failure) -> stop(startedAttempt));
             } catch (Exception error) {
-                if (server != null) server.stop(0);
+                if (attempt != null) stop(attempt);
+                else if (server != null) server.stop(0);
                 return CompletableFuture.failedFuture(error);
             }
         }

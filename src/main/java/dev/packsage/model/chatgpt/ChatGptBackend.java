@@ -37,7 +37,9 @@ public final class ChatGptBackend implements ModelBackend {
     private final ChatGptAuth auth;
     private final Object exchangeLock = new Object();
     private volatile Capabilities capabilities = new Capabilities(List.of(), null, null, null, null, null);
+    private volatile CompletionStage<String> signOutStatus = CompletableFuture.completedFuture("Signed out");
     private ExchangeImpl activeExchange;
+    private long accountEpoch;
 
     public ChatGptBackend(ChatGptAuth auth, HttpClient client, Executor executor) {
         this.auth = auth;
@@ -54,10 +56,11 @@ public final class ChatGptBackend implements ModelBackend {
         return auth.signIn().thenApply(state -> {
             if (state.status() == AuthStatus.SIGNED_IN) {
                 synchronized (exchangeLock) {
+                    accountEpoch++;
                     if (activeExchange != null) activeExchange.cancel();
                     activeExchange = null;
+                    capabilities = new Capabilities(List.of(), null, null, null, null, null);
                 }
-                capabilities = new Capabilities(List.of(), null, null, null, null, null);
             }
             return state;
         });
@@ -68,33 +71,42 @@ public final class ChatGptBackend implements ModelBackend {
     @Override
     public void signOut() {
         synchronized (exchangeLock) {
+            accountEpoch++;
             if (activeExchange != null) activeExchange.cancel();
             activeExchange = null;
+            capabilities = new Capabilities(List.of(), null, null, null, null, null);
         }
-        auth.signOut();
-        capabilities = new Capabilities(List.of(), null, null, null, null, null);
+        signOutStatus = auth.signOut();
     }
+
+    public CompletionStage<String> signOutStatus() { return signOutStatus; }
 
     @Override
     public CompletionStage<Capabilities> capabilities() {
+        final long epoch;
+        synchronized (exchangeLock) { epoch = accountEpoch; }
         return auth.accessToken().thenCompose(token -> {
             HttpRequest request = HttpRequest.newBuilder(MODELS_URI).timeout(Duration.ofSeconds(20))
                     .header("Authorization", "Bearer " + token).GET().build();
             return client.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).thenApply(response -> {
                 if (response.statusCode() / 100 != 2) throw new IllegalStateException(httpFailure(response.statusCode(), response.body(), response.headers().firstValue("x-request-id").orElse(null)));
-                Capabilities found = capabilitiesFromCatalog(response.body(), capabilities.selectedModelId());
-                capabilities = found;
-                return found;
+                synchronized (exchangeLock) {
+                    if (accountEpoch != epoch) throw new java.util.concurrent.CancellationException("model catalog belongs to an inactive account session");
+                    capabilities = capabilitiesFromCatalog(response.body(), capabilities.selectedModelId());
+                    return capabilities;
+                }
             });
         });
     }
 
     public boolean selectModel(String modelId) {
-        Capabilities current = capabilities;
-        ModelInfo selected = current.modelCatalog().stream().filter(model -> model.id().equals(modelId)).findFirst().orElse(null);
-        if (selected == null) return false;
-        capabilities = new Capabilities(current.modelCatalog(), selected.id(), selected.imageInput(), selected.hostedSearch(), selected.contextTokens(), selected.outputTokens());
-        return true;
+        synchronized (exchangeLock) {
+            Capabilities current = capabilities;
+            ModelInfo selected = current.modelCatalog().stream().filter(model -> model.id().equals(modelId)).findFirst().orElse(null);
+            if (selected == null) return false;
+            capabilities = new Capabilities(current.modelCatalog(), selected.id(), selected.imageInput(), selected.hostedSearch(), selected.contextTokens(), selected.outputTokens());
+            return true;
+        }
     }
 
     @Override
@@ -263,6 +275,7 @@ public final class ChatGptBackend implements ModelBackend {
         } else if (item instanceof ToolCall call) {
             value.addProperty("type", "function_call");
             value.addProperty("call_id", call.callId());
+            if (call.namespace() != null) value.addProperty("namespace", call.namespace());
             value.addProperty("name", call.name());
             value.addProperty("arguments", call.serializedArguments());
         } else if (item instanceof ToolResult result) {
@@ -532,7 +545,9 @@ public final class ChatGptBackend implements ModelBackend {
                     if (!item.has("call_id") || !item.has("name") || !item.has("arguments")) {
                         throw new IllegalArgumentException("completed function call is incomplete");
                     }
-                    replay.add(new ToolCall(item.get("call_id").getAsString(), item.get("name").getAsString(), item.get("arguments").getAsString()));
+                    replay.add(new ToolCall(item.get("call_id").getAsString(),
+                            item.has("namespace") && !item.get("namespace").isJsonNull() ? item.get("namespace").getAsString() : null,
+                            item.get("name").getAsString(), item.get("arguments").getAsString()));
                 } else if ("message".equals(type)) {
                     if (!item.has("id") || !item.has("status") || !item.has("role") || !"assistant".equals(item.get("role").getAsString())
                             || !item.has("content") || !item.get("content").isJsonArray()) {

@@ -133,7 +133,9 @@ public final class ChatGptStream {
                     return;
                 }
                 events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                        new ModelBackend.ToolCall(item.get("call_id").getAsString(), item.get("name").getAsString(),
+                        new ModelBackend.ToolCall(item.get("call_id").getAsString(),
+                                item.has("namespace") && !item.get("namespace").isJsonNull() ? item.get("namespace").getAsString() : null,
+                                item.get("name").getAsString(),
                                 item.get("arguments").getAsString()), List.of(), null));
             } else if (item.has("type") && "web_search_call".equals(item.get("type").getAsString())) {
                 events.accept(new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH, null, null,

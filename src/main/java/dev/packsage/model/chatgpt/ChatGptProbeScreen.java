@@ -21,6 +21,8 @@ public final class ChatGptProbeScreen extends Screen {
     private Button modelButton;
     private String status = "Signed out";
     private String response = "Use Sign in, then load the account model catalog.";
+    private long uiEpoch;
+    private long requestEpoch;
 
     public ChatGptProbeScreen(ModelBackend backend) {
         super(Component.literal("PackSage ChatGPT route probe"));
@@ -33,9 +35,18 @@ public final class ChatGptProbeScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Sign in"), button -> signIn()).bounds(left, 30, 70, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Cancel sign-in"), button -> cancelSignIn()).bounds(left + 75, 30, 105, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Sign out"), button -> {
+            long epoch = ++uiEpoch;
+            requestEpoch++;
             backend.signOut();
+            exchange = null;
             status = "Signed out";
-            response = "Local credentials cleared; see status for remote revocation result.";
+            response = "Waiting for remote revocation status.";
+            if (backend instanceof ChatGptBackend chatGpt) {
+                chatGpt.signOutStatus().whenComplete((detail, failure) -> Minecraft.getInstance().execute(() -> {
+                    if (uiEpoch != epoch) return;
+                    status = failure == null ? detail : "Failed: " + failure.getMessage();
+                }));
+            } else response = "Sign-out requested; remote revocation status is unavailable.";
         }).bounds(left + 185, 30, 70, 20).build());
         modelButton = Button.builder(Component.literal(modelLabel()), button -> cycleModel()).bounds(left + 260, 30, 220, 20).build();
         addRenderableWidget(modelButton);
@@ -62,18 +73,21 @@ public final class ChatGptProbeScreen extends Screen {
     }
 
     public void signIn() {
+        long epoch = ++uiEpoch;
         status = "Waiting for browser sign-in";
         backend.signIn().whenComplete((state, failure) -> Minecraft.getInstance().execute(() -> {
+            if (uiEpoch != epoch) return;
             if (failure != null) {
                 status = "Failed: " + failure.getMessage();
                 return;
             }
             status = state.status() + (state.detail() == null ? "" : ": " + state.detail());
-            if (state.status() == ModelBackend.AuthStatus.SIGNED_IN) loadCapabilities();
+            if (state.status() == ModelBackend.AuthStatus.SIGNED_IN) loadCapabilities(epoch);
         }));
     }
 
     public void cancelSignIn() {
+        uiEpoch++;
         backend.cancelSignIn();
         status = "Sign-in cancelled";
     }
@@ -87,6 +101,7 @@ public final class ChatGptProbeScreen extends Screen {
     }
 
     public void cancelRequest() {
+        requestEpoch++;
         if (exchange != null) exchange.cancel();
         exchange = null;
         status = "Request stopped";
@@ -102,9 +117,10 @@ public final class ChatGptProbeScreen extends Screen {
                 List.of(), ModelBackend.SearchMode.EXPLICIT_ONLY, "probe", 512);
     }
 
-    private void loadCapabilities() {
+    private void loadCapabilities(long epoch) {
         status = "Loading account model catalog";
         backend.capabilities().whenComplete((found, failure) -> Minecraft.getInstance().execute(() -> {
+            if (uiEpoch != epoch) return;
             if (failure != null) {
                 status = "Failed to load models: " + failure.getMessage();
                 return;
@@ -147,10 +163,11 @@ public final class ChatGptProbeScreen extends Screen {
         }
         response = "";
         status = "Streaming synthetic image probe";
+        long epoch = ++requestEpoch;
         exchange = backend.start(new ModelBackend.Request(capabilities.selectedModelId(), "Describe only the supplied synthetic image.",
                 List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("Describe this image."),
                         new ModelBackend.ImageContent(syntheticImageInput(SYNTHETIC_PNG))))), List.of(), ModelBackend.SearchMode.DISABLED,
-                "probe-" + requestIds.incrementAndGet(), 512), this::receive);
+                "probe-" + requestIds.incrementAndGet(), 512), event -> receive(epoch, event));
     }
 
     private void startProbe(String question, List<ModelBackend.ToolDefinition> tools, ModelBackend.SearchMode searchMode) {
@@ -160,19 +177,25 @@ public final class ChatGptProbeScreen extends Screen {
         }
         response = "";
         status = searchMode == ModelBackend.SearchMode.EXPLICIT_REQUEST ? "Streaming hosted-search probe" : "Streaming probe";
+        long epoch = ++requestEpoch;
         exchange = backend.start(new ModelBackend.Request(capabilities.selectedModelId(), "Answer this PackSage route probe exactly as requested.",
                 List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(question)))), tools, searchMode,
-                "probe-" + requestIds.incrementAndGet(), 512), this::receive);
+                "probe-" + requestIds.incrementAndGet(), 512), event -> receive(epoch, event));
     }
 
-    private void receive(ModelBackend.Event event) {
+    private void receive(long epoch, ModelBackend.Event event) {
         Minecraft.getInstance().execute(() -> {
+            if (requestEpoch != epoch) return;
             if (event.kind() == ModelBackend.EventKind.TEXT_DELTA) response += event.text();
             else if (event.kind() == ModelBackend.EventKind.CLIENT_TOOL_CALL && event.toolCall() != null) {
                 status = "Executing read-only fixture tool";
                 sendClientToolResult(new ModelBackend.ToolResult(event.toolCall().callId(), "{\"fixture\":\"packsage-read-only\"}", false));
             } else if (event.kind() == ModelBackend.EventKind.HOSTED_SEARCH) {
                 status = "Hosted search returned output";
+                for (ModelBackend.ResponseBlock block : event.blocks()) {
+                    response += "\n" + (block.sourceUrl() == null ? "Search metadata: " : "Citation " + block.sourceUrl() + ": ")
+                            + block.serializedContent();
+                }
             } else if (event.kind() == ModelBackend.EventKind.COMPLETED) {
                 status = "G1 request completed";
                 exchange = null;

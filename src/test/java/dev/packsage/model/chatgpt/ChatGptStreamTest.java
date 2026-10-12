@@ -26,7 +26,7 @@ class ChatGptStreamTest {
                 new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "你", null, List.of(), null),
                 new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "好", null, List.of(), null),
                 new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                        new ModelBackend.ToolCall("call_123", "read_evidence", "{\"id\":\"x\"}"), List.of(), null),
+                        new ModelBackend.ToolCall("call_123", "packsage", "read_evidence", "{\"id\":\"x\"}"), List.of(), null),
                 new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH, null, null,
                         List.of(new ModelBackend.ResponseBlock(ModelBackend.ResponseKind.CITATION,
                                 "{\"type\":\"url_citation\",\"title\":\"PackSage docs\",\"url\":\"https://example.test/docs\"}",
@@ -98,7 +98,7 @@ class ChatGptStreamTest {
 
         private static String toolOutputDone(String itemId, String callId, String name, String arguments) {
             return "{\"type\":\"response.output_item.done\",\"sequence_number\":4,\"output_index\":0,\"item\":{\"id\":\"" + itemId
-                    + "\",\"type\":\"function_call\",\"status\":\"completed\",\"call_id\":\"" + callId + "\",\"name\":\"" + name
+                    + "\",\"type\":\"function_call\",\"status\":\"completed\",\"call_id\":\"" + callId + "\",\"namespace\":\"packsage\",\"name\":\"" + name
                     + "\",\"arguments\":\"" + arguments + "\"}}";
         }
 

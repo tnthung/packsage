@@ -10,9 +10,9 @@ The SSE parser accepts LF and CRLF framing across arbitrary byte boundaries. It 
 
 Authentication implements the documented OSS route with a bounded exact loopback callback, PKCE, state and nonce. ID tokens require a unique RS256 signing JWK, a valid signature, exact issuer/nonce, matching string or array audience, numeric unexpired `exp` and a nonblank subject. Issued client, subject and host identity survive sign-out separately from tokens. Credential and registration records use atomic owner-only storage under per-user application data; refresh rotation is serialized, terminal `invalid_grant` clears unusable tokens, and session epochs prevent refresh or sign-in completions from restoring an old session after cancel/sign-out.
 
-The visible Minecraft probe provides sign-in, cancel, sign-out, account model selection, text, bounded read-only tool, synthetic image, explicit search and stop controls with streamed response and error status. It does not itself establish account or route eligibility.
+The visible Minecraft probe provides sign-in, cancel, sign-out, account model selection, text, bounded read-only tool, synthetic image, explicit search and stop controls with streamed response, citation metadata, errors and confirmed/unconfirmed revocation status. It does not itself establish account or route eligibility.
 
-Focused source validation used Java 21-compatible `javac` against Gson 2.10.1, JUnit 5.11.3 and the resolved NeoForge 21.1.202 artifacts. The current focused auth, request, continuation and SSE suite passes 23 tests. `ChatGptProbeScreen` also passes standalone compilation against the resolved Minecraft/NeoForge classpath. The coordinator owns the repository Gradle and full-suite run.
+Focused source validation used Java 21-compatible `javac` against Gson 2.10.1, JUnit 5.11.3 and the resolved NeoForge 21.1.202 artifacts. The current focused auth, request, continuation and SSE suite passes 27 tests. `ChatGptProbeScreen` also passes standalone compilation against the resolved Minecraft/NeoForge classpath. The coordinator owns the repository Gradle and full-suite run.
 
 ## Live gate
 

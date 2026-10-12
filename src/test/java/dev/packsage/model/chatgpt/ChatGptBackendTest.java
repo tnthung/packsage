@@ -604,6 +604,20 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void repeatedSignOutDoesNotAbandonTheOriginalRevocation() {
+        Path credentials = temporaryDirectory.resolve("credentials.json");
+        RevocationHttpClient revocation = new RevocationHttpClient(503, 200);
+        ChatGptAuth auth = new ChatGptAuth(credentials, revocation, ignored -> { });
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+
+        CompletionStage<String> original = auth.signOut();
+        assertEquals("Signed out", auth.signOut().toCompletableFuture().join());
+
+        assertEquals("Signed out and remote revocation was confirmed", original.toCompletableFuture().join());
+        assertFalse(Files.exists(credentials));
+    }
+
+    @Test
     void backendExposesUnconfirmedRemoteRevocationOutcome() {
         Path credentials = temporaryDirectory.resolve("credentials.json");
         RevocationHttpClient revocation = new RevocationHttpClient(503, 503, 503);

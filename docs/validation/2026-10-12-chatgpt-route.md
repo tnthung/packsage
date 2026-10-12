@@ -14,7 +14,7 @@ Catalog slug/display name remains authoritative while undocumented image/search 
 
 The visible Minecraft probe provides sign-in, cancel, sign-out, account model selection, text, bounded read-only tool, synthetic image, explicit search and stop controls with streamed response, citation metadata, validated clickable HTTP(S) citation buttons, errors and confirmed/unconfirmed revocation status. It does not itself establish account or route eligibility.
 
-Focused source validation used Java 21-compatible `javac` and a Java 21 runtime against Gson 2.10.1, JUnit 5.11.3 and the resolved NeoForge 21.1.202 artifacts. The current focused auth, request, continuation and SSE suite passes 32 tests. The probe and its citation URL validation test compile against the resolved Minecraft/NeoForge classpath, and that test passes on Java 21. The coordinator owns the repository Gradle and full-suite run.
+Focused source validation used Java 21-compatible `javac` and a Java 21 runtime against Gson 2.10.1, JUnit 5.11.3 and the resolved NeoForge 21.1.202 artifacts. The current focused auth, request, continuation and SSE suite passes 33 tests. The probe and its citation URL validation test compile against the resolved Minecraft/NeoForge classpath, and that test passes on Java 21. The coordinator owns the repository Gradle and full-suite run.
 
 ## Live gate
 

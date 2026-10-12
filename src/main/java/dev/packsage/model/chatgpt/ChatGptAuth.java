@@ -170,11 +170,11 @@ public final class ChatGptAuth {
         long epoch;
         synchronized (lock) {
             current = credential;
-            credential = null;
-            sessionEpoch++;
-            epoch = sessionEpoch;
             refresh = refreshInFlight;
+            credential = null;
             refreshInFlight = null;
+            if (current != null || refresh != null) sessionEpoch++;
+            epoch = sessionEpoch;
         }
         if (refresh != null) refresh.completeExceptionally(new CancellationException("signed out during token refresh"));
         if (current == null) return CompletableFuture.completedFuture("Signed out");

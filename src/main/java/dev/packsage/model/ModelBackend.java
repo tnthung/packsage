@@ -94,9 +94,6 @@ public interface ModelBackend {
         public SearchAction {
             queries = List.copyOf(queries);
             sources = List.copyOf(sources);
-            if ((query == null || query.isBlank()) && queries.isEmpty()) {
-                throw new IllegalArgumentException("web search query is required");
-            }
             if (queries.stream().anyMatch(value -> value == null || value.isBlank())) {
                 throw new IllegalArgumentException("web search queries cannot contain blanks");
             }
@@ -157,6 +154,16 @@ public interface ModelBackend {
             modelCatalog = List.copyOf(modelCatalog);
             if (contextTokens != null && contextTokens < 1) throw new IllegalArgumentException("contextTokens must be positive");
             if (outputTokens != null && outputTokens < 1) throw new IllegalArgumentException("outputTokens must be positive");
+            if (selectedModelId != null) {
+                ModelInfo selected = modelCatalog.stream().filter(model -> selectedModelId.equals(model.id()))
+                        .findFirst().orElseThrow(() -> new IllegalArgumentException("selected model is absent from catalog"));
+                if (!Objects.equals(imageInput, selected.imageInput())
+                        || !Objects.equals(hostedSearch, selected.hostedSearch())
+                        || !Objects.equals(contextTokens, selected.contextTokens())
+                        || !Objects.equals(outputTokens, selected.outputTokens())) {
+                    throw new IllegalArgumentException("selected model capabilities do not match catalog");
+                }
+            }
         }
 
         public Capabilities(Boolean imageInput, Boolean hostedSearch, Integer contextTokens, Integer outputTokens) {
@@ -172,11 +179,15 @@ public interface ModelBackend {
         }
     }
 
-    record ToolCall(String callId, String name, String serializedArguments) implements InputItem {
+    record ToolCall(String callId, String namespace, String name, String serializedArguments) implements InputItem {
         public ToolCall {
             Objects.requireNonNull(callId);
             Objects.requireNonNull(name);
             Objects.requireNonNull(serializedArguments);
+        }
+
+        public ToolCall(String callId, String name, String serializedArguments) {
+            this(callId, null, name, serializedArguments);
         }
     }
 

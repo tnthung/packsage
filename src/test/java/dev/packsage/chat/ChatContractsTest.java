@@ -69,4 +69,19 @@ class ChatContractsTest {
                         new ChatContracts.Screenshot("request-1", "image/png", 1, Instant.EPOCH), SCOPE), new byte[]{1}),
                 new ChatContracts.EvidenceSelection(List.of(), List.of())));
     }
+
+    @Test
+    void modelCatalogSelectionAndProviderOptionalFieldsRemainConsistent() {
+        ModelBackend.ModelInfo selected = new ModelBackend.ModelInfo("model", "Model", true, false, 128_000, 4_096);
+
+        assertThrows(IllegalArgumentException.class, () -> new ModelBackend.Capabilities(List.of(selected), "missing",
+                true, false, 128_000, 4_096));
+        assertThrows(IllegalArgumentException.class, () -> new ModelBackend.Capabilities(List.of(selected), "model",
+                false, false, 128_000, 4_096));
+        assertEquals("packsage", new ModelBackend.ToolCall("call-1", "packsage", "lookup", "{}").namespace());
+        assertEquals(null, new ModelBackend.ToolCall("call-1", "lookup", "{}").namespace());
+        assertEquals(List.of(), new ModelBackend.SearchAction(null, List.of(), List.of()).queries());
+        assertEquals(null, new ModelBackend.Capabilities(List.of(selected), null,
+                null, null, null, null).selectedModelId());
+    }
 }

@@ -135,6 +135,24 @@ public final class RequestController {
         return startWorldLoad(world, scope, false, "world changed");
     }
 
+    public void showConversation(ChatContracts.Conversation loaded, Evidence.Scope scope) {
+        cancelWorldLoad("conversation view changed");
+        cancelActive("conversation view changed");
+        synchronized (stateLock) {
+            generation++;
+            forceNew = false;
+            conversation = loaded;
+            openedWorld = loaded.world();
+            openedScope = scope;
+            visibleRequest = null;
+            context = new ChatContracts.Context("", null, scope);
+            sources = List.of();
+            navigationTargets = List.of();
+            errors.clear();
+        }
+        publish();
+    }
+
     public void stop() {
         cancelActive("stopped");
     }
@@ -504,14 +522,16 @@ public final class RequestController {
         }
         ChatContracts.Turn untokened = new ChatContracts.Turn(request.submission.requestId(), request.submission.question(),
                 request.answer.toString(), replay, captured.context(), request.evidence.sources(),
+                request.evidence.navigationTargets(),
                 new ChatContracts.Outcome(status, detail), 0);
         ChatContracts.Turn turn;
         try {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
-                    untokened.context(), untokened.sources(), untokened.outcome(), tokenCounter.apply(untokened));
+                    untokened.context(), untokened.sources(), untokened.navigationTargets(), untokened.outcome(), tokenCounter.apply(untokened));
         } catch (RuntimeException exception) {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
                     untokened.context(), untokened.sources(),
+                    untokened.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, failureMessage(exception)), 0);
         }
         updateVisibleTurn(request, target, turn);
@@ -547,6 +567,7 @@ public final class RequestController {
             }
             ChatContracts.Turn turn = new ChatContracts.Turn(request.submission.requestId(), request.submission.question(),
                     request.answer.toString(), List.copyOf(request.partialReplay), persisted.context(), request.evidence.sources(),
+                    request.evidence.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.CANCELLED, detail), 0);
             updateVisibleTurn(request, target, turn);
             persist(request, target, turn, persisted.screenshotBytes());
@@ -593,7 +614,7 @@ public final class RequestController {
             if (mediaFailure != null) {
                 persistedTurn = new ChatContracts.Turn(turn.requestId(), turn.question(), turn.answer(), turn.replayItems(),
                         new ChatContracts.Context(turn.context().serializedGameplayContext(), null, turn.context().scope()),
-                        turn.sources(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED,
+                        turn.sources(), turn.navigationTargets(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED,
                         "media persistence failed: " + failureMessage(mediaFailure)), turn.tokenCount());
                 updateVisibleTurn(request, target, persistedTurn);
                 publishPersistenceFailure(request, target, mediaFailure);

@@ -25,6 +25,7 @@ public final class AssistantRuntime implements ChatActions {
     private static final Evidence.Scope EMPTY_SCOPE = new Evidence.Scope("none", "none", "none", "none", 0);
 
     private final ModelBackend backend;
+    private final ConversationStore store;
     private final GameplayContextCapture capture;
     private final Executor controllerExecutor;
     private final Executor clientExecutor;
@@ -50,6 +51,9 @@ public final class AssistantRuntime implements ChatActions {
     private long authEpoch;
     private boolean requestedPaused;
     private boolean newChatPending;
+    private ChatContracts.Conversation readOnlyConversation;
+    private boolean sessionLoading;
+    private long sessionGeneration;
 
     public AssistantRuntime(ConversationStore store, ModelBackend backend,
                             Function<Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory,
@@ -59,7 +63,7 @@ public final class AssistantRuntime implements ChatActions {
                             Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder,
                             ToIntFunction<ModelBackend.ModelInfo> outputBudget, Consumer<Boolean> pauseGame,
                             Consumer<String> externalNavigation) {
-        Objects.requireNonNull(store);
+        this.store = Objects.requireNonNull(store);
         this.backend = Objects.requireNonNull(backend);
         this.controllerExecutor = Objects.requireNonNull(controllerExecutor);
         this.clientExecutor = Objects.requireNonNull(clientExecutor);
@@ -86,6 +90,9 @@ public final class AssistantRuntime implements ChatActions {
             publicationEpoch++;
             this.world = world;
             this.scope = scope;
+            readOnlyConversation = null;
+            sessionLoading = false;
+            sessionGeneration++;
             runtimeErrors.clear();
             requestedPaused = settings.openPaused();
             newChatPending = false;
@@ -118,6 +125,9 @@ public final class AssistantRuntime implements ChatActions {
             publicationEpoch++;
             scope = newScope;
             newChatPending = false;
+            readOnlyConversation = null;
+            sessionLoading = false;
+            sessionGeneration++;
         }
         controller.invalidate(newScope.worldSession());
         publishCurrentView(worldEpoch);
@@ -131,6 +141,9 @@ public final class AssistantRuntime implements ChatActions {
             scope = EMPTY_SCOPE;
             requestedPaused = false;
             newChatPending = false;
+            readOnlyConversation = null;
+            sessionLoading = false;
+            sessionGeneration++;
         }
         controller.disconnect();
     }
@@ -161,6 +174,54 @@ public final class AssistantRuntime implements ChatActions {
         synchronized (stateLock) {
             this.settings = Objects.requireNonNull(settings);
         }
+    }
+
+    @Override
+    public CompletionStage<List<ChatContracts.SessionSummary>> sessions() {
+        return store.sessions();
+    }
+
+    @Override
+    public void openSession(ChatContracts.SessionSummary session) {
+        Objects.requireNonNull(session);
+        long requestGeneration;
+        long epoch;
+        synchronized (stateLock) {
+            if (world == null) return;
+            requestGeneration = ++sessionGeneration;
+            publicationEpoch++;
+            epoch = worldEpoch;
+            readOnlyConversation = new ChatContracts.Conversation(session.id(), session.world(), List.of(),
+                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null));
+            sessionLoading = true;
+        }
+        controller.stop();
+        publishCurrentView(epoch);
+        store.openConversation(session.world(), session.id()).whenCompleteAsync((conversation, failure) -> {
+            synchronized (stateLock) {
+                if (requestGeneration != sessionGeneration || epoch != worldEpoch || world == null) return;
+                sessionLoading = false;
+                if (failure != null) {
+                    readOnlyConversation = null;
+                    runtimeErrors.add("Session could not be opened: " + failureMessage(failure));
+                } else if (world.equals(conversation.world())) {
+                    readOnlyConversation = null;
+                    controller.showConversation(conversation, scope);
+                } else {
+                    readOnlyConversation = conversation;
+                }
+            }
+            publishCurrentView(epoch);
+        }, clientExecutor);
+    }
+
+    @Override
+    public ChatContracts.AccountInfo account() {
+        boolean signedIn;
+        synchronized (stateLock) {
+            signedIn = signIn == ChatContracts.SignInState.SIGNED_IN;
+        }
+        return new ChatContracts.AccountInfo(backend.providerInfo(), signedIn ? "Connected" : "");
     }
 
     public List<ModelBackend.ModelInfo> modelCatalog() {
@@ -278,6 +339,12 @@ public final class AssistantRuntime implements ChatActions {
                     runtimeErrors.add("A request is already active");
                     return;
                 }
+                if (sessionLoading || readOnlyConversation != null) {
+                    runtimeErrors.add(sessionLoading ? "Session is still loading"
+                            : "This session is read-only until its world is active");
+                    publishCurrentView(worldEpoch);
+                    return;
+                }
                 String configuredModelId = settings.modelId();
                 ModelBackend.ModelInfo selected = capabilities.modelCatalog().stream()
                         .filter(model -> model.id().equals(configuredModelId == null ? capabilities.selectedModelId() : configuredModelId))
@@ -369,6 +436,9 @@ public final class AssistantRuntime implements ChatActions {
         synchronized (stateLock) {
             publicationEpoch++;
             newChatPending = true;
+            readOnlyConversation = null;
+            sessionLoading = false;
+            sessionGeneration++;
             currentWorld = world;
             currentScope = scope;
         }
@@ -393,10 +463,16 @@ public final class AssistantRuntime implements ChatActions {
     public void navigate(Evidence.NavigationTarget target) {
         if (target == null) return;
         ChatContracts.View current = view();
+        if (current.readOnly()) {
+            addError("Join this session's world before opening its sources");
+            publishCurrentView(worldEpoch);
+            return;
+        }
         if (current.navigationTargets().stream().noneMatch(value -> value.equals(target))
                 || current.sources().stream().noneMatch(source -> source.scope().equals(target.scope())
                 && source.providerId().equals(target.providerId()) && source.sourceHandle().equals(target.sourceHandle()))) {
             addError("Navigation target is stale");
+            publishCurrentView(worldEpoch);
             return;
         }
         Evidence.Scope expected;
@@ -407,6 +483,7 @@ public final class AssistantRuntime implements ChatActions {
         }
         if (!target.scope().equals(expected)) {
             addError("Navigation target is stale");
+            publishCurrentView(epoch);
             return;
         }
         boolean stale;
@@ -577,6 +654,8 @@ public final class AssistantRuntime implements ChatActions {
         Evidence.Scope currentScope;
         ChatContracts.WorldIdentity currentWorld;
         boolean hideConversation;
+        boolean loading;
+        ChatContracts.Conversation displayed;
         synchronized (stateLock) {
             currentSignIn = signIn;
             paused = requestedPaused;
@@ -585,10 +664,14 @@ public final class AssistantRuntime implements ChatActions {
             currentScope = scope;
             currentWorld = world;
             hideConversation = newChatPending;
+            loading = sessionLoading;
+            displayed = readOnlyConversation;
         }
+        ChatContracts.WorldIdentity activeWorld = currentWorld == null ? view.conversation().world() : currentWorld;
+        ChatContracts.Conversation conversation = displayed == null ? view.conversation() : displayed;
         List<Evidence.Source> sources = new ArrayList<>();
         List<Evidence.NavigationTarget> targets = new ArrayList<>();
-        if (!hideConversation) {
+        if (!hideConversation && displayed == null) {
             view.sources().forEach(source -> {
                 if (source.scope().equals(currentScope) && sources.stream().noneMatch(existing ->
                         existing.providerId().equals(source.providerId())
@@ -601,11 +684,15 @@ public final class AssistantRuntime implements ChatActions {
                         && !targets.contains(target)) targets.add(target);
             });
         }
-        if (!hideConversation && currentWorld != null && currentWorld.equals(view.conversation().world())
-                && !view.conversation().turns().isEmpty()) {
-            ChatContracts.Turn turn = view.conversation().turns().get(view.conversation().turns().size() - 1);
-            if (turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED
-                    && turn.context().scope().equals(currentScope)) {
+        if (!hideConversation && currentWorld != null && (displayed != null || currentWorld.equals(conversation.world()))) {
+            conversation.turns().forEach(turn -> {
+                turn.sources().forEach(source -> { if (!sources.contains(source)) sources.add(source); });
+                turn.navigationTargets().forEach(target -> { if (!targets.contains(target)) targets.add(target); });
+            });
+        }
+        if (!hideConversation && currentWorld != null && (displayed != null || currentWorld.equals(conversation.world()))) {
+            for (ChatContracts.Turn turn : conversation.turns()) {
+                if (turn.outcome().status() != ChatContracts.OutcomeStatus.COMPLETED) continue;
                 LinkedHashSet<String> urls = new LinkedHashSet<>();
                 turn.replayItems().forEach(item -> {
                     if (item instanceof ModelBackend.AssistantOutput output
@@ -634,19 +721,25 @@ public final class AssistantRuntime implements ChatActions {
                 });
                 Instant receivedAt = Instant.now();
                 urls.forEach(url -> {
-                    if (sources.stream().noneMatch(source -> source.providerId().equals("web")
+                    if (sources.stream().noneMatch(source -> source.scope().equals(turn.context().scope())
+                            && source.providerId().equals("web")
                             && source.sourceHandle().equals(url))) {
-                        sources.add(new Evidence.Source(currentScope, "web", "typed-replay", url,
-                                currentScope.requestGeneration(), receivedAt, Evidence.Activity.ACTIVE,
+                        sources.add(new Evidence.Source(turn.context().scope(), "web", "typed-replay", url,
+                                turn.context().scope().requestGeneration(), receivedAt, Evidence.Activity.ACTIVE,
                                 Evidence.Coverage.COMPLETE, Evidence.Authority.EXTERNAL, List.of(url)));
                     }
-                    Evidence.NavigationTarget target = new Evidence.NavigationTarget(currentScope, "web", url, url);
+                    Evidence.NavigationTarget target = new Evidence.NavigationTarget(turn.context().scope(), "web", url, url);
                     if (!targets.contains(target)) targets.add(target);
                 });
             }
         }
+        if (displayed != null && currentWorld != null) {
+            return new ChatContracts.View(false, currentSignIn, paused, displayed,
+                    new ChatContracts.Context("", null, currentScope), sources, targets, errors, "",
+                    loading ? "Loading session..." : "", activeWorld, true);
+        }
         return new ChatContracts.View(view.active(), currentSignIn, paused, view.conversation(), view.context(),
-                sources, targets, errors, view.streamingAnswer(), view.activity());
+                sources, targets, errors, view.streamingAnswer(), view.activity(), activeWorld, false);
     }
 
     private Evidence.Scope currentScope() {

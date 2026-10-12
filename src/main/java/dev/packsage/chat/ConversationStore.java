@@ -84,6 +84,53 @@ public final class ConversationStore {
         });
     }
 
+    public CompletionStage<ChatContracts.Conversation> openConversation(ChatContracts.WorldIdentity world, String conversationId) {
+        return enqueueRead(() -> {
+            Path file = conversationPath(world, conversationId);
+            if (!Files.isRegularFile(file) || !safePath(file)) throw new IllegalArgumentException("conversation does not exist: " + conversationId);
+            ChatContracts.Conversation conversation = readConversation(file, world);
+            if (conversation == null) throw new IllegalArgumentException("conversation does not belong to world: " + conversationId);
+            return conversation;
+        });
+    }
+
+    public CompletionStage<List<ChatContracts.SessionSummary>> sessions() {
+        return enqueueRead(() -> {
+            List<ChatContracts.SessionSummary> summaries = new ArrayList<>();
+            if (!Files.isDirectory(root)) return summaries;
+            try (var paths = Files.walk(root, 2)) {
+                for (Path file : paths.filter(path -> path.getFileName().toString().endsWith(".jsonl")
+                        && Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) && safePath(path)).toList()) {
+                    try {
+                        String firstLine;
+                        try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+                            firstLine = reader.readLine();
+                        }
+                        if (firstLine == null) continue;
+                        JsonObject header = JsonParser.parseString(firstLine).getAsJsonObject();
+                        if (!"conversation".equals(header.get("type").getAsString())) continue;
+                        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity(header.get("world").getAsString(),
+                                header.has("label") ? header.get("label").getAsString() : header.get("world").getAsString());
+                        ChatContracts.Conversation conversation = readConversation(file, world);
+                        if (conversation == null) continue;
+                        ChatContracts.Turn first = conversation.turns().isEmpty() ? null : conversation.turns().getFirst();
+                        ChatContracts.Turn last = conversation.turns().isEmpty() ? null : conversation.turns().getLast();
+                        summaries.add(new ChatContracts.SessionSummary(world, conversation.id(),
+                                first == null ? "New chat" : first.question(), last == null ? "" : last.answer(),
+                                Instant.ofEpochMilli(modifiedAt(file))));
+                    } catch (IOException exception) {
+                        report(exception);
+                    } catch (RuntimeException ignored) { }
+                }
+            } catch (IOException exception) {
+                report(exception);
+                throw new RuntimeException(exception);
+            }
+            summaries.sort(Comparator.comparing(ChatContracts.SessionSummary::updatedAt).reversed());
+            return summaries;
+        });
+    }
+
     public CompletionStage<ChatContracts.Conversation> newConversation(ChatContracts.WorldIdentity world) {
         String id = UUID.randomUUID().toString();
         ChatContracts.Conversation conversation = emptyConversation(world, id);
@@ -229,7 +276,8 @@ public final class ConversationStore {
                     if ("turn".equals(value.get("type").getAsString())) {
                         if (value.has("world") && !world.worldOrServer().equals(value.get("world").getAsString())) return null;
                         ChatContracts.Turn turn = turnFromJson(value);
-                        if (turn.sources().stream().anyMatch(source -> !turn.context().scope().equals(source.scope()))) {
+                        if (turn.sources().stream().anyMatch(source -> !turn.context().scope().equals(source.scope()))
+                                || turn.navigationTargets().stream().anyMatch(target -> !turn.context().scope().equals(target.scope()))) {
                             report(new IOException("turn evidence scope mismatch in " + file));
                             continue;
                         }
@@ -287,7 +335,19 @@ public final class ConversationStore {
         JsonArray sources = new JsonArray();
         turn.sources().forEach(source -> sources.add(sourceJson(source)));
         value.add("sources", sources);
+        JsonArray targets = new JsonArray();
+        turn.navigationTargets().forEach(target -> targets.add(navigationTargetJson(target)));
+        value.add("navigationTargets", targets);
         return value.toString();
+    }
+
+    private static JsonObject navigationTargetJson(Evidence.NavigationTarget target) {
+        JsonObject value = new JsonObject();
+        value.add("scope", scopeJson(target.scope()));
+        value.addProperty("providerId", target.providerId());
+        value.addProperty("sourceHandle", target.sourceHandle());
+        value.addProperty("targetId", target.targetId());
+        return value;
     }
 
     private static JsonObject replayJson(dev.packsage.model.ModelBackend.InputItem item) {
@@ -438,11 +498,17 @@ public final class ConversationStore {
                 .forEach(item -> replay.add(replayFromJson(item.getAsJsonObject())));
         List<Evidence.Source> sources = new ArrayList<>();
         if (value.has("sources")) value.getAsJsonArray("sources").forEach(source -> sources.add(sourceFromJson(source.getAsJsonObject())));
+        List<Evidence.NavigationTarget> targets = new ArrayList<>();
+        if (value.has("navigationTargets")) value.getAsJsonArray("navigationTargets").forEach(target -> {
+            JsonObject item = target.getAsJsonObject();
+            targets.add(new Evidence.NavigationTarget(scopeFromJson(item.getAsJsonObject("scope")),
+                    item.get("providerId").getAsString(), item.get("sourceHandle").getAsString(), item.get("targetId").getAsString()));
+        });
         String detail = value.has("outcomeDetail") ? value.get("outcomeDetail").getAsString() : null;
         return new ChatContracts.Turn(new ChatContracts.RequestId(value.get("requestId").getAsString()),
                 value.get("question").getAsString(), value.get("answer").getAsString(), replay,
                 new ChatContracts.Context(contextValue.get("serializedGameplayContext").getAsString(), screenshot, scope),
-                sources, new ChatContracts.Outcome(ChatContracts.OutcomeStatus.valueOf(value.get("outcome").getAsString()), detail),
+                sources, targets, new ChatContracts.Outcome(ChatContracts.OutcomeStatus.valueOf(value.get("outcome").getAsString()), detail),
                 value.get("tokenCount").getAsInt());
     }
 

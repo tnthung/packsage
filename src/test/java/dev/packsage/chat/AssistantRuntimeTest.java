@@ -13,10 +13,12 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -456,6 +458,141 @@ class AssistantRuntimeTest {
 
         assertEquals(ChatContracts.SignInState.SIGNED_IN, runtime.view().signIn());
         assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("Model catalog unavailable")));
+    }
+
+    @Test
+    void selectedSessionsPublishImmediatelyBlockPendingSendsAndKeepTheOperationalWorld() throws Exception {
+        for (boolean otherWorld : List.of(false, true)) {
+            List<Runnable> pending = new ArrayList<>();
+            AtomicBoolean defer = new AtomicBoolean();
+            ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-session-test"), task -> {
+                if (defer.get()) pending.add(task);
+                else task.run();
+            });
+            ChatContracts.WorldIdentity selectedWorld = otherWorld
+                    ? new ChatContracts.WorldIdentity("other", "Other World") : WORLD;
+            Evidence.Scope historicalScope = otherWorld ? SCOPE
+                    : new Evidence.Scope("world", "old-resources", "team", "runtime", 7);
+            ChatContracts.Conversation selected = store.newConversation(selectedWorld).toCompletableFuture().join();
+            Evidence.Source source = new Evidence.Source(historicalScope, "web", "test", "https://example.test/history",
+                    historicalScope.requestGeneration(), Instant.EPOCH, Evidence.Activity.ACTIVE,
+                    Evidence.Coverage.COMPLETE, Evidence.Authority.EXTERNAL, List.of());
+            Evidence.NavigationTarget target = new Evidence.NavigationTarget(historicalScope, "web", source.sourceHandle(), source.sourceHandle());
+            ChatContracts.Turn historical = new ChatContracts.Turn(new ChatContracts.RequestId("history"), "First question",
+                    "Historical answer", List.of(), new ChatContracts.Context("historical context", null, historicalScope),
+                    List.of(source), List.of(target), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+            store.appendTurn(selectedWorld, historicalScope, selected.id(), historical).toCompletableFuture().join();
+            if (!otherWorld) store.newConversation(WORLD).toCompletableFuture().join();
+            FakeBackend backend = new FakeBackend();
+            AtomicInteger captures = new AtomicInteger();
+            AtomicInteger navigations = new AtomicInteger();
+            AtomicReference<java.util.function.Supplier<Evidence.Scope>> operationalScope = new AtomicReference<>();
+            AtomicReference<ChatContracts.PreparedRequest> prepared = new AtomicReference<>();
+            var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(() -> {
+                captures.incrementAndGet();
+                return new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block");
+            }, ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
+                    DIRECT, DIRECT, current -> {
+                        operationalScope.set(current);
+                        return new KnowledgeService(List.of(), current,
+                                ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)),
+                                (ignored, currentValue) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+                    }, turn -> turn.tokenCount(), request -> {
+                        prepared.set(request);
+                        return new ModelBackend.Request(MODEL.id(), "instructions", List.of(new ModelBackend.Message(ModelBackend.Role.USER,
+                                List.of(new ModelBackend.TextContent(request.submission().question())))), List.of(),
+                                request.submission().searchMode(), request.submission().requestId().value(), 512);
+                    }, ignored -> 512, ignored -> { }, ignored -> navigations.incrementAndGet());
+            runtime.enterWorld(WORLD, SCOPE);
+            runtime.signIn();
+            backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+            backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+            var screen = runtime.openScreen();
+            defer.set(true);
+
+            runtime.openSession(new ChatContracts.SessionSummary(selectedWorld, selected.id(), "First question", "Historical answer", Instant.EPOCH));
+            assertTrue(screen.view().readOnly());
+            assertEquals(selected.id(), screen.view().conversation().id());
+            assertEquals("Loading session...", screen.view().activity());
+            runtime.send("too early", false, false);
+            assertEquals(0, backend.starts);
+            assertEquals(0, captures.get());
+            assertEquals(SCOPE, operationalScope.get().get());
+            pending.removeFirst().run();
+
+            assertEquals(otherWorld, screen.view().readOnly());
+            assertEquals(WORLD, screen.view().activeWorld());
+            assertEquals(SCOPE, screen.view().context().scope());
+            assertEquals(List.of(historical), screen.view().conversation().turns());
+            assertTrue(screen.view().navigationTargets().contains(target));
+            assertTrue(screen.view().sources().contains(source));
+            runtime.navigate(target);
+            assertEquals(0, navigations.get());
+            assertTrue(screen.view().errors().stream().anyMatch(error -> error.contains(otherWorld ? "Join this session" : "stale")));
+            runtime.send("continue", false, false);
+            if (otherWorld) {
+                assertEquals(0, backend.starts);
+                assertEquals(0, captures.get());
+            } else {
+                assertEquals(1, backend.starts, runtime.view().errors().toString());
+                assertEquals(1, captures.get());
+                assertEquals(List.of(historical), prepared.get().history().turns());
+                assertEquals(SCOPE.worldSession(), prepared.get().capturedContext().context().scope().worldSession());
+                assertEquals(1, prepared.get().capturedContext().context().scope().requestGeneration());
+                backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                        new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                                ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Fresh answer", List.of())))), null));
+                while (!pending.isEmpty()) pending.removeFirst().run();
+                assertEquals(selected.id(), screen.view().conversation().id());
+                assertEquals("continue", screen.view().conversation().turns().getLast().question());
+            }
+            runtime.newChat();
+            while (!pending.isEmpty()) pending.removeFirst().run();
+            assertFalse(screen.view().readOnly());
+            assertEquals(WORLD, screen.view().conversation().world());
+            assertTrue(screen.view().conversation().turns().isEmpty());
+        }
+    }
+
+    @Test
+    void delayedSessionLoadsCannotReplaceNewerSelectionNewChatWorldOrDisconnect() throws Exception {
+        for (String transition : List.of("selection", "new-chat", "world", "disconnect")) {
+            List<Runnable> pending = new ArrayList<>();
+            AtomicBoolean defer = new AtomicBoolean();
+            ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-session-race-test"), task -> {
+                if (defer.get()) pending.add(task);
+                else task.run();
+            });
+            ChatContracts.WorldIdentity otherWorld = new ChatContracts.WorldIdentity("other", "Other World");
+            ChatContracts.Conversation old = store.newConversation(otherWorld).toCompletableFuture().join();
+            ChatContracts.Conversation selected = store.newConversation(WORLD).toCompletableFuture().join();
+            FakeBackend backend = new FakeBackend();
+            var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
+                    current -> new KnowledgeService(List.of(), current,
+                            ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)),
+                            (ignored, currentValue) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
+                    turn -> turn.tokenCount(), ignored -> { throw new AssertionError("No model request expected"); },
+                    ignored -> 512, ignored -> { }, ignored -> { });
+            runtime.enterWorld(WORLD, SCOPE);
+            var screen = runtime.openScreen();
+            defer.set(true);
+            runtime.openSession(new ChatContracts.SessionSummary(otherWorld, old.id(), "Old", "", Instant.EPOCH));
+            switch (transition) {
+                case "selection" -> runtime.openSession(new ChatContracts.SessionSummary(WORLD, selected.id(), "Selected", "", Instant.EPOCH));
+                case "new-chat" -> runtime.newChat();
+                case "world" -> runtime.enterWorld(new ChatContracts.WorldIdentity("next", "Next"),
+                        new Evidence.Scope("next", "resources", "team", "runtime", 0));
+                default -> runtime.disconnect();
+            }
+            ChatContracts.View disconnected = runtime.view();
+            while (!pending.isEmpty()) pending.removeFirst().run();
+
+            assertFalse(runtime.view().readOnly());
+            assertFalse(runtime.view().conversation().id().equals(old.id()));
+            if (transition.equals("selection")) assertEquals(selected.id(), screen.view().conversation().id());
+            if (transition.equals("world")) assertEquals("next", screen.view().activeWorld().worldOrServer());
+            if (transition.equals("disconnect")) assertEquals(disconnected, runtime.view());
+        }
     }
 
     private static java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory() {

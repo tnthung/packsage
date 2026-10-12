@@ -37,6 +37,7 @@ class ConversationStoreTest {
         ChatContracts.Context context = new ChatContracts.Context("{\"dimension\":\"overworld\"}", screenshot, SCOPE);
         Evidence.Source source = new Evidence.Source(SCOPE, "jei", "1", "recipe:altar", 4, Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("pack"));
+        Evidence.NavigationTarget target = new Evidence.NavigationTarget(SCOPE, "jei", "recipe:altar", "altar-view");
         ChatContracts.Turn turn = new ChatContracts.Turn(new ChatContracts.RequestId("request-1"), "Where?",
                 "Here.", List.of(new ModelBackend.EncryptedReasoning("reasoning-1", "encrypted", "[]"),
                 new ModelBackend.ToolCall("call-1", "packsage", "lookup", "{}"),
@@ -47,13 +48,14 @@ class ConversationStoreTest {
                 new ModelBackend.AssistantOutput("message-1", ModelBackend.OutputStatus.COMPLETED,
                         ModelBackend.OutputPhase.FINAL_ANSWER,
                         List.of(new ModelBackend.OutputText("Here.", List.of())))), context, List.of(source),
-                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, "ok"), 9);
+                List.of(target), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, "ok"), 9);
 
         store.appendMedia(world, conversation.id(), screenshot, new byte[]{1, 2, 3}).toCompletableFuture().join();
         store.appendTurn(world, SCOPE, conversation.id(), turn).toCompletableFuture().join();
 
         ChatContracts.Conversation reopened = store.openLatest(world).toCompletableFuture().join();
         assertTrue(reopened.turns().contains(turn));
+        assertEquals(List.of(target), reopened.turns().getFirst().navigationTargets());
         assertArrayEquals(new byte[]{1, 2, 3}, store.readMedia(world, conversation.id(), screenshot)
                 .toCompletableFuture().join());
         assertTrue(Files.exists(store.conversationPath(world, conversation.id())));
@@ -72,6 +74,28 @@ class ConversationStoreTest {
         assertNotEquals(first.id(), second.id());
         assertNotEquals(store.conversationPath(world, first.id()), store.conversationPath(world, second.id()));
         assertTrue(store.openLatest(world).toCompletableFuture().join().id().equals(second.id()));
+    }
+
+    @Test
+    void sessionsListsWorldMetadataAndOpensAnExplicitConversation() {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity firstWorld = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.WorldIdentity secondWorld = new ChatContracts.WorldIdentity("world-b", "World B");
+        ChatContracts.Conversation first = store.newConversation(firstWorld).toCompletableFuture().join();
+        store.appendTurn(firstWorld, new Evidence.Scope("world-a", "en_us", "team-a", "provider-1", 4), first.id(), simpleTurn("first question"))
+                .toCompletableFuture().join();
+        store.appendTurn(firstWorld, SCOPE, first.id(), new ChatContracts.Turn(new ChatContracts.RequestId("latest"),
+                "latest question", "latest answer", List.of(), new ChatContracts.Context("context", null, SCOPE),
+                List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1))
+                .toCompletableFuture().join();
+        ChatContracts.Conversation second = store.newConversation(secondWorld).toCompletableFuture().join();
+
+        List<ChatContracts.SessionSummary> sessions = store.sessions().toCompletableFuture().join();
+
+        assertEquals(2, sessions.size());
+        assertTrue(sessions.stream().anyMatch(session -> session.id().equals(first.id()) && session.world().equals(firstWorld)
+                && session.title().equals("first question") && session.lastMessage().equals("latest answer")));
+        assertEquals(second, store.openConversation(secondWorld, second.id()).toCompletableFuture().join());
     }
 
     @Test
@@ -173,6 +197,46 @@ class ConversationStoreTest {
 
         assertThrows(RuntimeException.class, () -> store.openLatest(world).toCompletableFuture().join());
         assertEquals("outside", Files.readString(outside));
+    }
+
+    @Test
+    void sessionCatalogIgnoresExternalJsonlLinks() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory.resolve("store"), DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        ConversationStore outsideStore = new ConversationStore(temporaryDirectory.resolve("outside"), DIRECT);
+        ChatContracts.Conversation outside = outsideStore.newConversation(world).toCompletableFuture().join();
+        outsideStore.appendTurn(world, SCOPE, outside.id(), simpleTurn("external private question")).toCompletableFuture().join();
+        Path linked = store.conversationPath(world, outside.id());
+        try {
+            Files.createSymbolicLink(linked, outsideStore.conversationPath(world, outside.id()));
+        } catch (UnsupportedOperationException | java.io.IOException exception) {
+            assumeTrue(false, "symbolic links unavailable: " + exception.getMessage());
+        }
+
+        List<ChatContracts.SessionSummary> sessions = store.sessions().toCompletableFuture().join();
+
+        assertEquals(1, sessions.size());
+        assertEquals(conversation.id(), sessions.getFirst().id());
+        assertThrows(RuntimeException.class, () -> store.openConversation(world, outside.id()).toCompletableFuture().join());
+    }
+
+    @Test
+    void logsWithoutNavigationTargetsStillLoadAndOpenById() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), simpleTurn("legacy")).toCompletableFuture().join();
+        Path file = store.conversationPath(world, conversation.id());
+        List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+        com.google.gson.JsonObject turn = com.google.gson.JsonParser.parseString(lines.get(1)).getAsJsonObject();
+        turn.remove("navigationTargets");
+        Files.writeString(file, lines.getFirst() + "\n" + turn + "\n", StandardCharsets.UTF_8);
+
+        ChatContracts.Conversation loaded = store.openConversation(world, conversation.id()).toCompletableFuture().join();
+
+        assertEquals(List.of(simpleTurn("legacy")), loaded.turns());
+        assertTrue(loaded.turns().getFirst().navigationTargets().isEmpty());
     }
 
     private static ChatContracts.Turn simpleTurn(String question) {

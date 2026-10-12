@@ -32,8 +32,9 @@ public final class AssistantRuntime implements ChatActions {
     private final ToIntFunction<ModelBackend.ModelInfo> outputBudget;
     private final Consumer<Boolean> pauseGame;
     private final Consumer<String> externalNavigation;
-    private final KnowledgeService knowledge;
-    private final PackSageTools tools;
+    private final Function<Supplier<Evidence.Scope>, KnowledgeService> knowledgeFactory;
+    private KnowledgeService knowledge;
+    private PackSageTools tools;
     private final Object stateLock = new Object();
     private final Object sendLock = new Object();
     private final List<String> runtimeErrors = new ArrayList<>();
@@ -56,17 +57,6 @@ public final class AssistantRuntime implements ChatActions {
                             Function<Supplier<Evidence.Scope>, KnowledgeService> knowledgeFactory,
                             Function<ChatContracts.Turn, Integer> historyCounter,
                             Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder,
-                            ToIntFunction<ModelBackend.ModelInfo> outputBudget, Consumer<Boolean> pauseGame) {
-        this(store, backend, captureFactory, controllerExecutor, clientExecutor, knowledgeFactory, historyCounter,
-                requestBuilder, outputBudget, pauseGame, ignored -> { });
-    }
-
-    public AssistantRuntime(ConversationStore store, ModelBackend backend,
-                            Function<Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory,
-                            Executor controllerExecutor, Executor clientExecutor,
-                            Function<Supplier<Evidence.Scope>, KnowledgeService> knowledgeFactory,
-                            Function<ChatContracts.Turn, Integer> historyCounter,
-                            Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder,
                             ToIntFunction<ModelBackend.ModelInfo> outputBudget, Consumer<Boolean> pauseGame,
                             Consumer<String> externalNavigation) {
         Objects.requireNonNull(store);
@@ -78,7 +68,8 @@ public final class AssistantRuntime implements ChatActions {
         this.outputBudget = Objects.requireNonNull(outputBudget);
         this.pauseGame = Objects.requireNonNull(pauseGame);
         this.externalNavigation = Objects.requireNonNull(externalNavigation);
-        this.knowledge = Objects.requireNonNull(knowledgeFactory).apply(this::currentScope);
+        this.knowledgeFactory = Objects.requireNonNull(knowledgeFactory);
+        this.knowledge = Objects.requireNonNull(this.knowledgeFactory.apply(this::currentScope));
         this.tools = new PackSageTools(this.knowledge::execute);
         this.capture = Objects.requireNonNull(Objects.requireNonNull(captureFactory).apply(this::currentScope));
         this.controller = new RequestController(store, backend, controllerExecutor,
@@ -100,6 +91,24 @@ public final class AssistantRuntime implements ChatActions {
             newChatPending = false;
         }
         controller.openWorld(world, scope);
+        KnowledgeService nextKnowledge;
+        try {
+            nextKnowledge = Objects.requireNonNull(knowledgeFactory.apply(this::currentScope));
+        } catch (RuntimeException failure) {
+            synchronized (stateLock) {
+                if (epoch == worldEpoch && world.equals(this.world) && scope.equals(this.scope)) {
+                    runtimeErrors.add("Knowledge providers could not be refreshed: " + failureMessage(failure));
+                }
+            }
+            publishCurrentView(epoch);
+            return;
+        }
+        PackSageTools nextTools = new PackSageTools(nextKnowledge::execute);
+        synchronized (stateLock) {
+            if (epoch != worldEpoch || !world.equals(this.world) || !scope.equals(this.scope)) return;
+            knowledge = nextKnowledge;
+            tools = nextTools;
+        }
         publishCurrentView(epoch);
     }
 
@@ -287,13 +296,27 @@ public final class AssistantRuntime implements ChatActions {
             }
             try {
                 controller.begin(submission).whenCompleteAsync((ignored, failure) -> {
-                    if (failure != null) publishCurrentView(epoch);
+                    if (failure == null) return;
+                    boolean current;
+                    synchronized (stateLock) {
+                        current = epoch == worldEpoch && scope.equals(submission.scope());
+                        if (current) {
+                            scope = previousScope;
+                            runtimeErrors.add("Request could not start: " + failureMessage(failure));
+                        }
+                    }
+                    if (current) publishCurrentView(epoch);
                 }, controllerExecutor);
             } catch (RuntimeException failure) {
+                boolean current;
                 synchronized (stateLock) {
-                    if (scope.requestGeneration() == submission.scope().requestGeneration()) scope = previousScope;
+                    current = epoch == worldEpoch && scope.equals(submission.scope());
+                    if (current) {
+                        scope = previousScope;
+                        runtimeErrors.add("Request could not start: " + failureMessage(failure));
+                    }
                 }
-                addError("Request could not start: " + failureMessage(failure));
+                if (current) publishCurrentView(epoch);
             }
             publishCurrentView(epoch);
         }
@@ -367,8 +390,12 @@ public final class AssistantRuntime implements ChatActions {
             return;
         }
         Evidence.NavigationResult result;
+        KnowledgeService currentKnowledge;
+        synchronized (stateLock) {
+            currentKnowledge = knowledge;
+        }
         try {
-            result = knowledge.open(target, expected);
+            result = currentKnowledge.open(target, expected);
         } catch (RuntimeException failure) {
             addError("Navigation failed: " + failureMessage(failure));
             return;
@@ -380,7 +407,11 @@ public final class AssistantRuntime implements ChatActions {
     }
 
     private CompletionStage<ChatContracts.ToolResponse> executeTool(ChatContracts.ToolRequest request) {
-        return tools.execute(request.call(), request.submission().scope()).thenApply(response -> {
+        PackSageTools currentTools;
+        synchronized (stateLock) {
+            currentTools = tools;
+        }
+        return currentTools.execute(request.call(), request.submission().scope()).thenApply(response -> {
             List<Evidence.Source> sources = response.records().stream().map(Evidence.Record::source).distinct().toList();
             List<Evidence.NavigationTarget> targets = response.records().stream().flatMap(record -> record.targets().stream())
                     .distinct().toList();

@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -208,6 +209,66 @@ class AssistantRuntimeTest {
         assertNull(opened.get());
     }
 
+    @Test
+    void worldSwitchRebuildsKnowledgeAndDropsLateToolResult() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        AtomicInteger factoryCalls = new AtomicInteger();
+        CompletableFuture<Evidence.Result> pendingTool = new CompletableFuture<>();
+        var knowledgeFactory = (java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService>) current -> {
+            int factoryCall = factoryCalls.getAndIncrement();
+            return new KnowledgeService(List.of(), current,
+                    ignored -> factoryCall == 1 ? pendingTool : CompletableFuture.completedFuture(
+                            new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)),
+                    (ignored, scopeValue) -> CompletableFuture.completedFuture(
+                            new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+        };
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
+                knowledgeFactory, DIRECT);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+        runtime.send("question", false, false);
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("call", "plan_recipe", "{\"identity\":\"item\",\"quantity\":1}"),
+                List.of(), null));
+
+        ChatContracts.WorldIdentity nextWorld = new ChatContracts.WorldIdentity("world-2", "World 2");
+        Evidence.Scope nextScope = new Evidence.Scope("world-2", "resources", "team", "runtime", 0);
+        runtime.enterWorld(nextWorld, nextScope);
+        pendingTool.complete(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
+
+        assertEquals(3, factoryCalls.get());
+        assertEquals(0, backend.submissions);
+        assertEquals(nextWorld, runtime.view().conversation().world());
+    }
+
+    @Test
+    void pendingWorldHistoryRejectsSendWithoutAdvancingScope() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
+                current -> new KnowledgeService(List.of(), current,
+                        ignored -> CompletableFuture.completedFuture(
+                                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
+                        (ignored, scopeValue) -> CompletableFuture.completedFuture(
+                                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null))),
+                ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+
+        runtime.send("question", false, false);
+
+        assertEquals(0, runtime.view().context().scope().requestGeneration());
+        assertEquals(0, backend.starts);
+        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("world history is still loading")));
+    }
+
     private static java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory() {
         return scope -> new GameplayContextCapture(
                 () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
@@ -246,12 +307,26 @@ class AssistantRuntimeTest {
                                             PackSageSettings settings, java.util.function.ToIntFunction<ModelBackend.ModelInfo> budget,
                                             java.util.function.Consumer<Boolean> pauseGame,
                                             java.util.function.Consumer<String> externalNavigation) throws Exception {
-        var directory = Files.createTempDirectory("packsage-runtime-test");
-        return new AssistantRuntime(new ConversationStore(directory, DIRECT), backend, captureFactory, DIRECT, DIRECT,
-                current -> new KnowledgeService(List.of(), current, ignored -> CompletableFuture.completedFuture(
-                        new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
+        return runtime(backend, captureFactory, scope, request, preparedRequest, settings, budget, pauseGame,
+                externalNavigation, current -> new KnowledgeService(List.of(), current,
+                        ignored -> CompletableFuture.completedFuture(
+                                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
                         (ignored, scopeValue) -> CompletableFuture.completedFuture(
-                                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null))),
+                                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null))), DIRECT);
+    }
+
+    private static AssistantRuntime runtime(FakeBackend backend,
+                                            java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory,
+                                            AtomicReference<Evidence.Scope> scope, AtomicReference<ModelBackend.Request> request,
+                                            AtomicReference<ChatContracts.PreparedRequest> preparedRequest,
+                                            PackSageSettings settings, java.util.function.ToIntFunction<ModelBackend.ModelInfo> budget,
+                                            java.util.function.Consumer<Boolean> pauseGame,
+                                            java.util.function.Consumer<String> externalNavigation,
+                                            java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService> knowledgeFactory,
+                                            Executor storeExecutor) throws Exception {
+        var directory = Files.createTempDirectory("packsage-runtime-test");
+        return new AssistantRuntime(new ConversationStore(directory, storeExecutor), backend, captureFactory, DIRECT, DIRECT,
+                knowledgeFactory,
                 turn -> turn.tokenCount(), prepared -> {
                     ModelBackend.Request result = new ModelBackend.Request(prepared.submission().selectedModel().id(),
                             "instructions", List.of(new ModelBackend.Message(ModelBackend.Role.USER,
@@ -270,6 +345,7 @@ class AssistantRuntimeTest {
         private final List<Request> requests = new ArrayList<>();
         private java.util.function.Consumer<Event> events;
         private int starts;
+        private int submissions;
 
         @Override
         public CompletionStage<AuthState> signIn() {
@@ -296,7 +372,7 @@ class AssistantRuntimeTest {
             requests.add(request);
             this.events = events;
             return new Exchange() {
-                @Override public void submit(ToolResult result) { }
+                @Override public void submit(ToolResult result) { submissions++; }
                 @Override public void cancel() { }
             };
         }

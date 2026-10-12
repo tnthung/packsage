@@ -130,7 +130,7 @@ public final class ClientAssistant {
                 scope -> GameplayContextCapture.forMinecraft(clientExecutor, scope), workerExecutor, clientExecutor,
                 this::knowledge, GroundingInstructions::historyTextBudget, GroundingInstructions::build,
                 model -> model.outputTokens() == null ? 4096 : Math.min(4096, model.outputTokens()),
-                this::pauseGame, this::openExternal);
+                ignored -> { }, this::openExternal);
         runtime.setSettings(settings);
 
         modEventBus.addListener((RegisterKeyMappingsEvent event) -> event.register(openAssistant));
@@ -299,7 +299,6 @@ public final class ClientAssistant {
             client.setScreen(null);
             assistantScreen = null;
         }
-        if (client.isSingleplayer()) client.pauseGame(false);
         runtime.disconnect();
     }
 
@@ -451,11 +450,6 @@ public final class ClientAssistant {
             return new OptionalStatus(id, modId, expectedVersion, "unknown", false, false,
                     modId + " version could not be verified");
         }
-    }
-
-    private void pauseGame(boolean paused) {
-        IntegratedServer integrated = client.getSingleplayerServer();
-        if (client.isSingleplayer() && integrated != null && !integrated.isPublished()) client.pauseGame(paused);
     }
 
     private void openSettings() {

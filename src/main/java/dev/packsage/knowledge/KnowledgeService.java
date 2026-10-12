@@ -52,13 +52,12 @@ public final class KnowledgeService {
             var arguments = request.arguments().values();
             CompletionStage<Evidence.Result> result;
             switch (request.tool()) {
-                case "read_evidence", "read_progress" -> {
+                case "read_evidence" -> {
                     var records = new ArrayList<Evidence.Record>();
                     synchronized (this) {
                         for (var handle : ((Evidence.JsonArray) arguments.get("handles")).values()) {
                             var record = observed.get(((Evidence.JsonString) handle).value());
-                            if (record == null || !record.source().scope().equals(request.scope())
-                                    || request.tool().equals("read_progress") && record.kind() != Evidence.RecordKind.QUEST) {
+                            if (record == null || !record.source().scope().equals(request.scope())) {
                                 return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
                             }
                             records.add(record);
@@ -67,6 +66,75 @@ public final class KnowledgeService {
                     var partial = records.stream().anyMatch(record -> record.source().coverage() != Evidence.Coverage.COMPLETE);
                     result = CompletableFuture.completedFuture(new Evidence.Result(records, partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
                             partial ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE, null));
+                }
+                case "read_progress" -> {
+                    var records = new ArrayList<Evidence.Record>();
+                    var providersForHandles = new ArrayList<KnowledgeProvider>();
+                    synchronized (this) {
+                        for (var handle : ((Evidence.JsonArray) arguments.get("handles")).values()) {
+                            var record = observed.get(((Evidence.JsonString) handle).value());
+                            if (record == null || !record.source().scope().equals(request.scope())
+                                    || record.kind() != Evidence.RecordKind.QUEST) {
+                                return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null));
+                            }
+                            var provider = providers.stream().filter(value -> value.id().equals(record.source().providerId())).findFirst().orElse(null);
+                            if (provider == null) return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null));
+                            records.add(record);
+                            providersForHandles.add(provider);
+                        }
+                    }
+                    var refreshed = CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                            Evidence.Outcome.COMPLETE, null));
+                    for (var index = 0; index < records.size(); index++) {
+                        var selectedIndex = index;
+                        refreshed = refreshed.thenCompose(previous -> {
+                            if (previous.coverage() == Evidence.Coverage.ERROR || previous.coverage() == Evidence.Coverage.UNAVAILABLE) {
+                                return CompletableFuture.completedFuture(previous);
+                            }
+                            var queryArguments = Map.of("id", (Evidence.JsonValue) new Evidence.JsonString(
+                                    records.get(selectedIndex).source().sourceHandle()));
+                            CompletionStage<Evidence.Result> current;
+                            try {
+                                current = providersForHandles.get(selectedIndex).query(new Evidence.Query(Evidence.Operation.GET,
+                                        new Evidence.JsonObject(queryArguments), 1, null, null), request.scope());
+                            } catch (RuntimeException failure) {
+                                return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR,
+                                        Evidence.Outcome.ERROR, null));
+                            }
+                            return current.thenApply(retrieved -> {
+                                if (retrieved.coverage() == Evidence.Coverage.ERROR
+                                        || retrieved.coverage() == Evidence.Coverage.UNAVAILABLE) {
+                                    return new Evidence.Result(List.of(), retrieved.coverage(), retrieved.outcome(), null);
+                                }
+                                if (retrieved.records().isEmpty()) {
+                                    return retrieved.coverage() == Evidence.Coverage.COMPLETE
+                                            ? new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)
+                                            : new Evidence.Result(List.of(), retrieved.coverage(), retrieved.outcome(), null);
+                                }
+                                if (retrieved.records().size() != 1) {
+                                    return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null);
+                                }
+                                var currentRecord = retrieved.records().get(0);
+                                var observedRecord = records.get(selectedIndex);
+                                if (!currentRecord.source().scope().equals(request.scope())
+                                        || !currentRecord.source().providerId().equals(observedRecord.source().providerId())
+                                        || !currentRecord.source().sourceHandle().equals(observedRecord.source().sourceHandle())
+                                        || currentRecord.kind() != Evidence.RecordKind.QUEST) {
+                                    return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null);
+                                }
+                                var refreshedRecords = new ArrayList<>(previous.records());
+                                refreshedRecords.add(currentRecord);
+                                var partial = previous.coverage() != Evidence.Coverage.COMPLETE
+                                        || retrieved.coverage() != Evidence.Coverage.COMPLETE
+                                        || previous.outcome() != Evidence.Outcome.COMPLETE
+                                        || retrieved.outcome() != Evidence.Outcome.COMPLETE;
+                                return new Evidence.Result(refreshedRecords,
+                                        partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                                        partial ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE, null);
+                            });
+                        });
+                    }
+                    result = refreshed;
                 }
                 case "plan_recipe" -> result = planner.apply(new RecipePlan(((Evidence.JsonString) arguments.get("identity")).value(),
                         ((Evidence.JsonNumber) arguments.get("quantity")).value().longValueExact(),

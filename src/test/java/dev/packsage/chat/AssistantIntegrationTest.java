@@ -148,6 +148,45 @@ class AssistantIntegrationTest {
     }
 
     @Test
+    void readProgressRequeriesObservedQuestAndPreservesProviderUnavailable() throws Exception {
+        var initial = questRecord(false);
+        var refreshed = questRecord(true);
+        var current = new AtomicReference<Evidence.Result>(new Evidence.Result(List.of(refreshed), Evidence.Coverage.COMPLETE,
+                Evidence.Outcome.COMPLETE, null));
+        var queries = new ArrayList<Evidence.Query>();
+        KnowledgeProvider provider = new Provider("ftb_quests", List.of(initial), false) {
+            @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                queries.add(query);
+                return query.operation() == Evidence.Operation.SEARCH
+                        ? CompletableFuture.completedFuture(new Evidence.Result(List.of(initial), Evidence.Coverage.COMPLETE,
+                        Evidence.Outcome.COMPLETE, null)) : CompletableFuture.completedFuture(current.get());
+            }
+        };
+        var service = new KnowledgeService(List.of(provider), () -> SCOPE,
+                request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                        Evidence.Outcome.UNKNOWN, null)),
+                (identities, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                        Evidence.Outcome.UNKNOWN, null)));
+
+        service.execute(new PackSageTools.ReadRequest("search_pack",
+                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("quest"))), SCOPE))
+                .toCompletableFuture().get();
+        var progress = service.execute(new PackSageTools.ReadRequest("read_progress",
+                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString("ftb_quests:quest"))))), SCOPE))
+                .toCompletableFuture().get();
+        assertEquals(List.of(refreshed), progress.records());
+        assertEquals(Evidence.Operation.GET, queries.get(1).operation());
+        assertEquals("quest", ((Evidence.JsonString) queries.get(1).arguments().values().get("id")).value());
+
+        current.set(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null));
+        var unavailable = service.execute(new PackSageTools.ReadRequest("read_progress",
+                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString("ftb_quests:quest"))))), SCOPE))
+                .toCompletableFuture().get();
+        assertEquals(Evidence.Coverage.UNAVAILABLE, unavailable.coverage());
+        assertTrue(unavailable.records().isEmpty());
+    }
+
+    @Test
     void preservesUnaffectedEvidenceWhenAnotherProviderFails() throws Exception {
         var loaded = record("native", "torch", Evidence.Authority.LOADED, "7 torches");
         var service = new KnowledgeService(List.of(new Provider("native", List.of(loaded), false),
@@ -181,6 +220,12 @@ class AssistantIntegrationTest {
 
     private static Evidence.Record record(String provider, String handle, Evidence.Authority authority, String title) {
         return record(SCOPE, provider, handle, authority, title);
+    }
+
+    private static Evidence.Record questRecord(boolean completed) {
+        return new Evidence.Record(new Evidence.Source(SCOPE, "ftb_quests", "fixture", "quest", SCOPE.requestGeneration(),
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.QUEST, "Quest", new Evidence.JsonObject(Map.of("completed", new Evidence.JsonBoolean(completed))), List.of());
     }
 
     private static Evidence.Record record(Evidence.Scope scope, String provider, String handle, Evidence.Authority authority,

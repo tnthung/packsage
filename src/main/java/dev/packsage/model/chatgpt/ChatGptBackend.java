@@ -77,6 +77,7 @@ public final class ChatGptBackend implements ModelBackend {
     @Override
     public void signOut() {
         ExchangeImpl previous;
+        CompletableFuture<String> outcome = null;
         synchronized (exchangeLock) {
             accountEpoch++;
             verifiedImageInput.clear();
@@ -84,9 +85,23 @@ public final class ChatGptBackend implements ModelBackend {
             previous = activeExchange;
             activeExchange = null;
             capabilities = new Capabilities(List.of(), null, null, null, null, null);
+            if (signOutStatus.toCompletableFuture().isDone() || auth.credential() != null) {
+                outcome = new CompletableFuture<>();
+                signOutStatus = outcome;
+            }
         }
         if (previous != null) previous.cancel();
-        signOutStatus = auth.signOut();
+        if (outcome != null) {
+            CompletableFuture<String> result = outcome;
+            try {
+                auth.signOut().whenComplete((detail, failure) -> {
+                    if (failure == null) result.complete(detail);
+                    else result.completeExceptionally(failure);
+                });
+            } catch (RuntimeException failure) {
+                result.completeExceptionally(failure);
+            }
+        }
     }
 
     public CompletionStage<String> signOutStatus() { return signOutStatus; }

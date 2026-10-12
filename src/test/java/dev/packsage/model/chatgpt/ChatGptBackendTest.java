@@ -48,6 +48,7 @@ import java.util.function.Consumer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -609,11 +610,31 @@ class ChatGptBackendTest {
         RevocationHttpClient revocation = new RevocationHttpClient(503, 200);
         ChatGptAuth auth = new ChatGptAuth(credentials, revocation, ignored -> { });
         auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        ChatGptBackend backend = new ChatGptBackend(auth, new StringHttpClient(500, "unused"), Runnable::run);
 
-        CompletionStage<String> original = auth.signOut();
-        assertEquals("Signed out", auth.signOut().toCompletableFuture().join());
+        backend.signOut();
+        CompletionStage<String> original = backend.signOutStatus();
+        backend.signOut();
 
+        assertSame(original, backend.signOutStatus());
         assertEquals("Signed out and remote revocation was confirmed", original.toCompletableFuture().join());
+        assertFalse(Files.exists(credentials));
+    }
+
+    @Test
+    void signOutRetriesTransientDiscoveryFailureBeforeClearingCredential() {
+        Path credentials = temporaryDirectory.resolve("credentials.json");
+        RevocationHttpClient revocation = new RevocationHttpClient(List.of(503, 200), List.of(200));
+        ChatGptAuth auth = new ChatGptAuth(credentials, revocation, ignored -> { });
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+
+        CompletionStage<String> outcome = auth.signOut();
+
+        assertTrue(Files.exists(credentials));
+        assertEquals("Signed out and remote revocation was confirmed", outcome.toCompletableFuture().join());
+        assertEquals(List.of(ChatGptAuth.ISSUER + "/.well-known/openid-configuration",
+                        ChatGptAuth.ISSUER + "/.well-known/openid-configuration", "https://auth.openai.test/revoke"),
+                revocation.requests.stream().map(request -> request.uri().toString()).toList());
         assertFalse(Files.exists(credentials));
     }
 
@@ -803,11 +824,17 @@ class ChatGptBackendTest {
     }
 
     private static final class RevocationHttpClient extends HttpClient {
+        private final ArrayDeque<Integer> discoveryStatuses;
         private final ArrayDeque<Integer> revocationStatuses;
         private final List<HttpRequest> requests = new ArrayList<>();
 
         private RevocationHttpClient(Integer... revocationStatuses) {
-            this.revocationStatuses = new ArrayDeque<>(List.of(revocationStatuses));
+            this(List.of(200), List.of(revocationStatuses));
+        }
+
+        private RevocationHttpClient(List<Integer> discoveryStatuses, List<Integer> revocationStatuses) {
+            this.discoveryStatuses = new ArrayDeque<>(discoveryStatuses);
+            this.revocationStatuses = new ArrayDeque<>(revocationStatuses);
         }
 
         @Override public Optional<CookieHandler> cookieHandler() { return Optional.empty(); }
@@ -825,7 +852,8 @@ class ChatGptBackendTest {
         @Override public <T> CompletableFuture<HttpResponse<T>> sendAsync(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
             requests.add(request);
             return CompletableFuture.completedFuture((HttpResponse<T>) new StringResponse(request,
-                    request.uri().toString().endsWith("/.well-known/openid-configuration") ? 200 : revocationStatuses.removeFirst(),
+                    request.uri().toString().endsWith("/.well-known/openid-configuration")
+                            ? discoveryStatuses.removeFirst() : revocationStatuses.removeFirst(),
                     request.uri().toString().endsWith("/.well-known/openid-configuration")
                             ? "{\"revocation_endpoint\":\"https://auth.openai.test/revoke\"}" : "{}"));
         }

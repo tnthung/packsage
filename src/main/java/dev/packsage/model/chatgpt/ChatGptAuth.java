@@ -188,7 +188,7 @@ public final class ChatGptAuth {
             return CompletableFuture.completedFuture(lastDetail);
         }
         lastDetail = "Signed out in memory; remote revocation is pending";
-        return fetchOpenIdConfiguration(httpClient).thenCompose(configuration -> {
+        return fetchOpenIdConfigurationForSignOut(1).thenCompose(configuration -> {
             if (!configuration.has("revocation_endpoint")) return CompletableFuture.failedFuture(new IllegalStateException("revocation endpoint is unavailable"));
             HttpRequest request = HttpRequest.newBuilder(URI.create(configuration.get("revocation_endpoint").getAsString())).timeout(REQUEST_TIMEOUT)
                     .header("Content-Type", "application/x-www-form-urlencoded")
@@ -230,6 +230,27 @@ public final class ChatGptAuth {
             }
             if (failure != null) return CompletableFuture.<HttpResponse<String>>failedFuture(failure);
             return CompletableFuture.completedFuture(response);
+        }).thenCompose(value -> value);
+    }
+
+    private CompletableFuture<JsonObject> fetchOpenIdConfigurationForSignOut(int attempt) {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(ISSUER + "/.well-known/openid-configuration"))
+                .timeout(REQUEST_TIMEOUT).GET().build();
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).handle((response, failure) -> {
+            if ((failure != null || response.statusCode() / 100 == 5) && attempt < REVOCATION_ATTEMPTS) {
+                CompletableFuture<JsonObject> retry = new CompletableFuture<>();
+                CompletableFuture.delayedExecutor(200L << (attempt - 1), TimeUnit.MILLISECONDS).execute(() ->
+                        fetchOpenIdConfigurationForSignOut(attempt + 1).whenComplete((retried, retryFailure) -> {
+                            if (retryFailure == null) retry.complete(retried);
+                            else retry.completeExceptionally(retryFailure);
+                        }));
+                return retry;
+            }
+            if (failure != null) return CompletableFuture.<JsonObject>failedFuture(failure);
+            if (response.statusCode() / 100 != 2) {
+                return CompletableFuture.<JsonObject>failedFuture(new IllegalStateException("OpenID configuration failed: HTTP " + response.statusCode()));
+            }
+            return CompletableFuture.completedFuture(JsonParser.parseString(response.body()).getAsJsonObject());
         }).thenCompose(value -> value);
     }
 

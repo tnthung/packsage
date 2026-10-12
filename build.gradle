@@ -44,6 +44,9 @@ dependencies {
     testRuntimeOnly('org.junit.platform:junit-platform-launcher:1.11.3')
 }
 
+configurations.testCompileOnly.extendsFrom(configurations.compileOnly)
+configurations.testRuntimeClasspath.extendsFrom(configurations.compileOnly)
+
 tasks.named('test', Test).configure {
     useJUnitPlatform()
 }

@@ -7,8 +7,8 @@ import com.google.gson.JsonParser;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import dev.packsage.model.ModelBackend;
+import net.minecraft.Util;
 
-import java.awt.Desktop;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigInteger;
@@ -89,14 +89,8 @@ public final class ChatGptAuth {
     }
 
     public ChatGptAuth(Path credentialFile) {
-        this(credentialFile, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(), uri -> {
-            try {
-                if (!Desktop.isDesktopSupported()) throw new IllegalStateException("system browser is unavailable");
-                Desktop.getDesktop().browse(uri);
-            } catch (IOException error) {
-                throw new IllegalStateException("cannot open system browser", error);
-            }
-        });
+        this(credentialFile, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(),
+                uri -> Util.getPlatform().openUri(uri));
     }
 
     public ChatGptAuth(Path credentialFile, HttpClient client, Consumer<URI> browserOpener) {

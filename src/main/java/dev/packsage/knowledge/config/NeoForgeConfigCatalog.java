@@ -1,5 +1,6 @@
 package dev.packsage.knowledge.config;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -9,6 +10,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -332,35 +334,64 @@ public final class NeoForgeConfigCatalog {
         }
 
         private static Object copy(Object value, int depth, CopyState state) {
-            if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean
-                    || value instanceof Character || value.getClass().isEnum()) return value;
+            return copy(value, depth, state, new IdentityHashMap<>());
+        }
+
+        private static Object copy(Object value, int depth, CopyState state,
+                                   IdentityHashMap<Object, Boolean> active) {
+            if (value == null) return null;
             if (depth > MAX_DEPTH || state.remaining-- <= 0) {
                 state.truncated = true;
                 return "<value omitted>";
             }
-            if (value instanceof Map<?, ?> map) {
-                var result = new LinkedHashMap<String, Object>();
-                for (var item : map.entrySet()) {
-                    if (state.remaining <= 0) {
-                        state.truncated = true;
-                        break;
-                    }
-                    result.put(String.valueOf(item.getKey()), copy(item.getValue(), depth + 1, state));
-                }
-                return Collections.unmodifiableMap(result);
+            if (value instanceof String || value instanceof Number || value instanceof Boolean
+                    || value instanceof Character || value.getClass().isEnum()) return value;
+            if (active.put(value, Boolean.TRUE) != null) {
+                state.truncated = true;
+                return "<value omitted>";
             }
-            if (value instanceof Collection<?> collection) {
-                var result = new ArrayList<Object>();
-                for (Object nested : collection) {
-                    if (state.remaining <= 0) {
-                        state.truncated = true;
-                        break;
+            try {
+                if (value.getClass().isArray()) {
+                    var result = new ArrayList<Object>();
+                    for (int index = 0; index < Array.getLength(value); index++) {
+                        if (state.remaining <= 0) {
+                            state.truncated = true;
+                            result.add("<value omitted>");
+                            break;
+                        }
+                        result.add(copy(Array.get(value, index), depth + 1, state, active));
                     }
-                    result.add(copy(nested, depth + 1, state));
+                    return Collections.unmodifiableList(result);
                 }
-                return List.copyOf(result);
+                if (value instanceof Map<?, ?> map) {
+                    var result = new LinkedHashMap<String, Object>();
+                    for (var item : map.entrySet()) {
+                        if (state.remaining <= 0) {
+                            state.truncated = true;
+                            result.put("<value omitted>", "<value omitted>");
+                            break;
+                        }
+                        result.put(String.valueOf(item.getKey()), copy(item.getValue(), depth + 1, state, active));
+                    }
+                    return Collections.unmodifiableMap(result);
+                }
+                if (value instanceof Collection<?> collection) {
+                    var result = new ArrayList<Object>();
+                    for (Object nested : collection) {
+                        if (state.remaining <= 0) {
+                            state.truncated = true;
+                            result.add("<value omitted>");
+                            break;
+                        }
+                        result.add(copy(nested, depth + 1, state, active));
+                    }
+                    return Collections.unmodifiableList(result);
+                }
+                state.truncated = true;
+                return "<opaque value>";
+            } finally {
+                active.remove(value);
             }
-            return value;
         }
 
         private static Map<?, ?> asMap(Object value) {
@@ -382,14 +413,6 @@ public final class NeoForgeConfigCatalog {
     }
 
     private static Object immutableCopy(Object value) {
-        if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean
-                || value instanceof Character || value.getClass().isEnum()) return value;
-        if (value instanceof Map<?, ?> map) {
-            var copied = new LinkedHashMap<String, Object>();
-            map.forEach((key, nested) -> copied.put(String.valueOf(key), immutableCopy(nested)));
-            return Collections.unmodifiableMap(copied);
-        }
-        if (value instanceof Collection<?> collection) return List.copyOf(collection.stream().map(NeoForgeConfigCatalog::immutableCopy).toList());
-        return value;
+        return ReflectiveReaderSupport.copy(value, 0, new CopyState());
     }
 }

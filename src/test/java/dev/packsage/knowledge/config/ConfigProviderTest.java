@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConfigProviderTest {
@@ -176,7 +177,7 @@ class ConfigProviderTest {
     @Test
     void unsupportedCatalogStillEnumeratesFilesUnderKnownRoots() throws Exception {
         Path root = Files.createTempDirectory("packsage-config");
-        Path file = root.resolve("orphan.toml");
+        Path file = root.resolve("orphan-server.toml");
         Files.writeString(file, "answer = 42\n");
         var reader = new NeoForgeConfigCatalog.Reader() {
             public List<NeoForgeConfigCatalog.Entry> read() { return List.of(); }
@@ -193,6 +194,124 @@ class ConfigProviderTest {
         assertEquals(new Evidence.JsonString("unknown"), result.records().getFirst().payload().values().get("owner"));
         assertEquals(new Evidence.JsonNumber(new java.math.BigDecimal("42")),
                 result.records().getFirst().payload().values().get("savedValue"));
+        assertFalse(((Evidence.JsonBoolean) result.records().getFirst().payload().values()
+                .get("synchronizedServer")).value());
+    }
+
+    @Test
+    void accessibleEmptyRootRemainsCompleteEmpty() throws Exception {
+        Path root = Files.createTempDirectory("packsage-config");
+        var reader = new NeoForgeConfigCatalog.Reader() {
+            public List<NeoForgeConfigCatalog.Entry> read() { return List.of(); }
+            public boolean supported() { return true; }
+            public String detail() { return "empty test bridge"; }
+        };
+        var result = new ConfigProvider(reader, List.of(root)).query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(Map.of()), 10, null, null), SCOPE).toCompletableFuture().join();
+
+        assertTrue(result.records().isEmpty());
+        assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
+        assertEquals(Evidence.Outcome.COMPLETE, result.outcome());
+    }
+
+    @Test
+    void missingKnownRootDoesNotBecomeCompleteEmpty() throws Exception {
+        Path root = Files.createTempDirectory("packsage-config").resolve("missing");
+        var reader = new NeoForgeConfigCatalog.Reader() {
+            public List<NeoForgeConfigCatalog.Entry> read() { return List.of(); }
+            public boolean supported() { return true; }
+            public String detail() { return "missing root test bridge"; }
+        };
+        var result = new ConfigProvider(reader, List.of(root)).query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(Map.of()), 10, null, null), SCOPE).toCompletableFuture().join();
+
+        assertTrue(result.records().isEmpty());
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertEquals(Evidence.Outcome.PARTIAL, result.outcome());
+    }
+
+    @Test
+    void nonDirectoryKnownRootDoesNotBecomeCompleteEmpty() throws Exception {
+        Path root = Files.createTempFile("packsage-config", ".root");
+        Files.writeString(root, "not a config directory");
+        var reader = new NeoForgeConfigCatalog.Reader() {
+            public List<NeoForgeConfigCatalog.Entry> read() { return List.of(); }
+            public boolean supported() { return true; }
+            public String detail() { return "invalid root test bridge"; }
+        };
+        var result = new ConfigProvider(reader, List.of(root)).query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(Map.of()), 10, null, null), SCOPE).toCompletableFuture().join();
+
+        assertTrue(result.records().isEmpty());
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertEquals(Evidence.Outcome.PARTIAL, result.outcome());
+    }
+
+    @Test
+    void malformedQuotedAndUnbalancedValuesAreNotObserved() throws Exception {
+        Path root = Files.createTempDirectory("packsage-config");
+        Path file = root.resolve("malformed-values.toml");
+        Files.writeString(file, "good = 42\nbadQuote = \"unterminated\nbadValue = 1]\n");
+        var values = new LinkedHashMap<String, NeoForgeConfigCatalog.Value>();
+        values.put("good", new NeoForgeConfigCatalog.Value(null, null, null, null, null, null, null));
+        values.put("badQuote", new NeoForgeConfigCatalog.Value(null, null, null, null, null, null, null));
+        values.put("badValue", new NeoForgeConfigCatalog.Value(null, null, null, null, null, null, null));
+        var entry = new NeoForgeConfigCatalog.Entry("example", "COMMON", "example:COMMON:malformed-values.toml",
+                file.getFileName().toString(), file, false, values);
+        var provider = new ConfigProvider(NeoForgeConfigCatalog.supplied(() -> List.of(entry)), List.of(root));
+
+        var result = provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(Map.of()), 10, null, null), SCOPE).toCompletableFuture().join();
+
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        var badQuote = result.records().stream().filter(record -> record.title().endsWith(".badQuote")).findFirst()
+                .orElseThrow();
+        var badValue = result.records().stream().filter(record -> record.title().endsWith(".badValue")).findFirst()
+                .orElseThrow();
+        assertEquals(new Evidence.JsonString("unknown"), badQuote.payload().values().get("savedState"));
+        assertEquals(new Evidence.JsonNull(), badQuote.payload().values().get("savedValue"));
+        assertEquals(new Evidence.JsonString("unknown"), badValue.payload().values().get("savedState"));
+        assertEquals(new Evidence.JsonNull(), badValue.payload().values().get("savedValue"));
+        assertEquals(new Evidence.JsonNumber(new java.math.BigDecimal("42")), result.records().stream()
+                .filter(record -> record.title().endsWith(".good")).findFirst().orElseThrow().payload().values()
+                .get("savedValue"));
+    }
+
+    @Test
+    void suppliedValuesCopyOpaqueArraysAndBoundContainers() {
+        int[] array = {1, 2};
+        var opaque = new StringBuilder("before");
+        var cyclic = new LinkedHashMap<String, Object>();
+        cyclic.put("self", cyclic);
+        var oversized = new java.util.ArrayList<Integer>();
+        for (int index = 0; index < 10_000; index++) oversized.add(index);
+        var value = new NeoForgeConfigCatalog.Value(opaque, array, cyclic, null, null, oversized, null);
+
+        opaque.append("-after");
+        array[0] = 99;
+
+        assertEquals("<opaque value>", value.saved());
+        assertEquals(List.of(1, 2), value.loaded());
+        assertEquals(Map.of("self", "<value omitted>"), value.defaultValue());
+        assertTrue(((List<?>) value.minimum()).size() < oversized.size());
+    }
+
+    @Test
+    void fallbackFileLimitProducesPartialBoundedResult() throws Exception {
+        Path root = Files.createTempDirectory("packsage-config");
+        for (int index = 0; index < 257; index++) {
+            Files.writeString(root.resolve("file" + index + ".toml"), "answer = 42\n");
+        }
+        var reader = new NeoForgeConfigCatalog.Reader() {
+            public List<NeoForgeConfigCatalog.Entry> read() { return List.of(); }
+            public boolean supported() { return false; }
+            public String detail() { return "unsupported test bridge"; }
+        };
+        var result = new ConfigProvider(reader, List.of(root)).query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(Map.of()), 1_000, null, null), SCOPE).toCompletableFuture().join();
+
+        assertEquals(256, result.records().size());
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
     }
 
     @Test

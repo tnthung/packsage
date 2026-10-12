@@ -108,8 +108,9 @@ public final class ConfigProvider implements KnowledgeProvider {
     private Evidence.Result querySnapshot(CatalogCapture captured, Evidence.Query query, Evidence.Scope scope) {
         var entries = new ArrayList<>(captured.entries());
         var fallback = fallbackEntries(entries);
-        entries.addAll(fallback);
-        boolean bridgePartial = captured.failure() != null || !catalog.supported() || !fallback.isEmpty();
+        entries.addAll(fallback.entries());
+        boolean bridgePartial = captured.failure() != null || !catalog.supported() || !fallback.complete()
+                || !fallback.entries().isEmpty();
         var snapshots = entries.stream().map(this::withSavedFile).toList();
         var candidates = new ArrayList<Candidate>();
         boolean bounded = true;
@@ -347,11 +348,17 @@ public final class ConfigProvider implements KnowledgeProvider {
 
     private static ParsedValue parseValue(String source) {
         String value = stripInlineComment(source).trim();
+        if (!balancedValue(value)) return new ParsedValue(null, false, "malformed TOML value");
         if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {
             return new ParsedValue(Boolean.valueOf(value), true, null);
         }
-        if (value.startsWith("\"") && value.endsWith("\"")) {
-            return new ParsedValue(value.substring(1, value.length() - 1).replace("\\\"", "\""), true, null);
+        if (value.startsWith("\"") || value.startsWith("'")) {
+            char quote = value.charAt(0);
+            if (value.length() < 2 || value.charAt(value.length() - 1) != quote) {
+                return new ParsedValue(null, false, "malformed TOML string");
+            }
+            String parsed = value.substring(1, value.length() - 1);
+            return new ParsedValue(quote == '"' ? parsed.replace("\\\"", "\"") : parsed, true, null);
         }
         if (value.startsWith("[") || value.endsWith("]")) {
             if (!value.startsWith("[") || !value.endsWith("]")) {
@@ -360,10 +367,23 @@ public final class ConfigProvider implements KnowledgeProvider {
             var result = new ArrayList<Object>();
             StringBuilder item = new StringBuilder();
             boolean quoted = false;
+            char quote = 0;
+            int brackets = 0;
             for (int index = 1; index < value.length() - 1; index++) {
                 char character = value.charAt(index);
-                if (character == '"' && (index == 0 || value.charAt(index - 1) != '\\')) quoted = !quoted;
-                if (character == ',' && !quoted) {
+                if (quoted) {
+                    if (character == quote && (quote == '\'' || index == 0 || value.charAt(index - 1) != '\\')) {
+                        quoted = false;
+                    }
+                } else if (character == '"' || character == '\'') {
+                    quoted = true;
+                    quote = character;
+                } else if (character == '[') {
+                    brackets++;
+                } else if (character == ']') {
+                    brackets--;
+                }
+                if (character == ',' && !quoted && brackets == 0) {
                     var parsed = parseValue(item.toString());
                     if (!parsed.supported()) return parsed;
                     result.add(parsed.value());
@@ -382,17 +402,24 @@ public final class ConfigProvider implements KnowledgeProvider {
         try {
             return new ParsedValue(new BigDecimal(value), true, null);
         } catch (NumberFormatException ignored) {
-            return value.isEmpty() ? new ParsedValue(null, false, "malformed TOML value")
-                    : new ParsedValue(value, true, null);
+            return new ParsedValue(null, false, value.isEmpty() ? "malformed TOML value" : "unsupported TOML value");
         }
     }
 
     private static String stripInlineComment(String value) {
         boolean quoted = false;
+        char quote = 0;
         int brackets = 0;
         for (int index = 0; index < value.length(); index++) {
             char character = value.charAt(index);
-            if (character == '"' && (index == 0 || value.charAt(index - 1) != '\\')) quoted = !quoted;
+            if (quoted) {
+                if (character == quote && (quote == '\'' || index == 0 || value.charAt(index - 1) != '\\')) {
+                    quoted = false;
+                }
+            } else if (character == '"' || character == '\'') {
+                quoted = true;
+                quote = character;
+            }
             if (quoted) continue;
             if (character == '[') brackets++;
             if (character == ']') brackets--;
@@ -401,32 +428,74 @@ public final class ConfigProvider implements KnowledgeProvider {
         return value;
     }
 
-    private List<NeoForgeConfigCatalog.Entry> fallbackEntries(List<NeoForgeConfigCatalog.Entry> entries) {
+    private static boolean balancedValue(String value) {
+        boolean quoted = false;
+        char quote = 0;
+        int brackets = 0;
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            if (quoted) {
+                if (character == quote && (quote == '\'' || index == 0 || value.charAt(index - 1) != '\\')) {
+                    quoted = false;
+                }
+            } else if (character == '"' || character == '\'') {
+                quoted = true;
+                quote = character;
+            } else if (character == '[') {
+                brackets++;
+            } else if (character == ']' && --brackets < 0) {
+                return false;
+            }
+        }
+        return !quoted && brackets == 0;
+    }
+
+    private FallbackFiles fallbackEntries(List<NeoForgeConfigCatalog.Entry> entries) {
         var known = new LinkedHashSet<Path>();
         entries.stream().map(NeoForgeConfigCatalog.Entry::filePath).filter(Objects::nonNull)
                 .map(path -> path.toAbsolutePath().normalize()).forEach(known::add);
         var result = new ArrayList<NeoForgeConfigCatalog.Entry>();
         int count = 0;
+        int inspected = 0;
+        boolean complete = true;
         for (Path root : roots) {
-            if (count >= MAX_FILES) break;
+            if (count >= MAX_FILES || inspected >= MAX_FILES) {
+                complete = false;
+                break;
+            }
+            try {
+                if (!Files.isDirectory(root)) {
+                    complete = false;
+                    continue;
+                }
+            } catch (RuntimeException ignored) {
+                complete = false;
+                continue;
+            }
             try (Stream<Path> paths = Files.walk(root, 4)) {
-                for (Path path : paths.filter(Files::isRegularFile).filter(path -> path.toString().endsWith(".toml"))
-                        .filter(this::allowed).toList()) {
+                var iterator = paths.filter(Files::isRegularFile).filter(path -> path.toString().endsWith(".toml"))
+                        .iterator();
+                while (inspected < MAX_FILES && iterator.hasNext()) {
+                    Path path = iterator.next();
+                    inspected++;
+                    if (!allowed(path)) continue;
                     Path normalized = path.toAbsolutePath().normalize();
-                    if (known.contains(normalized) || count >= MAX_FILES) continue;
+                    if (known.contains(normalized)) continue;
                     known.add(normalized);
                     String fileName = path.getFileName().toString();
                     String lower = fileName.toLowerCase(Locale.ROOT);
                     String scope = lower.contains("-client.") ? "CLIENT" : lower.contains("-common.") ? "COMMON"
                             : lower.contains("-startup.") ? "STARTUP" : lower.contains("-server.") ? "SERVER" : "UNKNOWN";
                     result.add(new NeoForgeConfigCatalog.Entry("unknown", scope, "file:" + normalized, fileName,
-                            normalized, "SERVER".equals(scope), Map.of()));
+                            normalized, false, Map.of()));
                     count++;
                 }
+                if (inspected >= MAX_FILES) complete = false;
             } catch (IOException | RuntimeException ignored) {
+                complete = false;
             }
         }
-        return result;
+        return new FallbackFiles(result, complete);
     }
 
     private boolean allowed(Path path) {
@@ -506,6 +575,12 @@ public final class ConfigProvider implements KnowledgeProvider {
     }
 
     private record Candidate(SavedEntry snapshot, String key, NeoForgeConfigCatalog.Value value) {
+    }
+
+    private record FallbackFiles(List<NeoForgeConfigCatalog.Entry> entries, boolean complete) {
+        private FallbackFiles {
+            entries = List.copyOf(entries);
+        }
     }
 
     private record CatalogCapture(List<NeoForgeConfigCatalog.Entry> entries, Throwable failure) {

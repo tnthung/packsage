@@ -14,11 +14,13 @@ The scoped sign-in re-review closed all six prior P1 findings. Integration re-re
 
 ## G1 probe handoff
 
-The coordinator also ran `scripts/build.ps1 -Bootstrap` against the same committed implementation: 42 tests passed, none failed or skipped. Copy `dist/packsage-bootstrap.jar` for G1. It contains 100 PackSage contract/probe classes and no optional adapter classes. Version and loader pins match the full development JAR.
+The coordinator ran `scripts/build.ps1 -Bootstrap` against browser-launch fix `8de090e`: 42 tests passed, none failed or skipped. The full development JAR above predates that narrow fix. Use `dist/packsage-bootstrap.jar` for G1. It contains 100 PackSage contract/probe classes and no optional adapter classes. Version and loader pins match the full development JAR.
 
-Probe SHA-256: `2DCA5C24DE59C1B3996DB37CC308410CC5244B385D6168583702DD53AAF43978`.
+Probe SHA-256: `3EFA55121085E3672DF4A1DAADFAEF46ADE257280C8495DB723AFA67FF341D90`.
 
-The build copied that probe to `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\mods\packsage.jar`; the installed hash matches. The player's screenshot exposed blurred status/response text. Pinned `Screen.render()` bytecode confirmed that the superclass applies the background blur: the old override invoked it again after drawing text. Fix `30f90cb` renders the inherited background once before custom drawing; compiled ordering checks cover all three affected screens. Visual confirmation after restarting Minecraft remains pending.
+The build copied that probe to `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\mods\packsage.jar`; the installed hash matches. The player's first screenshot exposed blurred status/response text. Fix `30f90cb` renders the inherited background once before custom drawing; compiled ordering checks cover all three affected screens, and the next player screenshot confirms readable text.
+
+That screenshot reports `FAILED: system browser is unavailable`. Pinned Minecraft startup code sets `java.awt.headless=true`, making the old AWT `Desktop` check reject browser opening. Fix `8de090e` uses Minecraft's native platform URL launcher without changing the OAuth flow. Browser launch and successful sign-in remain pending the player's next attempt.
 
 This replaces the earlier probe build. The [G1 checklist](../testing/2026-10-12-player-checks.md#g1-packsage-load-and-chatgpt-route) covers browser sign-in, text, a read-only fixture tool, a synthetic image, hosted search and cancellation. No real account result has been inferred from the tests.
 

@@ -18,4 +18,6 @@ Focused source validation used Java 21-compatible `javac` and a Java 21 runtime 
 
 ## Live gate
 
+The player can now read the probe status after the rendering fix. The next observed failure was local browser dispatch (`system browser is unavailable`), traced to Minecraft's explicit headless AWT setting. The default opener now uses Minecraft's native platform URL launcher; the rebuilt probe passes all 42 focused Gradle tests and is installed in the player's instance. Successful browser authorization and authenticated inference are still unobserved.
+
 G1 remains pending. No real ChatGPT account, dynamic client registration, authenticated model catalog, streamed response, refresh/revocation, client-tool continuation, image input or hosted-search behavior has been observed in Minecraft. Release readiness remains blocked until the player completes those checks through PackSage's browser flow and records each accepted or unsupported capability without substituting an API key or private endpoint.

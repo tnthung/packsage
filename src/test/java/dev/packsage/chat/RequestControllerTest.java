@@ -151,28 +151,89 @@ class RequestControllerTest {
                 (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
                         new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
                 request -> CompletableFuture.completedFuture(new ChatContracts.ToolResponse(
-                        new ModelBackend.ToolResult(request.call().callId(), "{\"found\":true}", false),
+                        new ModelBackend.ToolResult(request.call().callId(), "{\"found\":\"" + request.call().callId() + "\"}", false),
                         new ChatContracts.EvidenceSelection(List.of(source), List.of(target)))), ignored -> { });
         controller.begin(submission("tool-request", WORLD_A, SCOPE_A, false,
                 new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
-        ModelBackend.ToolCall call = new ModelBackend.ToolCall("call-1", "lookup", "{}");
+        ModelBackend.ToolCall firstCall = new ModelBackend.ToolCall("call-1", "lookup", "{}");
+        ModelBackend.ToolCall secondCall = new ModelBackend.ToolCall("call-2", "lookup", "{}");
 
-        backend.emit("tool-request", new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, call,
+        backend.emit("tool-request", new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, firstCall,
+                List.of(), List.of(), null));
+        backend.emit("tool-request", new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, secondCall,
                 List.of(), List.of(), null));
         backend.emit("tool-request", new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "answer", null,
                 List.of(), List.of(), null));
         backend.emit("tool-request", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
-                new ModelBackend.EncryptedReasoning("reasoning-1", "encrypted", "[]"), call,
-                new ModelBackend.Message(ModelBackend.Role.ASSISTANT, List.of(new ModelBackend.TextContent("answer")))), null));
+                new ModelBackend.EncryptedReasoning("reasoning-1", "encrypted", "[]"), firstCall, secondCall,
+                new ModelBackend.ToolResult("call-1", "{\"found\":\"call-1\"}", false),
+                new ModelBackend.ToolResult("call-2", "{\"found\":\"call-2\"}", false),
+                new ModelBackend.AssistantOutput("message-1", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER,
+                        List.of(new ModelBackend.OutputText("answer", List.of())))), null));
 
         ChatContracts.Turn turn = controller.view().conversation().turns().getFirst();
-        assertEquals(List.of(new ModelBackend.EncryptedReasoning("reasoning-1", "encrypted", "[]"), call,
-                new ModelBackend.ToolResult("call-1", "{\"found\":true}", false),
-                new ModelBackend.Message(ModelBackend.Role.ASSISTANT, List.of(new ModelBackend.TextContent("answer")))),
+        assertEquals(List.of(new ModelBackend.EncryptedReasoning("reasoning-1", "encrypted", "[]"), firstCall, secondCall,
+                new ModelBackend.ToolResult("call-1", "{\"found\":\"call-1\"}", false),
+                new ModelBackend.ToolResult("call-2", "{\"found\":\"call-2\"}", false),
+                new ModelBackend.AssistantOutput("message-1", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER,
+                        List.of(new ModelBackend.OutputText("answer", List.of())))),
                 turn.replayItems());
         assertEquals(List.of(source), turn.sources());
         assertEquals(List.of(target), controller.view().navigationTargets());
-        assertEquals("call-1", backend.submitted.getFirst().callId());
+        assertEquals(List.of("call-1", "call-2"), backend.submitted.stream().map(ModelBackend.ToolResult::callId).toList());
+    }
+
+    @Test
+    void staleToolCompletionWithReusedCallIdCannotSubmitIntoTheNewRequest() {
+        FakeBackend backend = new FakeBackend();
+        List<CompletableFuture<ChatContracts.ToolResponse>> toolResponses = new ArrayList<>();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { }, request -> {
+                    CompletableFuture<ChatContracts.ToolResponse> response = new CompletableFuture<>();
+                    toolResponses.add(response);
+                    return response;
+                }, ignored -> { });
+        ModelBackend.ToolCall call = new ModelBackend.ToolCall("reused-call", "lookup", "{}");
+        controller.begin(submission("old-tool", WORLD_A, SCOPE_A, false, new ChatContracts.HistoryLimits(10, 12_000),
+                ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+        backend.emit("old-tool", new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, call,
+                List.of(), List.of(), null));
+        controller.stop();
+        controller.begin(submission("new-tool", WORLD_A, SCOPE_A, false, new ChatContracts.HistoryLimits(10, 12_000),
+                ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+        backend.emit("new-tool", new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, call,
+                List.of(), List.of(), null));
+
+        toolResponses.getFirst().complete(new ChatContracts.ToolResponse(
+                new ModelBackend.ToolResult("reused-call", "old", false),
+                new ChatContracts.EvidenceSelection(List.of(), List.of())));
+        toolResponses.get(1).complete(new ChatContracts.ToolResponse(
+                new ModelBackend.ToolResult("reused-call", "new", false),
+                new ChatContracts.EvidenceSelection(List.of(), List.of())));
+
+        assertEquals(List.of("new"), backend.submittedByRequest.get("new-tool").stream()
+                .map(ModelBackend.ToolResult::serializedResult).toList());
+    }
+
+    @Test
+    void rejectsARequestBuilderThatChangesTheSubmissionSnapshot() {
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = new RequestController(new ConversationStore(temporaryDirectory, DIRECT), backend, DIRECT,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), turn -> 1,
+                prepared -> new ModelBackend.Request("different-model", "instructions", List.of(), List.of(),
+                        ModelBackend.SearchMode.DISABLED, prepared.submission().requestId().value(), 1), ignored -> { });
+
+        assertTrue(controller.begin(submission("builder", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))
+                .toCompletableFuture().isCompletedExceptionally());
+        assertTrue(backend.requests.isEmpty());
+        assertFalse(controller.view().errors().isEmpty());
     }
 
     @Test
@@ -236,6 +297,7 @@ class RequestControllerTest {
         private final List<ToolResult> submitted = new ArrayList<>();
         private final Map<String, Consumer<Event>> events = new LinkedHashMap<>();
         private final Map<String, Boolean> cancelled = new LinkedHashMap<>();
+        private final Map<String, List<ToolResult>> submittedByRequest = new LinkedHashMap<>();
         private boolean completeSynchronouslyOnce;
 
         @Override
@@ -261,16 +323,19 @@ class RequestControllerTest {
             requests.add(request);
             events.put(request.requestId(), listener);
             cancelled.put(request.requestId(), false);
+            submittedByRequest.put(request.requestId(), new ArrayList<>());
             if (completeSynchronouslyOnce) {
                 completeSynchronouslyOnce = false;
                 listener.accept(new Event(EventKind.TEXT_DELTA, "answer", null, List.of(), List.of(), null));
                 listener.accept(new Event(EventKind.COMPLETED, null, null, List.of(), List.of(
-                        new Message(Role.ASSISTANT, List.of(new TextContent("answer")))), null));
+                        new AssistantOutput("message-1", OutputStatus.COMPLETED, OutputPhase.FINAL_ANSWER,
+                                List.of(new OutputText("answer", List.of())))), null));
             }
             return new Exchange() {
                 @Override
                 public void submit(ToolResult result) {
                     submitted.add(result);
+                    submittedByRequest.get(request.requestId()).add(result);
                 }
 
                 @Override

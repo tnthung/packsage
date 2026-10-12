@@ -26,6 +26,11 @@ public final class HistorySelector {
             Set<String> results = new HashSet<>();
             boolean validReplay = true;
             for (ModelBackend.InputItem item : turn.replayItems()) {
+                if (!(item instanceof ModelBackend.EncryptedReasoning
+                        || item instanceof ModelBackend.ToolCall
+                        || item instanceof ModelBackend.ToolResult
+                        || item instanceof ModelBackend.AssistantOutput
+                        || item instanceof ModelBackend.WebSearchCall)) validReplay = false;
                 if (item instanceof ModelBackend.ToolCall call && !calls.add(call.callId())) validReplay = false;
                 if (item instanceof ModelBackend.ToolResult result
                         && (!calls.contains(result.callId()) || !results.add(result.callId()))) validReplay = false;

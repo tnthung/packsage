@@ -323,10 +323,57 @@ public final class ConversationStore {
             value.addProperty("callId", result.callId());
             value.addProperty("serializedResult", result.serializedResult());
             value.addProperty("error", result.error());
-        } else if (item instanceof dev.packsage.model.ModelBackend.OpaqueHostedOutput output) {
-            value.addProperty("type", "opaqueHostedOutput");
-            value.addProperty("outputType", output.type());
-            value.addProperty("serializedContent", output.serializedContent());
+        } else if (item instanceof dev.packsage.model.ModelBackend.AssistantOutput output) {
+            value.addProperty("type", "assistantOutput");
+            value.addProperty("id", output.id());
+            value.addProperty("status", output.status().name());
+            if (output.phase() != null) value.addProperty("phase", output.phase().name());
+            JsonArray content = new JsonArray();
+            for (dev.packsage.model.ModelBackend.OutputContent part : output.content()) {
+                JsonObject contentValue = new JsonObject();
+                if (part instanceof dev.packsage.model.ModelBackend.OutputText text) {
+                    contentValue.addProperty("type", "outputText");
+                    contentValue.addProperty("text", text.text());
+                    JsonArray citations = new JsonArray();
+                    for (dev.packsage.model.ModelBackend.UrlCitation citation : text.citations()) {
+                        JsonObject citationValue = new JsonObject();
+                        citationValue.addProperty("startIndex", citation.startIndex());
+                        citationValue.addProperty("endIndex", citation.endIndex());
+                        citationValue.addProperty("title", citation.title());
+                        citationValue.addProperty("url", citation.url());
+                        citations.add(citationValue);
+                    }
+                    contentValue.add("citations", citations);
+                } else if (part instanceof dev.packsage.model.ModelBackend.Refusal refusal) {
+                    contentValue.addProperty("type", "refusal");
+                    contentValue.addProperty("refusal", refusal.refusal());
+                }
+                content.add(contentValue);
+            }
+            value.add("content", content);
+        } else if (item instanceof dev.packsage.model.ModelBackend.WebSearchCall search) {
+            value.addProperty("type", "webSearchCall");
+            value.addProperty("id", search.id());
+            value.addProperty("status", search.status().name());
+            JsonObject action = new JsonObject();
+            if (search.action() instanceof dev.packsage.model.ModelBackend.SearchAction searchAction) {
+                action.addProperty("type", "search");
+                if (searchAction.query() != null) action.addProperty("query", searchAction.query());
+                JsonArray queries = new JsonArray();
+                searchAction.queries().forEach(queries::add);
+                action.add("queries", queries);
+                JsonArray sources = new JsonArray();
+                searchAction.sources().forEach(source -> sources.add(source.url()));
+                action.add("sources", sources);
+            } else if (search.action() instanceof dev.packsage.model.ModelBackend.OpenPageAction open) {
+                action.addProperty("type", "openPage");
+                if (open.url() != null) action.addProperty("url", open.url());
+            } else if (search.action() instanceof dev.packsage.model.ModelBackend.FindInPageAction find) {
+                action.addProperty("type", "findInPage");
+                action.addProperty("url", find.url());
+                action.addProperty("pattern", find.pattern());
+            }
+            value.add("action", action);
         }
         return value;
     }
@@ -423,8 +470,53 @@ public final class ConversationStore {
         if ("toolResult".equals(type)) return new dev.packsage.model.ModelBackend.ToolResult(
                 value.get("callId").getAsString(), value.get("serializedResult").getAsString(),
                 value.get("error").getAsBoolean());
-        if ("opaqueHostedOutput".equals(type)) return new dev.packsage.model.ModelBackend.OpaqueHostedOutput(
-                value.get("outputType").getAsString(), value.get("serializedContent").getAsString());
+        if ("assistantOutput".equals(type)) {
+            List<dev.packsage.model.ModelBackend.OutputContent> content = new ArrayList<>();
+            value.getAsJsonArray("content").forEach(item -> {
+                JsonObject part = item.getAsJsonObject();
+                if ("outputText".equals(part.get("type").getAsString())) {
+                    List<dev.packsage.model.ModelBackend.UrlCitation> citations = new ArrayList<>();
+                    part.getAsJsonArray("citations").forEach(citation -> {
+                        JsonObject citationValue = citation.getAsJsonObject();
+                        citations.add(new dev.packsage.model.ModelBackend.UrlCitation(
+                                citationValue.get("startIndex").getAsInt(), citationValue.get("endIndex").getAsInt(),
+                                citationValue.get("title").getAsString(), citationValue.get("url").getAsString()));
+                    });
+                    content.add(new dev.packsage.model.ModelBackend.OutputText(part.get("text").getAsString(), citations));
+                } else if ("refusal".equals(part.get("type").getAsString())) {
+                    content.add(new dev.packsage.model.ModelBackend.Refusal(part.get("refusal").getAsString()));
+                } else {
+                    throw new IllegalArgumentException("unknown assistant output content type");
+                }
+            });
+            return new dev.packsage.model.ModelBackend.AssistantOutput(value.get("id").getAsString(),
+                    dev.packsage.model.ModelBackend.OutputStatus.valueOf(value.get("status").getAsString()),
+                    value.has("phase") ? dev.packsage.model.ModelBackend.OutputPhase.valueOf(value.get("phase").getAsString()) : null,
+                    content);
+        }
+        if ("webSearchCall".equals(type)) {
+            JsonObject action = value.getAsJsonObject("action");
+            dev.packsage.model.ModelBackend.WebSearchAction searchAction;
+            if ("search".equals(action.get("type").getAsString())) {
+                List<String> queries = new ArrayList<>();
+                action.getAsJsonArray("queries").forEach(query -> queries.add(query.getAsString()));
+                List<dev.packsage.model.ModelBackend.WebSearchSource> sources = new ArrayList<>();
+                action.getAsJsonArray("sources").forEach(source -> sources.add(
+                        new dev.packsage.model.ModelBackend.WebSearchSource(source.getAsString())));
+                searchAction = new dev.packsage.model.ModelBackend.SearchAction(
+                        action.has("query") ? action.get("query").getAsString() : null, queries, sources);
+            } else if ("openPage".equals(action.get("type").getAsString())) {
+                searchAction = new dev.packsage.model.ModelBackend.OpenPageAction(
+                        action.has("url") ? action.get("url").getAsString() : null);
+            } else if ("findInPage".equals(action.get("type").getAsString())) {
+                searchAction = new dev.packsage.model.ModelBackend.FindInPageAction(action.get("url").getAsString(),
+                        action.get("pattern").getAsString());
+            } else {
+                throw new IllegalArgumentException("unknown web search action type");
+            }
+            return new dev.packsage.model.ModelBackend.WebSearchCall(value.get("id").getAsString(),
+                    dev.packsage.model.ModelBackend.WebSearchStatus.valueOf(value.get("status").getAsString()), searchAction);
+        }
         throw new IllegalArgumentException("unknown replay item type");
     }
 

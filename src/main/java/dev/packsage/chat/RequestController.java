@@ -328,7 +328,7 @@ public final class RequestController {
         synchronized (stateLock) {
             if (!isCurrent(request)) return;
             try {
-                replay = mergeReplay(event.replayItems(), request.toolResults);
+                replay = validateReplay(event.replayItems(), request.toolResults);
             } catch (RuntimeException exception) {
                 replay = List.copyOf(request.partialReplay);
                 status = ChatContracts.OutcomeStatus.FAILED;
@@ -475,22 +475,34 @@ public final class RequestController {
                 sources, navigationTargets, List.copyOf(errors));
     }
 
-    private static List<ModelBackend.InputItem> mergeReplay(List<ModelBackend.InputItem> providerReplay,
-                                                             Map<String, ModelBackend.ToolResult> results) {
-        List<ModelBackend.InputItem> replay = new ArrayList<>();
+    private static List<ModelBackend.InputItem> validateReplay(List<ModelBackend.InputItem> providerReplay,
+                                                                Map<String, ModelBackend.ToolResult> submittedResults) {
         Set<String> calls = new LinkedHashSet<>();
+        Set<String> results = new LinkedHashSet<>();
         for (ModelBackend.InputItem item : providerReplay) {
-            if (item instanceof ModelBackend.ToolResult) throw new IllegalArgumentException("backend replay contains a tool result");
-            replay.add(item);
+            if (!(item instanceof ModelBackend.EncryptedReasoning
+                    || item instanceof ModelBackend.ToolCall
+                    || item instanceof ModelBackend.ToolResult
+                    || item instanceof ModelBackend.AssistantOutput
+                    || item instanceof ModelBackend.WebSearchCall)) {
+                throw new IllegalArgumentException("backend replay contains a non-durable item");
+            }
             if (item instanceof ModelBackend.ToolCall call) {
                 if (!calls.add(call.callId())) throw new IllegalArgumentException("duplicate tool call: " + call.callId());
-                ModelBackend.ToolResult result = results.get(call.callId());
-                if (result == null) throw new IllegalArgumentException("incomplete tool replay: " + call.callId());
-                replay.add(result);
+            }
+            if (item instanceof ModelBackend.ToolResult result) {
+                if (!calls.contains(result.callId()) || !results.add(result.callId())) {
+                    throw new IllegalArgumentException("invalid tool result: " + result.callId());
+                }
+                if (!result.equals(submittedResults.get(result.callId()))) {
+                    throw new IllegalArgumentException("backend replay changed submitted tool result: " + result.callId());
+                }
             }
         }
-        if (!calls.equals(results.keySet())) throw new IllegalArgumentException("tool result has no matching replay call");
-        return List.copyOf(replay);
+        if (!calls.equals(results) || !results.equals(submittedResults.keySet())) {
+            throw new IllegalArgumentException("incomplete tool replay");
+        }
+        return List.copyOf(providerReplay);
     }
 
     private static String failureMessage(Throwable failure) {

@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class ConversationStoreTest {
     private static final Executor DIRECT = Runnable::run;
@@ -39,7 +40,12 @@ class ConversationStoreTest {
         ChatContracts.Turn turn = new ChatContracts.Turn(new ChatContracts.RequestId("request-1"), "Where?",
                 "Here.", List.of(new ModelBackend.EncryptedReasoning("reasoning-1", "encrypted", "[]"),
                 new ModelBackend.ToolCall("call-1", "lookup", "{}"),
-                new ModelBackend.ToolResult("call-1", "{\"ok\":true}", false)), context, List.of(source),
+                new ModelBackend.ToolResult("call-1", "{\"ok\":true}", false),
+                new ModelBackend.WebSearchCall("search-1", ModelBackend.WebSearchStatus.COMPLETED,
+                        new ModelBackend.OpenPageAction("https://example.test")),
+                new ModelBackend.AssistantOutput("message-1", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER,
+                        List.of(new ModelBackend.OutputText("Here.", List.of())))), context, List.of(source),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, "ok"), 9);
 
         store.appendMedia(world, conversation.id(), screenshot, new byte[]{1, 2, 3}).toCompletableFuture().join();
@@ -147,6 +153,25 @@ class ConversationStoreTest {
         assertThrows(RuntimeException.class,
                 () -> store.appendTurn(world, SCOPE, conversation.id(), turn).toCompletableFuture().join());
         assertTrue(store.openLatest(world).toCompletableFuture().join().turns().isEmpty());
+    }
+
+    @Test
+    void latestMarkerLinkCannotRedirectConversationSelectionOutsideTheRoot() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory.resolve("store"), DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        Path latest = store.conversationPath(world, conversation.id()).getParent().resolve("latest");
+        Path outside = temporaryDirectory.resolve("outside-latest");
+        Files.writeString(outside, "outside");
+        Files.delete(latest);
+        try {
+            Files.createSymbolicLink(latest, outside);
+        } catch (UnsupportedOperationException | java.io.IOException exception) {
+            assumeTrue(false, "symbolic links unavailable: " + exception.getMessage());
+        }
+
+        assertThrows(RuntimeException.class, () -> store.openLatest(world).toCompletableFuture().join());
+        assertEquals("outside", Files.readString(outside));
     }
 
     private static ChatContracts.Turn simpleTurn(String question) {

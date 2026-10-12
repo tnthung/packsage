@@ -1,4 +1,6 @@
 {
+  "key.packsage.open": "Open PackSage",
+  "key.categories.packsage": "PackSage",
   "packsage.assistant.title": "PackSage Assistant",
   "packsage.assistant.input": "Ask PackSage",
   "packsage.assistant.send": "Send",

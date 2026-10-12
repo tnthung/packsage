@@ -54,10 +54,11 @@ if (project.hasProperty('packsageBootstrapOnly')) {
             'dev/packsage/knowledge/Evidence.java',
             'dev/packsage/knowledge/KnowledgeProvider.java',
             'dev/packsage/model/ModelBackend.java',
+            'dev/packsage/model/chatgpt/*.java',
             'dev/packsage/chat/ChatContracts.java',
             'dev/packsage/chat/ChatActions.java'])
-    sourceSets.main.resources.setIncludes(['META-INF/neoforge.mods.toml', 'pack.mcmeta'])
-    sourceSets.test.java.setIncludes(['dev/packsage/knowledge/EvidenceContractTest.java', 'dev/packsage/chat/ChatContractsTest.java'])
+    sourceSets.main.resources.setIncludes(['META-INF/neoforge.mods.toml', 'pack.mcmeta', 'assets/packsage/lang/en_us.json'])
+    sourceSets.test.java.setIncludes(['dev/packsage/knowledge/EvidenceContractTest.java', 'dev/packsage/chat/ChatContractsTest.java', 'dev/packsage/model/chatgpt/*.java'])
 }
 
 tasks.named('jar', Jar).configure {

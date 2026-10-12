@@ -2,7 +2,7 @@
 
 Date: 2026-10-12
 
-Release acceptance is open. The player launched Minecraft, entered a world and opened the G1 probe in the `Packsage` instance; the screenshot and instance log establish that startup. Authenticated ChatGPT results remain unverified. The [player checklist](../testing/2026-10-12-player-checks.md) starts with G1; production entrypoint activation and G2/G3 follow that result.
+Release acceptance is open. The player launched the `Packsage` instance and completed real ChatGPT text, client-tool, image and hosted-search requests with `GPT-6-Luna`. This satisfies the G1 prerequisite for full-assistant activation. Installed-pack retrieval, gameplay behavior and recovery still require the [G2/G3 player checks](../testing/2026-10-12-player-checks.md).
 
 ## Automated build checkpoint
 
@@ -20,17 +20,17 @@ Probe SHA-256: `3EFA55121085E3672DF4A1DAADFAEF46ADE257280C8495DB723AFA67FF341D90
 
 The build copied that probe to `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\mods\packsage.jar`; the installed hash matches. The player's first screenshot exposed blurred status/response text. Fix `30f90cb` renders the inherited background once before custom drawing; compiled ordering checks cover all three affected screens, and the next player screenshot confirms readable text.
 
-That screenshot reports `FAILED: system browser is unavailable`. Pinned Minecraft startup code sets `java.awt.headless=true`, making the old AWT `Desktop` check reject browser opening. Fix `8de090e` uses Minecraft's native platform URL launcher without changing the OAuth flow. Browser launch and successful sign-in remain pending the player's next attempt.
+The following screenshot reported `FAILED: system browser is unavailable`. Pinned Minecraft startup code sets `java.awt.headless=true`, making the old AWT `Desktop` check reject browser opening. Fix `8de090e` uses Minecraft's native platform URL launcher without changing the OAuth flow. Four subsequent player screenshots show the authenticated model catalog and completed text, read-only fixture tool, synthetic-image and hosted-search requests; the [route validation](2026-10-12-chatgpt-route.md#live-gate) records their exact limits.
 
-This replaces the earlier probe build. The [G1 checklist](../testing/2026-10-12-player-checks.md#g1-packsage-load-and-chatgpt-route) covers browser sign-in, text, a read-only fixture tool, a synthetic image, hosted search and cancellation. No real account result has been inferred from the tests.
+This replaces the earlier probe build. G1 sign-in/inference/tool exchange passed through the live route; image input and hosted search were also accepted. Cancellation, refresh/revocation and clicking the citation remain unobserved. These results came from player screenshots, not automated tests.
 
 ## Specification release gates
 
 | Gate | Recorded evidence | Remaining evidence |
 |---|---|---|
-| Reproducible environment | Pinned Java/build/loader versions, successful full build, prepared minimal fixture with verified mod hashes. | Player launch; representative FTB Evolution version and run. |
-| ChatGPT route | Automated authentication, streaming and typed tool/replay checks. | Real sign-in, account/client eligibility, inference, installed-data tool exchange, image acceptance and recovery. |
-| Hosted search | Automated request policy, typed search/citation replay and failure checks. | Hosted search and clickable sources; automatic OFF plus explicit request; failure/cancellation in the live route. |
+| Reproducible environment | Pinned Java/build/loader versions, successful full build, prepared minimal fixture with verified mod hashes; player launch and world entry. | Representative pack compatibility and run. |
+| ChatGPT route | Automated authentication, streaming and typed replay checks; real sign-in/catalog, text, fixture-tool exchange and image acceptance with GPT-6-Luna. | Installed-data tool exchange, visible streaming and recovery/refresh/revocation. |
+| Hosted search | Automated policy/replay/failure checks; real completed hosted search with URL citation and source button. | Clicking sources; automatic OFF plus explicit request; failure/cancellation in the live route. |
 | Native and JEI evidence | Automated normalization, alternatives, planning, opaque/error handling and concurrent scoped reads. | Fixture recipe replacement, actual viewer/runtime records and navigation. |
 | FTB and Patchouli | Automated scoped quest/book extraction and navigation validation; fixture chapter identity corrected. | Current team progression, book resource override and live navigation. |
 | Config bridge | Automated bounded catalog/file fallback, scope labels, malformed values and failure isolation. | Pinned catalog runtime, saved/loaded/restart behavior and remote synchronized/unknown settings. |
@@ -41,4 +41,4 @@ This replaces the earlier probe build. The [G1 checklist](../testing/2026-10-12-
 
 The [FTB Evolution preflight](2026-10-12-ftb-evolution.md) found no official release matching the current complete loader/adapter contract. Its real-pack gate needs a validated compatibility extension before instance preparation; the real pack and current tested pins remain unchanged.
 
-Build and mocked tests establish only their recorded automated behavior. Live route, provider lifecycle, screenshots, pause and navigation remain pending; no universal compatibility or performance result is claimed.
+Build and mocked tests establish only their recorded automated behavior. G1 establishes the observed live route results above. Full-assistant provider lifecycle, screenshots, pause and navigation remain pending; no universal compatibility or performance result is claimed.

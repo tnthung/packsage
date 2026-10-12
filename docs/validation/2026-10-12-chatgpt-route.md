@@ -18,6 +18,15 @@ Focused source validation used Java 21-compatible `javac` and a Java 21 runtime 
 
 ## Live gate
 
-The player can now read the probe status after the rendering fix. The next observed failure was local browser dispatch (`system browser is unavailable`), traced to Minecraft's explicit headless AWT setting. The default opener now uses Minecraft's native platform URL launcher; the rebuilt probe passes all 42 focused Gradle tests and is installed in the player's instance. Successful browser authorization and authenticated inference are still unobserved.
+The player completed the rebuilt probe in the `Packsage` instance after browser-launch fix `8de090e`. Four screenshots show the authenticated catalog selecting `GPT-6-Luna` and completed text, client-tool, image and hosted-search requests:
 
-G1 remains pending. No real ChatGPT account, dynamic client registration, authenticated model catalog, streamed response, refresh/revocation, client-tool continuation, image input or hosted-search behavior has been observed in Minecraft. Release readiness remains blocked until the player completes those checks through PackSage's browser flow and records each accepted or unsupported capability without substituting an API key or private endpoint.
+| Check | Observed result |
+|---|---|
+| Text | `G1 request completed`, answer `ready`. |
+| Read-only tool | `G1 request completed`, answer `{"fixture":"packsage-read-only"}`. This is the probe tool, not installed-pack retrieval. |
+| Synthetic image | Completed image request with an image description. This establishes input acceptance for the selected account/model; the tiny synthetic image does not establish visual accuracy. |
+| Hosted search | Completed `web_search_call`, release-date answer, returned Minecraft source URL/citation and an `Open citation 1` button. |
+
+The G1 prerequisite for activating the full assistant is satisfied: sign-in/catalog, inference and client-tool exchange worked through the real route. The earlier blurred text and unavailable-browser failures are also superseded by these readable authenticated results.
+
+The screenshots do not establish intermediate streamed-frame behavior, clicking a citation, Stop/cancel, refresh, revocation or recovery. Those observations remain open, as do installed-pack retrieval and full-assistant gameplay checks. No credential contents or callback URLs are recorded.

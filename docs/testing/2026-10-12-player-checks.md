@@ -12,6 +12,18 @@ These checks use the separate `packsage-minimal` instance prepared by the assist
 
 The pinned external mods are Minecraft 1.21.1, NeoForge 21.1.202, JEI 19.27.0.340, FTB Quests 2101.1.36, FTB Library 2101.1.37, FTB Teams 2101.1.11, Architectury 13.0.11, Patchouli 1.21.1-92 and Nature's Aura 41.10.
 
+## G1: PackSage load and ChatGPT route
+
+This first JAR opens the development sign-in probe. The complete assistant and pack-evidence adapters are still being integrated.
+
+1. Close Minecraft. From the imported profile's **More → Open Folder**, open `mods` and copy `D:\Project\packsage\dist\packsage-bootstrap.jar` into it. Keep only one PackSage JAR in that folder.
+2. Launch the fixture and enter a world. Press **P** to open PackSage. If another mod uses P, change **Open PackSage** under **Options → Controls → Key Binds → PackSage**.
+3. Click **Sign in**, complete the system-browser ChatGPT flow, and return to the game. Record the resulting status. Do not send tokens, callback URLs or credential files.
+4. Once the model name appears, click **Text**, then **Read-only tool**, then **Synthetic image**, then **Search**, waiting for each result. Record successful replies and any unsupported or failed status exactly as shown.
+5. Try **Stop** while a request is running, and **Cancel sign-in** during another browser attempt. Record whether the request stops and the screen remains usable.
+
+The assistant handles builds, automated tests and fixes. These game/browser observations are the live gate; the JAR build alone does not prove sign-in, account eligibility, images or hosted search.
+
 ## Create the focused test world
 
 1. Create a new survival or creative singleplayer world named `packsage-fixture`.

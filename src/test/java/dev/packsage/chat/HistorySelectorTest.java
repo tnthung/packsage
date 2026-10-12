@@ -61,17 +61,17 @@ class HistorySelectorTest {
     }
 
     @Test
-    void excludesIncompleteToolReplayAndReportsRecovery() {
-        ChatContracts.Turn incomplete = new ChatContracts.Turn(new ChatContracts.RequestId("request-incomplete"),
-                "question", "answer", List.of(new ModelBackend.ToolCall("call-1", "lookup", "{}")),
+    void selectsNewestCompletedQuestionAndAnswerEvenWhenHistoricalReplayIsPartial() {
+        ChatContracts.Turn usable = new ChatContracts.Turn(new ChatContracts.RequestId("request-partial"),
+                "question", "answer", List.of(new ModelBackend.ToolCall("call", "lookup", "{}")),
                 new ChatContracts.Context("fresh", null, SCOPE), List.of(),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
 
-        ChatContracts.HistorySelection selection = HistorySelector.select(List.of(incomplete),
+        ChatContracts.HistorySelection selection = HistorySelector.select(List.of(usable),
                 new ChatContracts.HistoryLimits(10, 12_000), ignored -> 1);
 
-        assertTrue(selection.turns().isEmpty());
-        assertEquals(List.of("excluded incomplete replay for request request-incomplete"), selection.errors());
+        assertEquals(List.of(usable), selection.turns());
+        assertTrue(selection.errors().isEmpty());
     }
 
     private static ChatContracts.Turn turn(int index, int tokenCount) {

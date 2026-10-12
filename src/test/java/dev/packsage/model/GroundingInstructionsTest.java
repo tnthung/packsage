@@ -34,13 +34,30 @@ class GroundingInstructionsTest {
         assertEquals(ModelBackend.SearchMode.EXPLICIT_ONLY, request.searchMode());
         assertEquals("current", request.requestId());
         assertEquals(2048, request.outputBudget());
-        assertTrue(request.input().containsAll(replay));
+        assertEquals(3, request.input().size());
+        assertTrue(request.input().get(0) instanceof ModelBackend.Message);
+        assertTrue(request.input().get(1) instanceof ModelBackend.Message);
+        assertEquals("old question", ((ModelBackend.TextContent) ((ModelBackend.Message) request.input().get(0)).content().getFirst()).text());
+        assertEquals("old answer", ((ModelBackend.TextContent) ((ModelBackend.Message) request.input().get(1)).content().getFirst()).text());
         var current = (ModelBackend.Message) request.input().getLast();
         assertTrue(current.content().stream().anyMatch(content -> content instanceof ModelBackend.ImageContent image
                 && image.dataUrl().equals("data:image/png;base64,AQID")));
         assertTrue(current.content().stream().anyMatch(content -> content instanceof ModelBackend.TextContent text
                 && text.text().contains("current question") && text.text().contains("overworld")));
         assertEquals(8, request.tools().size());
+    }
+
+    @Test
+    void explicitReasoningEffortTransfersToModelRequest() {
+        var submission = new ChatContracts.Submission(new ChatContracts.RequestId("reasoning"),
+                new ChatContracts.WorldIdentity("world", "World"), SCOPE, "question", false,
+                new ChatContracts.HistoryLimits(10, 12_000), new ModelBackend.ModelInfo("catalog-model", null, null, null, null),
+                ModelBackend.SearchMode.DISABLED, 2048, ModelBackend.ReasoningEffort.HIGH);
+        var request = GroundingInstructions.build(new ChatContracts.PreparedRequest(submission,
+                new ChatContracts.HistorySelection(List.of(), 0),
+                new ChatContracts.CapturedContext(new ChatContracts.Context("{}", null, SCOPE), new byte[0]),
+                new ChatContracts.EvidenceSelection(List.of(), List.of())));
+        assertEquals(ModelBackend.ReasoningEffort.HIGH, request.reasoningEffort());
     }
 
     @Test
@@ -87,5 +104,30 @@ class GroundingInstructionsTest {
         assertEquals(GroundingInstructions.historyTextBudget(withSources), request.input().subList(0, request.input().size() - 1).stream()
                 .mapToInt(item -> new com.google.gson.GsonBuilder().serializeNulls().create().toJson(item)
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8).length).sum());
+    }
+
+    @Test
+    void largeHistoricalToolPayloadsReplayOnlyQuestionAndAnswer() {
+        var replay = List.<ModelBackend.InputItem>of(new ModelBackend.ToolCall("old", "search_pack", "{}"),
+                new ModelBackend.ToolResult("old", "x".repeat(40_000), false));
+        var turn = new ChatContracts.Turn(new ChatContracts.RequestId("history-large"), "old question", "old answer", replay,
+                new ChatContracts.Context("{\"old\":true}", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0);
+        var submission = new ChatContracts.Submission(new ChatContracts.RequestId("current-large"),
+                new ChatContracts.WorldIdentity("world", "World"), SCOPE, "current question", false,
+                new ChatContracts.HistoryLimits(10, 12_000), new ModelBackend.ModelInfo("catalog-model", null, null, null, null),
+                ModelBackend.SearchMode.DISABLED, 2048);
+        var request = GroundingInstructions.build(new ChatContracts.PreparedRequest(submission,
+                new ChatContracts.HistorySelection(List.of(turn), GroundingInstructions.historyTextBudget(turn)),
+                new ChatContracts.CapturedContext(new ChatContracts.Context("{}", null, SCOPE), new byte[0]),
+                new ChatContracts.EvidenceSelection(List.of(), List.of())));
+
+        assertEquals(3, request.input().size());
+        assertTrue(request.input().get(0) instanceof ModelBackend.Message);
+        assertTrue(request.input().get(1) instanceof ModelBackend.Message);
+        assertTrue(((ModelBackend.Message) request.input().get(0)).content().getFirst() instanceof ModelBackend.TextContent);
+        assertTrue(((ModelBackend.Message) request.input().get(1)).content().getFirst() instanceof ModelBackend.TextContent);
+        assertTrue(request.input().stream().noneMatch(ModelBackend.ToolResult.class::isInstance));
+        assertTrue(GroundingInstructions.historyTextBudget(turn) < 12_000);
     }
 }

@@ -77,6 +77,8 @@ class AssistantIntegrationTest {
         assertEquals(2, backend.submitted.size());
         assertEquals(backend.submitted.get(0).callId(), "search-1");
         assertEquals(backend.submitted.get(1).callId(), "read-1");
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA,
+                "Use the loaded recipe; the installed guide differs. See the external version note.", null, List.of(), List.of(), null));
         var assistant = new ModelBackend.AssistantOutput("answer-1", ModelBackend.OutputStatus.COMPLETED,
                 ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(
                         "Use the loaded recipe; the installed guide differs. See the external version note.",
@@ -108,8 +110,11 @@ class AssistantIntegrationTest {
         runtime.send("What did the earlier evidence say?", false, false);
         assertEquals(2, backend.requests.size());
         var replayed = backend.requests.get(1).input();
-        assertEquals(List.of(searchCall, backend.submitted.get(0), readCall, backend.submitted.get(1), assistant),
-                replayed.stream().filter(item -> !(item instanceof ModelBackend.Message)).toList());
+        assertEquals(List.of(), replayed.stream().filter(item -> !(item instanceof ModelBackend.Message)).toList());
+        assertEquals("How do I make a torch?",
+                ((ModelBackend.TextContent) ((ModelBackend.Message) replayed.get(0)).content().getFirst()).text());
+        assertEquals("Checking installed evidence. Use the loaded recipe; the installed guide differs. See the external version note.",
+                ((ModelBackend.TextContent) ((ModelBackend.Message) replayed.get(1)).content().getFirst()).text());
         var currentMessage = replayed.stream().filter(ModelBackend.Message.class::isInstance).map(ModelBackend.Message.class::cast)
                 .reduce((first, second) -> second).orElseThrow();
         assertTrue(currentMessage.content().stream().anyMatch(content -> content instanceof ModelBackend.TextContent text

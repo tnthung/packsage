@@ -57,15 +57,12 @@ public final class GroundingInstructions {
                 submission.searchMode(), submission.requestId().value(), submission.outputBudget(), submission.reasoningEffort());
     }
 
-    /** The input items one historical turn contributes to a request: its question, its replay items and, if needed, its answer. */
+    /** The input items one historical turn contributes to a request. */
     private static List<ModelBackend.InputItem> historyInput(ChatContracts.Turn turn) {
         var input = new ArrayList<ModelBackend.InputItem>();
         input.add(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
-                "Historical question: " + turn.question() + "\nEarlier gameplay observation: " + turn.context().serializedGameplayContext()))));
-        input.addAll(turn.replayItems());
-        if (turn.replayItems().stream().noneMatch(ModelBackend.AssistantOutput.class::isInstance)) {
-            input.add(new ModelBackend.Message(ModelBackend.Role.ASSISTANT, List.of(new ModelBackend.TextContent(turn.answer()))));
-        }
+                turn.question()))));
+        input.add(new ModelBackend.Message(ModelBackend.Role.ASSISTANT, List.of(new ModelBackend.TextContent(turn.answer()))));
         return input;
     }
 

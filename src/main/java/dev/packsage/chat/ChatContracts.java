@@ -4,10 +4,8 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.ModelBackend;
 
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 public final class ChatContracts {
     private ChatContracts() {
@@ -180,25 +178,6 @@ public final class ChatContracts {
                 if (turn.outcome().status() != OutcomeStatus.COMPLETED) {
                     throw new IllegalArgumentException("history can contain only completed turns");
                 }
-                Set<String> calls = new HashSet<>();
-                Set<String> results = new HashSet<>();
-                for (ModelBackend.InputItem item : turn.replayItems()) {
-                    if (!(item instanceof ModelBackend.EncryptedReasoning
-                            || item instanceof ModelBackend.ToolCall
-                            || item instanceof ModelBackend.ToolResult
-                            || item instanceof ModelBackend.AssistantOutput
-                            || item instanceof ModelBackend.WebSearchCall)) {
-                        throw new IllegalArgumentException("history contains a non-replay output item");
-                    }
-                    if (item instanceof ModelBackend.ToolCall call && !calls.add(call.callId())) {
-                        throw new IllegalArgumentException("history contains a duplicate tool call");
-                    }
-                    if (item instanceof ModelBackend.ToolResult result
-                            && (!calls.contains(result.callId()) || !results.add(result.callId()))) {
-                        throw new IllegalArgumentException("history contains an invalid tool result");
-                    }
-                }
-                if (!calls.equals(results)) throw new IllegalArgumentException("history contains incomplete tool replay");
             }
         }
 

@@ -76,7 +76,7 @@ public final class ChatGptProbeScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
+        super.render(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, title, width / 2, 12, 0xffffff);
         graphics.drawString(font, Component.literal("G1 status: " + status), 20, 92, status.startsWith("Failed") ? 0xff5555 : 0xffffff);
         int y = 108;
@@ -84,7 +84,6 @@ public final class ChatGptProbeScreen extends Screen {
             graphics.drawString(font, line, 20, y, 0xd0d0d0);
             y += 10;
         }
-        super.render(graphics, mouseX, mouseY, partialTick);
     }
 
     public void signIn() {

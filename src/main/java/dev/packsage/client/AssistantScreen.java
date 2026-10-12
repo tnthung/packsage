@@ -86,7 +86,7 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
+        super.render(graphics, mouseX, mouseY, partialTick);
         updateButtons();
         int contentTop = 116;
         int contentBottom = Math.max(contentTop + 1, height - 10);
@@ -157,7 +157,6 @@ public final class AssistantScreen extends Screen {
         }
         graphics.disableScissor();
         updateSourceButtons(contentTop, contentBottom);
-        super.render(graphics, mouseX, mouseY, partialTick);
     }
 
     @Override

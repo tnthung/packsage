@@ -249,7 +249,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
                 if (coverage == Evidence.Coverage.COMPLETE) coverage = Evidence.Coverage.PARTIAL;
                 if (failure == null) failure = "entry provenance capture failed: " + provenanceFailure;
             }
-            var provenance = addedBy.isBlank() ? List.<String>of()
+            var provenance = addedBy == null || addedBy.isBlank() ? List.<String>of()
                     : List.of("patchouli:resource:" + addedBy);
             return new EntryRecord(book.id.toString(), id, title, pages, !hidden && !locked, locked, secret, hidden,
                     mappings, provenance, coverage, failure);
@@ -364,7 +364,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
                 .flatMap(entry -> entry.pages().stream()).anyMatch(page -> page.decoding() == Evidence.DecodingStatus.OPAQUE);
         var partial = snapshot.coverage() != Evidence.Coverage.COMPLETE || opaque;
         return new ProviderStatus(partial ? Availability.PARTIAL : Availability.AVAILABLE, VERSION,
-                "loaded Patchouli books generation " + snapshot.generation());
+                snapshot.failure() == null ? "loaded Patchouli books generation " + snapshot.generation() : snapshot.failure());
     }
 
     public void refresh() {
@@ -434,11 +434,12 @@ public final class PatchouliProvider implements KnowledgeProvider {
             return CompletableFuture.supplyAsync(snapshots, clientExecutor).handle((snapshot, captureFailure) -> {
                 if (unavailable) return unavailableResult();
                 if (generation != lifecycleGeneration) {
-                    return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null);
+                    return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null,
+                            "Patchouli snapshot was invalidated while the query was running");
                 }
                 if (captureFailure != null) {
                     failure = "Patchouli capture failed: " + captureFailure;
-                    return errorResult();
+                    return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, failure);
                 }
                 if (snapshot == null) {
                     current = null;
@@ -449,7 +450,8 @@ public final class PatchouliProvider implements KnowledgeProvider {
                 if (!sameScope(snapshot.scope(), scope) || !scopeIsCurrent(snapshot.scope())
                         || query.cursor() != null && query.cursorScope() != null
                         && !sameScope(query.cursorScope(), scope)) {
-                    return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null);
+                    return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null,
+                            "Patchouli snapshot scope does not match the requested active scope");
                 }
                 current = snapshot;
                 currentLifecycleGeneration = generation;
@@ -458,7 +460,8 @@ public final class PatchouliProvider implements KnowledgeProvider {
             });
         } catch (RuntimeException schedulingFailure) {
             failure = "Patchouli client-thread scheduling failed: " + schedulingFailure;
-            return CompletableFuture.completedFuture(errorResult());
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR,
+                    Evidence.Outcome.ERROR, null, failure));
         }
     }
 
@@ -603,7 +606,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
                 .anyMatch(record -> record.source().coverage() == Evidence.Coverage.OPAQUE)) coverage = Evidence.Coverage.OPAQUE;
         var next = scanned < entries.size() ? Integer.toString(start + scanned)
                 : scanCapped ? Integer.toString(start + entries.size()) : null;
-        return result(records, coverage, next);
+        return result(records, coverage, next, snapshot.failure());
     }
 
     private static Evidence.Record toRecord(EntryRecord entry, Snapshot snapshot, List<Integer> targetPages,
@@ -697,11 +700,12 @@ public final class PatchouliProvider implements KnowledgeProvider {
         try { return Integer.parseInt(cursor); } catch (NumberFormatException ignored) { return -1; }
     }
 
-    private static Evidence.Result result(List<Evidence.Record> records, Evidence.Coverage coverage, String next) {
+    private static Evidence.Result result(List<Evidence.Record> records, Evidence.Coverage coverage, String next,
+                                          String detail) {
         var outcome = coverage == Evidence.Coverage.UNAVAILABLE ? Evidence.Outcome.UNKNOWN
                 : coverage == Evidence.Coverage.ERROR ? Evidence.Outcome.ERROR
                 : coverage == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL;
-        return new Evidence.Result(records, coverage, outcome, next);
+        return new Evidence.Result(records, coverage, outcome, next, detail);
     }
 
     private static Evidence.Result unavailableResult() {
@@ -709,7 +713,8 @@ public final class PatchouliProvider implements KnowledgeProvider {
     }
 
     private static Evidence.Result errorResult() {
-        return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null);
+        return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null,
+                "Patchouli query arguments are invalid");
     }
 
     private boolean scopeIsCurrent(Evidence.Scope snapshotScope) {

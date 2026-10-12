@@ -93,6 +93,64 @@ class JeiProjectionTest {
     }
 
     @Test
+    void recentSnapshotsRemainOpenableWithinOneRuntimeGeneration() {
+        var first = new JeiProvider.Projection("mod:category", "mod:category#a", "mod:first",
+                "First", List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
+                Evidence.DecodingStatus.VERIFIED, null);
+        var second = new JeiProvider.Projection("mod:category", "mod:category#b", "mod:second",
+                "Second", List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
+                Evidence.DecodingStatus.VERIFIED, null);
+        var replacement = new JeiProvider.Projection("mod:category", "mod:category#c", "mod:third",
+                "Third", List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
+                Evidence.DecodingStatus.VERIFIED, null);
+        var provider = new JeiProvider((scope, query) -> {
+            var text = ((Evidence.JsonString) query.arguments().values().get("text")).value();
+            return text.contains("first") ? new JeiProvider.Snapshot(scope, 7, 1, List.of(first), ignored -> { })
+                    : text.contains("second") ? new JeiProvider.Snapshot(scope, 7, 2, List.of(second), ignored -> { })
+                    : new JeiProvider.Snapshot(scope, 8, 1, List.of(replacement), ignored -> { });
+        }, Runnable::run, () -> true);
+
+        var firstResult = provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("first"))), 1, null, null), SCOPE)
+                .toCompletableFuture().join();
+        var firstTarget = firstResult.records().getFirst().targets().getFirst();
+        provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("second"))), 1, null, null), SCOPE)
+                .toCompletableFuture().join();
+
+        assertEquals(Evidence.NavigationStatus.OPENED, provider.open(firstTarget, SCOPE).status());
+
+        provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("replacement"))), 1, null, null), SCOPE)
+                .toCompletableFuture().join();
+        assertEquals(Evidence.NavigationStatus.STALE, provider.open(firstTarget, SCOPE).status());
+    }
+
+    @Test
+    void emptySnapshotsDoNotEvictARecentTargetWithinTheSameRuntime() {
+        var target = new JeiProvider.Projection("mod:category", "mod:category#target", "mod:target",
+                "Target", List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
+                Evidence.DecodingStatus.VERIFIED, null);
+        var provider = new JeiProvider((scope, query) -> {
+            var text = ((Evidence.JsonString) query.arguments().values().get("text")).value();
+            if (text.equals("target")) return new JeiProvider.Snapshot(scope, 4, 1, List.of(target), ignored -> { });
+            return new JeiProvider.Snapshot(scope, 4, Long.parseLong(text.substring("empty-".length())), List.of(), ignored -> { });
+        }, Runnable::run, () -> true);
+
+        var targetResult = provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("target"))), 1, null, null), SCOPE)
+                .toCompletableFuture().join();
+        var targetHandle = targetResult.records().getFirst().targets().getFirst();
+        for (var index = 2; index <= 18; index++) {
+            provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("empty-" + index))), 1, null, null), SCOPE)
+                    .toCompletableFuture().join();
+        }
+
+        assertEquals(Evidence.NavigationStatus.OPENED, provider.open(targetHandle, SCOPE).status());
+    }
+
+    @Test
     void getWithoutTextAndNegativeCursorReturnResultsInsteadOfThrowing() throws Exception {
         var projection = new JeiProvider.Projection("mod:category", "mod:category#0", "mod:recipe",
                 "Recipe", List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,

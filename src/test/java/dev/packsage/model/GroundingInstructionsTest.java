@@ -84,8 +84,7 @@ class GroundingInstructionsTest {
                 ModelBackend.SearchMode.DISABLED, 2048), new ChatContracts.HistorySelection(List.of(withSources), 0),
                 new ChatContracts.CapturedContext(new ChatContracts.Context("{}", null, SCOPE), new byte[0]),
                 new ChatContracts.EvidenceSelection(List.of(), List.of())));
-        var historical = request.input().subList(0, request.input().size() - 1);
-        assertEquals(GroundingInstructions.historyTextBudget(withSources), historical.stream()
+        assertEquals(GroundingInstructions.historyTextBudget(withSources), request.input().subList(0, request.input().size() - 1).stream()
                 .mapToInt(item -> new com.google.gson.GsonBuilder().serializeNulls().create().toJson(item)
                         .getBytes(java.nio.charset.StandardCharsets.UTF_8).length).sum());
     }

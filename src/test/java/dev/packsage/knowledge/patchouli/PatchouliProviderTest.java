@@ -1,8 +1,18 @@
 package dev.packsage.knowledge.patchouli;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import dev.packsage.knowledge.Evidence;
 import org.junit.jupiter.api.Test;
+import net.minecraft.resources.ResourceLocation;
+import vazkii.patchouli.api.PatchouliConfigAccess;
+import vazkii.patchouli.client.book.BookEntry;
+import vazkii.patchouli.common.base.PatchouliConfig;
+import vazkii.patchouli.common.book.Book;
+import vazkii.patchouli.xplat.XplatModContainer;
 
+import java.nio.file.Path;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -10,6 +20,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PatchouliProviderTest {
@@ -169,8 +180,70 @@ class PatchouliProviderTest {
 
         assertEquals(Evidence.Coverage.ERROR, result.coverage());
         assertEquals(Evidence.Outcome.ERROR, result.outcome());
+        assertTrue(result.detail() != null && result.detail().contains("capture failed"), result.detail());
         assertEquals(Evidence.Coverage.ERROR, provider.query(new Evidence.Query(Evidence.Operation.GET,
                 new Evidence.JsonObject(Map.of()), 1, null, null), SCOPE).toCompletableFuture().join().coverage());
+    }
+
+    @Test
+    void captureEntryAcceptsListenerEntriesWithoutResourceProvenance() throws Exception {
+        var configField = PatchouliConfig.class.getDeclaredField("access");
+        configField.setAccessible(true);
+        var originalConfig = (PatchouliConfigAccess) configField.get(null);
+        configField.set(null, new PatchouliConfigAccess() {
+            @Override public boolean disableAdvancementLocking() { return true; }
+            @Override public List<String> noAdvancementBooks() { return List.of(); }
+            @Override public boolean testingMode() { return false; }
+            @Override public String inventoryButtonBook() { return ""; }
+            @Override public boolean useShiftForQuickLookup() { return false; }
+            @Override public PatchouliConfigAccess.TextOverflowMode overflowMode() { return PatchouliConfigAccess.TextOverflowMode.OVERFLOW; }
+            @Override public int quickLookupTime() { return 0; }
+        });
+        try {
+            var bookJson = new JsonObject();
+            bookJson.addProperty("name", "Fixture");
+            bookJson.addProperty("use_resource_pack", true);
+            var book = new Book(bookJson, new XplatModContainer() {
+                @Override public String getId() { return "fixture"; }
+                @Override public String getName() { return "Fixture"; }
+                @Override public Path getPath(String ignored) { return Path.of("."); }
+                @Override public List<Path> getRootPaths() { return List.of(Path.of(".")); }
+            }, ResourceLocation.parse("fixture:book"), false);
+            var entryJson = new JsonObject();
+            entryJson.addProperty("category", "fixture:category");
+            entryJson.addProperty("name", "Aura");
+            entryJson.addProperty("icon", "fixture:textures/item/aura.png");
+            entryJson.add("pages", new JsonArray());
+            var entry = new BookEntry(entryJson, ResourceLocation.parse("fixture:book/aura"), book, null);
+            entry.updateLockStatus();
+            assertNull(entry.getAddedBy());
+
+            Method captureEntry = PatchouliProvider.Snapshot.class.getDeclaredMethod("captureEntry", Book.class, BookEntry.class);
+            captureEntry.setAccessible(true);
+            var captured = (PatchouliProvider.EntryRecord) captureEntry.invoke(null, book, entry);
+
+            assertEquals("fixture:book/aura", captured.id());
+            assertEquals("Aura", captured.title());
+            assertTrue(captured.visible());
+            assertEquals(List.of(), captured.provenance());
+            assertEquals(Evidence.Coverage.COMPLETE, captured.coverage(), captured.failure());
+        } finally {
+            configField.set(null, originalConfig);
+        }
+    }
+
+    @Test
+    void scopeMismatchReturnsAUsefulPartialDiagnostic() {
+        var provider = new PatchouliProvider(() -> new PatchouliProvider.Snapshot(
+                new Evidence.Scope("other-world", "zh_tw", "team", "patchouli-1", 1), 1, List.of(), ignored -> { }), Runnable::run);
+
+        var result = provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("anything"))), 1, null, null), SCOPE)
+                .toCompletableFuture().join();
+
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertEquals(Evidence.Outcome.UNKNOWN, result.outcome());
+        assertTrue(result.detail() != null && result.detail().contains("scope"), result.detail());
     }
 
     @Test

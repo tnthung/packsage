@@ -373,7 +373,8 @@ public final class KnowledgeService {
                         provider.id() + " extraction failed", new Evidence.JsonObject(Map.of("detail", new Evidence.JsonString(detail))), List.of())),
                         Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null);
             }
-            if (result.detail() != null && result.outcome() == Evidence.Outcome.ERROR) notes.add(provider.id() + ": " + result.detail());
+            if (result.detail() != null && (result.coverage() != Evidence.Coverage.COMPLETE
+                    || result.outcome() != Evidence.Outcome.COMPLETE)) notes.add(provider.id() + ": " + result.detail());
             return result;
         }).thenCompose(pageResult -> {
             if (!request.scope().equals(currentScope.get()) || pageResult.records().stream().anyMatch(record -> !record.source().scope().equals(request.scope()))) return failed(SCOPE_CHANGED);

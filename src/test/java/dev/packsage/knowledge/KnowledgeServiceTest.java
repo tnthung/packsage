@@ -91,6 +91,18 @@ class KnowledgeServiceTest {
     }
 
     @Test
+    void emptyPartialProviderResultKeepsItsDiagnosticDetail() {
+        var provider = new PagedProvider("jei", query -> new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL,
+                Evidence.Outcome.PARTIAL, null, "JEI projection is incomplete"));
+
+        var result = search(service(provider), Map.of("text", text("lantern")));
+
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertEquals(Evidence.Outcome.PARTIAL, result.outcome());
+        assertTrue(result.detail() != null && result.detail().contains("JEI projection is incomplete"), result.detail());
+    }
+
+    @Test
     void reachingTheWorkBoundWithoutMatchesSaysSoAndReturnsACursor() {
         var provider = new PagedProvider("jei", query -> page(List.of(),
                 Integer.toString(query.cursor() == null ? 1 : Integer.parseInt(query.cursor()) + 1)));

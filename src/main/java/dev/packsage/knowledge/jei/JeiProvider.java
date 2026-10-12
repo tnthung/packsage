@@ -126,6 +126,8 @@ public final class JeiProvider implements KnowledgeProvider {
     private final BooleanSupplier owningThread;
     private final java.util.function.LongSupplier clientTick;
     private final Executor laterTick;
+    private static final int MAX_NAVIGATION_SNAPSHOTS = 16;
+    private final List<Snapshot> navigationSnapshots = new ArrayList<>();
     private long lastCaptureTick = Long.MIN_VALUE;
     private volatile Snapshot current;
     private volatile boolean runtimeAvailable;
@@ -209,12 +211,20 @@ public final class JeiProvider implements KnowledgeProvider {
 
     public void refresh() {
         if (refreshSnapshot == null) return;
+        synchronized (navigationSnapshots) {
+            navigationSnapshots.clear();
+        }
         try {
-            current = refreshSnapshot.get();
+            var snapshot = refreshSnapshot.get();
+            current = snapshot;
+            rememberSnapshot(snapshot, true);
             runtimeAvailable = true;
         } catch (RuntimeException failure) {
             PackSageLog.LOGGER.warn("PackSage JEI snapshot refresh failed", failure);
             current = null;
+            synchronized (navigationSnapshots) {
+                navigationSnapshots.clear();
+            }
             runtimeAvailable = false;
         }
     }
@@ -222,6 +232,9 @@ public final class JeiProvider implements KnowledgeProvider {
     public void unavailable() {
         runtimeAvailable = false;
         current = null;
+        synchronized (navigationSnapshots) {
+            navigationSnapshots.clear();
+        }
     }
 
     @Override
@@ -251,14 +264,20 @@ public final class JeiProvider implements KnowledgeProvider {
         });
         return captured
                 .handle((snapshot, failure) -> {
-                    if (failure != null || !runtimeAvailable || snapshot == null) return unavailableOrError(failure);
+                    if (failure != null || !runtimeAvailable || snapshot == null) {
+                        if (failure != null || snapshot == null) clearSnapshots();
+                        return unavailableOrError(failure);
+                    }
                     if (!sameScope(snapshot.scope(), scope) || query.cursor() != null && query.cursorScope() != null
                             && !sameScope(query.cursorScope(), scope)) {
+                        clearSnapshots();
                         return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null);
                     }
-                    current = snapshot;
-                    return snapshot.queryScoped() ? queryScopedResult(snapshot)
+                    var result = snapshot.queryScoped() ? queryScopedResult(snapshot)
                             : querySnapshot(snapshot, query, cursor);
+                    rememberSnapshot(snapshot, result.records().stream().anyMatch(record -> !record.targets().isEmpty()));
+                    current = snapshot;
+                    return result;
                 });
     }
 
@@ -270,24 +289,30 @@ public final class JeiProvider implements KnowledgeProvider {
         if (!runtimeAvailable || snapshot == null) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI runtime unavailable");
         }
-        var projection = matchingProjection(snapshot, target, scope);
-        if (projection == null) {
+        snapshot = snapshotForTarget(target, scope);
+        if (snapshot == null) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
                     "JEI target is outside the active runtime snapshot");
         }
+        var projection = matchingProjection(snapshot, target, scope);
         if (projection.coverage() == Evidence.Coverage.ERROR) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,
                     "JEI projection failed and cannot be opened");
         }
-        if (owningThread.getAsBoolean()) return navigate(snapshot, projection.viewerHandle());
+        if (owningThread.getAsBoolean()) {
+            return isRetained(snapshot, scope) ? navigate(snapshot, projection.viewerHandle())
+                    : new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
+                    "JEI runtime snapshot changed before navigation");
+        }
+        var selected = snapshot;
         var result = new CompletableFuture<Evidence.NavigationResult>();
         clientExecutor.execute(() -> {
-            if (!runtimeAvailable || current != snapshot) {
+            if (!runtimeAvailable || !isRetained(selected, scope)) {
                 result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
                         "JEI runtime snapshot changed before navigation"));
                 return;
             }
-            result.complete(navigate(snapshot, projection.viewerHandle()));
+            result.complete(navigate(selected, projection.viewerHandle()));
         });
         try {
             return result.get(5, TimeUnit.SECONDS);
@@ -391,6 +416,47 @@ public final class JeiProvider implements KnowledgeProvider {
 
     private static Evidence.Result errorResult(String detail) {
         return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, detail);
+    }
+
+    private void rememberSnapshot(Snapshot snapshot, boolean hasNavigationTargets) {
+        synchronized (navigationSnapshots) {
+            if (!navigationSnapshots.isEmpty()) {
+                var latest = navigationSnapshots.getLast();
+                if (!sameScope(latest.scope(), snapshot.scope()) || latest.generation() != snapshot.generation()) {
+                    navigationSnapshots.clear();
+                }
+            }
+            if (!hasNavigationTargets && !navigationSnapshots.contains(snapshot)) return;
+            navigationSnapshots.remove(snapshot);
+            navigationSnapshots.add(snapshot);
+            while (navigationSnapshots.size() > MAX_NAVIGATION_SNAPSHOTS) navigationSnapshots.removeFirst();
+        }
+    }
+
+    private void clearSnapshots() {
+        current = null;
+        synchronized (navigationSnapshots) {
+            navigationSnapshots.clear();
+        }
+    }
+
+    private Snapshot snapshotForTarget(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        synchronized (navigationSnapshots) {
+            for (var index = navigationSnapshots.size() - 1; index >= 0; index--) {
+                var snapshot = navigationSnapshots.get(index);
+                if (matchingProjection(snapshot, target, scope) != null && isRetained(snapshot, scope)) return snapshot;
+            }
+        }
+        return null;
+    }
+
+    private boolean isRetained(Snapshot snapshot, Evidence.Scope scope) {
+        if (!runtimeAvailable || !sameScope(snapshot.scope(), scope)) return false;
+        var active = current;
+        if (active == null || !sameScope(active.scope(), scope) || active.generation() != snapshot.generation()) return false;
+        synchronized (navigationSnapshots) {
+            return navigationSnapshots.contains(snapshot);
+        }
     }
 
     private static Evidence.NavigationResult navigate(Snapshot snapshot, String handle) {

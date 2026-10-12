@@ -63,6 +63,23 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void questionFieldAcceptsQuestionsLongerThanTheVanillaDefault() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        String question = "Use installed recipes: how many torches does the coal-or-charcoal recipe produce? "
+                + "Show its ingredients and source.";
+        screen.init();
+
+        screen.setInput(question);
+        screen.refresh(actions.view);
+
+        assertEquals(question, screen.input());
+        screen.setInput("x".repeat(AssistantScreen.QUESTION_MAX_LENGTH + 1));
+        screen.refresh(actions.view);
+        assertEquals(AssistantScreen.QUESTION_MAX_LENGTH, screen.input().length());
+    }
+
+    @Test
     void pauseControlUsesEffectivePrivateSingleplayerState() {
         FakeActions actions = new FakeActions();
         AssistantScreen screen = new AssistantScreen(actions);

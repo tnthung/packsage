@@ -18,6 +18,8 @@ public final class AssistantScreen extends Screen {
     public record RuntimeState(boolean privateSingleplayer, boolean integratedServer, boolean published) {
     }
 
+    public static final int QUESTION_MAX_LENGTH = 1000;
+
     private final ChatActions actions;
     private ChatContracts.View view;
     private String input = "";
@@ -48,6 +50,7 @@ public final class AssistantScreen extends Screen {
     @Override
     protected void init() {
         inputBox = new EditBox(font, 20, 30, Math.max(120, width - 40), 20, Component.literal("Ask PackSage"));
+        inputBox.setMaxLength(QUESTION_MAX_LENGTH);
         inputBox.setValue(input);
         addRenderableWidget(inputBox);
         addRenderableWidget(Button.builder(Component.literal("Send"), button -> {

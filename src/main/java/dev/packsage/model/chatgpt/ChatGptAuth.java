@@ -297,7 +297,8 @@ public final class ChatGptAuth {
                     } else {
                         lastDetail = "Token refresh failed: " + cause.getMessage();
                     }
-                    result.completeExceptionally(cause);
+                    result.completeExceptionally(cause instanceof OAuthFailure oauth && oauth.status / 100 == 4
+                            ? new ModelBackend.AuthRejectedException(cause.getMessage()) : cause);
                     return;
                 }
                 try {
@@ -833,7 +834,7 @@ public final class ChatGptAuth {
                 }
                 if (root.has("error_description")) detail += " - " + root.get("error_description").getAsString();
             } catch (RuntimeException ignored) { }
-            return new OAuthFailure(code, detail);
+            return new OAuthFailure(code, detail, response.statusCode());
         }
 
         private void stop(Attempt attempt) {
@@ -851,10 +852,12 @@ public final class ChatGptAuth {
 
     private static final class OAuthFailure extends IllegalStateException {
         private final String code;
+        private final int status;
 
-        private OAuthFailure(String code, String message) {
+        private OAuthFailure(String code, String message, int status) {
             super(message);
             this.code = code;
+            this.status = status;
         }
     }
 }

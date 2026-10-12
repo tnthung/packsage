@@ -446,6 +446,32 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void rejectedAuthenticationIsATypedFailureButServerErrorsAreNot() {
+        Path credentials = temporaryDirectory.resolve("credentials.json");
+        new ChatGptAuth(credentials, signedOutFlow()).saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        for (int status : new int[]{401, 403}) {
+            ChatGptBackend backend = new ChatGptBackend(new ChatGptAuth(credentials, new StringHttpClient(status, "{}"), uri -> { }),
+                    new StringHttpClient(status, "{}"), Runnable::run);
+            java.util.concurrent.CompletionException failure = assertThrows(java.util.concurrent.CompletionException.class,
+                    () -> backend.capabilities().toCompletableFuture().join());
+            assertTrue(failure.getCause() instanceof ModelBackend.AuthRejectedException);
+        }
+        ChatGptBackend unavailable = new ChatGptBackend(new ChatGptAuth(credentials, new StringHttpClient(503, "{}"), uri -> { }),
+                new StringHttpClient(503, "{}"), Runnable::run);
+        java.util.concurrent.CompletionException failure = assertThrows(java.util.concurrent.CompletionException.class,
+                () -> unavailable.capabilities().toCompletableFuture().join());
+        assertFalse(failure.getCause() instanceof ModelBackend.AuthRejectedException);
+
+        Path expired = temporaryDirectory.resolve("expired.json");
+        new ChatGptAuth(expired, signedOutFlow()).saveCredential(credential("access-1", "refresh-1", 0));
+        ChatGptAuth refreshing = new ChatGptAuth(expired, new StringHttpClient(401, "{\"error\":\"refresh_token_expired\"}"), uri -> { });
+        java.util.concurrent.CompletionException refresh = assertThrows(java.util.concurrent.CompletionException.class,
+                () -> refreshing.accessToken().toCompletableFuture().join());
+        assertTrue(refresh.getCause() instanceof ModelBackend.AuthRejectedException);
+        assertEquals("refresh-1", refreshing.credential().refreshToken());
+    }
+
+    @Test
     void returningCallbackRejectsADifferentClientId() throws Exception {
         Path credentials = temporaryDirectory.resolve("credentials.json");
         new ChatGptAuth(credentials, signedOutFlow()).saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));

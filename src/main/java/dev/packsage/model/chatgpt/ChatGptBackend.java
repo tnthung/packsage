@@ -124,7 +124,11 @@ public final class ChatGptBackend implements ModelBackend {
             HttpRequest request = HttpRequest.newBuilder(MODELS_URI).timeout(Duration.ofSeconds(20))
                     .header("Authorization", "Bearer " + token).GET().build();
             return client.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)).thenApply(response -> {
-                if (response.statusCode() / 100 != 2) throw new IllegalStateException(httpFailure(response.statusCode(), response.body(), response.headers().firstValue("x-request-id").orElse(null)));
+                if (response.statusCode() / 100 != 2) {
+                    String failure = httpFailure(response.statusCode(), response.body(), response.headers().firstValue("x-request-id").orElse(null));
+                    if (response.statusCode() == 401 || response.statusCode() == 403) throw new AuthRejectedException(failure);
+                    throw new IllegalStateException(failure);
+                }
                 synchronized (exchangeLock) {
                     if (accountEpoch != epoch) throw new java.util.concurrent.CancellationException("model catalog belongs to an inactive account session");
                     Capabilities found = capabilitiesFromCatalog(response.body(), capabilities.selectedModelId());

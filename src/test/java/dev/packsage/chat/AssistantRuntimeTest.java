@@ -343,8 +343,7 @@ class AssistantRuntimeTest {
 
         runtime.restoreSession();
         backend.restore.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
-        backend.restore = CompletableFuture.completedFuture(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_OUT, null, null));
-        backend.catalog.completeExceptionally(new IllegalStateException("refresh rejected"));
+        backend.catalog.completeExceptionally(new ModelBackend.AuthRejectedException("refresh rejected"));
 
         assertEquals(ChatContracts.SignInState.SIGNED_OUT, runtime.view().signIn());
         assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("sign in again")));

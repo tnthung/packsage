@@ -130,6 +130,12 @@ public interface ModelBackend {
         }
     }
 
+    final class AuthRejectedException extends IllegalStateException {
+        public AuthRejectedException(String message) {
+            super(message);
+        }
+    }
+
     record AuthState(AuthStatus status, String accountLabel, String detail) {
         public AuthState {
             Objects.requireNonNull(status);

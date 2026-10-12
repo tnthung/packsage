@@ -473,18 +473,9 @@ public final class AssistantRuntime implements ChatActions {
     }
 
     private void finishCapabilities(long epoch, ModelBackend.Capabilities found, Throwable failure, boolean restored) {
-        boolean stillSaved = true;
-        if (restored && (failure != null || found == null)) {
-            try {
-                ModelBackend.AuthState saved = backend.restoreSession().toCompletableFuture().getNow(null);
-                stillSaved = saved != null && saved.status() == ModelBackend.AuthStatus.SIGNED_IN;
-            } catch (RuntimeException ignored) {
-                stillSaved = false;
-            }
-        }
         synchronized (stateLock) {
             if (authEpoch != epoch || signIn != ChatContracts.SignInState.SIGNED_IN) return;
-            if (!stillSaved) {
+            if (restored && authRejected(failure)) {
                 signIn = ChatContracts.SignInState.SIGNED_OUT;
                 capabilities = new ModelBackend.Capabilities(List.of(), null, null, null, null, null);
                 runtimeErrors.add("Saved sign-in is no longer valid; sign in again");
@@ -664,6 +655,12 @@ public final class AssistantRuntime implements ChatActions {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private static boolean authRejected(Throwable failure) {
+        Throwable cause = failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null
+                ? failure.getCause() : failure;
+        return cause instanceof ModelBackend.AuthRejectedException;
     }
 
     private static String failureMessage(Throwable failure) {

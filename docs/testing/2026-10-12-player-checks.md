@@ -5,7 +5,7 @@ The current G2 checks use your existing CurseForge **Packsage** profile at `C:\U
 ## G2: Open the full assistant
 
 1. Launch **Packsage**. The full assistant has replaced the probe; no JAR copying is needed for this profile.
-2. Before entering the world, open **Options → Resource Packs** and enable **PackSage deterministic fixture resource override**.
+2. Before entering the world, open **Options → Resource Packs**, move **PackSage deterministic fixture resource override** to the selected side on the right, then click **Done**.
 3. Open the existing **New World**. The assistant installed the fixture datapack in that world's `datapacks/packsage_fixture` folder, plus the fixture quest chapter and book resource ZIP in the profile. Confirm that FTB Quests contains **PackSage Fixture**.
 4. Press **P**. Expect a question field and **Send**, **Stop**, **New chat**, **Settings**, screenshot and pause controls. If P conflicts, change **Open PackSage** in **Options → Controls → Key Binds → PackSage**.
 5. If the status is signed out, click **Sign in** and complete any browser prompt. Wait for sign-in/model discovery before sending a question. Do not send tokens, callback URLs or credential files.
@@ -33,9 +33,9 @@ With automatic search still off, send `Search the web for Minecraft Java 1.21.1'
 1. Send a short question with **Screenshot: on**. Confirm attached dimension, position and biome reflect the current world. Inspect whether the model sees the game view rather than the assistant screen; report a blank, stale or obscured image.
 2. Turn **Screenshot: off** and send another question. The message should omit the image while retaining gameplay metadata.
 3. Toggle **Pause** in private singleplayer and verify that the world actually pauses/resumes. In **Settings**, change **Open paused**, close chat and reopen it to check the opening default. A published/LAN or remote world must remain running.
-4. Ask a longer question, close chat with Escape and reopen with P. The request should continue. Try **Stop** during another request and **New chat** during one more; late results must not appear in the new conversation.
+4. Ask a longer question, close chat with Escape and reopen with P. The request should continue. Try **Stop** during another request and **New chat** during one more; the screen should clear immediately and late results must not appear in the new conversation. Press **New chat** repeatedly while it is empty; it should stay empty without creating another conversation for each press.
 5. Save and quit, restart Minecraft and reopen **New World**. Its latest conversation should return. **New chat** must preserve the old log. Change worlds during a request and check that the old answer does not appear in the new world.
-6. Reload resources through the game's normal controls and retry local evidence/navigation. Report any obsolete answer published as current or stale link opening the wrong target.
+6. Reload resources through the game's normal controls, press **New chat** and retry local evidence/navigation. The screen should clear immediately after the reload too. Report any obsolete answer published as current or stale link opening the wrong target.
 
 Conversation logs/media are under the profile's `packsage/` folder. The assistant can read ordinary logs and build fixes from this known profile path; the player only needs to report visible results. G2/G3 remain unverified until those observations are recorded.
 

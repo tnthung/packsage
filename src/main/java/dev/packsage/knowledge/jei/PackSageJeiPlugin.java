@@ -1,6 +1,7 @@
 package dev.packsage.knowledge.jei;
 
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.KnowledgeProvider;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.ingredients.IIngredientHelper;
@@ -28,6 +29,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @JeiPlugin
 public final class PackSageJeiPlugin implements IModPlugin {
     private static final AtomicLong GENERATION = new AtomicLong();
+    public static volatile KnowledgeProvider activeProvider;
     private volatile JeiProvider provider;
     private volatile RuntimeState runtimeState;
 
@@ -46,6 +48,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
         var next = new JeiProvider(state::snapshot, state.clientExecutor(), state::owningThread);
         runtimeState = state;
         provider = next;
+        activeProvider = next;
     }
 
     @Override
@@ -54,6 +57,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
         if (state != null) state.unavailable();
         var current = provider;
         if (current != null) current.unavailable();
+        if (activeProvider == current) activeProvider = null;
         runtimeState = null;
         provider = null;
     }

@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "subscription_sharing_unsupported_capability",
+    "message": "This account cannot use the requested capability.",
+    "param": null
+  },
+  "request_id": "req_fixture_only"
+}

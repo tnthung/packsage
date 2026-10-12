@@ -1,0 +1,5 @@
+{
+  "error": "invalid_grant",
+  "error_description": "The refresh token is expired or has already been rotated.",
+  "error_uri": "https://auth.openai.com/docs/errors/invalid_grant"
+}

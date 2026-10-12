@@ -22,6 +22,19 @@ The first evidence question was observed with `a82dce9` at 19:55, signed in and 
 
 Display defects observed in the same screenshot: Markdown emphasis appears as literal `**`, and the full context JSON appears both above the conversation and within the turn. The navigation button's label shows a truncated internal identifier (`…ng/recipe-minecraft:torch-331`) instead of a readable name.
 
+Build `1b80c27` (190 tests, one Windows-symlink skip, SHA-256 `9A447A0CC44AC5C950A36ECCC53F89AC77A5CD5BE6375A05D370090A6FF1C19F`) fixed those display defects after scoped review. The player observed it at 20:04 while signed in, with search off:
+
+| Check | Observed result | Status |
+|---|---|---|
+| Fixture lantern recipe | Found `packsage:fixture_lantern`: eight coal-or-charcoal slots around one torch produce one `minecraft:lantern`, with sources `native, jei`. The answer did not name tag `packsage:fixture_inputs` because the extraction did not expose it. A later search page failed. The navigation button read `Open recipe: Fixture Lantern`. | Partial: tag id missing |
+| Quest dependencies and progress | **Craft the fixture lantern** and **Check the alternate input** depend on **Gather the fixture input**. Current team progress was read as 0/1 for each task, with source `ftb_quests`. | Passed |
+| Nature's Aura entry | The first attempt ended `FAILED (response error)` with no detail and no PackSage log line. The retry made about 30 tool round trips. Guide searches returned empty pages and then an `ERROR` without a message, so the answer could not find `intro/aura` or quote its marker. | Failed |
+| Config value | `general.fieldCreatorRange` was reported as 24 in both the saved file and loaded configuration, labelled separately and cited to `naturesaura-common.toml`. An earlier `read_config` call in the same turn returned `ERROR` without a message. | Passed |
+| Pause | The pause/resume control worked. | Passed |
+| Formatting | Bold text rendered. Markdown tables and code fences still show raw pipes and backticks, and inline citation markers such as `[ftb_quests:1000000000000002]` remain verbose. | Partial |
+
+Lifecycle and usability defects: during a request, the conversation view repeatedly jumped to the top. Navigation buttons for the new answer appeared about ten seconds before its text. No indication of reasoning or tool activity appeared, and every request was very slow. The conversation log shows the cause of the slowness: `search_pack` returns many empty `PARTIAL` pages with continuation cursors, each costing a full model round trip (up to 60 replay items and about 140,000 tokens for one question). Root-cause investigation is in progress.
+
 The existing `New World` now contains the four authored datapack files. The profile contains the fixture quest chapter/translations and a resource ZIP whose metadata and book entry use forward-slash paths. The complete fixture and three provider-absent import ZIPs were regenerated and checked for portable paths. All seven active profile mod hashes match the pinned manifest after retaining Patchouli 93 as a disabled backup and installing supported 92. These are filesystem checks, not observed in-game recipe, quest or book results.
 
 The scoped sign-in re-review closed all six prior P1 findings. Integration re-review closed JEI runtime-loss invalidation, the bounded current-progress read contract, streamed-answer projection and screen pause handling. JEI loss is observed on the next client tick. `read_progress` refreshes selected observed quest handles; `read_evidence` retains timestamped earlier observations. In-place quest changes do not automatically cancel a request. The full suite includes fresh-progress failure isolation across selected handles.

@@ -123,6 +123,34 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void typedProviderOutputSerializesLosslesslyForStatelessReplay() {
+        ModelBackend.Request request = new ModelBackend.Request("gpt-5-mini", "Continue.", List.of(
+                new ModelBackend.AssistantOutput("msg_1", ModelBackend.OutputStatus.COMPLETED, ModelBackend.OutputPhase.FINAL_ANSWER,
+                        List.of(new ModelBackend.OutputText("source", List.of(new ModelBackend.UrlCitation(0, 6, "Official", "https://example.test"))),
+                                new ModelBackend.Refusal("fixture refusal"))),
+                new ModelBackend.WebSearchCall("ws_1", ModelBackend.WebSearchStatus.COMPLETED,
+                        new ModelBackend.SearchAction("fixture", List.of("fixture", "fixture official"),
+                                List.of(new ModelBackend.WebSearchSource("https://example.test"))))),
+                List.of(), ModelBackend.SearchMode.DISABLED, "request-replay", 512);
+
+        JsonArray input = JsonParser.parseString(ChatGptBackend.requestBody(request)).getAsJsonObject().getAsJsonArray("input");
+
+        assertEquals("message", input.get(0).getAsJsonObject().get("type").getAsString());
+        assertEquals("final_answer", input.get(0).getAsJsonObject().get("phase").getAsString());
+        JsonObject citation = input.get(0).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject()
+                .getAsJsonArray("annotations").get(0).getAsJsonObject();
+        assertEquals(0, citation.get("start_index").getAsInt());
+        assertEquals(6, citation.get("end_index").getAsInt());
+        assertEquals("https://example.test", citation.get("url").getAsString());
+        assertEquals("refusal", input.get(0).getAsJsonObject().getAsJsonArray("content").get(1).getAsJsonObject().get("type").getAsString());
+        assertEquals("web_search_call", input.get(1).getAsJsonObject().get("type").getAsString());
+        assertEquals("search", input.get(1).getAsJsonObject().getAsJsonObject("action").get("type").getAsString());
+        assertEquals(2, input.get(1).getAsJsonObject().getAsJsonObject("action").getAsJsonArray("queries").size());
+        assertEquals("https://example.test", input.get(1).getAsJsonObject().getAsJsonObject("action")
+                .getAsJsonArray("sources").get(0).getAsJsonObject().get("url").getAsString());
+    }
+
+    @Test
     void modelCatalogPreservesDocumentedNameOrderAndSelectsFirstVisibleModel() {
         String catalog = """
                 {"models":[
@@ -326,8 +354,9 @@ class ChatGptBackendTest {
                         + "data: {\"type\":\"response.output_item.done\",\"output_index\":2,\"sequence_number\":3,\"item\":{\"id\":\"fc_b\",\"type\":\"function_call\",\"call_id\":\"call_b\",\"name\":\"read_evidence\",\"arguments\":\"{\\\"id\\\":\\\"b\\\"}\",\"status\":\"completed\"}}\n\n"
                         + "data: {\"type\":\"response.completed\",\"sequence_number\":4,\"response\":{\"status\":\"completed\"}}\n\n",
                 "data: {\"type\":\"response.output_text.delta\",\"sequence_number\":1,\"delta\":\"finished\"}\n\n"
-                        + "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":2,\"item\":{\"id\":\"msg_1\",\"type\":\"message\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"finished\",\"annotations\":[]}]}}\n\n"
-                        + "data: {\"type\":\"response.completed\",\"sequence_number\":3,\"response\":{\"status\":\"completed\"}}\n\n"));
+                        + "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":2,\"item\":{\"id\":\"ws_1\",\"type\":\"web_search_call\",\"status\":\"completed\",\"action\":{\"type\":\"search\",\"query\":\"fixture\",\"queries\":[\"fixture\"],\"sources\":[{\"type\":\"url\",\"url\":\"https://example.test\"}]}}}\n\n"
+                        + "data: {\"type\":\"response.output_item.done\",\"output_index\":1,\"sequence_number\":3,\"item\":{\"id\":\"msg_1\",\"type\":\"message\",\"status\":\"completed\",\"role\":\"assistant\",\"phase\":\"final_answer\",\"content\":[{\"type\":\"output_text\",\"text\":\"finished\",\"annotations\":[{\"type\":\"url_citation\",\"start_index\":0,\"end_index\":8,\"title\":\"Official\",\"url\":\"https://example.test\"}]}]}}\n\n"
+                        + "data: {\"type\":\"response.completed\",\"sequence_number\":4,\"response\":{\"status\":\"completed\"}}\n\n"));
         List<ModelBackend.Event> events = new ArrayList<>();
         ModelBackend.Request request = new ModelBackend.Request("gpt-5-mini", "Answer from evidence.",
                 List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("question")))),
@@ -355,8 +384,57 @@ class ChatGptBackendTest {
                 new ModelBackend.EncryptedReasoning("rs_1", "encrypted-fixture", "[]"),
                 new ModelBackend.ToolCall("call_a", "read_evidence", "{\"id\":\"a\"}"),
                 new ModelBackend.ToolCall("call_b", "read_evidence", "{\"id\":\"b\"}"),
-                new ModelBackend.OpaqueHostedOutput("message", "{\"id\":\"msg_1\",\"type\":\"message\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"finished\",\"annotations\":[]}]}")
+                new ModelBackend.ToolResult("call_a", "{\"value\":\"a\"}", false),
+                new ModelBackend.ToolResult("call_b", "{\"value\":\"b\"}", false),
+                new ModelBackend.WebSearchCall("ws_1", ModelBackend.WebSearchStatus.COMPLETED,
+                        new ModelBackend.SearchAction("fixture", List.of("fixture"),
+                                List.of(new ModelBackend.WebSearchSource("https://example.test")))),
+                new ModelBackend.AssistantOutput("msg_1", ModelBackend.OutputStatus.COMPLETED, ModelBackend.OutputPhase.FINAL_ANSWER,
+                        List.of(new ModelBackend.OutputText("finished", List.of(
+                                new ModelBackend.UrlCitation(0, 8, "Official", "https://example.test")))))
         ), completed.replayItems());
+    }
+
+    @Test
+    void unsupportedProviderOutputFailsInsteadOfEnteringDurableReplay() {
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        CapturingHttpClient client = new CapturingHttpClient(List.of(
+                "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":1,\"item\":{\"id\":\"ci_1\",\"type\":\"code_interpreter_call\",\"status\":\"completed\"}}\n\n"
+                        + "data: {\"type\":\"response.completed\",\"sequence_number\":2,\"response\":{\"status\":\"completed\"}}\n\n"));
+        List<ModelBackend.Event> events = new ArrayList<>();
+
+        new ChatGptBackend(auth, client, Runnable::run).start(new ModelBackend.Request("gpt-5-mini", "Answer from evidence.",
+                List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("question")))),
+                List.of(), ModelBackend.SearchMode.DISABLED, "unsupported-output", 512), events::add);
+
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.FAILED).count());
+        assertTrue(events.stream().filter(event -> event.kind() == ModelBackend.EventKind.FAILED).findFirst().orElseThrow().detail()
+                .contains("unsupported output item type"));
+        assertFalse(events.stream().anyMatch(event -> event.kind() == ModelBackend.EventKind.COMPLETED));
+    }
+
+    @Test
+    void rejectedHostedSearchFallsBackLocallyWithoutRepeatingTheUnsupportedTool() {
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        CapturingHttpClient client = new CapturingHttpClient(List.of(
+                "data: {\"type\":\"response.failed\",\"sequence_number\":1,\"response\":{\"status\":\"failed\",\"error\":{\"code\":\"subscription_sharing_unsupported_capability\",\"message\":\"web search is unavailable\",\"param\":\"tools\"}}}\n\n",
+                "data: {\"type\":\"response.completed\",\"sequence_number\":1,\"response\":{\"status\":\"completed\"}}\n\n"));
+        ChatGptBackend backend = new ChatGptBackend(auth, client, Runnable::run);
+        ModelBackend.Request search = new ModelBackend.Request("gpt-5-mini", "Answer from evidence.",
+                List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("Search current information")))),
+                List.of(), ModelBackend.SearchMode.EXPLICIT_REQUEST, "search-1", 512);
+
+        backend.start(search, ignored -> { });
+        backend.start(new ModelBackend.Request(search.modelId(), search.instructions(), search.input(), search.tools(), search.searchMode(),
+                "search-2", search.outputBudget()), ignored -> { });
+
+        JsonObject fallback = JsonParser.parseString(requestBody(client.requests.get(1))).getAsJsonObject();
+        assertFalse(fallback.has("tools"));
+        assertFalse(fallback.has("tool_choice"));
+        assertTrue(fallback.get("instructions").getAsString().contains("previously rejected"));
+        assertTrue(fallback.get("instructions").getAsString().contains("current public lookup is unavailable"));
     }
 
     @Test

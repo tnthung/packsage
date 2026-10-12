@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -268,13 +269,68 @@ public final class ChatGptBackend implements ModelBackend {
             value.addProperty("type", "function_call_output");
             value.addProperty("call_id", result.callId());
             value.addProperty("output", result.serializedResult());
-        } else if (item instanceof OpaqueHostedOutput output) {
-            JsonElement serialized = JsonParser.parseString(output.serializedContent());
-            if (!serialized.isJsonObject() || !serialized.getAsJsonObject().has("type")
-                    || !output.type().equals(serialized.getAsJsonObject().get("type").getAsString())) {
-                throw new IllegalArgumentException("hosted output type does not match its serialized content");
+        } else if (item instanceof AssistantOutput output) {
+            value.addProperty("id", output.id());
+            value.addProperty("type", "message");
+            value.addProperty("status", output.status().name().toLowerCase(Locale.ROOT));
+            value.addProperty("role", "assistant");
+            if (output.phase() != null) value.addProperty("phase", output.phase().name().toLowerCase(Locale.ROOT));
+            JsonArray content = new JsonArray();
+            for (OutputContent part : output.content()) {
+                JsonObject serialized = new JsonObject();
+                if (part instanceof OutputText text) {
+                    serialized.addProperty("type", "output_text");
+                    serialized.addProperty("text", text.text());
+                    JsonArray annotations = new JsonArray();
+                    for (UrlCitation citation : text.citations()) {
+                        JsonObject annotation = new JsonObject();
+                        annotation.addProperty("type", "url_citation");
+                        annotation.addProperty("start_index", citation.startIndex());
+                        annotation.addProperty("end_index", citation.endIndex());
+                        annotation.addProperty("title", citation.title());
+                        annotation.addProperty("url", citation.url());
+                        annotations.add(annotation);
+                    }
+                    serialized.add("annotations", annotations);
+                } else if (part instanceof Refusal refusal) {
+                    serialized.addProperty("type", "refusal");
+                    serialized.addProperty("refusal", refusal.refusal());
+                }
+                content.add(serialized);
             }
-            value = serialized.getAsJsonObject().deepCopy();
+            value.add("content", content);
+        } else if (item instanceof WebSearchCall call) {
+            value.addProperty("id", call.id());
+            value.addProperty("type", "web_search_call");
+            value.addProperty("status", call.status().name().toLowerCase(Locale.ROOT));
+            JsonObject action = new JsonObject();
+            if (call.action() instanceof SearchAction search) {
+                action.addProperty("type", "search");
+                if (search.query() != null) action.addProperty("query", search.query());
+                if (!search.queries().isEmpty()) {
+                    JsonArray queries = new JsonArray();
+                    search.queries().forEach(queries::add);
+                    action.add("queries", queries);
+                }
+                if (!search.sources().isEmpty()) {
+                    JsonArray sources = new JsonArray();
+                    for (WebSearchSource source : search.sources()) {
+                        JsonObject serialized = new JsonObject();
+                        serialized.addProperty("type", "url");
+                        serialized.addProperty("url", source.url());
+                        sources.add(serialized);
+                    }
+                    action.add("sources", sources);
+                }
+            } else if (call.action() instanceof OpenPageAction open) {
+                action.addProperty("type", "open_page");
+                if (open.url() != null) action.addProperty("url", open.url());
+            } else if (call.action() instanceof FindInPageAction find) {
+                action.addProperty("type", "find_in_page");
+                action.addProperty("url", find.url());
+                action.addProperty("pattern", find.pattern());
+            }
+            value.add("action", action);
         }
         return value;
     }
@@ -412,6 +468,18 @@ public final class ChatGptBackend implements ModelBackend {
                         publishedEvent = new Event(EventKind.FAILED, null, null, List.of(), "response output cannot be replayed: " + error.getMessage());
                     }
                 } else if (event.kind() == EventKind.FAILED) {
+                    if (request.searchMode() != SearchMode.DISABLED && event.detail() != null
+                            && (event.detail().contains("subscription_sharing_unsupported_capability")
+                            || event.detail().contains("unsupported_capability"))) {
+                        Capabilities current = capabilities;
+                        List<ModelInfo> updated = new ArrayList<>();
+                        for (ModelInfo model : current.modelCatalog()) {
+                            updated.add(model.id().equals(request.modelId())
+                                    ? new ModelInfo(model.id(), model.displayName(), model.imageInput(), false, model.contextTokens(), model.outputTokens()) : model);
+                        }
+                        capabilities = new Capabilities(updated, current.selectedModelId(), current.imageInput(), false,
+                                current.contextTokens(), current.outputTokens());
+                    }
                     terminal = true;
                     publish = true;
                 } else {
@@ -465,8 +533,87 @@ public final class ChatGptBackend implements ModelBackend {
                         throw new IllegalArgumentException("completed function call is incomplete");
                     }
                     replay.add(new ToolCall(item.get("call_id").getAsString(), item.get("name").getAsString(), item.get("arguments").getAsString()));
+                } else if ("message".equals(type)) {
+                    if (!item.has("id") || !item.has("status") || !item.has("role") || !"assistant".equals(item.get("role").getAsString())
+                            || !item.has("content") || !item.get("content").isJsonArray()) {
+                        throw new IllegalArgumentException("completed assistant message is incomplete");
+                    }
+                    List<OutputContent> content = new ArrayList<>();
+                    for (JsonElement partValue : item.getAsJsonArray("content")) {
+                        if (!partValue.isJsonObject() || !partValue.getAsJsonObject().has("type")) {
+                            throw new IllegalArgumentException("assistant message content is incomplete");
+                        }
+                        JsonObject part = partValue.getAsJsonObject();
+                        if ("output_text".equals(part.get("type").getAsString())) {
+                            if (!part.has("text") || !part.has("annotations") || !part.get("annotations").isJsonArray()
+                                    || part.has("logprobs") && (!part.get("logprobs").isJsonArray() || !part.getAsJsonArray("logprobs").isEmpty())) {
+                                throw new IllegalArgumentException("assistant output text cannot be replayed losslessly");
+                            }
+                            List<UrlCitation> citations = new ArrayList<>();
+                            for (JsonElement annotationValue : part.getAsJsonArray("annotations")) {
+                                if (!annotationValue.isJsonObject()) throw new IllegalArgumentException("assistant annotation is incomplete");
+                                JsonObject annotation = annotationValue.getAsJsonObject();
+                                if (!annotation.has("type") || !"url_citation".equals(annotation.get("type").getAsString())
+                                        || !annotation.has("start_index") || !annotation.has("end_index")
+                                        || !annotation.has("title") || !annotation.has("url")) {
+                                    throw new IllegalArgumentException("unsupported assistant annotation cannot be replayed");
+                                }
+                                citations.add(new UrlCitation(annotation.get("start_index").getAsInt(), annotation.get("end_index").getAsInt(),
+                                        annotation.get("title").getAsString(), annotation.get("url").getAsString()));
+                            }
+                            content.add(new OutputText(part.get("text").getAsString(), citations));
+                        } else if ("refusal".equals(part.get("type").getAsString()) && part.has("refusal")) {
+                            content.add(new Refusal(part.get("refusal").getAsString()));
+                        } else {
+                            throw new IllegalArgumentException("unsupported assistant content cannot be replayed");
+                        }
+                    }
+                    OutputPhase phase = item.has("phase") && !item.get("phase").isJsonNull()
+                            ? OutputPhase.valueOf(item.get("phase").getAsString().toUpperCase(Locale.ROOT)) : null;
+                    replay.add(new AssistantOutput(item.get("id").getAsString(),
+                            OutputStatus.valueOf(item.get("status").getAsString().toUpperCase(Locale.ROOT)), phase, content));
+                } else if ("web_search_call".equals(type)) {
+                    if (!item.has("id") || !item.has("status") || !item.has("action") || !item.get("action").isJsonObject()) {
+                        throw new IllegalArgumentException("completed web search call is incomplete");
+                    }
+                    JsonObject action = item.getAsJsonObject("action");
+                    if (!action.has("type")) throw new IllegalArgumentException("web search action type is missing");
+                    WebSearchAction projected;
+                    if ("search".equals(action.get("type").getAsString())) {
+                        List<String> queries = new ArrayList<>();
+                        if (action.has("queries") && !action.get("queries").isJsonArray()) {
+                            throw new IllegalArgumentException("web search queries are malformed");
+                        }
+                        if (action.has("queries") && action.get("queries").isJsonArray()) {
+                            for (JsonElement query : action.getAsJsonArray("queries")) queries.add(query.getAsString());
+                        }
+                        List<WebSearchSource> sources = new ArrayList<>();
+                        if (action.has("sources") && !action.get("sources").isJsonArray()) {
+                            throw new IllegalArgumentException("web search sources are malformed");
+                        }
+                        if (action.has("sources") && action.get("sources").isJsonArray()) {
+                            for (JsonElement sourceValue : action.getAsJsonArray("sources")) {
+                                if (!sourceValue.isJsonObject() || !sourceValue.getAsJsonObject().has("type")
+                                        || !"url".equals(sourceValue.getAsJsonObject().get("type").getAsString())
+                                        || !sourceValue.getAsJsonObject().has("url")) {
+                                    throw new IllegalArgumentException("web search source is incomplete");
+                                }
+                                sources.add(new WebSearchSource(sourceValue.getAsJsonObject().get("url").getAsString()));
+                            }
+                        }
+                        projected = new SearchAction(action.has("query") && !action.get("query").isJsonNull() ? action.get("query").getAsString() : null,
+                                queries, sources);
+                    } else if ("open_page".equals(action.get("type").getAsString())) {
+                        projected = new OpenPageAction(action.has("url") && !action.get("url").isJsonNull() ? action.get("url").getAsString() : null);
+                    } else if ("find_in_page".equals(action.get("type").getAsString()) && action.has("url") && action.has("pattern")) {
+                        projected = new FindInPageAction(action.get("url").getAsString(), action.get("pattern").getAsString());
+                    } else {
+                        throw new IllegalArgumentException("unsupported web search action cannot be replayed");
+                    }
+                    replay.add(new WebSearchCall(item.get("id").getAsString(),
+                            WebSearchStatus.valueOf(item.get("status").getAsString().toUpperCase(Locale.ROOT)), projected));
                 } else {
-                    replay.add(new OpaqueHostedOutput(type, item.toString()));
+                    throw new IllegalArgumentException("unsupported output item type: " + type);
                 }
             }
             return replay;
@@ -480,6 +627,7 @@ public final class ChatGptBackend implements ModelBackend {
             for (Map.Entry<String, ToolCall> call : calls.entrySet()) {
                 ToolResult result = results.get(call.getKey());
                 continuation.add(result);
+                durableReplay.add(result);
                 staleCallIds.add(call.getKey());
             }
             return List.copyOf(continuation);

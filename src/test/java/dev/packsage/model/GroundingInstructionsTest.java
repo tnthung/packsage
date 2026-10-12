@@ -36,9 +36,9 @@ class GroundingInstructionsTest {
         assertEquals(2048, request.outputBudget());
         assertEquals(3, request.input().size());
         assertTrue(request.input().get(0) instanceof ModelBackend.Message);
-        assertTrue(request.input().get(1) instanceof ModelBackend.Message);
+        assertTrue(request.input().get(1) instanceof ModelBackend.AssistantOutput);
         assertEquals("old question", ((ModelBackend.TextContent) ((ModelBackend.Message) request.input().get(0)).content().getFirst()).text());
-        assertEquals("old answer", ((ModelBackend.TextContent) ((ModelBackend.Message) request.input().get(1)).content().getFirst()).text());
+        assertEquals("old answer", ((ModelBackend.OutputText) ((ModelBackend.AssistantOutput) request.input().get(1)).content().getFirst()).text());
         var current = (ModelBackend.Message) request.input().getLast();
         assertTrue(current.content().stream().anyMatch(content -> content instanceof ModelBackend.ImageContent image
                 && image.dataUrl().equals("data:image/png;base64,AQID")));
@@ -58,6 +58,31 @@ class GroundingInstructionsTest {
                 new ChatContracts.CapturedContext(new ChatContracts.Context("{}", null, SCOPE), new byte[0]),
                 new ChatContracts.EvidenceSelection(List.of(), List.of())));
         assertEquals(ModelBackend.ReasoningEffort.HIGH, request.reasoningEffort());
+    }
+
+    @Test
+    void historicalAssistantMetadataUsesLastCompletedFinalOutputAndLegacyFallback() {
+        var turn = new ChatContracts.Turn(new ChatContracts.RequestId("legacy-id"), "question", "answer",
+                List.of(new ModelBackend.AssistantOutput("final-id", ModelBackend.OutputStatus.COMPLETED,
+                                ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("old", List.of()))),
+                        new ModelBackend.AssistantOutput("commentary-id", ModelBackend.OutputStatus.COMPLETED,
+                                ModelBackend.OutputPhase.COMMENTARY, List.of(new ModelBackend.OutputText("later", List.of())))),
+                new ChatContracts.Context("{}", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0);
+        var legacy = new ChatContracts.Turn(new ChatContracts.RequestId("legacy-fallback"), "legacy question", "legacy answer",
+                List.of(), turn.context(), List.of(), turn.outcome(), 0);
+        assertEquals("final-id", ((ModelBackend.AssistantOutput) GroundingInstructions.build(new ChatContracts.PreparedRequest(
+                new ChatContracts.Submission(new ChatContracts.RequestId("request"), new ChatContracts.WorldIdentity("world", "World"), SCOPE,
+                        "current", false, new ChatContracts.HistoryLimits(10, 12_000), new ModelBackend.ModelInfo("model", null, null, null, null),
+                        ModelBackend.SearchMode.DISABLED, 512), new ChatContracts.HistorySelection(List.of(turn), 1),
+                new ChatContracts.CapturedContext(new ChatContracts.Context("{}", null, SCOPE), new byte[0]),
+                new ChatContracts.EvidenceSelection(List.of(), List.of()))).input().get(1)).id());
+        assertEquals("msg_legacy-fallback", ((ModelBackend.AssistantOutput) GroundingInstructions.build(new ChatContracts.PreparedRequest(
+                new ChatContracts.Submission(new ChatContracts.RequestId("request-legacy"), new ChatContracts.WorldIdentity("world", "World"), SCOPE,
+                        "current", false, new ChatContracts.HistoryLimits(10, 12_000), new ModelBackend.ModelInfo("model", null, null, null, null),
+                        ModelBackend.SearchMode.DISABLED, 512), new ChatContracts.HistorySelection(List.of(legacy), 1),
+                new ChatContracts.CapturedContext(new ChatContracts.Context("{}", null, SCOPE), new byte[0]),
+                new ChatContracts.EvidenceSelection(List.of(), List.of()))).input().get(1)).id());
     }
 
     @Test
@@ -124,9 +149,9 @@ class GroundingInstructionsTest {
 
         assertEquals(3, request.input().size());
         assertTrue(request.input().get(0) instanceof ModelBackend.Message);
-        assertTrue(request.input().get(1) instanceof ModelBackend.Message);
+        assertTrue(request.input().get(1) instanceof ModelBackend.AssistantOutput);
         assertTrue(((ModelBackend.Message) request.input().get(0)).content().getFirst() instanceof ModelBackend.TextContent);
-        assertTrue(((ModelBackend.Message) request.input().get(1)).content().getFirst() instanceof ModelBackend.TextContent);
+        assertTrue(((ModelBackend.AssistantOutput) request.input().get(1)).content().getFirst() instanceof ModelBackend.OutputText);
         assertTrue(request.input().stream().noneMatch(ModelBackend.ToolResult.class::isInstance));
         assertTrue(GroundingInstructions.historyTextBudget(turn) < 12_000);
     }

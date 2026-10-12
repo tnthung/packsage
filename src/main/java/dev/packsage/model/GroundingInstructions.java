@@ -62,7 +62,17 @@ public final class GroundingInstructions {
         var input = new ArrayList<ModelBackend.InputItem>();
         input.add(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
                 turn.question()))));
-        input.add(new ModelBackend.Message(ModelBackend.Role.ASSISTANT, List.of(new ModelBackend.TextContent(turn.answer()))));
+        String outputId = "msg_" + turn.requestId().value();
+        ModelBackend.OutputPhase outputPhase = null;
+        for (var item : turn.replayItems()) {
+            if (item instanceof ModelBackend.AssistantOutput output && output.status() == ModelBackend.OutputStatus.COMPLETED
+                    && output.phase() != ModelBackend.OutputPhase.COMMENTARY) {
+                outputId = output.id();
+                outputPhase = output.phase();
+            }
+        }
+        input.add(new ModelBackend.AssistantOutput(outputId, ModelBackend.OutputStatus.COMPLETED, outputPhase,
+                List.of(new ModelBackend.OutputText(turn.answer(), List.of()))));
         return input;
     }
 

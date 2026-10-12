@@ -3,6 +3,9 @@ package dev.packsage.model.chatgpt;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.packsage.chat.ChatContracts;
+import dev.packsage.knowledge.Evidence;
+import dev.packsage.model.GroundingInstructions;
 import dev.packsage.model.ModelBackend;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -104,6 +107,44 @@ class ChatGptBackendTest {
         JsonObject highBody = JsonParser.parseString(ChatGptBackend.requestBody(highRequest)).getAsJsonObject();
         assertFalse(defaultBody.has("reasoning"));
         assertEquals("high", highBody.getAsJsonObject("reasoning").get("effort").getAsString());
+    }
+
+    @Test
+    void historicalAssistantTextUsesOutputTextWireType() {
+        Evidence.Scope scope = new Evidence.Scope("world", "resources", "team", "runtime", 1);
+        ChatContracts.Turn historical = new ChatContracts.Turn(new ChatContracts.RequestId("history-wire"),
+                "old question", "old answer", List.of(new ModelBackend.ToolCall("old-call", "lookup", "{}"),
+                        new ModelBackend.ToolResult("old-call", "{\"secret\":true}", false),
+                        new ModelBackend.AssistantOutput("msg_known",
+                        ModelBackend.OutputStatus.COMPLETED, ModelBackend.OutputPhase.FINAL_ANSWER,
+                        List.of(new ModelBackend.OutputText("old answer", List.of())))),
+                new ChatContracts.Context("old", null, scope), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+        ChatContracts.Submission submission = new ChatContracts.Submission(new ChatContracts.RequestId("wire"),
+                new ChatContracts.WorldIdentity("world", "World"), scope, "new question", false,
+                new ChatContracts.HistoryLimits(10, 12_000), new ModelBackend.ModelInfo("gpt-5-mini", null, null, null, null),
+                ModelBackend.SearchMode.DISABLED, 512);
+        ModelBackend.Request request = GroundingInstructions.build(new ChatContracts.PreparedRequest(submission,
+                new ChatContracts.HistorySelection(List.of(historical), 1),
+                new ChatContracts.CapturedContext(new ChatContracts.Context("fresh", null, scope), new byte[0]),
+                new ChatContracts.EvidenceSelection(List.of(), List.of())));
+
+        JsonArray input = JsonParser.parseString(ChatGptBackend.requestBody(request)).getAsJsonObject().getAsJsonArray("input");
+        assertEquals(3, input.size());
+        assertEquals("user", input.get(0).getAsJsonObject().get("role").getAsString());
+        assertEquals("input_text", input.get(0).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject().get("type").getAsString());
+        assertEquals("old question", input.get(0).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString());
+        assertEquals("message", input.get(1).getAsJsonObject().get("type").getAsString());
+        assertEquals("msg_known", input.get(1).getAsJsonObject().get("id").getAsString());
+        assertEquals("completed", input.get(1).getAsJsonObject().get("status").getAsString());
+        assertEquals("assistant", input.get(1).getAsJsonObject().get("role").getAsString());
+        assertEquals("output_text", input.get(1).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject().get("type").getAsString());
+        assertEquals("old answer", input.get(1).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString());
+        assertTrue(input.get(1).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject().getAsJsonArray("annotations").isEmpty());
+        assertEquals("user", input.get(2).getAsJsonObject().get("role").getAsString());
+        assertTrue(input.toString().contains("new question"));
+        assertFalse(input.toString().contains("old-call"));
+        assertFalse(input.toString().contains("secret"));
     }
 
     @Test

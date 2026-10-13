@@ -259,6 +259,23 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void modelCatalogReadsOptionalTokenMetadataAndLeavesMissingValuesUnknown() {
+        ModelBackend.Capabilities capabilities = ChatGptBackend.capabilitiesFromCatalog("""
+                {"models":[
+                  {"slug":"bounded","visibility":"list","context_window":8192,"max_output_tokens":1024},
+                  {"slug":"unknown","visibility":"list"}
+                ]}
+                """, null);
+
+        assertEquals(8192, capabilities.modelCatalog().get(0).contextTokens());
+        assertEquals(1024, capabilities.modelCatalog().get(0).outputTokens());
+        assertNull(capabilities.modelCatalog().get(1).contextTokens());
+        assertNull(capabilities.modelCatalog().get(1).outputTokens());
+        assertEquals(8192, capabilities.contextTokens());
+        assertEquals(1024, capabilities.outputTokens());
+    }
+
+    @Test
     void acceptedImageAndSearchBecomeVerifiedWithoutInventingTokenLimits() {
         ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), signedOutFlow());
         auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
@@ -825,6 +842,54 @@ class ChatGptBackendTest {
         List<ModelBackend.Event> failures = events.stream().filter(event -> event.kind() == ModelBackend.EventKind.FAILED).toList();
         assertEquals(1, failures.size());
         assertTrue(failures.getFirst().detail().startsWith("response incomplete: max_messages"), failures.getFirst().detail());
+    }
+
+    @Test
+    void serviceUnavailableRetriesOnceAndRecoversBeforeDispatchingTools() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(503, 200), List.of(
+                "{\"error\":{\"message\":\"busy\"}}",
+                "data: {\"type\":\"response.completed\",\"sequence_number\":1,\"response\":{\"status\":\"completed\"}}\n\n"));
+        List<ModelBackend.Event> events = new ArrayList<>();
+
+        new ChatGptBackend(signedInAuth(), client, Runnable::run)
+                .start(searchRequest("retry-503", ModelBackend.SearchMode.DISABLED), events::add);
+
+        assertEquals(2, client.requests.size());
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.RETRYING).count());
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+        assertEquals(0, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.FAILED).count());
+        assertEquals(requestBody(client.requests.get(0)), requestBody(client.requests.get(1)));
+    }
+
+    @Test
+    void repeatedServiceUnavailableFailsAfterTheSingleBoundedRetry() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(503, 503), List.of(
+                "{\"error\":{\"message\":\"busy\"}}", "{\"error\":{\"message\":\"still busy\"}}"));
+        List<ModelBackend.Event> events = new ArrayList<>();
+
+        new ChatGptBackend(signedInAuth(), client, Runnable::run)
+                .start(searchRequest("retry-503-exhausted", ModelBackend.SearchMode.DISABLED), events::add);
+
+        assertEquals(2, client.requests.size());
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.RETRYING).count());
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.FAILED).count());
+    }
+
+    @Test
+    void cancellingWhenServiceUnavailableRetryIsAnnouncedSuppressesTheRetryRequest() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(503), List.of("{\"error\":{\"message\":\"busy\"}}"));
+        List<ModelBackend.Event> events = new ArrayList<>();
+        java.util.concurrent.atomic.AtomicReference<ModelBackend.Exchange> holder = new java.util.concurrent.atomic.AtomicReference<>();
+
+        holder.set(new ChatGptBackend(signedInAuth(), client, Runnable::run)
+                .start(searchRequest("retry-503-cancel", ModelBackend.SearchMode.DISABLED), event -> {
+                    events.add(event);
+                    if (event.kind() == ModelBackend.EventKind.RETRYING) holder.get().cancel();
+                }));
+
+        assertEquals(1, client.requests.size());
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.RETRYING).count());
+        assertEquals(0, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.FAILED).count());
     }
 
     @Test

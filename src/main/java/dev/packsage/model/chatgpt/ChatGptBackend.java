@@ -246,6 +246,7 @@ public final class ChatGptBackend implements ModelBackend {
                     recordCapabilities(exchange.request.modelId(), imageFailure ? false : null, searchFailure ? false : null, exchange.requestAccountEpoch);
                 }
                 if (body.length > MAX_ERROR_BYTES) detail += " [body truncated]";
+                if (response.statusCode() == 503 && exchange.retryServiceUnavailable(generation)) return;
                 exchange.transportFailure(generation, detail);
                 return;
             }
@@ -455,7 +456,21 @@ public final class ChatGptBackend implements ModelBackend {
                     || !model.has("slug") || model.get("slug").getAsString().isBlank()) continue;
             String id = model.get("slug").getAsString();
             String displayName = model.has("display_name") && !model.get("display_name").isJsonNull() ? model.get("display_name").getAsString() : id;
-            models.add(new ModelInfo(id, displayName, null, null, null, null));
+            Integer contextTokens = null;
+            Integer outputTokens = null;
+            for (String field : List.of("context_window", "context_length", "max_context_tokens")) {
+                if (model.has(field) && model.get(field).isJsonPrimitive() && model.get(field).getAsJsonPrimitive().isNumber()) {
+                    try { int contextCapacity = model.get(field).getAsInt(); if (contextCapacity > 0) contextTokens = contextCapacity; } catch (RuntimeException ignored) { }
+                    if (contextTokens != null) break;
+                }
+            }
+            for (String field : List.of("max_output_tokens", "output_tokens")) {
+                if (model.has(field) && model.get(field).isJsonPrimitive() && model.get(field).getAsJsonPrimitive().isNumber()) {
+                    try { int outputCapacity = model.get(field).getAsInt(); if (outputCapacity > 0) outputTokens = outputCapacity; } catch (RuntimeException ignored) { }
+                    if (outputTokens != null) break;
+                }
+            }
+            models.add(new ModelInfo(id, displayName, null, null, contextTokens, outputTokens));
         }
         ModelInfo selected = models.stream().filter(model -> model.id().equals(selectedModelId)).findFirst().orElse(models.isEmpty() ? null : models.getFirst());
         return new Capabilities(models, selected == null ? null : selected.id(), selected == null ? null : selected.imageInput(),
@@ -521,6 +536,7 @@ public final class ChatGptBackend implements ModelBackend {
         private boolean responseFinished;
         private boolean continuationStarted;
         private boolean searchRetried;
+        private boolean serviceUnavailableRetried;
         private List<InputItem> currentInput = List.of();
         private final List<InputItem> durableReplay = new ArrayList<>();
         private List<JsonObject> outputItems = new ArrayList<>();
@@ -866,6 +882,18 @@ public final class ChatGptBackend implements ModelBackend {
             PackSageLog.LOGGER.warn("PackSage model request failed: {}", detail);
             events.accept(new Event(EventKind.FAILED, null, null, List.of(), detail));
             clearIfFinished();
+        }
+
+        private boolean retryServiceUnavailable(long eventGeneration) {
+            List<InputItem> retry;
+            synchronized (lock) {
+                if (!isCurrentLocked(eventGeneration) || serviceUnavailableRetried) return false;
+                serviceUnavailableRetried = true;
+                retry = currentInput;
+            }
+            events.accept(new Event(EventKind.RETRYING, null, null, List.of(), "temporary provider failure; retrying once"));
+            issue(retry);
+            return true;
         }
 
         private void failLocked(String detail) {

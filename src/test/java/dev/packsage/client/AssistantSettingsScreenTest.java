@@ -100,14 +100,17 @@ class AssistantSettingsScreenTest {
         screen.height = 240;
         ScreenTestHost.initialize(screen);
         ((MultilineEditor) screen.children().getFirst()).setValue("37");
-        ((MultilineEditor) screen.children().getLast()).setValue("23456");
+        ((MultilineEditor) screen.children().get(1)).setValue("23456");
+        ((MultilineEditor) screen.children().get(2)).setValue("5");
         screen.width = 320;
         ScreenTestHost.initialize(screen);
         assertEquals("37", ((MultilineEditor) screen.children().getFirst()).value());
-        assertEquals("23456", ((MultilineEditor) screen.children().getLast()).value());
+        assertEquals("23456", ((MultilineEditor) screen.children().get(1)).value());
+        assertEquals("5", ((MultilineEditor) screen.children().get(2)).value());
         screen.close();
         assertEquals(37, PackSageSettings.load(path).historyTurns());
         assertEquals(23456, PackSageSettings.load(path).historicalTokens());
+        assertEquals(5, PackSageSettings.load(path).sessionsBeforeCollapse());
     }
 
     @Test
@@ -120,7 +123,8 @@ class AssistantSettingsScreenTest {
 
         var layout = screen.layout();
         var turns = (MultilineEditor) screen.children().getFirst();
-        var tokens = (MultilineEditor) screen.children().getLast();
+        var tokens = (MultilineEditor) screen.children().get(1);
+        var sessions = (MultilineEditor) screen.children().get(2);
         int fieldWidth = (layout.width() - 32 - 16) / 2;
         assertEquals(layout.left() + 16, turns.getX());
         assertEquals(layout.historyTop() + 20, turns.getY());
@@ -130,6 +134,10 @@ class AssistantSettingsScreenTest {
         assertEquals(layout.historyTop() + 20, tokens.getY());
         assertEquals(fieldWidth, tokens.getWidth());
         assertEquals(30, tokens.getHeight());
+        assertEquals(layout.left() + 16, sessions.getX());
+        assertEquals(layout.historyTop() + 86, sessions.getY());
+        assertEquals(layout.width() - 32, sessions.getWidth());
+        assertEquals(30, sessions.getHeight());
 
         int initialModelY = layout.models().getFirst().y();
         int track = layout.bottom() - layout.top();
@@ -156,6 +164,21 @@ class AssistantSettingsScreenTest {
         assertTrue(editor.isFocused());
         assertFalse(screen.mouseClicked(0, 20, 0));
         assertFalse(editor.isFocused());
+    }
+
+    @Test
+    void sendShortcutChoiceUsesDedicatedRowsAndPersists() {
+        PackSageSettings settings = PackSageSettings.defaults();
+        var screen = new AssistantSettingsScreen(settings, temporaryDirectory.resolve("settings.properties"),
+                Component.literal("Settings"), List.of(), null, () -> { });
+        screen.width = 512;
+        screen.height = 1_000;
+        var layout = screen.layout();
+        assertEquals(PackSageSettings.SendShortcut.ENTER, settings.sendShortcut());
+        assertTrue(screen.mouseClicked(layout.left() + 16, layout.shortcutTop() + 40, 0));
+        assertEquals(PackSageSettings.SendShortcut.CTRL_ENTER, settings.sendShortcut());
+        assertTrue(screen.mouseClicked(layout.left() + 16, layout.shortcutTop() + 10, 0));
+        assertEquals(PackSageSettings.SendShortcut.ENTER, settings.sendShortcut());
     }
 
     @Test

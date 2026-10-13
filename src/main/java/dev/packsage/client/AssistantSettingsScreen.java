@@ -19,7 +19,7 @@ import java.util.Objects;
 public final class AssistantSettingsScreen extends Screen {
     record Choice(String value, String label, int x, int y, int width, boolean selected) { }
     record Layout(int left, int width, int top, int bottom, int accountTop, int accountHeight, int accountLeft, int accountWidth,
-                  List<Choice> models, List<Choice> efforts, int behaviorTop, int historyTop,
+                  List<Choice> models, List<Choice> efforts, int behaviorTop, int shortcutTop, int historyTop,
                   boolean historyStacked, int contentHeight) { }
 
     private final PackSageSettings settings;
@@ -31,8 +31,10 @@ public final class AssistantSettingsScreen extends Screen {
     private final Runnable returnToAssistant;
     private MultilineEditor turnsEditor;
     private MultilineEditor tokensEditor;
+    private MultilineEditor sessionsEditor;
     private String turnsDraft;
     private String tokensDraft;
+    private String sessionsDraft;
     private int scrollOffset;
     private boolean draggingScrollbar;
     private int scrollbarDragOffset;
@@ -76,18 +78,23 @@ public final class AssistantSettingsScreen extends Screen {
         this.returnToAssistant = returnToAssistant == null ? () -> { } : returnToAssistant;
         turnsDraft = Integer.toString(settings.historyTurns());
         tokensDraft = Integer.toString(settings.historicalTokens());
+        sessionsDraft = Integer.toString(settings.sessionsBeforeCollapse());
     }
 
     @Override
     protected void init() {
         if (turnsEditor != null) turnsDraft = turnsEditor.value();
         if (tokensEditor != null) tokensDraft = tokensEditor.value();
+        if (sessionsEditor != null) sessionsDraft = sessionsEditor.value();
         turnsEditor = addRenderableWidget(new MultilineEditor(font, 0, 0, 100, 30, 3, false, () -> true));
         tokensEditor = addRenderableWidget(new MultilineEditor(font, 0, 0, 100, 30, 7, false, () -> true));
+        sessionsEditor = addRenderableWidget(new MultilineEditor(font, 0, 0, 100, 30, 4, false, () -> true));
         turnsEditor.setMessage(Component.literal("History turns"));
         tokensEditor.setMessage(Component.literal("History tokens"));
+        sessionsEditor.setMessage(Component.literal("Sessions before Show more"));
         turnsEditor.setValue(turnsDraft);
         tokensEditor.setValue(tokensDraft);
+        sessionsEditor.setValue(sessionsDraft);
     }
 
     Layout layout() {
@@ -131,19 +138,24 @@ public final class AssistantSettingsScreen extends Screen {
         y += ((efforts.length + columns - 1) / columns) * 28 + 36;
         int behaviorTop = y;
         y += 76;
+        y += 20;
+        int shortcutTop = y;
+        y += 76;
         int historyTop = y;
         boolean stacked = rowWidth < 280;
-        y += stacked ? 146 : 82;
+        y += stacked ? 194 : 130;
         Layout result = new Layout(left, panelWidth, 50, Math.max(51, height - 12), accountTop, accountHeight, left + 16, rowWidth,
-                List.copyOf(modelChoices), List.copyOf(effortChoices), behaviorTop, historyTop, stacked, y + scrollOffset - 50);
+                List.copyOf(modelChoices), List.copyOf(effortChoices), behaviorTop, shortcutTop, historyTop, stacked, y + scrollOffset - 50);
         if (turnsEditor != null) {
             int fieldWidth = result.historyStacked() ? rowWidth : (rowWidth - 16) / 2;
             int tokensX = result.historyStacked() ? left + 16 : left + 16 + fieldWidth + 16;
             int tokensY = result.historyTop() + (result.historyStacked() ? 66 : 0);
             turnsEditor.setRectangle(fieldWidth, 30, left + 16, result.historyTop() + 20);
             tokensEditor.setRectangle(fieldWidth, 30, tokensX, tokensY + 20);
+            sessionsEditor.setRectangle(rowWidth, 30, left + 16, result.historyTop() + (result.historyStacked() ? 132 : 66) + 20);
             turnsEditor.visible = turnsEditor.getY() < result.bottom() && turnsEditor.getY() + 30 > result.top();
             tokensEditor.visible = tokensEditor.getY() < result.bottom() && tokensEditor.getY() + 30 > result.top();
+            sessionsEditor.visible = sessionsEditor.getY() < result.bottom() && sessionsEditor.getY() + 30 > result.top();
         }
         return result;
     }
@@ -245,6 +257,23 @@ public final class AssistantSettingsScreen extends Screen {
                             .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, rowWidth - 42))),
                     x + 34, y + (28 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
+        graphics.drawString(font, Component.literal("Send shortcut").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
+                x, layout.shortcutTop() - 20, ModernUi.TEXT, false);
+        for (int index = 0; index < 2; index++) {
+            PackSageSettings.SendShortcut shortcut = index == 0 ? PackSageSettings.SendShortcut.ENTER : PackSageSettings.SendShortcut.CTRL_ENTER;
+            int y = layout.shortcutTop() + index * 34;
+            boolean selected = settings.sendShortcut() == shortcut;
+            ModernUi.surface(graphics, x, y, x + rowWidth, y + 28,
+                    selected ? ModernUi.ACCENT_DARK
+                            : mouseX >= x && mouseX < x + rowWidth && mouseY >= y && mouseY < y + 28
+                            ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+            graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/"
+                            + (selected ? "radio-button" : "circle") + ".png"),
+                    x + 6, y + (28 - 14) / 2, 14, 14, 0f, 0f, 64, 64, 64, 64);
+            graphics.drawString(font, Component.literal(index == 0 ? "Enter" : "Ctrl+Enter")
+                            .withStyle(style -> style.withFont(ModernUi.FONT)),
+                    x + 28, y + (28 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        }
         int fieldWidth = layout.historyStacked() ? rowWidth : (rowWidth - 16) / 2;
         int tokensX = layout.historyStacked() ? x : x + fieldWidth + 16;
         int tokensY = layout.historyTop() + (layout.historyStacked() ? 66 : 0);
@@ -252,6 +281,9 @@ public final class AssistantSettingsScreen extends Screen {
                 x, layout.historyTop(), ModernUi.MUTED, false);
         graphics.drawString(font, Component.literal("History tokens").withStyle(style -> style.withFont(ModernUi.FONT)),
                 tokensX, tokensY, ModernUi.MUTED, false);
+        int sessionsY = layout.historyTop() + (layout.historyStacked() ? 132 : 66);
+        graphics.drawString(font, Component.literal("Sessions before Show more").withStyle(style -> style.withFont(ModernUi.FONT)),
+                x, sessionsY, ModernUi.MUTED, false);
         if (turnsEditor != null) {
             super.render(graphics, mouseX, mouseY, partialTick);
         }
@@ -322,6 +354,14 @@ public final class AssistantSettingsScreen extends Screen {
                 settings.setAutomaticWebSearch(!settings.automaticWebSearch());
                 return true;
             }
+            if (mouseY >= layout.shortcutTop() && mouseY < layout.shortcutTop() + 28) {
+                settings.setSendShortcut(PackSageSettings.SendShortcut.ENTER);
+                return true;
+            }
+            if (mouseY >= layout.shortcutTop() + 34 && mouseY < layout.shortcutTop() + 62) {
+                settings.setSendShortcut(PackSageSettings.SendShortcut.CTRL_ENTER);
+                return true;
+            }
         }
         return super.mouseClicked(mouseX, mouseY, button);
     }
@@ -363,6 +403,7 @@ public final class AssistantSettingsScreen extends Screen {
     public void resize(Minecraft minecraft, int width, int height) {
         if (turnsEditor != null) turnsDraft = turnsEditor.value();
         if (tokensEditor != null) tokensDraft = tokensEditor.value();
+        if (sessionsEditor != null) sessionsDraft = sessionsEditor.value();
         super.resize(minecraft, width, height);
     }
 
@@ -378,6 +419,7 @@ public final class AssistantSettingsScreen extends Screen {
     public void setAutomaticWebSearch(boolean value) { settings.setAutomaticWebSearch(value); }
     public boolean setHistoryTurns(int value) { return settings.setHistoryTurns(value); }
     public boolean setHistoricalTokens(int value) { return settings.setHistoricalTokens(value); }
+    public boolean setSessionsBeforeCollapse(int value) { return settings.setSessionsBeforeCollapse(value); }
     public void save() { settings.save(path); }
     public void close() { finish(); }
     @Override public void onClose() { finish(); }
@@ -390,6 +432,9 @@ public final class AssistantSettingsScreen extends Screen {
         }
         if (tokensEditor != null) {
             try { settings.setHistoricalTokens(Integer.parseInt(tokensEditor.value())); } catch (NumberFormatException ignored) { }
+        }
+        if (sessionsEditor != null) {
+            try { settings.setSessionsBeforeCollapse(Integer.parseInt(sessionsEditor.value())); } catch (NumberFormatException ignored) { }
         }
         settings.save(path);
         returnToAssistant.run();

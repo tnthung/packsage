@@ -24,6 +24,8 @@ class PackSageSettingsTest {
         assertTrue(settings.automaticWebSearch());
         assertEquals(10, settings.historyTurns());
         assertEquals(12_000, settings.historicalTokens());
+        assertEquals(PackSageSettings.SendShortcut.ENTER, settings.sendShortcut());
+        assertEquals(2, settings.sessionsBeforeCollapse());
     }
 
     @Test
@@ -34,6 +36,8 @@ class PackSageSettingsTest {
         settings.setAutomaticWebSearch(false);
         settings.setHistoryTurns(25);
         settings.setHistoricalTokens(20_000);
+        settings.setSendShortcut(PackSageSettings.SendShortcut.CTRL_ENTER);
+        settings.setSessionsBeforeCollapse(5);
         settings.save(path);
 
         PackSageSettings loaded = PackSageSettings.load(path);
@@ -41,11 +45,16 @@ class PackSageSettingsTest {
         assertFalse(loaded.automaticWebSearch());
         assertEquals(25, loaded.historyTurns());
         assertEquals(20_000, loaded.historicalTokens());
+        assertEquals(PackSageSettings.SendShortcut.CTRL_ENTER, loaded.sendShortcut());
+        assertEquals(5, loaded.sessionsBeforeCollapse());
 
         assertFalse(loaded.setHistoryTurns(0));
         assertFalse(loaded.setHistoricalTokens(Integer.MAX_VALUE));
         assertEquals(25, loaded.historyTurns());
         assertEquals(20_000, loaded.historicalTokens());
+        assertFalse(loaded.setSessionsBeforeCollapse(0));
+        assertFalse(loaded.setSessionsBeforeCollapse(PackSageSettings.MAX_SESSIONS_BEFORE_COLLAPSE + 1));
+        assertEquals(5, loaded.sessionsBeforeCollapse());
     }
 
     @Test
@@ -73,5 +82,16 @@ class PackSageSettingsTest {
         }
         assertEquals("gpt-5-mini", properties.getProperty("modelId"));
         assertEquals("high", properties.getProperty("reasoningEffort"));
+    }
+
+    @Test
+    void malformedNewSettingsKeepDefaults() throws Exception {
+        Path path = temporaryDirectory.resolve("malformed-new-settings.properties");
+        Files.writeString(path, "sendShortcut=bogus\nsessionsBeforeCollapse=not-a-number\n");
+
+        PackSageSettings loaded = PackSageSettings.load(path);
+
+        assertEquals(PackSageSettings.SendShortcut.ENTER, loaded.sendShortcut());
+        assertEquals(PackSageSettings.DEFAULT_SESSIONS_BEFORE_COLLAPSE, loaded.sessionsBeforeCollapse());
     }
 }

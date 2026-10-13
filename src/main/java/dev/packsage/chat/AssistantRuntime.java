@@ -1,5 +1,6 @@
 package dev.packsage.chat;
 
+import dev.packsage.PackSageLog;
 import dev.packsage.client.AssistantScreen;
 import dev.packsage.client.GameplayContextCapture;
 import dev.packsage.knowledge.Evidence;
@@ -489,6 +490,7 @@ public final class AssistantRuntime implements ChatActions {
     private void send(String question, boolean includeScreenshot, boolean explicitWebSearch,
                       ChatContracts.RequestId replacing) {
         Objects.requireNonNull(question);
+        long sendStartedAtNanos = System.nanoTime();
         synchronized (sendLock) {
             ChatContracts.Submission submission;
             long epoch;
@@ -580,6 +582,10 @@ public final class AssistantRuntime implements ChatActions {
                 epoch = worldEpoch;
             }
             try {
+                long dispatchAtNanos = System.nanoTime();
+                PackSageLog.LOGGER.info("PackSage timing request={} phase=runtime_dispatch start_ns={} event_ns={} elapsed_ms={}",
+                        submission.requestId().value(), sendStartedAtNanos, dispatchAtNanos,
+                        (dispatchAtNanos - sendStartedAtNanos) / 1_000_000);
                 controller.begin(submission).whenCompleteAsync((ignored, failure) -> {
                     if (failure == null) return;
                     boolean current;

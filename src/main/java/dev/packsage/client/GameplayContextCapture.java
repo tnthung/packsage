@@ -3,6 +3,7 @@ package dev.packsage.client;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.serialization.JsonOps;
+import dev.packsage.PackSageLog;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.client.Minecraft;
@@ -213,6 +214,9 @@ public final class GameplayContextCapture {
     public CompletionStage<ChatContracts.CapturedContext> capture(ChatContracts.RequestCapture request,
                                                                    boolean includeScreenshot) {
         Objects.requireNonNull(request);
+        long captureStartedAtNanos = System.nanoTime();
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=context_capture_start start_ns={} screenshot={}",
+                request.requestId().value(), captureStartedAtNanos, includeScreenshot);
         PendingFrame superseded;
         long requestEpoch;
         synchronized (frameLock) {
@@ -224,7 +228,23 @@ public final class GameplayContextCapture {
             superseded.result().completeExceptionally(new java.util.concurrent.CancellationException("capture superseded"));
         }
         CompletionStage<CaptureMetadata> metadata = CompletableFuture.supplyAsync(() -> {
-            Observation observation = Objects.requireNonNull(observations.capture());
+            long observationStartedAtNanos = System.nanoTime();
+            Observation observation;
+            try {
+                observation = Objects.requireNonNull(observations.capture());
+            } catch (RuntimeException failure) {
+                long observationFailedAtNanos = System.nanoTime();
+                PackSageLog.LOGGER.info("PackSage timing request={} phase=observation_failed event_ns={} observationMs={} failureType={}",
+                        request.requestId().value(), observationFailedAtNanos,
+                        (observationFailedAtNanos - observationStartedAtNanos) / 1_000_000,
+                        failure.getClass().getSimpleName());
+                throw failure;
+            }
+            long observationReadyAtNanos = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing request={} phase=observation_ready event_ns={} queueMs={} observationMs={}",
+                    request.requestId().value(), observationReadyAtNanos,
+                    (observationStartedAtNanos - captureStartedAtNanos) / 1_000_000,
+                    (observationReadyAtNanos - observationStartedAtNanos) / 1_000_000);
             Evidence.Scope currentScope = Objects.requireNonNull(scope.get());
             if (!request.scope().equals(currentScope)) {
                 throw new java.util.concurrent.CancellationException("capture scope changed");
@@ -243,12 +263,35 @@ public final class GameplayContextCapture {
             if (captureEpoch.get() != captured.epoch() || !request.equals(activeRequest.get())) {
                 return CompletableFuture.failedFuture(new java.util.concurrent.CancellationException("capture invalidated"));
             }
-            return frameCapture.capture(request).thenApplyAsync(frame -> {
+            long frameStartedAtNanos = System.nanoTime();
+            CompletionStage<CapturedFrame> frameCaptureStage;
+            try {
+                frameCaptureStage = frameCapture.capture(request);
+            } catch (RuntimeException failure) {
+                long frameCaptureFailedAtNanos = System.nanoTime();
+                PackSageLog.LOGGER.info("PackSage timing request={} phase=frame_capture_failed event_ns={} waitMs={} failureType={}",
+                        request.requestId().value(), frameCaptureFailedAtNanos,
+                        (frameCaptureFailedAtNanos - frameStartedAtNanos) / 1_000_000, failure.getClass().getSimpleName());
+                throw failure;
+            }
+            return frameCaptureStage.whenComplete((frame, failure) -> {
+                if (failure != null) {
+                    long frameFailedAtNanos = System.nanoTime();
+                    PackSageLog.LOGGER.info("PackSage timing request={} phase=frame_failed event_ns={} waitMs={} failureType={}",
+                            request.requestId().value(), frameFailedAtNanos,
+                            (frameFailedAtNanos - frameStartedAtNanos) / 1_000_000,
+                            failure.getClass().getSimpleName());
+                }
+            }).thenApplyAsync(frame -> {
                 Objects.requireNonNull(frame);
                 if (captureEpoch.get() != captured.epoch() || !sameScope(captured.scope())) {
                     throw new java.util.concurrent.CancellationException("capture invalidated");
                 }
                 byte[] bytes = frame.bytes();
+                long frameReadyAtNanos = System.nanoTime();
+                PackSageLog.LOGGER.info("PackSage timing request={} phase=frame_ready event_ns={} waitMs={} frameBytes={}",
+                        request.requestId().value(), frameReadyAtNanos,
+                        (frameReadyAtNanos - frameStartedAtNanos) / 1_000_000, bytes.length);
                 ChatContracts.Screenshot screenshot = new ChatContracts.Screenshot(
                         request.requestId().value() + ".png", frame.mediaType(), bytes.length, frame.capturedAt());
                 return new ChatContracts.CapturedContext(context(captured.observation(), captured.scope(), captured.request(), captured.capturedAt(), screenshot), bytes);
@@ -277,10 +320,18 @@ public final class GameplayContextCapture {
                     || !sameScope(pending.scope())) {
                 failure = new java.util.concurrent.CancellationException("clean frame scope changed");
             } else {
+                long frameStartedAtNanos = System.nanoTime();
                 try (NativeImage image = Screenshot.takeScreenshot(minecraft.getMainRenderTarget())) {
-                    captured = new CapturedFrame("image/png", image.asByteArray(), Instant.now());
+                    byte[] bytes = image.asByteArray();
+                    captured = new CapturedFrame("image/png", bytes, Instant.now());
+                    long frameImageReadyAtNanos = System.nanoTime();
+                    PackSageLog.LOGGER.info("PackSage timing request={} phase=frame_image event_ns={} frameMs={} frameBytes={}",
+                            pending.request().requestId().value(), frameImageReadyAtNanos,
+                            (frameImageReadyAtNanos - frameStartedAtNanos) / 1_000_000, bytes.length);
                 } catch (Throwable captureFailure) {
                     failure = captureFailure;
+                    PackSageLog.LOGGER.info("PackSage timing request={} phase=frame_image_failed event_ns={} failureType={}",
+                            pending.request().requestId().value(), System.nanoTime(), captureFailure.getClass().getSimpleName());
                 }
             }
         }

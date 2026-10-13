@@ -39,6 +39,23 @@ public final class ChatGptBackend implements ModelBackend {
     private static final String MAX_MESSAGES_DETAIL = "response incomplete: max_messages";
     private static final String SEARCH_RETRY_INSTRUCTION = " The previous attempt at this response stopped at the provider's"
             + " message limit while using web search. Answer from the evidence already gathered and state that web lookup was cut short.";
+
+    private static final class RoundTiming {
+        private final long round;
+        private final String reason;
+        private final long startedAtNanos;
+        private long dispatchedAtNanos;
+        private long headersAtNanos;
+        private boolean firstBytesLogged;
+        private boolean firstTextLogged;
+
+        private RoundTiming(long round, String reason, long startedAtNanos) {
+            this.round = round;
+            this.reason = reason;
+            this.startedAtNanos = startedAtNanos;
+        }
+    }
+
     private final HttpClient client;
     private final Executor executor;
     private final ChatGptAuth auth;
@@ -166,6 +183,10 @@ public final class ChatGptBackend implements ModelBackend {
 
     @Override
     public Exchange start(Request request, Consumer<Event> events) {
+        long backendEntryAtNanos = System.nanoTime();
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=backend_entry event_ns={} model={} effort={} inputItems={} tools={} search={}",
+                request.requestId(), backendEntryAtNanos, request.modelId(), request.reasoningEffort(),
+                request.input().size(), request.tools().size(), request.searchMode());
         Request effective = request;
         Boolean imageInput;
         Boolean hostedSearch;
@@ -211,26 +232,66 @@ public final class ChatGptBackend implements ModelBackend {
         synchronized (exchangeLock) {
             if (activeExchange != exchange) return exchange;
         }
-        exchange.issue(effective.input());
+        exchange.issue(effective.input(), "initial");
         return exchange;
     }
 
-    private CompletableFuture<HttpResponse<InputStream>> send(Request request, List<InputItem> input) {
-        return auth.accessToken().thenCompose(token -> {
+    private CompletableFuture<HttpResponse<InputStream>> send(Request request, List<InputItem> input, RoundTiming timing) {
+        long authStartedAtNanos = System.nanoTime();
+        CompletionStage<String> tokenStage = auth.accessToken();
+        return tokenStage.whenComplete((token, failure) -> {
+            long authReadyAtNanos = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=auth_ready event_ns={} authMs={} outcome={}",
+                    request.requestId(), timing.round, timing.reason, authReadyAtNanos,
+                    (authReadyAtNanos - authStartedAtNanos) / 1_000_000, failure == null ? "success" : "failure");
+        }).thenCompose(token -> {
+            long serializationStartedAtNanos = System.nanoTime();
+            String body = requestBody(request, input);
+            HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8);
+            long serializedAtNanos = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=body_ready event_ns={} serializationMs={} bodyBytes={} bodyChars={} inputItems={} tools={} model={} effort={}",
+                    request.requestId(), timing.round, timing.reason, serializedAtNanos,
+                    (serializedAtNanos - serializationStartedAtNanos) / 1_000_000,
+                    bodyPublisher.contentLength(), body.length(), input.size(), request.tools().size(),
+                    request.modelId(), request.reasoningEffort());
             HttpRequest httpRequest = HttpRequest.newBuilder(RESPONSES_URI).timeout(Duration.ofSeconds(60))
                     .header("Authorization", "Bearer " + token).header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody(request, input), StandardCharsets.UTF_8)).build();
+                    .POST(bodyPublisher).build();
+            timing.dispatchedAtNanos = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=http_dispatch event_ns={} requestToDispatchMs={}",
+                    request.requestId(), timing.round, timing.reason, timing.dispatchedAtNanos,
+                    (timing.dispatchedAtNanos - timing.startedAtNanos) / 1_000_000);
             return client.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofInputStream());
+        }).thenApply(response -> {
+            timing.headersAtNanos = System.nanoTime();
+            return response;
         }).toCompletableFuture();
     }
 
-    private void read(HttpResponse<InputStream> response, ExchangeImpl exchange, long generation, ChatGptStream stream) {
+    private void read(HttpResponse<InputStream> response, ExchangeImpl exchange, long generation, ChatGptStream stream,
+                      RoundTiming timing) {
         InputStream input = response.body();
         if (!exchange.attachInput(generation, input)) {
             try { input.close(); } catch (IOException ignored) { }
             return;
         }
         try (input) {
+            long readStartedAtNanos = System.nanoTime();
+            long callbackQueueMs = (readStartedAtNanos - timing.headersAtNanos) / 1_000_000;
+            String processingMs = response.headers().firstValue("openai-processing-ms")
+                    .filter(value -> value.matches("[0-9]{1,9}(?:\\.[0-9]{1,3})?"))
+                    .orElse(null);
+            if (processingMs != null) {
+                PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=http_headers event_ns={} dispatchToHeadersMs={} callbackQueueMs={} protocol={} status={} processingMs={}",
+                        exchange.request.requestId(), timing.round, timing.reason, timing.headersAtNanos,
+                        (timing.headersAtNanos - timing.dispatchedAtNanos) / 1_000_000,
+                        callbackQueueMs, response.version(), response.statusCode(), processingMs);
+            } else {
+                PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=http_headers event_ns={} dispatchToHeadersMs={} callbackQueueMs={} protocol={} status={}",
+                        exchange.request.requestId(), timing.round, timing.reason, timing.headersAtNanos,
+                        (timing.headersAtNanos - timing.dispatchedAtNanos) / 1_000_000,
+                        callbackQueueMs, response.version(), response.statusCode());
+            }
             if (response.statusCode() / 100 != 2) {
                 byte[] body = input.readNBytes(MAX_ERROR_BYTES + 1);
                 String responseBody = new String(body, 0, Math.min(body.length, MAX_ERROR_BYTES), StandardCharsets.UTF_8);
@@ -246,19 +307,30 @@ public final class ChatGptBackend implements ModelBackend {
                     recordCapabilities(exchange.request.modelId(), imageFailure ? false : null, searchFailure ? false : null, exchange.requestAccountEpoch);
                 }
                 if (body.length > MAX_ERROR_BYTES) detail += " [body truncated]";
-                if (response.statusCode() == 503 && exchange.retryServiceUnavailable(generation)) return;
-                exchange.transportFailure(generation, detail);
+                if (response.statusCode() == 503 && exchange.retryServiceUnavailable(generation, timing)) return;
+                exchange.transportFailure(generation, detail, timing, response.statusCode());
                 return;
             }
             exchange.recordResponse(generation, response.statusCode(), response.headers().firstValue("x-request-id").orElse(null));
             byte[] buffer = new byte[4096];
             int count;
             while (exchange.isCurrent(generation) && (count = input.read(buffer)) >= 0) {
-                if (count > 0) stream.accept(java.util.Arrays.copyOf(buffer, count));
+                if (count > 0) {
+                    if (!timing.firstBytesLogged) {
+                        timing.firstBytesLogged = true;
+                        long firstBytesAtNanos = System.nanoTime();
+                        PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=first_stream_bytes event_ns={} headersToFirstBytesMs={} dispatchToFirstBytesMs={} bytes={}",
+                                exchange.request.requestId(), timing.round, timing.reason, firstBytesAtNanos,
+                                (firstBytesAtNanos - timing.headersAtNanos) / 1_000_000,
+                                (firstBytesAtNanos - timing.dispatchedAtNanos) / 1_000_000, count);
+                    }
+                    stream.accept(java.util.Arrays.copyOf(buffer, count));
+                }
             }
             if (exchange.isCurrent(generation)) stream.complete();
         } catch (IOException error) {
-            if (exchange.isCurrent(generation)) exchange.transportFailure(generation, "response stream failed: " + error.getMessage());
+            if (exchange.isCurrent(generation)) exchange.transportFailure(generation,
+                    "response stream failed: " + error.getMessage(), timing, response.statusCode());
         } finally {
             exchange.detachInput(generation, input);
         }
@@ -545,6 +617,7 @@ public final class ChatGptBackend implements ModelBackend {
         private CompletableFuture<HttpResponse<InputStream>> responseFuture;
         private InputStream responseInput;
         private ChatGptStream stream;
+        private RoundTiming currentTiming;
         private int responseStatus;
         private String responseRequestId;
 
@@ -556,13 +629,16 @@ public final class ChatGptBackend implements ModelBackend {
                     && message.content().stream().anyMatch(content -> content instanceof ImageContent));
         }
 
-        private void issue(List<InputItem> input) {
+        private void issue(List<InputItem> input, String reason) {
             final long nextGeneration;
             final ChatGptStream nextStream;
+            final RoundTiming nextTiming;
             synchronized (lock) {
                 if (cancelled || terminal) return;
                 generation++;
                 nextGeneration = generation;
+                nextTiming = new RoundTiming(nextGeneration, reason, System.nanoTime());
+                currentTiming = nextTiming;
                 currentInput = List.copyOf(input);
                 responseFinished = false;
                 continuationStarted = false;
@@ -571,16 +647,17 @@ public final class ChatGptBackend implements ModelBackend {
                 results = new LinkedHashMap<>();
                 responseStatus = 0;
                 responseRequestId = null;
-                nextStream = new ChatGptStream(event -> handleEvent(nextGeneration, event), item -> captureOutput(nextGeneration, item));
+                nextStream = new ChatGptStream(event -> handleEvent(nextGeneration, nextTiming, event),
+                        item -> captureOutput(nextGeneration, item));
                 stream = nextStream;
-                responseFuture = send(request, currentInput);
+                responseFuture = send(request, currentInput, nextTiming);
             }
             responseFuture.whenCompleteAsync((response, failure) -> {
                 if (failure != null) {
                     Throwable cause = failure instanceof CompletionException && failure.getCause() != null ? failure.getCause() : failure;
-                    transportFailure(nextGeneration, "request failed: " + cause.getMessage());
+                    transportFailure(nextGeneration, "request failed: " + cause.getMessage(), nextTiming, 0);
                 } else {
-                    read(response, this, nextGeneration, nextStream);
+                    read(response, this, nextGeneration, nextStream, nextTiming);
                 }
             }, executor);
         }
@@ -591,16 +668,23 @@ public final class ChatGptBackend implements ModelBackend {
             }
         }
 
-        private void handleEvent(long eventGeneration, Event event) {
+        private void handleEvent(long eventGeneration, RoundTiming timing, Event event) {
             List<InputItem> continuation = null;
             List<InputItem> retry = null;
             List<ToolCall> bufferedCalls = List.of();
             boolean publish = false;
+            boolean firstTextForRound = false;
+            boolean providerTerminal = event.kind() == EventKind.COMPLETED || event.kind() == EventKind.FAILED;
             Boolean imageCapability = null;
             Boolean searchCapability = null;
             Event publishedEvent = event;
             synchronized (lock) {
                 if (!isCurrentLocked(eventGeneration)) return;
+                if (event.kind() == EventKind.TEXT_DELTA && event.text() != null && !event.text().isEmpty()
+                        && !timing.firstTextLogged) {
+                    timing.firstTextLogged = true;
+                    firstTextForRound = true;
+                }
                 if (event.kind() == EventKind.CLIENT_TOOL_CALL) {
                     ToolCall call = event.toolCall();
                     if (calls.putIfAbsent(call.callId(), call) != null) {
@@ -667,14 +751,29 @@ public final class ChatGptBackend implements ModelBackend {
                     publish = true;
                 }
             }
+            if (firstTextForRound || providerTerminal) {
+                long eventAtNanos = System.nanoTime();
+                if (firstTextForRound) {
+                    PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=first_text event_ns={} roundToFirstTextMs={} dispatchToFirstTextMs={} deltaChars={}",
+                            request.requestId(), timing.round, timing.reason, eventAtNanos,
+                            (eventAtNanos - timing.startedAtNanos) / 1_000_000,
+                            timing.dispatchedAtNanos == 0 ? -1 : (eventAtNanos - timing.dispatchedAtNanos) / 1_000_000,
+                            event.text().length());
+                }
+                if (providerTerminal) {
+                    PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=provider_terminal event_ns={} outcome={} status={} dispatchToTerminalMs={}",
+                            request.requestId(), timing.round, timing.reason, eventAtNanos, event.kind(), responseStatus,
+                            timing.dispatchedAtNanos == 0 ? -1 : (eventAtNanos - timing.dispatchedAtNanos) / 1_000_000);
+                }
+            }
             recordCapabilities(request.modelId(), imageCapability, searchCapability, requestAccountEpoch);
             if (publish) events.accept(publishedEvent);
             for (ToolCall call : bufferedCalls) {
                 if (!isCurrent(eventGeneration)) break;
                 events.accept(new Event(EventKind.CLIENT_TOOL_CALL, null, call, List.of(), List.of(), null));
             }
-            if (continuation != null) issue(continuation);
-            if (retry != null) issue(retry);
+            if (continuation != null) issue(continuation, "tool_continuation");
+            if (retry != null) issue(retry, "search_retry");
             if (publishedEvent.kind() == EventKind.COMPLETED || publishedEvent.kind() == EventKind.FAILED) clearIfFinished();
         }
 
@@ -700,7 +799,7 @@ public final class ChatGptBackend implements ModelBackend {
                 events.accept(new Event(EventKind.FAILED, null, null, List.of(), failure));
                 clearIfFinished();
             } else if (continuation != null) {
-                issue(continuation);
+                issue(continuation, "tool_continuation");
             }
         }
 
@@ -830,6 +929,7 @@ public final class ChatGptBackend implements ModelBackend {
             CompletableFuture<HttpResponse<InputStream>> future;
             InputStream input;
             ChatGptStream currentStream;
+            RoundTiming timing;
             synchronized (lock) {
                 if (cancelled || terminal) return;
                 cancelled = true;
@@ -837,6 +937,13 @@ public final class ChatGptBackend implements ModelBackend {
                 future = responseFuture;
                 input = responseInput;
                 currentStream = stream;
+                timing = currentTiming;
+            }
+            if (timing != null) {
+                long cancelledAtNanos = System.nanoTime();
+                PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=provider_cancel event_ns={} roundMs={}",
+                        request.requestId(), timing.round, timing.reason, cancelledAtNanos,
+                        (cancelledAtNanos - timing.startedAtNanos) / 1_000_000);
             }
             if (currentStream != null) currentStream.cancel();
             if (future != null) future.cancel(true);
@@ -874,25 +981,33 @@ public final class ChatGptBackend implements ModelBackend {
             }
         }
 
-        private void transportFailure(long eventGeneration, String detail) {
+        private void transportFailure(long eventGeneration, String detail, RoundTiming timing, int status) {
             synchronized (lock) {
                 if (!isCurrentLocked(eventGeneration)) return;
                 failLocked(detail);
             }
+            long failedAtNanos = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=provider_terminal event_ns={} outcome=transport_failure status={} dispatchToTerminalMs={}",
+                    request.requestId(), timing.round, timing.reason, failedAtNanos, status,
+                    timing.dispatchedAtNanos == 0 ? -1 : (failedAtNanos - timing.dispatchedAtNanos) / 1_000_000);
             PackSageLog.LOGGER.warn("PackSage model request failed: {}", detail);
             events.accept(new Event(EventKind.FAILED, null, null, List.of(), detail));
             clearIfFinished();
         }
 
-        private boolean retryServiceUnavailable(long eventGeneration) {
+        private boolean retryServiceUnavailable(long eventGeneration, RoundTiming timing) {
             List<InputItem> retry;
             synchronized (lock) {
                 if (!isCurrentLocked(eventGeneration) || serviceUnavailableRetried) return false;
                 serviceUnavailableRetried = true;
                 retry = currentInput;
             }
+            long failedAtNanos = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=provider_terminal event_ns={} outcome=retry_503 status=503 dispatchToTerminalMs={}",
+                    request.requestId(), timing.round, timing.reason, failedAtNanos,
+                    timing.dispatchedAtNanos == 0 ? -1 : (failedAtNanos - timing.dispatchedAtNanos) / 1_000_000);
             events.accept(new Event(EventKind.RETRYING, null, null, List.of(), "temporary provider failure; retrying once"));
-            issue(retry);
+            issue(retry, "provider_retry");
             return true;
         }
 

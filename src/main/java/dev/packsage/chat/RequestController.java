@@ -1,5 +1,6 @@
 package dev.packsage.chat;
 
+import dev.packsage.PackSageLog;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.ModelBackend;
 
@@ -97,7 +98,7 @@ public final class RequestController {
             generation++;
             createNew = forceNew;
             forceNew = false;
-            request = new ActiveRequest(submission, generation, Instant.now());
+            request = new ActiveRequest(submission, generation, Instant.now(), System.nanoTime());
             active = request;
             openedWorld = submission.world();
             openedScope = submission.scope();
@@ -114,6 +115,9 @@ public final class RequestController {
                         new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null));
             }
         }
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=accepted start_ns={} event_ns={} model={} effort={} screenshot={} search={}",
+                submission.requestId().value(), request.acceptedAtNanos, request.acceptedAtNanos,
+                submission.selectedModel().id(), submission.reasoningEffort(), submission.includeScreenshot(), submission.searchMode());
         CompletableFuture<ChatContracts.Conversation> target;
         try {
             target = reusableConversation == null
@@ -397,9 +401,17 @@ public final class RequestController {
 
     private void targetReady(ActiveRequest request, ChatContracts.Conversation loaded, Throwable failure) {
         if (failure != null) {
+            long historyFailedAtNanos = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing request={} phase=history_failed event_ns={} elapsed_ms={} failureType={}",
+                    request.submission.requestId().value(), historyFailedAtNanos,
+                    (historyFailedAtNanos - request.acceptedAtNanos) / 1_000_000, failure.getClass().getSimpleName());
             failStart(request, failure);
             return;
         }
+        long historyReadyAtNanos = System.nanoTime();
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=history_ready event_ns={} elapsed_ms={} conversationTurns={}",
+                request.submission.requestId().value(), historyReadyAtNanos,
+                (historyReadyAtNanos - request.acceptedAtNanos) / 1_000_000, loaded.turns().size());
         ChatContracts.View snapshot = null;
         synchronized (stateLock) {
             if (isCurrent(request)
@@ -413,9 +425,18 @@ public final class RequestController {
 
     private void captureReady(ActiveRequest request, ChatContracts.CapturedContext captured, Throwable failure) {
         if (failure != null) {
+            long captureFailedAtNanos = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing request={} phase=capture_failed event_ns={} elapsed_ms={} failureType={}",
+                    request.submission.requestId().value(), captureFailedAtNanos,
+                    (captureFailedAtNanos - request.acceptedAtNanos) / 1_000_000, failure.getClass().getSimpleName());
             failStart(request, failure);
             return;
         }
+        long captureReadyAtNanos = System.nanoTime();
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=capture_ready event_ns={} elapsed_ms={} screenshotBytes={}",
+                request.submission.requestId().value(), captureReadyAtNanos,
+                (captureReadyAtNanos - request.acceptedAtNanos) / 1_000_000,
+                captured.context().screenshot() == null ? 0 : captured.context().screenshot().bytes());
         ChatContracts.View snapshot = null;
         synchronized (stateLock) {
             if (isCurrent(request)) {
@@ -444,11 +465,16 @@ public final class RequestController {
 
         ChatContracts.HistorySelection history;
         ModelBackend.Request modelRequest;
+        long preparationStartedAtNanos = System.nanoTime();
+        long historyReadyAtNanos;
+        long requestBuiltAtNanos;
         try {
             history = HistorySelector.select(target.turns(), request.submission.historyLimits(), tokenCounter::apply,
                     request.submission.replacing());
+            historyReadyAtNanos = System.nanoTime();
             modelRequest = requestBuilder.apply(new ChatContracts.PreparedRequest(request.submission, history, captured,
                     request.evidence));
+            requestBuiltAtNanos = System.nanoTime();
             if (!request.submission.selectedModel().id().equals(modelRequest.modelId())
                     || request.submission.searchMode() != modelRequest.searchMode()
                     || !request.submission.requestId().value().equals(modelRequest.requestId())
@@ -456,9 +482,21 @@ public final class RequestController {
                 throw new IllegalArgumentException("request builder changed immutable submission settings");
             }
         } catch (RuntimeException exception) {
+            long prepareFailedAtNanos = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing request={} phase=prepare_failed event_ns={} elapsed_ms={} failureType={}",
+                    request.submission.requestId().value(), prepareFailedAtNanos,
+                    (prepareFailedAtNanos - request.acceptedAtNanos) / 1_000_000, exception.getClass().getSimpleName());
             failStart(request, exception);
             return;
         }
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=history_selected event_ns={} preparationMs={} historyTurns={} historyTokens={} historyErrors={}",
+                request.submission.requestId().value(), historyReadyAtNanos,
+                (historyReadyAtNanos - preparationStartedAtNanos) / 1_000_000,
+                history.turns().size(), history.tokenCount(), history.errors().size());
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=request_built event_ns={} buildMs={} inputItems={} tools={} model={} effort={}",
+                request.submission.requestId().value(), requestBuiltAtNanos,
+                (requestBuiltAtNanos - historyReadyAtNanos) / 1_000_000,
+                modelRequest.input().size(), modelRequest.tools().size(), modelRequest.modelId(), modelRequest.reasoningEffort());
         synchronized (stateLock) {
             if (!isCurrent(request)) {
                 request.started.completeExceptionally(new IllegalStateException("request was invalidated"));
@@ -469,6 +507,12 @@ public final class RequestController {
 
         ModelBackend.Exchange startedExchange;
         try {
+            request.backendStartedAtNanos = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing request={} phase=backend_start event_ns={} elapsed_ms={} model={} effort={} inputItems={} tools={} search={}",
+                    request.submission.requestId().value(), request.backendStartedAtNanos,
+                    (request.backendStartedAtNanos - request.acceptedAtNanos) / 1_000_000,
+                    modelRequest.modelId(), modelRequest.reasoningEffort(), modelRequest.input().size(),
+                    modelRequest.tools().size(), modelRequest.searchMode());
             startedExchange = backend.start(modelRequest, event -> onEvent(request, event));
         } catch (RuntimeException exception) {
             failStart(request, exception);
@@ -503,6 +547,14 @@ public final class RequestController {
         synchronized (stateLock) {
             if (!isCurrent(request)) return;
             if (event.kind() == ModelBackend.EventKind.TEXT_DELTA && event.text() != null) {
+                if (!request.firstTextLogged) {
+                    request.firstTextLogged = true;
+                    long firstTextAtNanos = System.nanoTime();
+                    PackSageLog.LOGGER.info("PackSage timing request={} phase=first_text event_ns={} elapsed_ms={} backendMs={} deltaChars={}",
+                            request.submission.requestId().value(), firstTextAtNanos,
+                            (firstTextAtNanos - request.acceptedAtNanos) / 1_000_000,
+                            (firstTextAtNanos - request.backendStartedAtNanos) / 1_000_000, event.text().length());
+                }
                 request.answer.append(event.text());
                 request.activity = ActivityLabels.WRITING;
             } else if (event.kind() == ModelBackend.EventKind.RETRYING) {
@@ -608,6 +660,12 @@ public final class RequestController {
             target = request.target.join();
             captured = request.captured;
         }
+        long terminalAtNanos = System.nanoTime();
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=model_terminal event_ns={} elapsed_ms={} backendMs={} outcome={}",
+                request.submission.requestId().value(), terminalAtNanos,
+                (terminalAtNanos - request.acceptedAtNanos) / 1_000_000,
+                request.backendStartedAtNanos == 0 ? -1 : (terminalAtNanos - request.backendStartedAtNanos) / 1_000_000,
+                status);
         ChatContracts.Turn untokened = new ChatContracts.Turn(request.submission.requestId(), request.submission.question(),
                 request.answer.toString(), replay, captured.context(), request.evidence.sources(),
                 request.evidence.navigationTargets(),
@@ -646,6 +704,11 @@ public final class RequestController {
                 context = captured.context();
             }
         }
+        long cancelledAtNanos = System.nanoTime();
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=cancel event_ns={} elapsed_ms={} backendMs={}",
+                request.submission.requestId().value(), cancelledAtNanos,
+                (cancelledAtNanos - request.acceptedAtNanos) / 1_000_000,
+                request.backendStartedAtNanos == 0 ? -1 : (cancelledAtNanos - request.backendStartedAtNanos) / 1_000_000);
         captureCancellation.accept(request.submission.requestId());
         if (exchange != null) exchange.cancel();
         request.started.completeExceptionally(new IllegalStateException("request was cancelled"));
@@ -677,6 +740,10 @@ public final class RequestController {
             }
         }
         if (!current) return;
+        long failedAtNanos = System.nanoTime();
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=start_failed event_ns={} elapsed_ms={} failureType={}",
+                request.submission.requestId().value(), failedAtNanos,
+                (failedAtNanos - request.acceptedAtNanos) / 1_000_000, failure.getClass().getSimpleName());
         captureCancellation.accept(request.submission.requestId());
         request.started.completeExceptionally(failure);
         publish();
@@ -700,6 +767,10 @@ public final class RequestController {
     }
 
     private void persist(ActiveRequest request, ChatContracts.Conversation target, ChatContracts.Turn turn, byte[] screenshotBytes) {
+        request.persistenceStartedAtNanos = System.nanoTime();
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=persist_start event_ns={} elapsed_ms={} screenshotBytes={}",
+                request.submission.requestId().value(), request.persistenceStartedAtNanos,
+                (request.persistenceStartedAtNanos - request.acceptedAtNanos) / 1_000_000, screenshotBytes.length);
         CompletionStage<Void> media = turn.context().screenshot() == null
                 ? CompletableFuture.completedFuture(null)
                 : store.appendMedia(target.world(), target.id(), turn.context().screenshot(), screenshotBytes);
@@ -783,10 +854,17 @@ public final class RequestController {
     }
 
     private void finishPersistence(ActiveRequest request) {
+        long persistedAtNanos = System.nanoTime();
         synchronized (stateLock) {
             if (!request.persistencePending) return;
             request.persistencePending = false;
             pendingPersistenceCount--;
+        }
+        if (request.persistenceStartedAtNanos != 0) {
+            PackSageLog.LOGGER.info("PackSage timing request={} phase=persist_done event_ns={} elapsed_ms={} persistMs={}",
+                    request.submission.requestId().value(), persistedAtNanos,
+                    (persistedAtNanos - request.acceptedAtNanos) / 1_000_000,
+                    (persistedAtNanos - request.persistenceStartedAtNanos) / 1_000_000);
         }
     }
 
@@ -863,6 +941,7 @@ public final class RequestController {
         private final ChatContracts.Submission submission;
         private final long generation;
         private final Instant sentAt;
+        private final long acceptedAtNanos;
         private final CompletableFuture<ChatContracts.RequestId> started = new CompletableFuture<>();
         private final CompletableFuture<Void> persistence = new CompletableFuture<>();
         private final StringBuilder answer = new StringBuilder();
@@ -879,11 +958,15 @@ public final class RequestController {
         private boolean persistenceSettled;
         private boolean persistencePending;
         private String persistenceFailure;
+        private long backendStartedAtNanos;
+        private long persistenceStartedAtNanos;
+        private boolean firstTextLogged;
 
-        private ActiveRequest(ChatContracts.Submission submission, long generation, Instant sentAt) {
+        private ActiveRequest(ChatContracts.Submission submission, long generation, Instant sentAt, long acceptedAtNanos) {
             this.submission = submission;
             this.generation = generation;
             this.sentAt = sentAt;
+            this.acceptedAtNanos = acceptedAtNanos;
         }
     }
 

@@ -65,6 +65,38 @@ class ScreenTextTest {
     }
 
     @Test
+    void blockquotesCarryMetadataAndKeepCitationOffsetsInOriginalText() {
+        var target = new Evidence.NavigationTarget(SCOPE, "web", "https://example.test/source", "https://example.test/source");
+        String answer = "> Claim source";
+        var citation = new dev.packsage.model.ModelBackend.UrlCitation(answer.indexOf("Claim"), answer.indexOf(" source"), "Example", target.sourceHandle());
+        var line = ScreenText.inlineLines(answer, List.of(target), List.of(citation)).getFirst();
+
+        assertTrue(line.quote());
+        assertEquals("Claim", line.spans().getFirst().text());
+        assertEquals("Example", line.spans().get(1).text());
+        assertEquals(target, line.spans().get(1).target());
+        assertEquals(" source", line.spans().getLast().text());
+    }
+
+    @Test
+    void configMarkersResolveOnlyExactRegisteredSources() {
+        var source = new Evidence.Source(SCOPE, "config", "fixture", "cfg/test", 1, java.time.Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var line = ScreenText.inlineLines("A [config:cfg/test] B [config:cfg/other] C ` [config:cfg/test] `",
+                List.of(), List.of(), List.of(source)).getFirst();
+
+        assertEquals("Config", line.spans().get(1).text());
+        assertEquals(source, line.spans().get(1).source());
+        assertEquals("[config]", line.spans().get(3).text());
+        assertEquals(null, line.spans().get(3).source());
+        assertTrue(line.spans().stream().filter(ScreenText.InlineSpan::code).allMatch(span -> span.source() == null));
+        var latest = new Evidence.Source(SCOPE, "config", "fixture", source.sourceHandle(), 1, java.time.Instant.EPOCH.plusSeconds(1),
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        assertEquals(latest, ScreenText.inlineLines("[config:cfg/test]", List.of(), List.of(), List.of(source, latest))
+                .getFirst().spans().getFirst().source());
+    }
+
+    @Test
     void inlineTablesHideSeparatorRowsAndKeepHeaderEmphasis() {
         var lines = ScreenText.inlineLines("| Quest | Progress |\n| --- | --- |\n| Gather | 1/1 |", List.of());
         assertEquals(2, lines.size());

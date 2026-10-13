@@ -27,17 +27,27 @@ final class ScreenText {
     private static final String SEPARATOR = " · ";
     private static final Pattern HEADING = Pattern.compile("^(#{1,6}) +(.*)$");
     private static final Pattern LIST_ITEM = Pattern.compile("^(\\s*)[-*] +(.*)$");
+    private static final Pattern BLOCKQUOTE = Pattern.compile("^(\\s*> ?)");
     private static final Pattern COORDINATE = Pattern.compile("([xyz])=(-?\\d+)");
     private static final Pattern JEI_RECIPE = Pattern.compile("^jei/\\d+/\\d+/.+?/recipe-(.+)-\\d+$");
     private static final Pattern HASH_SUFFIX = Pattern.compile("#\\d+$");
 
-    record InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code) {
+    record InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code,
+                      Evidence.Source source) {
+        InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code) {
+            this(text, target, color, bold, code, null);
+        }
+
         InlineSpan {
             if (text == null) throw new NullPointerException("text");
         }
     }
 
-    record InlineLine(List<InlineSpan> spans) {
+    record InlineLine(List<InlineSpan> spans, boolean quote) {
+        InlineLine(List<InlineSpan> spans) {
+            this(spans, false);
+        }
+
         InlineLine {
             spans = List.copyOf(spans);
         }
@@ -175,6 +185,12 @@ final class ScreenText {
 
     static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets,
                                         List<ModelBackend.UrlCitation> webCitations) {
+        return inlineLines(text, targets, webCitations, List.of());
+    }
+
+    static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets,
+                                        List<ModelBackend.UrlCitation> webCitations,
+                                        List<Evidence.Source> sources) {
         List<InlineLine> lines = new ArrayList<>();
         String[] rawLines = text.split("\\r?\\n", -1);
         int absolute = 0;
@@ -190,11 +206,18 @@ final class ScreenText {
                 continue;
             }
             String line = rawLine;
+            boolean quote = false;
             boolean bold = false;
             List<InlineSpan> spans = new ArrayList<>();
             if (inCode) {
                 spans.add(new InlineSpan(line, null, CODE_COLOR, false, true));
             } else {
+                Matcher blockquote = BLOCKQUOTE.matcher(line);
+                if (blockquote.find()) {
+                    quote = true;
+                    lineOffset += blockquote.end();
+                    line = line.substring(blockquote.end());
+                }
                 Matcher heading = HEADING.matcher(line);
                 if (heading.matches()) {
                     line = heading.group(2);
@@ -212,17 +235,18 @@ final class ScreenText {
                 boolean table = line.trim().startsWith("|");
                 if (table && isTableSeparator(line)) continue;
                 if (table && lineIndex + 1 < rawLines.length && isTableSeparator(rawLines[lineIndex + 1])) bold = true;
-                inlineSpans(line, lineOffset, bold, targets, webCitations, spans);
+                inlineSpans(line, lineOffset, bold, targets, webCitations, sources, spans);
                 if (table) {
                     for (int index = 0; index < spans.size(); index++) {
                         InlineSpan span = spans.get(index);
                         if (span.target() == null && !span.code()) {
-                            spans.set(index, new InlineSpan(span.text().replace("|", CELL_GAP), null, span.color(), span.bold(), false));
+                            spans.set(index, new InlineSpan(span.text().replace("|", CELL_GAP), span.target(), span.color(), span.bold(), false,
+                                    span.source()));
                         }
                     }
                 }
             }
-            lines.add(new InlineLine(spans.isEmpty() ? List.of(new InlineSpan("", null, TEXT_COLOR, false, false)) : spans));
+            lines.add(new InlineLine(spans.isEmpty() ? List.of(new InlineSpan("", null, TEXT_COLOR, false, false)) : spans, quote));
         }
         return lines;
     }
@@ -231,7 +255,7 @@ final class ScreenText {
 
     private static void inlineSpans(String text, int absoluteStart, boolean inheritedBold,
                                     List<Evidence.NavigationTarget> targets, List<ModelBackend.UrlCitation> citations,
-                                    List<InlineSpan> spans) {
+                                    List<Evidence.Source> sources, List<InlineSpan> spans) {
         StringBuilder plain = new StringBuilder();
         boolean bold = inheritedBold;
         boolean strong = false;
@@ -277,7 +301,13 @@ final class ScreenText {
                         case "config" -> "Config";
                         default -> "Source";
                     }, target, ModernUi.TEXT, false, false));
-                    else spans.add(new InlineSpan(markerTag(marker.group(1), marker.group(2)), null, DIM_COLOR, false, false));
+                    else if (marker.group(1).equals("config")) {
+                        Evidence.Source source = sources.stream().filter(value ->
+                                value.providerId().equals("config") && value.sourceHandle().equals(marker.group(2)))
+                                .reduce((first, latest) -> latest).orElse(null);
+                        spans.add(new InlineSpan(source == null ? markerTag(marker.group(1), marker.group(2)) : "Config",
+                                null, source == null ? DIM_COLOR : ModernUi.TEXT, false, false, source));
+                    } else spans.add(new InlineSpan(markerTag(marker.group(1), marker.group(2)), null, DIM_COLOR, false, false));
                     index = marker.end();
                     continue;
                 }

@@ -159,7 +159,7 @@ public final class ChatContracts {
 
     public record Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
                        Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
-                       Outcome outcome, int tokenCount) {
+                       Outcome outcome, int tokenCount, Instant sentAt) {
         public Turn {
             Objects.requireNonNull(requestId);
             Objects.requireNonNull(question);
@@ -181,7 +181,13 @@ public final class ChatContracts {
 
         public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
                     Context context, List<Evidence.Source> sources, Outcome outcome, int tokenCount) {
-            this(requestId, question, answer, replayItems, context, sources, List.of(), outcome, tokenCount);
+            this(requestId, question, answer, replayItems, context, sources, List.of(), outcome, tokenCount, null);
+        }
+
+        public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    Outcome outcome, int tokenCount) {
+            this(requestId, question, answer, replayItems, context, sources, navigationTargets, outcome, tokenCount, null);
         }
     }
 
@@ -258,7 +264,7 @@ public final class ChatContracts {
     public record View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
                        Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
                        List<String> errors, String streamingAnswer, String activity, WorldIdentity activeWorld, boolean readOnly,
-                       String activeQuestion) {
+                       String activeQuestion, Instant activeSentAt) {
         public View {
             Objects.requireNonNull(signIn);
             Objects.requireNonNull(conversation);
@@ -277,7 +283,15 @@ public final class ChatContracts {
                     Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
                     List<String> errors, String streamingAnswer, String activity, WorldIdentity activeWorld, boolean readOnly) {
             this(active, signIn, paused, conversation, context, sources, navigationTargets, errors, streamingAnswer,
-                    activity, activeWorld, readOnly, "");
+                    activity, activeWorld, readOnly, "", null);
+        }
+
+        public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    List<String> errors, String streamingAnswer, String activity, WorldIdentity activeWorld, boolean readOnly,
+                    String activeQuestion) {
+            this(active, signIn, paused, conversation, context, sources, navigationTargets, errors, streamingAnswer,
+                    activity, activeWorld, readOnly, activeQuestion, null);
         }
 
         public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,

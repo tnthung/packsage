@@ -48,7 +48,8 @@ class ConversationStoreTest {
                 new ModelBackend.AssistantOutput("message-1", ModelBackend.OutputStatus.COMPLETED,
                         ModelBackend.OutputPhase.FINAL_ANSWER,
                         List.of(new ModelBackend.OutputText("Here.", List.of())))), context, List.of(source),
-                List.of(target), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, "ok"), 9);
+                List.of(target), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, "ok"), 9,
+                Instant.parse("2026-10-13T01:02:03Z"));
 
         store.appendMedia(world, conversation.id(), screenshot, new byte[]{1, 2, 3}).toCompletableFuture().join();
         store.appendTurn(world, SCOPE, conversation.id(), turn).toCompletableFuture().join();
@@ -56,6 +57,7 @@ class ConversationStoreTest {
         ChatContracts.Conversation reopened = store.openLatest(world).toCompletableFuture().join();
         assertTrue(reopened.turns().contains(turn));
         assertEquals(List.of(target), reopened.turns().getFirst().navigationTargets());
+        assertEquals(turn.sentAt(), reopened.turns().getFirst().sentAt());
         assertArrayEquals(new byte[]{1, 2, 3}, store.readMedia(world, conversation.id(), screenshot)
                 .toCompletableFuture().join());
         assertTrue(Files.exists(store.conversationPath(world, conversation.id())));
@@ -243,8 +245,9 @@ class ConversationStoreTest {
                 new ChatContracts.Context("context", null, SCOPE), List.of(),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, "temporary provider failure"), 0);
         ChatContracts.Turn replacement = new ChatContracts.Turn(new ChatContracts.RequestId("replacement"),
-                "edited latest", "edited answer", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(),
-                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 2);
+                "edited latest", "edited answer", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 2,
+                Instant.parse("2026-10-13T04:05:06Z"));
         store.appendTurn(world, SCOPE, conversation.id(), first).toCompletableFuture().join();
         store.appendTurn(world, SCOPE, conversation.id(), latest).toCompletableFuture().join();
 
@@ -252,6 +255,7 @@ class ConversationStoreTest {
                 .toCompletableFuture().join();
         ChatContracts.Conversation reopened = store.openConversation(world, conversation.id()).toCompletableFuture().join();
         assertEquals(List.of(first, replacement), reopened.turns());
+        assertEquals(replacement.sentAt(), reopened.turns().getLast().sentAt());
         assertThrows(RuntimeException.class, () -> store.replaceLatestTurn(world, SCOPE, conversation.id(),
                 latest.requestId(), simpleTurn("wrong id")).toCompletableFuture().join());
         assertThrows(RuntimeException.class, () -> store.replaceLatestTurn(otherWorld, SCOPE, conversation.id(),
@@ -310,12 +314,14 @@ class ConversationStoreTest {
         List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
         com.google.gson.JsonObject turn = com.google.gson.JsonParser.parseString(lines.get(1)).getAsJsonObject();
         turn.remove("navigationTargets");
+        turn.remove("sentAt");
         Files.writeString(file, lines.getFirst() + "\n" + turn + "\n", StandardCharsets.UTF_8);
 
         ChatContracts.Conversation loaded = store.openConversation(world, conversation.id()).toCompletableFuture().join();
 
         assertEquals(List.of(simpleTurn("legacy")), loaded.turns());
         assertTrue(loaded.turns().getFirst().navigationTargets().isEmpty());
+        assertEquals(null, loaded.turns().getFirst().sentAt());
     }
 
     private static ChatContracts.Turn simpleTurn(String question) {

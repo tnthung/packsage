@@ -4,6 +4,7 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.ModelBackend;
 
 import java.util.ArrayList;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -96,7 +97,7 @@ public final class RequestController {
             generation++;
             createNew = forceNew;
             forceNew = false;
-            request = new ActiveRequest(submission, generation);
+            request = new ActiveRequest(submission, generation, Instant.now());
             active = request;
             openedWorld = submission.world();
             openedScope = submission.scope();
@@ -610,16 +611,16 @@ public final class RequestController {
         ChatContracts.Turn untokened = new ChatContracts.Turn(request.submission.requestId(), request.submission.question(),
                 request.answer.toString(), replay, captured.context(), request.evidence.sources(),
                 request.evidence.navigationTargets(),
-                new ChatContracts.Outcome(status, detail), 0);
+                new ChatContracts.Outcome(status, detail), 0, request.sentAt);
         ChatContracts.Turn turn;
         try {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
-                    untokened.context(), untokened.sources(), untokened.navigationTargets(), untokened.outcome(), tokenCounter.apply(untokened));
+                    untokened.context(), untokened.sources(), untokened.navigationTargets(), untokened.outcome(), tokenCounter.apply(untokened), untokened.sentAt());
         } catch (RuntimeException exception) {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
                     untokened.context(), untokened.sources(),
                     untokened.navigationTargets(),
-                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, failureMessage(exception)), 0);
+                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, failureMessage(exception)), 0, untokened.sentAt());
         }
         if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
         else publish();
@@ -660,7 +661,7 @@ public final class RequestController {
             ChatContracts.Turn turn = new ChatContracts.Turn(request.submission.requestId(), request.submission.question(),
                     request.answer.toString(), List.copyOf(request.partialReplay), persisted.context(), request.evidence.sources(),
                     request.evidence.navigationTargets(),
-                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.CANCELLED, detail), 0);
+                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.CANCELLED, detail), 0, request.sentAt);
             if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
             persist(request, target, turn, persisted.screenshotBytes());
         }, executor);
@@ -708,7 +709,7 @@ public final class RequestController {
                 persistedTurn = new ChatContracts.Turn(turn.requestId(), turn.question(), turn.answer(), turn.replayItems(),
                         new ChatContracts.Context(turn.context().serializedGameplayContext(), null, turn.context().scope()),
                         turn.sources(), turn.navigationTargets(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED,
-                        "media persistence failed: " + failureMessage(mediaFailure)), turn.tokenCount());
+                        "media persistence failed: " + failureMessage(mediaFailure)), turn.tokenCount(), turn.sentAt());
                 if (request.submission.replacing() == null) updateVisibleTurn(request, target, persistedTurn);
                 publishPersistenceFailure(request, target, mediaFailure);
             }
@@ -811,7 +812,7 @@ public final class RequestController {
         return new ChatContracts.View(visible != null, ChatContracts.SignInState.SIGNED_OUT, false, conversation, context,
                 sources, navigationTargets, List.copyOf(errors), visible == null ? "" : visible.answer.toString(),
                 visible == null ? "" : active == null ? "Saving exchange…" : visible.activity, conversation.world(), false,
-                visible == null ? "" : visible.submission.question());
+                visible == null ? "" : visible.submission.question(), visible == null ? null : visible.sentAt);
     }
 
     /** The request's tool calls that received a result, each followed by its results, in their original order. */
@@ -861,6 +862,7 @@ public final class RequestController {
     private static final class ActiveRequest {
         private final ChatContracts.Submission submission;
         private final long generation;
+        private final Instant sentAt;
         private final CompletableFuture<ChatContracts.RequestId> started = new CompletableFuture<>();
         private final CompletableFuture<Void> persistence = new CompletableFuture<>();
         private final StringBuilder answer = new StringBuilder();
@@ -878,9 +880,10 @@ public final class RequestController {
         private boolean persistencePending;
         private String persistenceFailure;
 
-        private ActiveRequest(ChatContracts.Submission submission, long generation) {
+        private ActiveRequest(ChatContracts.Submission submission, long generation, Instant sentAt) {
             this.submission = submission;
             this.generation = generation;
+            this.sentAt = sentAt;
         }
     }
 

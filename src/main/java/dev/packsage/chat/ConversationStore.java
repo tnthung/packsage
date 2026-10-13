@@ -421,6 +421,7 @@ public final class ConversationStore {
         value.addProperty("question", turn.question());
         value.addProperty("answer", turn.answer());
         value.addProperty("tokenCount", turn.tokenCount());
+        if (turn.sentAt() != null) value.addProperty("sentAt", turn.sentAt().toString());
         value.addProperty("outcome", turn.outcome().status().name());
         if (turn.outcome().detail() != null) value.addProperty("outcomeDetail", turn.outcome().detail());
         JsonArray replay = new JsonArray();
@@ -604,7 +605,8 @@ public final class ConversationStore {
                 value.get("question").getAsString(), value.get("answer").getAsString(), replay,
                 new ChatContracts.Context(contextValue.get("serializedGameplayContext").getAsString(), screenshot, scope),
                 sources, targets, new ChatContracts.Outcome(ChatContracts.OutcomeStatus.valueOf(value.get("outcome").getAsString()), detail),
-                value.get("tokenCount").getAsInt());
+                value.get("tokenCount").getAsInt(), value.has("sentAt") && !value.get("sentAt").isJsonNull()
+                ? Instant.parse(value.get("sentAt").getAsString()) : null);
     }
 
     private static dev.packsage.model.ModelBackend.InputItem replayFromJson(JsonObject value) {

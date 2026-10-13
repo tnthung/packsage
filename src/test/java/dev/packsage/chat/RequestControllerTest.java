@@ -93,6 +93,8 @@ class RequestControllerTest {
         controller.begin(submission("persisting", WORLD_A, SCOPE_A, false,
                 new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096))
                 .toCompletableFuture().join();
+        Instant sentAt = controller.view().activeSentAt();
+        assertTrue(sentAt != null);
 
         backend.emit("persisting", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
 
@@ -100,6 +102,10 @@ class RequestControllerTest {
         assertTrue(controller.persistencePending());
         storeExecutor.drain();
         assertFalse(controller.persistencePending());
+        CompletionStage<ChatContracts.Conversation> saved = store.openLatest(WORLD_A);
+        storeExecutor.drain();
+        ChatContracts.Turn completed = saved.toCompletableFuture().join().turns().getFirst();
+        assertEquals(sentAt, completed.sentAt());
     }
 
     @Test
@@ -116,6 +122,7 @@ class RequestControllerTest {
 
         controller.begin(submission("old", WORLD_A, SCOPE_A, false, new ChatContracts.HistoryLimits(10, 12_000),
                 ModelBackend.SearchMode.AUTOMATIC, 4_096));
+        Instant cancelledAt = controller.view().activeSentAt();
         controller.stop();
         controller.begin(submission("new", WORLD_B, SCOPE_B, false, new ChatContracts.HistoryLimits(10, 12_000),
                 ModelBackend.SearchMode.DISABLED, 2_048));
@@ -136,6 +143,7 @@ class RequestControllerTest {
         ChatContracts.Turn cancelled = oldConversation.toCompletableFuture().join().turns().getFirst();
         assertEquals(SCOPE_A, cancelled.context().scope());
         assertEquals(ChatContracts.OutcomeStatus.CANCELLED, cancelled.outcome().status());
+        assertEquals(cancelledAt, cancelled.sentAt());
     }
 
     @Test
@@ -292,6 +300,7 @@ class RequestControllerTest {
                         : new CompletableFuture<>(), ignored -> { });
         controller.begin(submission("provider-failure", WORLD_A, SCOPE_A, false,
                 new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+        Instant sentAt = controller.view().activeSentAt();
         ModelBackend.ToolCall firstCall = new ModelBackend.ToolCall("call-1", "search_pack", "{}");
         ModelBackend.ToolCall pendingCall = new ModelBackend.ToolCall("call-2", "read_evidence", "{}");
 
@@ -309,6 +318,8 @@ class RequestControllerTest {
         ChatContracts.Turn persisted = store.openLatest(WORLD_A).toCompletableFuture().join().turns().getFirst();
         assertEquals(visible.outcome(), persisted.outcome());
         assertEquals(visible.replayItems(), persisted.replayItems());
+        assertEquals(sentAt, visible.sentAt());
+        assertEquals(sentAt, persisted.sentAt());
     }
 
     @Test

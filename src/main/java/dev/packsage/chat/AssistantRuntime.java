@@ -907,7 +907,7 @@ public final class AssistantRuntime implements ChatActions {
                     loading ? "Loading session..." : "", activeWorld, true);
         }
         return new ChatContracts.View(view.active(), currentSignIn, paused, view.conversation(), view.context(),
-                sources, targets, errors, view.streamingAnswer(), view.activity(), activeWorld, false, view.activeQuestion());
+                sources, targets, errors, view.streamingAnswer(), view.activity(), activeWorld, false, view.activeQuestion(), view.activeSentAt());
     }
 
     private Evidence.Scope currentScope() {

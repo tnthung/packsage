@@ -9,6 +9,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ChatContractsTest {
@@ -30,8 +31,10 @@ class ChatContractsTest {
         assertThrows(IllegalArgumentException.class, () -> new ChatContracts.Turn(new ChatContracts.RequestId("unbound"),
                 "question", "answer", List.of(), turn.context(), List.of(source),
                 List.of(new Evidence.NavigationTarget(SCOPE, "provider", "different", "page")), turn.outcome(), 1));
-        assertEquals(List.of(), new ChatContracts.Turn(new ChatContracts.RequestId("legacy"), "question", "answer",
-                List.of(), turn.context(), List.of(source), turn.outcome(), 1).navigationTargets());
+        ChatContracts.Turn legacy = new ChatContracts.Turn(new ChatContracts.RequestId("legacy"), "question", "answer",
+                List.of(), turn.context(), List.of(source), turn.outcome(), 1);
+        assertEquals(List.of(), legacy.navigationTargets());
+        assertNull(legacy.sentAt());
     }
 
     @Test
@@ -45,6 +48,7 @@ class ChatContractsTest {
                 activeWorld, true);
 
         assertEquals(activeWorld, view.activeWorld());
+        assertNull(view.activeSentAt());
         assertEquals(true, view.readOnly());
         assertThrows(IllegalArgumentException.class, () -> new ChatContracts.View(true, view.signIn(), false, historical,
                 view.context(), List.of(), List.of(), List.of(), "", "", activeWorld, true));

@@ -2,6 +2,8 @@ package dev.packsage.client;
 
 import dev.packsage.chat.ChatActions;
 import dev.packsage.chat.ChatContracts;
+import dev.packsage.chat.PackSageSettings;
+import dev.packsage.model.ModelBackend;
 import dev.packsage.knowledge.Evidence;
 import org.junit.jupiter.api.Test;
 
@@ -355,6 +357,9 @@ class AssistantScreenStateTest {
         ScreenTestHost.initialize(screen);
         assertEquals(activeWorld, screen.sessionRows().getFirst().world());
         assertEquals(3, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+        actions.settings.setSessionsBeforeCollapse(4);
+        assertEquals(5, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+        actions.settings.setSessionsBeforeCollapse(2);
         var expand = screen.sessionRows().stream().filter(AssistantScreen.SessionRow::expand).findFirst().orElseThrow();
         screen.mouseClicked(24, expand.top() + 5, 0);
         assertEquals(9, screen.sessionRows().stream().filter(row -> row.session() != null).count());
@@ -389,6 +394,9 @@ class AssistantScreenStateTest {
         screen.submit();
         assertEquals("", screen.input());
         assertEquals("submitted question", actions.sentQuestion);
+        assertEquals("submitted question", screen.pendingQuestion);
+        screen.refresh(actions.view);
+        assertEquals("", screen.pendingQuestion);
     }
 
     @Test
@@ -428,6 +436,79 @@ class AssistantScreenStateTest {
         assertEquals(39, longToken.height());
     }
 
+    @Test
+    void composerToolbarHasEqualCompactWidthsAndWrapsWithinTheMainArea() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 1100;
+        screen.height = 480;
+        screen.layout();
+        var wide = screen.toolbarItems();
+        assertEquals(6, wide.size());
+        assertEquals(1, wide.stream().map(AssistantScreen.ToolbarItem::width).distinct().count());
+        assertEquals(1, wide.stream().map(AssistantScreen.ToolbarItem::y).distinct().count());
+        assertTrue(wide.stream().allMatch(item -> item.width() <= 100));
+        screen.width = 480;
+        screen.layout();
+        var narrow = screen.toolbarItems();
+        assertEquals(1, narrow.stream().map(AssistantScreen.ToolbarItem::width).distinct().count());
+        assertTrue(narrow.stream().map(AssistantScreen.ToolbarItem::y).distinct().count() > 1);
+        assertTrue(narrow.stream().allMatch(item -> item.x() >= 160 && item.x() + item.width() <= 480));
+        assertTrue(narrow.stream().mapToInt(AssistantScreen.ToolbarItem::y).max().orElseThrow() < 424);
+        screen.width = 320;
+        screen.height = 240;
+        ScreenTestHost.initialize(screen);
+        screen.setInput("long draft ".repeat(70));
+        screen.layout();
+        var input = (MultilineEditor) screen.children().getLast();
+        assertTrue(screen.toolbarItems().stream().allMatch(item -> item.y() + 20 <= input.getY()));
+        assertTrue(screen.toolbarItems().stream().allMatch(item -> item.x() + item.width() <= 320));
+    }
+
+    @Test
+    void modelAndEffortDropdownsSelectValuesAndOutsideClicksDismissThem() {
+        FakeActions actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
+        screen.width = 900;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var model = screen.toolbarItems().stream().filter(item -> item.kind().equals("model")).findFirst().orElseThrow();
+        screen.mouseClicked(model.x() + 5, model.y() + 5, 0);
+        var option = screen.pickerRows().stream().filter(row -> row.choice().value().equals("model-two")).findFirst().orElseThrow();
+        screen.mouseClicked(option.x() + 5, option.y() + 5, 0);
+        assertEquals("model-two", actions.settings.modelId());
+        assertTrue(screen.pickerRows().isEmpty());
+        var effort = screen.toolbarItems().stream().filter(item -> item.kind().equals("effort")).findFirst().orElseThrow();
+        screen.mouseClicked(effort.x() + 5, effort.y() + 5, 0);
+        option = screen.pickerRows().stream().filter(row -> row.choice().value().equals("HIGH")).findFirst().orElseThrow();
+        screen.mouseClicked(option.x() + 5, option.y() + 5, 0);
+        assertEquals(ModelBackend.ReasoningEffort.HIGH, actions.settings.reasoningEffort());
+        screen.mouseClicked(model.x() + 5, model.y() + 5, 0);
+        screen.mouseClicked(300, 100, 0);
+        assertTrue(screen.pickerRows().isEmpty());
+    }
+
+    @Test
+    void editingLatestResendsWithTheExpectedIdentityAndHonorsActiveGuard() {
+        FakeActions actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        assertFalse(screen.editLatest(new ChatContracts.RequestId("older")));
+        assertTrue(screen.editLatest(new ChatContracts.RequestId("request")));
+        assertEquals("question", screen.input());
+        screen.setInput("edited question");
+        screen.submit();
+        assertEquals(List.of("resend:request"), actions.calls);
+        assertEquals("edited question", actions.sentQuestion);
+        assertEquals("", screen.input());
+        assertFalse(screen.editLatest(new ChatContracts.RequestId("request")));
+        screen.refresh(new ChatContracts.View(false, actions.view.signIn(), false, actions.view.conversation(),
+                actions.view.context(), actions.view.sources(), actions.view.navigationTargets(), List.of(), "", "",
+                actions.view.activeWorld(), true, ""));
+        assertFalse(screen.editLatest(new ChatContracts.RequestId("request")));
+    }
+
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
     private static final Evidence.NavigationTarget TARGET = new Evidence.NavigationTarget(SCOPE, "provider", "source", "target");
     private static final Evidence.NavigationTarget TARGET_TWO = new Evidence.NavigationTarget(SCOPE, "provider", "source2", "target2");
@@ -436,6 +517,7 @@ class AssistantScreenStateTest {
             Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
 
     private static final class FakeActions implements ChatActions {
+        private final PackSageSettings settings = PackSageSettings.defaults();
         private final List<String> calls = new ArrayList<>();
         private String sentQuestion;
         private CompletionStage<List<ChatContracts.SessionSummary>> sessions = CompletableFuture.completedFuture(List.of());
@@ -448,6 +530,13 @@ class AssistantScreenStateTest {
                 new ChatContracts.Context("{}", null, SCOPE), List.of(SOURCE), List.of(TARGET), List.of());
 
         @Override public ChatContracts.View view() { return view; }
+        @Override public PackSageSettings settings() { return settings; }
+        @Override public List<ModelBackend.ModelInfo> modelCatalog() { return List.of(
+                new ModelBackend.ModelInfo("model-one", "Model one", true, true, 50000, 1000),
+                new ModelBackend.ModelInfo("model-two", "Model two", true, true, 100000, 1000)); }
+        @Override public void resend(ChatContracts.RequestId latest, String question, boolean screenshot, boolean search) {
+            calls.add("resend:" + latest.value()); sentQuestion = question;
+        }
         @Override public CompletionStage<List<ChatContracts.SessionSummary>> sessions() { return sessions; }
         @Override public void openSession(ChatContracts.SessionSummary session) { calls.add("open:" + session.id()); }
         @Override public void signIn() { calls.add("signIn"); }

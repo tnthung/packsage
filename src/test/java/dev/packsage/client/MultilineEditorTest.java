@@ -116,6 +116,22 @@ class MultilineEditorTest {
     }
 
     @Test
+    void controlEnterModeKeepsPlainEnterAndShiftEnterAsNewlines() {
+        java.util.concurrent.atomic.AtomicInteger submitted = new java.util.concurrent.atomic.AtomicInteger();
+        MultilineEditor editor = new MultilineEditor(FONT, 0, 0, 100, 42, () -> { submitted.incrementAndGet(); return true; });
+        editor.controlEnter = () -> true;
+        editor.setFocused(true);
+        editor.charTyped('a', 0);
+        editor.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, 0);
+        editor.charTyped('b', 0);
+        editor.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT);
+        assertEquals("a\nb\n", editor.value());
+        assertEquals(0, submitted.get());
+        editor.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER, 0, org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL);
+        assertEquals(1, submitted.get());
+    }
+
+    @Test
     void leadingIconReservesSpaceForTextAndCaretAndOneLineFitsTheSendHeight() {
         MultilineEditor editor = new MultilineEditor(FONT, 0, 0, 60, 28, 80, false, () -> true);
         editor.leadingIcon = ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/magnifying-glass.png");

@@ -29,6 +29,7 @@ final class MultilineEditor extends AbstractWidget {
     private boolean dragging;
     private boolean wrappedLineEnd;
     ResourceLocation leadingIcon;
+    BooleanSupplier controlEnter = () -> false;
 
     MultilineEditor(Font font, int x, int y, int width, int height, BooleanSupplier submit) {
         this(font, x, y, width, height, MAX_LENGTH, true, submit);
@@ -148,7 +149,7 @@ final class MultilineEditor extends AbstractWidget {
         }
         if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
             if (!multiline) return true;
-            if (shift) {
+            if (shift || controlEnter.getAsBoolean() && !control) {
                 insert("\n");
                 return true;
             }

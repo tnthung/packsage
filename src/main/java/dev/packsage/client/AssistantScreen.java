@@ -2,8 +2,10 @@ package dev.packsage.client;
 
 import dev.packsage.chat.ChatActions;
 import dev.packsage.chat.ChatContracts;
+import dev.packsage.chat.PackSageSettings;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.ModelBackend;
+import dev.packsage.model.GroundingInstructions;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.PlayerFaceRenderer;
@@ -24,8 +26,10 @@ public final class AssistantScreen extends Screen {
     public record RuntimeState(boolean privateSingleplayer, boolean integratedServer, boolean published) { }
     public static final int QUESTION_MAX_LENGTH = 1000;
     private final ChatActions actions;
+    private final PackSageSettings settings;
     private ChatContracts.View view;
     private boolean awaitingRequestView;
+    String pendingQuestion = "";
     private String input = "";
     private boolean explicitWebSearch;
     private boolean includeScreenshot = true;
@@ -33,6 +37,7 @@ public final class AssistantScreen extends Screen {
     private MultilineEditor sessionSearchEditor;
     private String sessionSearch = "";
     private Runnable settingsOpener = () -> { };
+    private Runnable settingsSaver = () -> { };
     private RuntimeState runtimeState = new RuntimeState(true, true, false);
     private int scrollOffset;
     private int contentHeight;
@@ -54,12 +59,19 @@ public final class AssistantScreen extends Screen {
     private int sendX;
     private int sendY;
     private int toggleY;
+    private ChatContracts.RequestId editingRequest;
+    private ChatContracts.RequestId resendingRequest;
+    private String picker;
+    private int pickerScroll;
+    private ChatContracts.HistoryPreview history;
+    private final List<MessageAction> messageActions = new ArrayList<>();
 
     public AssistantScreen(ChatActions actions) { this(actions, Component.literal("PackSage Assistant")); }
 
     public AssistantScreen(ChatActions actions, Component title) {
         super(title);
         this.actions = Objects.requireNonNull(actions);
+        this.settings = actions.settings();
         this.view = actions.view();
     }
 
@@ -77,10 +89,12 @@ public final class AssistantScreen extends Screen {
             return true;
         });
         inputEditor.setValue(input);
+        inputEditor.controlEnter = () -> settings.sendShortcut() == PackSageSettings.SendShortcut.CTRL_ENTER;
         addRenderableWidget(sessionSearchEditor);
         addRenderableWidget(inputEditor);
         followOnCompletion = true;
         layout();
+        history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
         loadSessions();
     }
 
@@ -109,6 +123,7 @@ public final class AssistantScreen extends Screen {
         graphics.flush();
         renderBlurredBackground(partialTick);
         layout();
+        history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
         graphics.fill(0, 0, width, height, ModernUi.BACKGROUND);
         graphics.fill(0, 0, sidebarWidth, height, ModernUi.SIDEBAR);
         drawSidebar(graphics, mouseX, mouseY);
@@ -117,12 +132,14 @@ public final class AssistantScreen extends Screen {
         graphics.enableScissor(readableLeft, contentTop, readableLeft + readableWidth, contentBottom);
         int contentOrigin = contentTop + 8;
         int y = contentOrigin - scrollOffset;
-        y = drawConversation(graphics, y, contentBottom);
+        y = drawConversation(graphics, y, contentBottom, mouseX, mouseY);
         graphics.disableScissor();
         updateContentMetrics(y + scrollOffset - contentOrigin + 4, contentBottom - contentTop);
         drawComposer(graphics, mouseX, mouseY);
         super.render(graphics, mouseX, mouseY, partialTick);
         drawSendIcon(graphics);
+        drawPicker(graphics, mouseX, mouseY);
+        drawToolbarTooltip(graphics, mouseX, mouseY);
     }
 
     void layout() {
@@ -130,6 +147,8 @@ public final class AssistantScreen extends Screen {
         int mainWidth = Math.max(1, width - sidebarWidth);
         readableWidth = Math.max(1, Math.min(ModernUi.MAX_CONTENT_WIDTH, mainWidth - 32));
         readableLeft = sidebarWidth + (mainWidth - readableWidth) / 2;
+        int columns = Math.min(6, Math.max(1, (readableWidth + 6) / 86));
+        int toolbarHeight = ((6 + columns - 1) / columns) * 26;
         if (sessionSearchEditor != null) {
             sessionSearchEditor.setSize(Math.max(1, sidebarWidth - 24), 28);
             sessionSearchEditor.setPosition(12, 32);
@@ -137,7 +156,8 @@ public final class AssistantScreen extends Screen {
         if (inputEditor != null) {
             int editorWidth = Math.max(1, readableWidth - 46);
             inputEditor.setSize(editorWidth, 28);
-            composerHeight = Math.min(Math.min(MultilineEditor.MAX_HEIGHT, Math.max(28, height / 3)), inputEditor.preferredHeight());
+            composerHeight = Math.min(Math.min(MultilineEditor.MAX_HEIGHT,
+                    Math.min(Math.max(28, height / 3), Math.max(28, height - toolbarHeight - 84))), inputEditor.preferredHeight());
             composerTop = Math.max(48, height - composerHeight - 28);
             inputEditor.setSize(editorWidth, composerHeight);
             inputEditor.setPosition(readableLeft, composerTop);
@@ -146,7 +166,7 @@ public final class AssistantScreen extends Screen {
             composerHeight = 28;
             composerTop = Math.max(48, height - composerHeight - 28);
         }
-        toggleY = Math.max(0, composerTop - 26);
+        toggleY = Math.max(0, composerTop - toolbarHeight);
         sendX = readableLeft + readableWidth - 36;
         sendY = composerTop + composerHeight - 28;
     }
@@ -156,7 +176,7 @@ public final class AssistantScreen extends Screen {
                 style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), 16, 14, ModernUi.TEXT, false);
         ModernUi.surface(graphics, 12, 68, sidebarWidth - 12, 96, ModernUi.ACCENT_DARK);
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/plus.png"),
-                20, 76, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
+                20, 68 + (28 - 16) / 2, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
         graphics.drawString(font, Component.literal("New chat").withStyle(style ->
                 style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), 42, 68 + (28 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         drawSessionGroups(graphics, mouseX, mouseY);
@@ -198,13 +218,13 @@ public final class AssistantScreen extends Screen {
             rows.add(new SessionRow(world, null, world.readableLabel(), y, 24, false));
             y += 24;
             boolean expanded = expandedWorlds.contains(group.getKey()) || !query.isEmpty();
-            int count = expanded ? group.getValue().size() : Math.min(2, group.getValue().size());
+            int count = expanded ? group.getValue().size() : Math.min(settings.sessionsBeforeCollapse(), group.getValue().size());
             for (int index = 0; index < count; index++) {
                 ChatContracts.SessionSummary session = group.getValue().get(index);
                 rows.add(new SessionRow(world, session, session.title(), y, 38, false));
                 y += 38;
             }
-            if (group.getValue().size() > 2 && query.isEmpty()) {
+            if (group.getValue().size() > settings.sessionsBeforeCollapse() && query.isEmpty()) {
                 rows.add(new SessionRow(world, null, expanded ? "Show less" : "Show more", y, 24, true));
                 y += 24;
             }
@@ -256,7 +276,7 @@ public final class AssistantScreen extends Screen {
         }
     }
 
-    private int drawConversation(GuiGraphics graphics, int y, int contentBottom) {
+    private int drawConversation(GuiGraphics graphics, int y, int contentBottom, int mouseX, int mouseY) {
         graphics.drawString(font, Component.literal(view.conversation().world().readableLabel()).withStyle(style ->
                 style.withFont(ModernUi.BOLD_FONT).withColor(ModernUi.TEXT)), readableLeft, y, ModernUi.TEXT, false);
         y += 14;
@@ -265,17 +285,20 @@ public final class AssistantScreen extends Screen {
                     .withStyle(style -> style.withFont(ModernUi.FONT)), readableLeft, y, ModernUi.MUTED, false);
             y += ModernUi.MESSAGE_LINE_HEIGHT;
         }
-        if (!view.readOnly()) {
-            graphics.drawString(font, Component.literal(ScreenText.contextSummary(view.context())).withStyle(style ->
-                    style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), readableLeft, y, ModernUi.MUTED, false);
-            y += 16;
-        }
         chipHits.clear();
         sourceHits.clear();
+        messageActions.clear();
+        if (history == null) history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
         for (ChatContracts.Turn turn : view.conversation().turns()) {
-            y = drawUserMessage(graphics, turn.question(), y);
+            if (view.active() && turn.requestId().equals(resendingRequest)) continue;
+            boolean included = !view.readOnly() && history.selection().turns().stream()
+                    .anyMatch(selected -> selected.requestId().equals(turn.requestId()));
+            ChatContracts.TokenCounts tokens = GroundingInstructions.historyTokenCounts(turn);
+            y = drawUserMessage(graphics, turn.question(), y, included);
+            y = drawMessageActions(graphics, turn, true, tokens.user(), y, mouseX, mouseY);
             y += 7;
-            y = drawAssistantMessage(graphics, turn.answer(), turn, y);
+            y = drawAssistantMessage(graphics, turn.answer(), turn, y, included);
+            y = drawMessageActions(graphics, turn, false, tokens.assistant(), y, mouseX, mouseY);
             String outcome = ScreenText.outcomeLine(turn.outcome());
             if (outcome != null) {
                 graphics.drawString(font, Component.literal(outcome).withStyle(style ->
@@ -284,7 +307,14 @@ public final class AssistantScreen extends Screen {
             }
             y += 10;
         }
-        if (view.active() && !view.activeQuestion().isEmpty()) y = drawUserMessage(graphics, view.activeQuestion(), y) + 7;
+        String liveQuestion = view.active() ? view.activeQuestion() : awaitingRequestView ? pendingQuestion : "";
+        ChatContracts.Turn liveTurn = new ChatContracts.Turn(new ChatContracts.RequestId("active-preview"),
+                liveQuestion, view.streamingAnswer(), List.of(), view.context(), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null), 0);
+        if (!liveQuestion.isEmpty()) {
+            y = drawUserMessage(graphics, liveQuestion, y, false);
+            y = drawMessageActions(graphics, liveTurn, true, GroundingInstructions.historyTokenCounts(liveTurn).user(), y, mouseX, mouseY) + 7;
+        }
         if (view.active() || awaitingRequestView) {
             drawAssistantAvatar(graphics, y);
             int responseTop = y;
@@ -293,6 +323,8 @@ public final class AssistantScreen extends Screen {
             graphics.drawString(font, Component.literal(view.activity().isEmpty() ? "Working..." : view.activity())
                     .withStyle(style -> style.withFont(ModernUi.FONT)), readableLeft + 32, y + 2, ModernUi.ACCENT, false);
             y = Math.max(responseTop + 24, y + ModernUi.MESSAGE_LINE_HEIGHT);
+            if (!view.streamingAnswer().isEmpty()) y = drawMessageActions(graphics, liveTurn, false,
+                    GroundingInstructions.historyTokenCounts(liveTurn).assistant(), y, mouseX, mouseY);
         }
         if (!view.errors().isEmpty()) {
             y += 4;
@@ -305,7 +337,7 @@ public final class AssistantScreen extends Screen {
         return Math.max(y, contentBottom - scrollOffset);
     }
 
-    private int drawUserMessage(GuiGraphics graphics, String text, int y) {
+    private int drawUserMessage(GuiGraphics graphics, String text, int y, boolean included) {
         int bubbleWidth = Math.max(1, Math.min(360, readableWidth - 34));
         Component content = Component.literal(text).withStyle(style -> style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT));
         List<net.minecraft.util.FormattedCharSequence> lines = font.split(content, Math.max(1, bubbleWidth - 20));
@@ -328,11 +360,15 @@ public final class AssistantScreen extends Screen {
                     style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), avatarX + 3,
                     y + Math.max(0, bubbleHeight - 24) + (24 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
+        graphics.fill(avatarX + 18, y + Math.max(0, bubbleHeight - 24) + 18, avatarX + 24,
+                y + Math.max(0, bubbleHeight - 24) + 24, included ? 0xff74bf8c : ModernUi.DANGER);
         return y + bubbleHeight;
     }
 
-    private int drawAssistantMessage(GuiGraphics graphics, String answer, ChatContracts.Turn turn, int y) {
+    private int drawAssistantMessage(GuiGraphics graphics, String answer, ChatContracts.Turn turn, int y, boolean included) {
         drawAssistantAvatar(graphics, y);
+        graphics.fill(readableLeft + 18, y + 18, readableLeft + 24, y + 24,
+                included ? 0xff74bf8c : ModernUi.DANGER);
         List<Evidence.NavigationTarget> targets = turnTargets(turn);
         List<ModelBackend.UrlCitation> citations = new ArrayList<>();
         int searchFrom = 0;
@@ -357,10 +393,33 @@ public final class AssistantScreen extends Screen {
                 readableLeft + 32, readableWidth - 32, turn));
     }
 
+    private int drawMessageActions(GuiGraphics graphics, ChatContracts.Turn turn, boolean user, int tokens, int y, int mouseX, int mouseY) {
+        Component count = Component.literal("~" + tokens + " tokens").withStyle(style -> style.withFont(ModernUi.FONT));
+        boolean editable = user && !view.active() && !awaitingRequestView && !view.readOnly()
+                && turn == view.conversation().turns().getLast();
+        int left = user ? readableLeft + readableWidth - font.width(count) - 42 - (editable ? 38 : 0) : readableLeft + 32;
+        graphics.drawString(font, count, left, y + 6, ModernUi.MUTED, false);
+        int actionLeft = left + font.width(count) + 8;
+        ModernUi.surface(graphics, actionLeft, y + 2, actionLeft + 34, y + 18,
+                mouseX >= actionLeft && mouseX < actionLeft + 34 && mouseY >= y + 2 && mouseY < y + 18 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+        graphics.drawString(font, Component.literal("Copy").withStyle(style -> style.withFont(ModernUi.FONT)),
+                actionLeft + 5, y + 2 + (16 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        messageActions.add(new MessageAction(turn, user, false, actionLeft, y + 2, 34));
+        if (editable) {
+            ModernUi.surface(graphics, actionLeft + 40, y + 2, actionLeft + 72, y + 18,
+                    mouseX >= actionLeft + 40 && mouseX < actionLeft + 72 && mouseY >= y + 2 && mouseY < y + 18 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+            graphics.drawString(font, Component.literal("Edit").withStyle(style -> style.withFont(ModernUi.FONT)),
+                    actionLeft + 45, y + 2 + (16 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+            messageActions.add(new MessageAction(turn, true, true, actionLeft + 40, y + 2, 32));
+        }
+        return y + 22;
+    }
+
     private void drawAssistantAvatar(GuiGraphics graphics, int y) {
         ModernUi.surface(graphics, readableLeft, y, readableLeft + 24, y + 24, ModernUi.ACCENT_DARK);
         graphics.drawString(font, Component.literal("Ps").withStyle(style ->
                 style.withFont(ModernUi.BOLD_FONT).withColor(ModernUi.TEXT)), readableLeft + 4, y + (24 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        graphics.fill(readableLeft + 18, y + 18, readableLeft + 24, y + 24, ModernUi.DANGER);
     }
 
     private int drawInlineLines(GuiGraphics graphics, List<ScreenText.InlineLine> lines, int y, int left,
@@ -475,25 +534,151 @@ public final class AssistantScreen extends Screen {
     }
 
     private void drawComposer(GuiGraphics graphics, int mouseX, int mouseY) {
-        int toggleWidth = Math.max(1, Math.min(128, (readableWidth - 6) / 2));
-        ModernUi.surface(graphics, readableLeft, toggleY, readableLeft + toggleWidth, toggleY + 20,
-                explicitWebSearch ? ModernUi.ACCENT_DARK : ModernUi.SURFACE);
-        graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/globe.png"),
-                readableLeft + 7, toggleY + (20 - 13) / 2, 13, 13, 0.0F, 0.0F, 64, 64, 64, 64);
-        if (toggleWidth >= 96) graphics.drawString(font, Component.literal("Search").withStyle(style ->
-                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), readableLeft + 27, toggleY + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
-        int screenshotLeft = readableLeft + toggleWidth + 6;
-        ModernUi.surface(graphics, screenshotLeft, toggleY, screenshotLeft + toggleWidth, toggleY + 20,
-                includeScreenshot ? ModernUi.ACCENT_DARK : ModernUi.SURFACE);
-        graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/camera.png"),
-                screenshotLeft + 7, toggleY + (20 - 13) / 2, 13, 13, 0.0F, 0.0F, 64, 64, 64, 64);
-        if (toggleWidth >= 112) graphics.drawString(font, Component.literal("Screenshot").withStyle(style ->
-                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), screenshotLeft + 27, toggleY + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        for (ToolbarItem item : toolbarItems()) {
+            boolean hovered = mouseX >= item.x() && mouseX < item.x() + item.width()
+                    && mouseY >= item.y() && mouseY < item.y() + 20;
+            boolean selected = item.kind().equals("search") && explicitWebSearch
+                    || item.kind().equals("screenshot") && includeScreenshot;
+            ModernUi.surface(graphics, item.x(), item.y(), item.x() + item.width(), item.y() + 20,
+                    hovered ? ModernUi.SURFACE_HOVER : selected ? ModernUi.ACCENT_DARK : ModernUi.SURFACE);
+            String label;
+            int textLeft = item.x() + 7;
+            if (item.kind().equals("search") || item.kind().equals("screenshot")) {
+                graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/"
+                                + (item.kind().equals("search") ? "globe" : "camera") + ".png"),
+                        item.x() + 6, item.y() + (20 - 13) / 2, 13, 13, 0.0F, 0.0F, 64, 64, 64, 64);
+                textLeft = item.x() + 24;
+                label = item.kind().equals("search") ? "Search" : "Screenshot";
+            } else if (item.kind().equals("model")) {
+                String selectedId = settings.modelId() == null ? actions.providerSelectedModelId() : settings.modelId();
+                label = actions.modelCatalog().stream().filter(model -> model.id().equals(selectedId))
+                        .findFirst().map(ModelBackend.ModelInfo::displayName).orElse("Model");
+            } else if (item.kind().equals("effort")) {
+                label = settings.reasoningEffort() == ModelBackend.ReasoningEffort.DEFAULT ? "Default effort"
+                        : settings.reasoningEffort().name().toLowerCase(java.util.Locale.ROOT) + " effort";
+            } else if (item.kind().equals("context")) {
+                label = view.readOnly() ? "Read-only" : "~" + history.selection().tokenCount() + " / " + history.effectiveTokens();
+                graphics.fill(item.x() + 5, item.y() + 17, item.x() + item.width() - 5, item.y() + 19, ModernUi.BORDER);
+                graphics.fill(item.x() + 5, item.y() + 17, item.x() + 5 + (int) ((item.width() - 10L)
+                        * Math.min(history.selection().tokenCount(), history.effectiveTokens()) / history.effectiveTokens()),
+                        item.y() + 19, ModernUi.ACCENT);
+            } else label = includeScreenshot ? "Game + image" : "Game context";
+            boolean dropdown = item.kind().equals("model") || item.kind().equals("effort");
+            if (dropdown) graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/caret-down.png"),
+                    item.x() + item.width() - 15, item.y() + 5, 10, 10, 0.0F, 0.0F, 64, 64, 64, 64);
+            graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(label)
+                            .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, item.width() - (textLeft - item.x()) - (dropdown ? 19 : 7)))),
+                    textLeft, item.y() + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        }
         ModernUi.surface(graphics, sendX, sendY, sendX + 28, sendY + 28,
                 awaitingRequestView || view.active() ? ModernUi.ACCENT_DARK : view.readOnly() ? ModernUi.SURFACE : ModernUi.SURFACE_HOVER);
         if (view.readOnly()) {
             graphics.drawString(font, Component.literal("Read-only history").withStyle(style ->
                     style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), readableLeft, toggleY + 27, ModernUi.MUTED, false);
+        }
+        if (editingRequest != null) {
+            graphics.drawString(font, Component.literal("Editing latest message · Escape to cancel").withStyle(style ->
+                    style.withFont(ModernUi.FONT)), readableLeft, composerTop + composerHeight + 7, ModernUi.ACCENT, false);
+        }
+    }
+
+    record ToolbarItem(String kind, int x, int y, int width) { }
+
+    List<ToolbarItem> toolbarItems() {
+        int columns = Math.min(6, Math.max(1, (readableWidth + 6) / 86));
+        int itemWidth = Math.max(1, Math.min(100, (readableWidth - (columns - 1) * 6) / columns));
+        List<ToolbarItem> items = new ArrayList<>();
+        String[] kinds = {"context", "model", "effort", "search", "screenshot", "extra"};
+        for (int index = 0; index < kinds.length; index++) items.add(new ToolbarItem(kinds[index],
+                readableLeft + index % columns * (itemWidth + 6), toggleY + index / columns * 26, itemWidth));
+        return items;
+    }
+
+    record PickerChoice(String value, String label) { }
+    record PickerRow(PickerChoice choice, int x, int y, int width) { }
+
+    List<PickerChoice> pickerChoices() {
+        List<PickerChoice> choices = new ArrayList<>();
+        if ("model".equals(picker)) {
+            choices.add(new PickerChoice("", "Provider default"));
+            for (ModelBackend.ModelInfo model : actions.modelCatalog()) choices.add(new PickerChoice(model.id(), model.displayName()));
+        } else if ("effort".equals(picker)) {
+            for (ModelBackend.ReasoningEffort effort : ModelBackend.ReasoningEffort.values()) choices.add(new PickerChoice(effort.name(),
+                    effort == ModelBackend.ReasoningEffort.DEFAULT ? "Provider default" : effort.name().toLowerCase(java.util.Locale.ROOT)));
+        }
+        return choices;
+    }
+
+    List<PickerRow> pickerRows() {
+        if (picker == null) return List.of();
+        List<PickerChoice> choices = pickerChoices();
+        int visible = Math.max(1, Math.min(choices.size(), (toggleY - 54) / 22));
+        pickerScroll = Math.max(0, Math.min(pickerScroll, Math.max(0, choices.size() - visible)));
+        ToolbarItem anchor = toolbarItems().stream().filter(item -> item.kind().equals(picker)).findFirst().orElseThrow();
+        int popupWidth = Math.min(240, readableWidth);
+        int left = Math.min(anchor.x(), readableLeft + readableWidth - popupWidth);
+        int top = Math.max(48, anchor.y() - visible * 22 - 6);
+        List<PickerRow> rows = new ArrayList<>();
+        for (int index = 0; index < visible; index++) rows.add(new PickerRow(choices.get(pickerScroll + index), left, top + index * 22, popupWidth));
+        return rows;
+    }
+
+    private void drawPicker(GuiGraphics graphics, int mouseX, int mouseY) {
+        List<PickerRow> rows = pickerRows();
+        for (PickerRow row : rows) {
+            boolean selected = "model".equals(picker) ? Objects.equals(settings.modelId() == null ? "" : settings.modelId(), row.choice().value())
+                    : settings.reasoningEffort().name().equals(row.choice().value());
+            ModernUi.surface(graphics, row.x(), row.y(), row.x() + row.width(), row.y() + 22,
+                    selected ? ModernUi.ACCENT_DARK : mouseX >= row.x() && mouseX < row.x() + row.width()
+                            && mouseY >= row.y() && mouseY < row.y() + 22 ? ModernUi.SURFACE_HOVER : 0xff20252a);
+            graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(row.choice().label())
+                            .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, row.width() - 16))),
+                    row.x() + 8, row.y() + (22 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        }
+        int count = pickerChoices().size();
+        if (!rows.isEmpty() && count > rows.size()) {
+            PickerRow first = rows.getFirst();
+            int track = rows.size() * 22;
+            int thumb = Math.max(8, track * rows.size() / count);
+            int top = first.y() + pickerScroll * (track - thumb) / (count - rows.size());
+            graphics.fill(first.x() + first.width() - 3, top, first.x() + first.width() - 1, top + thumb, ModernUi.MUTED);
+        }
+    }
+
+    private void drawToolbarTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (picker != null) return;
+        for (ToolbarItem item : toolbarItems()) {
+            if (mouseX < item.x() || mouseX >= item.x() + item.width() || mouseY < item.y() || mouseY >= item.y() + 20) continue;
+            List<Component> lines = new ArrayList<>();
+            if (item.kind().equals("context")) {
+                if (view.readOnly()) lines.add(Component.literal("Join this world/server to send from this session."));
+                lines.add(Component.literal("History: ~" + history.selection().tokenCount() + " / " + history.effectiveTokens() + " tokens"));
+                lines.add(Component.literal("Configured: " + history.configuredTokens() + " · model: "
+                        + (history.modelTokens() == null ? "limit unknown" : history.modelTokens())));
+                lines.add(Component.literal("Included: " + history.selection().turns().size() * 2 + " messages ("
+                        + history.selection().turns().size() + " / " + history.configuredTurns() + " turns)"));
+                lines.add(Component.literal("Only complete exchanges within both history quotas are sent."));
+                lines.add(Component.literal("Conservative replay estimate including message envelopes."));
+                lines.add(Component.literal("Fresh gameplay, screenshot, instructions and output use additional context."));
+            } else if (item.kind().equals("extra")) {
+                lines.add(Component.literal("Last captured: " + ScreenText.contextSummary(view.context())));
+                lines.add(Component.literal("The next request captures fresh gameplay context."));
+                lines.add(Component.literal(includeScreenshot ? "Next request includes a fresh screenshot." : "Next request omits the screenshot."));
+            } else if (item.kind().equals("model")) {
+                String selectedId = settings.modelId() == null ? actions.providerSelectedModelId() : settings.modelId();
+                lines.add(Component.literal(actions.modelCatalog().stream().filter(model -> model.id().equals(selectedId))
+                        .findFirst().map(ModelBackend.ModelInfo::displayName).orElse("Select a model")));
+            } else if (item.kind().equals("effort")) lines.add(Component.literal("Reasoning effort: " + settings.reasoningEffort().name().toLowerCase(java.util.Locale.ROOT)));
+            else lines.add(Component.literal(item.kind().equals("search") ? "Web search" : "Attach screenshot"));
+            List<net.minecraft.util.FormattedCharSequence> wrapped = new ArrayList<>();
+            int tooltipWidth = Math.max(1, Math.min(300, width - 24));
+            for (Component line : lines) wrapped.addAll(font.split(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 16));
+            int tooltipHeight = Math.min(height - 8, wrapped.size() * ModernUi.MESSAGE_LINE_HEIGHT + 16);
+            int left = Math.max(4, Math.min(mouseX + 10, width - tooltipWidth - 4));
+            int top = Math.max(4, item.y() - tooltipHeight - 6);
+            ModernUi.surface(graphics, left, top, left + tooltipWidth, top + tooltipHeight, 0xf020252a);
+            for (int index = 0; index < wrapped.size() && index < (tooltipHeight - 16) / ModernUi.MESSAGE_LINE_HEIGHT; index++) graphics.drawString(font, wrapped.get(index), left + 8,
+                    top + 8 + index * ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.TEXT, false);
         }
     }
 
@@ -522,6 +707,11 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (picker != null) {
+            pickerScroll -= (int) Math.signum(scrollY);
+            pickerRows();
+            return true;
+        }
         if (inputEditor != null && inputEditor.isMouseOver(mouseX, mouseY)) return inputEditor.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (sessionSearchEditor != null && sessionSearchEditor.isMouseOver(mouseX, mouseY)) return sessionSearchEditor.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (mouseX < sidebarWidth) {
@@ -541,6 +731,19 @@ public final class AssistantScreen extends Screen {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
+        if (picker != null) {
+            for (PickerRow row : pickerRows()) {
+                if (mouseX >= row.x() && mouseX < row.x() + row.width() && mouseY >= row.y() && mouseY < row.y() + 22) {
+                    if (picker.equals("model")) settings.setModelId(row.choice().value());
+                    else settings.setReasoningEffort(ModelBackend.ReasoningEffort.valueOf(row.choice().value()));
+                    settingsSaver.run();
+                    break;
+                }
+            }
+            picker = null;
+            setFocused(null);
+            return true;
+        }
         if (inputEditor != null && inputEditor.isMouseOver(mouseX, mouseY)) {
             setFocused(inputEditor);
             return inputEditor.mouseClicked(mouseX, mouseY, button);
@@ -579,16 +782,30 @@ public final class AssistantScreen extends Screen {
                 return true;
             }
         }
-        if (!view.readOnly() && mouseY >= toggleY && mouseY < toggleY + 20) {
-            int toggleWidth = Math.max(1, Math.min(128, (readableWidth - 6) / 2));
-            if (mouseX >= readableLeft && mouseX < readableLeft + toggleWidth) { explicitWebSearch = !explicitWebSearch; return true; }
-            int screenshotLeft = readableLeft + toggleWidth + 6;
-            if (mouseX >= screenshotLeft && mouseX < screenshotLeft + toggleWidth) { includeScreenshot = !includeScreenshot; return true; }
+        if (!view.readOnly()) {
+            for (ToolbarItem item : toolbarItems()) {
+                if (mouseX < item.x() || mouseX >= item.x() + item.width() || mouseY < item.y() || mouseY >= item.y() + 20) continue;
+                if (item.kind().equals("search")) explicitWebSearch = !explicitWebSearch;
+                else if (item.kind().equals("screenshot")) includeScreenshot = !includeScreenshot;
+                else if (item.kind().equals("model") || item.kind().equals("effort")) {
+                    picker = item.kind();
+                    pickerScroll = 0;
+                }
+                return true;
+            }
         }
         if (mouseX >= sendX && mouseX < sendX + 28 && mouseY >= sendY && mouseY < sendY + 28) {
             if (awaitingRequestView || view.active()) stop();
             else submit();
             return true;
+        }
+        for (MessageAction action : messageActions) {
+            if (mouseY >= 48 && mouseY < toggleY - 8 && mouseX >= action.x() && mouseX < action.x() + action.width()
+                    && mouseY >= action.y() && mouseY < action.y() + 16) {
+                if (action.edit()) editLatest(action.turn().requestId());
+                else if (minecraft != null) minecraft.keyboardHandler.setClipboard(action.user() ? action.turn().question() : action.turn().answer());
+                return true;
+            }
         }
         for (ChipHit hit : chipHits) {
             if (mouseY >= 48 && mouseY < toggleY - 8 && mouseX >= readableLeft && mouseX < readableLeft + readableWidth
@@ -624,6 +841,11 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && (picker != null || editingRequest != null)) {
+            picker = null;
+            if (editingRequest != null) { editingRequest = null; setInput(""); }
+            return true;
+        }
         if (inputEditor != null && inputEditor.isFocused() && inputEditor.keyPressed(keyCode, scanCode, modifiers)) return true;
         if (sessionSearchEditor != null && sessionSearchEditor.isFocused() && sessionSearchEditor.keyPressed(keyCode, scanCode, modifiers)) return true;
         return super.keyPressed(keyCode, scanCode, modifiers);
@@ -651,7 +873,12 @@ public final class AssistantScreen extends Screen {
         boolean historyLoaded = !view.conversation().id().equals(next.conversation().id())
                 || view.activity().equals("Loading session...") && !next.activity().equals("Loading session...");
         view = Objects.requireNonNull(next);
+        history = null;
+        if (!next.active()) resendingRequest = null;
+        if (editingRequest != null && (next.active() || next.readOnly() || next.conversation().turns().isEmpty()
+                || !next.conversation().turns().getLast().requestId().equals(editingRequest))) editingRequest = null;
         awaitingRequestView = false;
+        pendingQuestion = "";
         if (completed) followOnCompletion = followBottom;
         if (historyLoaded) followOnCompletion = followBottom;
         layout();
@@ -677,6 +904,7 @@ public final class AssistantScreen extends Screen {
     public boolean explicitWebSearch() { return explicitWebSearch; }
     public boolean includeScreenshot() { return includeScreenshot; }
     public void setSettingsOpener(Runnable opener) { settingsOpener = Objects.requireNonNull(opener); }
+    public void setSettingsSaver(Runnable saver) { settingsSaver = Objects.requireNonNull(saver); }
     public void setRuntimeState(RuntimeState state) { runtimeState = Objects.requireNonNull(state); }
     public RuntimeState runtimeState() { return actualRuntimeState(); }
     public int scrollOffset() { return scrollOffset; }
@@ -685,10 +913,27 @@ public final class AssistantScreen extends Screen {
         input = input();
         if (input.isBlank() || view.readOnly() || view.active() || awaitingRequestView) return;
         String question = input;
+        pendingQuestion = question;
         setInput("");
         awaitingRequestView = true;
-        actions.send(question, includeScreenshot, explicitWebSearch);
+        if (editingRequest == null) actions.send(question, includeScreenshot, explicitWebSearch);
+        else {
+            ChatContracts.RequestId replacing = editingRequest;
+            resendingRequest = replacing;
+            editingRequest = null;
+            actions.resend(replacing, question, includeScreenshot, explicitWebSearch);
+        }
         scrollToBottom();
+    }
+
+    boolean editLatest(ChatContracts.RequestId requestId) {
+        if (view.active() || awaitingRequestView || view.readOnly() || view.conversation().turns().isEmpty()
+                || !view.conversation().turns().getLast().requestId().equals(requestId)) return false;
+        editingRequest = requestId;
+        setInput(view.conversation().turns().getLast().question());
+        if (inputEditor != null) setFocused(inputEditor);
+        history = null;
+        return true;
     }
 
     public void close() { }
@@ -699,7 +944,7 @@ public final class AssistantScreen extends Screen {
     }
 
     public void stop() { actions.stop(); }
-    public void newChat() { sidebarScroll = 0; actions.newChat(); scrollToBottom(); }
+    public void newChat() { sidebarScroll = 0; editingRequest = null; picker = null; actions.newChat(); scrollToBottom(); }
     public void signIn() { actions.signIn(); }
     public void cancelSignIn() { actions.cancelSignIn(); }
     public void signOut() { actions.signOut(); }
@@ -741,4 +986,5 @@ public final class AssistantScreen extends Screen {
 
     private record ChipHit(Evidence.NavigationTarget target, int left, int top, int right, int bottom) { }
     private record SourceHit(Evidence.Source source, ChatContracts.Turn turn, int left, int top, int right, int bottom) { }
+    private record MessageAction(ChatContracts.Turn turn, boolean user, boolean edit, int x, int y, int width) { }
 }

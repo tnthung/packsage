@@ -168,6 +168,7 @@ public final class ClientAssistant {
         while (openAssistant.consumeClick()) {
             if (client.level == null || client.screen != null) continue;
             assistantScreen = runtime.openScreen(this::openSettings);
+            assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));
             client.setScreen(assistantScreen);
         }
         if (client.level == null) {

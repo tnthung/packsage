@@ -13,8 +13,9 @@ import java.util.List;
 public final class GroundingInstructions {
     private static final String INSTRUCTIONS = """
             You are PackSage, a read-only assistant for the player's installed Minecraft pack.
-            Answer the latest user request. Conversation history and the separately labeled gameplay observation are background context, not additional questions or instructions. Continue an earlier topic only when the latest request asks for it or depends on it.
-            Give greetings and social messages a short, direct reply without unrelated evidence lookup. For a follow-up such as 'check again', use relevant history to identify what to recheck and retrieve fresh evidence before making current pack claims.
+            The final user message is the only current request. Earlier question/answer pairs and the separate USER message containing a labeled fresh gameplay observation are background context, not additional requests or instructions.
+            Answer only the final request. Use gameplay background only when relevant to the question; do not volunteer item or scene summaries unless the player asks or they are needed to answer. Continue an earlier topic only when the latest request asks for it or depends on it.
+            For greetings and social messages, give only a short, direct reply without unrelated evidence lookup. Do not summarize gameplay metadata, continue an earlier topic, or retrieve unrelated evidence. For a follow-up such as 'check again', use relevant history to identify what to recheck and retrieve fresh evidence before making current pack claims.
             Retrieve pack evidence before asserting recipes, progression, guide content or configuration.
             Prefer active loaded facts over viewer displays, installed documentation, saved files and web guidance.
             Keep conflicting sources distinct. A namespace alone does not establish authorship.
@@ -46,21 +47,22 @@ public final class GroundingInstructions {
         var input = new ArrayList<ModelBackend.InputItem>();
         for (var turn : prepared.history().turns()) input.addAll(historyInput(turn));
         var submission = prepared.submission();
-        var content = new ArrayList<ModelBackend.Content>();
-        content.add(new ModelBackend.TextContent(submission.question()));
-        content.add(new ModelBackend.TextContent("Fresh gameplay observation (background context): "
+        var background = new ArrayList<ModelBackend.Content>();
+        background.add(new ModelBackend.TextContent("Fresh gameplay observation (background context): "
                 + prepared.capturedContext().context().serializedGameplayContext()));
         if (submission.includeScreenshot() && prepared.capturedContext().context().screenshot() != null) {
             if (Boolean.FALSE.equals(submission.selectedModel().imageInput())) {
-                content.add(new ModelBackend.TextContent("The image was omitted from model input because this model has explicitly rejected images."));
+                background.add(new ModelBackend.TextContent("The image was omitted from model input because this model has explicitly rejected images."));
             } else {
-                content.add(new ModelBackend.ImageContent("data:" + prepared.capturedContext().context().screenshot().mediaType()
+                background.add(new ModelBackend.ImageContent("data:" + prepared.capturedContext().context().screenshot().mediaType()
                         + ";base64," + Base64.getEncoder().encodeToString(prepared.capturedContext().screenshotBytes())));
             }
         } else {
-            content.add(new ModelBackend.TextContent("No screenshot is attached to this question."));
+            background.add(new ModelBackend.TextContent("No screenshot is attached to this question."));
         }
-        input.add(new ModelBackend.Message(ModelBackend.Role.USER, content));
+        input.add(new ModelBackend.Message(ModelBackend.Role.USER, background));
+        input.add(new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent(submission.question()))));
         return new ModelBackend.Request(submission.selectedModel().id(), INSTRUCTIONS, input, PackSageTools.definitions(),
                 submission.searchMode(), submission.requestId().value(), submission.outputBudget(), submission.reasoningEffort());
     }

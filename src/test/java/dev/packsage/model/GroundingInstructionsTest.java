@@ -27,7 +27,7 @@ class GroundingInstructionsTest {
         assertTrue(request.instructions().contains("interaction range"));
         assertTrue(request.instructions().contains("cameraPerspective"));
         assertTrue(request.instructions().contains("visible crosshair"));
-        assertTrue(((ModelBackend.Message) request.input().getLast()).content().stream().anyMatch(
+        assertTrue(((ModelBackend.Message) request.input().get(request.input().size() - 2)).content().stream().anyMatch(
                 content -> content instanceof ModelBackend.TextContent text
                         && text.text().contains("third_person_back") && text.text().contains("\"focusKind\":\"miss\"")));
     }
@@ -64,25 +64,30 @@ class GroundingInstructionsTest {
         assertTrue(request.instructions().contains("search_history"));
         assertTrue(request.instructions().contains("read_history"));
         assertTrue(request.instructions().contains("historical conversation"));
+        assertTrue(request.instructions().contains("The final user message is the only current request."));
+        assertTrue(request.instructions().contains("Do not summarize gameplay metadata, continue an earlier topic, or retrieve unrelated evidence."));
         assertTrue(request.instructions().contains("Retrieve pack evidence before asserting recipes"));
         assertTrue(request.instructions().contains("Continue an earlier topic only when the latest request asks for it or depends on it."));
         assertTrue(request.instructions().contains("short, direct reply without unrelated evidence lookup"));
         assertTrue(request.instructions().contains("retrieve fresh evidence before making current pack claims"));
-        assertEquals(3, request.input().size());
+        assertEquals(4, request.input().size());
         assertTrue(request.input().get(0) instanceof ModelBackend.Message);
         assertTrue(request.input().get(1) instanceof ModelBackend.AssistantOutput);
         assertEquals("How do I enchant my pickaxe?", ((ModelBackend.TextContent)
                 ((ModelBackend.Message) request.input().get(0)).content().getFirst()).text());
         assertEquals("Use Fortune V on the pickaxe.", ((ModelBackend.OutputText)
                 ((ModelBackend.AssistantOutput) request.input().get(1)).content().getFirst()).text());
+        var background = (ModelBackend.Message) request.input().get(2);
+        assertEquals(ModelBackend.Role.USER, background.role());
+        assertEquals(2, background.content().size());
+        assertTrue(background.content().stream().anyMatch(content -> content instanceof ModelBackend.TextContent text
+                && text.text().equals("Fresh gameplay observation (background context): " + gameplay)));
+        assertTrue(background.content().stream().anyMatch(content -> content instanceof ModelBackend.ImageContent image
+                && image.dataUrl().equals("data:image/png;base64,AQID")));
         var current = (ModelBackend.Message) request.input().getLast();
         assertEquals(ModelBackend.Role.USER, current.role());
+        assertEquals(1, current.content().size());
         assertEquals("hi", ((ModelBackend.TextContent) current.content().getFirst()).text());
-        assertTrue(current.content().get(1) instanceof ModelBackend.TextContent);
-        var observation = ((ModelBackend.TextContent) current.content().get(1)).text();
-        assertEquals("Fresh gameplay observation (background context): " + gameplay, observation);
-        assertTrue(current.content().stream().anyMatch(content -> content instanceof ModelBackend.ImageContent image
-                && image.dataUrl().equals("data:image/png;base64,AQID")));
         assertEquals(10, request.tools().size());
     }
 
@@ -134,8 +139,8 @@ class GroundingInstructionsTest {
                 new ChatContracts.Screenshot("current.png", "image/png", 1, Instant.EPOCH), SCOPE), new byte[]{1});
         var request = GroundingInstructions.build(new ChatContracts.PreparedRequest(submission,
                 new ChatContracts.HistorySelection(List.of(), 0), captured, new ChatContracts.EvidenceSelection(List.of(), List.of())));
-        assertTrue(((ModelBackend.Message) request.input().getLast()).content().stream().noneMatch(ModelBackend.ImageContent.class::isInstance));
-        assertTrue(((ModelBackend.Message) request.input().getLast()).content().stream().anyMatch(content -> content instanceof ModelBackend.TextContent text
+        assertTrue(((ModelBackend.Message) request.input().get(request.input().size() - 2)).content().stream().noneMatch(ModelBackend.ImageContent.class::isInstance));
+        assertTrue(((ModelBackend.Message) request.input().get(request.input().size() - 2)).content().stream().anyMatch(content -> content instanceof ModelBackend.TextContent text
                 && text.text().contains("image") && text.text().contains("omitted")));
         var ascii = new ChatContracts.Turn(new ChatContracts.RequestId("r"), "a", "b", List.of(),
                 new ChatContracts.Context("{}", null, SCOPE), List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0);
@@ -209,7 +214,7 @@ class GroundingInstructionsTest {
                 new ChatContracts.CapturedContext(new ChatContracts.Context("{}", null, SCOPE), new byte[0]),
                 new ChatContracts.EvidenceSelection(List.of(), List.of())));
 
-        assertEquals(3, request.input().size());
+        assertEquals(4, request.input().size());
         assertTrue(request.input().get(0) instanceof ModelBackend.Message);
         assertTrue(request.input().get(1) instanceof ModelBackend.AssistantOutput);
         assertTrue(((ModelBackend.Message) request.input().get(0)).content().getFirst() instanceof ModelBackend.TextContent);

@@ -119,9 +119,12 @@ class AssistantIntegrationTest {
                 ((ModelBackend.TextContent) ((ModelBackend.Message) replayed.get(0)).content().getFirst()).text());
         var currentMessage = replayed.stream().filter(ModelBackend.Message.class::isInstance).map(ModelBackend.Message.class::cast)
                 .reduce((first, second) -> second).orElseThrow();
-        assertTrue(currentMessage.content().stream().anyMatch(content -> content instanceof ModelBackend.TextContent text
+        assertEquals(ModelBackend.Role.USER, currentMessage.role());
+        assertEquals(List.of(new ModelBackend.TextContent("What did the earlier evidence say?")), currentMessage.content());
+        var background = (ModelBackend.Message) replayed.get(replayed.size() - 2);
+        assertTrue(background.content().stream().anyMatch(content -> content instanceof ModelBackend.TextContent text
                 && text.text().contains("held-2")));
-        assertTrue(currentMessage.content().stream().noneMatch(ModelBackend.ImageContent.class::isInstance));
+        assertTrue(background.content().stream().noneMatch(ModelBackend.ImageContent.class::isInstance));
         assertEquals(2, runtime.view().context().scope().requestGeneration());
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
                 List.of(new ModelBackend.AssistantOutput("answer-2", ModelBackend.OutputStatus.COMPLETED,

@@ -877,7 +877,9 @@ class AssistantRuntimeTest {
         backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
                 MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
         runtime.send("Recall the lantern plan", false, false);
-        assertEquals(1, backend.requests.getFirst().input().size());
+        assertEquals(2, backend.requests.getFirst().input().size());
+        assertEquals(List.of(new ModelBackend.TextContent("Recall the lantern plan")),
+                ((ModelBackend.Message) backend.requests.getFirst().input().getLast()).content());
         assertTrue(backend.requests.getFirst().tools().stream().anyMatch(tool -> tool.name().equals("search_history")));
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
                 new ModelBackend.ToolCall("find-history", "search_history", "{\"text\":\"lantern\",\"limit\":8,\"cursor\":null}"),

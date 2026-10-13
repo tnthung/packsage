@@ -130,7 +130,7 @@ class ChatGptBackendTest {
                 new ChatContracts.EvidenceSelection(List.of(), List.of())));
 
         JsonArray input = JsonParser.parseString(ChatGptBackend.requestBody(request)).getAsJsonObject().getAsJsonArray("input");
-        assertEquals(3, input.size());
+        assertEquals(4, input.size());
         assertEquals("user", input.get(0).getAsJsonObject().get("role").getAsString());
         assertEquals("input_text", input.get(0).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject().get("type").getAsString());
         assertEquals("old question", input.get(0).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString());
@@ -142,7 +142,11 @@ class ChatGptBackendTest {
         assertEquals("old answer", input.get(1).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString());
         assertTrue(input.get(1).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject().getAsJsonArray("annotations").isEmpty());
         assertEquals("user", input.get(2).getAsJsonObject().get("role").getAsString());
-        assertTrue(input.toString().contains("new question"));
+        assertTrue(input.get(2).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString().contains("fresh"));
+        assertEquals("user", input.get(3).getAsJsonObject().get("role").getAsString());
+        assertEquals(1, input.get(3).getAsJsonObject().getAsJsonArray("content").size());
+        assertEquals("input_text", input.get(3).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject().get("type").getAsString());
+        assertEquals("new question", input.get(3).getAsJsonObject().getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString());
         assertFalse(input.toString().contains("old-call"));
         assertFalse(input.toString().contains("secret"));
     }

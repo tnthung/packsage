@@ -41,3 +41,24 @@ Chat and settings surfaces visibly have curved, continuous corners. The `Ps` tex
 A greeting was submitted in the existing enchantment session using Luna/none, screenshot on and web search off. The raw submission was `hi` followed by a newline because the configured Enter shortcut inserts a newline; Send accepted it and cleared the input. The prompt-only fix failed this live check: the request was still waiting at 86.8 seconds and, by the 150.2-second observation, had completed with another pickaxe/enchantment recommendation.
 
 Size inspection of the saved request found a 2,499,155-byte automatic gameplay context, of which the held-item value alone was 2,498,690 bytes. The earlier greeting had the same sizes. `GameplayContextCapture` appended the Java debug representation of the entire component map, expanding registry-backed data. This proves an excessive automatic input payload; it does not isolate all causes of the observed delay. A native component serialization correction and another live greeting check are required before accepting this behavior.
+
+## Native serialization and final question ordering
+
+`e8ea8bf` replaces the held-item debug dump with the registry-aware component-map codec, retaining persistent merged defaults and custom data. The standalone `ContextCaptureTest` passed; the full build passed with 378 tests, 374 passed and four Windows symlink skips. The installed live capture retained component metadata and reduced gameplay context to 1,486 bytes, with a 933-byte held field. There was no `components=unknown` marker. This is about 1,682 times smaller than the previous context.
+
+That candidate still volunteered item and enchantment information for `hi` and made two tool calls. Its file persistence interval was 20.76 seconds after submission. `531d067` then places labeled gameplay/image background in a separate USER message and ends input with only the exact question in another USER message. Updated request-shape, runtime replay and wire-format tests passed in the full build: 378 tests, 374 passed, four skips, no failures or errors. The build succeeded in 23 seconds after three assertions tied to the old combined message shape were adapted.
+
+The final distribution and ATM10 JAR hashes match `C61CAF8324AE6211EF91FA189D8001C773D08F4A69723DC69083A7099AB71159`, built from `531d06728ee973bba9c57d70da7f547060f0df78`. Installation occurred with Minecraft closed. The same backed-up trial world and GUI scale 2 were used.
+
+Two live `hi` checks used Luna/none, screenshot on and web search off:
+
+| Session | Observed answer | Persisted tools | Submission-to-file interval |
+|---|---|---|---|
+| Existing enchantment history | A greeting followed by current held-item details; no longer recommends Miner's Fervor | 1 | 29.41 seconds |
+| Fresh session | `Hi! What can I help you with?` | 0; replay contains only assistant output | 11.19 seconds |
+
+The fresh-session record has an exact two-character question, 1,486-byte context, 933-byte held value and valid component metadata. These intervals include capture, transport, model/tool work and persistence; they are not isolated inference timings or latency guarantees.
+
+A read-only production-path review confirmed that the current builder reaches the backend, instructions and ordered input are preserved, NONE is serialized explicitly, and no previous-response/server-conversation binding substitutes an earlier question. Installed class constants also contain the current final-user rule. NONE does not disable tools. The differing live outcomes suggest history influences remaining model behavior; they do not establish reliable greeting-only compliance in existing sessions. That semantic acceptance remains open. No additional intent router, hardcoded greeting reply, model override or unproven prompt rewrite was added.
+
+The UI fixes and compact native serialization are verified. Minecraft is left paused in the fresh trial chat showing the successful greeting. The original OoO world was not opened, and no inventory, block or quest actions were performed.

@@ -142,7 +142,7 @@ public final class AssistantScreen extends Screen {
         int y = contentOrigin - scrollOffset;
         y = drawConversation(graphics, y, contentBottom, mouseX, mouseY);
         graphics.disableScissor();
-        updateContentMetrics(y + scrollOffset - contentOrigin + 4, contentBottom - contentTop);
+        updateContentMetrics(y + scrollOffset - contentTop + 4, contentBottom - contentTop);
         drawComposer(graphics, mouseX, mouseY);
         super.render(graphics, mouseX, mouseY, partialTick);
         drawSendIcon(graphics);

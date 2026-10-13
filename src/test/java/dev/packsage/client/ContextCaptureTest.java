@@ -1,24 +1,77 @@
 package dev.packsage.client;
 
 import com.google.gson.JsonParser;
+import com.mojang.serialization.Codec;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.knowledge.Evidence;
+import net.minecraft.advancements.critereon.BlockPredicate;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.Bootstrap;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.item.AdventureModePredicate;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomData;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ContextCaptureTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
     private static final ChatContracts.WorldIdentity WORLD = new ChatContracts.WorldIdentity("world", "World");
+
+    @BeforeAll
+    static void bootstrapMinecraft() {
+        Bootstrap.bootStrap();
+    }
+
+    @Test
+    void heldItemKeepsPersistentMergedComponentsInRegistryAwareForm() {
+        var stack = new ItemStack(Items.DIAMOND_PICKAXE);
+        stack.set(DataComponents.CUSTOM_NAME, Component.literal("Survey Pick"));
+        var customData = new CompoundTag();
+        customData.putString("packSageMarker", "retained");
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(customData));
+        stack.set(DataComponents.CAN_BREAK, new AdventureModePredicate(List.of(
+                BlockPredicate.Builder.block().of(BlockTags.MINEABLE_WITH_PICKAXE).build()), true));
+        var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+
+        var held = GameplayContextCapture.heldItem(stack, registries);
+
+        assertTrue(held.startsWith("item:minecraft:diamond_pickaxe;count=1;name=Survey Pick;components="));
+        var components = JsonParser.parseString(held.substring(held.indexOf(";components=") + ";components=".length()))
+                .getAsJsonObject();
+        assertEquals(1561, components.get("minecraft:max_damage").getAsInt());
+        assertEquals(1, components.get("minecraft:max_stack_size").getAsInt());
+        assertTrue(components.get("minecraft:custom_name").toString().contains("Survey Pick"));
+        assertTrue(components.get("minecraft:custom_data").toString().contains("packSageMarker"));
+        assertTrue(components.get("minecraft:custom_data").toString().contains("retained"));
+        assertTrue(components.get("minecraft:can_break").toString().contains("mineable/pickaxe"));
+        assertFalse(held.contains(stack.getComponents().toString()));
+
+        stack.set(net.minecraft.core.component.DataComponentType.<String>builder().persistent(Codec.STRING).build(),
+                "not registered");
+        var unavailable = GameplayContextCapture.heldItem(stack, registries);
+        assertTrue(unavailable.startsWith("item:minecraft:diamond_pickaxe;count=1;name=Survey Pick;components=unknown"));
+        assertFalse(unavailable.contains(stack.getComponents().toString()));
+    }
 
     @Test
     void missedRaysHaveNoBlockTargetAndCameraPerspectiveIsCapturedFresh() {

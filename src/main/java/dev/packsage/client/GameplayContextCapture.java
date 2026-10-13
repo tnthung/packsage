@@ -1,15 +1,19 @@
 package dev.packsage.client;
 
 import com.google.gson.JsonObject;
+import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.serialization.JsonOps;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
-import com.mojang.blaze3d.platform.NativeImage;
 
 import java.nio.file.Path;
 import java.time.Instant;
@@ -152,18 +156,12 @@ public final class GameplayContextCapture {
                 focusKind = hitResult.getType().name().toLowerCase(Locale.ROOT);
             }
             var stack = player.getMainHandItem();
-            String held = null;
-            if (!stack.isEmpty()) {
-                held = "item:" + BuiltInRegistries.ITEM.getKey(stack.getItem())
-                        + ";count=" + stack.getCount()
-                        + ";name=" + stack.getHoverName().getString()
-                        + ";components=" + stack.getComponents();
-            }
             String dimension = level.dimension().location().toString();
             String position = player.blockPosition().toString();
             String biome = level.getBiome(player.blockPosition()).unwrapKey()
                     .map(key -> key.location().toString()).orElse(null);
-            return new Observation(targeted, held, targeted, dimension, position, biome,
+            return new Observation(targeted, stack.isEmpty() ? null : heldItem(stack, level.registryAccess()),
+                    targeted, dimension, position, biome,
                     Long.toString(level.getGameTime()), focusKind,
                     minecraft.options.getCameraType().name().toLowerCase(Locale.ROOT));
         };
@@ -315,6 +313,20 @@ public final class GameplayContextCapture {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    static String heldItem(ItemStack stack, RegistryAccess registries) {
+        String components;
+        try {
+            components = DataComponentMap.CODEC.encodeStart(registries.createSerializationContext(JsonOps.INSTANCE),
+                    stack.getComponents()).result().map(com.google.gson.JsonElement::toString).orElse("unknown");
+        } catch (RuntimeException ignored) {
+            components = "unknown";
+        }
+        return "item:" + BuiltInRegistries.ITEM.getKey(stack.getItem())
+                + ";count=" + stack.getCount()
+                + ";name=" + stack.getHoverName().getString()
+                + ";components=" + components;
     }
 
     private ChatContracts.Context context(Observation observation, Evidence.Scope currentScope,

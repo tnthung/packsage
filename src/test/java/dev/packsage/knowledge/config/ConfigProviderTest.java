@@ -111,6 +111,7 @@ class ConfigProviderTest {
 
         assertEquals(1, result.records().size());
         assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertEquals("unsupported test bridge", result.detail());
         assertEquals(new Evidence.JsonNumber(new java.math.BigDecimal("42")),
                 result.records().getFirst().payload().values().get("savedValue"));
         assertEquals("neoforge-21.1.250", provider.status().version());

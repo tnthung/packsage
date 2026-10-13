@@ -153,7 +153,8 @@ public final class ConfigProvider implements KnowledgeProvider {
         Evidence.Coverage coverage = bridgePartial || !bounded || savedPartial ? Evidence.Coverage.PARTIAL
                 : Evidence.Coverage.COMPLETE;
         return new Evidence.Result(records, coverage,
-                coverage == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, next);
+                coverage == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, next,
+                captured.failure() != null ? "loaded config capture failed" : !catalog.supported() ? catalog.detail() : null);
     }
 
     @Override

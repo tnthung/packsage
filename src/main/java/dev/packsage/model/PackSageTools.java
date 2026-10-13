@@ -46,13 +46,18 @@ public final class PackSageTools {
             var properties = new JsonObject();
             var description = switch (name) {
                 case "search_pack" -> "Search current client-visible pack evidence. Preserve partial coverage and source authority. "
-                        + "A non-null nextCursor means more matches may exist; detail explains errors and bounded partial results.";
+                        + "Text is a literal substring: use one name, ID or short phrase, not concatenated keywords. "
+                        + "Search a bare chapter ID to discover its quest references. A non-null nextCursor means more matches may exist; "
+                        + "reuse it only with the same text and kinds, or set cursor to null when changing the query. "
+                        + "Detail explains errors and bounded partial results.";
                 case "read_evidence" -> "Read only previously observed provider-qualified source handles in this request.";
                 case "plan_recipe" -> "Retrieve bounded recipe routes, preserving alternatives, quantities and unknown semantics.";
                 case "read_inventory" -> "Read current player inventory observations for selected item identities.";
-                case "read_progress" -> "Read selected accessible quest handles and observed team progression.";
+                case "read_progress" -> "Read previously observed provider-qualified quest references and current team progression, "
+                        + "in batches of up to 16. Raw quest IDs listed in a chapter must first be discovered with search_pack.";
                 case "list_configs" -> "List accessible observed configuration values and handles; saved and loaded views differ.";
-                case "search_config" -> "Search bounded accessible config keys and comments.";
+                case "search_config" -> "Search bounded accessible config keys and comments using a literal substring. "
+                        + "Use one key, file name or short phrase. Set cursor to null when changing the text.";
                 case "read_config" -> "Read a key or bounded section from an observed config handle, either a returned reference "
                         + "config:<owner>:<SCOPE>:<file>#<key> or its entry handle <owner>:<SCOPE>:<file>. No paths, writes or reloads.";
                 default -> throw new IllegalStateException(name);

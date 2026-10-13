@@ -22,7 +22,7 @@ At GUI scale 2 in a 1024-pixel client area:
 
 The user clarified that the information tooltip needs populated current values after the initial live check. A synchronous gameplay preview was added, along with smaller bottom-left controls. Those follow-up changes passed automated checks; they have not yet been inspected in a restarted game.
 
-Final code commit `8c5d146` is built as `dist/packsage.jar`, SHA-256 `9D77A0717BD4EDBFDE5E989D062FC150D96C2BDE70B64E0C9C612594A954B85C`. The installed/running game still uses the earlier `fbcc09f` build. The newer JAR was left ready for a restart, without replacing the file used by the running game.
+Final code commit `8c5d146` is built as `dist/packsage.jar`, SHA-256 `9D77A0717BD4EDBFDE5E989D062FC150D96C2BDE70B64E0C9C612594A954B85C`. After the user closed Minecraft, this JAR was installed into the instance's `mods/packsage.jar` and its hash was verified against the distribution. The populated live-preview and bottom-left sizing follow-up still await inspection in a restarted game.
 
 ## Open observation
 

@@ -22,7 +22,15 @@ At GUI scale 2 in a 1024-pixel client area:
 
 The user clarified that the information tooltip needs populated current values after the initial live check. A synchronous gameplay preview was added, along with smaller bottom-left controls. Those follow-up changes passed automated checks; they have not yet been inspected in a restarted game.
 
-Final code commit `8c5d146` is built as `dist/packsage.jar`, SHA-256 `9D77A0717BD4EDBFDE5E989D062FC150D96C2BDE70B64E0C9C612594A954B85C`. After the user closed Minecraft, this JAR was installed into the instance's `mods/packsage.jar` and its hash was verified against the distribution. The populated live-preview and bottom-left sizing follow-up still await inspection in a restarted game.
+Gameplay-preview follow-up commit `8c5d146` was built with SHA-256 `9D77A0717BD4EDBFDE5E989D062FC150D96C2BDE70B64E0C9C612594A954B85C`. After the user closed Minecraft, this JAR was installed into the instance's `mods/packsage.jar` and its hash was verified against the distribution. Subsequent screenshots supplied by the user showed populated gameplay values and identified the refinements below.
+
+## Refinements after player review
+
+- `2c101b5` preserves a green enabled-toggle appearance while hovering and centers account action labels.
+- `39ad7e4` captures submission timestamps once, carries them through active/completed/failed/cancelled requests, and persists them through JSONL round trips and replacements. Legacy records without a timestamp remain readable and omit the date/time.
+- `0e59f2b` places the meter between the gameplay information icon and editor, formats tooltip values for players, uses opaque tooltip panels above chat content, and shows local send times before user token counts. Narrow layouts stack message actions below metadata and move their hitboxes with them.
+- Final `test build`: 346 tests, 343 passed, three Windows symlink cases skipped, zero failures/errors. Independent source review found no material geometry or timestamp-lifecycle defect. Timestamp rendering and wrapped Copy/Edit interaction have not been exercised in a live screen; headless tests cover composer geometry and text formatting, not GPU rendering.
+- Latest distribution and installed instance JAR match SHA-256 `2BC1B3B57DB30CF48E711390A04DA2EB2728FF80BE1E4697C6625C699F69DC52`. The instance was updated after the game process had closed. Desktop interaction stayed off during this pass; final visual acceptance remains pending.
 
 ## Open observation
 

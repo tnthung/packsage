@@ -13,7 +13,7 @@ description='''Client-side evidence and assistant tools for modded Minecraft.'''
 [[dependencies.packsage]]
 modId="neoforge"
 type="required"
-versionRange="[21.1.202,21.1.203)"
+versionRange="[21.1.202,21.2)"
 ordering="NONE"
 side="CLIENT"
 

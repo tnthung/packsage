@@ -749,6 +749,8 @@ public final class AssistantScreen extends Screen {
             else lines.add(Component.literal(item.kind().equals("search") ? "Web search" : "Attach screenshot"));
             List<net.minecraft.util.FormattedCharSequence> wrapped = new ArrayList<>();
             int tooltipWidth = Math.max(1, Math.min(286, width - 24));
+            if (title.isEmpty()) tooltipWidth = Math.min(tooltipWidth, 20 + lines.stream()
+                    .mapToInt(line -> font.width(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)))).max().orElse(0));
             int labelWidth = fields.stream().mapToInt(field -> font.width(Component.literal(field.label())
                     .withStyle(style -> style.withFont(ModernUi.FONT))) + 14).max().orElse(0);
             List<List<net.minecraft.util.FormattedCharSequence>> values = new ArrayList<>();

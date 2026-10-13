@@ -2,10 +2,15 @@ package dev.packsage.client;
 
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.jei.PackSageJeiPlugin;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -14,17 +19,77 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ClientAssistantTest {
     @Test
-    void optionalVersionPinsAcceptOnlyTheTestedVersionWithItsKnownLoaderSuffix() {
-        assertTrue(ClientAssistant.versionMatches("1.21.1-92", "1.21.1-92-NEOFORGE"));
-        assertTrue(ClientAssistant.versionMatches("1.21.1-92", "1.21.1-92"));
-        assertFalse(ClientAssistant.versionMatches("1.21.1-92", "1.21.1-93-NEOFORGE"));
-        assertFalse(ClientAssistant.versionMatches("1.21.1-92", "1.21.1-920-NEOFORGE"));
-        assertFalse(ClientAssistant.versionMatches("1.21.1-92", "1.21.1-92-FORGE"));
-        assertFalse(ClientAssistant.versionMatches("1.21.1-92", "unknown"));
-        assertTrue(ClientAssistant.versionMatches("19.27.0.340", "19.27.0.340"));
-        assertFalse(ClientAssistant.versionMatches("19.27.0.340", "19.27.0.341"));
-        assertTrue(ClientAssistant.versionMatches("2101.1.36", "2101.1.36"));
-        assertFalse(ClientAssistant.versionMatches("2101.1.36", "2101.1.37"));
+    void optionalVersionRangesAcceptValidatedAdapterReleasesAndRejectOtherLines() {
+        assertTrue(ClientAssistant.versionMatches("[19.27.0.340,20)", "19.27.0.340"));
+        assertTrue(ClientAssistant.versionMatches("[19.27.0.340,20)", "19.57.0.450"));
+        assertTrue(ClientAssistant.versionMatches("[19.27.0.340,20)", "19.99.99.999"));
+        assertFalse(ClientAssistant.versionMatches("[19.27.0.340,20)", "19.27.0.339"));
+        assertFalse(ClientAssistant.versionMatches("[19.27.0.340,20)", "20.0.0.0"));
+
+        assertTrue(ClientAssistant.versionMatches("[2101.1.36,2101.2)", "2101.1.36"));
+        assertTrue(ClientAssistant.versionMatches("[2101.1.36,2101.2)", "2101.1.37"));
+        assertFalse(ClientAssistant.versionMatches("[2101.1.36,2101.2)", "2101.1.35"));
+        assertFalse(ClientAssistant.versionMatches("[2101.1.36,2101.2)", "2101.2"));
+
+        assertTrue(ClientAssistant.versionMatches("[1.21.1-92,1.21.1-94)", "1.21.1-92-NEOFORGE"));
+        assertTrue(ClientAssistant.versionMatches("[1.21.1-92,1.21.1-94)", "1.21.1-93-NEOFORGE"));
+        assertFalse(ClientAssistant.versionMatches("[1.21.1-92,1.21.1-94)", "1.21.1-91"));
+        assertFalse(ClientAssistant.versionMatches("[1.21.1-92,1.21.1-94)", "1.21.1-94"));
+        assertFalse(ClientAssistant.versionMatches("[1.21.1-92,1.21.1-94)", "1.21.1-93-FORGE"));
+        assertFalse(ClientAssistant.versionMatches("[1.21.1-92,1.21.1-94)", "1.21.1--93"));
+        assertFalse(ClientAssistant.versionMatches("[1.21.1-92,1.21.1-94)", "unknown"));
+    }
+
+    @Test
+    void optionalProviderPreservesObservedVersionAndEvidenceWhenWrappingResults() {
+        var scope = new Evidence.Scope("world", "en_us", "player", "runtime", 4);
+        var target = new Evidence.NavigationTarget(scope, "jei", "recipe-handle", "target-id");
+        var source = new Evidence.Source(scope, "jei", "baseline", "recipe-handle", 7, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.VIEWER, List.of("source"));
+        var record = new Evidence.Record(source, Evidence.RecordKind.RECIPE, "Recipe",
+                new Evidence.JsonObject(Map.of("value", new Evidence.JsonString("kept"))), List.of(target),
+                new Evidence.RecipePayload("mod:recipe", List.of(), List.of(new Evidence.RecipeOutput("item",
+                        "mod:result", new Evidence.JsonObject(Map.of()), 3)), List.of(), List.of(),
+                        List.of("requires power"), Evidence.DecodingStatus.PARTIAL));
+        var result = new Evidence.Result(List.of(record), Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL,
+                "next", "query detail");
+        KnowledgeProvider delegate = new KnowledgeProvider() {
+            public String id() { return "jei"; }
+            public ProviderStatus status() {
+                return new ProviderStatus(Availability.AVAILABLE, "baseline", "ready");
+            }
+            public java.util.concurrent.CompletionStage<Evidence.Result> query(Evidence.Query query,
+                                                                              Evidence.Scope requestedScope) {
+                return CompletableFuture.completedFuture(result);
+            }
+            public Evidence.NavigationResult open(Evidence.NavigationTarget requestedTarget,
+                                                  Evidence.Scope requestedScope) {
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "opened");
+            }
+        };
+        var wrapper = new ClientAssistant.ReflectiveProvider(new ClientAssistant.OptionalStatus("jei", "jei",
+                "[19.27.0.340,20)", "19.57.0.450", true, true, "supported"), () -> delegate);
+
+        var status = wrapper.status();
+        var wrapped = wrapper.query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(Map.of()),
+                1, null, null), scope).toCompletableFuture().join();
+
+        assertEquals("19.57.0.450", status.version());
+        assertTrue(status.detail().contains("[19.27.0.340,20)"));
+        assertEquals(Evidence.Coverage.PARTIAL, wrapped.coverage());
+        assertEquals(Evidence.Outcome.PARTIAL, wrapped.outcome());
+        assertEquals("next", wrapped.nextCursor());
+        assertEquals("query detail", wrapped.detail());
+        assertEquals(1, wrapped.records().size());
+        var wrappedRecord = wrapped.records().getFirst();
+        assertEquals(new Evidence.Source(scope, "jei", "19.57.0.450", "recipe-handle", 7, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.VIEWER, List.of("source")),
+                wrappedRecord.source());
+        assertEquals(record.kind(), wrappedRecord.kind());
+        assertEquals(record.title(), wrappedRecord.title());
+        assertEquals(record.payload(), wrappedRecord.payload());
+        assertEquals(record.targets(), wrappedRecord.targets());
+        assertEquals(record.recipePayload(), wrappedRecord.recipePayload());
     }
 
     @Test

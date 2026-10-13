@@ -7,6 +7,9 @@ import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import vazkii.patchouli.api.PatchouliConfigAccess;
 import vazkii.patchouli.client.book.BookEntry;
@@ -254,7 +257,16 @@ class PatchouliProviderTest {
             entryJson.addProperty("name", "Aura");
             entryJson.addProperty("icon", "fixture:textures/item/aura.png");
             entryJson.add("pages", new JsonArray());
-            var entry = new BookEntry(entryJson, ResourceLocation.parse("fixture:book/aura"), book, null);
+            var entryId = ResourceLocation.parse("fixture:book/aura");
+            BookEntry entry;
+            try {
+                entry = (BookEntry) BookEntry.class.getConstructor(JsonObject.class, ResourceLocation.class,
+                        Book.class, String.class).newInstance(entryJson, entryId, book, null);
+            } catch (NoSuchMethodException newerConstructor) {
+                entry = (BookEntry) BookEntry.class.getConstructor(JsonObject.class, ResourceLocation.class,
+                        Book.class, String.class, HolderLookup.Provider.class).newInstance(entryJson, entryId,
+                        book, null, RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
+            }
             entry.updateLockStatus();
             assertNull(entry.getAddedBy());
 

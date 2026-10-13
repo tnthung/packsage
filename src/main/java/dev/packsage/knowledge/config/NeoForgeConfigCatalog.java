@@ -1,5 +1,8 @@
 package dev.packsage.knowledge.config;
 
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
+import org.apache.maven.artifact.versioning.VersionRange;
+
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -17,11 +20,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
-/** The narrow, read-only ConfigTracker bridge for NeoForge 21.1.202. */
+/** The bounded, read-only ConfigTracker bridge for NeoForge 21.1 releases. */
 public final class NeoForgeConfigCatalog {
     public static final String LOADER_VERSION = "21.1.202";
     public static final String FML_VERSION = "4.0.41";
+    private static final String LOADER_VERSION_RANGE = "[21.1.202,21.2)";
+    private static final String FML_VERSION_RANGE = "[4.0.41,5)";
+    private static final String LOADER_VERSION_SUFFIX = "-NEOFORGE";
     private static final int MAX_ENTRIES = 256;
     private static final int MAX_KEYS = 2048;
     private static final int MAX_DEPTH = 32;
@@ -59,6 +66,10 @@ public final class NeoForgeConfigCatalog {
         boolean supported();
 
         String detail();
+
+        default String version() {
+            return "neoforge-" + LOADER_VERSION;
+        }
     }
 
     private NeoForgeConfigCatalog() {
@@ -91,12 +102,15 @@ public final class NeoForgeConfigCatalog {
     private static final class ReflectiveReader implements Reader {
         private volatile String detail = "unsupported NeoForge ConfigTracker bridge: not captured";
         private volatile boolean supported;
+        private volatile String version = "neoforge-unknown";
 
         @Override
         public List<Entry> read() {
-            var result = readTracker();
+            var runtime = runtimeVersion();
+            var result = readTracker(runtime);
             supported = result.supported;
             detail = result.detail;
+            version = "neoforge-" + Objects.toString(runtime.neoForge(), "unknown");
             return List.copyOf(result.entries);
         }
 
@@ -109,6 +123,11 @@ public final class NeoForgeConfigCatalog {
         public String detail() {
             return detail;
         }
+
+        @Override
+        public String version() {
+            return version;
+        }
     }
 
     private record ReadResult(List<Entry> entries, boolean supported, String detail) {
@@ -120,11 +139,11 @@ public final class NeoForgeConfigCatalog {
     private record RuntimeVersion(String neoForge, String fml) {
     }
 
-    private static ReadResult readTracker() {
-        var runtime = runtimeVersion();
-        if (!LOADER_VERSION.equals(runtime.neoForge()) || !FML_VERSION.equals(runtime.fml())) {
-            return new ReadResult(List.of(), false, "unsupported NeoForge ConfigTracker bridge: expected NeoForge "
-                    + LOADER_VERSION + " FML " + FML_VERSION + ", found NeoForge " + runtime.neoForge()
+    private static ReadResult readTracker(RuntimeVersion runtime) {
+        if (!versionMatches(LOADER_VERSION_RANGE, runtime.neoForge())
+                || !versionMatches(FML_VERSION_RANGE, runtime.fml())) {
+            return new ReadResult(List.of(), false, "unsupported NeoForge ConfigTracker bridge: compatible range NeoForge "
+                    + LOADER_VERSION_RANGE + " FML " + FML_VERSION_RANGE + ", found NeoForge " + runtime.neoForge()
                     + " FML " + runtime.fml());
         }
         try {
@@ -149,18 +168,32 @@ public final class NeoForgeConfigCatalog {
                 }
             }
             if (failures != 0) {
-                return new ReadResult(entries, false, "unsupported NeoForge " + LOADER_VERSION + " FML "
-                        + FML_VERSION + " ConfigTracker entry extraction failed for " + failures + " record(s)");
+                return new ReadResult(entries, false, "unsupported NeoForge " + runtime.neoForge() + " FML "
+                        + runtime.fml() + " ConfigTracker entry extraction failed for " + failures + " record(s)");
             }
             if (!complete) {
-                return new ReadResult(entries, false, "unsupported NeoForge " + LOADER_VERSION + " FML "
-                        + FML_VERSION + " ConfigTracker catalog exceeded bounded extraction limits");
+                return new ReadResult(entries, false, "unsupported NeoForge " + runtime.neoForge() + " FML "
+                        + runtime.fml() + " ConfigTracker catalog exceeded bounded extraction limits");
             }
-            return new ReadResult(entries, true, "supported NeoForge " + LOADER_VERSION + " FML " + FML_VERSION
+            return new ReadResult(entries, true, "supported NeoForge " + runtime.neoForge() + " FML " + runtime.fml()
                     + " ConfigTracker fields");
-        } catch (ReflectiveOperationException | RuntimeException failure) {
-            return new ReadResult(List.of(), false, "unsupported NeoForge ConfigTracker bridge: "
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+            return new ReadResult(List.of(), false, "unsupported NeoForge " + runtime.neoForge() + " FML "
+                    + runtime.fml() + " ConfigTracker bridge: "
                     + failure.getClass().getSimpleName());
+        }
+    }
+
+    static boolean versionMatches(String range, String actualVersion) {
+        if (actualVersion == null) return false;
+        String normalized = actualVersion.endsWith(LOADER_VERSION_SUFFIX)
+                ? actualVersion.substring(0, actualVersion.length() - LOADER_VERSION_SUFFIX.length()) : actualVersion;
+        if (!Pattern.matches("[0-9]+(?:[.-][0-9]+)*", normalized)) return false;
+        try {
+            return VersionRange.createFromVersionSpec(range)
+                    .containsVersion(new DefaultArtifactVersion(normalized));
+        } catch (org.apache.maven.artifact.versioning.InvalidVersionSpecificationException failure) {
+            return false;
         }
     }
 

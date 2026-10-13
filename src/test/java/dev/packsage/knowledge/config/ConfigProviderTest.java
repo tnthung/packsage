@@ -30,6 +30,23 @@ class ConfigProviderTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "config-test", 1);
 
     @Test
+    void runtimeVersionRangesAcceptTheSupportedNeoForgeAndFmlLines() {
+        assertTrue(NeoForgeConfigCatalog.versionMatches("[21.1.202,21.2)", "21.1.202"));
+        assertTrue(NeoForgeConfigCatalog.versionMatches("[21.1.202,21.2)", "21.1.250-NEOFORGE"));
+        assertFalse(NeoForgeConfigCatalog.versionMatches("[21.1.202,21.2)", "21.1.201"));
+        assertFalse(NeoForgeConfigCatalog.versionMatches("[21.1.202,21.2)", "21.2"));
+        assertFalse(NeoForgeConfigCatalog.versionMatches("[21.1.202,21.2)", "22"));
+        assertFalse(NeoForgeConfigCatalog.versionMatches("[21.1.202,21.2)", "21.1.250-FORGE"));
+        assertFalse(NeoForgeConfigCatalog.versionMatches("[21.1.202,21.2)", "21..250"));
+
+        assertTrue(NeoForgeConfigCatalog.versionMatches("[4.0.41,5)", "4.0.41"));
+        assertTrue(NeoForgeConfigCatalog.versionMatches("[4.0.41,5)", "4.0.45"));
+        assertFalse(NeoForgeConfigCatalog.versionMatches("[4.0.41,5)", "4.0.40"));
+        assertFalse(NeoForgeConfigCatalog.versionMatches("[4.0.41,5)", "5"));
+        assertFalse(NeoForgeConfigCatalog.versionMatches("[4.0.41,5)", "4.0.45-BETA"));
+    }
+
+    @Test
     void savedAndLoadedValuesAndMetadataRemainDistinct() throws Exception {
         Path root = Files.createTempDirectory("packsage-config");
         Path file = root.resolve("example-common.toml");
@@ -85,6 +102,7 @@ class ConfigProviderTest {
             public List<NeoForgeConfigCatalog.Entry> read() { return List.of(safe, escape); }
             public boolean supported() { return false; }
             public String detail() { return "unsupported test bridge"; }
+            public String version() { return "neoforge-21.1.250"; }
         };
         var provider = new ConfigProvider(reader, List.of(root));
 
@@ -95,6 +113,8 @@ class ConfigProviderTest {
         assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
         assertEquals(new Evidence.JsonNumber(new java.math.BigDecimal("42")),
                 result.records().getFirst().payload().values().get("savedValue"));
+        assertEquals("neoforge-21.1.250", provider.status().version());
+        assertEquals("neoforge-21.1.250", result.records().getFirst().source().providerVersion());
     }
 
     @Test

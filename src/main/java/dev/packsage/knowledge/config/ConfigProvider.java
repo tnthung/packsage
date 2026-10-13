@@ -70,7 +70,7 @@ public final class ConfigProvider implements KnowledgeProvider {
     @Override
     public ProviderStatus status() {
         return new ProviderStatus(catalog.supported() ? Availability.AVAILABLE : Availability.PARTIAL,
-                VERSION, catalog.detail() + "; saved-file inspection remains available under known roots");
+                catalog.version(), catalog.detail() + "; saved-file inspection remains available under known roots");
     }
 
     @Override
@@ -220,7 +220,7 @@ public final class ConfigProvider implements KnowledgeProvider {
         Evidence.Authority authority = loadedObserved ? Evidence.Authority.LOADED
                 : savedObserved ? Evidence.Authority.SAVED_CONFIG : Evidence.Authority.UNKNOWN;
         Evidence.Coverage coverage = partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
-        return new Evidence.Record(new Evidence.Source(scope, ID, VERSION,
+        return new Evidence.Record(new Evidence.Source(scope, ID, catalog.version(),
                 snapshot.entry().handle() + "#" + key, scope.requestGeneration(), java.time.Instant.now(),
                 Evidence.Activity.ACTIVE, coverage, authority,
                 List.of("config:" + snapshot.entry().owner(), "view:" + view)), Evidence.RecordKind.CONFIG,

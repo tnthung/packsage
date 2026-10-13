@@ -29,6 +29,8 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
 import net.minecraft.client.multiplayer.ClientLevel;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
+import org.apache.maven.artifact.versioning.VersionRange;
 
 import java.lang.reflect.Field;
 import java.net.URI;
@@ -43,6 +45,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
@@ -55,9 +58,9 @@ public final class ClientAssistant {
     private static final String JEI_CLASS = "dev.packsage.knowledge.jei.PackSageJeiPlugin";
     private static final String FTB_CLASS = "dev.packsage.knowledge.ftb.FtbProvider";
     private static final String PATCHOULI_CLASS = "dev.packsage.knowledge.patchouli.PatchouliProvider";
-    private static final String JEI_VERSION = "19.27.0.340";
-    private static final String FTB_VERSION = "2101.1.36";
-    private static final String PATCHOULI_VERSION = "1.21.1-92";
+    private static final String JEI_VERSION = "[19.27.0.340,20)";
+    private static final String FTB_VERSION = "[2101.1.36,2101.2)";
+    private static final String PATCHOULI_VERSION = "[1.21.1-92,1.21.1-94)";
     private static final String LOADER_VERSION_SUFFIX = "-NEOFORGE";
 
     public record CopiedWorld(String source, String readableLabel, boolean privateSingleplayer,
@@ -68,8 +71,8 @@ public final class ClientAssistant {
         }
     }
 
-    private record OptionalStatus(String id, String modId, String expectedVersion, String actualVersion,
-                                  boolean supported, boolean loaded, String detail) {
+    record OptionalStatus(String id, String modId, String expectedVersion, String actualVersion,
+                          boolean supported, boolean loaded, String detail) {
     }
 
     private record PendingInitialization(CopiedWorld world, String playerUuid, String ftbScopeToken,
@@ -424,7 +427,7 @@ public final class ClientAssistant {
 
     private static KnowledgeProvider unavailableProvider(OptionalStatus status, String detail) {
         String id = status == null ? "optional" : status.id();
-        String version = status == null ? "unknown" : status.expectedVersion();
+        String version = status == null ? "unknown" : status.actualVersion();
         boolean unsupported = status != null && status.loaded() && !status.supported();
         return new StatusProvider(id, version, unsupported ? Evidence.Coverage.PARTIAL : Evidence.Coverage.UNAVAILABLE,
                 status == null ? detail : status.detail() + "; " + detail);
@@ -446,9 +449,10 @@ public final class ClientAssistant {
             String actualVersion = info == null ? "unknown" : String.valueOf(info.getClass().getMethod("getVersion").invoke(info));
             if (!versionMatches(expectedVersion, actualVersion)) {
                 return new OptionalStatus(id, modId, expectedVersion, actualVersion, false, true,
-                        modId + " version " + actualVersion + " is outside tested version " + expectedVersion);
+                        modId + " version " + actualVersion + " is outside compatible range " + expectedVersion);
             }
-            return new OptionalStatus(id, modId, expectedVersion, actualVersion, true, true, modId + " tested version loaded");
+            return new OptionalStatus(id, modId, expectedVersion, actualVersion, true, true,
+                    modId + " compatible version range loaded");
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
             PackSageLog.LOGGER.warn("PackSage could not verify the {} version", modId, failure);
             return new OptionalStatus(id, modId, expectedVersion, "unknown", false, false,
@@ -457,8 +461,16 @@ public final class ClientAssistant {
     }
 
     static boolean versionMatches(String expectedVersion, String actualVersion) {
-        if (expectedVersion.equals(actualVersion)) return true;
-        return actualVersion != null && actualVersion.equals(expectedVersion + LOADER_VERSION_SUFFIX);
+        if (actualVersion == null) return false;
+        String normalized = actualVersion.endsWith(LOADER_VERSION_SUFFIX)
+                ? actualVersion.substring(0, actualVersion.length() - LOADER_VERSION_SUFFIX.length()) : actualVersion;
+        if (!Pattern.matches("[0-9]+(?:[.-][0-9]+)*", normalized)) return false;
+        try {
+            return VersionRange.createFromVersionSpec(expectedVersion)
+                    .containsVersion(new DefaultArtifactVersion(normalized));
+        } catch (org.apache.maven.artifact.versioning.InvalidVersionSpecificationException failure) {
+            return false;
+        }
     }
 
     private void openSettings() {
@@ -480,11 +492,11 @@ public final class ClientAssistant {
         }
     }
 
-    private static class ReflectiveProvider implements KnowledgeProvider {
+    static class ReflectiveProvider implements KnowledgeProvider {
         private final OptionalStatus status;
         private final Supplier<Object> delegate;
 
-        private ReflectiveProvider(OptionalStatus status, Supplier<Object> delegate) {
+        ReflectiveProvider(OptionalStatus status, Supplier<Object> delegate) {
             this.status = Objects.requireNonNull(status);
             this.delegate = Objects.requireNonNull(delegate);
         }
@@ -496,13 +508,18 @@ public final class ClientAssistant {
         public ProviderStatus status() {
             Object current = delegate.get();
             if (!(current instanceof KnowledgeProvider provider)) {
-                return new ProviderStatus(Availability.UNAVAILABLE, status.expectedVersion(),
-                        status.id() + " runtime is unavailable");
+                return new ProviderStatus(Availability.UNAVAILABLE, status.actualVersion(),
+                        status.id() + " compatible range " + status.expectedVersion() + "; runtime is unavailable");
             }
-            try { return provider.status(); } catch (RuntimeException | LinkageError failure) {
+            try {
+                var currentStatus = provider.status();
+                return new ProviderStatus(currentStatus.availability(), status.actualVersion(),
+                        status.id() + " compatible range " + status.expectedVersion() + "; " + currentStatus.detail());
+            } catch (RuntimeException | LinkageError failure) {
                 PackSageLog.LOGGER.warn("PackSage optional provider {} status failed", status.id(), failure);
-                return new ProviderStatus(Availability.ERROR, status.expectedVersion(),
-                        status.id() + " status failed: " + PackSageLog.describe(failure));
+                return new ProviderStatus(Availability.ERROR, status.actualVersion(), status.id()
+                        + " compatible range " + status.expectedVersion() + "; status failed: "
+                        + PackSageLog.describe(failure));
             }
         }
 
@@ -510,18 +527,25 @@ public final class ClientAssistant {
         public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
             Object current = delegate.get();
             if (!(current instanceof KnowledgeProvider provider)) return statusResult(scope, status.id(),
-                    status.expectedVersion(), Evidence.Coverage.UNAVAILABLE, status.id() + " runtime is unavailable");
+                    status.actualVersion(), Evidence.Coverage.UNAVAILABLE, status.id() + " runtime is unavailable");
             try {
                 CompletionStage<Evidence.Result> result = provider.query(query, scope);
-                return result == null ? statusResult(scope, status.id(), status.expectedVersion(), Evidence.Coverage.ERROR,
+                return result == null ? statusResult(scope, status.id(), status.actualVersion(), Evidence.Coverage.ERROR,
                         status.id() + " returned no result") : result.exceptionally(failure -> {
                     PackSageLog.LOGGER.warn("PackSage optional provider {} query failed", status.id(), failure);
-                    return statusResultNow(scope, status.id(), status.expectedVersion(), Evidence.Coverage.ERROR,
+                    return statusResultNow(scope, status.id(), status.actualVersion(), Evidence.Coverage.ERROR,
                             status.id() + " query failed: " + PackSageLog.describe(failure));
-                });
+                }).thenApply(value -> new Evidence.Result(value.records().stream().map(record -> {
+                    var source = record.source();
+                    var actualSource = new Evidence.Source(source.scope(), source.providerId(), status.actualVersion(),
+                            source.sourceHandle(), source.observedGeneration(), source.observedAt(), source.activity(),
+                            source.coverage(), source.authority(), source.provenance());
+                    return new Evidence.Record(actualSource, record.kind(), record.title(), record.payload(),
+                            record.targets(), record.recipePayload());
+                }).toList(), value.coverage(), value.outcome(), value.nextCursor(), value.detail()));
             } catch (RuntimeException | LinkageError failure) {
                 PackSageLog.LOGGER.warn("PackSage optional provider {} query failed", status.id(), failure);
-                return statusResult(scope, status.id(), status.expectedVersion(), Evidence.Coverage.ERROR,
+                return statusResult(scope, status.id(), status.actualVersion(), Evidence.Coverage.ERROR,
                         status.id() + " query failed: " + PackSageLog.describe(failure));
             }
         }

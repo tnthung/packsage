@@ -12,7 +12,7 @@ The current candidate is already installed as `C:\Users\hung1\curseforge\minecra
 
 For a separate profile, import `dist/packsage-minimal-fixture.zip` and copy `dist/packsage.jar` into its `mods` folder while Minecraft is closed. Keep one PackSage JAR there. The bootstrap probe is retained separately as `dist/packsage-bootstrap.jar` for route diagnosis.
 
-The pinned loader is NeoForge **21.1.202**. Optional adapter versions are JEI **19.27.0.340**, FTB Quests **2101.1.36** and Patchouli **1.21.1-92**; other versions are explicitly outside the tested adapter contract. The minimal fixture includes their pinned dependencies. Generated JARs and launcher archives live in ignored `dist/` and are not checked into Git.
+NeoForge **21.1.202** and the minimal fixture remain the compile/test baseline. Loader and adapters accept the [compatibility ranges](docs/specs/2026-10-13-evolution-compatibility.md), including the newer dependencies in FTB Evolution 1.45.0; incompatible versions or failed extraction remain unavailable or partial. Generated JARs and launcher archives live in ignored `dist/` and are not checked into Git.
 
 ## V1 boundaries
 

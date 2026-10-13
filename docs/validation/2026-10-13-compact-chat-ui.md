@@ -32,6 +32,24 @@ Gameplay-preview follow-up commit `8c5d146` was built with SHA-256 `9D77A0717BD4
 - Final `test build`: 346 tests, 343 passed, three Windows symlink cases skipped, zero failures/errors. Independent source review found no material geometry or timestamp-lifecycle defect. Timestamp rendering and wrapped Copy/Edit interaction have not been exercised in a live screen; headless tests cover composer geometry and text formatting, not GPU rendering.
 - Latest distribution and installed instance JAR match SHA-256 `2BC1B3B57DB30CF48E711390A04DA2EB2728FF80BE1E4697C6625C699F69DC52`. The instance was updated after the game process had closed. Desktop interaction stayed off during this pass; final visual acceptance remains pending.
 
+## AFK live verification
+
+The user authorized desktop testing again. The installed `0e59f2b` build was launched through CurseForge and checked in Minecraft 1.21.1 / NeoForge 21.1.202 on October 13, approximately 13:08-13:26 local time.
+
+- Search and Screenshot retained green enabled hover states and gray disabled hover states. Both were exercised on and off.
+- The information icon, half-width meter, editor and Send/Stop appeared in the specified order. Gameplay details showed coordinates `38, 63, 19`, Overworld, Taiga, no held item, Grass Block and target coordinates `38, 60, 19`. The opaque label/value panel was readable over the conversation. The history panel separately showed usage, included messages/turns and configured/model limits.
+- Settings was populated, Back returned to chat, and Sign out was horizontally centered. Model and effort popups opened upward at their selector widths without changing the selected GPT-6-Luna / medium preferences. Available option labels fit; overflowing-label hover scrolling was not triggered in this live pass.
+- A separate test session sent `PackSage timestamp check: Reply only UI_TIME_CHECK.` and received `UI_TIME_CHECK`. The user footer showed `Oct 13, 13:11` before `~12 tokens`; the response showed `~3 tokens`. Sending cleared the editor, showed waiting status at the response position and changed Send to Stop until completion.
+- At a 646-pixel client width with GUI scale 2, user metadata stayed above wrapped Copy/Edit actions, and the toolbar wrapped into two equal-width rows. User Copy and model Copy were verified by pasting their exact text into the composer. Multiline growth moved the toolbar upward. Resizing below the game's minimum for scale 2 also applied the game's scale-1 fallback.
+- The wrapped Edit button populated the latest prompt. Resending `PackSage timestamp edit check: Reply only UI_TIME_EDITED.` replaced the exchange, received `UI_TIME_EDITED`, and updated the footer to `Oct 13, 13:20`. Switching away and reopening retained that timestamp and response. The saved JSONL contained one completed turn with `sentAt: 2026-10-13T05:20:22.419582500Z` and the edited answer.
+- Resume and Pause responded on the first click, changed icons and showed hover feedback. Returning to Pause produced a fresh integrated-server `Saving and pausing game...` log entry.
+
+The test session remains available for inspection. Search off, Screenshot on, GPT-6-Luna, medium effort and paused mode were restored; numeric quotas and GUI-scale preference were unchanged. Minecraft was left maximized on the test session. Existing player conversations were preserved. A window-sizing shortcut was intercepted by PowerToys, and a later title-bar click while gameplay held the mouse broke the fixture block at `38, 60, 19`; it was restored to Grass Block and the restoration was confirmed in the game. Subsequent native sizing was performed with chat open.
+
+No application defect requiring another code change was found in this pass. Multiplayer controls, destructive deletion confirmation and injected provider failures were not exercised live here; their existing automated evidence is unchanged.
+
 ## Open observation
 
 The user reported intermittent black flashes in the Minecraft window during desktop testing. The observed log has an ignored invalid resource path for the bundled `font/OFL.txt` license, but no observed OpenGL/framebuffer failure or crash explains the flashes. The cause was not reproduced or established. Computer interaction stopped to avoid further focus changes while the user works. Do not classify this observation as fixed or attribute it to automation without further evidence.
+
+No black frame was observed in the AFK pass's gameplay/chat captures. These sampled captures do not rule out an intermittent flash; the cause remains unresolved.

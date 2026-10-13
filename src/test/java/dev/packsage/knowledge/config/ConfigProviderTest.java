@@ -502,6 +502,84 @@ class ConfigProviderTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void loadedValuesWithCopyOmissionsAreUnknownWithoutMatchingMarkerStrings() throws Exception {
+        FMLPaths.loadAbsolutePaths(Files.createTempDirectory("packsage-config-runtime"));
+        var value = new ModConfigSpec.Builder().defineInRange("schema", 3, 0, 10);
+        ModConfigSpec spec = value.next().build();
+        IModInfo modInfo = (IModInfo) Proxy.newProxyInstance(IModInfo.class.getClassLoader(), new Class<?>[]{IModInfo.class},
+                (proxy, method, arguments) -> method.getName().equals("getModId") ? "copybridge" : null);
+        ModContainer container = new ModContainer(modInfo) {
+            @Override
+            public IEventBus getEventBus() {
+                return null;
+            }
+        };
+        var constructor = ModConfig.class.getDeclaredConstructor(ModConfig.Type.class,
+                net.neoforged.fml.config.IConfigSpec.class, ModContainer.class, String.class, ReentrantLock.class);
+        constructor.setAccessible(true);
+        ModConfig config = constructor.newInstance(ModConfig.Type.COMMON, spec, container, "copybridge-common.toml",
+                new ReentrantLock());
+        CommentedConfig loadedValues = CommentedConfig.copy(CommentedConfig.inMemory(), java.util.LinkedHashMap::new);
+        loadedValues.set("opaque", new Object());
+        Object deep = "leaf";
+        for (int index = 0; index < 40; index++) deep = List.of(deep);
+        loadedValues.set("deep", deep);
+        loadedValues.set("literalMarker", "<value omitted>");
+        loadedValues.set("validNeighbor", 13);
+        var large = new java.util.ArrayList<Integer>();
+        for (int index = 0; index < 8_300; index++) large.add(index);
+        loadedValues.set("large", large);
+        loadedValues.set("afterBudget", 17);
+        var loadedConstructor = Class.forName("net.neoforged.fml.config.LoadedConfig")
+                .getDeclaredConstructor(CommentedConfig.class, Path.class, ModConfig.class);
+        loadedConstructor.setAccessible(true);
+        Object loaded = loadedConstructor.newInstance(loadedValues, null, config);
+        var loadedField = ModConfig.class.getDeclaredField("loadedConfig");
+        loadedField.setAccessible(true);
+        loadedField.set(config, loaded);
+        var setsField = ConfigTracker.class.getDeclaredField("configSets");
+        var byModField = ConfigTracker.class.getDeclaredField("configsByMod");
+        setsField.setAccessible(true);
+        byModField.setAccessible(true);
+        var sets = (Map<ModConfig.Type, Set<ModConfig>>) setsField.get(ConfigTracker.INSTANCE);
+        var byMod = (Map<String, List<ModConfig>>) byModField.get(ConfigTracker.INSTANCE);
+        sets.computeIfAbsent(ModConfig.Type.COMMON, ignored -> new java.util.LinkedHashSet<>()).add(config);
+        byMod.computeIfAbsent("copybridge", ignored -> new java.util.ArrayList<>()).add(config);
+        try {
+            var reader = NeoForgeConfigCatalog.reflective();
+            var provider = new ConfigProvider(reader, List.of());
+            var result = provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("copybridge:COMMON:copybridge-common.toml"))),
+                    20, null, null), SCOPE).toCompletableFuture().join();
+            var loadedByKey = new LinkedHashMap<String, Evidence.JsonValue>();
+            var recordByKey = new LinkedHashMap<String, Evidence.Record>();
+            for (var record : result.records()) {
+                String key = ((Evidence.JsonString) record.payload().values().get("key")).value();
+                loadedByKey.put(key, record.payload().values().get("loadedValue"));
+                recordByKey.put(key, record);
+            }
+
+            assertTrue(reader.supported(), reader.detail());
+            assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+            assertEquals(new Evidence.JsonNull(), loadedByKey.get("opaque"));
+            assertEquals(new Evidence.JsonNull(), loadedByKey.get("deep"));
+            assertEquals(new Evidence.JsonNull(), loadedByKey.get("large"));
+            assertEquals(new Evidence.JsonNull(), loadedByKey.get("afterBudget"));
+            assertEquals(new Evidence.JsonString("<value omitted>"), loadedByKey.get("literalMarker"));
+            assertEquals(new Evidence.JsonNumber(new java.math.BigDecimal("13")), loadedByKey.get("validNeighbor"));
+            assertEquals(new Evidence.JsonString("unknown"),
+                    recordByKey.get("large").payload().values().get("loadedState"));
+            assertEquals(Evidence.Authority.UNKNOWN, recordByKey.get("large").source().authority());
+            assertEquals(Evidence.Authority.LOADED, recordByKey.get("literalMarker").source().authority());
+            assertEquals(Evidence.Authority.LOADED, recordByKey.get("validNeighbor").source().authority());
+        } finally {
+            sets.getOrDefault(ModConfig.Type.COMMON, Set.of()).remove(config);
+            byMod.getOrDefault("copybridge", List.of()).remove(config);
+        }
+    }
+
+    @Test
     void productionFactoryCapturesCatalogOnClientAndParsesFilesOnWorker() {
         var catalogThread = new AtomicReference<Thread>();
         var fileThread = new AtomicReference<Thread>();

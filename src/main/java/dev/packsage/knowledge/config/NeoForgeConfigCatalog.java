@@ -349,7 +349,12 @@ public final class NeoForgeConfigCatalog {
                     complete = false;
                     break;
                 }
+                int omissionsBefore = copyState.omissions;
                 Object copied = copy(item.getValue(), 0, copyState);
+                if (copyState.omissions != omissionsBefore) {
+                    complete = false;
+                    copied = null;
+                }
                 var old = values.get(name);
                 values.put(name, old == null ? new Value(null, copied, null, null, null, null, null)
                         : new Value(old.saved(), copied, old.defaultValue(), old.comment(), old.restart(),
@@ -393,12 +398,14 @@ public final class NeoForgeConfigCatalog {
             if (value == null) return null;
             if (depth > MAX_DEPTH || state.remaining-- <= 0) {
                 state.truncated = true;
+                state.omissions++;
                 return "<value omitted>";
             }
             if (value instanceof String || value instanceof Number || value instanceof Boolean
                     || value instanceof Character || value.getClass().isEnum()) return value;
             if (active.put(value, Boolean.TRUE) != null) {
                 state.truncated = true;
+                state.omissions++;
                 return "<value omitted>";
             }
             try {
@@ -407,6 +414,7 @@ public final class NeoForgeConfigCatalog {
                     for (int index = 0; index < Array.getLength(value); index++) {
                         if (state.remaining <= 0) {
                             state.truncated = true;
+                            state.omissions++;
                             result.add("<value omitted>");
                             break;
                         }
@@ -419,6 +427,7 @@ public final class NeoForgeConfigCatalog {
                     for (var item : map.entrySet()) {
                         if (state.remaining <= 0) {
                             state.truncated = true;
+                            state.omissions++;
                             result.put("<value omitted>", "<value omitted>");
                             break;
                         }
@@ -431,6 +440,7 @@ public final class NeoForgeConfigCatalog {
                     for (Object nested : collection) {
                         if (state.remaining <= 0) {
                             state.truncated = true;
+                            state.omissions++;
                             result.add("<value omitted>");
                             break;
                         }
@@ -439,6 +449,7 @@ public final class NeoForgeConfigCatalog {
                     return Collections.unmodifiableList(result);
                 }
                 state.truncated = true;
+                state.omissions++;
                 return "<opaque value>";
             } finally {
                 active.remove(value);
@@ -461,6 +472,7 @@ public final class NeoForgeConfigCatalog {
     private static final class CopyState {
         private int remaining = MAX_COPIED_NODES;
         private boolean truncated;
+        private int omissions;
     }
 
     private static Object immutableCopy(Object value) {

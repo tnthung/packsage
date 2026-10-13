@@ -63,6 +63,10 @@ public final class AssistantScreen extends Screen {
     private ChatContracts.RequestId resendingRequest;
     private String picker;
     private int pickerScroll;
+    private String hoveredPickerChoice;
+    private long pickerHoverStarted;
+    private ChatContracts.SessionSummary pendingDelete;
+    private boolean deletingSession;
     private ChatContracts.HistoryPreview history;
     private final List<MessageAction> messageActions = new ArrayList<>();
 
@@ -79,12 +83,12 @@ public final class AssistantScreen extends Screen {
     protected void init() {
         if (inputEditor != null) input = inputEditor.value();
         if (sessionSearchEditor != null) sessionSearch = sessionSearchEditor.value();
-        sessionSearchEditor = new MultilineEditor(font, 12, 32, Math.max(1, ModernUi.SIDEBAR_WIDTH - 24), 28,
+        sessionSearchEditor = new MultilineEditor(font, 12, 32, Math.max(1, ModernUi.SIDEBAR_WIDTH - 24), 20,
                 80, false, () -> false);
         sessionSearchEditor.setValue(sessionSearch);
         sessionSearchEditor.setMessage(Component.literal("Search sessions"));
         sessionSearchEditor.leadingIcon = ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/magnifying-glass.png");
-        inputEditor = new MultilineEditor(font, 0, 0, 1, 28, QUESTION_MAX_LENGTH, true, () -> {
+        inputEditor = new MultilineEditor(font, 0, 0, 1, 20, QUESTION_MAX_LENGTH, true, () -> {
             submit();
             return true;
         });
@@ -127,7 +131,7 @@ public final class AssistantScreen extends Screen {
         graphics.fill(0, 0, width, height, ModernUi.BACKGROUND);
         graphics.fill(0, 0, sidebarWidth, height, ModernUi.SIDEBAR);
         drawSidebar(graphics, mouseX, mouseY);
-        int contentTop = 48;
+        int contentTop = 40;
         int contentBottom = Math.max(contentTop + 1, toggleY - 8);
         graphics.enableScissor(readableLeft, contentTop, readableLeft + readableWidth, contentBottom);
         int contentOrigin = contentTop + 8;
@@ -143,42 +147,41 @@ public final class AssistantScreen extends Screen {
     }
 
     void layout() {
-        sidebarWidth = Math.min(ModernUi.SIDEBAR_WIDTH, Math.max(120, width / 3));
+        sidebarWidth = Math.min(ModernUi.SIDEBAR_WIDTH, Math.max(100, width / 3));
         int mainWidth = Math.max(1, width - sidebarWidth);
         readableWidth = Math.max(1, Math.min(ModernUi.MAX_CONTENT_WIDTH, mainWidth - 32));
         readableLeft = sidebarWidth + (mainWidth - readableWidth) / 2;
-        int columns = Math.min(6, Math.max(1, (readableWidth + 6) / 86));
-        int toolbarHeight = ((6 + columns - 1) / columns) * 26;
+        int toolbarHeight = toolbarItems().getLast().y() - toggleY + 26;
         if (sessionSearchEditor != null) {
-            sessionSearchEditor.setSize(Math.max(1, sidebarWidth - 24), 28);
+            sessionSearchEditor.setSize(Math.max(1, sidebarWidth - 24), 20);
             sessionSearchEditor.setPosition(12, 32);
         }
         if (inputEditor != null) {
-            int editorWidth = Math.max(1, readableWidth - 46);
-            inputEditor.setSize(editorWidth, 28);
+            int editorWidth = Math.max(1, readableWidth - 52);
+            inputEditor.setSize(editorWidth, 20);
             composerHeight = Math.min(Math.min(MultilineEditor.MAX_HEIGHT,
-                    Math.min(Math.max(28, height / 3), Math.max(28, height - toolbarHeight - 84))), inputEditor.preferredHeight());
-            composerTop = Math.max(48, height - composerHeight - 28);
+                    Math.min(Math.max(20, height / 3), Math.max(20, height - toolbarHeight - 68))), inputEditor.preferredHeight());
+            composerTop = Math.max(40, height - composerHeight - 20);
             inputEditor.setSize(editorWidth, composerHeight);
-            inputEditor.setPosition(readableLeft, composerTop);
+            inputEditor.setPosition(readableLeft + 26, composerTop);
             inputEditor.active = !view.readOnly();
         } else {
-            composerHeight = 28;
-            composerTop = Math.max(48, height - composerHeight - 28);
+            composerHeight = 20;
+            composerTop = Math.max(40, height - composerHeight - 20);
         }
         toggleY = Math.max(0, composerTop - toolbarHeight);
-        sendX = readableLeft + readableWidth - 36;
-        sendY = composerTop + composerHeight - 28;
+        sendX = readableLeft + readableWidth - 20;
+        sendY = composerTop + composerHeight - 20;
     }
 
     private void drawSidebar(GuiGraphics graphics, int mouseX, int mouseY) {
         graphics.drawString(font, Component.literal("PackSage").withStyle(style ->
                 style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), 16, 14, ModernUi.TEXT, false);
-        ModernUi.surface(graphics, 12, 68, sidebarWidth - 12, 96, ModernUi.ACCENT_DARK);
+        ModernUi.surface(graphics, 12, 60, sidebarWidth - 12, 80, ModernUi.ACCENT_DARK);
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/plus.png"),
-                20, 68 + (28 - 16) / 2, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
+                18, 60 + (20 - 12) / 2, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
         graphics.drawString(font, Component.literal("New chat").withStyle(style ->
-                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), 42, 68 + (28 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), 36, 60 + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         drawSessionGroups(graphics, mouseX, mouseY);
         int controlY = Math.max(0, height - 44);
         ModernUi.surface(graphics, 12, controlY, 44, Math.min(height, controlY + 32),
@@ -253,18 +256,41 @@ public final class AssistantScreen extends Screen {
                         row.expand() ? 24 : 36, row.top() + (row.height() - font.lineHeight) / 2 + 1,
                         row.expand() || row.world().equals(view.activeWorld()) ? ModernUi.ACCENT : ModernUi.MUTED, false);
             } else {
+                if (row.session().equals(pendingDelete)) {
+                    graphics.drawString(font, Component.literal("Delete session?").withStyle(style -> style.withFont(ModernUi.FONT)),
+                            24, row.top() + 1, ModernUi.TEXT, false);
+                    for (int index = 0; index < 2; index++) {
+                        int buttonWidth = Math.max(1, Math.min(54, (sidebarWidth - 42) / 2));
+                        int x = 18 + index * (buttonWidth + 6);
+                        ModernUi.surface(graphics, x, row.top() + 15, x + buttonWidth, row.top() + 32,
+                                mouseX >= x && mouseX < x + buttonWidth && mouseY >= row.top() + 15 && mouseY < row.top() + 32
+                                        ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+                        Component label = Component.literal(index == 0 ? "Delete" : "Cancel").withStyle(style -> style.withFont(ModernUi.FONT));
+                        graphics.drawString(font, label, x + (buttonWidth - font.width(label)) / 2,
+                                row.top() + 15 + (17 - font.lineHeight) / 2 + 1, index == 0 ? ModernUi.DANGER : ModernUi.TEXT, false);
+                    }
+                    continue;
+                }
                 boolean selected = row.session().id().equals(view.conversation().id())
                         && row.world().worldOrServer().equals(view.conversation().world().worldOrServer());
                 if (selected || mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= row.top() && mouseY < row.top() + 34) {
                     ModernUi.surface(graphics, 12, row.top(), sidebarWidth - 12, row.top() + 34, ModernUi.SURFACE_HOVER);
                 }
                 graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(row.label().replaceAll("\\s+", " "))
-                                .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, sidebarWidth - 48))),
+                                .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, sidebarWidth - 72))),
                         24, row.top() + (34 - (row.session().lastMessage().isBlank() ? font.lineHeight
                                 : ModernUi.MESSAGE_LINE_HEIGHT + font.lineHeight)) / 2 + 1, selected ? ModernUi.TEXT : ModernUi.MUTED, false);
                 graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(row.session().lastMessage().replaceAll("\\s+", " "))
-                                .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, sidebarWidth - 48))),
+                                .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, sidebarWidth - 72))),
                         24, row.top() + (34 - (ModernUi.MESSAGE_LINE_HEIGHT + font.lineHeight)) / 2 + 1 + ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.MUTED, false);
+                if (!view.active() && !awaitingRequestView && !deletingSession) {
+                    int x = sidebarWidth - 36;
+                    ModernUi.surface(graphics, x, row.top() + 7, x + 20, row.top() + 27,
+                            mouseX >= x && mouseX < x + 20 && mouseY >= row.top() + 7 && mouseY < row.top() + 27
+                                    ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+                    graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/trash.png"),
+                            x + 4, row.top() + 11, 12, 12, 0f, 0f, 64, 64, 64, 64);
+                }
             }
         }
         graphics.disableScissor();
@@ -302,7 +328,7 @@ public final class AssistantScreen extends Screen {
             String outcome = ScreenText.outcomeLine(turn.outcome());
             if (outcome != null) {
                 graphics.drawString(font, Component.literal(outcome).withStyle(style ->
-                        style.withFont(ModernUi.FONT).withColor(ModernUi.DANGER)), readableLeft + 32, y, ModernUi.DANGER, false);
+                        style.withFont(ModernUi.FONT).withColor(ModernUi.DANGER)), readableLeft + 26, y, ModernUi.DANGER, false);
                 y += ModernUi.MESSAGE_LINE_HEIGHT;
             }
             y += 10;
@@ -319,18 +345,18 @@ public final class AssistantScreen extends Screen {
             drawAssistantAvatar(graphics, y);
             int responseTop = y;
             if (!view.streamingAnswer().isEmpty()) y = drawInlineLines(graphics, ScreenText.inlineLines(view.streamingAnswer(), List.of()), y,
-                    readableLeft + 32, readableWidth - 32, null);
+                    readableLeft + 26, readableWidth - 26, null);
             graphics.drawString(font, Component.literal(view.activity().isEmpty() ? "Working..." : view.activity())
-                    .withStyle(style -> style.withFont(ModernUi.FONT)), readableLeft + 32, y + 2, ModernUi.ACCENT, false);
-            y = Math.max(responseTop + 24, y + ModernUi.MESSAGE_LINE_HEIGHT);
+                    .withStyle(style -> style.withFont(ModernUi.FONT)), readableLeft + 26, y + 2, ModernUi.ACCENT, false);
+            y = Math.max(responseTop + 18, y + ModernUi.MESSAGE_LINE_HEIGHT);
             if (!view.streamingAnswer().isEmpty()) y = drawMessageActions(graphics, liveTurn, false,
                     GroundingInstructions.historyTokenCounts(liveTurn).assistant(), y, mouseX, mouseY);
         }
         if (!view.errors().isEmpty()) {
             y += 4;
             for (var line : font.split(Component.literal(view.errors().getLast()).withStyle(style ->
-                    style.withFont(ModernUi.FONT).withColor(ModernUi.DANGER)), Math.max(1, readableWidth - 32))) {
-                graphics.drawString(font, line, readableLeft + 32, y, ModernUi.DANGER, false);
+                    style.withFont(ModernUi.FONT).withColor(ModernUi.DANGER)), Math.max(1, readableWidth - 26))) {
+                graphics.drawString(font, line, readableLeft + 26, y, ModernUi.DANGER, false);
                 y += ModernUi.MESSAGE_LINE_HEIGHT;
             }
         }
@@ -338,36 +364,36 @@ public final class AssistantScreen extends Screen {
     }
 
     private int drawUserMessage(GuiGraphics graphics, String text, int y, boolean included) {
-        int bubbleWidth = Math.max(1, Math.min(360, readableWidth - 34));
+        int bubbleWidth = Math.max(1, Math.min(360, readableWidth - 26));
         Component content = Component.literal(text).withStyle(style -> style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT));
         List<net.minecraft.util.FormattedCharSequence> lines = font.split(content, Math.max(1, bubbleWidth - 20));
-        int bubbleHeight = Math.max(28, lines.size() * ModernUi.MESSAGE_LINE_HEIGHT + 14);
-        int bubbleX = readableLeft + readableWidth - bubbleWidth - 28;
+        int bubbleHeight = Math.max(20, lines.size() * ModernUi.MESSAGE_LINE_HEIGHT + 8);
+        int bubbleX = readableLeft + readableWidth - bubbleWidth - 24;
         ModernUi.surface(graphics, bubbleX, y, bubbleX + bubbleWidth, y + bubbleHeight, ModernUi.SURFACE_HOVER);
         int lineY = y + (bubbleHeight - ((lines.size() - 1) * ModernUi.MESSAGE_LINE_HEIGHT + font.lineHeight)) / 2 + 1;
         for (net.minecraft.util.FormattedCharSequence line : lines) {
             graphics.drawString(font, line, bubbleX + 10, lineY, ModernUi.TEXT, false);
             lineY += ModernUi.MESSAGE_LINE_HEIGHT;
         }
-        int avatarX = readableLeft + readableWidth - 24;
+        int avatarX = readableLeft + readableWidth - 18;
         if (minecraft != null && minecraft.player != null) {
             PlayerFaceRenderer.draw(graphics, minecraft.getSkinManager().getInsecureSkin(minecraft.player.getGameProfile()),
-                    avatarX, y + Math.max(0, bubbleHeight - 24), 24);
+                    avatarX, y + Math.max(0, bubbleHeight - 18), 18);
         } else {
-            ModernUi.surface(graphics, avatarX, y + Math.max(0, bubbleHeight - 24), avatarX + 24,
-                    y + Math.max(0, bubbleHeight - 24) + 24, ModernUi.ACCENT_DARK);
+            ModernUi.surface(graphics, avatarX, y + Math.max(0, bubbleHeight - 18), avatarX + 18,
+                    y + Math.max(0, bubbleHeight - 18) + 18, ModernUi.ACCENT_DARK);
             graphics.drawString(font, Component.literal("You").withStyle(style ->
                     style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), avatarX + 3,
-                    y + Math.max(0, bubbleHeight - 24) + (24 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+                    y + Math.max(0, bubbleHeight - 18) + (18 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
-        graphics.fill(avatarX + 18, y + Math.max(0, bubbleHeight - 24) + 18, avatarX + 24,
-                y + Math.max(0, bubbleHeight - 24) + 24, included ? 0xff74bf8c : ModernUi.DANGER);
+        graphics.fill(avatarX + 13, y + Math.max(0, bubbleHeight - 18) + 13, avatarX + 18,
+                y + Math.max(0, bubbleHeight - 18) + 18, included ? 0xff74bf8c : ModernUi.DANGER);
         return y + bubbleHeight;
     }
 
     private int drawAssistantMessage(GuiGraphics graphics, String answer, ChatContracts.Turn turn, int y, boolean included) {
         drawAssistantAvatar(graphics, y);
-        graphics.fill(readableLeft + 18, y + 18, readableLeft + 24, y + 24,
+        graphics.fill(readableLeft + 13, y + 13, readableLeft + 18, y + 18,
                 included ? 0xff74bf8c : ModernUi.DANGER);
         List<Evidence.NavigationTarget> targets = turnTargets(turn);
         List<ModelBackend.UrlCitation> citations = new ArrayList<>();
@@ -389,15 +415,15 @@ public final class AssistantScreen extends Screen {
                 }
             }
         }
-        return Math.max(y + 24, drawInlineLines(graphics, ScreenText.inlineLines(answer, targets, citations, turn.sources()), y,
-                readableLeft + 32, readableWidth - 32, turn));
+        return Math.max(y + 18, drawInlineLines(graphics, ScreenText.inlineLines(answer, targets, citations, turn.sources()), y,
+                readableLeft + 26, readableWidth - 26, turn));
     }
 
     private int drawMessageActions(GuiGraphics graphics, ChatContracts.Turn turn, boolean user, int tokens, int y, int mouseX, int mouseY) {
         Component count = Component.literal("~" + tokens + " tokens").withStyle(style -> style.withFont(ModernUi.FONT));
         boolean editable = user && !view.active() && !awaitingRequestView && !view.readOnly()
                 && turn == view.conversation().turns().getLast();
-        int left = user ? readableLeft + readableWidth - font.width(count) - 42 - (editable ? 38 : 0) : readableLeft + 32;
+        int left = user ? readableLeft + readableWidth - font.width(count) - 42 - (editable ? 38 : 0) : readableLeft + 26;
         graphics.drawString(font, count, left, y + 6, ModernUi.MUTED, false);
         int actionLeft = left + font.width(count) + 8;
         ModernUi.surface(graphics, actionLeft, y + 2, actionLeft + 34, y + 18,
@@ -416,10 +442,10 @@ public final class AssistantScreen extends Screen {
     }
 
     private void drawAssistantAvatar(GuiGraphics graphics, int y) {
-        ModernUi.surface(graphics, readableLeft, y, readableLeft + 24, y + 24, ModernUi.ACCENT_DARK);
+        ModernUi.surface(graphics, readableLeft, y, readableLeft + 18, y + 18, ModernUi.ACCENT_DARK);
         graphics.drawString(font, Component.literal("Ps").withStyle(style ->
-                style.withFont(ModernUi.BOLD_FONT).withColor(ModernUi.TEXT)), readableLeft + 4, y + (24 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
-        graphics.fill(readableLeft + 18, y + 18, readableLeft + 24, y + 24, ModernUi.DANGER);
+                style.withFont(ModernUi.BOLD_FONT).withColor(ModernUi.TEXT)), readableLeft + 4, y + (18 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        graphics.fill(readableLeft + 13, y + 13, readableLeft + 18, y + 18, ModernUi.DANGER);
     }
 
     private int drawInlineLines(GuiGraphics graphics, List<ScreenText.InlineLine> lines, int y, int left,
@@ -541,6 +567,13 @@ public final class AssistantScreen extends Screen {
                     || item.kind().equals("screenshot") && includeScreenshot;
             ModernUi.surface(graphics, item.x(), item.y(), item.x() + item.width(), item.y() + 20,
                     hovered ? ModernUi.SURFACE_HOVER : selected ? ModernUi.ACCENT_DARK : ModernUi.SURFACE);
+            if (item.kind().equals("context")) {
+                graphics.fill(item.x() + 2, item.y() + 2, item.x() + item.width() - 2, item.y() + 18, ModernUi.BORDER);
+                if (history != null && history.effectiveTokens() > 0) graphics.fill(item.x() + 2, item.y() + 2,
+                        item.x() + 2 + (int) ((item.width() - 4L) * Math.min(history.selection().tokenCount(), history.effectiveTokens())
+                                / history.effectiveTokens()), item.y() + 18, ModernUi.ACCENT);
+                continue;
+            }
             String label;
             int textLeft = item.x() + 7;
             if (item.kind().equals("search") || item.kind().equals("screenshot")) {
@@ -554,27 +587,30 @@ public final class AssistantScreen extends Screen {
                 label = actions.modelCatalog().stream().filter(model -> model.id().equals(selectedId))
                         .findFirst().map(ModelBackend.ModelInfo::displayName).orElse("Model");
             } else if (item.kind().equals("effort")) {
-                label = settings.reasoningEffort() == ModelBackend.ReasoningEffort.DEFAULT ? "Default effort"
-                        : settings.reasoningEffort().name().toLowerCase(java.util.Locale.ROOT) + " effort";
-            } else if (item.kind().equals("context")) {
-                label = view.readOnly() ? "Read-only" : "~" + history.selection().tokenCount() + " / " + history.effectiveTokens();
-                graphics.fill(item.x() + 5, item.y() + 17, item.x() + item.width() - 5, item.y() + 19, ModernUi.BORDER);
-                graphics.fill(item.x() + 5, item.y() + 17, item.x() + 5 + (int) ((item.width() - 10L)
-                        * Math.min(history.selection().tokenCount(), history.effectiveTokens()) / history.effectiveTokens()),
-                        item.y() + 19, ModernUi.ACCENT);
-            } else label = includeScreenshot ? "Game + image" : "Game context";
+                graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/brain.png"),
+                        item.x() + 6, item.y() + 4, 12, 12, 0f, 0f, 64, 64, 64, 64);
+                textLeft = item.x() + 22;
+                label = settings.reasoningEffort() == ModelBackend.ReasoningEffort.DEFAULT ? "Default"
+                        : settings.reasoningEffort() == ModelBackend.ReasoningEffort.XHIGH ? "Extra high"
+                        : settings.reasoningEffort().name().toLowerCase(java.util.Locale.ROOT);
+            } else label = "";
             boolean dropdown = item.kind().equals("model") || item.kind().equals("effort");
-            if (dropdown) graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/caret-down.png"),
+            if (dropdown) graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/caret-up.png"),
                     item.x() + item.width() - 15, item.y() + 5, 10, 10, 0.0F, 0.0F, 64, 64, 64, 64);
             graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(label)
                             .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, item.width() - (textLeft - item.x()) - (dropdown ? 19 : 7)))),
                     textLeft, item.y() + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
-        ModernUi.surface(graphics, sendX, sendY, sendX + 28, sendY + 28,
+        ModernUi.surface(graphics, readableLeft, sendY, readableLeft + 20, sendY + 20,
+                mouseX >= readableLeft && mouseX < readableLeft + 20 && mouseY >= sendY && mouseY < sendY + 20
+                        ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+        graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/info.png"),
+                readableLeft + 4, sendY + 4, 12, 12, 0f, 0f, 64, 64, 64, 64);
+        ModernUi.surface(graphics, sendX, sendY, sendX + 20, sendY + 20,
                 awaitingRequestView || view.active() ? ModernUi.ACCENT_DARK : view.readOnly() ? ModernUi.SURFACE : ModernUi.SURFACE_HOVER);
         if (view.readOnly()) {
             graphics.drawString(font, Component.literal("Read-only history").withStyle(style ->
-                    style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), readableLeft, toggleY + 27, ModernUi.MUTED, false);
+                    style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), readableLeft, composerTop + composerHeight + 5, ModernUi.MUTED, false);
         }
         if (editingRequest != null) {
             graphics.drawString(font, Component.literal("Editing latest message · Escape to cancel").withStyle(style ->
@@ -585,12 +621,19 @@ public final class AssistantScreen extends Screen {
     record ToolbarItem(String kind, int x, int y, int width) { }
 
     List<ToolbarItem> toolbarItems() {
-        int columns = Math.min(6, Math.max(1, (readableWidth + 6) / 86));
-        int itemWidth = Math.max(1, Math.min(100, (readableWidth - (columns - 1) * 6) / columns));
+        int buttonWidth = Math.max(2, Math.min(86, readableWidth));
         List<ToolbarItem> items = new ArrayList<>();
-        String[] kinds = {"context", "model", "effort", "search", "screenshot", "extra"};
-        for (int index = 0; index < kinds.length; index++) items.add(new ToolbarItem(kinds[index],
-                readableLeft + index % columns * (itemWidth + 6), toggleY + index / columns * 26, itemWidth));
+        int x = readableLeft;
+        int y = toggleY;
+        for (String kind : List.of("context", "model", "effort", "search", "screenshot")) {
+            int itemWidth = kind.equals("context") ? buttonWidth / 2 : buttonWidth;
+            if (x > readableLeft && x + itemWidth > readableLeft + readableWidth) {
+                x = readableLeft;
+                y += 26;
+            }
+            items.add(new ToolbarItem(kind, x, y, itemWidth));
+            x += itemWidth + 6;
+        }
         return items;
     }
 
@@ -612,12 +655,12 @@ public final class AssistantScreen extends Screen {
     List<PickerRow> pickerRows() {
         if (picker == null) return List.of();
         List<PickerChoice> choices = pickerChoices();
-        int visible = Math.max(1, Math.min(choices.size(), (toggleY - 54) / 22));
-        pickerScroll = Math.max(0, Math.min(pickerScroll, Math.max(0, choices.size() - visible)));
         ToolbarItem anchor = toolbarItems().stream().filter(item -> item.kind().equals(picker)).findFirst().orElseThrow();
-        int popupWidth = Math.min(240, readableWidth);
-        int left = Math.min(anchor.x(), readableLeft + readableWidth - popupWidth);
-        int top = Math.max(48, anchor.y() - visible * 22 - 6);
+        int visible = Math.max(1, Math.min(choices.size(), (anchor.y() - 46) / 22));
+        pickerScroll = Math.max(0, Math.min(pickerScroll, Math.max(0, choices.size() - visible)));
+        int popupWidth = anchor.width();
+        int left = anchor.x();
+        int top = Math.max(40, anchor.y() - visible * 22 - 6);
         List<PickerRow> rows = new ArrayList<>();
         for (int index = 0; index < visible; index++) rows.add(new PickerRow(choices.get(pickerScroll + index), left, top + index * 22, popupWidth));
         return rows;
@@ -625,15 +668,31 @@ public final class AssistantScreen extends Screen {
 
     private void drawPicker(GuiGraphics graphics, int mouseX, int mouseY) {
         List<PickerRow> rows = pickerRows();
+        String hovered = rows.stream().filter(row -> mouseX >= row.x() && mouseX < row.x() + row.width()
+                        && mouseY >= row.y() && mouseY < row.y() + 22).map(row -> row.choice().value()).findFirst().orElse(null);
+        if (!Objects.equals(hoveredPickerChoice, hovered)) {
+            hoveredPickerChoice = hovered;
+            pickerHoverStarted = System.currentTimeMillis();
+        }
         for (PickerRow row : rows) {
             boolean selected = "model".equals(picker) ? Objects.equals(settings.modelId() == null ? "" : settings.modelId(), row.choice().value())
                     : settings.reasoningEffort().name().equals(row.choice().value());
             ModernUi.surface(graphics, row.x(), row.y(), row.x() + row.width(), row.y() + 22,
                     selected ? ModernUi.ACCENT_DARK : mouseX >= row.x() && mouseX < row.x() + row.width()
                             && mouseY >= row.y() && mouseY < row.y() + 22 ? ModernUi.SURFACE_HOVER : 0xff20252a);
-            graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(row.choice().label())
-                            .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, row.width() - 16))),
-                    row.x() + 8, row.y() + (22 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+            Component label = Component.literal(row.choice().label()).withStyle(style -> style.withFont(ModernUi.FONT));
+            int overflow = Math.max(0, font.width(label) - Math.max(1, row.width() - 16));
+            int offset = 0;
+            if (overflow > 0 && row.choice().value().equals(hovered)) {
+                long elapsed = Math.max(0, System.currentTimeMillis() - pickerHoverStarted - 700);
+                long travel = overflow * 35L;
+                long phase = elapsed % (travel * 2 + 1400);
+                offset = (int) (phase < travel ? phase / 35 : phase < travel + 700 ? overflow
+                        : phase < travel * 2 + 700 ? overflow - (phase - travel - 700) / 35 : 0);
+            }
+            graphics.enableScissor(row.x() + 8, row.y() + 1, row.x() + row.width() - 8, row.y() + 21);
+            graphics.drawString(font, label, row.x() + 8 - offset, row.y() + (22 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+            graphics.disableScissor();
         }
         int count = pickerChoices().size();
         if (!rows.isEmpty() && count > rows.size()) {
@@ -647,7 +706,9 @@ public final class AssistantScreen extends Screen {
 
     private void drawToolbarTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
         if (picker != null) return;
-        for (ToolbarItem item : toolbarItems()) {
+        List<ToolbarItem> tooltipItems = new ArrayList<>(toolbarItems());
+        tooltipItems.add(new ToolbarItem("extra", readableLeft, sendY, 20));
+        for (ToolbarItem item : tooltipItems) {
             if (mouseX < item.x() || mouseX >= item.x() + item.width() || mouseY < item.y() || mouseY >= item.y() + 20) continue;
             List<Component> lines = new ArrayList<>();
             if (item.kind().equals("context")) {
@@ -658,12 +719,29 @@ public final class AssistantScreen extends Screen {
                 lines.add(Component.literal("Included: " + history.selection().turns().size() * 2 + " messages ("
                         + history.selection().turns().size() + " / " + history.configuredTurns() + " turns)"));
                 lines.add(Component.literal("Only complete exchanges within both history quotas are sent."));
-                lines.add(Component.literal("Conservative replay estimate including message envelopes."));
+                lines.add(Component.literal("Tokenized message-text estimate (o200k_base)."));
                 lines.add(Component.literal("Fresh gameplay, screenshot, instructions and output use additional context."));
             } else if (item.kind().equals("extra")) {
-                lines.add(Component.literal("Last captured: " + ScreenText.contextSummary(view.context())));
-                lines.add(Component.literal("The next request captures fresh gameplay context."));
-                lines.add(Component.literal(includeScreenshot ? "Next request includes a fresh screenshot." : "Next request omits the screenshot."));
+                lines.add(Component.literal("Attached gameplay details"));
+                try {
+                    var captured = com.google.gson.JsonParser.parseString(view.context().serializedGameplayContext());
+                    if (captured.isJsonObject()) {
+                        for (String key : List.of("position", "dimension", "biome", "held", "targeted")) {
+                            var value = captured.getAsJsonObject().get(key);
+                            if (value != null && !value.isJsonNull()) lines.add(Component.literal(switch (key) {
+                                case "position" -> "Coordinates";
+                                case "dimension" -> "Dimension";
+                                case "biome" -> "Biome";
+                                case "held" -> "Held item";
+                                default -> "Looking at";
+                            } + ": "
+                                    + (value.isJsonPrimitive() ? value.getAsString() : value.toString())));
+                        }
+                    }
+                } catch (RuntimeException ignored) {
+                    lines.add(Component.literal("Last observation is unavailable."));
+                }
+                lines.add(Component.literal("Coordinates, dimension, biome, held item and looked-at target are captured fresh when sending."));
             } else if (item.kind().equals("model")) {
                 String selectedId = settings.modelId() == null ? actions.providerSelectedModelId() : settings.modelId();
                 lines.add(Component.literal(actions.modelCatalog().stream().filter(model -> model.id().equals(selectedId))
@@ -685,7 +763,7 @@ public final class AssistantScreen extends Screen {
     private void drawSendIcon(GuiGraphics graphics) {
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/"
                         + (awaitingRequestView || view.active() ? "stop" : "paper-plane-right") + ".png"),
-                sendX + 6, sendY + 6, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
+                sendX + 4, sendY + 4, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
     }
 
     void updateContentMetrics(int contentHeight, int viewportHeight) {
@@ -722,7 +800,7 @@ public final class AssistantScreen extends Screen {
             }
             return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         }
-        if (height > 0 && (mouseY < 48 || mouseY >= toggleY - 8)) return false;
+        if (height > 0 && (mouseY < 40 || mouseY >= toggleY - 8)) return false;
         scrollOffset = Math.max(0, Math.min(maxScroll(), scrollOffset - (int) (scrollY * 20)));
         followBottom = scrollOffset >= maxScroll();
         return true;
@@ -754,7 +832,7 @@ public final class AssistantScreen extends Screen {
         }
         setFocused(null);
         if (mouseX < sidebarWidth) {
-            if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 68 && mouseY < 96) { newChat(); return true; }
+            if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 60 && mouseY < 80) { newChat(); return true; }
             if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 104 && mouseY < height - 56) {
                 for (SessionRow row : sessionRows()) {
                     if (mouseY < row.top() || mouseY >= row.top() + row.height()) continue;
@@ -763,6 +841,30 @@ public final class AssistantScreen extends Screen {
                         return true;
                     }
                     if (row.session() != null) {
+                        if (row.session().equals(pendingDelete)) {
+                            if (mouseY >= row.top() + 15 && mouseY < row.top() + 32) {
+                                int confirmWidth = Math.max(1, Math.min(54, (sidebarWidth - 42) / 2));
+                                if (mouseX >= 18 && mouseX < 18 + confirmWidth && !view.active() && !awaitingRequestView && !deletingSession) {
+                                    deletingSession = true;
+                                    actions.deleteSession(row.session()).whenComplete((ignored, failure) -> {
+                                        Runnable update = () -> {
+                                            deletingSession = false;
+                                            pendingDelete = null;
+                                            loadSessions();
+                                        };
+                                        if (minecraft == null) update.run();
+                                        else minecraft.execute(update);
+                                    });
+                                } else if (mouseX >= 24 + confirmWidth && mouseX < 24 + 2 * confirmWidth && !deletingSession) pendingDelete = null;
+                            }
+                            return true;
+                        }
+                        if (mouseX >= sidebarWidth - 36 && mouseX < sidebarWidth - 16
+                                && mouseY >= row.top() + 7 && mouseY < row.top() + 27) {
+                            if (!view.active() && !awaitingRequestView && !deletingSession) pendingDelete = row.session();
+                            return true;
+                        }
+                        pendingDelete = null;
                         setFocused(null);
                         actions.openSession(row.session());
                         scrollToBottom();
@@ -790,11 +892,12 @@ public final class AssistantScreen extends Screen {
                 else if (item.kind().equals("model") || item.kind().equals("effort")) {
                     picker = item.kind();
                     pickerScroll = 0;
+                    hoveredPickerChoice = null;
                 }
                 return true;
             }
         }
-        if (mouseX >= sendX && mouseX < sendX + 28 && mouseY >= sendY && mouseY < sendY + 28) {
+        if (mouseX >= sendX && mouseX < sendX + 20 && mouseY >= sendY && mouseY < sendY + 20) {
             if (awaitingRequestView || view.active()) stop();
             else submit();
             return true;

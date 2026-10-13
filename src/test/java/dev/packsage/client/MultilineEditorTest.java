@@ -60,7 +60,7 @@ class MultilineEditorTest {
         MultilineEditor editor = new MultilineEditor(FONT, 0, 0, 40, 42, () -> true);
         editor.setValue("abcdefghij");
         assertEquals(List.of("abcd", "efgh", "ij"), editor.lines());
-        editor.onClick(21, 27, 0);
+        editor.onClick(19, 27, 0);
         assertEquals(6, editor.cursor());
         editor.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN, 0, 0);
         assertEquals(10, editor.cursor());
@@ -93,7 +93,7 @@ class MultilineEditorTest {
     void growthIsBoundedAndManualScrollChangesTheVisibleClickTarget() {
         MultilineEditor editor = new MultilineEditor(FONT, 0, 0, 40, 32, () -> true);
         editor.setValue("x\n".repeat(40));
-        assertEquals(132, editor.preferredHeight());
+        assertEquals(108, editor.preferredHeight());
         editor.mouseScrolled(10, 7, 0, -5);
         assertEquals(5, editor.lineOffset());
         editor.onClick(10, 7, 0);
@@ -133,16 +133,16 @@ class MultilineEditorTest {
 
     @Test
     void leadingIconReservesSpaceForTextAndCaretAndOneLineFitsTheSendHeight() {
-        MultilineEditor editor = new MultilineEditor(FONT, 0, 0, 60, 28, 80, false, () -> true);
+        MultilineEditor editor = new MultilineEditor(FONT, 0, 0, 52, 20, 80, false, () -> true);
         editor.leadingIcon = ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/magnifying-glass.png");
         editor.setValue("abcdefgh");
         assertEquals(List.of("abcd", "efgh"), editor.lines());
-        editor.onClick(30, 10, 0);
+        editor.onClick(24, 10, 0);
         assertEquals(0, editor.cursor());
-        editor.onClick(45, 10, 0);
+        editor.onClick(39, 10, 0);
         assertEquals(3, editor.cursor());
         editor.setValue("");
-        assertEquals(28, editor.preferredHeight());
+        assertEquals(20, editor.preferredHeight());
     }
 
     static final class FakeFont extends Font {

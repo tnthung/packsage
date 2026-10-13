@@ -14,9 +14,9 @@ final class ModernUi {
     static final int ACCENT = 0xffb8d6c4;
     static final int ACCENT_DARK = 0xd0446251;
     static final int DANGER = 0xffe18b8b;
-    static final int SIDEBAR_WIDTH = 224;
-    static final int MAX_CONTENT_WIDTH = 720;
-    static final int MESSAGE_LINE_HEIGHT = 13;
+    static final int SIDEBAR_WIDTH = 180;
+    static final int MAX_CONTENT_WIDTH = 624;
+    static final int MESSAGE_LINE_HEIGHT = 12;
     static final ResourceLocation FONT = ResourceLocation.fromNamespaceAndPath("packsage", "ui");
     static final ResourceLocation BOLD_FONT = ResourceLocation.fromNamespaceAndPath("packsage", "ui_bold");
 

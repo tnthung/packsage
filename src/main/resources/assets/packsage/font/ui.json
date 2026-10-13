@@ -3,7 +3,7 @@
     {
       "type": "ttf",
       "file": "packsage:ui.ttf",
-      "size": 11.0,
+      "size": 9.0,
       "oversample": 2.0,
       "shift": [0.0, 1.0],
       "skip": ""

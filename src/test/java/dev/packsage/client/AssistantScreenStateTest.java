@@ -273,12 +273,12 @@ class AssistantScreenStateTest {
         for (String phase : List.of("Capturing context...", "Waiting Model", "Thinking...", "Reading quest progress")) {
             screen.refresh(active(actions, "", phase));
             var editor = (MultilineEditor) screen.children().getLast();
-            screen.mouseClicked(editor.getX() + editor.getWidth() + 12, editor.getY() + editor.getHeight() - 20, 0);
+            screen.mouseClicked(editor.getX() + editor.getWidth() + 12, editor.getY() + editor.getHeight() - 10, 0);
         }
         assertEquals(List.of("stop", "stop", "stop", "stop"), actions.calls);
         screen.refresh(actions.view);
         var editor = (MultilineEditor) screen.children().getLast();
-        screen.mouseClicked(editor.getX() + editor.getWidth() + 12, editor.getY() + editor.getHeight() - 20, 0);
+        screen.mouseClicked(editor.getX() + editor.getWidth() + 12, editor.getY() + editor.getHeight() - 10, 0);
         assertEquals("send", actions.calls.getLast());
     }
 
@@ -292,7 +292,7 @@ class AssistantScreenStateTest {
         screen.setInput("question");
         var editor = (MultilineEditor) screen.children().getLast();
         int x = editor.getX() + editor.getWidth() + 12;
-        int y = editor.getY() + editor.getHeight() - 20;
+        int y = editor.getY() + editor.getHeight() - 10;
         screen.mouseClicked(x, y, 0);
         screen.mouseClicked(x, y, 0);
         assertEquals(List.of("send", "stop"), actions.calls);
@@ -316,6 +316,39 @@ class AssistantScreenStateTest {
         assertEquals(1, screen.sessionRows().stream().filter(row -> row.session() == null && !row.expand()).count());
         assertEquals("World", screen.sessionRows().getFirst().label());
         assertEquals(2, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+    }
+
+    @Test
+    void sessionDeletionRequiresConfirmationAndIsBlockedWhileActive() {
+        FakeActions actions = new FakeActions();
+        var session = new ChatContracts.SessionSummary(actions.view.activeWorld(), "saved", "Saved chat", "", Instant.EPOCH);
+        actions.sessions = CompletableFuture.completedFuture(List.of(session));
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var row = screen.sessionRows().stream().filter(value -> value.session() != null).findFirst().orElseThrow();
+        int deleteX = Math.min(ModernUi.SIDEBAR_WIDTH, 640 / 3) - 26;
+        screen.mouseClicked(deleteX, row.top() + 17, 0);
+        assertTrue(actions.calls.isEmpty());
+        screen.mouseClicked(95, row.top() + 22, 0);
+        assertTrue(actions.calls.isEmpty());
+        screen.width = 320;
+        screen.layout();
+        screen.mouseClicked(320 / 3 - 26, row.top() + 17, 0);
+        screen.mouseClicked(80, row.top() + 22, 0);
+        screen.mouseClicked(35, row.top() + 22, 0);
+        assertEquals(List.of("open:saved"), actions.calls);
+        actions.calls.clear();
+        screen.width = 640;
+        screen.layout();
+        screen.mouseClicked(deleteX, row.top() + 17, 0);
+        screen.mouseClicked(35, row.top() + 22, 0);
+        assertEquals(List.of("delete:saved"), actions.calls);
+        screen.refresh(active(actions, "", "Thinking..."));
+        screen.mouseClicked(deleteX, row.top() + 17, 0);
+        screen.mouseClicked(35, row.top() + 22, 0);
+        assertEquals(1, actions.calls.stream().filter(call -> call.equals("delete:saved")).count());
     }
 
     @Test
@@ -389,7 +422,7 @@ class AssistantScreenStateTest {
         assertTrue(input.isFocused());
         screen.mouseClicked(300, 100, 0);
         assertFalse(input.isFocused());
-        assertEquals(28, input.getHeight());
+        assertEquals(20, input.getHeight());
         screen.setInput("submitted question");
         screen.submit();
         assertEquals("", screen.input());
@@ -424,16 +457,16 @@ class AssistantScreenStateTest {
         ScreenTestHost.initialize(screen);
         var words = screen.messageLayout(ScreenText.inlineLines("alpha beta gamma", List.of()), 55);
         assertEquals(0, words.runs().stream().filter(run -> run.span().text().equals("beta")).findFirst().orElseThrow().y());
-        assertEquals(13, words.runs().stream().filter(run -> run.span().text().equals("gamma")).findFirst().orElseThrow().y());
+        assertEquals(12, words.runs().stream().filter(run -> run.span().text().equals("gamma")).findFirst().orElseThrow().y());
         var quest = new Evidence.NavigationTarget(SCOPE, "ftb_quests", "source", "quest");
         var chips = screen.messageLayout(ScreenText.inlineLines("[ftb_quests:source] [ftb_quests:source]", List.of(quest)), 70);
         var targets = chips.runs().stream().filter(run -> run.span().target() != null).toList();
         assertEquals(2, targets.size());
-        assertEquals(13, targets.get(1).y() - targets.get(0).y());
+        assertEquals(12, targets.get(1).y() - targets.get(0).y());
         assertTrue(chips.runs().stream().allMatch(run -> run.x() + run.width() <= 70));
         var longToken = screen.messageLayout(ScreenText.inlineLines("abcdefgh", List.of()), 15);
         assertEquals("abcdefgh", longToken.runs().stream().map(run -> run.span().text()).reduce("", String::concat));
-        assertEquals(39, longToken.height());
+        assertEquals(36, longToken.height());
     }
 
     @Test
@@ -443,14 +476,15 @@ class AssistantScreenStateTest {
         screen.height = 480;
         screen.layout();
         var wide = screen.toolbarItems();
-        assertEquals(6, wide.size());
-        assertEquals(1, wide.stream().map(AssistantScreen.ToolbarItem::width).distinct().count());
+        assertEquals(5, wide.size());
+        assertEquals(1, wide.stream().filter(item -> !item.kind().equals("context")).map(AssistantScreen.ToolbarItem::width).distinct().count());
+        assertEquals(wide.get(1).width() / 2, wide.getFirst().width());
         assertEquals(1, wide.stream().map(AssistantScreen.ToolbarItem::y).distinct().count());
         assertTrue(wide.stream().allMatch(item -> item.width() <= 100));
         screen.width = 480;
         screen.layout();
         var narrow = screen.toolbarItems();
-        assertEquals(1, narrow.stream().map(AssistantScreen.ToolbarItem::width).distinct().count());
+        assertEquals(1, narrow.stream().filter(item -> !item.kind().equals("context")).map(AssistantScreen.ToolbarItem::width).distinct().count());
         assertTrue(narrow.stream().map(AssistantScreen.ToolbarItem::y).distinct().count() > 1);
         assertTrue(narrow.stream().allMatch(item -> item.x() >= 160 && item.x() + item.width() <= 480));
         assertTrue(narrow.stream().mapToInt(AssistantScreen.ToolbarItem::y).max().orElseThrow() < 424);
@@ -462,6 +496,7 @@ class AssistantScreenStateTest {
         var input = (MultilineEditor) screen.children().getLast();
         assertTrue(screen.toolbarItems().stream().allMatch(item -> item.y() + 20 <= input.getY()));
         assertTrue(screen.toolbarItems().stream().allMatch(item -> item.x() + item.width() <= 320));
+        assertEquals(26, input.getX() - screen.toolbarItems().getFirst().x());
     }
 
     @Test
@@ -473,6 +508,7 @@ class AssistantScreenStateTest {
         ScreenTestHost.initialize(screen);
         var model = screen.toolbarItems().stream().filter(item -> item.kind().equals("model")).findFirst().orElseThrow();
         screen.mouseClicked(model.x() + 5, model.y() + 5, 0);
+        assertTrue(screen.pickerRows().stream().allMatch(row -> row.width() == model.width() && row.y() + 22 < model.y()));
         var option = screen.pickerRows().stream().filter(row -> row.choice().value().equals("model-two")).findFirst().orElseThrow();
         screen.mouseClicked(option.x() + 5, option.y() + 5, 0);
         assertEquals("model-two", actions.settings.modelId());
@@ -539,6 +575,10 @@ class AssistantScreenStateTest {
         }
         @Override public CompletionStage<List<ChatContracts.SessionSummary>> sessions() { return sessions; }
         @Override public void openSession(ChatContracts.SessionSummary session) { calls.add("open:" + session.id()); }
+        @Override public CompletionStage<Void> deleteSession(ChatContracts.SessionSummary session) {
+            calls.add("delete:" + session.id());
+            return CompletableFuture.completedFuture(null);
+        }
         @Override public void signIn() { calls.add("signIn"); }
         @Override public void cancelSignIn() { calls.add("cancelSignIn"); }
         @Override public void signOut() { calls.add("signOut"); }

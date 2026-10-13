@@ -180,6 +180,28 @@ class AssistantSettingsScreenTest {
         assertEquals(1, returned.get());
     }
 
+    @Test
+    void compactAccountCardStaysClearOfScrollbarAndItsActionMatchesBothLayouts() {
+        for (int width : List.of(320, 512, 1280)) {
+            FakeActions actions = new FakeActions();
+            var screen = new AssistantSettingsScreen(PackSageSettings.defaults(), temporaryDirectory.resolve("settings.properties"),
+                    Component.literal("Settings"), actions, () -> { });
+            screen.width = width;
+            screen.height = 240;
+            var layout = screen.layout();
+            assertEquals(layout.models().getFirst().x(), layout.accountLeft());
+            assertEquals(layout.models().getFirst().width(), layout.accountWidth());
+            assertTrue(layout.accountLeft() + layout.accountWidth() <= layout.left() + layout.width() - 13);
+            assertTrue(layout.accountHeight() <= (layout.width() >= 340 ? 56 : 90));
+            int actionX = layout.width() >= 340 ? layout.accountLeft() + layout.accountWidth() - 112 : layout.accountLeft() + 12;
+            int actionY = layout.accountTop() + (layout.width() >= 340 ? (layout.accountHeight() - 28) / 2 : 52);
+            assertTrue(screen.mouseClicked(actionX + 50, actionY + 14, 0));
+            assertEquals(List.of("signIn"), actions.calls);
+            assertFalse(screen.mouseClicked(actionX + 105, actionY + 14, 0));
+            assertEquals(List.of("signIn"), actions.calls);
+        }
+    }
+
     private static final class FakeActions implements ChatActions {
         private ChatContracts.SignInState state = ChatContracts.SignInState.SIGNED_OUT;
         private List<ModelBackend.ModelInfo> models = List.of(new ModelBackend.ModelInfo("first", "First", true, true, 1_000, 100),

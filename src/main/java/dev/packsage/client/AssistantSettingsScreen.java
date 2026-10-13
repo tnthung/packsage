@@ -18,7 +18,7 @@ import java.util.Objects;
 
 public final class AssistantSettingsScreen extends Screen {
     record Choice(String value, String label, int x, int y, int width, boolean selected) { }
-    record Layout(int left, int width, int top, int bottom, int accountTop, int accountHeight,
+    record Layout(int left, int width, int top, int bottom, int accountTop, int accountHeight, int accountLeft, int accountWidth,
                   List<Choice> models, List<Choice> efforts, int behaviorTop, int historyTop,
                   boolean historyStacked, int contentHeight) { }
 
@@ -94,7 +94,7 @@ public final class AssistantSettingsScreen extends Screen {
         int panelWidth = Math.max(1, Math.min(620, width - 24));
         int left = (width - panelWidth) / 2;
         int rowWidth = Math.max(1, panelWidth - 32);
-        int accountHeight = panelWidth >= 340 ? 80 : 114;
+        int accountHeight = panelWidth >= 340 ? 56 : 90;
         int y = 58 - scrollOffset;
         int accountTop = y;
         y += accountHeight + 36;
@@ -134,7 +134,7 @@ public final class AssistantSettingsScreen extends Screen {
         int historyTop = y;
         boolean stacked = rowWidth < 280;
         y += stacked ? 146 : 82;
-        Layout result = new Layout(left, panelWidth, 50, Math.max(51, height - 12), accountTop, accountHeight,
+        Layout result = new Layout(left, panelWidth, 50, Math.max(51, height - 12), accountTop, accountHeight, left + 16, rowWidth,
                 List.copyOf(modelChoices), List.copyOf(effortChoices), behaviorTop, historyTop, stacked, y + scrollOffset - 50);
         if (turnsEditor != null) {
             int fieldWidth = result.historyStacked() ? rowWidth : (rowWidth - 16) / 2;
@@ -172,23 +172,25 @@ public final class AssistantSettingsScreen extends Screen {
         graphics.drawString(font, Component.literal("Back").withStyle(style -> style.withFont(ModernUi.FONT)),
                 layout.left() + 29, 12 + (28 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         graphics.drawString(font, Component.literal("Settings").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
-                layout.left() + 82, 21, ModernUi.TEXT, false);
+                layout.left() + 82, 12 + (28 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         graphics.enableScissor(layout.left(), layout.top(), layout.left() + layout.width(), layout.bottom());
         int x = layout.left() + 16;
         int rowWidth = Math.max(1, layout.width() - 32);
-        ModernUi.surface(graphics, layout.left(), layout.accountTop(), layout.left() + layout.width(),
+        ModernUi.surface(graphics, layout.accountLeft(), layout.accountTop(), layout.accountLeft() + layout.accountWidth(),
                 layout.accountTop() + layout.accountHeight(), ModernUi.SURFACE);
         ChatContracts.AccountInfo account = actions == null ? this.account : actions.account();
         ResourceLocation providerIcon = ResourceLocation.tryBuild("packsage", "textures/gui/icons/" + account.provider().id() + ".png");
         if (providerIcon == null || minecraft.getResourceManager().getResource(providerIcon).isEmpty()) {
             providerIcon = ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/user.png");
         }
+        int accountContentHeight = layout.width() >= 340 ? 56 : 48;
+        int accountTextTop = layout.accountTop() + (accountContentHeight - (ModernUi.MESSAGE_LINE_HEIGHT + font.lineHeight)) / 2;
         graphics.blit(providerIcon,
-                x, layout.accountTop() + 21, 28, 28, 0f, 0f, 64, 64, 64, 64);
+                layout.accountLeft() + 12, layout.accountTop() + (accountContentHeight - 24) / 2, 24, 24, 0f, 0f, 64, 64, 64, 64);
         graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(account.provider().displayName())
                         .withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
-                        Math.max(1, rowWidth - 44 - (layout.width() >= 340 ? 124 : 0)))),
-                x + 42, layout.accountTop() + 18, ModernUi.TEXT, false);
+                        Math.max(1, layout.accountWidth() - 60 - (layout.width() >= 340 ? 112 : 0)))),
+                layout.accountLeft() + 48, accountTextTop, ModernUi.TEXT, false);
         ChatContracts.SignInState signIn = actions == null ? ChatContracts.SignInState.SIGNED_OUT : actions.view().signIn();
         String status = switch (signIn) {
             case SIGNED_IN -> account.hint().isBlank() ? "Connected" : account.hint();
@@ -198,13 +200,13 @@ public final class AssistantSettingsScreen extends Screen {
             default -> "Not connected";
         };
         graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(status).withStyle(style -> style.withFont(ModernUi.FONT)),
-                        Math.max(1, rowWidth - 44 - (layout.width() >= 340 ? 124 : 0)))),
-                x + 42, layout.accountTop() + 37, signIn == ChatContracts.SignInState.FAILED ? ModernUi.DANGER : ModernUi.MUTED, false);
+                        Math.max(1, layout.accountWidth() - 60 - (layout.width() >= 340 ? 112 : 0)))),
+                layout.accountLeft() + 48, accountTextTop + ModernUi.MESSAGE_LINE_HEIGHT, signIn == ChatContracts.SignInState.FAILED ? ModernUi.DANGER : ModernUi.MUTED, false);
         if (actions != null) {
-            int buttonX = layout.width() >= 340 ? layout.left() + layout.width() - 128 : x;
-            int buttonY = layout.accountTop() + (layout.width() >= 340 ? 24 : 72);
-            ModernUi.surface(graphics, buttonX, buttonY, buttonX + 112, buttonY + 28,
-                    mouseX >= buttonX && mouseX < buttonX + 112 && mouseY >= buttonY && mouseY < buttonY + 28
+            int buttonX = layout.width() >= 340 ? layout.accountLeft() + layout.accountWidth() - 112 : layout.accountLeft() + 12;
+            int buttonY = layout.accountTop() + (layout.width() >= 340 ? (layout.accountHeight() - 28) / 2 : 52);
+            ModernUi.surface(graphics, buttonX, buttonY, buttonX + 100, buttonY + 28,
+                    mouseX >= buttonX && mouseX < buttonX + 100 && mouseY >= buttonY && mouseY < buttonY + 28
                             ? ModernUi.SURFACE_HOVER : ModernUi.BACKGROUND);
             graphics.drawString(font, Component.literal(switch (signIn) {
                         case SIGNED_IN -> "Sign out";
@@ -223,16 +225,9 @@ public final class AssistantSettingsScreen extends Screen {
                     choice.selected() ? ModernUi.ACCENT_DARK
                             : mouseX >= choice.x() && mouseX < choice.x() + choice.width() && mouseY >= choice.y() && mouseY < choice.y() + 24
                             ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
-            for (int dy = -5; dy <= 5; dy++) {
-                int outer = (int) Math.sqrt(25 - dy * dy);
-                int inner = Math.abs(dy) <= 3 ? (int) Math.sqrt(9 - dy * dy) : -1;
-                graphics.fill(choice.x() + 12 - outer, choice.y() + 12 + dy, choice.x() + 12 - inner, choice.y() + 13 + dy, ModernUi.ACCENT);
-                graphics.fill(choice.x() + 13 + inner, choice.y() + 12 + dy, choice.x() + 13 + outer, choice.y() + 13 + dy, ModernUi.ACCENT);
-                if (choice.selected() && Math.abs(dy) <= 2) {
-                    int selected = (int) Math.sqrt(4 - dy * dy);
-                    graphics.fill(choice.x() + 12 - selected, choice.y() + 12 + dy, choice.x() + 13 + selected, choice.y() + 13 + dy, ModernUi.ACCENT);
-                }
-            }
+            graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/"
+                            + (choice.selected() ? "radio-button" : "circle") + ".png"),
+                    choice.x() + 6, choice.y() + (24 - 14) / 2, 14, 14, 0f, 0f, 64, 64, 64, 64);
             graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(choice.label()).withStyle(style -> style.withFont(ModernUi.FONT)),
                     Math.max(1, choice.width() - 34))), choice.x() + 28, choice.y() + (24 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
@@ -296,9 +291,9 @@ public final class AssistantSettingsScreen extends Screen {
             return false;
         }
         setFocused(null);
-        int buttonX = layout.width() >= 340 ? layout.left() + layout.width() - 128 : layout.left() + 16;
-        int buttonY = layout.accountTop() + (layout.width() >= 340 ? 24 : 72);
-        if (actions != null && mouseX >= buttonX && mouseX < buttonX + 112 && mouseY >= buttonY && mouseY < buttonY + 28) {
+        int buttonX = layout.width() >= 340 ? layout.accountLeft() + layout.accountWidth() - 112 : layout.accountLeft() + 12;
+        int buttonY = layout.accountTop() + (layout.width() >= 340 ? (layout.accountHeight() - 28) / 2 : 52);
+        if (actions != null && mouseX >= buttonX && mouseX < buttonX + 100 && mouseY >= buttonY && mouseY < buttonY + 28) {
             switch (actions.view().signIn()) {
                 case SIGNED_IN -> actions.signOut();
                 case SIGNING_IN -> actions.cancelSignIn();

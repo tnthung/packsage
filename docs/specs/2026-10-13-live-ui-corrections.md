@@ -12,3 +12,5 @@ This extends the [modern UI specification](2026-10-13-modern-chat-ui.md) with th
 - Make pause/resume reliable from the first click while retaining private-singleplayer restrictions. Preserve exact source/scope checks for newly generated inline navigation. Config citations open a read-only panel with the source metadata and saved/loaded values recorded with that answer; do not invent gameplay navigation, read current files or change config values.
 
 Automated checks establish source and interaction behavior. Updated rendering, font weight, transparency, GUI scales and actual pause/navigation still require Minecraft observation.
+
+The alignment follow-up requires a consistent font baseline across all boxed labels and centered message/editor text blocks, Search/Screenshot icons at about 80% of their prior size, smooth radio assets, and a shorter account card inset from the scrollbar. Keep the current layout and Back placement.

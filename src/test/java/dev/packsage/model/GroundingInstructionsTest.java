@@ -86,7 +86,7 @@ class GroundingInstructionsTest {
     }
 
     @Test
-    void explicitlyRejectedImagesAreOmittedAndTextBudgetCountsMultibyteContent() {
+    void explicitlyRejectedImagesAreOmittedAndTextBudgetCountsMultilingualContent() {
         var submission = new ChatContracts.Submission(new ChatContracts.RequestId("current"),
                 new ChatContracts.WorldIdentity("world", "World"), SCOPE, "question", true,
                 new ChatContracts.HistoryLimits(10, 12_000), new ModelBackend.ModelInfo("catalog-model", false, null, null, null),
@@ -101,7 +101,7 @@ class GroundingInstructionsTest {
         var ascii = new ChatContracts.Turn(new ChatContracts.RequestId("r"), "a", "b", List.of(),
                 new ChatContracts.Context("{}", null, SCOPE), List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0);
         var unicode = new ChatContracts.Turn(ascii.requestId(), "龍", "b", List.of(), ascii.context(), ascii.sources(), ascii.outcome(), 0);
-        assertTrue(GroundingInstructions.historyTextBudget(unicode) > GroundingInstructions.historyTextBudget(ascii));
+        assertTrue(GroundingInstructions.historyTextBudget(unicode) > 0);
     }
 
     @Test
@@ -126,21 +126,31 @@ class GroundingInstructionsTest {
                 ModelBackend.SearchMode.DISABLED, 2048), new ChatContracts.HistorySelection(List.of(withSources), 0),
                 new ChatContracts.CapturedContext(new ChatContracts.Context("{}", null, SCOPE), new byte[0]),
                 new ChatContracts.EvidenceSelection(List.of(), List.of())));
-        assertEquals(GroundingInstructions.historyTextBudget(withSources), request.input().subList(0, request.input().size() - 1).stream()
-                .mapToInt(item -> new com.google.gson.GsonBuilder().serializeNulls().create().toJson(item)
-                        .getBytes(java.nio.charset.StandardCharsets.UTF_8).length).sum());
+        assertEquals(GroundingInstructions.historyTextBudget(withSources), GroundingInstructions.historyTokenCounts(withSources).total());
     }
 
     @Test
-    void historyTokenCountsSplitTheExactSerializedHistoryBudget() {
+    void historyTokenCountsUseOrdinaryTextForQuestionAndAnswer() {
+        assertEquals(3, GroundingInstructions.historyTextBudget(new ChatContracts.Turn(new ChatContracts.RequestId("ui-check"),
+                "UI_CHECK_B", "", List.of(), new ChatContracts.Context("", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0)));
+        assertEquals(2, GroundingInstructions.historyTextBudget(new ChatContracts.Turn(new ChatContracts.RequestId("hello-world"),
+                "hello world", "", List.of(), new ChatContracts.Context("", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0)));
+        assertEquals(4, GroundingInstructions.historyTextBudget(new ChatContracts.Turn(new ChatContracts.RequestId("hello-punctuation"),
+                "Hello, world!", "", List.of(), new ChatContracts.Context("", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0)));
+        assertEquals(0, GroundingInstructions.historyTextBudget(new ChatContracts.Turn(new ChatContracts.RequestId("empty"),
+                "", "", List.of(), new ChatContracts.Context("", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0)));
         ChatContracts.Turn turn = new ChatContracts.Turn(new ChatContracts.RequestId("counted"),
-                "question", "answer", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(),
+                "hello world", "Hello, world!", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
 
         ChatContracts.TokenCounts counts = GroundingInstructions.historyTokenCounts(turn);
 
-        assertTrue(counts.user() > 0);
-        assertTrue(counts.assistant() > 0);
+        assertEquals(2, counts.user());
+        assertEquals(4, counts.assistant());
         assertEquals(GroundingInstructions.historyTextBudget(turn), counts.total());
     }
 

@@ -33,6 +33,12 @@ repositories {
 }
 
 dependencies {
+    jarJar(implementation('com.knuddels:jtokkit')) {
+        version {
+            strictly '[1.1.0,1.2.0)'
+            prefer '1.1.0'
+        }
+    }
     compileOnly "mezz.jei:jei-1.21.1-neoforge:${jei_version}"
     compileOnly "curse.maven:ftb-quests-forge-289412:${ftb_quests_version}"
     compileOnly "curse.maven:ftb-library-forge-404465:${ftb_library_version}"

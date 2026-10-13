@@ -1,14 +1,14 @@
 package dev.packsage.model;
 
 import dev.packsage.chat.ChatContracts;
-import dev.packsage.knowledge.Evidence;
+import com.knuddels.jtokkit.Encodings;
+import com.knuddels.jtokkit.api.Encoding;
+import com.knuddels.jtokkit.api.EncodingType;
 
 import java.time.Instant;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import com.google.gson.JsonParser;
 
 public final class GroundingInstructions {
     private static final String INSTRUCTIONS = """
@@ -28,10 +28,9 @@ public final class GroundingInstructions {
             position and conversation details from search terms. This instruction is best effort; hosted queries are not inspected by the client.
             Do not classify spoilers or emit spoiler blocks. Give a useful partial answer and state what is unknown.
             """;
-    private static final com.google.gson.Gson JSON = new com.google.gson.GsonBuilder().serializeNulls()
-            .registerTypeAdapter(Instant.class, (com.google.gson.JsonSerializer<Instant>) (value, type, context) -> new com.google.gson.JsonPrimitive(value.toString()))
-            .registerTypeHierarchyAdapter(Evidence.JsonValue.class, (com.google.gson.JsonSerializer<Evidence.JsonValue>) (value, type, context) -> JsonParser.parseString(Evidence.serialize(value)))
-            .create();
+    private static final class Tokenizer {
+        private static final Encoding ENCODING = Encodings.newLazyEncodingRegistry().getEncoding(EncodingType.O200K_BASE);
+    }
 
     private GroundingInstructions() { }
 
@@ -77,23 +76,15 @@ public final class GroundingInstructions {
     }
 
     /**
-     * Conservative text-history estimate of what the turn replays into a later request (see {@link #historyInput}),
-     * not the server's full request/image/reasoning token count. Saved sources and other local-only fields are not counted.
+     * Tokenized question and answer text estimate for a historical turn, not the server's full request/image/reasoning
+     * token count. Saved sources and other local-only fields are not counted.
      */
     public static int historyTextBudget(ChatContracts.Turn turn) {
-        int total = 0;
-        for (var item : historyInput(turn)) total += JSON.toJson(item).getBytes(StandardCharsets.UTF_8).length;
-        return total;
+        return Tokenizer.ENCODING.countTokensOrdinary(turn.question()) + Tokenizer.ENCODING.countTokensOrdinary(turn.answer());
     }
 
     public static ChatContracts.TokenCounts historyTokenCounts(ChatContracts.Turn turn) {
-        int user = 0;
-        int assistant = 0;
-        for (var item : historyInput(turn)) {
-            int bytes = JSON.toJson(item).getBytes(StandardCharsets.UTF_8).length;
-            if (item instanceof ModelBackend.Message message && message.role() == ModelBackend.Role.USER) user += bytes;
-            else assistant += bytes;
-        }
-        return new ChatContracts.TokenCounts(user, assistant);
+        return new ChatContracts.TokenCounts(Tokenizer.ENCODING.countTokensOrdinary(turn.question()),
+                Tokenizer.ENCODING.countTokensOrdinary(turn.answer()));
     }
 }

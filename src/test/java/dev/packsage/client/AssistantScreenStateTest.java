@@ -416,7 +416,8 @@ class AssistantScreenStateTest {
         var input = (MultilineEditor) screen.children().getLast();
         screen.mouseClicked(search.getX() + 35, search.getY() + 12, 0);
         assertTrue(search.isFocused());
-        screen.mouseClicked(input.getX() + 8, input.getY() - 20, 0);
+        var meter = screen.toolbarItems().getLast();
+        screen.mouseClicked(meter.x() + 5, meter.y() + 5, 0);
         assertFalse(search.isFocused());
         screen.mouseClicked(input.getX() + 10, input.getY() + 10, 0);
         assertTrue(input.isFocused());
@@ -478,8 +479,10 @@ class AssistantScreenStateTest {
         var wide = screen.toolbarItems();
         assertEquals(5, wide.size());
         assertEquals(1, wide.stream().filter(item -> !item.kind().equals("context")).map(AssistantScreen.ToolbarItem::width).distinct().count());
-        assertEquals(wide.get(1).width() / 2, wide.getFirst().width());
-        assertEquals(1, wide.stream().map(AssistantScreen.ToolbarItem::y).distinct().count());
+        assertEquals(wide.getFirst().width() / 2, wide.getLast().width());
+        assertEquals(1, wide.stream().filter(item -> !item.kind().equals("context")).map(AssistantScreen.ToolbarItem::y).distinct().count());
+        assertTrue(wide.getLast().y() > wide.getFirst().y());
+        assertEquals(wide.getFirst().x() + 26, wide.getLast().x());
         assertTrue(wide.stream().allMatch(item -> item.width() <= 100));
         screen.width = 480;
         screen.layout();
@@ -487,16 +490,18 @@ class AssistantScreenStateTest {
         assertEquals(1, narrow.stream().filter(item -> !item.kind().equals("context")).map(AssistantScreen.ToolbarItem::width).distinct().count());
         assertTrue(narrow.stream().map(AssistantScreen.ToolbarItem::y).distinct().count() > 1);
         assertTrue(narrow.stream().allMatch(item -> item.x() >= 160 && item.x() + item.width() <= 480));
-        assertTrue(narrow.stream().mapToInt(AssistantScreen.ToolbarItem::y).max().orElseThrow() < 424);
+        assertTrue(narrow.stream().filter(item -> !item.kind().equals("context")).mapToInt(AssistantScreen.ToolbarItem::y).max().orElseThrow() < 424);
         screen.width = 320;
         screen.height = 240;
         ScreenTestHost.initialize(screen);
         screen.setInput("long draft ".repeat(70));
         screen.layout();
         var input = (MultilineEditor) screen.children().getLast();
-        assertTrue(screen.toolbarItems().stream().allMatch(item -> item.y() + 20 <= input.getY()));
+        assertTrue(screen.toolbarItems().stream().filter(item -> !item.kind().equals("context")).allMatch(item -> item.y() + 20 <= input.getY()));
         assertTrue(screen.toolbarItems().stream().allMatch(item -> item.x() + item.width() <= 320));
-        assertEquals(26, input.getX() - screen.toolbarItems().getFirst().x());
+        var meter = screen.toolbarItems().getLast();
+        assertEquals(meter.x() + meter.width() + 6, input.getX());
+        assertEquals(input.getY() + input.getHeight() - 20, meter.y());
     }
 
     @Test

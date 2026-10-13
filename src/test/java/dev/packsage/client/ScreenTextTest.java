@@ -7,8 +7,10 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ScreenTextTest {
@@ -244,9 +246,9 @@ class ScreenTextTest {
                 + "\"position\":\"BlockPos{x=39, y=63, z=24}\",\"biome\":\"minecraft:taiga\",\"time\":\"4016\"}";
         ChatContracts.Screenshot shot = new ChatContracts.Screenshot("asset", "image/png", 1, java.time.Instant.EPOCH);
 
-        assertEquals("Context: overworld · x39 y63 z24 · taiga · screenshot attached",
+        assertEquals("Context: overworld · 39, 63, 24 · taiga · screenshot attached",
                 ScreenText.contextSummary(new ChatContracts.Context(json, shot, SCOPE)));
-        assertEquals("Context: overworld · x39 y63 z24 · taiga · no screenshot",
+        assertEquals("Context: overworld · 39, 63, 24 · taiga · no screenshot",
                 ScreenText.contextSummary(new ChatContracts.Context(json, null, SCOPE)));
     }
 
@@ -258,6 +260,85 @@ class ScreenTextTest {
         assertEquals("Context attached", ScreenText.contextSummary(new ChatContracts.Context("{}", null, SCOPE)));
         assertEquals("Context: screenshot attached", ScreenText.contextSummary(new ChatContracts.Context("{}",
                 new ChatContracts.Screenshot("a", "image/png", 1, java.time.Instant.EPOCH), SCOPE)));
+    }
+
+    @Test
+    void gameplayContextTooltipShowsReadableCapturedFieldsWithoutRawPayloads() {
+        String json = "{\"position\":\"BlockPos{x=38, y=63, z=19}\","
+                + "\"dimension\":\"minecraft:overworld\",\"biome\":\"minecraft:taiga\","
+                + "\"held\":\"item:minecraft:stone;count=64;name=Stone;components={custom_name=Stone}\","
+                + "\"targeted\":\"block:minecraft:grass_block@MutableBlockPos{x=38, y=60, z=19}:Block{minecraft:grass_block}[snowy=false]\","
+                + "\"focusKind\":\"block\"}";
+        var screenshot = new ChatContracts.Screenshot("captured.png", "image/png", 123, java.time.Instant.EPOCH);
+
+        List<ScreenText.TooltipField> fields = ScreenText.gameplayContextFields(new ChatContracts.Context(json, screenshot, SCOPE));
+
+        assertEquals(List.of(new ScreenText.TooltipField("Coordinates", "38, 63, 19"),
+                new ScreenText.TooltipField("Dimension", "Overworld"), new ScreenText.TooltipField("Biome", "Taiga"),
+                new ScreenText.TooltipField("Held item", "Stone ×64"), new ScreenText.TooltipField("Looking at", "Grass Block"),
+                new ScreenText.TooltipField("Target at", "38, 60, 19")), fields);
+        String display = fields.toString();
+        assertFalse(display.contains("components") || display.contains("snowy") || display.contains("minecraft:"));
+        assertFalse(display.contains("captured.png"));
+    }
+
+    @Test
+    void gameplayContextTooltipHidesEntityUuidAndDistinguishesMissAndUnavailable() {
+        String entity = "{\"position\":\"BlockPos{x=1, y=2, z=3}\",\"dimension\":\"minecraft:the_nether\","
+                + "\"biome\":\"minecraft:soul_sand_valley\",\"held\":\"unavailable\","
+                + "\"targeted\":\"entity:minecraft:zombie@123e4567-e89b-12d3-a456-426614174000\",\"focusKind\":\"entity\"}";
+        List<ScreenText.TooltipField> entityFields = ScreenText.gameplayContextFields(new ChatContracts.Context(entity, null, SCOPE));
+        assertEquals(new ScreenText.TooltipField("Dimension", "Nether"), entityFields.get(1));
+        assertEquals(new ScreenText.TooltipField("Held item", "None"), entityFields.get(3));
+        assertEquals(new ScreenText.TooltipField("Looking at", "Zombie"), entityFields.get(4));
+        assertFalse(entityFields.toString().contains("123e4567"));
+
+        List<ScreenText.TooltipField> missed = ScreenText.gameplayContextFields(new ChatContracts.Context(
+                "{\"focusKind\":\"miss\",\"held\":\"unavailable\"}", null, SCOPE));
+        assertEquals(new ScreenText.TooltipField("Looking at", "None"), missed.get(4));
+        List<ScreenText.TooltipField> unavailable = ScreenText.gameplayContextFields(new ChatContracts.Context(
+                "{\"focusKind\":\"unavailable\"}", null, SCOPE));
+        assertEquals(new ScreenText.TooltipField("Looking at", "Unknown"), unavailable.get(4));
+        assertEquals(new ScreenText.TooltipField("Held item", "None"), unavailable.get(3));
+    }
+
+    @Test
+    void gameplayContextTooltipDegradesMalformedDataToUnknown() {
+        List<ScreenText.TooltipField> fields = ScreenText.gameplayContextFields(new ChatContracts.Context("not json", null, SCOPE));
+
+        assertEquals(List.of(new ScreenText.TooltipField("Coordinates", "Unknown"),
+                new ScreenText.TooltipField("Dimension", "Unknown"), new ScreenText.TooltipField("Biome", "Unknown"),
+                new ScreenText.TooltipField("Held item", "Unknown"), new ScreenText.TooltipField("Looking at", "Unknown")), fields);
+    }
+
+    @Test
+    void historyTooltipExplainsEstimateAndConfiguredVersusModelClampedLimits() {
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.US);
+        try {
+            var turn = new ChatContracts.Turn(new ChatContracts.RequestId("history"), "question", "answer", List.of(),
+                    new ChatContracts.Context("{}", null, SCOPE), List.of(),
+                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0);
+            var preview = new ChatContracts.HistoryPreview(new ChatContracts.HistorySelection(List.of(turn, turn, turn), 228),
+                    12_000, 12_000, 272_000, 10);
+            assertEquals(List.of(new ScreenText.TooltipField("Usage", "~228 / 12,000 (2%)"),
+                    new ScreenText.TooltipField("Included", "6 messages (3 / 10 turns)"),
+                    new ScreenText.TooltipField("Your limit", "12,000 tokens"),
+                    new ScreenText.TooltipField("Model limit", "272,000 tokens")), ScreenText.historyContextFields(preview));
+
+            var clamped = new ChatContracts.HistoryPreview(new ChatContracts.HistorySelection(List.of(), 2_720),
+                    300_000, 272_000, 272_000, 10);
+            assertEquals(List.of(new ScreenText.TooltipField("Usage", "~2,720 / 272,000 (1%)"),
+                    new ScreenText.TooltipField("Included", "0 messages (0 / 10 turns)"),
+                    new ScreenText.TooltipField("Your limit", "300,000 tokens"),
+                    new ScreenText.TooltipField("Model limit", "272,000 tokens")), ScreenText.historyContextFields(clamped));
+
+            var unknownModel = new ChatContracts.HistoryPreview(new ChatContracts.HistorySelection(List.of(), 0),
+                    12_000, 12_000, null, 10);
+            assertEquals("Unknown", ScreenText.historyContextFields(unknownModel).getLast().value());
+        } finally {
+            Locale.setDefault(previous);
+        }
     }
 
     @Test

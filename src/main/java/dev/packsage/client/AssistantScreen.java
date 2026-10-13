@@ -14,6 +14,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.locale.Language;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,6 +33,7 @@ public final class AssistantScreen extends Screen {
     private ChatContracts.View view;
     private boolean awaitingRequestView;
     String pendingQuestion = "";
+    private Instant pendingSentAt;
     private String input = "";
     private boolean explicitWebSearch;
     private boolean includeScreenshot = true;
@@ -151,19 +155,21 @@ public final class AssistantScreen extends Screen {
         int mainWidth = Math.max(1, width - sidebarWidth);
         readableWidth = Math.max(1, Math.min(ModernUi.MAX_CONTENT_WIDTH, mainWidth - 32));
         readableLeft = sidebarWidth + (mainWidth - readableWidth) / 2;
-        int toolbarHeight = toolbarItems().getLast().y() - toggleY + 26;
+        int toolbarHeight = toolbarItems().stream().filter(item -> !item.kind().equals("context"))
+                .mapToInt(ToolbarItem::y).max().orElse(toggleY) - toggleY + 26;
         if (sessionSearchEditor != null) {
             sessionSearchEditor.setSize(Math.max(1, sidebarWidth - 24), 20);
             sessionSearchEditor.setPosition(12, 32);
         }
         if (inputEditor != null) {
-            int editorWidth = Math.max(1, readableWidth - 52);
+            int meterWidth = Math.max(2, Math.min(86, readableWidth)) / 2;
+            int editorWidth = Math.max(1, readableWidth - 58 - meterWidth);
             inputEditor.setSize(editorWidth, 20);
             composerHeight = Math.min(Math.min(MultilineEditor.MAX_HEIGHT,
                     Math.min(Math.max(20, height / 3), Math.max(20, height - toolbarHeight - 68))), inputEditor.preferredHeight());
             composerTop = Math.max(40, height - composerHeight - 20);
             inputEditor.setSize(editorWidth, composerHeight);
-            inputEditor.setPosition(readableLeft + 26, composerTop);
+            inputEditor.setPosition(readableLeft + 32 + meterWidth, composerTop);
             inputEditor.active = !view.readOnly();
         } else {
             composerHeight = 20;
@@ -335,8 +341,9 @@ public final class AssistantScreen extends Screen {
         }
         String liveQuestion = view.active() ? view.activeQuestion() : awaitingRequestView ? pendingQuestion : "";
         ChatContracts.Turn liveTurn = new ChatContracts.Turn(new ChatContracts.RequestId("active-preview"),
-                liveQuestion, view.streamingAnswer(), List.of(), view.context(), List.of(),
-                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null), 0);
+                liveQuestion, view.streamingAnswer(), List.of(), view.context(), List.of(), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null), 0,
+                view.activeSentAt() == null ? pendingSentAt : view.activeSentAt());
         if (!liveQuestion.isEmpty()) {
             y = drawUserMessage(graphics, liveQuestion, y, false);
             y = drawMessageActions(graphics, liveTurn, true, GroundingInstructions.historyTokenCounts(liveTurn).user(), y, mouseX, mouseY) + 7;
@@ -420,25 +427,31 @@ public final class AssistantScreen extends Screen {
     }
 
     private int drawMessageActions(GuiGraphics graphics, ChatContracts.Turn turn, boolean user, int tokens, int y, int mouseX, int mouseY) {
-        Component count = Component.literal("~" + tokens + " tokens").withStyle(style -> style.withFont(ModernUi.FONT));
+        Component count = Component.literal((user && turn.sentAt() != null ? DateTimeFormatter.ofPattern("MMM d, HH:mm", java.util.Locale.getDefault())
+                .withZone(ZoneId.systemDefault()).format(turn.sentAt()) + " · " : "")
+                + "~" + tokens + " tokens").withStyle(style -> style.withFont(ModernUi.FONT));
         boolean editable = user && !view.active() && !awaitingRequestView && !view.readOnly()
                 && turn == view.conversation().turns().getLast();
-        int left = user ? readableLeft + readableWidth - font.width(count) - 42 - (editable ? 38 : 0) : readableLeft + 26;
-        graphics.drawString(font, count, left, y + 6, ModernUi.MUTED, false);
-        int actionLeft = left + font.width(count) + 8;
-        ModernUi.surface(graphics, actionLeft, y + 2, actionLeft + 34, y + 18,
-                mouseX >= actionLeft && mouseX < actionLeft + 34 && mouseY >= y + 2 && mouseY < y + 18 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+        boolean stacked = user && font.width(count) + 42 + (editable ? 38 : 0) > readableWidth;
+        int left = user ? Math.max(readableLeft, readableLeft + readableWidth - font.width(count) - 42 - (editable ? 38 : 0)) : readableLeft + 26;
+        List<net.minecraft.util.FormattedCharSequence> lines = font.split(count, Math.max(1, stacked ? readableWidth : font.width(count)));
+        for (int index = 0; index < lines.size(); index++) graphics.drawString(font, lines.get(index), left,
+                y + 6 + index * ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.MUTED, false);
+        int actionLeft = stacked ? readableLeft + readableWidth - 34 - (editable ? 38 : 0) : left + font.width(count) + 8;
+        int actionY = y + 2 + (stacked ? lines.size() * ModernUi.MESSAGE_LINE_HEIGHT + 4 : 0);
+        ModernUi.surface(graphics, actionLeft, actionY, actionLeft + 34, actionY + 16,
+                mouseX >= actionLeft && mouseX < actionLeft + 34 && mouseY >= actionY && mouseY < actionY + 16 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
         graphics.drawString(font, Component.literal("Copy").withStyle(style -> style.withFont(ModernUi.FONT)),
-                actionLeft + 5, y + 2 + (16 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
-        messageActions.add(new MessageAction(turn, user, false, actionLeft, y + 2, 34));
+                actionLeft + 5, actionY + (16 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        messageActions.add(new MessageAction(turn, user, false, actionLeft, actionY, 34));
         if (editable) {
-            ModernUi.surface(graphics, actionLeft + 40, y + 2, actionLeft + 72, y + 18,
-                    mouseX >= actionLeft + 40 && mouseX < actionLeft + 72 && mouseY >= y + 2 && mouseY < y + 18 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+            ModernUi.surface(graphics, actionLeft + 40, actionY, actionLeft + 72, actionY + 16,
+                    mouseX >= actionLeft + 40 && mouseX < actionLeft + 72 && mouseY >= actionY && mouseY < actionY + 16 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
             graphics.drawString(font, Component.literal("Edit").withStyle(style -> style.withFont(ModernUi.FONT)),
-                    actionLeft + 45, y + 2 + (16 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
-            messageActions.add(new MessageAction(turn, true, true, actionLeft + 40, y + 2, 32));
+                    actionLeft + 45, actionY + (16 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+            messageActions.add(new MessageAction(turn, true, true, actionLeft + 40, actionY, 32));
         }
-        return y + 22;
+        return actionY + 20;
     }
 
     private void drawAssistantAvatar(GuiGraphics graphics, int y) {
@@ -626,8 +639,8 @@ public final class AssistantScreen extends Screen {
         List<ToolbarItem> items = new ArrayList<>();
         int x = readableLeft;
         int y = toggleY;
-        for (String kind : List.of("context", "model", "effort", "search", "screenshot")) {
-            int itemWidth = kind.equals("context") ? buttonWidth / 2 : buttonWidth;
+        for (String kind : List.of("model", "effort", "search", "screenshot")) {
+            int itemWidth = buttonWidth;
             if (x > readableLeft && x + itemWidth > readableLeft + readableWidth) {
                 x = readableLeft;
                 y += 26;
@@ -635,6 +648,7 @@ public final class AssistantScreen extends Screen {
             items.add(new ToolbarItem(kind, x, y, itemWidth));
             x += itemWidth + 6;
         }
+        items.add(new ToolbarItem("context", readableLeft + 26, sendY, buttonWidth / 2));
         return items;
     }
 
@@ -712,37 +726,21 @@ public final class AssistantScreen extends Screen {
         for (ToolbarItem item : tooltipItems) {
             if (mouseX < item.x() || mouseX >= item.x() + item.width() || mouseY < item.y() || mouseY >= item.y() + 20) continue;
             List<Component> lines = new ArrayList<>();
+            List<ScreenText.TooltipField> fields = List.of();
+            String title = "";
+            String footer = "";
             if (item.kind().equals("context")) {
-                if (view.readOnly()) lines.add(Component.literal("Join this world/server to send from this session."));
-                lines.add(Component.literal("History: ~" + history.selection().tokenCount() + " / " + history.effectiveTokens() + " tokens"));
-                lines.add(Component.literal("Configured: " + history.configuredTokens() + " · model: "
-                        + (history.modelTokens() == null ? "limit unknown" : history.modelTokens())));
-                lines.add(Component.literal("Included: " + history.selection().turns().size() * 2 + " messages ("
-                        + history.selection().turns().size() + " / " + history.configuredTurns() + " turns)"));
-                lines.add(Component.literal("Only complete exchanges within both history quotas are sent."));
-                lines.add(Component.literal("Tokenized message-text estimate (o200k_base)."));
-                lines.add(Component.literal("Fresh gameplay, screenshot, instructions and output use additional context."));
+                title = "Chat context";
+                fields = ScreenText.historyContextFields(history);
+                footer = view.readOnly() ? "Read-only until you join this world/server." : "Estimated tokens for included messages.";
             } else if (item.kind().equals("extra")) {
-                lines.add(Component.literal("Gameplay context"));
+                title = "Current gameplay";
                 try {
-                    var captured = com.google.gson.JsonParser.parseString(actions.gameplayContext().serializedGameplayContext());
-                    if (captured.isJsonObject()) {
-                        for (String key : List.of("position", "dimension", "biome", "held", "targeted")) {
-                            var value = captured.getAsJsonObject().get(key);
-                            if (value != null && !value.isJsonNull()) lines.add(Component.literal(switch (key) {
-                                case "position" -> "Coordinates";
-                                case "dimension" -> "Dimension";
-                                case "biome" -> "Biome";
-                                case "held" -> "Held item";
-                                default -> "Looking at";
-                            } + ": "
-                                    + (value.isJsonPrimitive() ? value.getAsString() : value.toString())));
-                        }
-                    }
+                    fields = ScreenText.gameplayContextFields(actions.gameplayContext());
                 } catch (RuntimeException ignored) {
                     lines.add(Component.literal("Gameplay observation is unavailable."));
                 }
-                lines.add(Component.literal("These values are captured again when sending."));
+                footer = "Attached with your next message.";
             } else if (item.kind().equals("model")) {
                 String selectedId = settings.modelId() == null ? actions.providerSelectedModelId() : settings.modelId();
                 lines.add(Component.literal(actions.modelCatalog().stream().filter(model -> model.id().equals(selectedId))
@@ -750,14 +748,48 @@ public final class AssistantScreen extends Screen {
             } else if (item.kind().equals("effort")) lines.add(Component.literal("Reasoning effort: " + settings.reasoningEffort().name().toLowerCase(java.util.Locale.ROOT)));
             else lines.add(Component.literal(item.kind().equals("search") ? "Web search" : "Attach screenshot"));
             List<net.minecraft.util.FormattedCharSequence> wrapped = new ArrayList<>();
-            int tooltipWidth = Math.max(1, Math.min(300, width - 24));
-            for (Component line : lines) wrapped.addAll(font.split(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 16));
-            int tooltipHeight = Math.min(height - 8, wrapped.size() * ModernUi.MESSAGE_LINE_HEIGHT + 16);
+            int tooltipWidth = Math.max(1, Math.min(286, width - 24));
+            int labelWidth = fields.stream().mapToInt(field -> font.width(Component.literal(field.label())
+                    .withStyle(style -> style.withFont(ModernUi.FONT))) + 14).max().orElse(0);
+            List<List<net.minecraft.util.FormattedCharSequence>> values = new ArrayList<>();
+            for (ScreenText.TooltipField field : fields) values.add(font.split(Component.literal(field.value())
+                    .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, tooltipWidth - 20 - labelWidth)));
+            for (Component line : lines) wrapped.addAll(font.split(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 20));
+            List<net.minecraft.util.FormattedCharSequence> footerLines = footer.isEmpty() ? List.of()
+                    : font.split(Component.literal(footer).withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 20);
+            int tooltipHeight = Math.min(height - 8, 20 + (title.isEmpty() ? 0 : 16) + wrapped.size() * 14
+                    + values.stream().mapToInt(value -> Math.max(1, value.size()) * 14).sum()
+                    + (footerLines.isEmpty() ? 0 : 6 + footerLines.size() * 14));
             int left = Math.max(4, Math.min(mouseX + 10, width - tooltipWidth - 4));
             int top = Math.max(4, item.y() - tooltipHeight - 6);
-            ModernUi.surface(graphics, left, top, left + tooltipWidth, top + tooltipHeight, 0xf020252a);
-            for (int index = 0; index < wrapped.size() && index < (tooltipHeight - 16) / ModernUi.MESSAGE_LINE_HEIGHT; index++) graphics.drawString(font, wrapped.get(index), left + 8,
-                    top + 8 + index * ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.TEXT, false);
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, 0, 400);
+            ModernUi.surface(graphics, left, top, left + tooltipWidth, top + tooltipHeight, 0xff20252a);
+            graphics.enableScissor(left + 4, top + 4, left + tooltipWidth - 4, top + tooltipHeight - 4);
+            int y = top + 10;
+            if (!title.isEmpty()) {
+                graphics.drawString(font, Component.literal(title).withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
+                        left + 10, y, ModernUi.TEXT, false);
+                y += 16;
+            }
+            for (int index = 0; index < fields.size(); index++) {
+                graphics.drawString(font, Component.literal(fields.get(index).label()).withStyle(style -> style.withFont(ModernUi.FONT)),
+                        left + 10, y, ModernUi.MUTED, false);
+                for (int line = 0; line < values.get(index).size(); line++) graphics.drawString(font, values.get(index).get(line),
+                        left + 10 + labelWidth, y + line * 14, ModernUi.TEXT, false);
+                y += Math.max(1, values.get(index).size()) * 14;
+            }
+            for (var line : wrapped) {
+                graphics.drawString(font, line, left + 10, y, ModernUi.TEXT, false);
+                y += 14;
+            }
+            if (!footerLines.isEmpty()) y += 6;
+            for (var line : footerLines) {
+                graphics.drawString(font, line, left + 10, y, ModernUi.MUTED, false);
+                y += 14;
+            }
+            graphics.disableScissor();
+            graphics.pose().popPose();
         }
     }
 
@@ -983,6 +1015,7 @@ public final class AssistantScreen extends Screen {
                 || !next.conversation().turns().getLast().requestId().equals(editingRequest))) editingRequest = null;
         awaitingRequestView = false;
         pendingQuestion = "";
+        if (!next.active()) pendingSentAt = null;
         if (completed) followOnCompletion = followBottom;
         if (historyLoaded) followOnCompletion = followBottom;
         layout();
@@ -1018,6 +1051,7 @@ public final class AssistantScreen extends Screen {
         if (input.isBlank() || view.readOnly() || view.active() || awaitingRequestView) return;
         String question = input;
         pendingQuestion = question;
+        pendingSentAt = Instant.now();
         setInput("");
         awaitingRequestView = true;
         if (editingRequest == null) actions.send(question, includeScreenshot, explicitWebSearch);

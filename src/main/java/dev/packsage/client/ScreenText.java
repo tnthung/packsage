@@ -10,6 +10,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -51,6 +52,9 @@ final class ScreenText {
         InlineLine {
             spans = List.copyOf(spans);
         }
+    }
+
+    record TooltipField(String label, String value) {
     }
 
     private ScreenText() {
@@ -380,6 +384,92 @@ final class ScreenText {
         return "Context: " + String.join(SEPARATOR, parts);
     }
 
+    static List<TooltipField> gameplayContextFields(ChatContracts.Context context) {
+        JsonObject object = null;
+        try {
+            JsonElement parsed = JsonParser.parseString(context.serializedGameplayContext());
+            if (parsed.isJsonObject()) object = parsed.getAsJsonObject();
+        } catch (RuntimeException ignored) {
+            // malformed gameplay context is shown as unknown values
+        }
+        List<TooltipField> fields = new ArrayList<>();
+        String position = object == null ? null : string(object, "position");
+        String positionText = position == null ? null : coordinates(position);
+        fields.add(new TooltipField("Coordinates", positionText == null ? "Unknown" : positionText));
+        String dimension = object == null ? null : string(object, "dimension");
+        String dimensionName = dimension == null || dimension.equals("unavailable") ? "Unknown"
+                : switch (withoutNamespace(dimension)) {
+                    case "overworld" -> "Overworld";
+                    case "the_nether" -> "Nether";
+                    case "the_end" -> "The End";
+                    default -> displayName(dimension);
+                };
+        fields.add(new TooltipField("Dimension", dimensionName));
+        String biome = object == null ? null : string(object, "biome");
+        fields.add(new TooltipField("Biome", biome == null || biome.equals("unavailable") ? "Unknown" : displayName(biome)));
+
+        String held = object == null ? null : string(object, "held");
+        String heldValue = object == null ? "Unknown" : "None";
+        if (held != null && !held.equals("unavailable")) {
+            heldValue = "Unknown";
+            if (held.startsWith("item:")) {
+                int countStart = held.indexOf(";count=");
+                int nameStart = held.indexOf(";name=");
+                String itemId = held.substring("item:".length(), held.indexOf(';') < 0 ? held.length() : held.indexOf(';'));
+                int nameEnd = nameStart < 0 ? -1 : held.indexOf(';', nameStart + 6);
+                String itemName = nameStart < 0 ? null : held.substring(nameStart + 6,
+                        nameEnd < 0 ? held.length() : nameEnd);
+                String itemCount = countStart < 0 ? null : held.substring(countStart + 7,
+                        held.indexOf(';', countStart + 7) < 0 ? held.length() : held.indexOf(';', countStart + 7));
+                if (itemName != null && !itemName.isBlank()) {
+                    try {
+                        heldValue = itemName + " ×" + NumberFormat.getIntegerInstance().format(Integer.parseInt(itemCount));
+                    } catch (NumberFormatException | NullPointerException ignored) {
+                        heldValue = itemName;
+                    }
+                } else if (!itemId.isBlank() && !itemId.endsWith(":")) {
+                    heldValue = displayName(itemId);
+                }
+            }
+        }
+        fields.add(new TooltipField("Held item", heldValue));
+
+        String focusKind = object == null ? null : string(object, "focusKind");
+        String targeted = object == null ? null : string(object, "targeted");
+        String targetValue = "Unknown";
+        String targetCoordinates = null;
+        if ("miss".equals(focusKind)) targetValue = "None";
+        else if ("block".equals(focusKind) || "entity".equals(focusKind)) {
+            String prefix = focusKind + ":";
+            if (targeted != null && targeted.startsWith(prefix)) {
+                String target = targeted.substring(prefix.length());
+                int detailsStart = target.indexOf('@');
+                String targetId = detailsStart < 0 ? target : target.substring(0, detailsStart);
+                if (!targetId.isBlank() && !targetId.endsWith(":")) targetValue = displayName(targetId);
+                if (focusKind.equals("block") && detailsStart >= 0) {
+                    targetCoordinates = coordinates(target.substring(detailsStart + 1));
+                }
+            }
+        } else if ("unavailable".equals(focusKind)) targetValue = "Unknown";
+        fields.add(new TooltipField("Looking at", targetValue));
+        if (targetCoordinates != null) fields.add(new TooltipField("Target at", targetCoordinates));
+        return List.copyOf(fields);
+    }
+
+    static List<TooltipField> historyContextFields(ChatContracts.HistoryPreview preview) {
+        NumberFormat numbers = NumberFormat.getIntegerInstance();
+        int usage = preview.selection().tokenCount();
+        int turns = preview.selection().turns().size();
+        int percent = (int) Math.round((double) usage * 100 / preview.effectiveTokens());
+        return List.of(
+                new TooltipField("Usage", "~" + numbers.format(usage) + " / " + numbers.format(preview.effectiveTokens())
+                        + " (" + numbers.format(percent) + "%)"),
+                new TooltipField("Included", numbers.format(turns * 2) + " messages (" + numbers.format(turns)
+                        + " / " + numbers.format(preview.configuredTurns()) + " turns)"),
+                new TooltipField("Your limit", numbers.format(preview.configuredTokens()) + " tokens"),
+                new TooltipField("Model limit", preview.modelTokens() == null ? "Unknown" : numbers.format(preview.modelTokens()) + " tokens"));
+    }
+
     private static String string(JsonObject object, String key) {
         JsonElement value = object.get(key);
         if (value == null || !value.isJsonPrimitive()) return null;
@@ -404,7 +494,7 @@ final class ScreenText {
                 default -> z = matcher.group(2);
             }
         }
-        return x == null || y == null || z == null ? null : "x" + x + " y" + y + " z" + z;
+        return x == null || y == null || z == null ? null : x + ", " + y + ", " + z;
     }
 
     /** Returns the visible outcome line, or null when the turn completed normally. */

@@ -177,6 +177,42 @@ public final class ConversationStore {
         });
     }
 
+    public CompletionStage<Void> replaceLatestTurn(ChatContracts.WorldIdentity world, Evidence.Scope expectedScope,
+                                                    String conversationId, ChatContracts.RequestId expectedLatest,
+                                                    ChatContracts.Turn replacement) {
+        return enqueue(() -> {
+            Path file = findConversation(world, conversationId);
+            try {
+                if (!expectedScope.equals(replacement.context().scope())
+                        || replacement.sources().stream().anyMatch(source -> !expectedScope.equals(source.scope()))) {
+                    throw new IOException("turn evidence scope does not match the submitted request scope");
+                }
+                if (!hasConversationHeader(file, world, conversationId)) throw new IOException("conversation header does not match append target");
+                ChatContracts.Conversation conversation = readConversation(file, world);
+                if (conversation == null || conversation.turns().isEmpty()
+                        || !conversation.turns().getLast().requestId().equals(expectedLatest)) {
+                    throw new IOException("latest conversation turn changed before replacement");
+                }
+                Path temporary = file.resolveSibling(file.getFileName() + ".replace-" + UUID.randomUUID() + ".tmp");
+                try {
+                    StringBuilder contents = new StringBuilder(conversationJson(conversation)).append('\n');
+                    for (int index = 0; index < conversation.turns().size() - 1; index++) {
+                        contents.append(turnJson(world, conversation.turns().get(index))).append('\n');
+                    }
+                    contents.append(turnJson(world, replacement)).append('\n');
+                    Files.writeString(temporary, contents, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+                    Files.move(temporary, file, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                } finally {
+                    Files.deleteIfExists(temporary);
+                }
+            } catch (IOException exception) {
+                report(exception);
+                throw new RuntimeException(exception);
+            }
+        });
+    }
+
     public CompletionStage<Void> appendMedia(String conversationId, ChatContracts.Screenshot screenshot, byte[] bytes) {
         throw new IllegalArgumentException("world identity is required when appending media");
     }

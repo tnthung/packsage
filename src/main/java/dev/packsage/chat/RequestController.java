@@ -46,6 +46,7 @@ public final class RequestController {
     private List<Evidence.NavigationTarget> navigationTargets = List.of();
     private ChatContracts.RequestId visibleRequest;
     private ActiveRequest active;
+    private ActiveRequest pendingReplacement;
     private WorldLoad worldLoad;
     private ChatContracts.WorldIdentity openedWorld;
     private Evidence.Scope openedScope;
@@ -82,6 +83,15 @@ public final class RequestController {
         synchronized (stateLock) {
             if (active != null) return CompletableFuture.failedFuture(new IllegalStateException("a request is already active"));
             if (worldLoad != null) return CompletableFuture.failedFuture(new IllegalStateException("world history is still loading"));
+            if (pendingReplacement != null && !pendingReplacement.persistenceSettled) {
+                return CompletableFuture.failedFuture(new IllegalStateException("replacement is still being saved"));
+            }
+            if (submission.replacing() != null && (forceNew
+                    || !conversation.world().worldOrServer().equals(submission.world().worldOrServer())
+                    || conversation.turns().isEmpty()
+                    || !conversation.turns().getLast().requestId().equals(submission.replacing()))) {
+                return CompletableFuture.failedFuture(new IllegalStateException("latest exchange changed before resend"));
+            }
             generation++;
             createNew = forceNew;
             forceNew = false;
@@ -94,7 +104,8 @@ public final class RequestController {
             context = new ChatContracts.Context("", null, submission.scope());
             sources = List.of();
             navigationTargets = List.of();
-            reusableConversation = !createNew && conversation.world().equals(submission.world())
+            reusableConversation = !createNew
+                    && conversation.world().worldOrServer().equals(submission.world().worldOrServer())
                     && !conversation.id().startsWith("pending") ? conversation : null;
             if (reusableConversation == null) {
                 conversation = new ChatContracts.Conversation("pending:" + submission.requestId().value(), submission.world(), List.of(),
@@ -138,17 +149,58 @@ public final class RequestController {
     public void showConversation(ChatContracts.Conversation loaded, Evidence.Scope scope) {
         cancelWorldLoad("conversation view changed");
         cancelActive("conversation view changed");
+        ActiveRequest replacement;
+        WorldLoad reload = null;
+        ChatContracts.WorldIdentity storedWorld = null;
         synchronized (stateLock) {
             generation++;
             forceNew = false;
-            conversation = loaded;
-            openedWorld = loaded.world();
-            openedScope = scope;
-            visibleRequest = null;
-            context = new ChatContracts.Context("", null, scope);
-            sources = List.of();
-            navigationTargets = List.of();
-            errors.clear();
+            replacement = pendingReplacement;
+            ChatContracts.Conversation target = replacement == null ? null : replacement.target.getNow(null);
+            boolean replacingLoaded = replacement != null && (target != null
+                    && target.world().worldOrServer().equals(loaded.world().worldOrServer()) && target.id().equals(loaded.id())
+                    || loaded.world().worldOrServer().equals(replacement.submission.world().worldOrServer())
+                    && !loaded.turns().isEmpty()
+                    && loaded.turns().getLast().requestId().equals(replacement.submission.replacing()));
+            boolean staleReplacement = replacingLoaded && !loaded.turns().isEmpty()
+                    && loaded.turns().getLast().requestId().equals(replacement.submission.replacing());
+            if (replacingLoaded && (!replacement.persistenceSettled || staleReplacement)) {
+                storedWorld = target == null ? loaded.world() : target.world();
+                worldLoadGeneration++;
+                reload = new WorldLoad(loaded.world(), scope, false, worldLoadGeneration);
+                worldLoad = reload;
+                openedWorld = null;
+                openedScope = null;
+                visibleRequest = null;
+                errors.clear();
+            } else {
+                conversation = loaded;
+                openedWorld = loaded.world();
+                openedScope = scope;
+                visibleRequest = null;
+                context = new ChatContracts.Context("", null, scope);
+                sources = List.of();
+                navigationTargets = List.of();
+                errors.clear();
+            }
+        }
+        if (reload != null) {
+            WorldLoad pendingLoad = reload;
+            ChatContracts.WorldIdentity persistenceWorld = storedWorld;
+            replacement.persistence.whenCompleteAsync((ignored, persistenceFailure) -> {
+                CompletionStage<ChatContracts.Conversation> operation;
+                synchronized (stateLock) {
+                    pendingLoad.persistenceFailure = replacement.persistenceFailure;
+                }
+                try {
+                    operation = store.openConversation(persistenceWorld, loaded.id());
+                } catch (RuntimeException exception) {
+                    worldLoadReady(pendingLoad, null, exception);
+                    return;
+                }
+                operation.whenCompleteAsync((fresh, failure) -> worldLoadReady(pendingLoad, fresh, failure), executor);
+            }, executor);
+            return;
         }
         publish();
     }
@@ -169,11 +221,13 @@ public final class RequestController {
         }
         boolean reused = false;
         synchronized (stateLock) {
-            if (active == null && worldLoad != null && worldLoad.createNew && worldLoad.world.equals(currentWorld)) {
+            if (active == null && worldLoad != null && worldLoad.createNew
+                    && worldLoad.world.worldOrServer().equals(currentWorld.worldOrServer())) {
                 worldLoad.scope = currentScope;
                 context = new ChatContracts.Context("", null, currentScope);
                 reused = true;
-            } else if (active == null && worldLoad == null && conversation.world().equals(currentWorld)
+            } else if (active == null && worldLoad == null
+                    && conversation.world().worldOrServer().equals(currentWorld.worldOrServer())
                     && !conversation.id().startsWith("pending") && conversation.turns().isEmpty()) {
                 forceNew = false;
                 openedWorld = currentWorld;
@@ -215,16 +269,19 @@ public final class RequestController {
     public void disconnect() {
         cancelWorldLoad("world load was cancelled by disconnect");
         cancelActive("disconnected");
+        synchronized (stateLock) { visibleRequest = null; }
     }
 
     public void worldChanged() {
         cancelWorldLoad("world load was cancelled by world change");
         cancelActive("world changed");
+        synchronized (stateLock) { visibleRequest = null; }
     }
 
     public void invalidate(String scope) {
         cancelWorldLoad("world load was invalidated: " + scope);
         cancelActive("invalidated: " + scope);
+        synchronized (stateLock) { visibleRequest = null; }
     }
 
     public ChatContracts.View view() {
@@ -261,15 +318,26 @@ public final class RequestController {
         }
         if (hadActive) cancelActive(cancellationDetail);
         else publish();
-
-        CompletionStage<ChatContracts.Conversation> operation;
-        try {
-            operation = createNew ? store.newConversation(world) : store.openLatest(world);
-        } catch (RuntimeException exception) {
-            worldLoadReady(load, null, exception);
-            return load.result;
+        ActiveRequest replacement;
+        synchronized (stateLock) {
+            replacement = !createNew && pendingReplacement != null && !pendingReplacement.persistenceSettled
+                    && pendingReplacement.submission.world().worldOrServer().equals(world.worldOrServer())
+                    ? pendingReplacement : null;
         }
-        operation.whenCompleteAsync((loaded, failure) -> worldLoadReady(load, loaded, failure), executor);
+        CompletionStage<Void> barrier = replacement == null
+                ? CompletableFuture.completedFuture(null) : replacement.persistence;
+        barrier.whenCompleteAsync((ignored, persistenceFailure) -> {
+            CompletionStage<ChatContracts.Conversation> operation;
+            try {
+                ChatContracts.Conversation target = replacement == null ? null : replacement.target.getNow(null);
+                operation = createNew ? store.newConversation(world)
+                        : store.openLatest(target == null ? world : target.world());
+            } catch (RuntimeException exception) {
+                worldLoadReady(load, null, exception);
+                return;
+            }
+            operation.whenCompleteAsync((loaded, failure) -> worldLoadReady(load, loaded, failure), executor);
+        }, executor);
         return load.result;
     }
 
@@ -280,11 +348,12 @@ public final class RequestController {
             current = worldLoad == load && worldLoadGeneration == load.generation;
             if (current) {
                 worldLoad = null;
-                if (failure == null && loaded.world().equals(load.world)) {
+                if (failure == null && loaded.world().worldOrServer().equals(load.world.worldOrServer())) {
                     openedWorld = load.world;
                     openedScope = load.scope;
                     conversation = loaded;
                     context = new ChatContracts.Context("", null, load.scope);
+                    if (load.persistenceFailure != null) errors.add(load.persistenceFailure);
                 } else {
                     errors.add(failure == null ? "loaded conversation belongs to another world" : failureMessage(failure));
                 }
@@ -296,7 +365,9 @@ public final class RequestController {
             return;
         }
         if (snapshot != null) publisher.accept(snapshot);
-        if (failure == null && loaded.world().equals(load.world)) load.result.complete(loaded);
+        if (failure == null && loaded.world().worldOrServer().equals(load.world.worldOrServer())) {
+            load.result.complete(loaded);
+        }
         else load.result.completeExceptionally(failure == null
                 ? new IllegalStateException("loaded conversation belongs to another world") : failure);
     }
@@ -319,7 +390,8 @@ public final class RequestController {
         }
         ChatContracts.View snapshot = null;
         synchronized (stateLock) {
-            if (isCurrent(request) && loaded.world().equals(request.submission.world())) {
+            if (isCurrent(request)
+                    && loaded.world().worldOrServer().equals(request.submission.world().worldOrServer())) {
                 conversation = loaded;
                 snapshot = currentView();
             }
@@ -361,7 +433,8 @@ public final class RequestController {
         ChatContracts.HistorySelection history;
         ModelBackend.Request modelRequest;
         try {
-            history = HistorySelector.select(target.turns(), request.submission.historyLimits(), tokenCounter::apply);
+            history = HistorySelector.select(target.turns(), request.submission.historyLimits(), tokenCounter::apply,
+                    request.submission.replacing());
             modelRequest = requestBuilder.apply(new ChatContracts.PreparedRequest(request.submission, history, captured,
                     request.evidence));
             if (!request.submission.selectedModel().id().equals(modelRequest.modelId())
@@ -421,8 +494,9 @@ public final class RequestController {
                 request.answer.append(event.text());
                 request.activity = ActivityLabels.WRITING;
             } else if (event.kind() == ModelBackend.EventKind.RETRYING) {
-                request.answer.setLength(0);
-                request.activity = ActivityLabels.RETRYING_WITHOUT_WEB_SEARCH;
+                boolean providerRetry = event.detail() != null && event.detail().startsWith("temporary provider failure");
+                if (!providerRetry) request.answer.setLength(0);
+                request.activity = providerRetry ? "Retrying provider request…" : ActivityLabels.RETRYING_WITHOUT_WEB_SEARCH;
             } else if (event.kind() == ModelBackend.EventKind.REASONING) {
                 if (request.activity.equals(ActivityLabels.THINKING)) return;
                 request.activity = ActivityLabels.THINKING;
@@ -517,6 +591,7 @@ public final class RequestController {
                 replay = completePairs(request);
             }
             active = null;
+            if (request.submission.replacing() != null) pendingReplacement = request;
             target = request.target.join();
             captured = request.captured;
         }
@@ -534,7 +609,8 @@ public final class RequestController {
                     untokened.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, failureMessage(exception)), 0);
         }
-        updateVisibleTurn(request, target, turn);
+        if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
+        else publish();
         persist(request, target, turn, captured.screenshotBytes());
     }
 
@@ -546,6 +622,7 @@ public final class RequestController {
             request = active;
             if (request == null) return;
             active = null;
+            if (request.submission.replacing() != null) pendingReplacement = request;
             generation++;
             exchange = request.exchange;
             captured = request.captured == null
@@ -562,14 +639,15 @@ public final class RequestController {
         ChatContracts.CapturedContext persisted = captured;
         request.target.whenCompleteAsync((target, failure) -> {
             if (failure != null) {
-                publishPersistenceFailure(request, null, failure);
+                if (request.submission.replacing() == null) publishPersistenceFailure(request, null, failure);
+                else finishReplacementPersistence(request, null, null, failure);
                 return;
             }
             ChatContracts.Turn turn = new ChatContracts.Turn(request.submission.requestId(), request.submission.question(),
                     request.answer.toString(), List.copyOf(request.partialReplay), persisted.context(), request.evidence.sources(),
                     request.evidence.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.CANCELLED, detail), 0);
-            updateVisibleTurn(request, target, turn);
+            if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
             persist(request, target, turn, persisted.screenshotBytes());
         }, executor);
     }
@@ -594,7 +672,8 @@ public final class RequestController {
         synchronized (stateLock) {
             if (isVisible(request, target)) {
                 List<ChatContracts.Turn> turns = new ArrayList<>(target.turns());
-                turns.removeIf(existing -> existing.requestId().equals(turn.requestId()));
+                turns.removeIf(existing -> existing.requestId().equals(turn.requestId())
+                        || request.submission.replacing() != null && existing.requestId().equals(request.submission.replacing()));
                 turns.add(turn);
                 conversation = new ChatContracts.Conversation(target.id(), target.world(), turns, turn.outcome());
                 context = turn.context();
@@ -616,15 +695,53 @@ public final class RequestController {
                         new ChatContracts.Context(turn.context().serializedGameplayContext(), null, turn.context().scope()),
                         turn.sources(), turn.navigationTargets(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED,
                         "media persistence failed: " + failureMessage(mediaFailure)), turn.tokenCount());
-                updateVisibleTurn(request, target, persistedTurn);
+                if (request.submission.replacing() == null) updateVisibleTurn(request, target, persistedTurn);
                 publishPersistenceFailure(request, target, mediaFailure);
             }
             ChatContracts.Turn finalTurn = persistedTurn;
-            store.appendTurn(target.world(), request.submission.scope(), target.id(), finalTurn)
+            CompletionStage<Void> persisted = request.submission.replacing() == null
+                    ? store.appendTurn(target.world(), request.submission.scope(), target.id(), finalTurn)
+                    : store.replaceLatestTurn(target.world(), request.submission.scope(), target.id(), request.submission.replacing(), finalTurn);
+            persisted
                     .whenCompleteAsync((saved, appendFailure) -> {
-                        if (appendFailure != null) publishPersistenceFailure(request, target, appendFailure);
+                        if (request.submission.replacing() == null) {
+                            if (appendFailure != null) publishPersistenceFailure(request, target, appendFailure);
+                            return;
+                        }
+                        finishReplacementPersistence(request, target, finalTurn, appendFailure);
                     }, executor);
         }, executor);
+    }
+
+    private void finishReplacementPersistence(ActiveRequest request, ChatContracts.Conversation target,
+                                              ChatContracts.Turn turn, Throwable failure) {
+        ChatContracts.View snapshot = null;
+        synchronized (stateLock) {
+            request.persistenceSettled = true;
+            request.persistenceFailure = failure == null ? null : failureMessage(failure);
+            if (failure == null && target != null
+                    && conversation.world().worldOrServer().equals(target.world().worldOrServer())
+                    && conversation.id().equals(target.id())) {
+                boolean publish = isVisible(request, target);
+                List<ChatContracts.Turn> turns = new ArrayList<>(target.turns());
+                turns.removeIf(existing -> existing.requestId().equals(request.submission.replacing()));
+                turns.add(turn);
+                conversation = new ChatContracts.Conversation(target.id(), target.world(), turns, turn.outcome());
+                if (publish) {
+                    context = turn.context();
+                    sources = turn.sources();
+                    navigationTargets = turn.navigationTargets();
+                    snapshot = currentView();
+                }
+            } else if (failure != null && (target == null
+                    ? visibleRequest != null && visibleRequest.equals(request.submission.requestId())
+                    : isVisible(request, target))) {
+                errors.add(failureMessage(failure));
+                snapshot = currentView();
+            }
+        }
+        request.persistence.complete(null);
+        if (snapshot != null) publisher.accept(snapshot);
     }
 
     private void publishPersistenceFailure(ActiveRequest request, ChatContracts.Conversation target, Throwable failure) {
@@ -645,7 +762,7 @@ public final class RequestController {
 
     private boolean isVisible(ActiveRequest request, ChatContracts.Conversation target) {
         return visibleRequest != null && visibleRequest.equals(request.submission.requestId())
-                && conversation.world().equals(target.world())
+                && conversation.world().worldOrServer().equals(target.world().worldOrServer())
                 && (conversation.id().equals(target.id()) || conversation.id().equals("pending:" + request.submission.requestId().value()));
     }
 
@@ -658,10 +775,14 @@ public final class RequestController {
     }
 
     private ChatContracts.View currentView() {
-        return new ChatContracts.View(active != null, ChatContracts.SignInState.SIGNED_OUT, false, conversation, context,
-                sources, navigationTargets, List.copyOf(errors), active == null ? "" : active.answer.toString(),
-                active == null ? "" : active.activity, conversation.world(), false,
-                active == null ? "" : active.submission.question());
+        ActiveRequest visible = active != null ? active : pendingReplacement != null && !pendingReplacement.persistenceSettled
+                && visibleRequest != null && visibleRequest.equals(pendingReplacement.submission.requestId())
+                && conversation.world().worldOrServer().equals(pendingReplacement.submission.world().worldOrServer())
+                ? pendingReplacement : null;
+        return new ChatContracts.View(visible != null, ChatContracts.SignInState.SIGNED_OUT, false, conversation, context,
+                sources, navigationTargets, List.copyOf(errors), visible == null ? "" : visible.answer.toString(),
+                visible == null ? "" : active == null ? "Saving exchange…" : visible.activity, conversation.world(), false,
+                visible == null ? "" : visible.submission.question());
     }
 
     /** The request's tool calls that received a result, each followed by its results, in their original order. */
@@ -712,6 +833,7 @@ public final class RequestController {
         private final ChatContracts.Submission submission;
         private final long generation;
         private final CompletableFuture<ChatContracts.RequestId> started = new CompletableFuture<>();
+        private final CompletableFuture<Void> persistence = new CompletableFuture<>();
         private final StringBuilder answer = new StringBuilder();
         private String activity = ActivityLabels.PREPARING;
         private final List<ModelBackend.InputItem> partialReplay = new ArrayList<>();
@@ -723,6 +845,8 @@ public final class RequestController {
         private ChatContracts.CapturedContext captured;
         private ChatContracts.EvidenceSelection evidence;
         private ModelBackend.Exchange exchange;
+        private boolean persistenceSettled;
+        private String persistenceFailure;
 
         private ActiveRequest(ChatContracts.Submission submission, long generation) {
             this.submission = submission;
@@ -736,6 +860,7 @@ public final class RequestController {
         private final boolean createNew;
         private final long generation;
         private final CompletableFuture<ChatContracts.Conversation> result = new CompletableFuture<>();
+        private String persistenceFailure;
 
         private WorldLoad(ChatContracts.WorldIdentity world, Evidence.Scope scope, boolean createNew, long generation) {
             this.world = world;

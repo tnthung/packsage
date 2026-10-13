@@ -302,6 +302,405 @@ class RequestControllerTest {
     }
 
     @Test
+    void providerRetryKeepsPreviouslyStreamedAnswerText() {
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.View> published = new ArrayList<>();
+        RequestController controller = activityController(backend, published, "activity-provider-retry");
+
+        backend.emit("activity-provider-retry", new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "partial", null, List.of(), null));
+        backend.emit("activity-provider-retry", new ModelBackend.Event(ModelBackend.EventKind.RETRYING, null, null, List.of(),
+                "temporary provider failure; retrying once"));
+
+        assertTrue(published.getLast().activity().startsWith("Retrying provider request"));
+        assertEquals("partial", published.getLast().streamingAnswer());
+    }
+
+    @Test
+    void replacementWaitsForPersistenceBeforeInstallingOrAcceptingNextRequest() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        opened.toCompletableFuture().join();
+        controller.begin(submission("first", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("first", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        ChatContracts.RequestId firstId = controller.view().conversation().turns().getLast().requestId();
+        ChatContracts.Submission replacement = new ChatContracts.Submission(new ChatContracts.RequestId("replacement"), WORLD_A, SCOPE_A,
+                "edited", false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED,
+                4_096, ModelBackend.ReasoningEffort.DEFAULT, firstId);
+        controller.begin(replacement).toCompletableFuture().join();
+        backend.emit("replacement", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+
+        assertEquals(firstId, controller.view().conversation().turns().getLast().requestId());
+        assertTrue(controller.begin(submission("too-early", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096))
+                .toCompletableFuture().isCompletedExceptionally());
+
+        storeExecutor.drain();
+
+        assertEquals("replacement", controller.view().conversation().turns().getLast().requestId().value());
+        CompletionStage<ChatContracts.Conversation> persisted = store.openLatest(WORLD_A);
+        storeExecutor.drain();
+        assertEquals("replacement", persisted.toCompletableFuture().join().turns().getLast().requestId().value());
+    }
+
+    @Test
+    void stoppedReplacementKeepsTheConversationBusyUntilItsCancelledTurnIsSaved() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        opened.toCompletableFuture().join();
+        controller.begin(submission("first", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("first", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        ChatContracts.RequestId firstId = controller.view().conversation().turns().getLast().requestId();
+        controller.begin(new ChatContracts.Submission(new ChatContracts.RequestId("replacement-stop"), WORLD_A, SCOPE_A,
+                "edited", false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED,
+                4_096, ModelBackend.ReasoningEffort.DEFAULT, firstId)).toCompletableFuture().join();
+
+        controller.stop();
+
+        assertTrue(controller.view().active());
+        assertEquals("Saving exchange…", controller.view().activity());
+        assertTrue(controller.begin(submission("too-early", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096))
+                .toCompletableFuture().isCompletedExceptionally());
+        storeExecutor.drain();
+        assertFalse(controller.view().active());
+        assertEquals("replacement-stop", controller.view().conversation().turns().getLast().requestId().value());
+        assertEquals(ChatContracts.OutcomeStatus.CANCELLED, controller.view().conversation().turns().getLast().outcome().status());
+    }
+
+    @Test
+    void invalidationRetainsTheReplacementBarrierWithoutPublishingTheLateSave() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.View> published = new ArrayList<>();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), published::add);
+
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        opened.toCompletableFuture().join();
+        controller.begin(submission("first", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("first", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        ChatContracts.RequestId firstId = controller.view().conversation().turns().getLast().requestId();
+        controller.begin(new ChatContracts.Submission(new ChatContracts.RequestId("replacement"), WORLD_A, SCOPE_A,
+                "edited", false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED,
+                4_096, ModelBackend.ReasoningEffort.DEFAULT, firstId)).toCompletableFuture().join();
+        backend.emit("replacement", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        ChatContracts.Context invalidatedContext = controller.view().context();
+
+        controller.invalidate("resources-locale");
+        int publicationsBeforeSave = published.size();
+
+        assertTrue(controller.begin(submission("too-early", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096))
+                .toCompletableFuture().isCompletedExceptionally());
+        storeExecutor.drain();
+        assertEquals(publicationsBeforeSave, published.size());
+        assertEquals("replacement", controller.view().conversation().turns().getLast().requestId().value());
+        assertEquals(invalidatedContext, controller.view().context());
+        controller.begin(submission("after-replacement", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("after-replacement", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        assertEquals(List.of("replacement", "after-replacement"), controller.view().conversation().turns().stream()
+                .map(turn -> turn.requestId().value()).toList());
+        CompletionStage<ChatContracts.Conversation> persisted = store.openLatest(WORLD_A);
+        storeExecutor.drain();
+        assertEquals(List.of("replacement", "after-replacement"), persisted.toCompletableFuture().join().turns().stream()
+                .map(turn -> turn.requestId().value()).toList());
+    }
+
+    @Test
+    void reopeningTheReplacingConversationReloadsAfterPersistenceInsteadOfPublishingAStaleSnapshot() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        opened.toCompletableFuture().join();
+        controller.begin(submission("first", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("first", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        ChatContracts.Conversation stale = controller.view().conversation();
+        ChatContracts.RequestId firstId = stale.turns().getLast().requestId();
+        controller.begin(new ChatContracts.Submission(new ChatContracts.RequestId("replacement"), WORLD_A, SCOPE_A,
+                "edited", false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED,
+                4_096, ModelBackend.ReasoningEffort.DEFAULT, firstId)).toCompletableFuture().join();
+        backend.emit("replacement", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+
+        controller.showConversation(stale, SCOPE_A);
+        storeExecutor.drain();
+
+        assertEquals("replacement", controller.view().conversation().turns().getLast().requestId().value());
+    }
+
+    @Test
+    void renamedWorldOpenWaitsForReplacementAndKeepsFollowingTurnsOnTheStoredConversation() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        ChatContracts.Conversation original = opened.toCompletableFuture().join();
+        controller.begin(submission("first", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("first", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        ChatContracts.RequestId firstId = controller.view().conversation().turns().getLast().requestId();
+        controller.begin(new ChatContracts.Submission(new ChatContracts.RequestId("replacement"), WORLD_A, SCOPE_A,
+                "edited", false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED,
+                4_096, ModelBackend.ReasoningEffort.DEFAULT, firstId)).toCompletableFuture().join();
+        backend.emit("replacement", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        ChatContracts.WorldIdentity renamed = new ChatContracts.WorldIdentity(WORLD_A.worldOrServer(), "Renamed World A");
+
+        CompletionStage<ChatContracts.Conversation> reopened = controller.openWorld(renamed, SCOPE_A);
+        storeExecutor.drain();
+
+        assertEquals("replacement", reopened.toCompletableFuture().join().turns().getLast().requestId().value());
+        controller.begin(submission("after-rename", renamed, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("after-rename", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        assertEquals(List.of("replacement", "after-rename"), controller.view().conversation().turns().stream()
+                .map(turn -> turn.requestId().value()).toList());
+        CompletionStage<ChatContracts.Conversation> persisted = store.openConversation(WORLD_A, original.id());
+        storeExecutor.drain();
+        assertEquals(List.of("replacement", "after-rename"), persisted.toCompletableFuture().join().turns().stream()
+                .map(turn -> turn.requestId().value()).toList());
+    }
+
+    @Test
+    void renamedWorldSessionReloadsAfterReplacementAndKeepsFollowingTurnsOnTheStoredConversation() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        ChatContracts.Conversation original = opened.toCompletableFuture().join();
+        controller.begin(submission("first", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("first", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        ChatContracts.Conversation stale = controller.view().conversation();
+        ChatContracts.RequestId firstId = stale.turns().getLast().requestId();
+        controller.begin(new ChatContracts.Submission(new ChatContracts.RequestId("replacement"), WORLD_A, SCOPE_A,
+                "edited", false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED,
+                4_096, ModelBackend.ReasoningEffort.DEFAULT, firstId)).toCompletableFuture().join();
+        backend.emit("replacement", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        ChatContracts.WorldIdentity renamed = new ChatContracts.WorldIdentity(WORLD_A.worldOrServer(), "Renamed World A");
+        controller.showConversation(new ChatContracts.Conversation(stale.id(), renamed, stale.turns(), stale.outcome()), SCOPE_A);
+        storeExecutor.drain();
+
+        assertEquals("replacement", controller.view().conversation().turns().getLast().requestId().value());
+        controller.begin(submission("after-rename", renamed, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("after-rename", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        assertEquals(List.of("replacement", "after-rename"), controller.view().conversation().turns().stream()
+                .map(turn -> turn.requestId().value()).toList());
+        CompletionStage<ChatContracts.Conversation> persisted = store.openConversation(WORLD_A, original.id());
+        storeExecutor.drain();
+        assertEquals(List.of("replacement", "after-rename"), persisted.toCompletableFuture().join().turns().stream()
+                .map(turn -> turn.requestId().value()).toList());
+    }
+
+    @Test
+    void deferredReloadShowsReplacementPersistenceFailureAndAllowsRetry() throws Exception {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        opened.toCompletableFuture().join();
+        controller.begin(submission("first", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("first", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        ChatContracts.Conversation stale = controller.view().conversation();
+        ChatContracts.RequestId firstId = stale.turns().getLast().requestId();
+        controller.begin(new ChatContracts.Submission(new ChatContracts.RequestId("replacement-fail"), WORLD_A, SCOPE_A,
+                "edited", false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED,
+                4_096, ModelBackend.ReasoningEffort.DEFAULT, firstId)).toCompletableFuture().join();
+        backend.emit("replacement-fail", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        controller.showConversation(stale, SCOPE_A);
+        Path conversationFile = store.conversationPath(WORLD_A, stale.id());
+        Path backup = conversationFile.resolveSibling(conversationFile.getFileName() + ".backup");
+        Files.move(conversationFile, backup);
+
+        storeExecutor.runNext();
+        Files.move(backup, conversationFile);
+        storeExecutor.drain();
+
+        assertEquals(firstId, controller.view().conversation().turns().getLast().requestId());
+        assertFalse(controller.view().errors().isEmpty());
+        controller.showConversation(stale, SCOPE_A);
+        storeExecutor.drain();
+        assertEquals(firstId, controller.view().conversation().turns().getLast().requestId());
+        assertFalse(controller.view().errors().isEmpty());
+        controller.begin(new ChatContracts.Submission(new ChatContracts.RequestId("replacement-retry"), WORLD_A, SCOPE_A,
+                "edited again", false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED,
+                4_096, ModelBackend.ReasoningEffort.DEFAULT, firstId)).toCompletableFuture().join();
+        backend.emit("replacement-retry", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        assertEquals("replacement-retry", controller.view().conversation().turns().getLast().requestId().value());
+    }
+
+    @Test
+    void newChatSuppressesTheOldReplacementCompletionWhileStillPersistingIt() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        ChatContracts.Conversation original = opened.toCompletableFuture().join();
+        controller.begin(submission("first", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("first", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        ChatContracts.RequestId firstId = controller.view().conversation().turns().getLast().requestId();
+        controller.begin(new ChatContracts.Submission(new ChatContracts.RequestId("replacement"), WORLD_A, SCOPE_A,
+                "edited", false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED,
+                4_096, ModelBackend.ReasoningEffort.DEFAULT, firstId)).toCompletableFuture().join();
+        backend.emit("replacement", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+
+        controller.newChat(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+
+        assertTrue(controller.view().conversation().turns().isEmpty());
+        CompletionStage<ChatContracts.Conversation> persisted = store.openConversation(WORLD_A, original.id());
+        storeExecutor.drain();
+        assertEquals("replacement", persisted.toCompletableFuture().join().turns().getLast().requestId().value());
+    }
+
+    @Test
+    void worldSwitchSuppressesTheOldReplacementCompletionWhileStillPersistingIt() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        ChatContracts.Conversation original = opened.toCompletableFuture().join();
+        controller.begin(submission("first", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("first", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        ChatContracts.RequestId firstId = controller.view().conversation().turns().getLast().requestId();
+        controller.begin(new ChatContracts.Submission(new ChatContracts.RequestId("replacement"), WORLD_A, SCOPE_A,
+                "edited", false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED,
+                4_096, ModelBackend.ReasoningEffort.DEFAULT, firstId)).toCompletableFuture().join();
+        backend.emit("replacement", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+
+        CompletionStage<ChatContracts.Conversation> switched = controller.openWorld(WORLD_B, SCOPE_B);
+        storeExecutor.drain();
+
+        assertEquals(WORLD_B, switched.toCompletableFuture().join().world());
+        assertEquals(WORLD_B, controller.view().conversation().world());
+        assertTrue(controller.view().conversation().turns().isEmpty());
+        CompletionStage<ChatContracts.Conversation> persisted = store.openConversation(WORLD_A, original.id());
+        storeExecutor.drain();
+        assertEquals("replacement", persisted.toCompletableFuture().join().turns().getLast().requestId().value());
+    }
+
+    @Test
+    void failedReplacementKeepsOldTurnAndCanBeRetried() throws Exception {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        opened.toCompletableFuture().join();
+        controller.begin(submission("first", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("first", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+        ChatContracts.RequestId firstId = controller.view().conversation().turns().getLast().requestId();
+        ChatContracts.Submission failed = new ChatContracts.Submission(new ChatContracts.RequestId("replacement-fail"), WORLD_A, SCOPE_A,
+                "edited", false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED,
+                4_096, ModelBackend.ReasoningEffort.DEFAULT, firstId);
+        controller.begin(failed).toCompletableFuture().join();
+        backend.emit("replacement-fail", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        Path conversationFile = store.conversationPath(WORLD_A, controller.view().conversation().id());
+        Path backup = conversationFile.resolveSibling(conversationFile.getFileName() + ".backup");
+        Files.move(conversationFile, backup);
+        storeExecutor.drain();
+
+        assertEquals(firstId, controller.view().conversation().turns().getLast().requestId());
+        assertFalse(controller.view().errors().isEmpty());
+        Files.move(backup, conversationFile);
+        ChatContracts.Submission retry = new ChatContracts.Submission(new ChatContracts.RequestId("replacement-retry"), WORLD_A, SCOPE_A,
+                "edited again", false, new ChatContracts.HistoryLimits(10, 12_000), MODEL, ModelBackend.SearchMode.DISABLED,
+                4_096, ModelBackend.ReasoningEffort.DEFAULT, firstId);
+        controller.begin(retry).toCompletableFuture().join();
+        backend.emit("replacement-retry", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        storeExecutor.drain();
+
+        assertEquals("replacement-retry", controller.view().conversation().turns().getLast().requestId().value());
+        CompletionStage<ChatContracts.Conversation> persisted = store.openLatest(WORLD_A);
+        storeExecutor.drain();
+        assertEquals("replacement-retry", persisted.toCompletableFuture().join().turns().getLast().requestId().value());
+    }
+
+    @Test
     void newChatUsesTheSuppliedCurrentScopeForPublishedViews() {
         List<ChatContracts.View> published = new ArrayList<>();
         FakeBackend backend = new FakeBackend();
@@ -592,6 +991,10 @@ class RequestControllerTest {
 
         private void drain() {
             while (!tasks.isEmpty()) tasks.remove().run();
+        }
+
+        private void runNext() {
+            tasks.remove().run();
         }
     }
 

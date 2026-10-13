@@ -181,6 +181,33 @@ class ConversationStoreTest {
     }
 
     @Test
+    void replaceLatestTurnKeepsEarlierTurnsAndRejectsWrongRequestOrWorld() {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.WorldIdentity otherWorld = new ChatContracts.WorldIdentity("world-b", "World B");
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        ChatContracts.Turn first = simpleTurn("first");
+        ChatContracts.Turn latest = new ChatContracts.Turn(new ChatContracts.RequestId("latest"), "latest", "", List.of(),
+                new ChatContracts.Context("context", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, "temporary provider failure"), 0);
+        ChatContracts.Turn replacement = new ChatContracts.Turn(new ChatContracts.RequestId("replacement"),
+                "edited latest", "edited answer", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 2);
+        store.appendTurn(world, SCOPE, conversation.id(), first).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), latest).toCompletableFuture().join();
+
+        store.replaceLatestTurn(world, SCOPE, conversation.id(), latest.requestId(), replacement)
+                .toCompletableFuture().join();
+        ChatContracts.Conversation reopened = store.openConversation(world, conversation.id()).toCompletableFuture().join();
+        assertEquals(List.of(first, replacement), reopened.turns());
+        assertThrows(RuntimeException.class, () -> store.replaceLatestTurn(world, SCOPE, conversation.id(),
+                latest.requestId(), simpleTurn("wrong id")).toCompletableFuture().join());
+        assertThrows(RuntimeException.class, () -> store.replaceLatestTurn(otherWorld, SCOPE, conversation.id(),
+                replacement.requestId(), simpleTurn("wrong world")).toCompletableFuture().join());
+        assertEquals(List.of(first, replacement), store.openConversation(world, conversation.id()).toCompletableFuture().join().turns());
+    }
+
+    @Test
     void latestMarkerLinkCannotRedirectConversationSelectionOutsideTheRoot() throws Exception {
         ConversationStore store = new ConversationStore(temporaryDirectory.resolve("store"), DIRECT);
         ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");

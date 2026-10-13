@@ -69,7 +69,7 @@ public final class ConfigProvider implements KnowledgeProvider {
 
     @Override
     public ProviderStatus status() {
-        return new ProviderStatus(catalog.supported() ? Availability.AVAILABLE : Availability.PARTIAL,
+        return new ProviderStatus(catalog.supported() && catalog.complete() ? Availability.AVAILABLE : Availability.PARTIAL,
                 catalog.version(), catalog.detail() + "; saved-file inspection remains available under known roots");
     }
 
@@ -83,8 +83,7 @@ public final class ConfigProvider implements KnowledgeProvider {
         }
         if (clientExecutor == null) {
             try {
-                return CompletableFuture.completedFuture(querySnapshot(new CatalogCapture(catalog.read(), null), query,
-                        scope));
+                return CompletableFuture.completedFuture(querySnapshot(captureCatalogNow(), query, scope));
             } catch (RuntimeException failure) {
                 return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL,
                         Evidence.Outcome.PARTIAL, null));
@@ -95,23 +94,28 @@ public final class ConfigProvider implements KnowledgeProvider {
 
     private CompletionStage<CatalogCapture> captureCatalog() {
         if (owningThread.getAsBoolean()) {
-            try {
-                return CompletableFuture.completedFuture(new CatalogCapture(catalog.read(), null));
-            } catch (RuntimeException failure) {
-                return CompletableFuture.completedFuture(new CatalogCapture(List.of(), failure));
-            }
+            return CompletableFuture.completedFuture(captureCatalogNow());
         }
-        return CompletableFuture.supplyAsync(catalog::read, clientExecutor)
-                .handle((entries, failure) -> new CatalogCapture(entries == null ? List.of() : entries, failure));
+        return CompletableFuture.supplyAsync(this::captureCatalogNow, clientExecutor);
+    }
+
+    private CatalogCapture captureCatalogNow() {
+        try {
+            var entries = catalog.read();
+            return new CatalogCapture(entries, null, catalog.supported(), catalog.complete(), catalog.detail(),
+                    catalog.version());
+        } catch (RuntimeException failure) {
+            return new CatalogCapture(List.of(), failure, false, false, catalog.detail(), catalog.version());
+        }
     }
 
     private Evidence.Result querySnapshot(CatalogCapture captured, Evidence.Query query, Evidence.Scope scope) {
         var entries = new ArrayList<>(captured.entries());
         var fallback = fallbackEntries(entries);
         entries.addAll(fallback.entries());
-        boolean bridgePartial = captured.failure() != null || !catalog.supported() || !fallback.complete()
-                || !fallback.entries().isEmpty();
-        var snapshots = entries.stream().map(this::withSavedFile).toList();
+        boolean bridgePartial = captured.failure() != null || !captured.supported() || !captured.complete()
+                || !fallback.complete() || !fallback.entries().isEmpty();
+        var snapshots = entries.stream().map(entry -> withSavedFile(entry, captured.supported())).toList();
         var candidates = new ArrayList<Candidate>();
         boolean bounded = true;
         boolean savedPartial = false;
@@ -146,7 +150,7 @@ public final class ConfigProvider implements KnowledgeProvider {
             if (query.operation() == Evidence.Operation.GET && key == null) continue;
             if (query.operation() == Evidence.Operation.SEARCH
                     && !matches(candidate.snapshot().entry(), candidate.key(), candidate.value(), text)) continue;
-            records.add(toRecord(candidate.snapshot(), candidate.key(), candidate.value(), scope,
+            records.add(toRecord(candidate.snapshot(), candidate.key(), candidate.value(), scope, captured.version(),
                     bridgePartial || !bounded || savedPartial));
         }
         String next = records.size() == limit && index < candidates.size() ? Integer.toString(index) : null;
@@ -154,7 +158,8 @@ public final class ConfigProvider implements KnowledgeProvider {
                 : Evidence.Coverage.COMPLETE;
         return new Evidence.Result(records, coverage,
                 coverage == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, next,
-                captured.failure() != null ? "loaded config capture failed" : !catalog.supported() ? catalog.detail() : null);
+                captured.failure() != null ? "loaded config capture failed"
+                        : !captured.supported() || !captured.complete() ? captured.detail() : null);
     }
 
     @Override
@@ -162,7 +167,7 @@ public final class ConfigProvider implements KnowledgeProvider {
         return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "config navigation is read-only");
     }
 
-    private SavedEntry withSavedFile(NeoForgeConfigCatalog.Entry entry) {
+    private SavedEntry withSavedFile(NeoForgeConfigCatalog.Entry entry, boolean supported) {
         SavedFile saved;
         if (entry.filePath() == null) {
             boolean observed = entry.values().values().stream().anyMatch(value -> value.saved() != null);
@@ -173,7 +178,6 @@ public final class ConfigProvider implements KnowledgeProvider {
             saved = readSaved(entry.filePath());
         }
         var values = new LinkedHashMap<String, NeoForgeConfigCatalog.Value>();
-        boolean supported = catalog.supported();
         entry.values().forEach((key, value) -> {
             Object savedValue = saved.values().containsKey(key) ? saved.values().get(key)
                     : entry.filePath() == null ? value.saved() : null;
@@ -187,7 +191,7 @@ public final class ConfigProvider implements KnowledgeProvider {
     }
 
     private Evidence.Record toRecord(SavedEntry snapshot, String key, NeoForgeConfigCatalog.Value value,
-                                     Evidence.Scope scope, boolean partial) {
+                                     Evidence.Scope scope, String providerVersion, boolean partial) {
         boolean savedObserved = snapshot.saved().values().containsKey(key)
                 || snapshot.entry().filePath() == null && value.saved() != null;
         boolean loadedObserved = value.loaded() != null;
@@ -221,7 +225,7 @@ public final class ConfigProvider implements KnowledgeProvider {
         Evidence.Authority authority = loadedObserved ? Evidence.Authority.LOADED
                 : savedObserved ? Evidence.Authority.SAVED_CONFIG : Evidence.Authority.UNKNOWN;
         Evidence.Coverage coverage = partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
-        return new Evidence.Record(new Evidence.Source(scope, ID, catalog.version(),
+        return new Evidence.Record(new Evidence.Source(scope, ID, providerVersion,
                 snapshot.entry().handle() + "#" + key, scope.requestGeneration(), java.time.Instant.now(),
                 Evidence.Activity.ACTIVE, coverage, authority,
                 List.of("config:" + snapshot.entry().owner(), "view:" + view)), Evidence.RecordKind.CONFIG,
@@ -584,7 +588,8 @@ public final class ConfigProvider implements KnowledgeProvider {
         }
     }
 
-    private record CatalogCapture(List<NeoForgeConfigCatalog.Entry> entries, Throwable failure) {
+    private record CatalogCapture(List<NeoForgeConfigCatalog.Entry> entries, Throwable failure, boolean supported,
+                                  boolean complete, String detail, String version) {
         private CatalogCapture {
             entries = List.copyOf(entries);
         }

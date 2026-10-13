@@ -65,6 +65,10 @@ public final class NeoForgeConfigCatalog {
 
         boolean supported();
 
+        default boolean complete() {
+            return supported();
+        }
+
         String detail();
 
         default String version() {
@@ -102,6 +106,7 @@ public final class NeoForgeConfigCatalog {
     private static final class ReflectiveReader implements Reader {
         private volatile String detail = "unsupported NeoForge ConfigTracker bridge: not captured";
         private volatile boolean supported;
+        private volatile boolean complete;
         private volatile String version = "neoforge-unknown";
 
         @Override
@@ -109,6 +114,7 @@ public final class NeoForgeConfigCatalog {
             var runtime = runtimeVersion();
             var result = readTracker(runtime);
             supported = result.supported;
+            complete = result.complete;
             detail = result.detail;
             version = "neoforge-" + Objects.toString(runtime.neoForge(), "unknown");
             return List.copyOf(result.entries);
@@ -117,6 +123,11 @@ public final class NeoForgeConfigCatalog {
         @Override
         public boolean supported() {
             return supported;
+        }
+
+        @Override
+        public boolean complete() {
+            return complete;
         }
 
         @Override
@@ -130,7 +141,10 @@ public final class NeoForgeConfigCatalog {
         }
     }
 
-    private record ReadResult(List<Entry> entries, boolean supported, String detail) {
+    private record ReadResult(List<Entry> entries, boolean supported, boolean complete, String detail) {
+    }
+
+    private record CollectionCapture(boolean supported, boolean complete) {
     }
 
     private record EntryCapture(Entry entry, boolean complete) {
@@ -142,7 +156,7 @@ public final class NeoForgeConfigCatalog {
     private static ReadResult readTracker(RuntimeVersion runtime) {
         if (!versionMatches(LOADER_VERSION_RANGE, runtime.neoForge())
                 || !versionMatches(FML_VERSION_RANGE, runtime.fml())) {
-            return new ReadResult(List.of(), false, "unsupported NeoForge ConfigTracker bridge: compatible range NeoForge "
+            return new ReadResult(List.of(), false, false, "unsupported NeoForge ConfigTracker bridge: compatible range NeoForge "
                     + LOADER_VERSION_RANGE + " FML " + FML_VERSION_RANGE + ", found NeoForge " + runtime.neoForge()
                     + " FML " + runtime.fml());
         }
@@ -153,9 +167,10 @@ public final class NeoForgeConfigCatalog {
             var configSets = readField(trackerType, tracker, "configSets");
             var configsByMod = readField(trackerType, tracker, "configsByMod");
             var configs = new LinkedHashSet<Object>();
-            boolean completeSets = addValues(configSets, configs);
-            boolean completeByMod = addValues(configsByMod, configs);
-            boolean complete = completeSets && completeByMod;
+            CollectionCapture setsCapture = addValues(configSets, configs);
+            CollectionCapture byModCapture = addValues(configsByMod, configs);
+            boolean supported = setsCapture.supported() && byModCapture.supported();
+            boolean complete = setsCapture.complete() && byModCapture.complete();
             var entries = new ArrayList<Entry>();
             int failures = 0;
             for (Object config : configs) {
@@ -168,17 +183,17 @@ public final class NeoForgeConfigCatalog {
                 }
             }
             if (failures != 0) {
-                return new ReadResult(entries, false, "unsupported NeoForge " + runtime.neoForge() + " FML "
+                return new ReadResult(entries, supported, false, "partial NeoForge " + runtime.neoForge() + " FML "
                         + runtime.fml() + " ConfigTracker entry extraction failed for " + failures + " record(s)");
             }
             if (!complete) {
-                return new ReadResult(entries, false, "unsupported NeoForge " + runtime.neoForge() + " FML "
+                return new ReadResult(entries, supported, false, "partial NeoForge " + runtime.neoForge() + " FML "
                         + runtime.fml() + " ConfigTracker catalog exceeded bounded extraction limits");
             }
-            return new ReadResult(entries, true, "supported NeoForge " + runtime.neoForge() + " FML " + runtime.fml()
+            return new ReadResult(entries, supported, true, "supported NeoForge " + runtime.neoForge() + " FML " + runtime.fml()
                     + " ConfigTracker fields");
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
-            return new ReadResult(List.of(), false, "unsupported NeoForge " + runtime.neoForge() + " FML "
+            return new ReadResult(List.of(), false, false, "unsupported NeoForge " + runtime.neoForge() + " FML "
                     + runtime.fml() + " ConfigTracker bridge: "
                     + failure.getClass().getSimpleName());
         }
@@ -238,16 +253,19 @@ public final class NeoForgeConfigCatalog {
         return field.get(target);
     }
 
-    private static boolean addValues(Object value, Collection<Object> result) {
-        if (!(value instanceof Map<?, ?> map)) return false;
+    private static CollectionCapture addValues(Object value, Collection<Object> result) {
+        if (!(value instanceof Map<?, ?> map)) return new CollectionCapture(false, false);
         for (Object nested : map.values()) {
-            if (!(nested instanceof Collection<?> collection)) return false;
+            if (!(nested instanceof Collection<?> collection)) return new CollectionCapture(false, false);
             for (Object config : collection) {
-                if (result.size() >= MAX_ENTRIES) return false;
+                if (result.size() >= MAX_ENTRIES) {
+                    if (result.contains(config)) continue;
+                    return new CollectionCapture(true, false);
+                }
                 result.add(config);
             }
         }
-        return true;
+        return new CollectionCapture(true, true);
     }
 
     private static final class ReflectiveReaderSupport {

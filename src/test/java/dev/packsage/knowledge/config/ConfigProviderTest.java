@@ -95,7 +95,7 @@ class ConfigProviderTest {
         Path file = root.resolve("safe.toml");
         Files.writeString(file, "answer = 42\n");
         var safe = new NeoForgeConfigCatalog.Entry("safe", "CLIENT", "safe:CLIENT:safe.toml", "safe.toml", file,
-                false, Map.of());
+                false, Map.of("answer", new NeoForgeConfigCatalog.Value(null, 99, null, null, null, null, null)));
         var escape = new NeoForgeConfigCatalog.Entry("escape", "COMMON", "escape:COMMON:../outside.toml", "../outside.toml",
                 root.resolve("..").resolve("outside.toml"), false, Map.of());
         var reader = new NeoForgeConfigCatalog.Reader() {
@@ -114,6 +114,7 @@ class ConfigProviderTest {
         assertEquals("unsupported test bridge", result.detail());
         assertEquals(new Evidence.JsonNumber(new java.math.BigDecimal("42")),
                 result.records().getFirst().payload().values().get("savedValue"));
+        assertEquals(new Evidence.JsonNull(), result.records().getFirst().payload().values().get("loadedValue"));
         assertEquals("neoforge-21.1.250", provider.status().version());
         assertEquals("neoforge-21.1.250", result.records().getFirst().source().providerVersion());
     }
@@ -401,6 +402,103 @@ class ConfigProviderTest {
             sets.getOrDefault(ModConfig.Type.COMMON, Set.of()).remove(config);
             byMod.getOrDefault("bridge", List.of()).remove(config);
         }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void boundedReflectiveCatalogRetainsLoadedValuesFromCapturedEntries() throws Exception {
+        FMLPaths.loadAbsolutePaths(Files.createTempDirectory("packsage-config-runtime"));
+        var value = new ModConfigSpec.Builder().defineInRange("value", 3, 0, 10);
+        ModConfigSpec spec = value.next().build();
+        IModInfo modInfo = (IModInfo) Proxy.newProxyInstance(IModInfo.class.getClassLoader(), new Class<?>[]{IModInfo.class},
+                (proxy, method, arguments) -> method.getName().equals("getModId") ? "partialbridge" : null);
+        ModContainer container = new ModContainer(modInfo) {
+            @Override
+            public IEventBus getEventBus() {
+                return null;
+            }
+        };
+        var constructor = ModConfig.class.getDeclaredConstructor(ModConfig.Type.class,
+                net.neoforged.fml.config.IConfigSpec.class, ModContainer.class, String.class, ReentrantLock.class);
+        constructor.setAccessible(true);
+        var loadedConstructor = Class.forName("net.neoforged.fml.config.LoadedConfig")
+                .getDeclaredConstructor(CommentedConfig.class, Path.class, ModConfig.class);
+        loadedConstructor.setAccessible(true);
+        var loadedField = ModConfig.class.getDeclaredField("loadedConfig");
+        loadedField.setAccessible(true);
+        var setsField = ConfigTracker.class.getDeclaredField("configSets");
+        var byModField = ConfigTracker.class.getDeclaredField("configsByMod");
+        setsField.setAccessible(true);
+        byModField.setAccessible(true);
+        var sets = (Map<ModConfig.Type, Set<ModConfig>>) setsField.get(ConfigTracker.INSTANCE);
+        var byMod = (Map<String, List<ModConfig>>) byModField.get(ConfigTracker.INSTANCE);
+        var configs = new java.util.ArrayList<ModConfig>();
+        for (int index = 0; index < 257; index++) {
+            ModConfig config = constructor.newInstance(ModConfig.Type.COMMON, spec, container,
+                    "partialbridge-common-" + index + ".toml", new ReentrantLock());
+            CommentedConfig loadedValues = CommentedConfig.inMemory();
+            loadedValues.set("value", 7);
+            loadedField.set(config, loadedConstructor.newInstance(loadedValues, null, config));
+            configs.add(config);
+        }
+        sets.computeIfAbsent(ModConfig.Type.COMMON, ignored -> new java.util.LinkedHashSet<>()).addAll(configs);
+        byMod.computeIfAbsent("partialbridge", ignored -> new java.util.ArrayList<>()).addAll(configs);
+        try {
+            var reader = NeoForgeConfigCatalog.reflective();
+            var provider = new ConfigProvider(reader, List.of());
+            var result = provider.query(new Evidence.Query(Evidence.Operation.GET,
+                    new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("partialbridge"),
+                            "key", new Evidence.JsonString("value"))), 10, null, null), SCOPE)
+                    .toCompletableFuture().join();
+
+            assertTrue(reader.supported());
+            assertFalse(reader.complete());
+            assertEquals(256, reader.read().size());
+            assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+            assertEquals(new Evidence.JsonNumber(new java.math.BigDecimal("7")),
+                    result.records().getFirst().payload().values().get("loadedValue"));
+        } finally {
+            sets.getOrDefault(ModConfig.Type.COMMON, Set.of()).removeAll(configs);
+            byMod.getOrDefault("partialbridge", List.of()).removeAll(configs);
+        }
+    }
+
+    @Test
+    void queuedCatalogCapturesKeepTheirOwnStatusAndVersion() {
+        var capture = new int[1];
+        var entry = new NeoForgeConfigCatalog.Entry("capture", "CLIENT", "capture:CLIENT:capture.toml",
+                "capture.toml", null, false, Map.of("answer",
+                new NeoForgeConfigCatalog.Value(null, 11, null, null, null, null, null)));
+        var reader = new NeoForgeConfigCatalog.Reader() {
+            public List<NeoForgeConfigCatalog.Entry> read() {
+                capture[0]++;
+                return List.of(entry);
+            }
+            public boolean supported() { return capture[0] == 1; }
+            public boolean complete() { return false; }
+            public String detail() { return "capture " + capture[0]; }
+            public String version() { return "neoforge-capture-" + capture[0]; }
+        };
+        var clientTasks = new java.util.ArrayDeque<Runnable>();
+        var workerTasks = new java.util.ArrayDeque<Runnable>();
+        var provider = new ConfigProvider(reader, List.of(), clientTasks::add, workerTasks::add, () -> false);
+        var query = new Evidence.Query(Evidence.Operation.GET,
+                new Evidence.JsonObject(Map.of("key", new Evidence.JsonString("answer"))), 10, null, null);
+
+        var first = provider.query(query, SCOPE).toCompletableFuture();
+        var second = provider.query(query, SCOPE).toCompletableFuture();
+        clientTasks.removeFirst().run();
+        clientTasks.removeFirst().run();
+        workerTasks.removeFirst().run();
+        workerTasks.removeFirst().run();
+
+        assertEquals(new Evidence.JsonNumber(new java.math.BigDecimal("11")),
+                first.join().records().getFirst().payload().values().get("loadedValue"));
+        assertEquals(new Evidence.JsonNull(), second.join().records().getFirst().payload().values().get("loadedValue"));
+        assertEquals("neoforge-capture-1", first.join().records().getFirst().source().providerVersion());
+        assertEquals("neoforge-capture-2", second.join().records().getFirst().source().providerVersion());
+        assertEquals("capture 1", first.join().detail());
+        assertEquals("capture 2", second.join().detail());
     }
 
     @Test

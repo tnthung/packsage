@@ -8,6 +8,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -83,7 +84,7 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         return records.isEmpty() ? unavailable(scope, "client native evidence empty") : new NativeSnapshot(scope, records);
     }
 
-    /** Copies only explicitly selected inventory identities; ordinary capture never reads the player inventory. */
+    /** Copies occupied vanilla player slots on demand; ordinary capture never reads the player inventory. */
     public static NativeSnapshot captureSelectedInventory(Minecraft client, Evidence.Scope scope, List<String> identities) {
         Objects.requireNonNull(client);
         Objects.requireNonNull(scope);
@@ -100,23 +101,50 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         }
         if (client.player == null) return unavailable(scope, "client player unavailable");
         var requested = Set.copyOf(identities);
-        var selected = new ArrayList<ItemStack>();
-        for (var stacks : List.of(client.player.getInventory().items, client.player.getInventory().armor, client.player.getInventory().offhand)) {
-            for (var stack : stacks) if (!stack.isEmpty() && requested.contains(itemIdentity(stack, itemRegistry))) selected.add(stack.copy());
+        var inventory = client.player.getInventory();
+        for (int index = 0; index < inventory.items.size(); index++) {
+            var stack = inventory.items.get(index);
+            if (stack.isEmpty() || !requested.isEmpty() && !requested.contains(itemIdentity(stack, itemRegistry))) continue;
+            var section = index < 9 ? "hotbar" : "main";
+            var slot = index < 9 ? index : index - 9;
+            records.add(inventoryRecord(scope, stack.copy(), itemRegistry, registries, section, slot,
+                    index == inventory.selected ? "mainhand" : null, index == inventory.selected));
         }
-        int index = 0;
-        for (ItemStack stack : selected) {
-            var identity = itemIdentity(stack, itemRegistry);
-            var payload = new LinkedHashMap<String, Evidence.JsonValue>();
-            payload.put("id", new Evidence.JsonString(identity));
-            payload.put("inventoryObservation", new Evidence.JsonString("selected"));
-            payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
-            payload.put("components", componentPayload(stack, registries));
-            var source = new Evidence.Source(scope, "native", "1.21.1", "inventory:" + index++, scope.requestGeneration(), Instant.now(),
-                    Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("selected-inventory"));
-            records.add(new Evidence.Record(source, Evidence.RecordKind.ITEM, identity, new Evidence.JsonObject(payload), List.of()));
+        var armorSlots = List.of("feet", "legs", "chest", "head");
+        for (int index = 0; index < inventory.armor.size(); index++) {
+            var stack = inventory.armor.get(index);
+            if (stack.isEmpty() || !requested.isEmpty() && !requested.contains(itemIdentity(stack, itemRegistry))) continue;
+            records.add(inventoryRecord(scope, stack.copy(), itemRegistry, registries, "armor", index,
+                    armorSlots.get(index), false));
+        }
+        for (int index = 0; index < inventory.offhand.size(); index++) {
+            var stack = inventory.offhand.get(index);
+            if (stack.isEmpty() || !requested.isEmpty() && !requested.contains(itemIdentity(stack, itemRegistry))) continue;
+            records.add(inventoryRecord(scope, stack.copy(), itemRegistry, registries, "offhand", index, "offhand", false));
         }
         return new NativeSnapshot(scope, records);
+    }
+
+    static Evidence.Record inventoryRecord(Evidence.Scope scope, ItemStack stack, Registry<Item> itemRegistry,
+                                           net.minecraft.core.HolderLookup.Provider registries, String section,
+                                           int slot, String equipmentSlot, boolean selectedHotbar) {
+        var identity = itemIdentity(stack, itemRegistry);
+        var components = codecJson(DataComponentMap.CODEC, stack.getComponents(), registries);
+        var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+        payload.put("id", new Evidence.JsonString(identity));
+        payload.put("inventoryObservation", new Evidence.JsonString("occupied"));
+        payload.put("section", new Evidence.JsonString(section));
+        payload.put("slot", new Evidence.JsonNumber(BigDecimal.valueOf(slot)));
+        payload.put("selectedHotbar", new Evidence.JsonBoolean(selectedHotbar));
+        payload.put("name", new Evidence.JsonString(stack.getHoverName().getString()));
+        payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
+        payload.put("components", components);
+        if (equipmentSlot != null) payload.put("equipmentSlot", new Evidence.JsonString(equipmentSlot));
+        var source = new Evidence.Source(scope, "native", "1.21.1", "inventory:" + section + ":" + slot,
+                scope.requestGeneration(), Instant.now(), Evidence.Activity.ACTIVE,
+                components.values().containsKey("encoding") ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of("player-inventory", section + ":" + slot));
+        return new Evidence.Record(source, Evidence.RecordKind.ITEM, identity, new Evidence.JsonObject(payload), List.of());
     }
 
     private static Evidence.Record copyRecipe(RecipeHolder<?> holder, net.minecraft.core.HolderLookup.Provider registries,

@@ -201,8 +201,8 @@ public final class KnowledgeService {
                 case "plan_recipe" -> result = planner.apply(new RecipePlan(((Evidence.JsonString) arguments.get("identity")).value(),
                         ((Evidence.JsonNumber) arguments.get("quantity")).value().longValueExact(),
                         arguments.get("depth") instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 4, request.scope()));
-                case "read_inventory" -> result = inventory.apply(((Evidence.JsonArray) arguments.get("identities")).values().stream()
-                        .map(value -> ((Evidence.JsonString) value).value()).toList(), request.scope());
+                case "read_inventory" -> result = inventory.apply(arguments.get("identities") instanceof Evidence.JsonArray identities
+                        ? identities.values().stream().map(value -> ((Evidence.JsonString) value).value()).toList() : List.of(), request.scope());
                 case "read_config" -> {
                     var requested = ((Evidence.JsonString) arguments.get("handle")).value();
                     Evidence.Record observedConfig;

@@ -17,6 +17,7 @@ public final class GroundingInstructions {
             Answer only the final request. Use gameplay background only when relevant to the question; do not volunteer item or scene summaries unless the player asks or they are needed to answer. Continue an earlier topic only when the latest request asks for it or depends on it.
             For greetings and social messages, give only a short, direct reply without unrelated evidence lookup. Do not summarize gameplay metadata, continue an earlier topic, or retrieve unrelated evidence. For a follow-up such as 'check again', use relevant history to identify what to recheck and retrieve fresh evidence before making current pack claims.
             Retrieve pack evidence before asserting recipes, progression, guide content or configuration.
+            When asked about the player's inventory or armor, call read_inventory without identities to inspect occupied vanilla inventory, armor and offhand slots; use exact item IDs only when the player asks about particular items. This tool does not read open containers or storage networks.
             Prefer active loaded facts over viewer displays, installed documentation, saved files and web guidance.
             Keep conflicting sources distinct. A namespace alone does not establish authorship.
             Distinguish complete, partial, opaque, unavailable and failed extraction. No match under partial coverage is not proof of absence.

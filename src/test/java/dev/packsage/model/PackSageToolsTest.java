@@ -29,6 +29,27 @@ class PackSageToolsTest {
     }
 
     @Test
+    void inventoryAllowsOmittedOrNullIdentitiesAndDispatchesAnEmptySelection() throws Exception {
+        var requested = new java.util.ArrayList<PackSageTools.ReadRequest>();
+        var tools = new PackSageTools(request -> {
+            requested.add(request);
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                    Evidence.Outcome.COMPLETE, null));
+        });
+
+        for (var arguments : List.of("{}", "{\"identities\":null}")) {
+            assertFalse(tools.execute(new ModelBackend.ToolCall("inventory", "read_inventory", arguments), SCOPE)
+                    .toCompletableFuture().get().result().error());
+        }
+
+        assertEquals(2, requested.size());
+        assertFalse(requested.getFirst().arguments().values().containsKey("identities"));
+        assertInstanceOf(Evidence.JsonNull.class, requested.get(1).arguments().values().get("identities"));
+        assertTrue(tools.execute(new ModelBackend.ToolCall("empty", "read_inventory", "{\"identities\":[]}"), SCOPE)
+                .toCompletableFuture().get().result().error());
+    }
+
+    @Test
     void historyToolsDispatchValidRequestsAndRejectOutOfBoundsArguments() throws Exception {
         var dispatched = new AtomicInteger();
         var tools = new PackSageTools(request -> {

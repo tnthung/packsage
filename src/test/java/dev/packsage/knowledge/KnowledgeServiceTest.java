@@ -37,6 +37,24 @@ class KnowledgeServiceTest {
     }
 
     @Test
+    void inventoryToolRoutesOmittedAndNullIdentitiesAsAnEmptySelection() {
+        var selections = new ArrayList<List<String>>();
+        var service = new KnowledgeService(List.of(), () -> SCOPE,
+                plan -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                        Evidence.Outcome.COMPLETE, null)),
+                (identities, scope) -> {
+                    selections.add(identities);
+                    return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                            Evidence.Outcome.COMPLETE, null));
+                });
+
+        execute(service, "read_inventory", Map.of());
+        execute(service, "read_inventory", Map.of("identities", new Evidence.JsonNull()));
+
+        assertEquals(List.of(List.of(), List.of()), selections);
+    }
+
+    @Test
     void searchKeepsPagingAcrossEmptyProviderPagesUntilTheLimitIsFilled() {
         var pages = List.of(page(List.of(), "1"), page(List.of(), "2"),
                 page(List.of(record("jei", "r1", Evidence.RecordKind.RECIPE), record("jei", "r2", Evidence.RecordKind.RECIPE)), "3"),

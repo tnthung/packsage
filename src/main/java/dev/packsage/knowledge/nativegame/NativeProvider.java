@@ -69,13 +69,13 @@ public final class NativeProvider implements KnowledgeProvider {
     public CompletionStage<Evidence.Result> readInventory(List<String> identities, Evidence.Scope scope) {
         Objects.requireNonNull(identities);
         Objects.requireNonNull(scope);
-        if (identities.isEmpty() || identities.size() > 32 || identities.stream().anyMatch(identity -> identity == null || identity.isBlank())) {
+        if (identities.size() > 32 || identities.stream().anyMatch(identity -> identity == null || identity.isBlank())) {
             return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null,
-                    "select 1 to 32 non-blank item identities"));
+                    "select up to 32 non-blank item identities"));
         }
         var requested = List.copyOf(identities);
         return execute(scope, requested, index -> index.search(new Evidence.Query(Evidence.Operation.SEARCH,
-                new Evidence.JsonObject(java.util.Map.of()), 64, null, null), scope).toCompletableFuture().join(), client != null, false);
+                new Evidence.JsonObject(java.util.Map.of()), 64, null, null), scope).toCompletableFuture().join(), true, false);
     }
 
     private CompletionStage<Evidence.Result> execute(Evidence.Scope scope, List<String> selectedIdentities,
@@ -153,9 +153,12 @@ public final class NativeProvider implements KnowledgeProvider {
 
     private static NativeSnapshot selectedInventory(NativeSnapshot snapshot, List<String> identities) {
         var requested = java.util.Set.copyOf(identities);
-        var selected = snapshot.records().stream().filter(record -> record.kind() == Evidence.RecordKind.ITEM
-                && "selected".equals(record.payload().values().get("inventoryObservation") instanceof Evidence.JsonString value ? value.value() : null)
-                && requested.contains(record.payload().values().get("id") instanceof Evidence.JsonString value ? value.value() : null)).toList();
+        var selected = snapshot.records().stream().filter(record -> record.kind() == Evidence.RecordKind.OTHER
+                && (record.source().coverage() == Evidence.Coverage.UNAVAILABLE || record.source().coverage() == Evidence.Coverage.ERROR)
+                || record.kind() == Evidence.RecordKind.ITEM
+                && ("selected".equals(record.payload().values().get("inventoryObservation") instanceof Evidence.JsonString value ? value.value() : null)
+                || "occupied".equals(record.payload().values().get("inventoryObservation") instanceof Evidence.JsonString value ? value.value() : null))
+                && (requested.isEmpty() || requested.contains(record.payload().values().get("id") instanceof Evidence.JsonString value ? value.value() : null))).toList();
         return new NativeSnapshot(snapshot.scope(), selected);
     }
 

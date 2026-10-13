@@ -54,7 +54,7 @@ public final class PackSageTools {
                         + "Detail explains errors and bounded partial results.";
                 case "read_evidence" -> "Read only previously observed provider-qualified source handles in this request.";
                 case "plan_recipe" -> "Retrieve bounded recipe routes, preserving alternatives, quantities and unknown semantics.";
-                case "read_inventory" -> "Read current player inventory observations for selected item identities.";
+                case "read_inventory" -> "Read occupied slots in the current vanilla player inventory, armor and offhand when identities is omitted or null; optionally filter by selected item IDs. Slot indices are local to each section; main inventory starts at 0 after the hotbar.";
                 case "read_progress" -> "Read previously observed provider-qualified quest references and current team progression, "
                         + "in batches of up to 16. Raw quest IDs listed in a chapter must first be discovered with search_pack.";
                 case "list_configs" -> "List accessible observed configuration values and handles; saved and loaded views differ.";
@@ -86,7 +86,7 @@ public final class PackSageTools {
                 properties.add("maxChars", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":256,\"maximum\":16000}"));
             }
             if (name.equals("read_inventory")) {
-                properties.add("identities", JsonParser.parseString("{\"type\":\"array\",\"minItems\":1,\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}}"));
+                properties.add("identities", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"minItems\":1,\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}}"));
             }
             if (name.equals("plan_recipe")) {
                 properties.add("identity", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":256}"));
@@ -154,7 +154,6 @@ public final class PackSageTools {
             for (var required : switch (call.name()) {
                 case "search_pack", "search_config", "search_history" -> List.of("text");
                 case "read_evidence", "read_progress", "read_history" -> List.of("handles");
-                case "read_inventory" -> List.of("identities");
                 case "plan_recipe" -> List.of("identity", "quantity");
                 case "read_config" -> List.of("handle");
                 default -> List.<String>of();

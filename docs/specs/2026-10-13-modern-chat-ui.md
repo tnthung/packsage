@@ -6,7 +6,7 @@ This specification records the player's supplied chat/settings sketches and acco
 
 ## Presentation
 
-Use custom drawn controls and a consistent modern neutral theme, with a readable bundled font, modest rounded surfaces and one muted accent. Keep the design compact and functional. The red areas in the sketches indicate unused width, not colored UI panels. Center the chat/composer within the available main region and cap its readable width; center settings with the same width rule and styling. Adapt to Minecraft GUI scale and smaller windows.
+Use custom drawn controls and a consistent modern neutral theme, with a readable bundled font, modest rounded surfaces and one muted accent. Rounded surfaces use curved corners and a continuous outline, rather than rectangular strips or clipped square corners. Keep the design compact and functional. The red areas in the sketches indicate unused width, not colored UI panels. Center the chat/composer within the available main region and cap its readable width; center settings with the same width rule and styling. Adapt to Minecraft GUI scale and smaller windows.
 
 The sidebar lists sessions grouped by world/server, with the active world first. Each row shows a title from the initial question and a recent message preview. Include a session search field, New chat and group expansion where needed. Bottom-left controls are a gear for Settings and a pause/resume control, hidden outside private singleplayer.
 

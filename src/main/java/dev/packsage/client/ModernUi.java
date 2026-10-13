@@ -1,5 +1,6 @@
 package dev.packsage.client;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 
@@ -19,21 +20,27 @@ final class ModernUi {
     static final int MESSAGE_LINE_HEIGHT = 12;
     static final ResourceLocation FONT = ResourceLocation.fromNamespaceAndPath("packsage", "ui");
     static final ResourceLocation BOLD_FONT = ResourceLocation.fromNamespaceAndPath("packsage", "ui_bold");
+    private static final ResourceLocation SURFACE_FILL = ResourceLocation.fromNamespaceAndPath("packsage", "surface-fill");
+    private static final ResourceLocation SURFACE_OUTLINE = ResourceLocation.fromNamespaceAndPath("packsage", "surface-outline");
 
     private ModernUi() { }
 
     static void surface(GuiGraphics graphics, int left, int top, int right, int bottom, int color) {
         if (right <= left || bottom <= top) return;
-        if (right - left < 8 || bottom - top < 8) {
-            graphics.fill(left, top, right, bottom, color);
-            return;
+        float[] previousColor = RenderSystem.getShaderColor().clone();
+        try {
+            graphics.setColor(((color >> 16) & 0xff) / 255f, ((color >> 8) & 0xff) / 255f,
+                    (color & 0xff) / 255f, ((color >>> 24) & 0xff) / 255f);
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
+            graphics.blitSprite(SURFACE_FILL, left, top, right - left, bottom - top);
+            graphics.setColor(((BORDER >> 16) & 0xff) / 255f, ((BORDER >> 8) & 0xff) / 255f,
+                    (BORDER & 0xff) / 255f, ((BORDER >>> 24) & 0xff) / 255f);
+            RenderSystem.enableBlend();
+            graphics.blitSprite(SURFACE_OUTLINE, left, top, right - left, bottom - top);
+        } finally {
+            graphics.setColor(previousColor[0], previousColor[1], previousColor[2], previousColor[3]);
+            RenderSystem.disableBlend();
         }
-        graphics.fill(left + 2, top, right - 2, bottom, color);
-        graphics.fill(left, top + 2, left + 2, bottom - 2, color);
-        graphics.fill(right - 2, top + 2, right, bottom - 2, color);
-        graphics.fill(left + 2, top, right - 2, top + 1, BORDER);
-        graphics.fill(left + 2, bottom - 1, right - 2, bottom, BORDER);
-        graphics.fill(left, top + 2, left + 1, bottom - 2, BORDER);
-        graphics.fill(right - 1, top + 2, right, bottom - 2, BORDER);
     }
 }

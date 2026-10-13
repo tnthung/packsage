@@ -14,6 +14,65 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ScreenTextTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
 
+    @Test
+    void registeredLocalControlsAppearAtTheirMarkersWithoutOpaqueIdsOrASeparateCollection() {
+        var target = new Evidence.NavigationTarget(SCOPE, "patchouli", "book#entry", "entry#1@lifecycle");
+        var spans = ScreenText.inlineLines("Before [patchouli:book#entry] after.", List.of(target)).getFirst().spans();
+        assertEquals("Before ", spans.getFirst().text());
+        assertEquals("Guide", spans.get(1).text());
+        assertEquals(target, spans.get(1).target());
+        assertEquals(" after.", spans.getLast().text());
+        assertTrue(ScreenText.inlineLines("No reference here.", List.of(target)).stream()
+                .flatMap(line -> line.spans().stream()).noneMatch(span -> span.target() != null));
+        assertTrue(ScreenText.inlineLines("[patchouli:unregistered]", List.of(target)).stream()
+                .flatMap(line -> line.spans().stream()).noneMatch(span -> span.target() != null));
+    }
+
+    @Test
+    void webReferencesKeepClaimTextAndInsertOnlyRegisteredSourcesInline() {
+        var target = new Evidence.NavigationTarget(SCOPE, "web", "https://example.test/source", "https://example.test/source");
+        var citation = new dev.packsage.model.ModelBackend.UrlCitation(0, 5, "Example", target.sourceHandle());
+        var spans = ScreenText.inlineLines("Claim next.", List.of(target), List.of(citation)).getFirst().spans();
+        assertEquals("Claim", spans.getFirst().text());
+        assertEquals(null, spans.getFirst().target());
+        assertEquals(target, spans.get(1).target());
+        assertEquals("Example", spans.get(1).text());
+        assertEquals(" next.", spans.getLast().text());
+        assertTrue(ScreenText.inlineLines("[Unknown](https://unknown.test)", List.of(target)).stream()
+                .flatMap(line -> line.spans().stream()).noneMatch(span -> span.target() != null));
+    }
+
+    @Test
+    void inlineMarkdownClosesStylesAndLeavesCodeReferencesLiteral() {
+        var target = new Evidence.NavigationTarget(SCOPE, "patchouli", "book#entry", "entry");
+        var spans = ScreenText.inlineLines("**bold** normal `code` [patchouli:book#entry]", List.of(target)).getFirst().spans();
+        assertEquals("bold", spans.getFirst().text());
+        assertTrue(spans.getFirst().bold());
+        assertTrue(spans.stream().anyMatch(span -> span.text().contains("normal") && !span.bold()));
+        assertTrue(spans.stream().anyMatch(span -> span.text().equals("code") && span.code()));
+        assertTrue(ScreenText.inlineLines("`[patchouli:book#entry]`", List.of(target)).stream()
+                .flatMap(line -> line.spans().stream()).noneMatch(span -> span.target() != null));
+    }
+
+    @Test
+    void webReferenceOffsetsSurviveWindowsNewlinesAndHeadingPrefixes() {
+        var target = new Evidence.NavigationTarget(SCOPE, "web", "https://example.test/source", "https://example.test/source");
+        String answer = "First\r\n##   Claim";
+        var citation = new dev.packsage.model.ModelBackend.UrlCitation(answer.indexOf("Claim"), answer.length(), "Example", target.sourceHandle());
+        var lines = ScreenText.inlineLines(answer, List.of(target), List.of(citation));
+        assertEquals("Claim", lines.get(1).spans().getFirst().text());
+        assertEquals(target, lines.get(1).spans().getLast().target());
+    }
+
+    @Test
+    void inlineTablesHideSeparatorRowsAndKeepHeaderEmphasis() {
+        var lines = ScreenText.inlineLines("| Quest | Progress |\n| --- | --- |\n| Gather | 1/1 |", List.of());
+        assertEquals(2, lines.size());
+        assertTrue(lines.getFirst().spans().stream().allMatch(ScreenText.InlineSpan::bold));
+        assertTrue(lines.getLast().spans().stream().map(ScreenText.InlineSpan::text).reduce("", String::concat).contains("1/1"));
+        assertTrue(lines.stream().flatMap(line -> line.spans().stream()).noneMatch(span -> span.text().contains("|")));
+    }
+
     private static List<String> boldRuns(Component component) {
         List<String> runs = new ArrayList<>();
         component.visit((style, text) -> {

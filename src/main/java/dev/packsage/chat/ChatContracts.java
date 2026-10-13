@@ -229,7 +229,8 @@ public final class ChatContracts {
 
     public record View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
                        Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
-                       List<String> errors, String streamingAnswer, String activity, WorldIdentity activeWorld, boolean readOnly) {
+                       List<String> errors, String streamingAnswer, String activity, WorldIdentity activeWorld, boolean readOnly,
+                       String activeQuestion) {
         public View {
             Objects.requireNonNull(signIn);
             Objects.requireNonNull(conversation);
@@ -240,7 +241,15 @@ public final class ChatContracts {
             Objects.requireNonNull(streamingAnswer);
             Objects.requireNonNull(activity);
             Objects.requireNonNull(activeWorld);
+            Objects.requireNonNull(activeQuestion);
             if (readOnly && active) throw new IllegalArgumentException("a read-only history view cannot have an active request");
+        }
+
+        public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    List<String> errors, String streamingAnswer, String activity, WorldIdentity activeWorld, boolean readOnly) {
+            this(active, signIn, paused, conversation, context, sources, navigationTargets, errors, streamingAnswer,
+                    activity, activeWorld, readOnly, "");
         }
 
         public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,

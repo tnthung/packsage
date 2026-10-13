@@ -204,7 +204,7 @@ public final class AssistantRuntime implements ChatActions {
                 if (failure != null) {
                     readOnlyConversation = null;
                     runtimeErrors.add("Session could not be opened: " + failureMessage(failure));
-                } else if (world.equals(conversation.world())) {
+                } else if (world.worldOrServer().equals(conversation.world().worldOrServer())) {
                     readOnlyConversation = null;
                     controller.showConversation(conversation, scope);
                 } else {
@@ -325,18 +325,22 @@ public final class AssistantRuntime implements ChatActions {
             synchronized (stateLock) {
                 if (question.isBlank()) {
                     runtimeErrors.add("Question cannot be blank");
+                    publishCurrentView(worldEpoch);
                     return;
                 }
                 if (world == null) {
                     runtimeErrors.add("Cannot send without an active world");
+                    publishCurrentView(worldEpoch);
                     return;
                 }
                 if (signIn != ChatContracts.SignInState.SIGNED_IN) {
                     runtimeErrors.add("Sign in before sending a question");
+                    publishCurrentView(worldEpoch);
                     return;
                 }
                 if (controller.view().active()) {
                     runtimeErrors.add("A request is already active");
+                    publishCurrentView(worldEpoch);
                     return;
                 }
                 if (sessionLoading || readOnlyConversation != null) {
@@ -368,10 +372,12 @@ public final class AssistantRuntime implements ChatActions {
                     budget = outputBudget.applyAsInt(selected);
                 } catch (RuntimeException failure) {
                     runtimeErrors.add("Output budget is unavailable: " + failureMessage(failure));
+                    publishCurrentView(worldEpoch);
                     return;
                 }
                 if (budget < 1) {
                     runtimeErrors.add("Output budget is unavailable");
+                    publishCurrentView(worldEpoch);
                     return;
                 }
                 ChatContracts.HistoryLimits historyLimits;
@@ -379,17 +385,21 @@ public final class AssistantRuntime implements ChatActions {
                     historyLimits = settings.historyLimits();
                 } catch (RuntimeException failure) {
                     runtimeErrors.add("Request settings are invalid: " + failureMessage(failure));
+                    publishCurrentView(worldEpoch);
                     return;
                 }
                 previousScope = scope;
                 Evidence.Scope nextScope = new Evidence.Scope(scope.worldSession(), scope.resourcesLocale(),
                         scope.playerTeam(), scope.providerRuntime(), scope.requestGeneration() + 1);
                 try {
-                    submission = new ChatContracts.Submission(new ChatContracts.RequestId(UUID.randomUUID().toString()), world,
+                    ChatContracts.WorldIdentity storedWorld = controller.view().conversation().world();
+                    submission = new ChatContracts.Submission(new ChatContracts.RequestId(UUID.randomUUID().toString()),
+                            storedWorld.worldOrServer().equals(world.worldOrServer()) ? storedWorld : world,
                             nextScope, question, includeScreenshot, historyLimits, selected, searchMode, budget,
                             settings.reasoningEffort());
                 } catch (RuntimeException failure) {
                     runtimeErrors.add("Request settings are invalid: " + failureMessage(failure));
+                    publishCurrentView(worldEpoch);
                     return;
                 }
                 scope = nextScope;
@@ -604,7 +614,7 @@ public final class AssistantRuntime implements ChatActions {
             epoch = worldEpoch;
             publication = publicationEpoch;
         }
-        if (expectedWorld == null || !expectedWorld.equals(view.conversation().world())) return;
+        if (expectedWorld == null || !expectedWorld.worldOrServer().equals(view.conversation().world().worldOrServer())) return;
         if (!expectedScope.equals(view.context().scope())) return;
         long callbackEpoch = epoch;
         long callbackPublication = publication;
@@ -684,13 +694,13 @@ public final class AssistantRuntime implements ChatActions {
                         && !targets.contains(target)) targets.add(target);
             });
         }
-        if (!hideConversation && currentWorld != null && (displayed != null || currentWorld.equals(conversation.world()))) {
+        if (!hideConversation && currentWorld != null && (displayed != null || currentWorld.worldOrServer().equals(conversation.world().worldOrServer()))) {
             conversation.turns().forEach(turn -> {
                 turn.sources().forEach(source -> { if (!sources.contains(source)) sources.add(source); });
                 turn.navigationTargets().forEach(target -> { if (!targets.contains(target)) targets.add(target); });
             });
         }
-        if (!hideConversation && currentWorld != null && (displayed != null || currentWorld.equals(conversation.world()))) {
+        if (!hideConversation && currentWorld != null && (displayed != null || currentWorld.worldOrServer().equals(conversation.world().worldOrServer()))) {
             for (ChatContracts.Turn turn : conversation.turns()) {
                 if (turn.outcome().status() != ChatContracts.OutcomeStatus.COMPLETED) continue;
                 LinkedHashSet<String> urls = new LinkedHashSet<>();
@@ -739,7 +749,7 @@ public final class AssistantRuntime implements ChatActions {
                     loading ? "Loading session..." : "", activeWorld, true);
         }
         return new ChatContracts.View(view.active(), currentSignIn, paused, view.conversation(), view.context(),
-                sources, targets, errors, view.streamingAnswer(), view.activity(), activeWorld, false);
+                sources, targets, errors, view.streamingAnswer(), view.activity(), activeWorld, false, view.activeQuestion());
     }
 
     private Evidence.Scope currentScope() {

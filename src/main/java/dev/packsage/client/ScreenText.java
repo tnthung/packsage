@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.model.ModelBackend;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
@@ -29,6 +30,18 @@ final class ScreenText {
     private static final Pattern COORDINATE = Pattern.compile("([xyz])=(-?\\d+)");
     private static final Pattern JEI_RECIPE = Pattern.compile("^jei/\\d+/\\d+/.+?/recipe-(.+)-\\d+$");
     private static final Pattern HASH_SUFFIX = Pattern.compile("#\\d+$");
+
+    record InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code) {
+        InlineSpan {
+            if (text == null) throw new NullPointerException("text");
+        }
+    }
+
+    record InlineLine(List<InlineSpan> spans) {
+        InlineLine {
+            spans = List.copyOf(spans);
+        }
+    }
 
     private ScreenText() {
     }
@@ -152,6 +165,163 @@ final class ScreenText {
     private static void flush(MutableComponent result, StringBuilder plain) {
         if (plain.length() == 0) return;
         result.append(Component.literal(plain.toString()));
+        plain.setLength(0);
+    }
+
+    /** Splits answer text into display spans so a validated target can be painted at its citation position. */
+    static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets) {
+        return inlineLines(text, targets, List.of());
+    }
+
+    static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets,
+                                        List<ModelBackend.UrlCitation> webCitations) {
+        List<InlineLine> lines = new ArrayList<>();
+        String[] rawLines = text.split("\\r?\\n", -1);
+        int absolute = 0;
+        boolean inCode = false;
+        for (int lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
+            String rawLine = rawLines[lineIndex];
+            int lineOffset = absolute;
+            absolute += rawLine.length();
+            if (absolute < text.length() && text.charAt(absolute) == '\r') absolute++;
+            if (absolute < text.length() && text.charAt(absolute) == '\n') absolute++;
+            if (rawLine.trim().startsWith("```")) {
+                inCode = !inCode;
+                continue;
+            }
+            String line = rawLine;
+            boolean bold = false;
+            List<InlineSpan> spans = new ArrayList<>();
+            if (inCode) {
+                spans.add(new InlineSpan(line, null, CODE_COLOR, false, true));
+            } else {
+                Matcher heading = HEADING.matcher(line);
+                if (heading.matches()) {
+                    line = heading.group(2);
+                    lineOffset += heading.start(2);
+                    bold = true;
+                } else {
+                    Matcher item = LIST_ITEM.matcher(line);
+                    if (item.matches()) {
+                        String prefix = item.group(1) + BULLET;
+                        spans.add(new InlineSpan(prefix, null, TEXT_COLOR, false, false));
+                        line = item.group(2);
+                        lineOffset += item.start(2);
+                    }
+                }
+                boolean table = line.trim().startsWith("|");
+                if (table && isTableSeparator(line)) continue;
+                if (table && lineIndex + 1 < rawLines.length && isTableSeparator(rawLines[lineIndex + 1])) bold = true;
+                inlineSpans(line, lineOffset, bold, targets, webCitations, spans);
+                if (table) {
+                    for (int index = 0; index < spans.size(); index++) {
+                        InlineSpan span = spans.get(index);
+                        if (span.target() == null && !span.code()) {
+                            spans.set(index, new InlineSpan(span.text().replace("|", CELL_GAP), null, span.color(), span.bold(), false));
+                        }
+                    }
+                }
+            }
+            lines.add(new InlineLine(spans.isEmpty() ? List.of(new InlineSpan("", null, TEXT_COLOR, false, false)) : spans));
+        }
+        return lines;
+    }
+
+    private static final int TEXT_COLOR = ModernUi.TEXT;
+
+    private static void inlineSpans(String text, int absoluteStart, boolean inheritedBold,
+                                    List<Evidence.NavigationTarget> targets, List<ModelBackend.UrlCitation> citations,
+                                    List<InlineSpan> spans) {
+        StringBuilder plain = new StringBuilder();
+        boolean bold = inheritedBold;
+        boolean strong = false;
+        boolean code = false;
+        int index = 0;
+        while (index < text.length()) {
+            ModelBackend.UrlCitation citation = null;
+            for (ModelBackend.UrlCitation value : citations) {
+                if (!code && value.startIndex() == absoluteStart + index && value.endIndex() > value.startIndex()) {
+                    citation = value;
+                    break;
+                }
+            }
+            if (citation != null && citation.endIndex() <= absoluteStart + text.length()) {
+                flushInline(spans, plain, bold, code);
+                Evidence.NavigationTarget target = null;
+                for (Evidence.NavigationTarget value : targets) {
+                    if (value.providerId().equals("web") && value.sourceHandle().equals(citation.url())) {
+                        target = value;
+                        break;
+                    }
+                }
+                if (target != null) {
+                    spans.add(new InlineSpan(text.substring(index, citation.endIndex() - absoluteStart), null,
+                            code ? CODE_COLOR : TEXT_COLOR, bold, code));
+                    spans.add(new InlineSpan(citation.title() == null || citation.title().isBlank() ? "Source" : citation.title(),
+                            target, ModernUi.TEXT, false, false));
+                    index = citation.endIndex() - absoluteStart;
+                    continue;
+                }
+            }
+            if (!code && text.charAt(index) == '[') {
+                Matcher marker = CITATION_MARKER.matcher(text).region(index, text.length());
+                if (marker.lookingAt()) {
+                    flushInline(spans, plain, bold, code);
+                    Evidence.NavigationTarget target = targets.stream().filter(value ->
+                            value.providerId().equals(marker.group(1)) && value.sourceHandle().equals(marker.group(2)))
+                            .findFirst().orElse(null);
+                    if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
+                        case "ftb_quests" -> "Quest";
+                        case "patchouli" -> "Guide";
+                        case "jei" -> "Recipe";
+                        case "config" -> "Config";
+                        default -> "Source";
+                    }, target, ModernUi.TEXT, false, false));
+                    else spans.add(new InlineSpan(markerTag(marker.group(1), marker.group(2)), null, DIM_COLOR, false, false));
+                    index = marker.end();
+                    continue;
+                }
+                int close = text.indexOf("](", index + 1);
+                int closeUrl = close < 0 ? -1 : text.indexOf(')', close + 2);
+                if (close > index && closeUrl > close + 2) {
+                    int end = closeUrl + 1;
+                    String url = text.substring(close + 2, closeUrl);
+                    Evidence.NavigationTarget target = targets.stream().filter(value ->
+                            value.providerId().equals("web") && value.sourceHandle().equals(url)).findFirst().orElse(null);
+                    if (target != null) {
+                        flushInline(spans, plain, bold, code);
+                        spans.add(new InlineSpan(text.substring(index + 1, close), target, ModernUi.TEXT, false, false));
+                        index = end;
+                        continue;
+                    }
+                }
+            }
+            if (!code && text.startsWith("**", index)) {
+                int close = text.indexOf("**", index + 2);
+                if (strong || close > index + 2) {
+                    flushInline(spans, plain, bold, code);
+                    strong = !strong;
+                    bold = inheritedBold || strong;
+                    index += 2;
+                    continue;
+                }
+            } else if (text.charAt(index) == '`') {
+                int close = text.indexOf('`', index + 1);
+                if (code || close > index + 1) {
+                    flushInline(spans, plain, bold, code);
+                    code = !code;
+                    index++;
+                    continue;
+                }
+            }
+            plain.append(text.charAt(index++));
+        }
+        flushInline(spans, plain, bold, code);
+    }
+
+    private static void flushInline(List<InlineSpan> spans, StringBuilder plain, boolean bold, boolean code) {
+        if (plain.length() == 0) return;
+        spans.add(new InlineSpan(plain.toString(), null, code ? CODE_COLOR : TEXT_COLOR, bold, code));
         plain.setLength(0);
     }
 

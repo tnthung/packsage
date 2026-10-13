@@ -56,6 +56,9 @@ class AssistantRuntimeTest {
         assertEquals(1, request.get().input().size());
         assertEquals(new ChatContracts.HistoryLimits(2, 30), prepared.get().submission().historyLimits());
         assertEquals(1, backend.requests.size());
+        assertEquals("question", runtime.view().activeQuestion());
+        runtime.stop();
+        assertEquals("", runtime.view().activeQuestion());
     }
 
     @Test
@@ -462,7 +465,10 @@ class AssistantRuntimeTest {
 
     @Test
     void selectedSessionsPublishImmediatelyBlockPendingSendsAndKeepTheOperationalWorld() throws Exception {
-        for (boolean otherWorld : List.of(false, true)) {
+        for (String scenario : List.of("same", "other", "renamed")) {
+            boolean otherWorld = scenario.equals("other");
+            ChatContracts.WorldIdentity activeWorld = scenario.equals("renamed")
+                    ? new ChatContracts.WorldIdentity(WORLD.worldOrServer(), "Renamed World") : WORLD;
             List<Runnable> pending = new ArrayList<>();
             AtomicBoolean defer = new AtomicBoolean();
             ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-session-test"), task -> {
@@ -503,7 +509,7 @@ class AssistantRuntimeTest {
                                 List.of(new ModelBackend.TextContent(request.submission().question())))), List.of(),
                                 request.submission().searchMode(), request.submission().requestId().value(), 512);
                     }, ignored -> 512, ignored -> { }, ignored -> navigations.incrementAndGet());
-            runtime.enterWorld(WORLD, SCOPE);
+            runtime.enterWorld(activeWorld, SCOPE);
             runtime.signIn();
             backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
             backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
@@ -518,10 +524,10 @@ class AssistantRuntimeTest {
             assertEquals(0, backend.starts);
             assertEquals(0, captures.get());
             assertEquals(SCOPE, operationalScope.get().get());
-            pending.removeFirst().run();
+            while (!pending.isEmpty()) pending.removeFirst().run();
 
             assertEquals(otherWorld, screen.view().readOnly());
-            assertEquals(WORLD, screen.view().activeWorld());
+            assertEquals(activeWorld, screen.view().activeWorld());
             assertEquals(SCOPE, screen.view().context().scope());
             assertEquals(List.of(historical), screen.view().conversation().turns());
             assertTrue(screen.view().navigationTargets().contains(target));
@@ -549,7 +555,7 @@ class AssistantRuntimeTest {
             runtime.newChat();
             while (!pending.isEmpty()) pending.removeFirst().run();
             assertFalse(screen.view().readOnly());
-            assertEquals(WORLD, screen.view().conversation().world());
+            assertEquals(activeWorld, screen.view().conversation().world());
             assertTrue(screen.view().conversation().turns().isEmpty());
         }
     }

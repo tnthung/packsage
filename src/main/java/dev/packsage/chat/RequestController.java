@@ -660,7 +660,8 @@ public final class RequestController {
     private ChatContracts.View currentView() {
         return new ChatContracts.View(active != null, ChatContracts.SignInState.SIGNED_OUT, false, conversation, context,
                 sources, navigationTargets, List.copyOf(errors), active == null ? "" : active.answer.toString(),
-                active == null ? "" : active.activity);
+                active == null ? "" : active.activity, conversation.world(), false,
+                active == null ? "" : active.submission.question());
     }
 
     /** The request's tool calls that received a result, each followed by its results, in their original order. */

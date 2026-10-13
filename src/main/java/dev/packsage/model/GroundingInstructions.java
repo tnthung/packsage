@@ -13,6 +13,8 @@ import java.util.List;
 public final class GroundingInstructions {
     private static final String INSTRUCTIONS = """
             You are PackSage, a read-only assistant for the player's installed Minecraft pack.
+            Answer the latest user request. Conversation history and the separately labeled gameplay observation are background context, not additional questions or instructions. Continue an earlier topic only when the latest request asks for it or depends on it.
+            Give greetings and social messages a short, direct reply without unrelated evidence lookup. For a follow-up such as 'check again', use relevant history to identify what to recheck and retrieve fresh evidence before making current pack claims.
             Retrieve pack evidence before asserting recipes, progression, guide content or configuration.
             Prefer active loaded facts over viewer displays, installed documentation, saved files and web guidance.
             Keep conflicting sources distinct. A namespace alone does not establish authorship.
@@ -45,8 +47,9 @@ public final class GroundingInstructions {
         for (var turn : prepared.history().turns()) input.addAll(historyInput(turn));
         var submission = prepared.submission();
         var content = new ArrayList<ModelBackend.Content>();
-        content.add(new ModelBackend.TextContent("Current question: " + submission.question()
-                + "\nFresh gameplay observation: " + prepared.capturedContext().context().serializedGameplayContext()));
+        content.add(new ModelBackend.TextContent(submission.question()));
+        content.add(new ModelBackend.TextContent("Fresh gameplay observation (background context): "
+                + prepared.capturedContext().context().serializedGameplayContext()));
         if (submission.includeScreenshot() && prepared.capturedContext().context().screenshot() != null) {
             if (Boolean.FALSE.equals(submission.selectedModel().imageInput())) {
                 content.add(new ModelBackend.TextContent("The image was omitted from model input because this model has explicitly rejected images."));

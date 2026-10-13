@@ -33,17 +33,21 @@ class GroundingInstructionsTest {
     }
 
     @Test
-    void preservesSelectedModelSearchAndTypedReplayAndAttachesRealImageBytes() {
+    void keepsCurrentQuestionSeparateFromHistoryAndGameplayAndAttachesRealImageBytes() {
         var replay = List.<ModelBackend.InputItem>of(new ModelBackend.ToolCall("old", "lookup", "{}"),
                 new ModelBackend.ToolResult("old", "{\"count\":7}", false));
-        var oldTurn = new ChatContracts.Turn(new ChatContracts.RequestId("old"), "old question", "old answer", replay,
+        var oldTurn = new ChatContracts.Turn(new ChatContracts.RequestId("old"), "How do I enchant my pickaxe?",
+                "Use Fortune V on the pickaxe.", replay,
                 new ChatContracts.Context("{\"time\":1}", null, SCOPE), List.of(),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 5);
         var submission = new ChatContracts.Submission(new ChatContracts.RequestId("current"),
-                new ChatContracts.WorldIdentity("world", "World"), SCOPE, "current question", true,
+                new ChatContracts.WorldIdentity("world", "World"), SCOPE, "hi", true,
                 new ChatContracts.HistoryLimits(10, 12_000), new ModelBackend.ModelInfo("catalog-model", null, null, null, null),
-                ModelBackend.SearchMode.EXPLICIT_ONLY, 2048);
-        var captured = new ChatContracts.CapturedContext(new ChatContracts.Context("{\"dimension\":\"overworld\"}",
+                ModelBackend.SearchMode.EXPLICIT_ONLY, 2048, ModelBackend.ReasoningEffort.NONE);
+        var gameplay = "{\"dimension\":\"overworld\",\"heldItem\":\"minecraft:iron_pickaxe\","
+                + "\"target\":{\"kind\":\"block\",\"id\":\"minecraft:ancient_debris\"},"
+                + "\"biome\":\"minecraft:nether_wastes\"}";
+        var captured = new ChatContracts.CapturedContext(new ChatContracts.Context(gameplay,
                 new ChatContracts.Screenshot("current.png", "image/png", 3, Instant.EPOCH), SCOPE), new byte[]{1, 2, 3});
 
         var request = GroundingInstructions.build(new ChatContracts.PreparedRequest(submission,
@@ -54,21 +58,31 @@ class GroundingInstructionsTest {
         assertEquals(ModelBackend.SearchMode.EXPLICIT_ONLY, request.searchMode());
         assertEquals("current", request.requestId());
         assertEquals(2048, request.outputBudget());
+        assertEquals(ModelBackend.ReasoningEffort.NONE, request.reasoningEffort());
         assertTrue(request.instructions().contains("navigable: true"));
         assertTrue(request.instructions().contains("outputItem"));
         assertTrue(request.instructions().contains("search_history"));
         assertTrue(request.instructions().contains("read_history"));
         assertTrue(request.instructions().contains("historical conversation"));
+        assertTrue(request.instructions().contains("Retrieve pack evidence before asserting recipes"));
+        assertTrue(request.instructions().contains("Continue an earlier topic only when the latest request asks for it or depends on it."));
+        assertTrue(request.instructions().contains("short, direct reply without unrelated evidence lookup"));
+        assertTrue(request.instructions().contains("retrieve fresh evidence before making current pack claims"));
         assertEquals(3, request.input().size());
         assertTrue(request.input().get(0) instanceof ModelBackend.Message);
         assertTrue(request.input().get(1) instanceof ModelBackend.AssistantOutput);
-        assertEquals("old question", ((ModelBackend.TextContent) ((ModelBackend.Message) request.input().get(0)).content().getFirst()).text());
-        assertEquals("old answer", ((ModelBackend.OutputText) ((ModelBackend.AssistantOutput) request.input().get(1)).content().getFirst()).text());
+        assertEquals("How do I enchant my pickaxe?", ((ModelBackend.TextContent)
+                ((ModelBackend.Message) request.input().get(0)).content().getFirst()).text());
+        assertEquals("Use Fortune V on the pickaxe.", ((ModelBackend.OutputText)
+                ((ModelBackend.AssistantOutput) request.input().get(1)).content().getFirst()).text());
         var current = (ModelBackend.Message) request.input().getLast();
+        assertEquals(ModelBackend.Role.USER, current.role());
+        assertEquals("hi", ((ModelBackend.TextContent) current.content().getFirst()).text());
+        assertTrue(current.content().get(1) instanceof ModelBackend.TextContent);
+        var observation = ((ModelBackend.TextContent) current.content().get(1)).text();
+        assertEquals("Fresh gameplay observation (background context): " + gameplay, observation);
         assertTrue(current.content().stream().anyMatch(content -> content instanceof ModelBackend.ImageContent image
                 && image.dataUrl().equals("data:image/png;base64,AQID")));
-        assertTrue(current.content().stream().anyMatch(content -> content instanceof ModelBackend.TextContent text
-                && text.text().contains("current question") && text.text().contains("overworld")));
         assertEquals(10, request.tools().size());
     }
 

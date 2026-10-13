@@ -54,7 +54,7 @@ public final class ChatContracts {
     public record Submission(RequestId requestId, WorldIdentity world, Evidence.Scope scope, String question,
                              boolean includeScreenshot, HistoryLimits historyLimits,
                              ModelBackend.ModelInfo selectedModel, ModelBackend.SearchMode searchMode,
-                             int outputBudget, ModelBackend.ReasoningEffort reasoningEffort) {
+                             int outputBudget, ModelBackend.ReasoningEffort reasoningEffort, RequestId replacing) {
         public Submission {
             Objects.requireNonNull(requestId);
             Objects.requireNonNull(world);
@@ -65,6 +65,14 @@ public final class ChatContracts {
             Objects.requireNonNull(searchMode);
             Objects.requireNonNull(reasoningEffort);
             if (outputBudget < 1) throw new IllegalArgumentException("outputBudget must be positive");
+        }
+
+        public Submission(RequestId requestId, WorldIdentity world, Evidence.Scope scope, String question,
+                          boolean includeScreenshot, HistoryLimits historyLimits,
+                          ModelBackend.ModelInfo selectedModel, ModelBackend.SearchMode searchMode,
+                          int outputBudget, ModelBackend.ReasoningEffort reasoningEffort) {
+            this(requestId, world, scope, question, includeScreenshot, historyLimits, selectedModel, searchMode,
+                    outputBudget, reasoningEffort, null);
         }
 
         public Submission(RequestId requestId, WorldIdentity world, Evidence.Scope scope, String question,
@@ -215,6 +223,26 @@ public final class ChatContracts {
 
         public HistorySelection(List<Turn> turns, int tokenCount) {
             this(turns, tokenCount, List.of());
+        }
+    }
+
+    public record TokenCounts(int user, int assistant) {
+        public TokenCounts {
+            if (user < 0 || assistant < 0) throw new IllegalArgumentException("token counts cannot be negative");
+        }
+
+        public int total() { return user + assistant; }
+    }
+
+    public record HistoryPreview(HistorySelection selection, int configuredTokens, int effectiveTokens,
+                                 Integer modelTokens, int configuredTurns) {
+        public HistoryPreview {
+            Objects.requireNonNull(selection);
+            if (configuredTokens < 1 || effectiveTokens < 1 || configuredTurns < 1
+                    || modelTokens != null && modelTokens < 1) throw new IllegalArgumentException("history preview limits must be positive");
+            if (effectiveTokens > configuredTokens || modelTokens != null && effectiveTokens > modelTokens) {
+                throw new IllegalArgumentException("effective history limit exceeds an input limit");
+            }
         }
     }
 

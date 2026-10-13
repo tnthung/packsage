@@ -85,4 +85,15 @@ public final class GroundingInstructions {
         for (var item : historyInput(turn)) total += JSON.toJson(item).getBytes(StandardCharsets.UTF_8).length;
         return total;
     }
+
+    public static ChatContracts.TokenCounts historyTokenCounts(ChatContracts.Turn turn) {
+        int user = 0;
+        int assistant = 0;
+        for (var item : historyInput(turn)) {
+            int bytes = JSON.toJson(item).getBytes(StandardCharsets.UTF_8).length;
+            if (item instanceof ModelBackend.Message message && message.role() == ModelBackend.Role.USER) user += bytes;
+            else assistant += bytes;
+        }
+        return new ChatContracts.TokenCounts(user, assistant);
+    }
 }

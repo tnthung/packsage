@@ -74,6 +74,15 @@ class HistorySelectorTest {
         assertTrue(selection.errors().isEmpty());
     }
 
+    @Test
+    void replacingLatestTurnExcludesOnlyThatTurnFromPreview() {
+        ChatContracts.HistorySelection selection = HistorySelector.select(List.of(turn(1, 1), turn(2, 1)),
+                new ChatContracts.HistoryLimits(10, 12_000), ChatContracts.Turn::tokenCount,
+                new ChatContracts.RequestId("request-2"));
+
+        assertEquals(List.of("request-1"), selection.turns().stream().map(turn -> turn.requestId().value()).toList());
+    }
+
     private static ChatContracts.Turn turn(int index, int tokenCount) {
         ChatContracts.Context context = new ChatContracts.Context("fresh-at-turn-" + index, null, SCOPE);
         return new ChatContracts.Turn(new ChatContracts.RequestId("request-" + index), "question-" + index,

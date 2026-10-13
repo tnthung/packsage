@@ -30,6 +30,7 @@ public final class AssistantRuntime implements ChatActions {
     private final Executor controllerExecutor;
     private final Executor clientExecutor;
     private final Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder;
+    private final Function<ChatContracts.Turn, Integer> historyCounter;
     private final ToIntFunction<ModelBackend.ModelInfo> outputBudget;
     private final Consumer<Boolean> pauseGame;
     private final Consumer<String> externalNavigation;
@@ -68,6 +69,7 @@ public final class AssistantRuntime implements ChatActions {
         this.controllerExecutor = Objects.requireNonNull(controllerExecutor);
         this.clientExecutor = Objects.requireNonNull(clientExecutor);
         Objects.requireNonNull(historyCounter);
+        this.historyCounter = historyCounter;
         this.requestBuilder = Objects.requireNonNull(requestBuilder);
         this.outputBudget = Objects.requireNonNull(outputBudget);
         this.pauseGame = Objects.requireNonNull(pauseGame);
@@ -174,6 +176,36 @@ public final class AssistantRuntime implements ChatActions {
         synchronized (stateLock) {
             this.settings = Objects.requireNonNull(settings);
         }
+    }
+
+    @Override
+    public PackSageSettings settings() {
+        synchronized (stateLock) {
+            return settings;
+        }
+    }
+
+    @Override
+    public ChatContracts.HistoryPreview historyPreview() {
+        return historyPreview(null);
+    }
+
+    @Override
+    public ChatContracts.HistoryPreview historyPreview(ChatContracts.RequestId replacing) {
+        ChatContracts.View current = view();
+        ModelBackend.ModelInfo selected;
+        PackSageSettings currentSettings;
+        synchronized (stateLock) {
+            currentSettings = settings;
+            selected = capabilities.modelCatalog().stream().filter(model -> model.id().equals(
+                    currentSettings.modelId() == null ? capabilities.selectedModelId() : currentSettings.modelId())).findFirst().orElse(null);
+        }
+        int configured = currentSettings.historicalTokens();
+        Integer modelTokens = selected == null ? null : selected.contextTokens();
+        int effective = modelTokens == null ? configured : Math.min(configured, modelTokens);
+        ChatContracts.HistorySelection selection = HistorySelector.select(current.conversation().turns(),
+                new ChatContracts.HistoryLimits(currentSettings.historyTurns(), effective), historyCounter::apply, replacing);
+        return new ChatContracts.HistoryPreview(selection, configured, effective, modelTokens, currentSettings.historyTurns());
     }
 
     @Override
@@ -316,7 +348,32 @@ public final class AssistantRuntime implements ChatActions {
     }
 
     @Override
+    public void resend(ChatContracts.RequestId expectedLatest, String question, boolean includeScreenshot,
+                       boolean explicitWebSearch) {
+        Objects.requireNonNull(expectedLatest);
+        synchronized (sendLock) {
+            synchronized (stateLock) {
+                ChatContracts.View current = controller.view();
+                if (current.active() || readOnlyConversation != null || sessionLoading
+                        || current.conversation().turns().isEmpty()
+                        || !current.conversation().turns().getLast().requestId().equals(expectedLatest)) {
+                    runtimeErrors.add("Only the latest exchange can be resent");
+                    publishCurrentView(worldEpoch);
+                    return;
+                }
+            }
+            send(question, includeScreenshot, explicitWebSearch, expectedLatest);
+        }
+    }
+
+    @Override
     public void send(String question, boolean includeScreenshot, boolean explicitWebSearch) {
+        Objects.requireNonNull(question);
+        send(question, includeScreenshot, explicitWebSearch, null);
+    }
+
+    private void send(String question, boolean includeScreenshot, boolean explicitWebSearch,
+                      ChatContracts.RequestId replacing) {
         Objects.requireNonNull(question);
         synchronized (sendLock) {
             ChatContracts.Submission submission;
@@ -382,7 +439,9 @@ public final class AssistantRuntime implements ChatActions {
                 }
                 ChatContracts.HistoryLimits historyLimits;
                 try {
-                    historyLimits = settings.historyLimits();
+                    int historicalTokens = settings.historicalTokens();
+                    if (selected.contextTokens() != null) historicalTokens = Math.min(historicalTokens, selected.contextTokens());
+                    historyLimits = new ChatContracts.HistoryLimits(settings.historyTurns(), historicalTokens);
                 } catch (RuntimeException failure) {
                     runtimeErrors.add("Request settings are invalid: " + failureMessage(failure));
                     publishCurrentView(worldEpoch);
@@ -396,7 +455,7 @@ public final class AssistantRuntime implements ChatActions {
                     submission = new ChatContracts.Submission(new ChatContracts.RequestId(UUID.randomUUID().toString()),
                             storedWorld.worldOrServer().equals(world.worldOrServer()) ? storedWorld : world,
                             nextScope, question, includeScreenshot, historyLimits, selected, searchMode, budget,
-                            settings.reasoningEffort());
+                            settings.reasoningEffort(), replacing);
                 } catch (RuntimeException failure) {
                     runtimeErrors.add("Request settings are invalid: " + failureMessage(failure));
                     publishCurrentView(worldEpoch);

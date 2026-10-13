@@ -23,6 +23,19 @@ public interface ChatActions {
 
     default String providerSelectedModelId() { return null; }
 
+    default PackSageSettings settings() { return PackSageSettings.defaults(); }
+
+    default ChatContracts.HistoryPreview historyPreview() {
+        return new ChatContracts.HistoryPreview(new ChatContracts.HistorySelection(List.of(), 0),
+                PackSageSettings.DEFAULT_HISTORICAL_TOKENS, PackSageSettings.DEFAULT_HISTORICAL_TOKENS, null,
+                PackSageSettings.DEFAULT_HISTORY_TURNS);
+    }
+
+    default ChatContracts.HistoryPreview historyPreview(ChatContracts.RequestId replacing) { return historyPreview(); }
+
+    default void resend(ChatContracts.RequestId expectedLatest, String question, boolean includeScreenshot,
+                        boolean explicitWebSearch) { }
+
     void signIn();
 
     void cancelSignIn();

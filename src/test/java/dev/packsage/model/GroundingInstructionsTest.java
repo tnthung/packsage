@@ -132,6 +132,19 @@ class GroundingInstructionsTest {
     }
 
     @Test
+    void historyTokenCountsSplitTheExactSerializedHistoryBudget() {
+        ChatContracts.Turn turn = new ChatContracts.Turn(new ChatContracts.RequestId("counted"),
+                "question", "answer", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+
+        ChatContracts.TokenCounts counts = GroundingInstructions.historyTokenCounts(turn);
+
+        assertTrue(counts.user() > 0);
+        assertTrue(counts.assistant() > 0);
+        assertEquals(GroundingInstructions.historyTextBudget(turn), counts.total());
+    }
+
+    @Test
     void largeHistoricalToolPayloadsReplayOnlyQuestionAndAnswer() {
         var replay = List.<ModelBackend.InputItem>of(new ModelBackend.ToolCall("old", "search_pack", "{}"),
                 new ModelBackend.ToolResult("old", "x".repeat(40_000), false));

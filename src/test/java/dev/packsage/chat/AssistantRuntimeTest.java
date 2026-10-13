@@ -62,6 +62,58 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void previewAndSendUseTheSameCounterAndClampKnownModelLimits() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        PackSageSettings settings = new PackSageSettings(true, false, 2, 100_000);
+        AtomicReference<ChatContracts.PreparedRequest> prepared = new AtomicReference<>();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(), prepared,
+                settings, model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+        runtime.send("first", false, false);
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), null));
+        var preview = runtime.historyPreview();
+        assertEquals(100_000, preview.configuredTokens());
+        assertEquals(16_000, preview.effectiveTokens());
+        assertEquals(1, preview.selection().turns().size());
+        assertEquals(0, preview.selection().tokenCount());
+        runtime.send("second", false, false);
+        assertEquals(preview.selection(), prepared.get().history());
+        assertEquals(16_000, prepared.get().submission().historyLimits().historicalTokens());
+    }
+
+    @Test
+    void resendExcludesLatestAndRejectedEditDoesNotLeakIntoOrdinarySend() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        AtomicReference<ChatContracts.PreparedRequest> prepared = new AtomicReference<>();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(), prepared,
+                PackSageSettings.defaults(), model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+        runtime.send("first", false, false);
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), null));
+        runtime.send("second", false, false);
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), null));
+        ChatContracts.RequestId latest = runtime.view().conversation().turns().getLast().requestId();
+        runtime.resend(latest, "", false, false);
+        assertEquals(2, backend.starts);
+        var preview = runtime.historyPreview(latest);
+        runtime.resend(latest, "edited second", false, false);
+        assertEquals(preview.selection(), prepared.get().history());
+        assertEquals(List.of("first"), prepared.get().history().turns().stream().map(ChatContracts.Turn::question).toList());
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.FAILED, null, null, List.of(), "temporary failure"));
+        assertEquals(List.of("first", "edited second"), runtime.view().conversation().turns().stream().map(ChatContracts.Turn::question).toList());
+        runtime.send("ordinary third", false, false);
+        assertNull(prepared.get().submission().replacing());
+    }
+
+    @Test
     void selectedModelAndReasoningEffortAreSnapshotBeforeCaptureSettingsChange() throws Exception {
         AtomicReference<Evidence.Scope> currentScope = new AtomicReference<>();
         AtomicReference<ModelBackend.Request> request = new AtomicReference<>();

@@ -397,14 +397,14 @@ public final class AssistantScreen extends Screen {
                     style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), avatarX + 3,
                     y + Math.max(0, bubbleHeight - 18) + (18 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
-        graphics.fill(avatarX + 13, y + Math.max(0, bubbleHeight - 18) + 13, avatarX + 18,
+        graphics.fill(avatarX + 15, y + Math.max(0, bubbleHeight - 18) + 15, avatarX + 18,
                 y + Math.max(0, bubbleHeight - 18) + 18, included ? 0xff74bf8c : ModernUi.DANGER);
         return y + bubbleHeight;
     }
 
     private int drawAssistantMessage(GuiGraphics graphics, String answer, ChatContracts.Turn turn, int y, boolean included) {
         drawAssistantAvatar(graphics, y);
-        graphics.fill(readableLeft + 13, y + 13, readableLeft + 18, y + 18,
+        graphics.fill(readableLeft + 15, y + 15, readableLeft + 18, y + 18,
                 included ? 0xff74bf8c : ModernUi.DANGER);
         List<Evidence.NavigationTarget> targets = turnTargets(turn);
         List<ModelBackend.UrlCitation> citations = new ArrayList<>();
@@ -445,14 +445,16 @@ public final class AssistantScreen extends Screen {
         int actionY = y + 2 + (stacked ? lines.size() * ModernUi.MESSAGE_LINE_HEIGHT + 4 : 0);
         ModernUi.surface(graphics, actionLeft, actionY, actionLeft + 34, actionY + 16,
                 mouseX >= actionLeft && mouseX < actionLeft + 34 && mouseY >= actionY && mouseY < actionY + 16 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
-        graphics.drawString(font, Component.literal("Copy").withStyle(style -> style.withFont(ModernUi.FONT)),
-                actionLeft + 5, actionY + (16 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        Component copy = Component.literal("Copy").withStyle(style -> style.withFont(ModernUi.FONT));
+        graphics.drawString(font, copy, actionLeft + (34 - font.width(copy)) / 2,
+                actionY + (16 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         messageActions.add(new MessageAction(turn, user, false, actionLeft, actionY, 34));
         if (editable) {
             ModernUi.surface(graphics, actionLeft + 40, actionY, actionLeft + 72, actionY + 16,
                     mouseX >= actionLeft + 40 && mouseX < actionLeft + 72 && mouseY >= actionY && mouseY < actionY + 16 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
-            graphics.drawString(font, Component.literal("Edit").withStyle(style -> style.withFont(ModernUi.FONT)),
-                    actionLeft + 45, actionY + (16 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+            Component edit = Component.literal("Edit").withStyle(style -> style.withFont(ModernUi.FONT));
+            graphics.drawString(font, edit, actionLeft + 40 + (32 - font.width(edit)) / 2,
+                    actionY + (16 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
             messageActions.add(new MessageAction(turn, true, true, actionLeft + 40, actionY, 32));
         }
         return actionY + 20;
@@ -460,9 +462,10 @@ public final class AssistantScreen extends Screen {
 
     private void drawAssistantAvatar(GuiGraphics graphics, int y) {
         ModernUi.surface(graphics, readableLeft, y, readableLeft + 18, y + 18, ModernUi.ACCENT_DARK);
-        graphics.drawString(font, Component.literal("Ps").withStyle(style ->
-                style.withFont(ModernUi.BOLD_FONT).withColor(ModernUi.TEXT)), readableLeft + 4, y + (18 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
-        graphics.fill(readableLeft + 13, y + 13, readableLeft + 18, y + 18, ModernUi.DANGER);
+        Component label = Component.literal("Ps").withStyle(style -> style.withFont(ModernUi.BOLD_FONT).withColor(ModernUi.TEXT));
+        graphics.drawString(font, label, readableLeft + (18 - font.width(label)) / 2,
+                y + (18 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        graphics.fill(readableLeft + 15, y + 15, readableLeft + 18, y + 18, ModernUi.DANGER);
     }
 
     private int drawInlineLines(GuiGraphics graphics, List<ScreenText.InlineLine> lines, int y, int left,
@@ -776,7 +779,9 @@ public final class AssistantScreen extends Screen {
             for (Component line : lines) wrapped.addAll(font.split(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 20));
             List<net.minecraft.util.FormattedCharSequence> footerLines = footer.isEmpty() ? List.of()
                     : font.split(Component.literal(footer).withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 20);
-            int tooltipHeight = Math.min(height - 8, 20 + (title.isEmpty() ? 0 : 16) + wrapped.size() * 14
+            int tooltipHeight = Math.min(height - 8, title.isEmpty()
+                    ? 12 + Math.max(0, wrapped.size() - 1) * 14 + font.lineHeight
+                    : 36 + wrapped.size() * 14
                     + values.stream().mapToInt(value -> Math.max(1, value.size()) * 14).sum()
                     + (footerLines.isEmpty() ? 0 : 6 + footerLines.size() * 14));
             int left = Math.max(4, Math.min(mouseX + 10, width - tooltipWidth - 4));
@@ -785,7 +790,7 @@ public final class AssistantScreen extends Screen {
             graphics.pose().translate(0, 0, 400);
             ModernUi.surface(graphics, left, top, left + tooltipWidth, top + tooltipHeight, 0xff20252a);
             graphics.enableScissor(left + 4, top + 4, left + tooltipWidth - 4, top + tooltipHeight - 4);
-            int y = top + 10;
+            int y = top + (title.isEmpty() ? 6 : 10);
             if (!title.isEmpty()) {
                 graphics.drawString(font, Component.literal(title).withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
                         left + 10, y, ModernUi.TEXT, false);

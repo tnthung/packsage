@@ -137,6 +137,11 @@ public final class AssistantSettingsScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // The custom render path draws its opaque background before the content.
+    }
+
+    @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         graphics.fill(0, 0, width, height, ModernUi.BACKGROUND);
         Layout layout = layout();

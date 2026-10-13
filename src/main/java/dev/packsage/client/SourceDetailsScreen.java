@@ -102,7 +102,7 @@ final class SourceDetailsScreen extends Screen {
         graphics.drawString(font, Component.literal("Back").withStyle(style -> style.withFont(ModernUi.FONT)),
                 left + 29, 12 + (28 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         graphics.drawString(font, getTitle().copy().withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
-                left + 82, 22, ModernUi.TEXT, false);
+                left + 82, 12 + (28 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         int bottom = Math.max(51, height - 12);
         graphics.enableScissor(left, 50, left + panelWidth, bottom);
         int y = 58 - scrollOffset;

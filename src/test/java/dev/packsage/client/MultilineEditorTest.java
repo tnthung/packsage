@@ -60,7 +60,7 @@ class MultilineEditorTest {
         MultilineEditor editor = new MultilineEditor(FONT, 0, 0, 40, 42, () -> true);
         editor.setValue("abcdefghij");
         assertEquals(List.of("abcd", "efgh", "ij"), editor.lines());
-        editor.onClick(21, 21, 0);
+        editor.onClick(21, 27, 0);
         assertEquals(6, editor.cursor());
         editor.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN, 0, 0);
         assertEquals(10, editor.cursor());
@@ -77,7 +77,7 @@ class MultilineEditorTest {
     void wrappedBoundaryClicksAndEndKeepTheirVisualRow() {
         MultilineEditor editor = new MultilineEditor(FONT, 0, 0, 40, 60, () -> true);
         editor.setValue("abcdefghij");
-        editor.onClick(10, 21, 0);
+        editor.onClick(10, 27, 0);
         assertEquals(4, editor.cursor());
         editor.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN, 0, 0);
         assertEquals(8, editor.cursor());

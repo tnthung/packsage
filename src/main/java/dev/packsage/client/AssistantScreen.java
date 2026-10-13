@@ -227,10 +227,10 @@ public final class AssistantScreen extends Screen {
             if (row.top() + row.height() <= 104 || row.top() >= bottom) continue;
             if (row.session() == null) {
                 if (!row.expand()) graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/globe.png"),
-                        16, row.top() + 3, 14, 14, 0.0F, 0.0F, 64, 64, 64, 64);
+                        16, row.top() + (row.height() - 14) / 2, 14, 14, 0.0F, 0.0F, 64, 64, 64, 64);
                 graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(row.label())
                                 .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, sidebarWidth - (row.expand() ? 40 : 52)))),
-                        row.expand() ? 24 : 36, row.top() + 6,
+                        row.expand() ? 24 : 36, row.top() + (row.height() - font.lineHeight) / 2 + 1,
                         row.expand() || row.world().equals(view.activeWorld()) ? ModernUi.ACCENT : ModernUi.MUTED, false);
             } else {
                 boolean selected = row.session().id().equals(view.conversation().id())
@@ -240,10 +240,11 @@ public final class AssistantScreen extends Screen {
                 }
                 graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(row.label().replaceAll("\\s+", " "))
                                 .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, sidebarWidth - 48))),
-                        24, row.top() + 5, selected ? ModernUi.TEXT : ModernUi.MUTED, false);
+                        24, row.top() + (34 - (row.session().lastMessage().isBlank() ? font.lineHeight
+                                : ModernUi.MESSAGE_LINE_HEIGHT + font.lineHeight)) / 2 + 1, selected ? ModernUi.TEXT : ModernUi.MUTED, false);
                 graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(row.session().lastMessage().replaceAll("\\s+", " "))
                                 .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, sidebarWidth - 48))),
-                        24, row.top() + 18, ModernUi.MUTED, false);
+                        24, row.top() + (34 - (ModernUi.MESSAGE_LINE_HEIGHT + font.lineHeight)) / 2 + 1 + ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.MUTED, false);
             }
         }
         graphics.disableScissor();
@@ -311,7 +312,7 @@ public final class AssistantScreen extends Screen {
         int bubbleHeight = Math.max(28, lines.size() * ModernUi.MESSAGE_LINE_HEIGHT + 14);
         int bubbleX = readableLeft + readableWidth - bubbleWidth - 28;
         ModernUi.surface(graphics, bubbleX, y, bubbleX + bubbleWidth, y + bubbleHeight, ModernUi.SURFACE_HOVER);
-        int lineY = y + 7;
+        int lineY = y + (bubbleHeight - ((lines.size() - 1) * ModernUi.MESSAGE_LINE_HEIGHT + font.lineHeight)) / 2 + 1;
         for (net.minecraft.util.FormattedCharSequence line : lines) {
             graphics.drawString(font, line, bubbleX + 10, lineY, ModernUi.TEXT, false);
             lineY += ModernUi.MESSAGE_LINE_HEIGHT;
@@ -325,7 +326,7 @@ public final class AssistantScreen extends Screen {
                     y + Math.max(0, bubbleHeight - 24) + 24, ModernUi.ACCENT_DARK);
             graphics.drawString(font, Component.literal("You").withStyle(style ->
                     style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), avatarX + 3,
-                    y + Math.max(0, bubbleHeight - 24) + 8, ModernUi.TEXT, false);
+                    y + Math.max(0, bubbleHeight - 24) + (24 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
         return y + bubbleHeight;
     }
@@ -381,7 +382,8 @@ public final class AssistantScreen extends Screen {
             }
             graphics.drawString(font, Component.literal(span.text()).withStyle(style -> style
                             .withFont(span.bold() || span.target() != null || span.source() != null ? ModernUi.BOLD_FONT : ModernUi.FONT).withColor(span.color())),
-                    x + (span.target() == null && span.source() == null ? 0 : 6), top + 2, span.color(), false);
+                    x + (span.target() == null && span.source() == null ? 0 : 6),
+                    top + (ModernUi.MESSAGE_LINE_HEIGHT - font.lineHeight) / 2 + 1, span.color(), false);
         }
         return y + layout.height();
     }
@@ -477,14 +479,14 @@ public final class AssistantScreen extends Screen {
         ModernUi.surface(graphics, readableLeft, toggleY, readableLeft + toggleWidth, toggleY + 20,
                 explicitWebSearch ? ModernUi.ACCENT_DARK : ModernUi.SURFACE);
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/globe.png"),
-                readableLeft + 6, toggleY + 2, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
+                readableLeft + 7, toggleY + (20 - 13) / 2, 13, 13, 0.0F, 0.0F, 64, 64, 64, 64);
         if (toggleWidth >= 96) graphics.drawString(font, Component.literal("Search").withStyle(style ->
                 style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), readableLeft + 27, toggleY + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         int screenshotLeft = readableLeft + toggleWidth + 6;
         ModernUi.surface(graphics, screenshotLeft, toggleY, screenshotLeft + toggleWidth, toggleY + 20,
                 includeScreenshot ? ModernUi.ACCENT_DARK : ModernUi.SURFACE);
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/camera.png"),
-                screenshotLeft + 6, toggleY + 2, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
+                screenshotLeft + 7, toggleY + (20 - 13) / 2, 13, 13, 0.0F, 0.0F, 64, 64, 64, 64);
         if (toggleWidth >= 112) graphics.drawString(font, Component.literal("Screenshot").withStyle(style ->
                 style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), screenshotLeft + 27, toggleY + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         ModernUi.surface(graphics, sendX, sendY, sendX + 28, sendY + 28,

@@ -83,7 +83,7 @@ final class MultilineEditor extends AbstractWidget {
         int visible = Math.max(1, (getHeight() - 14) / ModernUi.MESSAGE_LINE_HEIGHT);
         lineOffset = Math.min(Math.max(0, lineOffset), Math.max(0, lines.size() - visible));
         graphics.enableScissor(getX() + 1, getY() + 1, getX() + getWidth() - 1, getY() + getHeight() - 1);
-        int firstY = getY() + (multiline ? 7 : (getHeight() - font.lineHeight) / 2 + 1);
+        int firstY = getY() + (getHeight() - ((Math.min(visible, lines.size()) - 1) * ModernUi.MESSAGE_LINE_HEIGHT + font.lineHeight)) / 2 + 1;
         if (leadingIcon != null) graphics.blit(leadingIcon, getX() + 8, getY() + (getHeight() - 16) / 2,
                 16, 16, 0f, 0f, 64, 64, 64, 64);
         if (value.isEmpty()) graphics.drawString(font, getMessage().copy().withStyle(style -> style.withFont(ModernUi.FONT)),
@@ -366,8 +366,10 @@ final class MultilineEditor extends AbstractWidget {
 
     private int indexAtPoint(double mouseX, double mouseY) {
         List<WrappedLine> lines = wrappedLines();
+        int visible = Math.max(1, (getHeight() - 14) / ModernUi.MESSAGE_LINE_HEIGHT);
+        int firstY = getY() + (getHeight() - ((Math.min(visible, lines.size()) - 1) * ModernUi.MESSAGE_LINE_HEIGHT + font.lineHeight)) / 2 + 1;
         int lineIndex = Math.max(0, Math.min(lines.size() - 1,
-                lineOffset + (int) ((mouseY - getY() - (multiline ? 7 : (getHeight() - font.lineHeight) / 2 + 1)) / ModernUi.MESSAGE_LINE_HEIGHT)));
+                lineOffset + (int) ((mouseY - firstY) / ModernUi.MESSAGE_LINE_HEIGHT)));
         WrappedLine line = lines.get(lineIndex);
         int index = indexAtWidth(line, Math.max(0, (int) mouseX - getX() - (leadingIcon == null ? 10 : 30)));
         wrappedLineEnd = index == line.end() && lineIndex + 1 < lines.size() && lines.get(lineIndex + 1).start() == index;

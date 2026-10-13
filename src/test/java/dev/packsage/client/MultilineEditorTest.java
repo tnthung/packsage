@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MultilineEditorTest {
@@ -59,7 +60,7 @@ class MultilineEditorTest {
         MultilineEditor editor = new MultilineEditor(FONT, 0, 0, 40, 42, () -> true);
         editor.setValue("abcdefghij");
         assertEquals(List.of("abcd", "efgh", "ij"), editor.lines());
-        editor.onClick(21, 18, 0);
+        editor.onClick(21, 21, 0);
         assertEquals(6, editor.cursor());
         editor.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN, 0, 0);
         assertEquals(10, editor.cursor());
@@ -76,7 +77,7 @@ class MultilineEditorTest {
     void wrappedBoundaryClicksAndEndKeepTheirVisualRow() {
         MultilineEditor editor = new MultilineEditor(FONT, 0, 0, 40, 60, () -> true);
         editor.setValue("abcdefghij");
-        editor.onClick(10, 18, 0);
+        editor.onClick(10, 21, 0);
         assertEquals(4, editor.cursor());
         editor.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN, 0, 0);
         assertEquals(8, editor.cursor());
@@ -114,6 +115,20 @@ class MultilineEditorTest {
         assertEquals(1, submitted.get());
     }
 
+    @Test
+    void leadingIconReservesSpaceForTextAndCaretAndOneLineFitsTheSendHeight() {
+        MultilineEditor editor = new MultilineEditor(FONT, 0, 0, 60, 28, 80, false, () -> true);
+        editor.leadingIcon = ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/magnifying-glass.png");
+        editor.setValue("abcdefgh");
+        assertEquals(List.of("abcd", "efgh"), editor.lines());
+        editor.onClick(30, 10, 0);
+        assertEquals(0, editor.cursor());
+        editor.onClick(45, 10, 0);
+        assertEquals(3, editor.cursor());
+        editor.setValue("");
+        assertEquals(28, editor.preferredHeight());
+    }
+
     static final class FakeFont extends Font {
         FakeFont() {
             super(resource -> null, false);
@@ -123,11 +138,18 @@ class MultilineEditorTest {
         public int width(FormattedText text) {
             final int[] width = {0};
             text.visit((style, value) -> {
-                assertEquals(ModernUi.FONT, style.getFont());
+                assertTrue(ModernUi.FONT.equals(style.getFont()) || ModernUi.BOLD_FONT.equals(style.getFont()));
+                assertFalse(style.isBold());
                 width[0] += value.codePoints().count() * 5;
                 return java.util.Optional.empty();
             }, Style.EMPTY);
             return width[0];
+        }
+
+        @Override
+        public FormattedText substrByWidth(FormattedText text, int width) {
+            String value = text.getString();
+            return FormattedText.of(value.substring(0, value.offsetByCodePoints(0, Math.min(value.codePointCount(0, value.length()), Math.max(0, width / 5)))));
         }
     }
 }

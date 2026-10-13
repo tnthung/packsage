@@ -295,6 +295,7 @@ class AssistantScreenStateTest {
         screen.mouseClicked(x, y, 0);
         assertEquals(List.of("send", "stop"), actions.calls);
         screen.refresh(actions.view);
+        screen.setInput("next question");
         screen.mouseClicked(x, y, 0);
         assertEquals(List.of("send", "stop", "send"), actions.calls);
     }
@@ -366,6 +367,67 @@ class AssistantScreenStateTest {
         assertEquals(List.of("chat-7"), screen.sessionRows().stream().filter(value -> value.session() != null).map(value -> value.session().id()).toList());
     }
 
+    @Test
+    void submittingClearsTheComposerAndOutsideClicksClearEitherEditorFocus() {
+        FakeActions actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var search = (MultilineEditor) screen.children().getFirst();
+        var input = (MultilineEditor) screen.children().getLast();
+        screen.mouseClicked(search.getX() + 35, search.getY() + 12, 0);
+        assertTrue(search.isFocused());
+        screen.mouseClicked(input.getX() + 8, input.getY() - 20, 0);
+        assertFalse(search.isFocused());
+        screen.mouseClicked(input.getX() + 10, input.getY() + 10, 0);
+        assertTrue(input.isFocused());
+        screen.mouseClicked(300, 100, 0);
+        assertFalse(input.isFocused());
+        assertEquals(28, input.getHeight());
+        screen.setInput("submitted question");
+        screen.submit();
+        assertEquals("", screen.input());
+        assertEquals("submitted question", actions.sentQuestion);
+    }
+
+    @Test
+    void pauseUsesTheLiveRequestedStateBeforeAnyScreenRefresh() {
+        FakeActions actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        actions.setPaused(false);
+        actions.calls.clear();
+        screen.layout();
+        assertFalse(screen.isPauseScreen());
+        screen.mouseClicked(60, 450, 0);
+        assertTrue(screen.isPauseScreen());
+        screen.mouseClicked(60, 450, 0);
+        assertFalse(screen.isPauseScreen());
+        assertEquals(List.of("pause:true", "pause:false"), actions.calls);
+    }
+
+    @Test
+    void messageWrappingKeepsWordsWholeAndChipsWithinTheirRows() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var words = screen.messageLayout(ScreenText.inlineLines("alpha beta gamma", List.of()), 55);
+        assertEquals(0, words.runs().stream().filter(run -> run.span().text().equals("beta")).findFirst().orElseThrow().y());
+        assertEquals(13, words.runs().stream().filter(run -> run.span().text().equals("gamma")).findFirst().orElseThrow().y());
+        var quest = new Evidence.NavigationTarget(SCOPE, "ftb_quests", "source", "quest");
+        var chips = screen.messageLayout(ScreenText.inlineLines("[ftb_quests:source] [ftb_quests:source]", List.of(quest)), 70);
+        var targets = chips.runs().stream().filter(run -> run.span().target() != null).toList();
+        assertEquals(2, targets.size());
+        assertEquals(13, targets.get(1).y() - targets.get(0).y());
+        assertTrue(chips.runs().stream().allMatch(run -> run.x() + run.width() <= 70));
+        var longToken = screen.messageLayout(ScreenText.inlineLines("abcdefgh", List.of()), 15);
+        assertEquals("abcdefgh", longToken.runs().stream().map(run -> run.span().text()).reduce("", String::concat));
+        assertEquals(39, longToken.height());
+    }
+
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
     private static final Evidence.NavigationTarget TARGET = new Evidence.NavigationTarget(SCOPE, "provider", "source", "target");
     private static final Evidence.NavigationTarget TARGET_TWO = new Evidence.NavigationTarget(SCOPE, "provider", "source2", "target2");
@@ -375,8 +437,9 @@ class AssistantScreenStateTest {
 
     private static final class FakeActions implements ChatActions {
         private final List<String> calls = new ArrayList<>();
+        private String sentQuestion;
         private CompletionStage<List<ChatContracts.SessionSummary>> sessions = CompletableFuture.completedFuture(List.of());
-        private final ChatContracts.View view = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT,
+        private ChatContracts.View view = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT,
                 true, new ChatContracts.Conversation("conversation", new ChatContracts.WorldIdentity("world", "World"),
                 List.of(new ChatContracts.Turn(new ChatContracts.RequestId("request"), "question", "answer", List.of(),
                         new ChatContracts.Context("{}", null, SCOPE), List.of(SOURCE),
@@ -390,10 +453,14 @@ class AssistantScreenStateTest {
         @Override public void signIn() { calls.add("signIn"); }
         @Override public void cancelSignIn() { calls.add("cancelSignIn"); }
         @Override public void signOut() { calls.add("signOut"); }
-        @Override public void send(String question, boolean includeScreenshot, boolean explicitWebSearch) { calls.add("send"); }
+        @Override public void send(String question, boolean includeScreenshot, boolean explicitWebSearch) { calls.add("send"); sentQuestion = question; }
         @Override public void stop() { calls.add("stop"); }
         @Override public void newChat() { calls.add("newChat"); }
-        @Override public void setPaused(boolean paused) { calls.add("pause:" + paused); }
+        @Override public void setPaused(boolean paused) {
+            calls.add("pause:" + paused);
+            view = new ChatContracts.View(view.active(), view.signIn(), paused, view.conversation(), view.context(), view.sources(),
+                    view.navigationTargets(), view.errors(), view.streamingAnswer(), view.activity(), view.activeWorld(), view.readOnly(), view.activeQuestion());
+        }
         @Override public void navigate(Evidence.NavigationTarget target) { calls.add("navigate"); }
     }
 }

@@ -41,6 +41,7 @@ public final class AssistantScreen extends Screen {
     private boolean followOnCompletion;
     private List<ChatContracts.SessionSummary> sessions = List.of();
     private final List<ChipHit> chipHits = new ArrayList<>();
+    private final List<SourceHit> sourceHits = new ArrayList<>();
     private final Set<String> expandedWorlds = new HashSet<>();
     private int sidebarScroll;
     private int sidebarContentHeight;
@@ -70,7 +71,8 @@ public final class AssistantScreen extends Screen {
                 80, false, () -> false);
         sessionSearchEditor.setValue(sessionSearch);
         sessionSearchEditor.setMessage(Component.literal("Search sessions"));
-        inputEditor = new MultilineEditor(font, 0, 0, 1, 42, QUESTION_MAX_LENGTH, true, () -> {
+        sessionSearchEditor.leadingIcon = ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/magnifying-glass.png");
+        inputEditor = new MultilineEditor(font, 0, 0, 1, 28, QUESTION_MAX_LENGTH, true, () -> {
             submit();
             return true;
         });
@@ -99,11 +101,13 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // The custom render path draws its opaque background before the content.
+        // The custom render path applies its backdrop before the content.
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.flush();
+        renderBlurredBackground(partialTick);
         layout();
         graphics.fill(0, 0, width, height, ModernUi.BACKGROUND);
         graphics.fill(0, 0, sidebarWidth, height, ModernUi.SIDEBAR);
@@ -132,38 +136,39 @@ public final class AssistantScreen extends Screen {
         }
         if (inputEditor != null) {
             int editorWidth = Math.max(1, readableWidth - 46);
-            inputEditor.setSize(editorWidth, 42);
-            composerHeight = Math.min(Math.min(MultilineEditor.MAX_HEIGHT, Math.max(42, height / 3)), inputEditor.preferredHeight());
+            inputEditor.setSize(editorWidth, 28);
+            composerHeight = Math.min(Math.min(MultilineEditor.MAX_HEIGHT, Math.max(28, height / 3)), inputEditor.preferredHeight());
             composerTop = Math.max(48, height - composerHeight - 28);
             inputEditor.setSize(editorWidth, composerHeight);
             inputEditor.setPosition(readableLeft, composerTop);
             inputEditor.active = !view.readOnly();
         } else {
-            composerHeight = 42;
+            composerHeight = 28;
             composerTop = Math.max(48, height - composerHeight - 28);
         }
         toggleY = Math.max(0, composerTop - 26);
         sendX = readableLeft + readableWidth - 36;
-        sendY = composerTop + composerHeight - 32;
+        sendY = composerTop + composerHeight - 28;
     }
 
     private void drawSidebar(GuiGraphics graphics, int mouseX, int mouseY) {
         graphics.drawString(font, Component.literal("PackSage").withStyle(style ->
-                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), 16, 14, ModernUi.TEXT);
-        ModernUi.surface(graphics, 12, 32, sidebarWidth - 12, 60, ModernUi.SURFACE);
+                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), 16, 14, ModernUi.TEXT, false);
         ModernUi.surface(graphics, 12, 68, sidebarWidth - 12, 96, ModernUi.ACCENT_DARK);
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/plus.png"),
                 20, 76, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
         graphics.drawString(font, Component.literal("New chat").withStyle(style ->
-                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), 42, 77, ModernUi.TEXT);
+                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), 42, 68 + (28 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         drawSessionGroups(graphics, mouseX, mouseY);
         int controlY = Math.max(0, height - 44);
-        ModernUi.surface(graphics, 12, controlY, 44, Math.min(height, controlY + 32), ModernUi.SURFACE);
+        ModernUi.surface(graphics, 12, controlY, 44, Math.min(height, controlY + 32),
+                mouseX >= 12 && mouseX < 44 && mouseY >= controlY && mouseY < controlY + 32 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/gear.png"),
                 20, controlY + 8, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
         RuntimeState state = actualRuntimeState();
         if (state.privateSingleplayer() && state.integratedServer() && !state.published()) {
-            ModernUi.surface(graphics, 52, controlY, 84, Math.min(height, controlY + 32), ModernUi.SURFACE);
+            ModernUi.surface(graphics, 52, controlY, 84, Math.min(height, controlY + 32),
+                    mouseX >= 52 && mouseX < 84 && mouseY >= controlY && mouseY < controlY + 32 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
             graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", effectivePause(state)
                     ? "textures/gui/icons/play.png" : "textures/gui/icons/pause.png"),
                     60, controlY + 8, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
@@ -252,19 +257,20 @@ public final class AssistantScreen extends Screen {
 
     private int drawConversation(GuiGraphics graphics, int y, int contentBottom) {
         graphics.drawString(font, Component.literal(view.conversation().world().readableLabel()).withStyle(style ->
-                style.withFont(ModernUi.FONT).withBold(true).withColor(ModernUi.TEXT)), readableLeft, y, ModernUi.TEXT);
+                style.withFont(ModernUi.BOLD_FONT).withColor(ModernUi.TEXT)), readableLeft, y, ModernUi.TEXT, false);
         y += 14;
-        String status = view.readOnly() ? view.activity().isEmpty() ? "Read-only history" : view.activity() : statusLine();
-        graphics.drawString(font, Component.literal(status).withStyle(style ->
-                style.withFont(ModernUi.FONT).withColor(view.readOnly() ? ModernUi.MUTED : ModernUi.ACCENT)),
-                readableLeft, y, view.readOnly() ? ModernUi.MUTED : ModernUi.ACCENT);
-        y += 14;
+        if (view.readOnly()) {
+            graphics.drawString(font, Component.literal(view.activity().isEmpty() ? "Read-only history" : view.activity())
+                    .withStyle(style -> style.withFont(ModernUi.FONT)), readableLeft, y, ModernUi.MUTED, false);
+            y += ModernUi.MESSAGE_LINE_HEIGHT;
+        }
         if (!view.readOnly()) {
             graphics.drawString(font, Component.literal(ScreenText.contextSummary(view.context())).withStyle(style ->
-                    style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), readableLeft, y, ModernUi.MUTED);
+                    style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), readableLeft, y, ModernUi.MUTED, false);
             y += 16;
         }
         chipHits.clear();
+        sourceHits.clear();
         for (ChatContracts.Turn turn : view.conversation().turns()) {
             y = drawUserMessage(graphics, turn.question(), y);
             y += 7;
@@ -272,23 +278,27 @@ public final class AssistantScreen extends Screen {
             String outcome = ScreenText.outcomeLine(turn.outcome());
             if (outcome != null) {
                 graphics.drawString(font, Component.literal(outcome).withStyle(style ->
-                        style.withFont(ModernUi.FONT).withColor(ModernUi.DANGER)), readableLeft + 32, y, ModernUi.DANGER);
-                y += 12;
+                        style.withFont(ModernUi.FONT).withColor(ModernUi.DANGER)), readableLeft + 32, y, ModernUi.DANGER, false);
+                y += ModernUi.MESSAGE_LINE_HEIGHT;
             }
             y += 10;
         }
         if (view.active() && !view.activeQuestion().isEmpty()) y = drawUserMessage(graphics, view.activeQuestion(), y) + 7;
-        if (view.active() && !view.streamingAnswer().isEmpty()) {
+        if (view.active() || awaitingRequestView) {
             drawAssistantAvatar(graphics, y);
-            y = Math.max(y + 24, drawInlineLines(graphics, ScreenText.inlineLines(view.streamingAnswer(), List.of()), y,
-                    readableLeft + 32, readableWidth - 32, false));
+            int responseTop = y;
+            if (!view.streamingAnswer().isEmpty()) y = drawInlineLines(graphics, ScreenText.inlineLines(view.streamingAnswer(), List.of()), y,
+                    readableLeft + 32, readableWidth - 32, null);
+            graphics.drawString(font, Component.literal(view.activity().isEmpty() ? "Working..." : view.activity())
+                    .withStyle(style -> style.withFont(ModernUi.FONT)), readableLeft + 32, y + 2, ModernUi.ACCENT, false);
+            y = Math.max(responseTop + 24, y + ModernUi.MESSAGE_LINE_HEIGHT);
         }
         if (!view.errors().isEmpty()) {
             y += 4;
             for (var line : font.split(Component.literal(view.errors().getLast()).withStyle(style ->
                     style.withFont(ModernUi.FONT).withColor(ModernUi.DANGER)), Math.max(1, readableWidth - 32))) {
-                graphics.drawString(font, line, readableLeft + 32, y, ModernUi.DANGER);
-                y += 10;
+                graphics.drawString(font, line, readableLeft + 32, y, ModernUi.DANGER, false);
+                y += ModernUi.MESSAGE_LINE_HEIGHT;
             }
         }
         return Math.max(y, contentBottom - scrollOffset);
@@ -298,13 +308,13 @@ public final class AssistantScreen extends Screen {
         int bubbleWidth = Math.max(1, Math.min(360, readableWidth - 34));
         Component content = Component.literal(text).withStyle(style -> style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT));
         List<net.minecraft.util.FormattedCharSequence> lines = font.split(content, Math.max(1, bubbleWidth - 20));
-        int bubbleHeight = Math.max(28, lines.size() * 10 + 16);
+        int bubbleHeight = Math.max(28, lines.size() * ModernUi.MESSAGE_LINE_HEIGHT + 14);
         int bubbleX = readableLeft + readableWidth - bubbleWidth - 28;
         ModernUi.surface(graphics, bubbleX, y, bubbleX + bubbleWidth, y + bubbleHeight, ModernUi.SURFACE_HOVER);
         int lineY = y + 7;
         for (net.minecraft.util.FormattedCharSequence line : lines) {
-            graphics.drawString(font, line, bubbleX + 10, lineY, ModernUi.TEXT);
-            lineY += 10;
+            graphics.drawString(font, line, bubbleX + 10, lineY, ModernUi.TEXT, false);
+            lineY += ModernUi.MESSAGE_LINE_HEIGHT;
         }
         int avatarX = readableLeft + readableWidth - 24;
         if (minecraft != null && minecraft.player != null) {
@@ -315,7 +325,7 @@ public final class AssistantScreen extends Screen {
                     y + Math.max(0, bubbleHeight - 24) + 24, ModernUi.ACCENT_DARK);
             graphics.drawString(font, Component.literal("You").withStyle(style ->
                     style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), avatarX + 3,
-                    y + Math.max(0, bubbleHeight - 24) + 8, ModernUi.TEXT);
+                    y + Math.max(0, bubbleHeight - 24) + 8, ModernUi.TEXT, false);
         }
         return y + bubbleHeight;
     }
@@ -342,67 +352,99 @@ public final class AssistantScreen extends Screen {
                 }
             }
         }
-        return Math.max(y + 24, drawInlineLines(graphics, ScreenText.inlineLines(answer, targets, citations), y,
-                readableLeft + 32, readableWidth - 32, true));
+        return Math.max(y + 24, drawInlineLines(graphics, ScreenText.inlineLines(answer, targets, citations, turn.sources()), y,
+                readableLeft + 32, readableWidth - 32, turn));
     }
 
     private void drawAssistantAvatar(GuiGraphics graphics, int y) {
         ModernUi.surface(graphics, readableLeft, y, readableLeft + 24, y + 24, ModernUi.ACCENT_DARK);
         graphics.drawString(font, Component.literal("Ps").withStyle(style ->
-                style.withFont(ModernUi.FONT).withBold(true).withColor(ModernUi.TEXT)), readableLeft + 4, y + 8, ModernUi.TEXT);
+                style.withFont(ModernUi.BOLD_FONT).withColor(ModernUi.TEXT)), readableLeft + 4, y + (24 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
     }
 
     private int drawInlineLines(GuiGraphics graphics, List<ScreenText.InlineLine> lines, int y, int left,
-                                int maxWidth, boolean recordTargets) {
-        int right = left + Math.max(1, maxWidth);
-        for (ScreenText.InlineLine line : lines) {
-            int x = left;
-            for (ScreenText.InlineSpan span : line.spans()) {
-                String remaining = span.text();
-                if (span.target() != null) {
-                    int chipWidth = Math.min(Math.max(24, maxWidth), font.width(Component.literal(remaining).withStyle(style ->
-                            style.withFont(ModernUi.FONT).withBold(true).withColor(ModernUi.TEXT))) + 12);
-                    if (x != left && x + chipWidth > right) { x = left; y += 10; }
-                    ModernUi.surface(graphics, x, y - 2, Math.min(right, x + chipWidth), y + 12, ModernUi.SURFACE_HOVER);
-                    graphics.drawString(font, Component.literal(remaining).withStyle(style ->
-                            style.withFont(ModernUi.FONT).withBold(true).withColor(ModernUi.TEXT)), x + 6, y, ModernUi.TEXT);
-                    if (recordTargets) chipHits.add(new ChipHit(span.target(), x, y - 2, Math.min(right, x + chipWidth), y + 12));
-                    x = Math.min(right, x + chipWidth + 4);
-                    continue;
-                }
-                while (!remaining.isEmpty()) {
-                    int available = Math.max(1, right - x);
-                    int take = prefixWidth(remaining, available, span.color(), span.bold());
-                    if (take <= 0 && x != left) {
-                        x = left;
-                        y += 10;
-                        continue;
-                    }
-                    if (take <= 0) take = Character.charCount(remaining.codePointAt(0));
-                    String piece = remaining.substring(0, take);
-                    Component styled = Component.literal(piece).withStyle(style -> {
-                        style = style.withFont(ModernUi.FONT).withColor(span.color());
-                        return span.bold() ? style.withBold(true) : style;
-                    });
-                    graphics.drawString(font, styled, x, y, span.color());
-                    x += font.width(styled);
-                    remaining = remaining.substring(take);
-                    if (!remaining.isEmpty()) { x = left; y += 10; }
-                }
+                                int maxWidth, ChatContracts.Turn turn) {
+        MessageLayout layout = messageLayout(lines, maxWidth);
+        int quoteY = -1;
+        for (MessageRun run : layout.runs()) {
+            int x = left + run.x();
+            int top = y + run.y();
+            if (run.quoted() && quoteY != run.y()) {
+                graphics.fill(left, top, left + 2, top + ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.MUTED);
+                quoteY = run.y();
             }
-            y += 10;
+            ScreenText.InlineSpan span = run.span();
+            if (span.target() != null || span.source() != null) {
+                ModernUi.surface(graphics, x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.SURFACE_HOVER);
+                if (turn != null && span.target() != null) chipHits.add(new ChipHit(span.target(), x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT));
+                if (turn != null && span.source() != null) sourceHits.add(new SourceHit(span.source(), turn, x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT));
+            }
+            graphics.drawString(font, Component.literal(span.text()).withStyle(style -> style
+                            .withFont(span.bold() || span.target() != null || span.source() != null ? ModernUi.BOLD_FONT : ModernUi.FONT).withColor(span.color())),
+                    x + (span.target() == null && span.source() == null ? 0 : 6), top + 2, span.color(), false);
         }
-        return y;
+        return y + layout.height();
     }
 
-    private int prefixWidth(String value, int available, int color, boolean bold) {
+    record MessageRun(ScreenText.InlineSpan span, int x, int y, int width, boolean quoted) { }
+    record MessageLayout(List<MessageRun> runs, int height) { }
+
+    MessageLayout messageLayout(List<ScreenText.InlineLine> lines, int maxWidth) {
+        int width = Math.max(1, maxWidth);
+        List<MessageRun> runs = new ArrayList<>();
+        int y = 0;
+        for (ScreenText.InlineLine line : lines) {
+            int indent = line.quote() ? 10 : 0;
+            int x = indent;
+            if (line.spans().isEmpty() && line.quote()) runs.add(new MessageRun(
+                    new ScreenText.InlineSpan("", null, ModernUi.TEXT, false, false), x, y, 0, true));
+            for (ScreenText.InlineSpan span : line.spans()) {
+                if (span.target() != null || span.source() != null) {
+                    Component label = Component.literal(span.text()).withStyle(style -> style.withFont(ModernUi.BOLD_FONT));
+                    int chipWidth = Math.min(Math.max(1, width - indent), font.width(label) + 12);
+                    if (x > indent && x + chipWidth > width) { x = indent; y += ModernUi.MESSAGE_LINE_HEIGHT; }
+                    String clipped = font.substrByWidth(label, Math.max(1, chipWidth - 12)).getString();
+                    runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, span.target(), ModernUi.TEXT, true, false, span.source()),
+                            x, y, chipWidth, line.quote()));
+                    x += chipWidth + 4;
+                    continue;
+                }
+                for (String token : span.text().split("(?<=\\s)(?=\\S)|(?<=\\S)(?=\\s)")) {
+                    if (token.isEmpty()) continue;
+                    boolean space = token.codePoints().allMatch(Character::isWhitespace);
+                    if (space && x == indent) continue;
+                    int tokenWidth = font.width(Component.literal(token).withStyle(style ->
+                            style.withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT)));
+                    if (x > indent && x + tokenWidth > width) {
+                        x = indent;
+                        y += ModernUi.MESSAGE_LINE_HEIGHT;
+                        if (space) continue;
+                    }
+                    while (!token.isEmpty()) {
+                        int take = prefixWidth(token, Math.max(1, width - x), span.bold());
+                        if (take <= 0) take = Character.charCount(token.codePointAt(0));
+                        String piece = token.substring(0, take);
+                        int pieceWidth = font.width(Component.literal(piece).withStyle(style ->
+                                style.withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT)));
+                        runs.add(new MessageRun(new ScreenText.InlineSpan(piece, null, span.color(), span.bold(), span.code()),
+                                x, y, pieceWidth, line.quote()));
+                        x += pieceWidth;
+                        token = token.substring(take);
+                        if (!token.isEmpty()) { x = indent; y += ModernUi.MESSAGE_LINE_HEIGHT; }
+                    }
+                }
+            }
+            y += ModernUi.MESSAGE_LINE_HEIGHT;
+        }
+        return new MessageLayout(List.copyOf(runs), y);
+    }
+
+    private int prefixWidth(String value, int available, boolean bold) {
         int end = 0;
         while (end < value.length()) {
             int next = end + Character.charCount(value.codePointAt(end));
-            Component candidate = Component.literal(value.substring(0, next)).withStyle(style -> {
-                style = style.withFont(ModernUi.FONT).withColor(color);
-                return bold ? style.withBold(true) : style;
-            });
+            Component candidate = Component.literal(value.substring(0, next)).withStyle(style ->
+                    style.withFont(bold ? ModernUi.BOLD_FONT : ModernUi.FONT));
             if (font.width(candidate) > available) break;
             end = next;
         }
@@ -434,22 +476,22 @@ public final class AssistantScreen extends Screen {
         int toggleWidth = Math.max(1, Math.min(128, (readableWidth - 6) / 2));
         ModernUi.surface(graphics, readableLeft, toggleY, readableLeft + toggleWidth, toggleY + 20,
                 explicitWebSearch ? ModernUi.ACCENT_DARK : ModernUi.SURFACE);
-        graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/magnifying-glass.png"),
+        graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/globe.png"),
                 readableLeft + 6, toggleY + 2, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
         if (toggleWidth >= 96) graphics.drawString(font, Component.literal("Search").withStyle(style ->
-                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), readableLeft + 27, toggleY + 5, ModernUi.TEXT);
+                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), readableLeft + 27, toggleY + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         int screenshotLeft = readableLeft + toggleWidth + 6;
         ModernUi.surface(graphics, screenshotLeft, toggleY, screenshotLeft + toggleWidth, toggleY + 20,
                 includeScreenshot ? ModernUi.ACCENT_DARK : ModernUi.SURFACE);
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/camera.png"),
                 screenshotLeft + 6, toggleY + 2, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
         if (toggleWidth >= 112) graphics.drawString(font, Component.literal("Screenshot").withStyle(style ->
-                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), screenshotLeft + 27, toggleY + 5, ModernUi.TEXT);
+                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), screenshotLeft + 27, toggleY + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         ModernUi.surface(graphics, sendX, sendY, sendX + 28, sendY + 28,
                 awaitingRequestView || view.active() ? ModernUi.ACCENT_DARK : view.readOnly() ? ModernUi.SURFACE : ModernUi.SURFACE_HOVER);
         if (view.readOnly()) {
             graphics.drawString(font, Component.literal("Read-only history").withStyle(style ->
-                    style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), readableLeft, toggleY + 27, ModernUi.MUTED);
+                    style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), readableLeft, toggleY + 27, ModernUi.MUTED, false);
         }
     }
 
@@ -505,6 +547,7 @@ public final class AssistantScreen extends Screen {
             setFocused(sessionSearchEditor);
             return sessionSearchEditor.mouseClicked(mouseX, mouseY, button);
         }
+        setFocused(null);
         if (mouseX < sidebarWidth) {
             if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 68 && mouseY < 96) { newChat(); return true; }
             if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 104 && mouseY < height - 56) {
@@ -549,6 +592,14 @@ public final class AssistantScreen extends Screen {
             if (mouseY >= 48 && mouseY < toggleY - 8 && mouseX >= readableLeft && mouseX < readableLeft + readableWidth
                     && mouseX >= hit.left() && mouseX < hit.right() && mouseY >= hit.top() && mouseY < hit.bottom()) {
                 navigate(hit.target());
+                return true;
+            }
+        }
+        for (SourceHit hit : sourceHits) {
+            if (mouseY >= 48 && mouseY < toggleY - 8 && mouseX >= readableLeft && mouseX < readableLeft + readableWidth
+                    && mouseX >= hit.left() && mouseX < hit.right() && mouseY >= hit.top() && mouseY < hit.bottom()) {
+                if (minecraft != null) minecraft.setScreen(new SourceDetailsScreen(hit.source(), hit.turn(),
+                        () -> minecraft.setScreen(this), this::isPauseScreen));
                 return true;
             }
         }
@@ -631,8 +682,10 @@ public final class AssistantScreen extends Screen {
     public void submit() {
         input = input();
         if (input.isBlank() || view.readOnly() || view.active() || awaitingRequestView) return;
+        String question = input;
+        setInput("");
         awaitingRequestView = true;
-        actions.send(input, includeScreenshot, explicitWebSearch);
+        actions.send(question, includeScreenshot, explicitWebSearch);
         scrollToBottom();
     }
 
@@ -658,7 +711,7 @@ public final class AssistantScreen extends Screen {
     public boolean isPauseScreen() { return effectivePause(actualRuntimeState()); }
 
     public boolean effectivePause(RuntimeState state) {
-        return view.paused() && state != null && state.privateSingleplayer() && state.integratedServer() && !state.published();
+        return actions.view().paused() && state != null && state.privateSingleplayer() && state.integratedServer() && !state.published();
     }
 
     public void navigate(Evidence.NavigationTarget target) {
@@ -685,4 +738,5 @@ public final class AssistantScreen extends Screen {
     }
 
     private record ChipHit(Evidence.NavigationTarget target, int left, int top, int right, int bottom) { }
+    private record SourceHit(Evidence.Source source, ChatContracts.Turn turn, int left, int top, int right, int bottom) { }
 }

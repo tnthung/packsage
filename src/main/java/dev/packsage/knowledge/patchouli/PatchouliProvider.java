@@ -347,6 +347,9 @@ public final class PatchouliProvider implements KnowledgeProvider {
     public String id() { return ID; }
 
     @Override
+    public boolean enabled() { return !unavailable; }
+
+    @Override
     public ProviderStatus status() {
         var snapshot = current;
         if (failure != null) return new ProviderStatus(Availability.ERROR, VERSION, failure);

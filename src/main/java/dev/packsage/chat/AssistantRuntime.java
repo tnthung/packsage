@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
@@ -160,6 +161,21 @@ public final class AssistantRuntime implements ChatActions {
                 sessionGeneration++;
             }
             controller.disconnect();
+        }
+    }
+
+    @Override
+    public Map<String, Boolean> adapterAvailability() {
+        synchronized (stateLock) {
+            if (world == null || historyAdapter == null) return Map.of("native", false, "jei", false,
+                    "ftb_quests", false, "config", false, "patchouli", false, "history", false);
+            var availability = new java.util.LinkedHashMap<String, Boolean>();
+            Map<String, Boolean> providers = knowledge.adapterAvailability();
+            for (String id : List.of("native", "jei", "ftb_quests", "config", "patchouli")) {
+                availability.put(id, providers.getOrDefault(id, false));
+            }
+            availability.put("history", true);
+            return Map.copyOf(availability);
         }
     }
 

@@ -70,6 +70,7 @@ class ClientAssistantTest {
         var wrapper = new ClientAssistant.ReflectiveProvider(new ClientAssistant.OptionalStatus("jei", "jei",
                 "[19.27.0.340,20)", "19.57.0.450", true, true, "supported"), () -> delegate);
 
+        assertTrue(wrapper.enabled());
         var status = wrapper.status();
         var wrapped = wrapper.query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(Map.of()),
                 1, null, null), scope).toCompletableFuture().join();
@@ -90,6 +91,36 @@ class ClientAssistantTest {
         assertEquals(record.payload(), wrappedRecord.payload());
         assertEquals(record.targets(), wrappedRecord.targets());
         assertEquals(record.recipePayload(), wrappedRecord.recipePayload());
+    }
+
+    @Test
+    void providerEnablementIgnoresCoverageAndDoesNotQueryOrReadStatus() {
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        KnowledgeProvider disabled = new KnowledgeProvider() {
+            public String id() { return "jei"; }
+            public boolean enabled() { return false; }
+            public ProviderStatus status() { calls.incrementAndGet(); throw new AssertionError("status must not be read"); }
+            public java.util.concurrent.CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                calls.incrementAndGet(); throw new AssertionError("query must not run");
+            }
+            public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                throw new AssertionError("navigation must not run");
+            }
+        };
+        var wrapper = new ClientAssistant.ReflectiveProvider(new ClientAssistant.OptionalStatus("jei", "jei",
+                "[19.27.0.340,20)", "19.57.0.450", true, true, "supported"), () -> disabled);
+        var unavailable = new ClientAssistant.ReflectiveProvider(new ClientAssistant.OptionalStatus("jei", "jei",
+                "range", "unknown", true, false, "not loaded"), () -> {
+            calls.incrementAndGet();
+            return disabled;
+        });
+        var failed = new ClientAssistant.ReflectiveProvider(new ClientAssistant.OptionalStatus("jei", "jei",
+                "range", "unknown", true, true, "supported"), () -> { throw new LinkageError("missing class"); });
+
+        assertFalse(wrapper.enabled());
+        assertFalse(unavailable.enabled());
+        assertFalse(failed.enabled());
+        assertEquals(0, calls.get());
     }
 
     @Test

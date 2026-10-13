@@ -197,6 +197,9 @@ public final class JeiProvider implements KnowledgeProvider {
     }
 
     @Override
+    public boolean enabled() { return runtimeAvailable; }
+
+    @Override
     public ProviderStatus status() {
         var snapshot = current;
         if (!runtimeAvailable) return new ProviderStatus(Availability.UNAVAILABLE, VERSION, "JEI runtime unavailable");

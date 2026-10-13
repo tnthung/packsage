@@ -15,6 +15,9 @@ public interface KnowledgeProvider {
 
     String id();
 
+    /** Whether this logical provider is enabled for the current runtime, independent of coverage. */
+    default boolean enabled() { return true; }
+
     ProviderStatus status();
 
     CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope);

@@ -505,6 +505,16 @@ public final class ClientAssistant {
         public String id() { return status.id(); }
 
         @Override
+        public boolean enabled() {
+            if (!status.supported() || !status.loaded()) return false;
+            try {
+                return delegate.get() instanceof KnowledgeProvider provider && provider.enabled();
+            } catch (RuntimeException | LinkageError failure) {
+                return false;
+            }
+        }
+
+        @Override
         public ProviderStatus status() {
             Object current = delegate.get();
             if (!(current instanceof KnowledgeProvider provider)) {
@@ -578,6 +588,8 @@ public final class ClientAssistant {
         }
 
         @Override public String id() { return id; }
+
+        @Override public boolean enabled() { return false; }
 
         @Override
         public ProviderStatus status() {

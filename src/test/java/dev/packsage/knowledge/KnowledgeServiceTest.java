@@ -17,10 +17,24 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class KnowledgeServiceTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
+
+    @Test
+    void adapterAvailabilityUsesLogicalIdsAndIsIndependentOfProviderCoverage() {
+        var partial = new PagedProvider("jei", query -> new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL,
+                Evidence.Outcome.PARTIAL, null));
+        KnowledgeProvider disabled = new PagedProvider("patchouli", query -> page(List.of(), null)) {
+            @Override public boolean enabled() { return false; }
+        };
+        var availability = service(partial, disabled).adapterAvailability();
+
+        assertEquals(Map.of("jei", true, "patchouli", false), availability);
+        assertThrows(UnsupportedOperationException.class, () -> availability.put("jei", false));
+    }
 
     @Test
     void searchKeepsPagingAcrossEmptyProviderPagesUntilTheLimitIsFilled() {
@@ -282,7 +296,7 @@ class KnowledgeServiceTest {
                 Evidence.RecordKind.CONFIG, key, new Evidence.JsonObject(Map.of("handle", text(entry), "key", text(key))), List.of());
     }
 
-    private static final class PagedProvider implements KnowledgeProvider {
+    private static class PagedProvider implements KnowledgeProvider {
         private final String id;
         private final Function<Evidence.Query, Evidence.Result> pages;
         private final List<Evidence.Query> queries = new ArrayList<>();

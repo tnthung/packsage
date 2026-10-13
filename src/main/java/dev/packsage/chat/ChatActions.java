@@ -4,6 +4,7 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.ModelBackend;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletionStage;
 
 public interface ChatActions {
@@ -30,6 +31,8 @@ public interface ChatActions {
     default List<ModelBackend.ModelInfo> modelCatalog() { return List.of(); }
 
     default String providerSelectedModelId() { return null; }
+
+    default Map<String, Boolean> adapterAvailability() { return Map.of(); }
 
     default PackSageSettings settings() { return PackSageSettings.defaults(); }
 

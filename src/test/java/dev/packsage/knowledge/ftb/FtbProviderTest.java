@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -83,6 +84,7 @@ class FtbProviderTest {
         var unavailable = provider.query(search("", 10, null), SCOPE).toCompletableFuture().get();
         assertEquals(Evidence.Coverage.UNAVAILABLE, unavailable.coverage());
         assertEquals(1, calls.get());
+        assertFalse(provider.enabled());
     }
 
     @Test

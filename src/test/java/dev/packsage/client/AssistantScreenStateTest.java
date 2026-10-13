@@ -443,11 +443,31 @@ class AssistantScreenStateTest {
         actions.calls.clear();
         screen.layout();
         assertFalse(screen.isPauseScreen());
-        screen.mouseClicked(50, 458, 0);
+        screen.mouseClicked(78, 458, 0);
         assertTrue(screen.isPauseScreen());
-        screen.mouseClicked(50, 458, 0);
+        screen.mouseClicked(78, 458, 0);
         assertFalse(screen.isPauseScreen());
         assertEquals(List.of("pause:true", "pause:false"), actions.calls);
+    }
+
+    @Test
+    void sidebarAdapterSettingsAndPauseHitboxesStayDistinctAtNarrowWidth() {
+        FakeActions actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
+        screen.width = 240;
+        screen.height = 240;
+        var settingsOpens = new java.util.concurrent.atomic.AtomicInteger();
+        screen.setSettingsOpener(settingsOpens::incrementAndGet);
+        screen.setRuntimeState(new AssistantScreen.RuntimeState(true, true, false));
+        screen.layout();
+
+        screen.mouseClicked(22, 220, 0);
+        assertEquals(0, settingsOpens.get());
+        assertEquals(List.of(), actions.calls);
+        screen.mouseClicked(50, 220, 0);
+        assertEquals(1, settingsOpens.get());
+        screen.mouseClicked(78, 220, 0);
+        assertEquals(List.of("pause:false"), actions.calls);
     }
 
     @Test

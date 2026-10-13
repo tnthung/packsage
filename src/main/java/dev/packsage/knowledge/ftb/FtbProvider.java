@@ -382,6 +382,9 @@ public final class FtbProvider implements KnowledgeProvider {
     public String id() { return ID; }
 
     @Override
+    public boolean enabled() { return !disabled; }
+
+    @Override
     public ProviderStatus status() {
         var snapshot = current;
         if (failure != null) return new ProviderStatus(Availability.ERROR, VERSION, failure);

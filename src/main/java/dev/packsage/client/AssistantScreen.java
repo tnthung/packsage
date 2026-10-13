@@ -192,15 +192,19 @@ public final class AssistantScreen extends Screen {
         int controlY = Math.max(0, height - 32);
         ModernUi.surface(graphics, 12, controlY, 32, Math.min(height, controlY + 20),
                 mouseX >= 12 && mouseX < 32 && mouseY >= controlY && mouseY < controlY + 20 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
-        graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/gear.png"),
+        graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/info.png"),
                 16, controlY + 4, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
+        ModernUi.surface(graphics, 40, controlY, 60, Math.min(height, controlY + 20),
+                mouseX >= 40 && mouseX < 60 && mouseY >= controlY && mouseY < controlY + 20 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+        graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/gear.png"),
+                44, controlY + 4, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
         RuntimeState state = actualRuntimeState();
         if (state.privateSingleplayer() && state.integratedServer() && !state.published()) {
-            ModernUi.surface(graphics, 40, controlY, 60, Math.min(height, controlY + 20),
-                    mouseX >= 40 && mouseX < 60 && mouseY >= controlY && mouseY < controlY + 20 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+            ModernUi.surface(graphics, 68, controlY, 88, Math.min(height, controlY + 20),
+                    mouseX >= 68 && mouseX < 88 && mouseY >= controlY && mouseY < controlY + 20 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
             graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", effectivePause(state)
                     ? "textures/gui/icons/play.png" : "textures/gui/icons/pause.png"),
-                    44, controlY + 4, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
+                    72, controlY + 4, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
         }
     }
 
@@ -723,6 +727,7 @@ public final class AssistantScreen extends Screen {
         if (picker != null) return;
         List<ToolbarItem> tooltipItems = new ArrayList<>(toolbarItems());
         tooltipItems.add(new ToolbarItem("extra", readableLeft, sendY, 20));
+        tooltipItems.add(new ToolbarItem("adapters", 12, Math.max(0, height - 32), 20));
         for (ToolbarItem item : tooltipItems) {
             if (mouseX < item.x() || mouseX >= item.x() + item.width() || mouseY < item.y() || mouseY >= item.y() + 20) continue;
             List<Component> lines = new ArrayList<>();
@@ -741,6 +746,16 @@ public final class AssistantScreen extends Screen {
                     lines.add(Component.literal("Gameplay observation is unavailable."));
                 }
                 footer = "Attached with your next message.";
+            } else if (item.kind().equals("adapters")) {
+                title = "Adapters";
+                Map<String, Boolean> availability = actions.adapterAvailability();
+                for (var adapter : List.of(Map.entry("native", "Minecraft"), Map.entry("jei", "JEI"),
+                        Map.entry("ftb_quests", "FTB Quests"), Map.entry("config", "NeoForge configs"),
+                        Map.entry("patchouli", "Patchouli"), Map.entry("history", "Chat history"))) {
+                    lines.add(Component.literal("• ").withStyle(style -> style.withColor(
+                                    availability.getOrDefault(adapter.getKey(), false) ? 0xff6fd48a : 0xffe36b6b))
+                            .append(Component.literal(adapter.getValue()).withStyle(style -> style.withColor(ModernUi.TEXT))));
+                }
             } else if (item.kind().equals("model")) {
                 String selectedId = settings.modelId() == null ? actions.providerSelectedModelId() : settings.modelId();
                 lines.add(Component.literal(actions.modelCatalog().stream().filter(model -> model.id().equals(selectedId))
@@ -749,6 +764,8 @@ public final class AssistantScreen extends Screen {
             else lines.add(Component.literal(item.kind().equals("search") ? "Web search" : "Attach screenshot"));
             List<net.minecraft.util.FormattedCharSequence> wrapped = new ArrayList<>();
             int tooltipWidth = Math.max(1, Math.min(286, width - 24));
+            if (item.kind().equals("adapters")) tooltipWidth = Math.min(tooltipWidth, 20 + lines.stream()
+                    .mapToInt(line -> font.width(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)))).max().orElse(0));
             if (title.isEmpty()) tooltipWidth = Math.min(tooltipWidth, 20 + lines.stream()
                     .mapToInt(line -> font.width(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)))).max().orElse(0));
             int labelWidth = fields.stream().mapToInt(field -> font.width(Component.literal(field.label())
@@ -909,12 +926,16 @@ public final class AssistantScreen extends Screen {
             }
             int controlY = Math.max(0, height - 32);
             if (mouseX >= 12 && mouseX < 32 && mouseY >= controlY && mouseY < controlY + 20) {
+                setFocused(null);
+                return true;
+            }
+            if (mouseX >= 40 && mouseX < 60 && mouseY >= controlY && mouseY < controlY + 20) {
                 settingsOpener.run();
                 return true;
             }
             RuntimeState state = actualRuntimeState();
             if (state.privateSingleplayer() && state.integratedServer() && !state.published()
-                    && mouseX >= 40 && mouseX < 60 && mouseY >= controlY && mouseY < controlY + 20) {
+                    && mouseX >= 68 && mouseX < 88 && mouseY >= controlY && mouseY < controlY + 20) {
                 setPaused(!effectivePause(state));
                 return true;
             }

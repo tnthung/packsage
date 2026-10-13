@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -66,6 +67,9 @@ class JeiProjectionTest {
         assertEquals("value", ((Evidence.JsonString) recipe.inputs().get(0).alternatives().get(0).components().values().get("component")).value());
         assertEquals("minecraft:crafting_table", recipe.catalysts().get(0).comparisonIdentity());
         assertEquals(List.of("requires power"), recipe.constraints());
+        assertTrue(provider.enabled());
+        provider.unavailable();
+        assertFalse(provider.enabled());
     }
 
     @Test

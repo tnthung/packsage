@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
@@ -508,6 +509,36 @@ class AssistantRuntimeTest {
         assertTrue(screen.view().conversation().turns().isEmpty(), screen.view().conversation().toString());
         assertTrue(!screen.view().conversation().id().equals(previousId) && !screen.view().conversation().id().startsWith("pending"),
                 screen.view().conversation().id());
+    }
+
+    @Test
+    void adapterAvailabilityTracksWorldHistoryAndFactoryFailure() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        AtomicInteger factoryCalls = new AtomicInteger();
+        var knowledgeFactory = (java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService>) current -> {
+            if (factoryCalls.incrementAndGet() == 3) throw new IllegalStateException("provider refresh failed");
+            return new KnowledgeService(List.of(), current,
+                    ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                            Evidence.Outcome.UNKNOWN, null)),
+                    (ignored, scopeValue) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                            Evidence.Outcome.UNKNOWN, null)));
+        };
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
+                knowledgeFactory, DIRECT);
+
+        assertEquals(Map.of("native", false, "jei", false, "ftb_quests", false, "config", false,
+                "patchouli", false, "history", false), runtime.adapterAvailability());
+        runtime.enterWorld(WORLD, SCOPE);
+        assertEquals(Map.of("native", false, "jei", false, "ftb_quests", false, "config", false,
+                "patchouli", false, "history", true), runtime.adapterAvailability());
+        runtime.enterWorld(new ChatContracts.WorldIdentity("world-2", "World 2"),
+                new Evidence.Scope("world-2", "resources", "team", "runtime", 0));
+        assertEquals(Map.of("native", false, "jei", false, "ftb_quests", false, "config", false,
+                "patchouli", false, "history", false), runtime.adapterAvailability());
+        runtime.disconnect();
+        assertEquals(Map.of("native", false, "jei", false, "ftb_quests", false, "config", false,
+                "patchouli", false, "history", false), runtime.adapterAvailability());
     }
 
     @Test

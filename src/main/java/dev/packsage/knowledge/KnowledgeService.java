@@ -298,6 +298,13 @@ public final class KnowledgeService {
         }
     }
 
+    /** Availability is keyed by the stable logical provider id, including version-specific implementations. */
+    public Map<String, Boolean> adapterAvailability() {
+        var availability = new LinkedHashMap<String, Boolean>();
+        for (var provider : providers) availability.put(provider.id(), provider.enabled());
+        return Map.copyOf(availability);
+    }
+
     private static Evidence.Result error(String detail) {
         return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, detail);
     }

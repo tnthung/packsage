@@ -347,6 +347,9 @@ class PatchouliProviderTest {
         assertEquals("Reloaded", provider.query(new Evidence.Query(Evidence.Operation.GET,
                 new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("fixture:book/intro"))), 1, null, null), SCOPE)
                 .toCompletableFuture().join().records().getFirst().title());
+        assertTrue(provider.enabled());
+        provider.unavailable();
+        assertFalse(provider.enabled());
     }
 
     @Test

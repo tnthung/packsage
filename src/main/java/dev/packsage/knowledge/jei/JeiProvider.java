@@ -273,6 +273,9 @@ public final class JeiProvider implements KnowledgeProvider {
                         clearSnapshots();
                         return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null);
                     }
+                    if (query.arguments().values().get("outputItem") instanceof Evidence.JsonString && !snapshot.queryScoped()) {
+                        return errorResult("outputItem focus requires a live JEI runtime snapshot");
+                    }
                     var result = snapshot.queryScoped() ? queryScopedResult(snapshot)
                             : querySnapshot(snapshot, query, cursor);
                     rememberSnapshot(snapshot, result.records().stream().anyMatch(record -> !record.targets().isEmpty()));

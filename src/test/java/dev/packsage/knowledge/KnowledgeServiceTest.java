@@ -76,6 +76,25 @@ class KnowledgeServiceTest {
     }
 
     @Test
+    void providerAndOutputItemFiltersSkipEarlierProvidersAndArePartOfCursorIdentity() {
+        var nativeProvider = new PagedProvider("native", query -> page(List.of(record("native", "wrong", Evidence.RecordKind.RECIPE)), null));
+        var jeiProvider = new PagedProvider("jei", query -> page(List.of(), "1"));
+        var service = service(nativeProvider, jeiProvider);
+        Map<String, Evidence.JsonValue> args = Map.of("text", text(""), "provider", text("jei"), "outputItem", text("minecraft:stone"));
+
+        var first = search(service, args);
+
+        assertTrue(nativeProvider.queries.isEmpty(), "provider filtering must skip native before its page consumes the budget");
+        assertEquals(text("minecraft:stone"), jeiProvider.queries.getFirst().arguments().values().get("outputItem"));
+        Map<String, Evidence.JsonValue> changedFilter = new LinkedHashMap<>(args);
+        changedFilter.put("outputItem", text("minecraft:dirt"));
+        changedFilter.put("cursor", text(first.nextCursor()));
+        var mismatch = search(service, changedFilter);
+        assertEquals(Evidence.Outcome.ERROR, mismatch.outcome());
+        assertTrue(mismatch.detail().contains("cursor does not match"), mismatch.detail());
+    }
+
+    @Test
     void providerStatusRecordsSurviveTheKindsFilter() {
         var unsupported = new PagedProvider("patchouli", query -> new Evidence.Result(List.of(new Evidence.Record(
                 new Evidence.Source(SCOPE, "patchouli", "1.21.1-92", "status:patchouli", 1, Instant.EPOCH, Evidence.Activity.UNKNOWN,

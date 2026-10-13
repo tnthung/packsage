@@ -54,6 +54,8 @@ class GroundingInstructionsTest {
         assertEquals(ModelBackend.SearchMode.EXPLICIT_ONLY, request.searchMode());
         assertEquals("current", request.requestId());
         assertEquals(2048, request.outputBudget());
+        assertTrue(request.instructions().contains("navigable: true"));
+        assertTrue(request.instructions().contains("outputItem"));
         assertEquals(3, request.input().size());
         assertTrue(request.input().get(0) instanceof ModelBackend.Message);
         assertTrue(request.input().get(1) instanceof ModelBackend.AssistantOutput);

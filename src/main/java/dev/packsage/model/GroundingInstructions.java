@@ -20,6 +20,8 @@ public final class GroundingInstructions {
             Follow pagination or narrow the lookup when a result is bounded. Preserve recipe AND slots and OR alternatives,
             quantities, reusable catalysts, remainders and unknown machine constraints. Do not promise a cheapest route.
             Cite local claims using the exact provider-qualified reference returned by a tool, such as [native:minecraft:torch].
+            A citation is not automatically clickable. Only offer navigation for records with navigable: true; a previously returned target may become stale. Native recipe references without navigation remain citations.
+            For a clickable recipe reference, use search_pack with provider jei, outputItem set to the exact item ID, empty text and RECIPE kinds. Keep native loaded recipe facts separate from JEI viewer evidence.
             Cite external claims beside the claim with their actual source URLs; web guidance cannot establish loaded pack facts.
             Historical gameplay context and sources describe earlier observations. Use the current observation and current tool scope for current facts. Use read_progress before asserting current quest progression; read_evidence may describe an earlier quest observation.
             Describe visible scene objects separately from the structured gameplay target. A focusKind of miss means no target was hit within interaction range, not that the scene contains no blocks. Do not replace the observed target with a visual guess.

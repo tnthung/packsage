@@ -49,6 +49,34 @@ class PackSageToolsTest {
     }
 
     @Test
+    void jeiFiltersAreDeclaredAndOutputItemRequiresAValidJeiQuery() throws Exception {
+        var schema = JsonParser.parseString(PackSageTools.definitions().stream()
+                .filter(definition -> definition.name().equals("search_pack")).findFirst().orElseThrow()
+                .serializedSchema()).getAsJsonObject();
+        var properties = schema.getAsJsonObject("properties");
+        assertEquals(List.of("native", "jei", "ftb_quests", "config", "patchouli"),
+                properties.getAsJsonObject("provider").getAsJsonArray("enum")
+                        .asList().stream().filter(com.google.gson.JsonElement::isJsonPrimitive)
+                        .map(value -> value.getAsString()).toList());
+        assertEquals(256, properties.getAsJsonObject("outputItem").get("maxLength").getAsInt());
+
+        var dispatched = new AtomicInteger();
+        var tools = new PackSageTools(request -> {
+            dispatched.incrementAndGet();
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                    Evidence.Outcome.COMPLETE, null));
+        });
+        for (var arguments : List.of("{\"text\":\"\",\"outputItem\":\"minecraft:stone\"}",
+                "{\"text\":\"\",\"provider\":\"other\"}",
+                "{\"text\":\"\",\"provider\":\"jei\",\"outputItem\":\"bad id\"}",
+                "{\"text\":\"\",\"provider\":\"jei\",\"outputItem\":\"\"}")) {
+            assertTrue(tools.execute(new ModelBackend.ToolCall("invalid", "search_pack", arguments), SCOPE)
+                    .toCompletableFuture().get().result().error(), arguments);
+        }
+        assertEquals(0, dispatched.get());
+    }
+
+    @Test
     void preservesExactScopeAndReturnsReadablePayloadWithSourceAndTargets() throws Exception {
         var requested = new AtomicReference<PackSageTools.ReadRequest>();
         var source = new Evidence.Source(SCOPE, "native", "1.21.1", "minecraft:torch", 1, Instant.EPOCH,
@@ -72,6 +100,7 @@ class PackSageToolsTest {
         assertEquals(7, json.getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("payload").get("count").getAsInt());
         assertEquals("minecraft:torch", json.getAsJsonArray("records").get(0).getAsJsonObject()
                 .getAsJsonObject("source").get("sourceHandle").getAsString());
+        assertTrue(json.getAsJsonArray("records").get(0).getAsJsonObject().get("navigable").getAsBoolean());
     }
 
     @Test
@@ -91,6 +120,20 @@ class PackSageToolsTest {
         var plainJson = JsonParser.parseString(plain.execute(new ModelBackend.ToolCall("b", "search_pack", "{\"text\":\"none\"}"), SCOPE)
                 .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
         assertFalse(plainJson.has("detail"));
+    }
+
+    @Test
+    void marksRecordsWithoutTargetsAsNotNavigable() throws Exception {
+        var record = new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "item:torch", 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Torch", new Evidence.JsonObject(Map.of()), List.of());
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(record),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+
+        var json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("a", "search_pack", "{\"text\":\"torch\"}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+
+        assertFalse(json.getAsJsonArray("records").get(0).getAsJsonObject().get("navigable").getAsBoolean());
     }
 
     @Test

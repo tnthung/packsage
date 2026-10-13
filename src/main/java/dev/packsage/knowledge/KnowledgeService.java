@@ -254,7 +254,7 @@ public final class KnowledgeService {
                         if (cursor == null) return failed("unknown or expired cursor; repeat the search without a cursor");
                         if (!cursor.scope().equals(request.scope())) return failed("cursor belongs to an earlier evidence scope; repeat the search without a cursor");
                         if (!cursor.tool().equals(request.tool()) || !cursor.arguments().equals(signature)) {
-                            return failed("cursor does not match this query; reuse it only with the same tool, text and kinds");
+                            return failed("cursor does not match this query; reuse it only with the same tool and filters");
                         }
                     }
                     int limit = arguments.get("limit") instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 16;
@@ -312,6 +312,8 @@ public final class KnowledgeService {
 
     private boolean eligible(PackSageTools.ReadRequest request, Set<Evidence.RecordKind> selectedKinds, KnowledgeProvider provider) {
         if (!request.tool().equals("search_pack")) return provider.id().equals("config");
+        if (request.arguments().values().get("provider") instanceof Evidence.JsonString providerFilter
+                && !providerFilter.value().equals(provider.id())) return false;
         if (selectedKinds.isEmpty()) return true;
         var produced = PROVIDER_KINDS.get(provider.id());
         return produced == null || produced.stream().anyMatch(selectedKinds::contains);
@@ -353,6 +355,7 @@ public final class KnowledgeService {
         var arguments = new LinkedHashMap<String, Evidence.JsonValue>();
         arguments.put("text", signature.getOrDefault("text", new Evidence.JsonString("")));
         if (!selectedKinds.isEmpty()) arguments.put("kinds", signature.get("kinds"));
+        if (provider.id().equals("jei") && signature.containsKey("outputItem")) arguments.put("outputItem", signature.get("outputItem"));
         CompletionStage<Evidence.Result> page;
         try {
             page = provider.query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(arguments),

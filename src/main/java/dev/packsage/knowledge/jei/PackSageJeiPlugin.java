@@ -7,7 +7,9 @@ import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.ingredients.subtypes.UidContext;
+import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.recipe.IRecipeManager;
+import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.RecipeIngredientRole;
 import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
@@ -124,6 +126,19 @@ public final class PackSageJeiPlugin implements IModPlugin {
             if (!owningThread()) throw new IllegalStateException("JEI snapshot must be captured on the client thread");
             var snapshotVersion = snapshotVersions.incrementAndGet();
             var manager = runtime.getRecipeManager();
+            var outputItem = stringArgument(query.arguments(), "outputItem");
+            List<IFocus<?>> focuses = List.of();
+            if (outputItem != null) {
+                var itemId = ResourceLocation.tryParse(outputItem);
+                if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) {
+                    throw new IllegalArgumentException("unknown or invalid outputItem " + outputItem);
+                }
+                var item = BuiltInRegistries.ITEM.getOptional(itemId)
+                        .orElseThrow(() -> new IllegalArgumentException("unknown outputItem " + outputItem));
+                var stack = new ItemStack(item);
+                focuses = List.of((IFocus<?>) runtime.getJeiHelpers().getFocusFactory().createFocus(
+                        RecipeIngredientRole.OUTPUT, VanillaTypes.ITEM_STACK, stack));
+            }
             var projections = new ArrayList<JeiProvider.Projection>();
             var navigation = new LinkedHashMap<String, RegisteredRecipe>();
             var cursor = parseCursor(query.cursor());
@@ -142,7 +157,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var opaque = false;
             var error = false;
             var categoryLookupFailed = false;
-            try (var categories = manager.createRecipeCategoryLookup().includeHidden().get()) {
+            try (var categories = manager.createRecipeCategoryLookup().includeHidden().limitFocus(focuses).get()) {
                 var categoryIterator = categories.iterator();
                 while (categoryIterator.hasNext()) {
                     var categoryIndex = categoryCount++;
@@ -188,7 +203,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                     }
                     var catalystCapture = catalysts(runtime, manager, type);
                     partial |= catalystCapture.partial();
-                    try (var recipes = manager.createRecipeLookup(type).includeHidden().get()) {
+                    try (var recipes = manager.createRecipeLookup(type).includeHidden().limitFocus(focuses).get()) {
                         var recipeIterator = recipes.iterator();
                         var recipeCount = 0;
                         var recipeOrdinal = 0;

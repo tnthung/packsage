@@ -47,8 +47,10 @@ public final class PackSageTools {
             var description = switch (name) {
                 case "search_pack" -> "Search current client-visible pack evidence. Preserve partial coverage and source authority. "
                         + "Text is a literal substring: use one name, ID or short phrase, not concatenated keywords. "
+                        + "Use provider to limit results to one source. outputItem is an exact registered item focus and requires provider=jei; use empty text for focused JEI displays. "
+                        + "Native recipes describe loaded pack facts; JEI references describe observed viewer entries and are navigable only when navigable is true. "
                         + "Search a bare chapter ID to discover its quest references. A non-null nextCursor means more matches may exist; "
-                        + "reuse it only with the same text and kinds, or set cursor to null when changing the query. "
+                        + "reuse it only with the same text, kinds, provider and outputItem, or set cursor to null when changing a filter. "
                         + "Detail explains errors and bounded partial results.";
                 case "read_evidence" -> "Read only previously observed provider-qualified source handles in this request.";
                 case "plan_recipe" -> "Retrieve bounded recipe routes, preserving alternatives, quantities and unknown semantics.";
@@ -67,6 +69,8 @@ public final class PackSageTools {
             }
             if (name.equals("search_pack")) {
                 properties.add("kinds", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"maxItems\":7,\"items\":{\"type\":\"string\",\"enum\":[\"RECIPE\",\"QUEST\",\"CONFIG\",\"GUIDE\",\"ITEM\",\"BLOCK\",\"OTHER\"]}}"));
+                properties.add("provider", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":32,\"enum\":[\"native\",\"jei\",\"ftb_quests\",\"config\",\"patchouli\",null]}"));
+                properties.add("outputItem", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}"));
             }
             if (name.equals("read_evidence") || name.equals("read_progress")) {
                 properties.add("handles", JsonParser.parseString("{\"type\":\"array\",\"minItems\":1,\"maxItems\":16,\"items\":{\"type\":\"string\",\"maxLength\":1024}}"));
@@ -129,6 +133,10 @@ public final class PackSageTools {
                     if (number < rule.get("minimum").getAsLong() || number > rule.get("maximum").getAsLong()) throw new IllegalArgumentException("argument outside bounds: " + entry.getKey());
                 } else if (!(value instanceof Evidence.JsonString string) || string.value().length() > rule.get("maxLength").getAsInt()) {
                     throw new IllegalArgumentException("invalid text argument: " + entry.getKey());
+                } else if (entry.getKey().equals("provider") && !List.of("native", "jei", "ftb_quests", "config", "patchouli").contains(string.value())) {
+                    throw new IllegalArgumentException("invalid provider");
+                } else if (entry.getKey().equals("outputItem") && !string.value().matches("[a-z0-9_.-]+:[a-z0-9/._-]+")) {
+                    throw new IllegalArgumentException("outputItem must be a valid item resource ID");
                 }
             }
             for (var required : switch (call.name()) {
@@ -140,6 +148,10 @@ public final class PackSageTools {
                 default -> List.<String>of();
             }) {
                 if (!arguments.values().containsKey(required) || arguments.values().get(required) instanceof Evidence.JsonNull) throw new IllegalArgumentException("missing argument: " + required);
+            }
+            if (arguments.values().get("outputItem") instanceof Evidence.JsonString
+                    && (!(arguments.values().get("provider") instanceof Evidence.JsonString provider) || !provider.value().equals("jei"))) {
+                throw new IllegalArgumentException("outputItem requires provider=jei");
             }
             if (call.name().equals("read_config") && !(arguments.values().get("key") instanceof Evidence.JsonString)
                     && !(arguments.values().get("section") instanceof Evidence.JsonString)) throw new IllegalArgumentException("select a config key or section");
@@ -164,6 +176,7 @@ public final class PackSageTools {
                     encoded.addProperty("reference", record.source().providerId() + ":" + record.source().sourceHandle());
                     encoded.add("source", JSON.toJsonTree(record.source()));
                     encoded.addProperty("kind", record.kind().name());
+                    encoded.addProperty("navigable", !record.targets().isEmpty());
                     encoded.addProperty("title", record.title());
                     encoded.add("payload", JsonParser.parseString(Evidence.serialize(record.payload())));
                     encoded.add("recipe", JSON.toJsonTree(record.recipePayload()));

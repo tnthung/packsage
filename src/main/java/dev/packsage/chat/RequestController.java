@@ -50,6 +50,7 @@ public final class RequestController {
     private WorldLoad worldLoad;
     private ChatContracts.WorldIdentity openedWorld;
     private Evidence.Scope openedScope;
+    private int pendingPersistenceCount;
     private boolean forceNew;
     private long generation;
     private long worldLoadGeneration;
@@ -215,18 +216,22 @@ public final class RequestController {
      * loading, is reused and republished instead of creating another empty conversation file.
      */
     public void newChat(ChatContracts.WorldIdentity currentWorld, Evidence.Scope currentScope) {
+        newChat(currentWorld, currentScope, false);
+    }
+
+    public void newChat(ChatContracts.WorldIdentity currentWorld, Evidence.Scope currentScope, boolean forceNewConversation) {
         if (currentWorld == null || currentScope == null) {
             newChat();
             return;
         }
         boolean reused = false;
         synchronized (stateLock) {
-            if (active == null && worldLoad != null && worldLoad.createNew
+            if (!forceNewConversation && active == null && worldLoad != null && worldLoad.createNew
                     && worldLoad.world.worldOrServer().equals(currentWorld.worldOrServer())) {
                 worldLoad.scope = currentScope;
                 context = new ChatContracts.Context("", null, currentScope);
                 reused = true;
-            } else if (active == null && worldLoad == null
+            } else if (!forceNewConversation && active == null && worldLoad == null
                     && conversation.world().worldOrServer().equals(currentWorld.worldOrServer())
                     && !conversation.id().startsWith("pending") && conversation.turns().isEmpty()) {
                 forceNew = false;
@@ -287,6 +292,12 @@ public final class RequestController {
     public ChatContracts.View view() {
         synchronized (stateLock) {
             return currentView();
+        }
+    }
+
+    public boolean persistencePending() {
+        synchronized (stateLock) {
+            return pendingPersistenceCount > 0;
         }
     }
 
@@ -590,6 +601,7 @@ public final class RequestController {
             } else {
                 replay = completePairs(request);
             }
+            markPersistencePending(request);
             active = null;
             if (request.submission.replacing() != null) pendingReplacement = request;
             target = request.target.join();
@@ -621,6 +633,7 @@ public final class RequestController {
         synchronized (stateLock) {
             request = active;
             if (request == null) return;
+            markPersistencePending(request);
             active = null;
             if (request.submission.replacing() != null) pendingReplacement = request;
             generation++;
@@ -639,6 +652,7 @@ public final class RequestController {
         ChatContracts.CapturedContext persisted = captured;
         request.target.whenCompleteAsync((target, failure) -> {
             if (failure != null) {
+                finishPersistence(request);
                 if (request.submission.replacing() == null) publishPersistenceFailure(request, null, failure);
                 else finishReplacementPersistence(request, null, null, failure);
                 return;
@@ -704,6 +718,7 @@ public final class RequestController {
                     : store.replaceLatestTurn(target.world(), request.submission.scope(), target.id(), request.submission.replacing(), finalTurn);
             persisted
                     .whenCompleteAsync((saved, appendFailure) -> {
+                        finishPersistence(request);
                         if (request.submission.replacing() == null) {
                             if (appendFailure != null) publishPersistenceFailure(request, target, appendFailure);
                             return;
@@ -758,6 +773,20 @@ public final class RequestController {
 
     private boolean isCurrent(ActiveRequest request) {
         return active == request && generation == request.generation;
+    }
+
+    private void markPersistencePending(ActiveRequest request) {
+        if (request.persistencePending) return;
+        request.persistencePending = true;
+        pendingPersistenceCount++;
+    }
+
+    private void finishPersistence(ActiveRequest request) {
+        synchronized (stateLock) {
+            if (!request.persistencePending) return;
+            request.persistencePending = false;
+            pendingPersistenceCount--;
+        }
     }
 
     private boolean isVisible(ActiveRequest request, ChatContracts.Conversation target) {
@@ -846,6 +875,7 @@ public final class RequestController {
         private ChatContracts.EvidenceSelection evidence;
         private ModelBackend.Exchange exchange;
         private boolean persistenceSettled;
+        private boolean persistencePending;
         private String persistenceFailure;
 
         private ActiveRequest(ChatContracts.Submission submission, long generation) {

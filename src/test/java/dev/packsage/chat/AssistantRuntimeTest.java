@@ -57,8 +57,160 @@ class AssistantRuntimeTest {
         assertEquals(new ChatContracts.HistoryLimits(2, 30), prepared.get().submission().historyLimits());
         assertEquals(1, backend.requests.size());
         assertEquals("question", runtime.view().activeQuestion());
+        ChatContracts.SessionSummary activeSession = runtime.sessions().toCompletableFuture().join().stream()
+                .filter(session -> session.world().worldOrServer().equals(WORLD.worldOrServer())).findFirst().orElseThrow();
+        assertTrue(runtime.deleteSession(activeSession).toCompletableFuture().isCompletedExceptionally());
         runtime.stop();
         assertEquals("", runtime.view().activeQuestion());
+    }
+
+    @Test
+    void deletingSelectedSessionStartsAnEmptyCurrentWorldChat() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                PackSageSettings.defaults(), model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+        ChatContracts.WorldIdentity otherWorld = new ChatContracts.WorldIdentity("other-world", "Other World");
+        runtime.enterWorld(otherWorld, new Evidence.Scope("other-world", "resources", "team", "runtime", 0));
+        ChatContracts.SessionSummary otherSession = runtime.sessions().toCompletableFuture().join().stream()
+                .filter(session -> session.world().worldOrServer().equals(otherWorld.worldOrServer())).findFirst().orElseThrow();
+        runtime.enterWorld(WORLD, SCOPE);
+        String activeId = runtime.view().conversation().id();
+        runtime.deleteSession(otherSession).toCompletableFuture().join();
+        assertEquals(activeId, runtime.view().conversation().id());
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+
+        ChatContracts.SessionSummary selected = runtime.sessions().toCompletableFuture().join().stream()
+                .filter(session -> session.world().worldOrServer().equals(WORLD.worldOrServer())).findFirst().orElseThrow();
+
+        runtime.deleteSession(selected).toCompletableFuture().join();
+
+        assertFalse(runtime.sessions().toCompletableFuture().join().stream()
+                .anyMatch(session -> session.id().equals(selected.id())));
+        assertTrue(runtime.view().conversation().turns().isEmpty());
+        assertTrue(runtime.view().conversation().world().worldOrServer().equals(WORLD.worldOrServer()));
+        assertFalse(runtime.view().conversation().id().equals(selected.id()));
+        String freshId = runtime.view().conversation().id();
+        assertTrue(runtime.sessions().toCompletableFuture().join().stream()
+                .anyMatch(session -> session.id().equals(freshId)));
+        runtime.send("after deletion", false, false);
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        assertEquals(List.of("after deletion"), runtime.view().conversation().turns().stream()
+                .map(ChatContracts.Turn::question).toList());
+        assertTrue(runtime.sessions().toCompletableFuture().join().stream()
+                .anyMatch(session -> session.id().equals(freshId) && session.title().equals("after deletion")));
+    }
+
+    @Test
+    void deletionGateRejectsSendAndLateCompletionCannotResetAChangedWorld() throws Exception {
+        var directory = Files.createTempDirectory("packsage-delete-runtime-test");
+        ConversationStore store = new ConversationStore(directory, DIRECT);
+        ChatContracts.Conversation selected = store.newConversation(WORLD).toCompletableFuture().join();
+        java.util.ArrayDeque<Runnable> clientTasks = new java.util.ArrayDeque<>();
+        FakeBackend backend = new FakeBackend();
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, clientTasks::addLast,
+                current -> new KnowledgeService(List.of(), current,
+                        ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                                Evidence.Outcome.COMPLETE, null)),
+                        (ignored, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
+                turn -> turn.tokenCount(), ignored -> { throw new AssertionError("request must be rejected"); },
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        while (backend.catalogLoads == 0) clientTasks.removeFirst().run();
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+        while (runtime.modelCatalog().isEmpty()) clientTasks.removeFirst().run();
+        ChatContracts.SessionSummary summary = new ChatContracts.SessionSummary(WORLD, selected.id(), "New chat", "", Instant.EPOCH);
+
+        runtime.openSession(summary);
+        assertTrue(runtime.deleteSession(summary).toCompletableFuture().isCompletedExceptionally());
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+
+        runtime.deleteSession(summary);
+        runtime.send("must not start during deletion", false, false);
+
+        assertEquals(0, backend.starts);
+        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("deletion is still in progress")));
+        ChatContracts.WorldIdentity nextWorld = new ChatContracts.WorldIdentity("next-world", "Next World");
+        Evidence.Scope nextScope = new Evidence.Scope("next-world", "resources", "team", "runtime", 0);
+        runtime.enterWorld(nextWorld, nextScope);
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+
+        assertEquals(nextWorld.worldOrServer(), runtime.view().activeWorld().worldOrServer());
+        assertEquals(nextWorld.worldOrServer(), runtime.view().conversation().world().worldOrServer());
+    }
+
+    @Test
+    void sameWorldInvalidationStillResetsSelectedSessionAfterDelayedDelete() throws Exception {
+        var directory = Files.createTempDirectory("packsage-delete-invalidate-test");
+        ConversationStore store = new ConversationStore(directory, DIRECT);
+        ChatContracts.Conversation deleted = store.newConversation(WORLD).toCompletableFuture().join();
+        java.util.ArrayDeque<Runnable> clientTasks = new java.util.ArrayDeque<>();
+        FakeBackend backend = new FakeBackend();
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, clientTasks::addLast,
+                current -> new KnowledgeService(List.of(), current,
+                        ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                                Evidence.Outcome.COMPLETE, null)),
+                        (ignored, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
+                turn -> turn.tokenCount(), ignored -> { throw new AssertionError("No model request expected"); },
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        ChatContracts.SessionSummary summary = new ChatContracts.SessionSummary(WORLD, deleted.id(), "New chat", "", Instant.EPOCH);
+
+        runtime.deleteSession(summary);
+        Evidence.Scope refreshed = new Evidence.Scope("world", "resources", "team", "runtime", 1);
+        runtime.invalidate(refreshed);
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+
+        String freshId = runtime.view().conversation().id();
+        assertFalse(freshId.equals(deleted.id()));
+        assertEquals(WORLD.worldOrServer(), runtime.view().conversation().world().worldOrServer());
+        assertTrue(runtime.sessions().toCompletableFuture().join().stream()
+                .anyMatch(session -> session.id().equals(freshId)));
+        assertFalse(runtime.sessions().toCompletableFuture().join().stream()
+                .anyMatch(session -> session.id().equals(deleted.id())));
+    }
+
+    @Test
+    void deletionWaitsForAnOrdinaryTurnAppendToSettle() throws Exception {
+        java.util.ArrayDeque<Runnable> storeTasks = new java.util.ArrayDeque<>();
+        Executor storeExecutor = storeTasks::addLast;
+        FakeBackend backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
+                current -> new KnowledgeService(List.of(), current,
+                        ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                                Evidence.Outcome.UNKNOWN, null)),
+                        (ignored, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                                Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null))), storeExecutor);
+        runtime.enterWorld(WORLD, SCOPE);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        var sessions = runtime.sessions();
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        ChatContracts.SessionSummary session = sessions.toCompletableFuture().join().stream()
+                .filter(value -> value.world().worldOrServer().equals(WORLD.worldOrServer())).findFirst().orElseThrow();
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+        runtime.send("question", false, false);
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+
+        assertTrue(runtime.deleteSession(session).toCompletableFuture().isCompletedExceptionally());
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        var deleted = runtime.deleteSession(session);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        deleted.toCompletableFuture().join();
+
+        assertTrue(runtime.view().conversation().turns().isEmpty());
+        assertFalse(runtime.view().conversation().id().equals(session.id()));
     }
 
     @Test

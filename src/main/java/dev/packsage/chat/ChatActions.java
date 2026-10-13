@@ -15,6 +15,10 @@ public interface ChatActions {
 
     default void openSession(ChatContracts.SessionSummary session) { }
 
+    default CompletionStage<Void> deleteSession(ChatContracts.SessionSummary session) {
+        return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("session deletion is unavailable"));
+    }
+
     default ChatContracts.AccountInfo account() {
         return new ChatContracts.AccountInfo(new ModelBackend.ProviderInfo("unknown", "Provider"), "");
     }

@@ -77,6 +77,58 @@ class ConversationStoreTest {
     }
 
     @Test
+    void deletingLatestRepairsMarkerToMostRecentRemainingConversation() {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.Conversation older = store.newConversation(world).toCompletableFuture().join();
+        ChatContracts.Conversation latest = store.newConversation(world).toCompletableFuture().join();
+
+        store.deleteConversation(world, latest.id()).toCompletableFuture().join();
+
+        assertFalse(Files.exists(store.conversationPath(world, latest.id())));
+        assertEquals(older.id(), store.openLatest(world).toCompletableFuture().join().id());
+    }
+
+    @Test
+    void deletingWithRenamedWorldLabelUsesStableWorldIdentityAndActualDirectory() {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity original = new ChatContracts.WorldIdentity("world-a", "Original label");
+        ChatContracts.WorldIdentity renamed = new ChatContracts.WorldIdentity("world-a", "Renamed label");
+        ChatContracts.Conversation older = store.newConversation(original).toCompletableFuture().join();
+        ChatContracts.Conversation latest = store.newConversation(original).toCompletableFuture().join();
+
+        store.deleteConversation(renamed, latest.id()).toCompletableFuture().join();
+
+        assertFalse(Files.exists(store.conversationPath(original, latest.id())));
+        assertEquals(older.id(), store.openLatest(original).toCompletableFuture().join().id());
+    }
+
+    @Test
+    void deletingNonLatestLeavesLatestAndRejectsCrossWorldOrUnsafeTargets() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory.resolve("store"), DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.WorldIdentity otherWorld = new ChatContracts.WorldIdentity("world-b", "World B");
+        ChatContracts.Conversation older = store.newConversation(world).toCompletableFuture().join();
+        ChatContracts.Conversation latest = store.newConversation(world).toCompletableFuture().join();
+        store.deleteConversation(world, older.id()).toCompletableFuture().join();
+        assertEquals(latest.id(), store.openLatest(world).toCompletableFuture().join().id());
+        assertThrows(RuntimeException.class, () -> store.deleteConversation(otherWorld, latest.id()).toCompletableFuture().join());
+        assertThrows(RuntimeException.class, () -> store.deleteConversation(world, "../../outside").toCompletableFuture().join());
+        assertTrue(Files.exists(store.conversationPath(world, latest.id())));
+
+        ConversationStore outsideStore = new ConversationStore(temporaryDirectory.resolve("outside"), DIRECT);
+        ChatContracts.Conversation outside = outsideStore.newConversation(world).toCompletableFuture().join();
+        Path linked = store.conversationPath(world, outside.id());
+        try {
+            Files.createSymbolicLink(linked, outsideStore.conversationPath(world, outside.id()));
+        } catch (UnsupportedOperationException | java.io.IOException exception) {
+            assumeTrue(false, "symbolic links unavailable: " + exception.getMessage());
+        }
+        assertThrows(RuntimeException.class, () -> store.deleteConversation(world, outside.id()).toCompletableFuture().join());
+        assertTrue(Files.exists(outsideStore.conversationPath(world, outside.id())));
+    }
+
+    @Test
     void sessionsListsWorldMetadataAndOpensAnExplicitConversation() {
         ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
         ChatContracts.WorldIdentity firstWorld = new ChatContracts.WorldIdentity("world-a", "World A");

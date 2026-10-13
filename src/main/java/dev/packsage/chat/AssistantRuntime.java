@@ -54,7 +54,9 @@ public final class AssistantRuntime implements ChatActions {
     private boolean newChatPending;
     private ChatContracts.Conversation readOnlyConversation;
     private boolean sessionLoading;
+    private boolean sessionDeletion;
     private long sessionGeneration;
+    private long sessionSelectionGeneration;
 
     public AssistantRuntime(ConversationStore store, ModelBackend backend,
                             Function<Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory,
@@ -87,19 +89,22 @@ public final class AssistantRuntime implements ChatActions {
         Objects.requireNonNull(world);
         Objects.requireNonNull(scope);
         long epoch;
-        synchronized (stateLock) {
-            epoch = ++worldEpoch;
-            publicationEpoch++;
-            this.world = world;
-            this.scope = scope;
-            readOnlyConversation = null;
-            sessionLoading = false;
-            sessionGeneration++;
-            runtimeErrors.clear();
-            requestedPaused = settings.openPaused();
-            newChatPending = false;
+        synchronized (sendLock) {
+            synchronized (stateLock) {
+                epoch = ++worldEpoch;
+                publicationEpoch++;
+                this.world = world;
+                this.scope = scope;
+                readOnlyConversation = null;
+                sessionLoading = false;
+                sessionGeneration++;
+                sessionSelectionGeneration++;
+                runtimeErrors.clear();
+                requestedPaused = settings.openPaused();
+                newChatPending = false;
+            }
+            controller.openWorld(world, scope);
         }
-        controller.openWorld(world, scope);
         KnowledgeService nextKnowledge;
         try {
             nextKnowledge = Objects.requireNonNull(knowledgeFactory.apply(this::currentScope));
@@ -123,31 +128,35 @@ public final class AssistantRuntime implements ChatActions {
 
     public void invalidate(Evidence.Scope newScope) {
         Objects.requireNonNull(newScope);
-        synchronized (stateLock) {
-            publicationEpoch++;
-            scope = newScope;
-            newChatPending = false;
-            readOnlyConversation = null;
-            sessionLoading = false;
-            sessionGeneration++;
+        synchronized (sendLock) {
+            synchronized (stateLock) {
+                publicationEpoch++;
+                scope = newScope;
+                newChatPending = false;
+                readOnlyConversation = null;
+                sessionLoading = false;
+                sessionGeneration++;
+            }
+            controller.invalidate(newScope.worldSession());
         }
-        controller.invalidate(newScope.worldSession());
         publishCurrentView(worldEpoch);
     }
 
     public void disconnect() {
-        synchronized (stateLock) {
-            worldEpoch++;
-            publicationEpoch++;
-            world = null;
-            scope = EMPTY_SCOPE;
-            requestedPaused = false;
-            newChatPending = false;
-            readOnlyConversation = null;
-            sessionLoading = false;
-            sessionGeneration++;
+        synchronized (sendLock) {
+            synchronized (stateLock) {
+                worldEpoch++;
+                publicationEpoch++;
+                world = null;
+                scope = EMPTY_SCOPE;
+                requestedPaused = false;
+                newChatPending = false;
+                readOnlyConversation = null;
+                sessionLoading = false;
+                sessionGeneration++;
+            }
+            controller.disconnect();
         }
-        controller.disconnect();
     }
 
     public void onRenderGuiPost() {
@@ -214,13 +223,93 @@ public final class AssistantRuntime implements ChatActions {
     }
 
     @Override
+    public CompletionStage<Void> deleteSession(ChatContracts.SessionSummary session) {
+        Objects.requireNonNull(session);
+        synchronized (sendLock) {
+            long epoch;
+            long publication;
+            long selectionGeneration;
+            ChatContracts.WorldIdentity currentWorld;
+            boolean selected;
+            synchronized (stateLock) {
+                ChatContracts.View current = controller.view();
+                if (world == null) return java.util.concurrent.CompletableFuture.failedFuture(
+                        new IllegalStateException("cannot delete a session without an active world"));
+                if (sessionDeletion || current.active() || controller.persistencePending()
+                        || current.activity().startsWith("Saving exchange")
+                        || sessionLoading || current.conversation().id().startsWith("pending-world:")) {
+                    return java.util.concurrent.CompletableFuture.failedFuture(
+                            new IllegalStateException("sessions cannot be deleted while chat state is changing"));
+                }
+                currentWorld = world;
+                selected = readOnlyConversation != null
+                        ? readOnlyConversation.world().worldOrServer().equals(session.world().worldOrServer())
+                        && readOnlyConversation.id().equals(session.id())
+                        : current.conversation().world().worldOrServer().equals(session.world().worldOrServer())
+                        && current.conversation().id().equals(session.id());
+                sessionDeletion = true;
+                epoch = worldEpoch;
+                publication = ++publicationEpoch;
+                selectionGeneration = sessionSelectionGeneration;
+            }
+            CompletionStage<Void> deletion;
+            try {
+                deletion = store.deleteConversation(session.world(), session.id());
+            } catch (RuntimeException failure) {
+                synchronized (stateLock) {
+                    if (publication == publicationEpoch) sessionDeletion = false;
+                }
+                return java.util.concurrent.CompletableFuture.failedFuture(failure);
+            }
+            return deletion.whenCompleteAsync((ignored, failure) -> {
+                synchronized (sendLock) {
+                    boolean lifecycleCurrent;
+                    boolean selectedStillCurrent;
+                    boolean publish;
+                    Evidence.Scope resetScope = null;
+                    synchronized (stateLock) {
+                        lifecycleCurrent = epoch == worldEpoch && world != null
+                                && world.worldOrServer().equals(currentWorld.worldOrServer());
+                        ChatContracts.Conversation selectedConversation = controller.view().conversation();
+                        selectedStillCurrent = selected && lifecycleCurrent
+                                && selectionGeneration == sessionSelectionGeneration && (readOnlyConversation != null
+                                ? readOnlyConversation.id().equals(session.id())
+                                && readOnlyConversation.world().worldOrServer().equals(session.world().worldOrServer())
+                                : selectedConversation.id().equals(session.id())
+                                && selectedConversation.world().worldOrServer().equals(session.world().worldOrServer()));
+                        publish = lifecycleCurrent && (publication == publicationEpoch || selectedStillCurrent);
+                        if (selectedStillCurrent && failure == null) {
+                            readOnlyConversation = null;
+                            sessionLoading = false;
+                            sessionGeneration++;
+                            resetScope = scope;
+                        } else if (publish && failure != null) {
+                            sessionDeletion = false;
+                            runtimeErrors.add("Session could not be deleted: " + failureMessage(failure));
+                        }
+                    }
+                    if (selectedStillCurrent && failure == null) controller.newChat(currentWorld, resetScope, true);
+                    synchronized (stateLock) {
+                        sessionDeletion = false;
+                    }
+                    if (publish) {
+                        publishCurrentView(epoch);
+                    }
+                }
+            }, clientExecutor);
+        }
+    }
+
+    @Override
     public void openSession(ChatContracts.SessionSummary session) {
         Objects.requireNonNull(session);
         long requestGeneration;
         long epoch;
         synchronized (stateLock) {
             if (world == null) return;
+            if (sessionDeletion) return;
             requestGeneration = ++sessionGeneration;
+            sessionSelectionGeneration++;
             publicationEpoch++;
             epoch = worldEpoch;
             readOnlyConversation = new ChatContracts.Conversation(session.id(), session.world(), List.of(),
@@ -400,8 +489,8 @@ public final class AssistantRuntime implements ChatActions {
                     publishCurrentView(worldEpoch);
                     return;
                 }
-                if (sessionLoading || readOnlyConversation != null) {
-                    runtimeErrors.add(sessionLoading ? "Session is still loading"
+                if (sessionDeletion || sessionLoading || readOnlyConversation != null) {
+                    runtimeErrors.add(sessionDeletion ? "Session deletion is still in progress" : sessionLoading ? "Session is still loading"
                             : "This session is read-only until its world is active");
                     publishCurrentView(worldEpoch);
                     return;
@@ -502,17 +591,22 @@ public final class AssistantRuntime implements ChatActions {
     public void newChat() {
         ChatContracts.WorldIdentity currentWorld;
         Evidence.Scope currentScope;
-        synchronized (stateLock) {
-            publicationEpoch++;
-            newChatPending = true;
-            readOnlyConversation = null;
-            sessionLoading = false;
-            sessionGeneration++;
-            currentWorld = world;
-            currentScope = scope;
+        boolean forceNew;
+        synchronized (sendLock) {
+            synchronized (stateLock) {
+                publicationEpoch++;
+                newChatPending = true;
+                readOnlyConversation = null;
+                sessionLoading = false;
+                sessionGeneration++;
+                sessionSelectionGeneration++;
+                currentWorld = world;
+                currentScope = scope;
+                forceNew = sessionDeletion;
+            }
+            if (currentWorld == null) controller.newChat();
+            else controller.newChat(currentWorld, currentScope, forceNew);
         }
-        if (currentWorld == null) controller.newChat();
-        else controller.newChat(currentWorld, currentScope);
     }
 
     @Override

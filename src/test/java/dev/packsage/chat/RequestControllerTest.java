@@ -79,6 +79,30 @@ class RequestControllerTest {
     }
 
     @Test
+    void ordinaryTurnKeepsPersistencePendingUntilQueuedAppendSettles() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        opened.toCompletableFuture().join();
+        controller.begin(submission("persisting", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096))
+                .toCompletableFuture().join();
+
+        backend.emit("persisting", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+
+        assertFalse(controller.view().active());
+        assertTrue(controller.persistencePending());
+        storeExecutor.drain();
+        assertFalse(controller.persistencePending());
+    }
+
+    @Test
     void stopBeforeCaptureAndStoreCompletionPersistsTheSubmittedWorldWithoutReplacingRetryView() {
         ManualExecutor storeExecutor = new ManualExecutor();
         ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);

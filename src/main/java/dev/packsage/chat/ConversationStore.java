@@ -131,6 +131,54 @@ public final class ConversationStore {
         });
     }
 
+    public CompletionStage<Void> deleteConversation(ChatContracts.WorldIdentity world, String conversationId) {
+        return enqueue(() -> {
+            Path file = findConversation(world, conversationId);
+            Path directory = file.getParent();
+            Path latest = directory.resolve("latest");
+            try {
+                if (Files.isSymbolicLink(directory) || !safePath(directory)) throw new IOException("world directory is unsafe");
+                if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || !safePath(file)
+                        || !hasConversationHeader(file, world, conversationId)) {
+                    throw new IOException("conversation does not belong to the requested world and id");
+                }
+                boolean wasLatest = false;
+                if (Files.exists(latest, LinkOption.NOFOLLOW_LINKS)) {
+                    if (!safePath(latest) || !Files.isRegularFile(latest, LinkOption.NOFOLLOW_LINKS)) {
+                        throw new IOException("latest marker is unsafe");
+                    }
+                    wasLatest = conversationId.equals(Files.readString(latest, StandardCharsets.UTF_8).trim());
+                }
+                if (wasLatest) {
+                    Path fallback = null;
+                    try (var paths = Files.list(directory)) {
+                        for (Path candidate : paths.filter(path -> path.getFileName().toString().endsWith(".jsonl")
+                                && !path.equals(file) && Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
+                                && safePath(path)).sorted(Comparator.comparingLong(this::modifiedAt).reversed()).toList()) {
+                            if (hasWorldHeader(candidate, world)) {
+                                ChatContracts.Conversation conversation = readConversation(candidate, world);
+                                if (conversation != null) {
+                                    fallback = candidate;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (fallback == null) {
+                        Files.deleteIfExists(latest);
+                    } else {
+                        ChatContracts.Conversation conversation = readConversation(fallback, world);
+                        writeLatest(directory, conversation.id());
+                    }
+                }
+                Files.delete(file);
+            } catch (IOException exception) {
+                report(exception);
+                throw new RuntimeException(exception);
+            }
+        });
+    }
+
     public CompletionStage<ChatContracts.Conversation> newConversation(ChatContracts.WorldIdentity world) {
         String id = UUID.randomUUID().toString();
         ChatContracts.Conversation conversation = emptyConversation(world, id);
@@ -285,8 +333,19 @@ public final class ConversationStore {
     private Path findConversation(ChatContracts.WorldIdentity world, String conversationId) {
         try {
             Path file = conversationPath(world, conversationId);
-            if (!Files.isRegularFile(file) || !safePath(file)) throw new IOException("conversation does not exist: " + conversationId);
-            return file;
+            if (Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) && safePath(file)
+                    && hasConversationHeader(file, world, conversationId)) return file;
+            if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS) || !safePath(root)) {
+                throw new IOException("conversation does not exist: " + conversationId);
+            }
+            String fileName = file.getFileName().toString();
+            try (var paths = Files.walk(root, 2)) {
+                for (Path candidate : paths.filter(path -> path.getFileName().toString().equals(fileName)
+                        && Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) && safePath(path)).toList()) {
+                    if (hasConversationHeader(candidate, world, conversationId)) return candidate;
+                }
+            }
+            throw new IOException("conversation does not exist: " + conversationId);
         } catch (IOException exception) {
             report(exception);
             throw new RuntimeException(exception);
@@ -307,7 +366,7 @@ public final class ConversationStore {
                     if ("conversation".equals(value.get("type").getAsString())) {
                         if (!world.worldOrServer().equals(value.get("world").getAsString())) return null;
                         id = value.get("id").getAsString();
-                        if (!conversationPath(world, id).equals(file)) return null;
+                        if (!(safeName(id) + "-" + digest(id) + ".jsonl").equals(file.getFileName().toString())) return null;
                     }
                     if ("turn".equals(value.get("type").getAsString())) {
                         if (value.has("world") && !world.worldOrServer().equals(value.get("world").getAsString())) return null;
@@ -652,8 +711,16 @@ public final class ConversationStore {
         return worldDirectory(world).resolve("latest");
     }
 
+    private Path latestPath(Path directory) {
+        return directory.resolve("latest");
+    }
+
     private void writeLatest(ChatContracts.WorldIdentity world, String conversationId) throws IOException {
-        Path latest = latestPath(world);
+        writeLatest(worldDirectory(world), conversationId);
+    }
+
+    private void writeLatest(Path directory, String conversationId) throws IOException {
+        Path latest = latestPath(directory);
         if (!safePath(latest)) throw new IOException("latest marker escapes conversation root");
         Path temporary = latest.resolveSibling("latest-" + UUID.randomUUID() + ".tmp");
         Files.writeString(temporary, conversationId, StandardCharsets.UTF_8,

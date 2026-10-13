@@ -48,6 +48,12 @@ The test session remains available for inspection. Search off, Screenshot on, GP
 
 No application defect requiring another code change was found in this pass. Multiplayer controls, destructive deletion confirmation and injected provider failures were not exercised live here; their existing automated evidence is unchanged.
 
+## Control tooltip width follow-up
+
+`4325fe0` sizes the four simple composer tooltips from their rendered text plus the existing padding, capped by the existing width limit. The two context panels retain their structured layout. `test build` passed: 346 tests, 343 passed, three skipped, zero failures/errors.
+
+Minecraft was saved, closed and restarted with the updated instance JAR. At GUI scale 2 in a 1024-pixel client area, model (`GPT-6-Luna`), effort (`Reasoning effort: medium`), Search (`Web search`) and Screenshot (`Attach screenshot`) tooltips all fitted their labels without the previous empty horizontal space or clipped text. Preferences were unchanged and the game was left paused. Distribution and installed JAR SHA-256: `B023B3F2E5C0E9EB2F25D57EB346159BE865F0852292E557321B5EA1614DF74B`.
+
 ## Open observation
 
 The user reported intermittent black flashes in the Minecraft window during desktop testing. The observed log has an ignored invalid resource path for the bundled `font/OFL.txt` license, but no observed OpenGL/framebuffer failure or crash explains the flashes. The cause was not reproduced or established. Computer interaction stopped to avoid further focus changes while the user works. Do not classify this observation as fixed or attribute it to automation without further evidence.

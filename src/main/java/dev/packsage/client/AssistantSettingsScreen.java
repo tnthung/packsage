@@ -34,6 +34,8 @@ public final class AssistantSettingsScreen extends Screen {
     private String turnsDraft;
     private String tokensDraft;
     private int scrollOffset;
+    private boolean draggingScrollbar;
+    private int scrollbarDragOffset;
     private boolean closed;
 
     public AssistantSettingsScreen(PackSageSettings settings, Path path) {
@@ -132,17 +134,29 @@ public final class AssistantSettingsScreen extends Screen {
         int historyTop = y;
         boolean stacked = rowWidth < 280;
         y += stacked ? 146 : 82;
-        return new Layout(left, panelWidth, 50, Math.max(51, height - 12), accountTop, accountHeight,
+        Layout result = new Layout(left, panelWidth, 50, Math.max(51, height - 12), accountTop, accountHeight,
                 List.copyOf(modelChoices), List.copyOf(effortChoices), behaviorTop, historyTop, stacked, y + scrollOffset - 50);
+        if (turnsEditor != null) {
+            int fieldWidth = result.historyStacked() ? rowWidth : (rowWidth - 16) / 2;
+            int tokensX = result.historyStacked() ? left + 16 : left + 16 + fieldWidth + 16;
+            int tokensY = result.historyTop() + (result.historyStacked() ? 66 : 0);
+            turnsEditor.setRectangle(fieldWidth, 30, left + 16, result.historyTop() + 20);
+            tokensEditor.setRectangle(fieldWidth, 30, tokensX, tokensY + 20);
+            turnsEditor.visible = turnsEditor.getY() < result.bottom() && turnsEditor.getY() + 30 > result.top();
+            tokensEditor.visible = tokensEditor.getY() < result.bottom() && tokensEditor.getY() + 30 > result.top();
+        }
+        return result;
     }
 
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // The custom render path draws its opaque background before the content.
+        // The custom render path applies its glass backdrop before the content.
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.flush();
+        renderBlurredBackground(partialTick);
         graphics.fill(0, 0, width, height, ModernUi.BACKGROUND);
         Layout layout = layout();
         int maxScroll = Math.max(0, layout.contentHeight() - (layout.bottom() - layout.top()));
@@ -156,8 +170,8 @@ public final class AssistantSettingsScreen extends Screen {
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/arrow-left.png"),
                 layout.left() + 8, 18, 16, 16, 0f, 0f, 64, 64, 64, 64);
         graphics.drawString(font, Component.literal("Back").withStyle(style -> style.withFont(ModernUi.FONT)),
-                layout.left() + 29, 21, ModernUi.TEXT, false);
-        graphics.drawString(font, Component.literal("Settings").withStyle(style -> style.withFont(ModernUi.FONT).withBold(true)),
+                layout.left() + 29, 12 + (28 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        graphics.drawString(font, Component.literal("Settings").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
                 layout.left() + 82, 21, ModernUi.TEXT, false);
         graphics.enableScissor(layout.left(), layout.top(), layout.left() + layout.width(), layout.bottom());
         int x = layout.left() + 16;
@@ -172,7 +186,7 @@ public final class AssistantSettingsScreen extends Screen {
         graphics.blit(providerIcon,
                 x, layout.accountTop() + 21, 28, 28, 0f, 0f, 64, 64, 64, 64);
         graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(account.provider().displayName())
-                        .withStyle(style -> style.withFont(ModernUi.FONT).withBold(true)),
+                        .withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
                         Math.max(1, rowWidth - 44 - (layout.width() >= 340 ? 124 : 0)))),
                 x + 42, layout.accountTop() + 18, ModernUi.TEXT, false);
         ChatContracts.SignInState signIn = actions == null ? ChatContracts.SignInState.SIGNED_OUT : actions.view().signIn();
@@ -196,11 +210,11 @@ public final class AssistantSettingsScreen extends Screen {
                         case SIGNED_IN -> "Sign out";
                         case SIGNING_IN -> "Cancel sign-in";
                         default -> "Sign in";
-                    }).withStyle(style -> style.withFont(ModernUi.FONT)), buttonX + 12, buttonY + 9, ModernUi.TEXT, false);
+                    }).withStyle(style -> style.withFont(ModernUi.FONT)), buttonX + 12, buttonY + (28 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
-        graphics.drawString(font, Component.literal("Model").withStyle(style -> style.withFont(ModernUi.FONT).withBold(true)),
+        graphics.drawString(font, Component.literal("Model").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
                 x, layout.models().getFirst().y() - 20, ModernUi.TEXT, false);
-        graphics.drawString(font, Component.literal("Reasoning effort").withStyle(style -> style.withFont(ModernUi.FONT).withBold(true)),
+        graphics.drawString(font, Component.literal("Reasoning effort").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
                 x, layout.efforts().getFirst().y() - 20, ModernUi.TEXT, false);
         List<Choice> choices = new ArrayList<>(layout.models());
         choices.addAll(layout.efforts());
@@ -220,9 +234,9 @@ public final class AssistantSettingsScreen extends Screen {
                 }
             }
             graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(choice.label()).withStyle(style -> style.withFont(ModernUi.FONT)),
-                    Math.max(1, choice.width() - 34))), choice.x() + 28, choice.y() + 8, ModernUi.TEXT, false);
+                    Math.max(1, choice.width() - 34))), choice.x() + 28, choice.y() + (24 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
-        graphics.drawString(font, Component.literal("Behavior").withStyle(style -> style.withFont(ModernUi.FONT).withBold(true)),
+        graphics.drawString(font, Component.literal("Behavior").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
                 x, layout.behaviorTop() - 20, ModernUi.TEXT, false);
         for (int index = 0; index < 2; index++) {
             boolean checked = index == 0 ? settings.openPaused() : settings.automaticWebSearch();
@@ -234,7 +248,7 @@ public final class AssistantSettingsScreen extends Screen {
                     x + 10, y + 8, 12, 12, 0f, 0f, 64, 64, 64, 64);
             graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(index == 0 ? "Open paused" : "Automatic web search")
                             .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, rowWidth - 42))),
-                    x + 34, y + 10, ModernUi.TEXT, false);
+                    x + 34, y + (28 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
         int fieldWidth = layout.historyStacked() ? rowWidth : (rowWidth - 16) / 2;
         int tokensX = layout.historyStacked() ? x : x + fieldWidth + 16;
@@ -244,16 +258,12 @@ public final class AssistantSettingsScreen extends Screen {
         graphics.drawString(font, Component.literal("History tokens").withStyle(style -> style.withFont(ModernUi.FONT)),
                 tokensX, tokensY, ModernUi.MUTED, false);
         if (turnsEditor != null) {
-            turnsEditor.setRectangle(x, layout.historyTop() + 20, fieldWidth, 30);
-            tokensEditor.setRectangle(tokensX, tokensY + 20, fieldWidth, 30);
-            turnsEditor.visible = turnsEditor.getY() < layout.bottom() && turnsEditor.getY() + 30 > layout.top();
-            tokensEditor.visible = tokensEditor.getY() < layout.bottom() && tokensEditor.getY() + 30 > layout.top();
             super.render(graphics, mouseX, mouseY, partialTick);
         }
         graphics.disableScissor();
         if (maxScroll > 0) {
             int track = layout.bottom() - layout.top();
-            int thumb = Math.max(16, track * track / (track + maxScroll));
+            int thumb = Math.min(track, Math.max(16, track * track / (track + maxScroll)));
             int y = layout.top() + scrollOffset * (track - thumb) / maxScroll;
             graphics.fill(layout.left() + layout.width() - 3, y, layout.left() + layout.width(), y + thumb, ModernUi.BORDER);
         }
@@ -267,7 +277,25 @@ public final class AssistantSettingsScreen extends Screen {
             finish();
             return true;
         }
-        if (mouseX < layout.left() || mouseX >= layout.left() + layout.width() || mouseY < layout.top() || mouseY >= layout.bottom()) return false;
+        int maxScroll = Math.max(0, layout.contentHeight() - (layout.bottom() - layout.top()));
+        if (maxScroll > 0) {
+            int track = layout.bottom() - layout.top();
+            int thumb = Math.min(track, Math.max(16, track * track / (track + maxScroll)));
+            int thumbTop = layout.top() + scrollOffset * (track - thumb) / maxScroll;
+            int scrollbarLeft = layout.left() + layout.width() - 8;
+            if (mouseX >= scrollbarLeft && mouseX < layout.left() + layout.width()
+                    && mouseY >= thumbTop && mouseY < thumbTop + thumb) {
+                draggingScrollbar = true;
+                scrollbarDragOffset = (int) mouseY - thumbTop;
+                setFocused(null);
+                return true;
+            }
+        }
+        if (mouseX < layout.left() || mouseX >= layout.left() + layout.width() || mouseY < layout.top() || mouseY >= layout.bottom()) {
+            setFocused(null);
+            return false;
+        }
+        setFocused(null);
         int buttonX = layout.width() >= 340 ? layout.left() + layout.width() - 128 : layout.left() + 16;
         int buttonY = layout.accountTop() + (layout.width() >= 340 ? 24 : 72);
         if (actions != null && mouseX >= buttonX && mouseX < buttonX + 112 && mouseY >= buttonY && mouseY < buttonY + 28) {
@@ -301,6 +329,31 @@ public final class AssistantSettingsScreen extends Screen {
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (!draggingScrollbar || button != 0) return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+        Layout layout = layout();
+        int maxScroll = Math.max(0, layout.contentHeight() - (layout.bottom() - layout.top()));
+        int track = layout.bottom() - layout.top();
+        int thumb = Math.min(track, Math.max(16, track * track / (track + maxScroll)));
+        int available = track - thumb;
+        if (maxScroll > 0 && available > 0) {
+            int thumbTop = Math.max(layout.top(), Math.min(layout.top() + available,
+                    (int) mouseY - scrollbarDragOffset));
+            scrollOffset = (thumbTop - layout.top()) * maxScroll / available;
+        }
+        return true;
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (button == 0 && draggingScrollbar) {
+            draggingScrollbar = false;
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     @Override

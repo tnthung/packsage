@@ -111,6 +111,54 @@ class AssistantSettingsScreenTest {
     }
 
     @Test
+    void numericEditorsUseLogicalBoundsAndScrollbarDragMovesThePage() {
+        var screen = new AssistantSettingsScreen(PackSageSettings.defaults(), temporaryDirectory.resolve("settings.properties"),
+                Component.literal("Settings"), List.of(), null, () -> { });
+        screen.width = 512;
+        screen.height = 240;
+        ScreenTestHost.initialize(screen);
+
+        var layout = screen.layout();
+        var turns = (MultilineEditor) screen.children().getFirst();
+        var tokens = (MultilineEditor) screen.children().getLast();
+        int fieldWidth = (layout.width() - 32 - 16) / 2;
+        assertEquals(layout.left() + 16, turns.getX());
+        assertEquals(layout.historyTop() + 20, turns.getY());
+        assertEquals(fieldWidth, turns.getWidth());
+        assertEquals(30, turns.getHeight());
+        assertEquals(layout.left() + 16 + fieldWidth + 16, tokens.getX());
+        assertEquals(layout.historyTop() + 20, tokens.getY());
+        assertEquals(fieldWidth, tokens.getWidth());
+        assertEquals(30, tokens.getHeight());
+
+        int initialModelY = layout.models().getFirst().y();
+        int track = layout.bottom() - layout.top();
+        int maxScroll = layout.contentHeight() - track;
+        int thumb = Math.min(track, Math.max(16, track * track / (track + maxScroll)));
+        int scrollbarX = layout.left() + layout.width() - 2;
+        assertTrue(maxScroll > 0);
+        assertTrue(screen.mouseClicked(scrollbarX, layout.top() + thumb / 2, 0));
+        assertTrue(screen.mouseDragged(scrollbarX, layout.bottom(), 0, 0, 0));
+        assertTrue(screen.mouseReleased(scrollbarX, layout.bottom(), 0));
+        assertTrue(screen.layout().models().getFirst().y() < initialModelY);
+    }
+
+    @Test
+    void clickingOutsideEditorClearsFocus() {
+        var screen = new AssistantSettingsScreen(PackSageSettings.defaults(), temporaryDirectory.resolve("settings.properties"),
+                Component.literal("Settings"), List.of(), null, () -> { });
+        screen.width = 512;
+        screen.height = 240;
+        ScreenTestHost.initialize(screen);
+        var editor = (MultilineEditor) screen.children().getFirst();
+        editor.setFocused(true);
+        screen.setFocused(editor);
+        assertTrue(editor.isFocused());
+        assertFalse(screen.mouseClicked(0, 20, 0));
+        assertFalse(editor.isFocused());
+    }
+
+    @Test
     void accountControlUsesTheCurrentAuthenticationStateAndBackHasBoundedHitArea() {
         FakeActions actions = new FakeActions();
         AtomicInteger returned = new AtomicInteger();

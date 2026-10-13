@@ -14,7 +14,7 @@ The player's messages align right with the player's skin head. Model messages al
 
 ## Composer
 
-The bottom composer accepts multiline text and grows upward to a bounded height, then scrolls within the input. Search and Screenshot controls float immediately above it and move as it grows. Use an icon send control, replaced by Stop while a request is active. Enter sends; Shift+Enter inserts a newline. Preserve the 1,000-character limit and draft across resize and temporary screenshot capture. Keep request activity and failures readable without dumping internal data.
+The bottom composer accepts multiline text and grows upward to a bounded height, then scrolls within the input. Search and Screenshot controls float immediately above it and move as it grows. The icon Send control becomes Stop immediately when a request is accepted, stays Stop during capture, model calls and tool work, and returns to Send after completion, failure or cancellation. Enter sends; Shift+Enter inserts a newline. Preserve the 1,000-character limit and draft across resize and temporary screenshot capture. Keep request activity and failures readable without dumping internal data.
 
 ## Sessions
 

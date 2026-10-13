@@ -566,7 +566,8 @@ public final class AssistantScreen extends Screen {
             boolean selected = item.kind().equals("search") && explicitWebSearch
                     || item.kind().equals("screenshot") && includeScreenshot;
             ModernUi.surface(graphics, item.x(), item.y(), item.x() + item.width(), item.y() + 20,
-                    hovered ? ModernUi.SURFACE_HOVER : selected ? ModernUi.ACCENT_DARK : ModernUi.SURFACE);
+                    selected ? hovered ? 0xe052765f : ModernUi.ACCENT_DARK
+                            : hovered ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
             if (item.kind().equals("context")) {
                 graphics.fill(item.x() + 2, item.y() + 2, item.x() + item.width() - 2, item.y() + 18, ModernUi.BORDER);
                 if (history != null && history.effectiveTokens() > 0) graphics.fill(item.x() + 2, item.y() + 2,

@@ -876,17 +876,40 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void serviceUnavailableContinuationReusesTheCompletedToolResultWithoutRepeatingTheCall() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(200, 503, 200), List.of(
+                TOOL_CALL_RESPONSE, "{\"error\":{\"message\":\"busy\"}}", ANSWER_RESPONSE));
+        List<ModelBackend.Event> events = new ArrayList<>();
+        ModelBackend.Exchange exchange = new ChatGptBackend(signedInAuth(), client, Runnable::run)
+                .start(searchRequest("retry-503-continuation", ModelBackend.SearchMode.DISABLED), events::add);
+        exchange.submit(new ModelBackend.ToolResult("call_a", "{\"found\":true}", false));
+
+        assertEquals(3, client.requests.size());
+        assertEquals(requestBody(client.requests.get(1)), requestBody(client.requests.get(2)));
+        assertTrue(requestBody(client.requests.get(2)).contains("function_call_output"));
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.CLIENT_TOOL_CALL).count());
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.RETRYING).count());
+        var completed = events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).findFirst().orElseThrow();
+        assertEquals(1, completed.replayItems().stream().filter(item -> item instanceof ModelBackend.ToolCall).count());
+        assertEquals(1, completed.replayItems().stream().filter(item -> item instanceof ModelBackend.ToolResult).count());
+    }
+
+    @Test
     void cancellingWhenServiceUnavailableRetryIsAnnouncedSuppressesTheRetryRequest() {
         CapturingHttpClient client = new CapturingHttpClient(List.of(503), List.of("{\"error\":{\"message\":\"busy\"}}"));
         List<ModelBackend.Event> events = new ArrayList<>();
         java.util.concurrent.atomic.AtomicReference<ModelBackend.Exchange> holder = new java.util.concurrent.atomic.AtomicReference<>();
+        ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        java.util.concurrent.atomic.AtomicBoolean cancelled = new java.util.concurrent.atomic.AtomicBoolean();
 
-        holder.set(new ChatGptBackend(signedInAuth(), client, Runnable::run)
+        holder.set(new ChatGptBackend(signedInAuth(), client, tasks::add)
                 .start(searchRequest("retry-503-cancel", ModelBackend.SearchMode.DISABLED), event -> {
                     events.add(event);
-                    if (event.kind() == ModelBackend.EventKind.RETRYING) holder.get().cancel();
+                    if (event.kind() == ModelBackend.EventKind.RETRYING) { holder.get().cancel(); cancelled.set(true); }
                 }));
+        while (!tasks.isEmpty()) tasks.remove().run();
 
+        assertTrue(cancelled.get());
         assertEquals(1, client.requests.size());
         assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.RETRYING).count());
         assertEquals(0, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.FAILED).count());

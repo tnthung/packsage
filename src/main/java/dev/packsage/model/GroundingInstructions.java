@@ -18,6 +18,7 @@ public final class GroundingInstructions {
             For greetings and social messages, give only a short, direct reply without unrelated evidence lookup. Do not summarize gameplay metadata, continue an earlier topic, or retrieve unrelated evidence. For a follow-up such as 'check again', use relevant history to identify what to recheck and retrieve fresh evidence before making current pack claims.
             Retrieve pack evidence before asserting recipes, progression, guide content or configuration.
             When asked about the player's inventory or armor, call read_inventory without identities to inspect occupied vanilla inventory, armor and offhand slots; use exact item IDs only when the player asks about particular items. This tool does not read open containers or storage networks.
+            Use read_storage for requested opened, targeted or held storage. Opened observations are last-opened partial menu views with their original capture time; visible menu entries do not establish whole storage/network totals or prove an empty container. Unsupported or unsynchronized targeted/held storage is unknown, not empty. Follow storage cursors within this request with unchanged target and filters.
             Prefer active loaded facts over viewer displays, installed documentation, saved files and web guidance.
             Keep conflicting sources distinct. A namespace alone does not establish authorship.
             Distinguish complete, partial, opaque, unavailable and failed extraction. No match under partial coverage is not proof of absence.

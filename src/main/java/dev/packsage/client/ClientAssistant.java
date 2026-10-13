@@ -10,13 +10,16 @@ import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.knowledge.config.ConfigProvider;
 import dev.packsage.knowledge.nativegame.NativeProvider;
+import dev.packsage.knowledge.storage.NativeStorageReader;
 import dev.packsage.model.GroundingInstructions;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.chatgpt.ChatGptAuth;
 import dev.packsage.model.chatgpt.ChatGptBackend;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.client.server.IntegratedServer;
@@ -25,6 +28,7 @@ import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RecipesUpdatedEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
+import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
@@ -92,6 +96,7 @@ public final class ClientAssistant {
     private final Map<String, OptionalStatus> optionalStatuses;
     private final AssistantRuntime runtime;
     private AssistantScreen assistantScreen;
+    private NativeStorageReader storage;
     private boolean settingsOpen;
     private CopiedWorld activeWorld;
     private ChatContracts.WorldIdentity activeIdentity;
@@ -134,6 +139,27 @@ public final class ClientAssistant {
         runtime.restoreSession();
 
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post ignored) -> tick());
+        NeoForge.EVENT_BUS.addListener((ScreenEvent.KeyPressed.Pre event) -> {
+            if (!(event.getScreen() instanceof AbstractContainerScreen<?> screen) || client.level == null
+                    || client.player == null || activeScope == null || storage == null
+                    || !openAssistant.matches(event.getKeyCode(), event.getScanCode())) return;
+            if (screen.getFocused() instanceof EditBox && (event.getKeyCode() >= org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE
+                    && event.getKeyCode() <= org.lwjgl.glfw.GLFW.GLFW_KEY_GRAVE_ACCENT
+                    || event.getKeyCode() >= org.lwjgl.glfw.GLFW.GLFW_KEY_KP_0
+                    && event.getKeyCode() <= org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ADD
+                    || event.getKeyCode() == org.lwjgl.glfw.GLFW.GLFW_KEY_KP_EQUAL)) return;
+            try {
+                storage.captureOpened(screen, activeScope);
+            } catch (RuntimeException failure) {
+                storage.clear();
+                PackSageLog.LOGGER.warn("PackSage opened storage capture failed", failure);
+            }
+            event.setCanceled(true);
+            screen.onClose();
+            assistantScreen = runtime.openScreen(this::openSettings);
+            assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));
+            client.setScreen(assistantScreen);
+        });
         NeoForge.EVENT_BUS.addListener((RenderGuiEvent.Post ignored) -> runtime.onRenderGuiPost());
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingIn ignored) -> loggingIn());
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut ignored) -> loggingOut());
@@ -288,6 +314,7 @@ public final class ClientAssistant {
     }
 
     private void resetSession() {
+        if (storage != null) storage.clear();
         levelToken++;
         sessionEpoch++;
         sessionId = UUID.randomUUID();
@@ -308,6 +335,7 @@ public final class ClientAssistant {
     }
 
     private void invalidateEvidence() {
+        if (storage != null) storage.clear();
         if (!client.isSameThread() || activeIdentity == null || activeWorld == null) return;
         providerRuntimeEpoch++;
         activeScope = scopeFor(activeIdentity.worldOrServer(), sessionId, resourcesEpoch, locale,
@@ -382,6 +410,7 @@ public final class ClientAssistant {
 
     private KnowledgeService knowledge(Supplier<Evidence.Scope> scope) {
         NativeProvider nativeProvider = new NativeProvider(client, workerExecutor);
+        storage = new NativeStorageReader(client, workerExecutor, scope);
         var providers = new ArrayList<KnowledgeProvider>();
         providers.add(nativeProvider);
         providers.add(jeiProvider());
@@ -390,7 +419,7 @@ public final class ClientAssistant {
         providers.add(optionalMinecraftProvider("patchouli", PATCHOULI_CLASS, "forMinecraft", scope));
         return new KnowledgeService(providers, scope,
                 plan -> nativeProvider.planRecipe(plan.identity(), plan.quantity(), plan.scope(), plan.depth()),
-                (identities, scopeValue) -> nativeProvider.readInventory(identities, scopeValue));
+                (identities, scopeValue) -> nativeProvider.readInventory(identities, scopeValue), storage);
     }
 
     private KnowledgeProvider jeiProvider() {

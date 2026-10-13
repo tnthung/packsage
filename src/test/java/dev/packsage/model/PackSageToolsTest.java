@@ -17,8 +17,8 @@ class PackSageToolsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
 
     @Test
-    void exposesOnlyTheTenBoundedReadTools() {
-        assertEquals(List.of("search_pack", "read_evidence", "plan_recipe", "read_inventory", "read_progress",
+    void exposesOnlyTheBoundedReadTools() {
+        assertEquals(List.of("search_pack", "read_evidence", "plan_recipe", "read_inventory", "read_storage", "read_progress",
                 "list_configs", "search_config", "read_config", "search_history", "read_history"), PackSageTools.definitions().stream()
                 .map(ModelBackend.ToolDefinition::name).toList());
         for (var definition : PackSageTools.definitions()) {
@@ -26,6 +26,28 @@ class PackSageToolsTest {
             assertFalse(schema.get("additionalProperties").getAsBoolean());
             assertEquals(schema.getAsJsonObject("properties").size(), schema.getAsJsonArray("required").size());
         }
+    }
+
+    @Test
+    void storageToolsValidateTargetsFiltersAndPageBoundsBeforeDispatch() throws Exception {
+        var requested = new AtomicInteger();
+        var tools = new PackSageTools(request -> {
+            requested.incrementAndGet();
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                    Evidence.Outcome.UNKNOWN, null));
+        });
+        for (var target : List.of("opened", "targeted", "held")) {
+            assertFalse(tools.execute(new ModelBackend.ToolCall("storage", "read_storage", "{\"target\":\"" + target
+                    + "\",\"text\":null,\"identities\":null,\"limit\":32,\"cursor\":null}"), SCOPE)
+                    .toCompletableFuture().get().result().error());
+        }
+        for (var arguments : List.of("{}", "{\"target\":null}", "{\"target\":\"nearby\"}",
+                "{\"target\":\"held\",\"limit\":33}", "{\"target\":\"opened\",\"limit\":0}",
+                "{\"target\":\"held\",\"identities\":[1]}", "{\"target\":\"opened\",\"write\":true}")) {
+            assertTrue(tools.execute(new ModelBackend.ToolCall("invalid", "read_storage", arguments), SCOPE)
+                    .toCompletableFuture().get().result().error());
+        }
+        assertEquals(3, requested.get());
     }
 
     @Test

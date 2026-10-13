@@ -41,7 +41,7 @@ public final class PackSageTools {
 
     public static List<ModelBackend.ToolDefinition> definitions() {
         var definitions = new ArrayList<ModelBackend.ToolDefinition>();
-        for (var name : List.of("search_pack", "read_evidence", "plan_recipe", "read_inventory", "read_progress",
+        for (var name : List.of("search_pack", "read_evidence", "plan_recipe", "read_inventory", "read_storage", "read_progress",
                 "list_configs", "search_config", "read_config", "search_history", "read_history")) {
             var properties = new JsonObject();
             var description = switch (name) {
@@ -55,6 +55,7 @@ public final class PackSageTools {
                 case "read_evidence" -> "Read only previously observed provider-qualified source handles in this request.";
                 case "plan_recipe" -> "Retrieve bounded recipe routes, preserving alternatives, quantities and unknown semantics.";
                 case "read_inventory" -> "Read occupied slots in the current vanilla player inventory, armor and offhand when identities is omitted or null; optionally filter by selected item IDs. Slot indices are local to each section; main inventory starts at 0 after the hotbar.";
+                case "read_storage" -> "Read bounded storage observations: opened is the last container captured with the PackSage shortcut, held inspects supported main/offhand item storage, and targeted reports available target evidence. Opened menu slots are partial visible evidence, not full mod storage/network totals. Preserve capture time and unknown contents; follow cursors with unchanged target and filters.";
                 case "read_progress" -> "Read previously observed provider-qualified quest references and current team progression, "
                         + "in batches of up to 16. Raw quest IDs listed in a chapter must first be discovered with search_pack.";
                 case "list_configs" -> "List accessible observed configuration values and handles; saved and loaded views differ.";
@@ -88,6 +89,11 @@ public final class PackSageTools {
             if (name.equals("read_inventory")) {
                 properties.add("identities", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"minItems\":1,\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}}"));
             }
+            if (name.equals("read_storage")) {
+                properties.add("target", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":32,\"enum\":[\"opened\",\"targeted\",\"held\"]}"));
+                properties.add("text", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256}"));
+                properties.add("identities", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"minItems\":1,\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}}"));
+            }
             if (name.equals("plan_recipe")) {
                 properties.add("identity", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":256}"));
                 properties.add("quantity", JsonParser.parseString("{\"type\":\"integer\",\"minimum\":1,\"maximum\":1000000}"));
@@ -101,7 +107,7 @@ public final class PackSageTools {
             if (!name.equals("plan_recipe") && !name.equals("read_evidence") && !name.equals("read_inventory")
                     && !name.equals("read_progress") && !name.equals("read_history")) {
                 properties.add("limit", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":"
-                        + (name.equals("search_history") ? 16 : 64) + "}"));
+                        + (name.equals("search_history") ? 16 : name.equals("read_storage") ? 32 : 64) + "}"));
                 if (!name.equals("read_config")) properties.add("cursor", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":1024}"));
             }
             var schema = new JsonObject();
@@ -147,6 +153,8 @@ public final class PackSageTools {
                     throw new IllegalArgumentException("invalid text argument: " + entry.getKey());
                 } else if (entry.getKey().equals("provider") && !List.of("native", "jei", "ftb_quests", "config", "patchouli").contains(string.value())) {
                     throw new IllegalArgumentException("invalid provider");
+                } else if (entry.getKey().equals("target") && !List.of("opened", "targeted", "held").contains(string.value())) {
+                    throw new IllegalArgumentException("invalid storage target");
                 } else if (entry.getKey().equals("outputItem") && !string.value().matches("[a-z0-9_.-]+:[a-z0-9/._-]+")) {
                     throw new IllegalArgumentException("outputItem must be a valid item resource ID");
                 }
@@ -154,6 +162,7 @@ public final class PackSageTools {
             for (var required : switch (call.name()) {
                 case "search_pack", "search_config", "search_history" -> List.of("text");
                 case "read_evidence", "read_progress", "read_history" -> List.of("handles");
+                case "read_storage" -> List.of("target");
                 case "plan_recipe" -> List.of("identity", "quantity");
                 case "read_config" -> List.of("handle");
                 default -> List.<String>of();

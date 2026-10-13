@@ -1,6 +1,7 @@
 package dev.packsage.knowledge;
 
 import dev.packsage.PackSageLog;
+import dev.packsage.knowledge.storage.StorageReader;
 import dev.packsage.model.PackSageTools;
 
 import java.util.List;
@@ -39,6 +40,7 @@ public final class KnowledgeService {
     private final Supplier<Evidence.Scope> currentScope;
     private final Function<RecipePlan, CompletionStage<Evidence.Result>> planner;
     private final BiFunction<List<String>, Evidence.Scope, CompletionStage<Evidence.Result>> inventory;
+    private final StorageReader storage;
     private final Map<String, Evidence.Record> observed = new LinkedHashMap<>();
     private final Map<String, Cursor> cursors = new LinkedHashMap<>();
     private Evidence.Scope cacheScope;
@@ -50,11 +52,21 @@ public final class KnowledgeService {
     public KnowledgeService(List<KnowledgeProvider> providers, Supplier<Evidence.Scope> currentScope,
                             Function<RecipePlan, CompletionStage<Evidence.Result>> planner,
                             BiFunction<List<String>, Evidence.Scope, CompletionStage<Evidence.Result>> inventory) {
+        this(providers, currentScope, planner, inventory, request -> CompletableFuture.completedFuture(
+                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
+                        "storage inspection is unavailable in this runtime")));
+    }
+
+    public KnowledgeService(List<KnowledgeProvider> providers, Supplier<Evidence.Scope> currentScope,
+                            Function<RecipePlan, CompletionStage<Evidence.Result>> planner,
+                            BiFunction<List<String>, Evidence.Scope, CompletionStage<Evidence.Result>> inventory,
+                            StorageReader storage) {
         this.providers = List.copyOf(providers);
         if (providers.stream().map(KnowledgeProvider::id).distinct().count() != providers.size()) throw new IllegalArgumentException("duplicate provider id");
         this.currentScope = Objects.requireNonNull(currentScope);
         this.planner = Objects.requireNonNull(planner);
         this.inventory = Objects.requireNonNull(inventory);
+        this.storage = Objects.requireNonNull(storage);
     }
 
     public CompletionStage<Evidence.Result> execute(PackSageTools.ReadRequest request) {
@@ -203,6 +215,13 @@ public final class KnowledgeService {
                         arguments.get("depth") instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 4, request.scope()));
                 case "read_inventory" -> result = inventory.apply(arguments.get("identities") instanceof Evidence.JsonArray identities
                         ? identities.values().stream().map(value -> ((Evidence.JsonString) value).value()).toList() : List.of(), request.scope());
+                case "read_storage" -> result = storage.read(new StorageReader.Request(
+                        StorageReader.Target.valueOf(((Evidence.JsonString) arguments.get("target")).value().toUpperCase(java.util.Locale.ROOT)),
+                        arguments.get("text") instanceof Evidence.JsonString text ? text.value() : null,
+                        arguments.get("identities") instanceof Evidence.JsonArray identities
+                                ? identities.values().stream().map(value -> ((Evidence.JsonString) value).value()).toList() : List.of(),
+                        arguments.get("limit") instanceof Evidence.JsonNumber limit ? limit.value().intValueExact() : 32,
+                        arguments.get("cursor") instanceof Evidence.JsonString cursor ? cursor.value() : null, request.scope()));
                 case "read_config" -> {
                     var requested = ((Evidence.JsonString) arguments.get("handle")).value();
                     Evidence.Record observedConfig;

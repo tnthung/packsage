@@ -198,6 +198,38 @@ class KnowledgeServiceTest {
     }
 
     @Test
+    void storageDispatchUsesTheReaderBoundaryAndCachesReturnedEvidence() {
+        var requested = new java.util.concurrent.atomic.AtomicReference<dev.packsage.knowledge.storage.StorageReader.Request>();
+        var source = new Evidence.Source(SCOPE, "native", "1.21.1", "storage:fixture:0", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.VIEWER, List.of());
+        var page = new Evidence.Record(source, Evidence.RecordKind.OTHER, "Opened chest",
+                new Evidence.JsonObject(Map.of("entries", new Evidence.JsonArray(List.of()))), List.of());
+        var service = new KnowledgeService(List.of(), () -> SCOPE,
+                plan -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                        Evidence.Outcome.COMPLETE, null)),
+                (identities, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                        Evidence.Outcome.COMPLETE, null)), request -> {
+                    requested.set(request);
+                    return CompletableFuture.completedFuture(new Evidence.Result(List.of(page), Evidence.Coverage.PARTIAL,
+                            Evidence.Outcome.PARTIAL, "next"));
+                });
+
+        var result = execute(service, "read_storage", Map.of("target", text("opened"), "text", text("stone"),
+                "identities", new Evidence.JsonNull(), "limit", number(2), "cursor", text("previous")));
+
+        assertEquals(dev.packsage.knowledge.storage.StorageReader.Target.OPENED, requested.get().target());
+        assertEquals(SCOPE, requested.get().scope());
+        assertEquals("stone", requested.get().text());
+        assertEquals(List.of(), requested.get().identities());
+        assertEquals(2, requested.get().limit());
+        assertEquals("previous", requested.get().cursor());
+        assertEquals("next", result.nextCursor());
+        assertEquals(List.of(page), execute(service, "read_evidence", Map.of("handles",
+                new Evidence.JsonArray(List.of(text("native:storage:fixture:0"))))).records());
+        assertEquals(Evidence.Outcome.UNKNOWN, execute(service(), "read_storage", Map.of("target", text("held"))).outcome());
+    }
+
+    @Test
     void errorsCarryANonEmptyDetailIncludingTheProviderException() {
         var failing = new PagedProvider("native", query -> { throw new IllegalStateException("snapshot capture exploded"); });
         var service = service(failing);

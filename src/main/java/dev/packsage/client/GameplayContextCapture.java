@@ -224,7 +224,7 @@ public final class GameplayContextCapture {
                     if (captureEpoch.get() != captured.epoch() || !sameScope(captured.scope())) {
                         throw new java.util.concurrent.CancellationException("capture invalidated");
                     }
-                    return new ChatContracts.CapturedContext(context(captured, null), new byte[0]);
+                    return new ChatContracts.CapturedContext(context(captured.observation(), captured.scope(), captured.request(), captured.capturedAt(), null), new byte[0]);
                 }, executor);
             }
             if (captureEpoch.get() != captured.epoch() || !request.equals(activeRequest.get())) {
@@ -238,9 +238,15 @@ public final class GameplayContextCapture {
                 byte[] bytes = frame.bytes();
                 ChatContracts.Screenshot screenshot = new ChatContracts.Screenshot(
                         request.requestId().value() + ".png", frame.mediaType(), bytes.length, frame.capturedAt());
-                return new ChatContracts.CapturedContext(context(captured, screenshot), bytes);
+                return new ChatContracts.CapturedContext(context(captured.observation(), captured.scope(), captured.request(), captured.capturedAt(), screenshot), bytes);
             }, executor);
         });
+    }
+
+    public ChatContracts.Context preview() {
+        Observation observation = Objects.requireNonNull(observations.capture());
+        Evidence.Scope currentScope = Objects.requireNonNull(scope.get());
+        return context(observation, currentScope, null, null, null);
     }
 
     /** Called by the coordinator from {@code RenderGuiEvent.Post}, before the current screen is rendered. */
@@ -296,12 +302,15 @@ public final class GameplayContextCapture {
         }
     }
 
-    private ChatContracts.Context context(CaptureMetadata captured, ChatContracts.Screenshot screenshot) {
-        Observation observation = captured.observation();
+    private ChatContracts.Context context(Observation observation, Evidence.Scope currentScope,
+                                          ChatContracts.RequestCapture request, Instant capturedAt,
+                                          ChatContracts.Screenshot screenshot) {
         JsonObject json = new JsonObject();
-        json.addProperty("requestId", captured.request().requestId().value());
-        json.addProperty("world", captured.request().world().worldOrServer());
-        json.addProperty("worldLabel", captured.request().world().readableLabel());
+        if (request != null) {
+            json.addProperty("requestId", request.requestId().value());
+            json.addProperty("world", request.world().worldOrServer());
+            json.addProperty("worldLabel", request.world().readableLabel());
+        }
         json.addProperty("hovered", observation.hovered() == null ? "unavailable" : observation.hovered());
         json.addProperty("held", observation.held() == null ? "unavailable" : observation.held());
         json.addProperty("targeted", observation.targeted() == null ? "unavailable" : observation.targeted());
@@ -310,7 +319,7 @@ public final class GameplayContextCapture {
         json.addProperty("biome", observation.biome() == null ? "unavailable" : observation.biome());
         json.addProperty("time", observation.time() == null ? "unavailable" : observation.time());
         json.addProperty("focusKind", observation.focusKind() == null ? "unavailable" : observation.focusKind());
-        json.addProperty("capturedAt", captured.capturedAt().toString());
-        return new ChatContracts.Context(json.toString(), screenshot, captured.scope());
+        if (capturedAt != null) json.addProperty("capturedAt", capturedAt.toString());
+        return new ChatContracts.Context(json.toString(), screenshot, currentScope);
     }
 }

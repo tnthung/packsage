@@ -183,18 +183,18 @@ public final class AssistantScreen extends Screen {
         graphics.drawString(font, Component.literal("New chat").withStyle(style ->
                 style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), 36, 60 + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         drawSessionGroups(graphics, mouseX, mouseY);
-        int controlY = Math.max(0, height - 44);
-        ModernUi.surface(graphics, 12, controlY, 44, Math.min(height, controlY + 32),
-                mouseX >= 12 && mouseX < 44 && mouseY >= controlY && mouseY < controlY + 32 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+        int controlY = Math.max(0, height - 32);
+        ModernUi.surface(graphics, 12, controlY, 32, Math.min(height, controlY + 20),
+                mouseX >= 12 && mouseX < 32 && mouseY >= controlY && mouseY < controlY + 20 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/gear.png"),
-                20, controlY + 8, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
+                16, controlY + 4, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
         RuntimeState state = actualRuntimeState();
         if (state.privateSingleplayer() && state.integratedServer() && !state.published()) {
-            ModernUi.surface(graphics, 52, controlY, 84, Math.min(height, controlY + 32),
-                    mouseX >= 52 && mouseX < 84 && mouseY >= controlY && mouseY < controlY + 32 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+            ModernUi.surface(graphics, 40, controlY, 60, Math.min(height, controlY + 20),
+                    mouseX >= 40 && mouseX < 60 && mouseY >= controlY && mouseY < controlY + 20 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
             graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", effectivePause(state)
                     ? "textures/gui/icons/play.png" : "textures/gui/icons/pause.png"),
-                    60, controlY + 8, 16, 16, 0.0F, 0.0F, 64, 64, 64, 64);
+                    44, controlY + 4, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
         }
     }
 
@@ -722,9 +722,9 @@ public final class AssistantScreen extends Screen {
                 lines.add(Component.literal("Tokenized message-text estimate (o200k_base)."));
                 lines.add(Component.literal("Fresh gameplay, screenshot, instructions and output use additional context."));
             } else if (item.kind().equals("extra")) {
-                lines.add(Component.literal("Attached gameplay details"));
+                lines.add(Component.literal("Gameplay context"));
                 try {
-                    var captured = com.google.gson.JsonParser.parseString(view.context().serializedGameplayContext());
+                    var captured = com.google.gson.JsonParser.parseString(actions.gameplayContext().serializedGameplayContext());
                     if (captured.isJsonObject()) {
                         for (String key : List.of("position", "dimension", "biome", "held", "targeted")) {
                             var value = captured.getAsJsonObject().get(key);
@@ -739,9 +739,9 @@ public final class AssistantScreen extends Screen {
                         }
                     }
                 } catch (RuntimeException ignored) {
-                    lines.add(Component.literal("Last observation is unavailable."));
+                    lines.add(Component.literal("Gameplay observation is unavailable."));
                 }
-                lines.add(Component.literal("Coordinates, dimension, biome, held item and looked-at target are captured fresh when sending."));
+                lines.add(Component.literal("These values are captured again when sending."));
             } else if (item.kind().equals("model")) {
                 String selectedId = settings.modelId() == null ? actions.providerSelectedModelId() : settings.modelId();
                 lines.add(Component.literal(actions.modelCatalog().stream().filter(model -> model.id().equals(selectedId))
@@ -872,14 +872,14 @@ public final class AssistantScreen extends Screen {
                     }
                 }
             }
-            int controlY = Math.max(0, height - 44);
-            if (mouseX >= 12 && mouseX < 44 && mouseY >= controlY && mouseY < controlY + 32) {
+            int controlY = Math.max(0, height - 32);
+            if (mouseX >= 12 && mouseX < 32 && mouseY >= controlY && mouseY < controlY + 20) {
                 settingsOpener.run();
                 return true;
             }
             RuntimeState state = actualRuntimeState();
             if (state.privateSingleplayer() && state.integratedServer() && !state.published()
-                    && mouseX >= 52 && mouseX < 84 && mouseY >= controlY && mouseY < controlY + 32) {
+                    && mouseX >= 40 && mouseX < 60 && mouseY >= controlY && mouseY < controlY + 20) {
                 setPaused(!effectivePause(state));
                 return true;
             }

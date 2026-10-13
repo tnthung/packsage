@@ -363,6 +363,11 @@ public final class AssistantRuntime implements ChatActions {
     }
 
     @Override
+    public ChatContracts.Context gameplayContext() {
+        return capture.preview();
+    }
+
+    @Override
     public void signIn() {
         long epoch;
         synchronized (stateLock) {

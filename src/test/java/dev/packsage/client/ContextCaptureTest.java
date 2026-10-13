@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -99,5 +100,45 @@ class ContextCaptureTest {
                 new ChatContracts.RequestId("request-id"), WORLD, SCOPE), true).toCompletableFuture();
 
         assertThrows(java.util.concurrent.CompletionException.class, result::join);
+    }
+
+    @Test
+    void previewReadsLiveGameplayAndMatchesNextRequestWithoutStartingCapture() {
+        Executor direct = Runnable::run;
+        AtomicReference<GameplayContextCapture.Observation> observation = new AtomicReference<>(
+                new GameplayContextCapture.Observation("hovered-one", "held-one", "target-one", "overworld",
+                        "1,2,3", "plains", "100", "block"));
+        AtomicInteger observationReads = new AtomicInteger();
+        AtomicInteger frameCaptures = new AtomicInteger();
+        GameplayContextCapture capture = new GameplayContextCapture(
+                () -> {
+                    observationReads.incrementAndGet();
+                    return observation.get();
+                },
+                request -> {
+                    frameCaptures.incrementAndGet();
+                    return new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH);
+                }, direct, () -> SCOPE);
+
+        ChatContracts.Context firstPreview = capture.preview();
+        observation.set(new GameplayContextCapture.Observation("hovered-two", "held-two", "target-two", "nether",
+                "4,5,6", "crimson_forest", "200", "entity"));
+        ChatContracts.Context preview = capture.preview();
+        ChatContracts.CapturedContext actual = capture.capture(new ChatContracts.RequestCapture(
+                new ChatContracts.RequestId("preview-check"), WORLD, SCOPE), false).toCompletableFuture().join();
+
+        var firstJson = JsonParser.parseString(firstPreview.serializedGameplayContext()).getAsJsonObject();
+        var previewJson = JsonParser.parseString(preview.serializedGameplayContext()).getAsJsonObject();
+        var actualJson = JsonParser.parseString(actual.context().serializedGameplayContext()).getAsJsonObject();
+        for (String key : new String[]{"hovered", "held", "targeted", "dimension", "position", "biome", "time", "focusKind"}) {
+            assertEquals(previewJson.get(key), actualJson.get(key), key);
+        }
+        assertEquals("hovered-one", firstJson.get("hovered").getAsString());
+        assertEquals("hovered-two", previewJson.get("hovered").getAsString());
+        assertEquals("crimson_forest", previewJson.get("biome").getAsString());
+        assertNull(preview.screenshot());
+        assertNull(actual.context().screenshot());
+        assertEquals(3, observationReads.get());
+        assertEquals(0, frameCaptures.get());
     }
 }

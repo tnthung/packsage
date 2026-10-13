@@ -442,9 +442,9 @@ class AssistantScreenStateTest {
         actions.calls.clear();
         screen.layout();
         assertFalse(screen.isPauseScreen());
-        screen.mouseClicked(60, 450, 0);
+        screen.mouseClicked(50, 458, 0);
         assertTrue(screen.isPauseScreen());
-        screen.mouseClicked(60, 450, 0);
+        screen.mouseClicked(50, 458, 0);
         assertFalse(screen.isPauseScreen());
         assertEquals(List.of("pause:true", "pause:false"), actions.calls);
     }

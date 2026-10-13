@@ -9,6 +9,10 @@ import java.util.concurrent.CompletionStage;
 public interface ChatActions {
     ChatContracts.View view();
 
+    default ChatContracts.Context gameplayContext() {
+        return view().context();
+    }
+
     default CompletionStage<List<ChatContracts.SessionSummary>> sessions() {
         return java.util.concurrent.CompletableFuture.completedFuture(List.of());
     }

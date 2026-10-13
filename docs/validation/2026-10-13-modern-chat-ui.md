@@ -2,7 +2,7 @@
 
 Date: 2026-10-13
 
-Source: `7538ee69ba9fa7622c684b713f1db610c355fde4` on `feat/packsage-v1`. Requirements: [chat/settings specification](../specs/2026-10-13-modern-chat-ui.md). Live checks: [Minecraft player checks](../testing/2026-10-13-modern-chat-ui.md).
+Initial source: `7538ee69ba9fa7622c684b713f1db610c355fde4` on `feat/packsage-v1`. Requirements: [chat/settings specification](../specs/2026-10-13-modern-chat-ui.md). Live checks: [Minecraft player checks](../testing/2026-10-13-modern-chat-ui.md).
 
 ## Automated evidence
 
@@ -26,3 +26,11 @@ The exported build's `dist/packsage.jar`, repository `dist/packsage.jar` and ins
 ## Acceptance status
 
 Source, automated checks, packaging and installation are complete. Actual Minecraft visual/input acceptance is pending the linked player checks, including GUI scales, font/icon rendering, pause visibility, inline navigation and the immediate Stop control through capture/model/tool phases. No live visual result is inferred from tests or the built JAR.
+
+## Rendering correction after the first live screenshot
+
+The player's screenshot showed blurred chat/sidebar content and controls while input fields stayed sharp. Pinned NeoForge `21.1.202` source confirms that `Screen.render()` calls `renderBackground()` before drawing registered widgets; that background method applies the fullscreen blur and native menu texture. Both custom screens called it after drawing their own content. The correction overrides the native background hook in chat and settings because their custom render paths already paint an opaque background first.
+
+Correction source: `a029384eac6b75acc16940ef88b378e44fceebd4`. All 61 focused client tests passed. A fresh committed-source export passed `scripts/build.ps1`: 294 tests, 292 passed, no failures or errors, the same two symlink skips. Diff checks passed.
+
+The corrected build supersedes the initial artifact above. Its exported, repository and installed JAR hashes all match `01BA7C69FAC7BD2A452A320E8022B80D7E14A777F6A310D0ED4685F2FC309631`. Minecraft was closed during installation. Actual rendering after restarting with this correction remains unverified; the first player check now explicitly covers sharp content and controls on both screens.

@@ -56,6 +56,9 @@ class GroundingInstructionsTest {
         assertEquals(2048, request.outputBudget());
         assertTrue(request.instructions().contains("navigable: true"));
         assertTrue(request.instructions().contains("outputItem"));
+        assertTrue(request.instructions().contains("search_history"));
+        assertTrue(request.instructions().contains("read_history"));
+        assertTrue(request.instructions().contains("historical conversation"));
         assertEquals(3, request.input().size());
         assertTrue(request.input().get(0) instanceof ModelBackend.Message);
         assertTrue(request.input().get(1) instanceof ModelBackend.AssistantOutput);
@@ -66,7 +69,7 @@ class GroundingInstructionsTest {
                 && image.dataUrl().equals("data:image/png;base64,AQID")));
         assertTrue(current.content().stream().anyMatch(content -> content instanceof ModelBackend.TextContent text
                 && text.text().contains("current question") && text.text().contains("overworld")));
-        assertEquals(8, request.tools().size());
+        assertEquals(10, request.tools().size());
     }
 
     @Test

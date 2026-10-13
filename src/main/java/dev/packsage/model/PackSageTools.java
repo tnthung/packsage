@@ -42,7 +42,7 @@ public final class PackSageTools {
     public static List<ModelBackend.ToolDefinition> definitions() {
         var definitions = new ArrayList<ModelBackend.ToolDefinition>();
         for (var name : List.of("search_pack", "read_evidence", "plan_recipe", "read_inventory", "read_progress",
-                "list_configs", "search_config", "read_config")) {
+                "list_configs", "search_config", "read_config", "search_history", "read_history")) {
             var properties = new JsonObject();
             var description = switch (name) {
                 case "search_pack" -> "Search current client-visible pack evidence. Preserve partial coverage and source authority. "
@@ -62,9 +62,15 @@ public final class PackSageTools {
                         + "Use one key, file name or short phrase. Set cursor to null when changing the text.";
                 case "read_config" -> "Read a key or bounded section from an observed config handle, either a returned reference "
                         + "config:<owner>:<SCOPE>:<file>#<key> or its entry handle <owner>:<SCOPE>:<file>. No paths, writes or reloads.";
+                case "search_history" -> "Search completed saved question/answer text across sessions in the current world/server, beyond the automatic history window. "
+                        + "Use one nonblank literal phrase or keyword; matching is case-insensitive. Results are historical excerpts, not current game facts. "
+                        + "Reuse nextCursor only with the same text; partial coverage does not prove history is absent.";
+                case "read_history" -> "Read selected saved exchanges using exact history references returned by search_history in this request. "
+                        + "maxChars bounds total question/answer characters per exchange; truncated text is marked partial. Deleted or replaced exchanges may be stale. "
+                        + "Historical answers are recollections, not authoritative current game evidence.";
                 default -> throw new IllegalStateException(name);
             };
-            if (name.equals("search_pack") || name.equals("search_config")) {
+            if (name.equals("search_pack") || name.equals("search_config") || name.equals("search_history")) {
                 properties.add("text", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":512}"));
             }
             if (name.equals("search_pack")) {
@@ -72,8 +78,12 @@ public final class PackSageTools {
                 properties.add("provider", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":32,\"enum\":[\"native\",\"jei\",\"ftb_quests\",\"config\",\"patchouli\",null]}"));
                 properties.add("outputItem", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}"));
             }
-            if (name.equals("read_evidence") || name.equals("read_progress")) {
-                properties.add("handles", JsonParser.parseString("{\"type\":\"array\",\"minItems\":1,\"maxItems\":16,\"items\":{\"type\":\"string\",\"maxLength\":1024}}"));
+            if (name.equals("read_evidence") || name.equals("read_progress") || name.equals("read_history")) {
+                properties.add("handles", JsonParser.parseString("{\"type\":\"array\",\"minItems\":1,\"maxItems\":"
+                        + (name.equals("read_history") ? 8 : 16) + ",\"items\":{\"type\":\"string\",\"maxLength\":1024}}"));
+            }
+            if (name.equals("read_history")) {
+                properties.add("maxChars", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":256,\"maximum\":16000}"));
             }
             if (name.equals("read_inventory")) {
                 properties.add("identities", JsonParser.parseString("{\"type\":\"array\",\"minItems\":1,\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}}"));
@@ -88,8 +98,10 @@ public final class PackSageTools {
                 properties.add("key", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":512}"));
                 properties.add("section", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":512}"));
             }
-            if (!name.equals("plan_recipe") && !name.equals("read_evidence") && !name.equals("read_inventory") && !name.equals("read_progress")) {
-                properties.add("limit", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":64}"));
+            if (!name.equals("plan_recipe") && !name.equals("read_evidence") && !name.equals("read_inventory")
+                    && !name.equals("read_progress") && !name.equals("read_history")) {
+                properties.add("limit", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":"
+                        + (name.equals("search_history") ? 16 : 64) + "}"));
                 if (!name.equals("read_config")) properties.add("cursor", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":1024}"));
             }
             var schema = new JsonObject();
@@ -140,14 +152,17 @@ public final class PackSageTools {
                 }
             }
             for (var required : switch (call.name()) {
-                case "search_pack", "search_config" -> List.of("text");
-                case "read_evidence", "read_progress" -> List.of("handles");
+                case "search_pack", "search_config", "search_history" -> List.of("text");
+                case "read_evidence", "read_progress", "read_history" -> List.of("handles");
                 case "read_inventory" -> List.of("identities");
                 case "plan_recipe" -> List.of("identity", "quantity");
                 case "read_config" -> List.of("handle");
                 default -> List.<String>of();
             }) {
                 if (!arguments.values().containsKey(required) || arguments.values().get(required) instanceof Evidence.JsonNull) throw new IllegalArgumentException("missing argument: " + required);
+            }
+            if (call.name().equals("search_history") && ((Evidence.JsonString) arguments.values().get("text")).value().isBlank()) {
+                throw new IllegalArgumentException("history search text must not be blank");
             }
             if (arguments.values().get("outputItem") instanceof Evidence.JsonString
                     && (!(arguments.values().get("provider") instanceof Evidence.JsonString provider) || !provider.value().equals("jei"))) {

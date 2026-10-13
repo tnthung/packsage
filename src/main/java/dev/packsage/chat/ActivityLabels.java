@@ -22,9 +22,11 @@ final class ActivityLabels {
         String label = switch (call.name()) {
             case "search_pack" -> withArgument("Searching pack", call, "text");
             case "search_config" -> withArgument("Searching configs", call, "text");
+            case "search_history" -> withArgument("Searching history", call, "text");
             case "plan_recipe" -> withArgument("Planning recipe", call, "identity");
             case "read_config" -> withArgument("Reading config", call, "key");
             case "read_evidence" -> "Reading evidence";
+            case "read_history" -> "Reading history";
             case "read_inventory" -> "Reading inventory";
             case "read_progress" -> "Reading quest progress";
             case "list_configs" -> "Listing configs";

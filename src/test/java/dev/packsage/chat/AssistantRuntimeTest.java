@@ -4,6 +4,7 @@ import dev.packsage.client.GameplayContextCapture;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.model.ModelBackend;
+import dev.packsage.model.GroundingInstructions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -812,6 +813,72 @@ class AssistantRuntimeTest {
                 scope);
     }
 
+    @Test
+    void modelCanSearchAndReadSavedHistoryBeyondItsAutomaticWindow() throws Exception {
+        var store = new ConversationStore(Files.createTempDirectory("packsage-history-runtime"), DIRECT);
+        var older = store.newConversation(WORLD).toCompletableFuture().join();
+        store.appendTurn(WORLD, SCOPE, older.id(), new ChatContracts.Turn(new ChatContracts.RequestId("older"),
+                "Our lantern plan", "Use the old lantern route", List.of(), new ChatContracts.Context("{}", null, SCOPE),
+                List.of(), List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null),
+                40, Instant.EPOCH)).toCompletableFuture().join();
+        var current = store.newConversation(WORLD).toCompletableFuture().join();
+        store.appendTurn(WORLD, SCOPE, current.id(), new ChatContracts.Turn(new ChatContracts.RequestId("recent"),
+                "A recent unrelated topic", "Different answer", List.of(), new ChatContracts.Context("{}", null, SCOPE),
+                List.of(), List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null),
+                20, Instant.EPOCH)).toCompletableFuture().join();
+        var backend = new FakeBackend();
+        var failKnowledge = new AtomicBoolean();
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
+                scope -> {
+                    if (failKnowledge.get()) throw new IllegalStateException("provider refresh failed");
+                    return new KnowledgeService(List.of(), scope,
+                        ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                                Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
+                        (ignored, selectedScope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                                Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)));
+                },
+                GroundingInstructions::historyTextBudget, GroundingInstructions::build, model -> 512,
+                ignored -> { }, ignored -> { });
+        runtime.setSettings(new PackSageSettings(true, false, 1, 1));
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+        runtime.send("Recall the lantern plan", false, false);
+        assertEquals(1, backend.requests.getFirst().input().size());
+        assertTrue(backend.requests.getFirst().tools().stream().anyMatch(tool -> tool.name().equals("search_history")));
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("find-history", "search_history", "{\"text\":\"lantern\",\"limit\":8,\"cursor\":null}"),
+                List.of(), null));
+        assertEquals(1, backend.results.size());
+        assertFalse(backend.results.getFirst().error(), backend.results.getFirst().serializedResult());
+        var found = com.google.gson.JsonParser.parseString(backend.results.getFirst().serializedResult()).getAsJsonObject();
+        assertEquals(1, found.getAsJsonArray("records").size());
+        String reference = found.getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("read-history", "read_history", "{\"handles\":[\"" + reference + "\"],\"maxChars\":8000}"),
+                List.of(), null));
+        assertEquals(2, backend.results.size());
+        assertFalse(backend.results.getLast().error(), backend.results.getLast().serializedResult());
+        assertTrue(backend.results.getLast().serializedResult().contains("Use the old lantern route"));
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("normal", "plan_recipe", "{\"identity\":\"minecraft:torch\",\"quantity\":1}"),
+                List.of(), null));
+        assertEquals(3, backend.results.size());
+        assertFalse(backend.results.getLast().error(), backend.results.getLast().serializedResult());
+        runtime.stop();
+        failKnowledge.set(true);
+        runtime.enterWorld(new ChatContracts.WorldIdentity("another-world", "Another World"),
+                new Evidence.Scope("another-world", "resources", "team", "runtime", 0));
+        runtime.send("Recall the lantern plan", false, false);
+        assertEquals(2, backend.requests.size());
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("foreign", "search_history", "{\"text\":\"lantern\"}"), List.of(), null));
+        assertTrue(backend.results.getLast().error(), backend.results.getLast().serializedResult());
+        assertFalse(backend.results.getLast().serializedResult().contains("Use the old lantern route"));
+    }
+
     private static AssistantRuntime runtime(FakeBackend backend,
                                             java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory,
                                             AtomicReference<Evidence.Scope> scope, AtomicReference<ModelBackend.Request> request,
@@ -884,6 +951,7 @@ class AssistantRuntimeTest {
         private int catalogLoads;
         private final CompletableFuture<Capabilities> catalog = new CompletableFuture<>();
         private final List<Request> requests = new ArrayList<>();
+        private final List<ToolResult> results = new ArrayList<>();
         private java.util.function.Consumer<Event> events;
         private int starts;
         private int submissions;
@@ -920,7 +988,7 @@ class AssistantRuntimeTest {
             requests.add(request);
             this.events = events;
             return new Exchange() {
-                @Override public void submit(ToolResult result) { submissions++; }
+                @Override public void submit(ToolResult result) { submissions++; results.add(result); }
                 @Override public void cancel() { }
             };
         }

@@ -17,15 +17,41 @@ class PackSageToolsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
 
     @Test
-    void exposesOnlyTheEightBoundedReadTools() {
+    void exposesOnlyTheTenBoundedReadTools() {
         assertEquals(List.of("search_pack", "read_evidence", "plan_recipe", "read_inventory", "read_progress",
-                "list_configs", "search_config", "read_config"), PackSageTools.definitions().stream()
+                "list_configs", "search_config", "read_config", "search_history", "read_history"), PackSageTools.definitions().stream()
                 .map(ModelBackend.ToolDefinition::name).toList());
         for (var definition : PackSageTools.definitions()) {
             var schema = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject();
             assertFalse(schema.get("additionalProperties").getAsBoolean());
             assertEquals(schema.getAsJsonObject("properties").size(), schema.getAsJsonArray("required").size());
         }
+    }
+
+    @Test
+    void historyToolsDispatchValidRequestsAndRejectOutOfBoundsArguments() throws Exception {
+        var dispatched = new AtomicInteger();
+        var tools = new PackSageTools(request -> {
+            dispatched.incrementAndGet();
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                    Evidence.Outcome.COMPLETE, null));
+        });
+        assertFalse(tools.execute(new ModelBackend.ToolCall("search", "search_history",
+                "{\"text\":\"old lantern\",\"limit\":8,\"cursor\":null}"), SCOPE)
+                .toCompletableFuture().get().result().error());
+        assertFalse(tools.execute(new ModelBackend.ToolCall("read", "read_history",
+                "{\"handles\":[\"history:discovered\"],\"maxChars\":8000}"), SCOPE)
+                .toCompletableFuture().get().result().error());
+        assertEquals(2, dispatched.get());
+        for (var call : List.of(new ModelBackend.ToolCall("blank", "search_history", "{\"text\":\"  \"}"),
+                new ModelBackend.ToolCall("limit", "search_history", "{\"text\":\"lantern\",\"limit\":17}"),
+                new ModelBackend.ToolCall("missing", "search_history", "{}"),
+                new ModelBackend.ToolCall("empty", "read_history", "{\"handles\":[]}"),
+                new ModelBackend.ToolCall("chars", "read_history", "{\"handles\":[\"h\"],\"maxChars\":16001}"),
+                new ModelBackend.ToolCall("extra", "search_history", "{\"text\":\"lantern\",\"world\":\"another\"}"))) {
+            assertTrue(tools.execute(call, SCOPE).toCompletableFuture().get().result().error(), call.callId());
+        }
+        assertEquals(2, dispatched.get());
     }
 
     @Test

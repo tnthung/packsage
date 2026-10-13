@@ -26,6 +26,7 @@ public final class AssistantRuntime implements ChatActions {
 
     private final ModelBackend backend;
     private final ConversationStore store;
+    private HistoryAdapter historyAdapter;
     private final GameplayContextCapture capture;
     private final Executor controllerExecutor;
     private final Executor clientExecutor;
@@ -95,6 +96,7 @@ public final class AssistantRuntime implements ChatActions {
                 publicationEpoch++;
                 this.world = world;
                 this.scope = scope;
+                historyAdapter = null;
                 readOnlyConversation = null;
                 sessionLoading = false;
                 sessionGeneration++;
@@ -122,6 +124,7 @@ public final class AssistantRuntime implements ChatActions {
             if (epoch != worldEpoch || !world.equals(this.world) || !scope.equals(this.scope)) return;
             knowledge = nextKnowledge;
             tools = nextTools;
+            historyAdapter = new HistoryAdapter(store, world, this::currentScope);
         }
         publishCurrentView(epoch);
     }
@@ -148,6 +151,7 @@ public final class AssistantRuntime implements ChatActions {
                 worldEpoch++;
                 publicationEpoch++;
                 world = null;
+                historyAdapter = null;
                 scope = EMPTY_SCOPE;
                 requestedPaused = false;
                 newChatPending = false;
@@ -694,7 +698,10 @@ public final class AssistantRuntime implements ChatActions {
     private CompletionStage<ChatContracts.ToolResponse> executeTool(ChatContracts.ToolRequest request) {
         PackSageTools currentTools;
         synchronized (stateLock) {
-            currentTools = tools;
+            HistoryAdapter currentHistory = historyAdapter;
+            currentTools = currentHistory != null && (request.call().name().equals("search_history")
+                    || request.call().name().equals("read_history"))
+                    ? new PackSageTools(read -> currentHistory.execute(read, request.submission().replacing())) : tools;
         }
         return currentTools.execute(request.call(), request.submission().scope()).thenApply(response -> {
             List<Evidence.Source> sources = response.records().stream().map(Evidence.Record::source).distinct().toList();

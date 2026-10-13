@@ -671,11 +671,15 @@ public final class AssistantRuntime implements ChatActions {
         }
         Evidence.Scope expected;
         long epoch;
+        long selectionGeneration;
+        KnowledgeService currentKnowledge;
         synchronized (stateLock) {
             expected = scope;
             epoch = worldEpoch;
+            selectionGeneration = sessionSelectionGeneration;
+            currentKnowledge = knowledge;
         }
-        if (!target.scope().equals(expected)) {
+        if ("web".equals(target.providerId()) && !target.scope().equals(expected)) {
             addError("Navigation target is stale");
             publishCurrentView(epoch);
             return;
@@ -700,21 +704,27 @@ public final class AssistantRuntime implements ChatActions {
             }
             return;
         }
-        Evidence.NavigationResult result;
-        KnowledgeService currentKnowledge;
-        synchronized (stateLock) {
-            currentKnowledge = knowledge;
-        }
-        try {
-            result = currentKnowledge.open(target, expected);
-        } catch (RuntimeException failure) {
-            addError("Navigation failed: " + failureMessage(failure));
-            return;
-        }
-        if (result.status() != Evidence.NavigationStatus.OPENED) addError(
-                "Navigation " + result.status().name().toLowerCase() + ": "
-                        + (result.detail() == null ? "target unavailable" : result.detail()));
-        publishCurrentView(worldEpoch);
+        currentKnowledge.refreshNavigation(target, expected).whenCompleteAsync((refreshed, failure) -> {
+            synchronized (stateLock) {
+                if (epoch != worldEpoch || selectionGeneration != sessionSelectionGeneration
+                        || !expected.equals(scope) || currentKnowledge != knowledge) return;
+            }
+            if (failure != null) {
+                addError("Navigation failed: " + failureMessage(failure));
+            } else if (refreshed == null) {
+                addError("Navigation target is no longer available");
+            } else {
+                try {
+                    var result = currentKnowledge.open(refreshed, expected);
+                    if (result.status() != Evidence.NavigationStatus.OPENED) addError(
+                            "Navigation " + result.status().name().toLowerCase() + ": "
+                                    + (result.detail() == null ? "target unavailable" : result.detail()));
+                } catch (RuntimeException navigationFailure) {
+                    addError("Navigation failed: " + failureMessage(navigationFailure));
+                }
+            }
+            publishCurrentView(epoch);
+        }, clientExecutor);
     }
 
     private CompletionStage<ChatContracts.ToolResponse> executeTool(ChatContracts.ToolRequest request) {

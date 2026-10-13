@@ -42,6 +42,7 @@ public final class KnowledgeService {
     private final BiFunction<List<String>, Evidence.Scope, CompletionStage<Evidence.Result>> inventory;
     private final StorageReader storage;
     private final Map<String, Evidence.Record> observed = new LinkedHashMap<>();
+    private final Set<Evidence.NavigationTarget> refreshedNavigation = new LinkedHashSet<>();
     private final Map<String, Cursor> cursors = new LinkedHashMap<>();
     private Evidence.Scope cacheScope;
 
@@ -75,6 +76,7 @@ public final class KnowledgeService {
             if (!request.scope().equals(cacheScope)) {
                 cacheScope = request.scope();
                 observed.clear();
+                refreshedNavigation.clear();
                 cursors.clear();
             }
         }
@@ -423,11 +425,40 @@ public final class KnowledgeService {
         });
     }
 
+    public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!scope.equals(currentScope.get())) return CompletableFuture.completedFuture(null);
+        var provider = providers.stream().filter(value -> value.id().equals(target.providerId())).findFirst().orElse(null);
+        if (provider == null) return CompletableFuture.completedFuture(null);
+        CompletionStage<Evidence.Result> query;
+        try {
+            query = provider.query(new Evidence.Query(Evidence.Operation.GET,
+                    new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(target.sourceHandle()))), 1, null, null), scope);
+        } catch (RuntimeException failure) {
+            return CompletableFuture.completedFuture(null);
+        }
+        if (query == null) return CompletableFuture.completedFuture(null);
+        return query.handle((result, failure) -> {
+            if (failure != null || result == null || result.outcome() == Evidence.Outcome.ERROR
+                    || !scope.equals(currentScope.get()) || result.records().size() != 1) return null;
+            var record = result.records().getFirst();
+            var currentTarget = new Evidence.NavigationTarget(scope, target.providerId(), target.sourceHandle(), target.targetId());
+            if (!record.source().scope().equals(scope) || !record.source().providerId().equals(target.providerId())
+                    || !record.source().sourceHandle().equals(target.sourceHandle()) || !record.targets().contains(currentTarget)) return null;
+            synchronized (this) {
+                refreshedNavigation.add(currentTarget);
+                while (refreshedNavigation.size() > 64) refreshedNavigation.remove(refreshedNavigation.iterator().next());
+            }
+            return currentTarget;
+        });
+    }
+
     public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
         if (!scope.equals(currentScope.get()) || !target.scope().equals(scope)) return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "observation scope changed");
         synchronized (this) {
             var record = observed.get(target.providerId() + ":" + target.sourceHandle());
-            if (record == null || !record.targets().contains(target)) return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "navigation target is no longer observed");
+            if ((record == null || !record.targets().contains(target)) && !refreshedNavigation.contains(target)) {
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "navigation target is no longer observed");
+            }
         }
         return providers.stream().filter(provider -> provider.id().equals(target.providerId())).findFirst()
                 .map(provider -> provider.open(target, scope)).orElseGet(() -> new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "provider unavailable"));

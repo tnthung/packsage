@@ -46,6 +46,12 @@ class AssistantIntegrationTest {
                         ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1, 2, 3}, Instant.EPOCH),
                         DIRECT, scope), DIRECT, DIRECT,
                 current -> new KnowledgeService(List.of(new Provider("native", List.of(loaded), false) {
+                                    @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                                        return CompletableFuture.completedFuture(new Evidence.Result(List.of(record(scope, "native", "torch",
+                                                Evidence.Authority.LOADED, "7 torches",
+                                                new Evidence.NavigationTarget(scope, "native", "torch", "torch-view"))),
+                                                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
+                                    }
                                     @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
                                         opened.set(target.targetId());
                                         return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, target.targetId());
@@ -130,6 +136,68 @@ class AssistantIntegrationTest {
                 List.of(new ModelBackend.AssistantOutput("answer-2", ModelBackend.OutputStatus.COMPLETED,
                         ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("replayed", List.of())))), null));
         assertEquals(2, runtime.view().conversation().turns().size());
+        opened.set(null);
+        runtime.navigate(localTarget);
+        assertEquals("torch-view", opened.get(), "An older recorded destination must be revalidated after a follow-up");
+    }
+
+    @Test
+    void revalidatesRestoredLocalReferencesAndDiscardsResolutionAfterContextChanges() throws Exception {
+        for (var scenario : List.of("restored", "new_chat", "invalidate", "world")) {
+            var historicalScope = new Evidence.Scope("previous-session", "previous-resources", "previous-team", "previous-runtime", 9);
+            var historicalTarget = new Evidence.NavigationTarget(historicalScope, "ftb_quests", "quest", "quest");
+            var historicalRecord = record(historicalScope, "ftb_quests", "quest", Evidence.Authority.LOADED,
+                    "Quest", historicalTarget);
+            var store = new ConversationStore(Files.createTempDirectory("packsage-historical-navigation"), DIRECT);
+            var conversation = store.newConversation(WORLD).toCompletableFuture().join();
+            store.appendTurn(WORLD, historicalScope, conversation.id(), new ChatContracts.Turn(
+                    new ChatContracts.RequestId("historical"), "Quest question", "Historical quest answer", List.of(),
+                    new ChatContracts.Context("old context", null, historicalScope), List.of(historicalRecord.source()),
+                    List.of(historicalTarget), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1))
+                    .toCompletableFuture().join();
+            var pending = new CompletableFuture<Evidence.Result>();
+            var queriedScope = new AtomicReference<Evidence.Scope>();
+            var opened = new AtomicReference<Evidence.NavigationTarget>();
+            var queries = new AtomicInteger();
+            var runtime = new AssistantRuntime(store, new RuntimeBackend(), current -> new GameplayContextCapture(
+                    () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                    ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
+                    DIRECT, DIRECT, current -> new KnowledgeService(List.of(new Provider("ftb_quests", List.of(), false) {
+                        @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                            queries.incrementAndGet();
+                            queriedScope.set(scope);
+                            return pending;
+                        }
+                        @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                            assertEquals(scope, target.scope());
+                            opened.set(target);
+                            return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "quest opened");
+                        }
+                    }), current, ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                            Evidence.Outcome.COMPLETE, null)), (identities, scope) -> CompletableFuture.completedFuture(
+                            new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
+                    turn -> turn.tokenCount(), GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+            runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
+            assertEquals("Historical quest answer", runtime.view().conversation().turns().getFirst().answer());
+            runtime.navigate(new Evidence.NavigationTarget(historicalScope, "ftb_quests", "unobserved", "quest"));
+            assertEquals(0, queries.get());
+            runtime.navigate(historicalTarget);
+            assertEquals(1, queries.get());
+            assertNull(opened.get());
+            if (scenario.equals("new_chat")) runtime.newChat();
+            if (scenario.equals("invalidate")) runtime.invalidate(new Evidence.Scope("world", "resources-2", "team", "runtime", 0));
+            if (scenario.equals("world")) runtime.enterWorld(new ChatContracts.WorldIdentity("other", "Other World"),
+                    new Evidence.Scope("other", "resources", "team", "runtime", 0));
+            var refreshed = new Evidence.NavigationTarget(queriedScope.get(), "ftb_quests", "quest", "quest");
+            pending.complete(new Evidence.Result(List.of(record(queriedScope.get(), "ftb_quests", "quest", Evidence.Authority.LOADED,
+                    "Current quest", refreshed)), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
+            if (scenario.equals("restored")) {
+                assertEquals(refreshed, opened.get());
+                assertEquals("Historical quest answer", runtime.view().conversation().turns().getFirst().answer());
+            } else {
+                assertNull(opened.get(), "Late navigation must not open a page after " + scenario);
+            }
+        }
     }
 
     @Test

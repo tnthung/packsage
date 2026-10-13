@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,6 +23,96 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class KnowledgeServiceTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
+
+    @Test
+    void refreshNavigationRevalidatesHistoricalTargetsAndKeepsNavigationHandlesOutOfModelEvidence() {
+        var historicalScope = new Evidence.Scope("world", "resources", "team", "runtime", 0);
+        var historical = new Evidence.NavigationTarget(historicalScope, "patchouli", "book:guide", "page/old");
+        var current = new Evidence.NavigationTarget(SCOPE, "patchouli", "book:guide", "page/old");
+        var currentRecord = new Evidence.Record(new Evidence.Source(SCOPE, "patchouli", "fixture", "book:guide", 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.GUIDE, "Guide", new Evidence.JsonObject(Map.of()), List.of(current));
+        var provider = new PagedProvider("patchouli", query -> page(List.of(currentRecord), null));
+        var service = service(provider);
+
+        assertEquals(current, service.refreshNavigation(historical, SCOPE).toCompletableFuture().join());
+        assertEquals(Evidence.NavigationStatus.STALE, service.open(historical, SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.UNSUPPORTED, service.open(current, SCOPE).status());
+        assertEquals(Evidence.Operation.GET, provider.queries.getFirst().operation());
+        assertEquals(Map.of("id", text("book:guide")), provider.queries.getFirst().arguments().values());
+        assertEquals(1, provider.queries.getFirst().limit());
+        assertNull(provider.queries.getFirst().cursor());
+
+        var unobserved = execute(service, "read_evidence", Map.of("handles",
+                new Evidence.JsonArray(List.of(text("patchouli:book:guide")))));
+        assertEquals(Evidence.Outcome.ERROR, unobserved.outcome());
+    }
+
+    @Test
+    void refreshNavigationRejectsMismatchedEvidenceAndChangedScopesIncludingLateCompletion() {
+        var historicalScope = new Evidence.Scope("world", "resources", "team", "runtime", 0);
+        var historical = new Evidence.NavigationTarget(historicalScope, "patchouli", "book:guide", "page/old");
+        var wrongSource = new Evidence.Record(new Evidence.Source(SCOPE, "patchouli", "fixture", "book:other", 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.GUIDE, "Guide", new Evidence.JsonObject(Map.of()),
+                List.of(new Evidence.NavigationTarget(SCOPE, "patchouli", "book:other", "page/old")));
+        var wrongTarget = new Evidence.Record(new Evidence.Source(SCOPE, "patchouli", "fixture", "book:guide", 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.GUIDE, "Guide", new Evidence.JsonObject(Map.of()),
+                List.of(new Evidence.NavigationTarget(SCOPE, "patchouli", "book:guide", "page/other")));
+        assertNull(service(new PagedProvider("patchouli", query -> page(List.of(wrongSource), null)))
+                .refreshNavigation(historical, SCOPE).toCompletableFuture().join());
+        assertNull(service(new PagedProvider("patchouli", query -> page(List.of(wrongTarget), null)))
+                .refreshNavigation(historical, SCOPE).toCompletableFuture().join());
+        assertNull(service(new PagedProvider("patchouli", query -> new Evidence.Result(List.of(wrongTarget),
+                Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null)))
+                .refreshNavigation(historical, SCOPE).toCompletableFuture().join());
+        assertNull(service().refreshNavigation(historical, SCOPE).toCompletableFuture().join());
+
+        var currentScope = new AtomicReference<>(SCOPE);
+        var pending = new CompletableFuture<Evidence.Result>();
+        KnowledgeProvider provider = new PagedProvider("patchouli", query -> page(List.of(), null)) {
+            @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                return pending;
+            }
+        };
+        var service = new KnowledgeService(List.of(provider), currentScope::get,
+                plan -> CompletableFuture.completedFuture(page(List.of(), null)),
+                (identities, scope) -> CompletableFuture.completedFuture(page(List.of(), null)));
+        var refresh = service.refreshNavigation(historical, SCOPE);
+        currentScope.set(new Evidence.Scope("world", "resources-2", "team", "runtime", 2));
+        pending.complete(page(List.of(new Evidence.Record(new Evidence.Source(SCOPE, "patchouli", "fixture", "book:guide", 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.GUIDE, "Guide", new Evidence.JsonObject(Map.of()),
+                List.of(new Evidence.NavigationTarget(SCOPE, "patchouli", "book:guide", "page/old")))), null));
+        assertNull(refresh.toCompletableFuture().join());
+        assertNull(service.refreshNavigation(historical, SCOPE).toCompletableFuture().join());
+    }
+
+    @Test
+    void refreshNavigationAuthorizationIsBounded() {
+        var historicalScope = new Evidence.Scope("world", "resources", "team", "runtime", 0);
+        var provider = new PagedProvider("patchouli", query -> {
+            var handle = ((Evidence.JsonString) query.arguments().values().get("id")).value();
+            var target = new Evidence.NavigationTarget(SCOPE, "patchouli", handle, "page");
+            var source = new Evidence.Source(SCOPE, "patchouli", "fixture", handle, 1, Instant.EPOCH,
+                    Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+            return page(List.of(new Evidence.Record(source, Evidence.RecordKind.GUIDE, handle,
+                    new Evidence.JsonObject(Map.of()), List.of(target))), null);
+        });
+        var service = service(provider);
+        Evidence.NavigationTarget first = null;
+        Evidence.NavigationTarget last = null;
+        for (var index = 0; index < 65; index++) {
+            var historical = new Evidence.NavigationTarget(historicalScope, "patchouli", "book:" + index, "page");
+            var refreshed = service.refreshNavigation(historical, SCOPE).toCompletableFuture().join();
+            if (index == 0) first = refreshed;
+            if (index == 64) last = refreshed;
+        }
+
+        assertEquals(Evidence.NavigationStatus.STALE, service.open(first, SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.UNSUPPORTED, service.open(last, SCOPE).status());
+    }
 
     @Test
     void adapterAvailabilityUsesLogicalIdsAndIsIndependentOfProviderCoverage() {

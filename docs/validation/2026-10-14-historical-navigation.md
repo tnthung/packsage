@@ -18,6 +18,12 @@ Date: 2026-10-14.
 
 ## Installed acceptance
 
-The game was running when the build finished. Installed navigation and rendered glyph visibility have not yet been checked with this artifact. Source math and headless tests are not live Minecraft proof.
+Passed live in ATM10 8.2, Minecraft 1.21.1, NeoForge 21.1.251, with 535 mods loaded. The client was saved and exited normally before installing the new JAR, then restarted. Only `OoO - PackSage Trial` was joined; the original `OoO` world was not opened.
 
-To check the installed build: click quest references from two different older replies, send a follow-up and click the first reply's reference again. Open a restored same-world session and click its recorded quest reference. Confirm the expected current quest opens; missing destinations still produce a readable status without changing the answer. At the transcript bottom, confirm the entire status line and its descenders fit above the composer.
+- The installed JAR matched the build and distribution artifact: SHA-256 `329DBC6B163F0BB93232922EAF82049BB93AC729E59DEDD5C8AA4B554C4E9322`, built from `4315bf1d168f858f08362605106ab2887e99a0e9`.
+- In restored session `6b8452d8-3c42-4ba0-aa53-61851e80477d`, references from two older replies opened the expected current FTB quest pages: **Vials and Sigils** and **Enchantment Library**. No new model lookup was needed first.
+- A follow-up requesting `NAV_CHECK_OK` completed with that answer. An older **Getting better Gems** reference then opened its current quest page after the request generation changed. Historical answers remained intact.
+- A temporary, explicitly synthetic history session referenced a missing quest. Clicking it produced **Navigation target is no longer available** without opening a quest page. At the transcript bottom, the entire line, including descenders, was visible above the composer in the 1026 by 800 client window.
+- The temporary session was removed and its absence checked. Model preferences and inventory were preserved, no quest rewards were claimed, and the trial world was saved normally. Minecraft was left at the title screen.
+
+This live pass covers FTB quest navigation and status visibility at the current UI scale. It does not establish installed acceptance for every provider or UI scale; the other provider and lifecycle boundaries are covered by the automated checks above.

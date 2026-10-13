@@ -291,6 +291,48 @@ final class ScreenText {
                     continue;
                 }
             }
+            if (!code && text.startsWith("\uE200cite\uE202", index)) {
+                int end = text.indexOf('\uE201', index + 6);
+                if (end > index) {
+                    String references = text.substring(index + 6, end);
+                    String[] values = references.split("\uE202", -1);
+                    boolean recognized = true;
+                    for (String value : values) {
+                        Matcher reference = CITATION_MARKER.matcher("[" + value + "]");
+                        if (!reference.matches()) {
+                            recognized = false;
+                            break;
+                        }
+                    }
+                    if (recognized) {
+                        flushInline(spans, plain, bold, code);
+                        for (String value : values) {
+                            Matcher reference = CITATION_MARKER.matcher("[" + value + "]");
+                            reference.matches();
+                            Evidence.NavigationTarget target = targets.stream().filter(candidate ->
+                                    candidate.providerId().equals(reference.group(1))
+                                            && candidate.sourceHandle().equals(reference.group(2)))
+                                    .findFirst().orElse(null);
+                            if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
+                                case "ftb_quests" -> "Quest";
+                                case "patchouli" -> "Guide";
+                                case "jei" -> "Recipe";
+                                case "config" -> "Config";
+                                default -> "Source";
+                            }, target, ModernUi.TEXT, false, false));
+                            else {
+                                Evidence.Source source = reference.group(1).equals("config") ? sources.stream().filter(candidate ->
+                                        candidate.providerId().equals("config") && candidate.sourceHandle().equals(reference.group(2)))
+                                        .reduce((first, latest) -> latest).orElse(null) : null;
+                                spans.add(new InlineSpan(source == null ? markerTag(reference.group(1), reference.group(2)) : "Config",
+                                        null, source == null ? DIM_COLOR : ModernUi.TEXT, false, false, source));
+                            }
+                        }
+                        index = end + 1;
+                        continue;
+                    }
+                }
+            }
             if (!code && text.charAt(index) == '[') {
                 Matcher marker = CITATION_MARKER.matcher(text).region(index, text.length());
                 if (marker.lookingAt()) {
@@ -320,6 +362,30 @@ final class ScreenText {
                 if (close > index && closeUrl > close + 2) {
                     int end = closeUrl + 1;
                     String url = text.substring(close + 2, closeUrl);
+                    Matcher localReference = CITATION_MARKER.matcher("[" + url + "]");
+                    if (localReference.matches()) {
+                        flushInline(spans, plain, bold, code);
+                        Evidence.NavigationTarget target = targets.stream().filter(value ->
+                                value.providerId().equals(localReference.group(1))
+                                        && value.sourceHandle().equals(localReference.group(2)))
+                                .findFirst().orElse(null);
+                        if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
+                            case "ftb_quests" -> "Quest";
+                            case "patchouli" -> "Guide";
+                            case "jei" -> "Recipe";
+                            case "config" -> "Config";
+                            default -> "Source";
+                        }, target, ModernUi.TEXT, false, false));
+                        else {
+                            Evidence.Source source = localReference.group(1).equals("config") ? sources.stream().filter(value ->
+                                    value.providerId().equals("config") && value.sourceHandle().equals(localReference.group(2)))
+                                    .reduce((first, latest) -> latest).orElse(null) : null;
+                            spans.add(new InlineSpan(source == null ? markerTag(localReference.group(1), localReference.group(2)) : "Config",
+                                    null, source == null ? DIM_COLOR : ModernUi.TEXT, false, false, source));
+                        }
+                        index = end;
+                        continue;
+                    }
                     Evidence.NavigationTarget target = targets.stream().filter(value ->
                             value.providerId().equals("web") && value.sourceHandle().equals(url)).findFirst().orElse(null);
                     if (target != null) {

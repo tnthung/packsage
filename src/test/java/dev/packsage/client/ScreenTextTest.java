@@ -57,6 +57,32 @@ class ScreenTextTest {
     }
 
     @Test
+    void evolutionLocalLinksAndPrivateCitationReferencesUseOnlyRegisteredTargets() {
+        var quest = new Evidence.NavigationTarget(SCOPE, "ftb_quests", "4A2123FF92275F64", "4A2123FF92275F64");
+        var guide = new Evidence.NavigationTarget(SCOPE, "patchouli", "fixture:book#entry", "fixture:book#entry");
+        String privateCitation = "\uE200cite\uE202ftb_quests:4A2123FF92275F64\uE202patchouli:fixture:book#entry"
+                + "\uE202ftb_quests:missing\uE201";
+        String answer = "[**Punch A Tree** — `ftb_quests:4A2123FF92275F64`](ftb_quests:4A2123FF92275F64) "
+                + privateCitation + " [search0](https://evil.test) ` [Fake](ftb_quests:4A2123FF92275F64) ` Claim";
+        var web = new Evidence.NavigationTarget(SCOPE, "web", "https://example.test/source", "https://example.test/source");
+        var citation = new dev.packsage.model.ModelBackend.UrlCitation(answer.indexOf("Claim"), answer.length(),
+                "Example", web.sourceHandle());
+
+        var spans = ScreenText.inlineLines(answer, List.of(quest, guide, web), List.of(citation)).getFirst().spans();
+        assertEquals(quest, spans.stream().filter(span -> span.text().equals("Quest") && span.target() != null)
+                .findFirst().orElseThrow().target());
+        assertEquals(guide, spans.stream().filter(span -> span.text().equals("Guide") && span.target() != null)
+                .findFirst().orElseThrow().target());
+        assertEquals(2, spans.stream().filter(span -> span.text().equals("Quest") && span.target() == quest).count());
+        assertTrue(spans.stream().anyMatch(span -> span.text().equals("[quest]") && span.target() == null));
+        assertTrue(spans.stream().anyMatch(span -> span.text().contains("search0") && span.target() == null));
+        assertTrue(spans.stream().anyMatch(span -> span.code() && span.text().contains("[Fake](ftb_quests:")));
+        assertTrue(spans.stream().anyMatch(span -> span.target() == web && span.text().equals("Example")));
+        assertTrue(spans.stream().filter(span -> span.target() != null)
+                .allMatch(span -> span.target() == quest || span.target() == guide || span.target() == web));
+    }
+
+    @Test
     void webReferenceOffsetsSurviveWindowsNewlinesAndHeadingPrefixes() {
         var target = new Evidence.NavigationTarget(SCOPE, "web", "https://example.test/source", "https://example.test/source");
         String answer = "First\r\n##   Claim";

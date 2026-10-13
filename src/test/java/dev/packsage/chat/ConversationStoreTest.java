@@ -67,6 +67,177 @@ class ConversationStoreTest {
     }
 
     @Test
+    void historySearchIsWorldScopedFindsFullTextAndPaginatesWithoutChangingLatest() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.WorldIdentity renamed = new ChatContracts.WorldIdentity("world-a", "Renamed World");
+        ChatContracts.WorldIdentity other = new ChatContracts.WorldIdentity("world-b", "Other World");
+        ChatContracts.Conversation first = store.newConversation(world).toCompletableFuture().join();
+        ChatContracts.Conversation second = store.newConversation(world).toCompletableFuture().join();
+        ChatContracts.Conversation third = store.newConversation(world).toCompletableFuture().join();
+        ChatContracts.Conversation foreign = store.newConversation(other).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, first.id(), historyTurn("first", "opening", "answer one", ChatContracts.OutcomeStatus.COMPLETED))
+                .toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, second.id(), historyTurn("second", "question", "buried unique phrase", ChatContracts.OutcomeStatus.COMPLETED))
+                .toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, third.id(), historyTurn("third", "another question", "buried unique details", ChatContracts.OutcomeStatus.COMPLETED))
+                .toCompletableFuture().join();
+        store.appendTurn(other, SCOPE, foreign.id(), historyTurn("foreign", "foreign question", "buried unique phrase", ChatContracts.OutcomeStatus.COMPLETED))
+                .toCompletableFuture().join();
+        Path latest = store.conversationPath(world, second.id()).getParent().resolve("latest");
+        String marker = Files.readString(latest);
+
+        ConversationStore.HistoryPage page = store.searchHistory(renamed, "buried unique", null, 1, null)
+                .toCompletableFuture().join();
+
+        assertEquals(1, page.entries().size());
+        assertTrue(page.entries().getFirst().answer().startsWith("buried unique"));
+        assertEquals(marker, Files.readString(latest));
+        assertTrue(page.nextCursor() != null);
+        assertThrows(RuntimeException.class, () -> store.searchHistory(renamed, "different query", null, 1, page.nextCursor())
+                .toCompletableFuture().join());
+        ConversationStore.HistoryPage next = store.searchHistory(renamed, "buried unique", null, 1, page.nextCursor())
+                .toCompletableFuture().join();
+        assertEquals(1, next.entries().size());
+        assertNotEquals(page.entries().getFirst().sessionId(), next.entries().getFirst().sessionId());
+        int results = page.entries().size() + next.entries().size();
+        while (next.nextCursor() != null) {
+            next = store.searchHistory(renamed, "buried unique", null, 1, next.nextCursor()).toCompletableFuture().join();
+            results += next.entries().size();
+        }
+        assertEquals(2, results);
+        assertTrue(next.entries().isEmpty());
+        assertEquals(Evidence.Coverage.COMPLETE, next.coverage());
+    }
+
+    @Test
+    void historyExcludesReplacedRequestAndReadsDiscoveredRecord() {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), historyTurn("old", "needle question", "old answer", ChatContracts.OutcomeStatus.COMPLETED))
+                .toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), historyTurn("new", "needle question", "new answer", ChatContracts.OutcomeStatus.COMPLETED))
+                .toCompletableFuture().join();
+
+        ConversationStore.HistoryPage page = store.searchHistory(world, "needle", new ChatContracts.RequestId("new"), 8, null)
+                .toCompletableFuture().join();
+
+        assertEquals(1, page.entries().size());
+        assertEquals("old", page.entries().getFirst().requestId().value());
+        ConversationStore.HistoryEntry entry = page.entries().getFirst();
+        assertEquals("old answer", store.readHistory(world, entry.locator()).toCompletableFuture().join().answer());
+    }
+
+    @Test
+    void historyReadRejectsDeletedAndEditedRecordsAsStale() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), historyTurn("request", "needle", "answer", ChatContracts.OutcomeStatus.COMPLETED))
+                .toCompletableFuture().join();
+        ConversationStore.HistoryEntry entry = store.searchHistory(world, "needle", null, 8, null)
+                .toCompletableFuture().join().entries().getFirst();
+        Path file = store.conversationPath(world, conversation.id());
+
+        Files.writeString(file, Files.readString(file).replace("answer", "changed"), StandardCharsets.UTF_8);
+        assertThrows(RuntimeException.class, () -> store.readHistory(world, entry.locator()).toCompletableFuture().join());
+        Files.delete(file);
+        assertThrows(RuntimeException.class, () -> store.readHistory(world, entry.locator()).toCompletableFuture().join());
+    }
+
+    @Test
+    void historySearchSkipsIncompleteAndNonCompletedExchangesAndReportsMalformedData() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), historyTurn("completed", "needle complete", "safe", ChatContracts.OutcomeStatus.COMPLETED))
+                .toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), historyTurn("failed", "needle failed", "unsafe", ChatContracts.OutcomeStatus.FAILED))
+                .toCompletableFuture().join();
+        Files.writeString(store.conversationPath(world, conversation.id()), "{invalid json}\n", StandardCharsets.UTF_8,
+                StandardOpenOption.APPEND);
+
+        ConversationStore.HistoryPage page = store.searchHistory(world, "needle", null, 8, null).toCompletableFuture().join();
+
+        assertEquals(1, page.entries().size());
+        assertEquals("completed", page.entries().getFirst().requestId().value());
+        assertEquals(Evidence.Coverage.PARTIAL, page.coverage());
+    }
+
+    @Test
+    void oversizedHistoryRecordCanBeSkippedAcrossCallsAndSearchContinues() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        Path file = store.conversationPath(world, conversation.id());
+        Files.writeString(file, "x".repeat(9 * 1024 * 1024) + "\n", StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+        store.appendTurn(world, SCOPE, conversation.id(), historyTurn("after-large", "needle after oversized", "answer",
+                ChatContracts.OutcomeStatus.COMPLETED)).toCompletableFuture().join();
+
+        ConversationStore.HistoryPage first = store.searchHistory(world, "needle", null, 8, null).toCompletableFuture().join();
+
+        assertTrue(first.entries().isEmpty());
+        assertTrue(first.nextCursor().skippingOversizedRecord());
+        ConversationStore.HistoryPage second = store.searchHistory(world, "needle", null, 8, first.nextCursor())
+                .toCompletableFuture().join();
+        assertEquals("after-large", second.entries().getFirst().requestId().value());
+        assertEquals(Evidence.Coverage.PARTIAL, second.coverage());
+    }
+
+    @Test
+    void historySearchRejectsForeignHeadersAndSymbolicLinkSessions() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory.resolve("store"), DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.WorldIdentity foreignWorld = new ChatContracts.WorldIdentity("world-b", "World B");
+        ChatContracts.Conversation local = store.newConversation(world).toCompletableFuture().join();
+        ChatContracts.Conversation outside = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, outside.id(), historyTurn("private", "unique phrase", "private answer", ChatContracts.OutcomeStatus.COMPLETED))
+                .toCompletableFuture().join();
+        Path linked = store.conversationPath(world, outside.id());
+        Files.delete(linked);
+        ConversationStore outsideStore = new ConversationStore(temporaryDirectory.resolve("outside"), DIRECT);
+        ChatContracts.Conversation external = outsideStore.newConversation(foreignWorld).toCompletableFuture().join();
+        outsideStore.appendTurn(foreignWorld, SCOPE, external.id(), historyTurn("foreign", "unique phrase", "foreign answer", ChatContracts.OutcomeStatus.COMPLETED))
+                .toCompletableFuture().join();
+        try {
+            Files.createSymbolicLink(linked, outsideStore.conversationPath(foreignWorld, external.id()));
+        } catch (UnsupportedOperationException | java.io.IOException exception) {
+            assumeTrue(false, "symbolic links unavailable: " + exception.getMessage());
+        }
+
+        ConversationStore.HistoryPage page = store.searchHistory(world, "unique phrase", null, 8, null).toCompletableFuture().join();
+
+        assertTrue(page.entries().isEmpty());
+        assertEquals(local.id(), store.openLatest(world).toCompletableFuture().join().id());
+    }
+
+    @Test
+    void historySearchRejectsForeignWorldHeaderInMatchingDirectory() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), historyTurn("private", "foreign header needle", "private answer",
+                ChatContracts.OutcomeStatus.COMPLETED)).toCompletableFuture().join();
+        Path file = store.conversationPath(world, conversation.id());
+        Files.writeString(file, Files.readString(file).replace("\"world\":\"world-a\"", "\"world\":\"world-b\""),
+                StandardCharsets.UTF_8);
+
+        ConversationStore.HistoryPage page = store.searchHistory(world, "foreign header needle", null, 8, null)
+                .toCompletableFuture().join();
+
+        assertTrue(page.entries().isEmpty());
+        assertEquals(Evidence.Coverage.COMPLETE, page.coverage());
+    }
+
+    private static ChatContracts.Turn historyTurn(String requestId, String question, String answer,
+                                                   ChatContracts.OutcomeStatus status) {
+        return new ChatContracts.Turn(new ChatContracts.RequestId(requestId), question, answer, List.of(),
+                new ChatContracts.Context("context", null, SCOPE), List.of(), List.of(),
+                new ChatContracts.Outcome(status, null), 1, Instant.parse("2026-10-13T01:02:03Z"));
+    }
+
+    @Test
     void latestReopensAndNewChatUsesAnotherFile() {
         ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
         ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");

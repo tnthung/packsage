@@ -7,6 +7,8 @@ import com.google.gson.JsonParser;
 import dev.packsage.knowledge.Evidence;
 
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -15,6 +17,7 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -22,13 +25,49 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
 
 public final class ConversationStore {
+    record HistoryEntry(String sessionId, ChatContracts.RequestId requestId, Instant sentAt, String question,
+                        String answer, HistoryLocator locator) {
+    }
+
+    record HistoryLocator(Path file, long byteOffset, int byteLength, String textFingerprint) {
+    }
+
+    record HistoryFileStamp(Path file, long size, FileTime modifiedTime, String fileKey) {
+    }
+
+    record HistoryCursor(List<HistoryFileStamp> files, int fileIndex, long byteOffset,
+                         boolean skippingOversizedRecord, boolean partial, String worldId,
+                         String query, String excludedRequestId, String sessionId) {
+        HistoryCursor {
+            files = List.copyOf(files);
+        }
+    }
+
+    record HistoryPage(List<HistoryEntry> entries, HistoryCursor nextCursor,
+                       Evidence.Coverage coverage, String detail) {
+        HistoryPage {
+            entries = List.copyOf(entries);
+        }
+    }
+
+    private static final int HISTORY_MAX_ROOT_ENTRIES = 512;
+    private static final int HISTORY_MAX_SESSIONS = 256;
+    private static final int HISTORY_MAX_SCAN_BYTES = 8 * 1024 * 1024;
+    private static final int HISTORY_MAX_RECORDS = 4096;
+    private static final int HISTORY_MAX_RECORD_BYTES = 2 * 1024 * 1024;
+    private static final int HISTORY_MAX_HEADER_BYTES = 16 * 1024;
+
     private final Path root;
     private final Executor ioExecutor;
     private final Object writeLock = new Object();
@@ -38,6 +77,342 @@ public final class ConversationStore {
     public ConversationStore(Path root, Executor ioExecutor) {
         this.root = root;
         this.ioExecutor = ioExecutor;
+    }
+
+    CompletionStage<HistoryPage> searchHistory(ChatContracts.WorldIdentity world, String text,
+                                               ChatContracts.RequestId excluded, int limit, HistoryCursor cursor) {
+        Objects.requireNonNull(world);
+        Objects.requireNonNull(text);
+        if (text.isBlank() || text.length() > 512) throw new IllegalArgumentException("history search text must contain 1 to 512 characters");
+        if (limit < 1 || limit > 16) throw new IllegalArgumentException("history result limit must be between 1 and 16");
+        return enqueueRead(() -> {
+            List<String> discoveryDetails = new ArrayList<>();
+            List<HistoryFileStamp> files = new ArrayList<>();
+            int inspectedEntries = 0;
+            boolean discoveryPartial = false;
+            String worldSuffix = "-" + digest(world.worldOrServer());
+            try {
+                if (Files.exists(root, LinkOption.NOFOLLOW_LINKS)) {
+                    if (Files.isSymbolicLink(root) || !Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS) || !safePath(root)) {
+                        return new HistoryPage(List.of(), null, Evidence.Coverage.PARTIAL, "Conversation root is unavailable or unsafe.");
+                    }
+                    try (var rootPaths = Files.list(root)) {
+                        var rootIterator = rootPaths.iterator();
+                        while (rootIterator.hasNext()) {
+                            Path directory = rootIterator.next();
+                            if (++inspectedEntries > HISTORY_MAX_ROOT_ENTRIES) {
+                                discoveryPartial = true;
+                                discoveryDetails.add("Conversation root entry limit reached.");
+                                break;
+                            }
+                            String name = directory.getFileName().toString();
+                            if (!name.endsWith(worldSuffix) || Files.isSymbolicLink(directory)
+                                    || !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS) || !safePath(directory)) continue;
+                            try (var children = Files.list(directory)) {
+                                var childIterator = children.iterator();
+                                while (childIterator.hasNext()) {
+                                    Path file = childIterator.next();
+                                    if (++inspectedEntries > HISTORY_MAX_ROOT_ENTRIES) {
+                                        discoveryPartial = true;
+                                        discoveryDetails.add("Conversation directory entry limit reached.");
+                                        break;
+                                    }
+                                    if (!file.getFileName().toString().endsWith(".jsonl")
+                                            || Files.isSymbolicLink(file)
+                                            || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || !safePath(file)) continue;
+                                    BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes.class,
+                                            LinkOption.NOFOLLOW_LINKS);
+                                    files.add(new HistoryFileStamp(file.toAbsolutePath().normalize(), attributes.size(),
+                                            attributes.lastModifiedTime(), String.valueOf(attributes.fileKey())));
+                                    if (files.size() > HISTORY_MAX_SESSIONS) {
+                                        files.removeLast();
+                                        discoveryPartial = true;
+                                        discoveryDetails.add("Conversation session limit reached.");
+                                        break;
+                                    }
+                                    if (files.size() == HISTORY_MAX_SESSIONS) {
+                                        discoveryPartial = true;
+                                        discoveryDetails.add("Conversation session limit reached.");
+                                        break;
+                                    }
+                                }
+                            }
+                            if (inspectedEntries > HISTORY_MAX_ROOT_ENTRIES || files.size() >= HISTORY_MAX_SESSIONS) break;
+                        }
+                    }
+                }
+                files.sort(Comparator.comparing(HistoryFileStamp::modifiedTime).reversed()
+                        .thenComparing(stamp -> stamp.file().getFileName().toString()));
+                if (cursor != null) {
+                    if (!world.worldOrServer().equals(cursor.worldId()) || !text.equals(cursor.query())
+                            || !Objects.equals(excluded == null ? null : excluded.value(), cursor.excludedRequestId())) {
+                        throw new IllegalArgumentException("history cursor belongs to another search");
+                    }
+                    if (!files.equals(cursor.files())) throw new IllegalArgumentException("history cursor is stale");
+                    if (cursor.fileIndex() < 0 || cursor.fileIndex() > files.size() || cursor.byteOffset() < 0) {
+                        throw new IllegalArgumentException("history cursor position is invalid");
+                    }
+                }
+            } catch (IOException exception) {
+                return new HistoryPage(List.of(), null, Evidence.Coverage.PARTIAL, "Could not enumerate conversation history safely.");
+            }
+
+            int fileIndex = cursor == null ? 0 : cursor.fileIndex();
+            long byteOffset = cursor == null ? 0 : cursor.byteOffset();
+            boolean skippingOversizedRecord = cursor != null && cursor.skippingOversizedRecord();
+            String sessionId = cursor == null ? null : cursor.sessionId();
+            boolean partial = discoveryPartial || cursor != null && cursor.partial();
+            int scanBytes = 0;
+            int physicalRecords = 0;
+            String query = text.toLowerCase(Locale.ROOT);
+            List<HistoryEntry> entries = new ArrayList<>();
+            boolean more = false;
+            while (fileIndex < files.size()) {
+                HistoryFileStamp stamp = files.get(fileIndex);
+                try (FileChannel channel = FileChannel.open(stamp.file(), StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+                    if (byteOffset == 0) {
+                        if (scanBytes >= HISTORY_MAX_SCAN_BYTES || physicalRecords >= HISTORY_MAX_RECORDS) {
+                            more = true;
+                            break;
+                        }
+                        PhysicalRecord headerRecord = readPhysicalRecord(channel, 0,
+                                HISTORY_MAX_SCAN_BYTES - scanBytes, HISTORY_MAX_HEADER_BYTES, false);
+                        scanBytes += headerRecord.scannedBytes();
+                        physicalRecords++;
+                        byteOffset = headerRecord.nextOffset();
+                        if (!headerRecord.complete() || headerRecord.oversized()) {
+                            if (headerRecord.oversized()) partial = true;
+                            if (!headerRecord.complete() && !headerRecord.oversized()) {
+                                more = true;
+                                byteOffset = 0;
+                                break;
+                            }
+                            fileIndex++;
+                            byteOffset = 0;
+                            skippingOversizedRecord = false;
+                            sessionId = null;
+                            continue;
+                        }
+                        try {
+                            JsonObject header = JsonParser.parseString(new String(headerRecord.bytes(), StandardCharsets.UTF_8).trim()).getAsJsonObject();
+                            String foundSessionId = header.get("id").getAsString();
+                            if (!"conversation".equals(header.get("type").getAsString())
+                                    || !world.worldOrServer().equals(header.get("world").getAsString())
+                                    || !(safeName(foundSessionId) + "-" + digest(foundSessionId) + ".jsonl").equals(stamp.file().getFileName().toString())) {
+                                fileIndex++;
+                                byteOffset = 0;
+                                sessionId = null;
+                                continue;
+                            }
+                            sessionId = foundSessionId;
+                        } catch (RuntimeException exception) {
+                            partial = true;
+                            fileIndex++;
+                            byteOffset = 0;
+                            sessionId = null;
+                            continue;
+                        }
+                    }
+                    boolean fileFinished = false;
+                    while (!fileFinished) {
+                        if (scanBytes >= HISTORY_MAX_SCAN_BYTES || physicalRecords >= HISTORY_MAX_RECORDS) {
+                            more = true;
+                            break;
+                        }
+                        long recordStart = byteOffset;
+                        PhysicalRecord record = readPhysicalRecord(channel, recordStart,
+                                HISTORY_MAX_SCAN_BYTES - scanBytes, HISTORY_MAX_RECORD_BYTES, skippingOversizedRecord);
+                        scanBytes += record.scannedBytes();
+                        if (record.scannedBytes() == 0 && record.complete()) {
+                            fileIndex++;
+                            byteOffset = 0;
+                            skippingOversizedRecord = false;
+                            sessionId = null;
+                            fileFinished = true;
+                            continue;
+                        }
+                        physicalRecords++;
+                        if (!record.complete()) {
+                            partial |= record.oversized();
+                            more = true;
+                            if (record.oversized()) {
+                                byteOffset = record.nextOffset();
+                                skippingOversizedRecord = true;
+                            } else {
+                                byteOffset = recordStart;
+                                skippingOversizedRecord = false;
+                            }
+                            break;
+                        }
+                        byteOffset = record.nextOffset();
+                        skippingOversizedRecord = false;
+                        if (record.oversized()) {
+                            partial = true;
+                            continue;
+                        }
+                        if (record.bytes().length == 0) continue;
+                        try {
+                            HistoryRecord value = readHistoryRecord(record.bytes());
+                            if (!"turn".equals(value.type()) || value.world() != null && !world.worldOrServer().equals(value.world())
+                                    || value.status() != ChatContracts.OutcomeStatus.COMPLETED || value.requestId() == null
+                                    || value.question() == null || value.answer() == null
+                                    || excluded != null && excluded.value().equals(value.requestId())) continue;
+                            if (!value.question().toLowerCase(Locale.ROOT).contains(query)
+                                    && !value.answer().toLowerCase(Locale.ROOT).contains(query)) continue;
+                            if (!value.question().isEmpty() || !value.answer().isEmpty()) {
+                                entries.add(new HistoryEntry(sessionId, new ChatContracts.RequestId(value.requestId()), value.sentAt(),
+                                        value.question(), value.answer(), new HistoryLocator(stamp.file(), recordStart,
+                                        record.bytes().length, sha256(record.bytes()))));
+                            }
+                            if (entries.size() >= limit) {
+                                more = byteOffset < channel.size() || fileIndex + 1 < files.size();
+                                break;
+                            }
+                        } catch (RuntimeException exception) {
+                            partial = true;
+                        }
+                    }
+                    if (more) break;
+                } catch (IOException exception) {
+                    partial = true;
+                    fileIndex++;
+                    byteOffset = 0;
+                    skippingOversizedRecord = false;
+                    sessionId = null;
+                }
+                if (fileIndex < files.size() && byteOffset == 0) continue;
+            }
+            HistoryCursor next = more ? new HistoryCursor(files, fileIndex, byteOffset, skippingOversizedRecord, partial,
+                    world.worldOrServer(), text, excluded == null ? null : excluded.value(), sessionId) : null;
+            String detail = partial ? String.join(" ", discoveryDetails) : more ? "More history remains; continue with the returned cursor." : "";
+            if (partial && discoveryDetails.isEmpty()) detail = "Some conversation records were malformed, oversized, or unavailable.";
+            return new HistoryPage(entries, next, partial || more ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, detail);
+        });
+    }
+
+    CompletionStage<HistoryEntry> readHistory(ChatContracts.WorldIdentity world, HistoryLocator locator) {
+        Objects.requireNonNull(world);
+        Objects.requireNonNull(locator);
+        return enqueueRead(() -> {
+            try {
+                Path file = locator.file().toAbsolutePath().normalize();
+                if (!safePath(file) || !Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)
+                        || locator.byteOffset() < 0 || locator.byteLength() < 1
+                        || locator.byteLength() > HISTORY_MAX_RECORD_BYTES) throw new IOException("history record is stale or unsafe");
+                try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+                    PhysicalRecord headerRecord = readPhysicalRecord(channel, 0, HISTORY_MAX_HEADER_BYTES,
+                            HISTORY_MAX_HEADER_BYTES, false);
+                    if (!headerRecord.complete() || headerRecord.oversized()) throw new IOException("history session header is invalid");
+                    JsonObject header = JsonParser.parseString(new String(headerRecord.bytes(), StandardCharsets.UTF_8).trim()).getAsJsonObject();
+                    String sessionId = header.get("id").getAsString();
+                    if (!"conversation".equals(header.get("type").getAsString())
+                            || !world.worldOrServer().equals(header.get("world").getAsString())
+                            || !(safeName(sessionId) + "-" + digest(sessionId) + ".jsonl").equals(file.getFileName().toString())) {
+                        throw new IOException("history session scope changed");
+                    }
+                    ByteBuffer bytes = ByteBuffer.allocate(locator.byteLength());
+                    long position = locator.byteOffset();
+                    while (bytes.hasRemaining()) {
+                        int count = channel.read(bytes, position);
+                        if (count < 0) throw new IOException("history record was deleted");
+                        if (count == 0) continue;
+                        position += count;
+                    }
+                    byte[] recordBytes = bytes.array();
+                    if (!sha256(recordBytes).equals(locator.textFingerprint())) throw new IOException("history record was replaced");
+                    HistoryRecord record = readHistoryRecord(recordBytes);
+                    if (!"turn".equals(record.type()) || record.status() != ChatContracts.OutcomeStatus.COMPLETED
+                            || record.requestId() == null || record.question() == null || record.answer() == null
+                            || record.world() != null && !world.worldOrServer().equals(record.world())) {
+                        throw new IOException("history record is no longer a completed exchange");
+                    }
+                    return new HistoryEntry(sessionId, new ChatContracts.RequestId(record.requestId()), record.sentAt(),
+                            record.question(), record.answer(), locator);
+                }
+            } catch (IOException | RuntimeException exception) {
+                throw new IllegalArgumentException("history record is stale or unavailable", exception);
+            }
+        });
+    }
+
+    private record PhysicalRecord(byte[] bytes, long nextOffset, int scannedBytes, boolean complete, boolean oversized) {
+    }
+
+    private record HistoryRecord(String type, String world, String requestId, String question,
+                                 String answer, ChatContracts.OutcomeStatus status, Instant sentAt) {
+    }
+
+    private static PhysicalRecord readPhysicalRecord(FileChannel channel, long startOffset, int byteBudget,
+                                                     int maximumRecordBytes, boolean discard) throws IOException {
+        if (byteBudget <= 0) return new PhysicalRecord(new byte[0], startOffset, 0, false, discard);
+        ByteArrayOutputStream record = new ByteArrayOutputStream(Math.min(maximumRecordBytes, 8192));
+        ByteBuffer buffer = ByteBuffer.allocate(Math.min(8192, byteBudget));
+        long position = startOffset;
+        int scanned = 0;
+        boolean oversized = discard;
+        while (scanned < byteBudget) {
+            buffer.clear();
+            buffer.limit(Math.min(buffer.capacity(), byteBudget - scanned));
+            int count = channel.read(buffer, position);
+            if (count < 0) return new PhysicalRecord(record.toByteArray(), position, scanned, true, oversized);
+            if (count == 0) continue;
+            scanned += count;
+            buffer.flip();
+            while (buffer.hasRemaining()) {
+                byte value = buffer.get();
+                position++;
+                if (value == '\n') return new PhysicalRecord(record.toByteArray(), position, scanned, true, oversized);
+                if (!oversized) {
+                    if (record.size() >= maximumRecordBytes) {
+                        oversized = true;
+                        record.reset();
+                    } else record.write(value);
+                }
+            }
+        }
+        return new PhysicalRecord(record.toByteArray(), position, scanned, false, oversized);
+    }
+
+    private static HistoryRecord readHistoryRecord(byte[] bytes) {
+        String type = null;
+        String world = null;
+        String requestId = null;
+        String question = null;
+        String answer = null;
+        ChatContracts.OutcomeStatus status = null;
+        Instant sentAt = null;
+        JsonReader reader = new JsonReader(new StringReader(new String(bytes, StandardCharsets.UTF_8).stripTrailing()));
+        try {
+            reader.beginObject();
+            while (reader.hasNext()) {
+                switch (reader.nextName()) {
+                    case "type" -> type = reader.nextString();
+                    case "world" -> world = reader.nextString();
+                    case "requestId" -> requestId = reader.nextString();
+                    case "question" -> question = reader.nextString();
+                    case "answer" -> answer = reader.nextString();
+                    case "outcome" -> status = ChatContracts.OutcomeStatus.valueOf(reader.nextString());
+                    case "sentAt" -> {
+                        if (reader.peek() == JsonToken.NULL) reader.nextNull();
+                        else sentAt = Instant.parse(reader.nextString());
+                    }
+                    default -> reader.skipValue();
+                }
+            }
+            reader.endObject();
+            if (reader.peek() != JsonToken.END_DOCUMENT) throw new IllegalArgumentException("trailing JSON data");
+            return new HistoryRecord(type, world, requestId, question, answer, status, sentAt);
+        } catch (IOException exception) {
+            throw new IllegalArgumentException("invalid history record", exception);
+        }
+    }
+
+    private static String sha256(byte[] value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 
     public CompletionStage<ChatContracts.Conversation> openLatest(ChatContracts.WorldIdentity world) {

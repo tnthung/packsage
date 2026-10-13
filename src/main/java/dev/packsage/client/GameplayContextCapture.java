@@ -40,10 +40,22 @@ public final class GameplayContextCapture {
     }
 
     public record Observation(String hovered, String held, String targeted, String dimension, String position,
-                              String biome, String time, String focusKind) {
+                              String biome, String time, String focusKind, String cameraPerspective) {
+        public Observation {
+            if ("miss".equals(focusKind)) {
+                hovered = null;
+                targeted = null;
+            }
+        }
+
+        public Observation(String hovered, String held, String targeted, String dimension, String position,
+                           String biome, String time, String focusKind) {
+            this(hovered, held, targeted, dimension, position, biome, time, focusKind, null);
+        }
+
         public Observation(String held, String targeted, String dimension, String position, String biome,
                            String time, String focusKind) {
-            this("unavailable", held, targeted, dimension, position, biome, time, focusKind);
+            this("unavailable", held, targeted, dimension, position, biome, time, focusKind, null);
         }
     }
 
@@ -124,7 +136,9 @@ public final class GameplayContextCapture {
             String targeted = null;
             String focusKind = "unavailable";
             HitResult hitResult = minecraft.hitResult;
-            if (hitResult instanceof BlockHitResult blockHit) {
+            if (hitResult != null && hitResult.getType() == HitResult.Type.MISS) {
+                focusKind = "miss";
+            } else if (hitResult instanceof BlockHitResult blockHit) {
                 var blockState = level.getBlockState(blockHit.getBlockPos());
                 targeted = "block:" + BuiltInRegistries.BLOCK.getKey(blockState.getBlock())
                         + "@" + blockHit.getBlockPos() + ":" + blockState;
@@ -150,7 +164,8 @@ public final class GameplayContextCapture {
             String biome = level.getBiome(player.blockPosition()).unwrapKey()
                     .map(key -> key.location().toString()).orElse(null);
             return new Observation(targeted, held, targeted, dimension, position, biome,
-                    Long.toString(level.getGameTime()), focusKind);
+                    Long.toString(level.getGameTime()), focusKind,
+                    minecraft.options.getCameraType().name().toLowerCase(Locale.ROOT));
         };
         AsyncFrameCapture frame = request -> {
             CompletableFuture<CapturedFrame> result = new CompletableFuture<>();
@@ -319,6 +334,7 @@ public final class GameplayContextCapture {
         json.addProperty("biome", observation.biome() == null ? "unavailable" : observation.biome());
         json.addProperty("time", observation.time() == null ? "unavailable" : observation.time());
         json.addProperty("focusKind", observation.focusKind() == null ? "unavailable" : observation.focusKind());
+        json.addProperty("cameraPerspective", observation.cameraPerspective() == null ? "unavailable" : observation.cameraPerspective());
         if (capturedAt != null) json.addProperty("capturedAt", capturedAt.toString());
         return new ChatContracts.Context(json.toString(), screenshot, currentScope);
     }

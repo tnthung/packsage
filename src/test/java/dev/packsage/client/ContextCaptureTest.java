@@ -21,6 +21,31 @@ class ContextCaptureTest {
     private static final ChatContracts.WorldIdentity WORLD = new ChatContracts.WorldIdentity("world", "World");
 
     @Test
+    void missedRaysHaveNoBlockTargetAndCameraPerspectiveIsCapturedFresh() {
+        var observation = new AtomicReference<>(new GameplayContextCapture.Observation("block:minecraft:air", null,
+                "block:minecraft:air", "compactmachines:compact_world", "10,2,-1011", "compactmachines:machine",
+                "1", "miss", "third_person_back"));
+        var capture = new GameplayContextCapture(observation::get,
+                request -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH),
+                Runnable::run, () -> SCOPE);
+        var missed = JsonParser.parseString(capture.preview().serializedGameplayContext()).getAsJsonObject();
+
+        assertEquals("miss", missed.get("focusKind").getAsString());
+        assertEquals("unavailable", missed.get("targeted").getAsString());
+        assertEquals("unavailable", missed.get("hovered").getAsString());
+        assertEquals("third_person_back", missed.get("cameraPerspective").getAsString());
+
+        observation.set(new GameplayContextCapture.Observation("block:minecraft:stone", null,
+                "block:minecraft:stone", "compactmachines:compact_world", "10,2,-1011", "compactmachines:machine",
+                "2", "block", "first_person"));
+        var hit = JsonParser.parseString(capture.capture(new ChatContracts.RequestCapture(
+                new ChatContracts.RequestId("fresh-perspective"), WORLD, SCOPE), false).toCompletableFuture().join()
+                .context().serializedGameplayContext()).getAsJsonObject();
+        assertEquals("block:minecraft:stone", hit.get("targeted").getAsString());
+        assertEquals("first_person", hit.get("cameraPerspective").getAsString());
+    }
+
+    @Test
     void cancellingAnOldRequestCannotCancelANewerCapture() {
         var queued = new java.util.ArrayDeque<Runnable>();
         var capture = new GameplayContextCapture(

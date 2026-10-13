@@ -13,6 +13,26 @@ class GroundingInstructionsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 2);
 
     @Test
+    void visualGroundingDistinguishesMissedTargetsAndThirdPersonViews() {
+        var submission = new ChatContracts.Submission(new ChatContracts.RequestId("missed-target"),
+                new ChatContracts.WorldIdentity("world", "World"), SCOPE, "check again", false,
+                new ChatContracts.HistoryLimits(10, 12_000), new ModelBackend.ModelInfo("model", null, null, null, null),
+                ModelBackend.SearchMode.DISABLED, 512);
+        var request = GroundingInstructions.build(new ChatContracts.PreparedRequest(submission,
+                new ChatContracts.HistorySelection(List.of(), 0),
+                new ChatContracts.CapturedContext(new ChatContracts.Context(
+                        "{\"focusKind\":\"miss\",\"cameraPerspective\":\"third_person_back\"}", null, SCOPE), new byte[0]),
+                new ChatContracts.EvidenceSelection(List.of(), List.of())));
+
+        assertTrue(request.instructions().contains("interaction range"));
+        assertTrue(request.instructions().contains("cameraPerspective"));
+        assertTrue(request.instructions().contains("visible crosshair"));
+        assertTrue(((ModelBackend.Message) request.input().getLast()).content().stream().anyMatch(
+                content -> content instanceof ModelBackend.TextContent text
+                        && text.text().contains("third_person_back") && text.text().contains("\"focusKind\":\"miss\"")));
+    }
+
+    @Test
     void preservesSelectedModelSearchAndTypedReplayAndAttachesRealImageBytes() {
         var replay = List.<ModelBackend.InputItem>of(new ModelBackend.ToolCall("old", "lookup", "{}"),
                 new ModelBackend.ToolResult("old", "{\"count\":7}", false));

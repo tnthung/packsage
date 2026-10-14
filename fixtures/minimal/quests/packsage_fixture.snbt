@@ -1,0 +1,53 @@
+{
+  id: "7000000000000001"
+  filename: "packsage_fixture"
+  title: "PackSage Fixture"
+  icon: "minecraft:book"
+  default_quest_shape: "square"
+  quests: [
+    {
+      id: "1000000000000001"
+      title: "Gather the fixture input"
+      x: 0.0d
+      y: 0.0d
+      tasks: [
+        {
+          id: "2000000000000001"
+          type: "item"
+          item: { id: "minecraft:coal" }
+          count: 1L
+        }
+      ]
+    },
+    {
+      id: "1000000000000002"
+      title: "Craft the fixture lantern"
+      x: 3.0d
+      y: 0.0d
+      dependencies: ["1000000000000001"]
+      tasks: [
+        {
+          id: "2000000000000002"
+          type: "item"
+          item: { id: "minecraft:lantern" }
+          count: 1L
+        }
+      ]
+    },
+    {
+      id: "1000000000000003"
+      title: "Check the alternate input"
+      x: 3.0d
+      y: 2.0d
+      dependencies: ["1000000000000001"]
+      tasks: [
+        {
+          id: "2000000000000003"
+          type: "item"
+          item: { id: "minecraft:charcoal" }
+          count: 1L
+        }
+      ]
+    }
+  ]
+}

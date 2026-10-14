@@ -1,0 +1,98 @@
+{
+  "fixture": "packsage-minimal",
+  "minecraft": "1.21.1",
+  "loader": {
+    "name": "NeoForge",
+    "version": "21.1.202"
+  },
+  "java": "21",
+  "artifacts": [
+    {
+      "id": "jei",
+      "file": "jei-1.21.1-neoforge-19.27.0.340.jar",
+      "version": "19.27.0.340",
+      "curseforge": "curse.maven:jei-238222:7420587",
+      "url": "https://edge.forgecdn.net/files/7420/587/jei-1.21.1-neoforge-19.27.0.340.jar",
+      "source": ".superpowers/scratch-artifacts/jei/jei-1.21.1-neoforge-19.27.0.340.jar",
+      "sha256": "8AAF547432F1B4958239B036356B910692FE40F858C3073D996F56BBF7C99826"
+    },
+    {
+      "id": "ftbquests",
+      "file": "ftb-quests-neoforge-2101.1.36.jar",
+      "version": "2101.1.36",
+      "curseforge": "curse.maven:ftb-quests-forge-289412:8885017",
+      "url": "https://edge.forgecdn.net/files/8885/017/ftb-quests-neoforge-2101.1.36.jar",
+      "source": ".superpowers/scratch-artifacts/ftb-quests-neoforge-2101.1.36.jar",
+      "sha256": "6A39982C4B3AFC00B1E788041A4F0D394E1659E3B3A6E5D078CD790BC36D0018"
+    },
+    {
+      "id": "ftblibrary",
+      "file": "ftb-library-neoforge-2101.1.37.jar",
+      "version": "2101.1.37",
+      "curseforge": "curse.maven:ftb-library-forge-404465:9008089",
+      "url": "https://edge.forgecdn.net/files/9008/089/ftb-library-neoforge-2101.1.37.jar",
+      "source": ".superpowers/scratch-artifacts/ftb-library-neoforge-2101.1.37.jar",
+      "sha256": "624C2D2D1CBADB946D967E17757BD5B2D129D4D3ED71F2DA0C70607D04476AC2"
+    },
+    {
+      "id": "ftbteams",
+      "file": "ftb-teams-neoforge-2101.1.11.jar",
+      "version": "2101.1.11",
+      "curseforge": "curse.maven:ftb-teams-forge-404468:8724782",
+      "url": "https://edge.forgecdn.net/files/8724/782/ftb-teams-neoforge-2101.1.11.jar",
+      "source": ".superpowers/scratch-artifacts/ftb-teams-neoforge-2101.1.11.jar",
+      "sha256": "E6BCD670493624E6906DF872A9C6AF4A33FE6405CAC57A32C59CD4CD5838C655"
+    },
+    {
+      "id": "patchouli",
+      "file": "Patchouli-1.21.1-92-NEOFORGE.jar",
+      "version": "1.21.1-92",
+      "curseforge": "curse.maven:patchouli-306770:6842247",
+      "url": "https://edge.forgecdn.net/files/6842/247/Patchouli-1.21.1-92-NEOFORGE.jar",
+      "source": ".superpowers/scratch-artifacts/Patchouli-1.21.1-92-NEOFORGE.jar",
+      "sha256": "579F23933F1DB9569F35F7770B9F2B0B6592A9389D7B3411272487BF5C77C98D"
+    },
+    {
+      "id": "naturesaura",
+      "file": "NaturesAura-41.10.jar",
+      "version": "41.10",
+      "curseforge": "curse.maven:natures-aura-306626:8809415",
+      "url": "https://edge.forgecdn.net/files/8809/415/NaturesAura-41.10.jar",
+      "source": ".superpowers/scratch-artifacts/NaturesAura-41.10.jar",
+      "sha256": "5401704E76FB59719D48CD3AA76F088220AE90D8E3B1F4859365AD260355700C"
+    },
+    {
+      "id": "architectury",
+      "file": "architectury-13.0.11-neoforge.jar",
+      "version": "13.0.11",
+      "curseforge": "curse.maven:architectury-api-419699:8492726",
+      "url": "https://edge.forgecdn.net/files/8492/726/architectury-13.0.11-neoforge.jar",
+      "source": ".superpowers/scratch-artifacts/architectury-13.0.11-neoforge.jar",
+      "sha256": "9CC92F2C09533FC5482C60F993BD891C655A0E32B637037CDCB7C2B23ADEDEEB"
+    }
+  ],
+  "dependencyClosure": {
+    "ftbquests": ["architectury >= 13.0.8", "ftblibrary >= 2101.1.36", "ftbteams >= 2101.1.9"],
+    "ftblibrary": ["architectury >= 13.0.6"],
+    "ftbteams": ["architectury >= 13.0.8", "ftblibrary >= 2101.1.30"],
+    "naturesaura": ["patchouli >= 1.21-87-NEOFORGE"],
+    "optional": ["ftbxmodcompat >= 21.1.7"]
+  },
+  "authoredData": {
+    "datapack": [
+      "datapack/packsage_fixture/pack.mcmeta",
+      "datapack/packsage_fixture/data/minecraft/recipe/torch.json",
+      "datapack/packsage_fixture/data/packsage/tags/item/fixture_inputs.json",
+      "datapack/packsage_fixture/data/packsage/recipe/fixture_lantern.json"
+    ],
+    "quests": ["quests/packsage_fixture.snbt", "quests/lang/en_us.snbt"],
+    "resourcepack": [
+      "resources/packsage_resourcepack/pack.mcmeta",
+      "resources/packsage_resourcepack/assets/naturesaura/patchouli_books/book/en_us/entries/intro/aura.json"
+    ]
+  },
+  "secondaryPack": {
+    "name": "FTB Evolution",
+    "status": "no-release-matches-current-contract"
+  }
+}

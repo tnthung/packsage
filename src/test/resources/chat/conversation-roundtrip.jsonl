@@ -1,0 +1,2 @@
+{"type":"conversation","id":"conversation-1","world":"world-a","label":"World A"}
+{"type":"turn","requestId":"request-1","question":"Where is the altar?","answer":"Use the local recipe evidence.","outcome":"COMPLETED","tokenCount":7,"media":"media/request-1.png"}

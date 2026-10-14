@@ -1,0 +1,15 @@
+{
+  "name": "Aura, conceptually (PackSage fixture)",
+  "icon": "naturesaura:gold_leaf",
+  "category": "naturesaura:intro",
+  "pages": [
+    {
+      "type": "text",
+      "text": "PackSage fixture override: this loaded entry proves resource precedence and Patchouli navigation."
+    },
+    {
+      "type": "text",
+      "text": "The original Nature's Aura entry remains the source identity; this resource supplies the winning localized entry."
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.147'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = neo_version
+    mods {
+        packsage {
+            sourceSet(sourceSets.main)
+        }
+    }
+    unitTest {
+        enable()
+        testedMod = mods.packsage
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.blamejared.com' }
+    maven { url = 'https://www.cursemaven.com' }
+}
+
+dependencies {
+    jarJar(implementation('com.knuddels:jtokkit')) {
+        version {
+            strictly '[1.1.0,1.2.0)'
+            prefer '1.1.0'
+        }
+    }
+    compileOnly "mezz.jei:jei-1.21.1-neoforge:${jei_version}"
+    compileOnly "curse.maven:ftb-quests-forge-289412:${ftb_quests_version}"
+    compileOnly "curse.maven:ftb-library-forge-404465:${ftb_library_version}"
+    compileOnly "curse.maven:ftb-teams-forge-404468:${ftb_teams_version}"
+    compileOnly "curse.maven:architectury-api-419699:${architectury_version}"
+    compileOnly "curse.maven:patchouli-306770:${patchouli_file_id}"
+    testImplementation('com.google.code.gson:gson:2.10.1')
+    testImplementation('org.junit.jupiter:junit-jupiter:5.11.3')
+    testRuntimeOnly('org.junit.platform:junit-platform-launcher:1.11.3')
+}
+
+configurations.testCompileOnly.extendsFrom(configurations.compileOnly)
+configurations.testRuntimeClasspath.extendsFrom(configurations.compileOnly)
+
+sourceSets {
+    bootstrap {
+        java.srcDir('src/bootstrap/java')
+    }
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+}
+
+if (project.hasProperty('packsageBootstrapOnly')) {
+    sourceSets.main.java.srcDirs = [sourceSets.main.java.srcDirs, sourceSets.bootstrap.java.srcDirs].flatten()
+    sourceSets.main.java.setIncludes([
+            'dev/packsage/PackSage.java',
+            'dev/packsage/PackSageLog.java',
+            'dev/packsage/knowledge/Evidence.java',
+            'dev/packsage/knowledge/Toolbox.java',
+            'dev/packsage/knowledge/AdapterRegistry.java',
+            'dev/packsage/model/ModelBackend.java',
+            'dev/packsage/model/GroundingInstructions.java',
+            'dev/packsage/model/PackSageTools.java',
+            'dev/packsage/model/chatgpt/*.java',
+            'dev/packsage/chat/ChatContracts.java',
+            'dev/packsage/chat/ChatActions.java',
+            'dev/packsage/chat/PackSageSettings.java'])
+    def productionEntrypoint = file('src/main/java/dev/packsage/PackSage.java').absolutePath
+    sourceSets.main.java.exclude { details -> details.file.absolutePath == productionEntrypoint }
+    sourceSets.main.resources.setIncludes(['META-INF/neoforge.mods.toml', 'pack.mcmeta', 'assets/packsage/lang/en_us.json'])
+    sourceSets.test.java.setIncludes(['dev/packsage/knowledge/EvidenceContractTest.java', 'dev/packsage/chat/ChatContractsTest.java', 'dev/packsage/model/chatgpt/*.java'])
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes('Automatic-Module-Name': 'dev.packsage', 'Implementation-Version': project.version)
+    }
+}

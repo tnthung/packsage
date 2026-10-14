@@ -1,0 +1,3 @@
+{"type":"conversation","id":"conversation-recovery","world":"world-a","label":"World A"}
+{"type":"turn","requestId":"request-complete","question":"Earlier","answer":"Preserve me","outcome":"COMPLETED","tokenCount":2}
+{"type":"turn","requestId":"request-truncated","question":"Incomplete

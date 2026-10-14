@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": ["C", "S"],
+  "key": {
+    "C": {
+      "tag": "packsage:fixture_inputs"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "id": "minecraft:torch",
+    "count": 1
+  }
+}

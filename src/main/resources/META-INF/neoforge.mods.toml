@@ -1,0 +1,25 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+showAsResourcePack=false
+
+[[mods]]
+modId="packsage"
+version="${file.jarVersion}"
+displayName="PackSage"
+authors="PackSage contributors"
+description='''Client-side evidence and assistant tools for modded Minecraft.'''
+
+[[dependencies.packsage]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.202,21.2)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.packsage]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1,1.21.2)"
+ordering="NONE"
+side="CLIENT"

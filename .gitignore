@@ -1,0 +1,11 @@
+GLOSSARY.md
+CONTEXT.md
+AGENTS.md
+.*
+!.gitignore
+build/
+dist/
+instances/
+/packsage/
+/logs/
+/crash-reports/

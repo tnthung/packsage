@@ -1,0 +1,138 @@
+package dev.packsage.chat;
+
+import dev.packsage.model.ModelBackend;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Properties;
+
+public final class PackSageSettings {
+    public enum SendShortcut { ENTER, CTRL_ENTER }
+
+    public static final int DEFAULT_HISTORY_TURNS = 10;
+    public static final int DEFAULT_HISTORICAL_TOKENS = 12_000;
+    public static final int DEFAULT_SESSIONS_BEFORE_COLLAPSE = 2;
+    public static final int MAX_HISTORY_TURNS = 100;
+    public static final int MAX_HISTORICAL_TOKENS = 1_000_000;
+    public static final int MAX_SESSIONS_BEFORE_COLLAPSE = 1_000;
+
+    private boolean openPaused;
+    private boolean automaticWebSearch;
+    private int historyTurns;
+    private int historicalTokens;
+    private SendShortcut sendShortcut;
+    private int sessionsBeforeCollapse;
+    private String modelId;
+    private ModelBackend.ReasoningEffort reasoningEffort;
+
+    public PackSageSettings(boolean openPaused, boolean automaticWebSearch, int historyTurns, int historicalTokens) {
+        this.openPaused = openPaused;
+        this.automaticWebSearch = automaticWebSearch;
+        if (historyTurns < 1 || historyTurns > MAX_HISTORY_TURNS) throw new IllegalArgumentException("historyTurns is out of bounds");
+        if (historicalTokens < 1 || historicalTokens > MAX_HISTORICAL_TOKENS) throw new IllegalArgumentException("historicalTokens is out of bounds");
+        this.historyTurns = historyTurns;
+        this.historicalTokens = historicalTokens;
+        sendShortcut = SendShortcut.ENTER;
+        sessionsBeforeCollapse = DEFAULT_SESSIONS_BEFORE_COLLAPSE;
+        modelId = null;
+        reasoningEffort = ModelBackend.ReasoningEffort.DEFAULT;
+    }
+
+    public static PackSageSettings defaults() {
+        return new PackSageSettings(true, true, DEFAULT_HISTORY_TURNS, DEFAULT_HISTORICAL_TOKENS);
+    }
+
+    public static PackSageSettings load(Path path) {
+        PackSageSettings settings = defaults();
+        if (!Files.isRegularFile(path)) return settings;
+        Properties properties = new Properties();
+        try (InputStream input = Files.newInputStream(path)) {
+            properties.load(input);
+            settings.openPaused = Boolean.parseBoolean(properties.getProperty("openPaused", Boolean.toString(settings.openPaused)));
+            settings.automaticWebSearch = Boolean.parseBoolean(properties.getProperty("automaticWebSearch", Boolean.toString(settings.automaticWebSearch)));
+            try {
+                settings.sendShortcut = SendShortcut.valueOf(properties.getProperty("sendShortcut", "enter").toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException ignored) { }
+            try {
+                int turns = Integer.parseInt(properties.getProperty("historyTurns", Integer.toString(settings.historyTurns)));
+                if (turns >= 1 && turns <= MAX_HISTORY_TURNS) settings.historyTurns = turns;
+            } catch (NumberFormatException ignored) { }
+            String configuredModelId = properties.getProperty("modelId", "");
+            settings.modelId = configuredModelId.isBlank() ? null : configuredModelId;
+            try {
+                settings.reasoningEffort = ModelBackend.ReasoningEffort.valueOf(properties.getProperty("reasoningEffort", "DEFAULT").toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException ignored) { }
+            try {
+                int tokens = Integer.parseInt(properties.getProperty("historicalTokens", Integer.toString(settings.historicalTokens)));
+                if (tokens >= 1 && tokens <= MAX_HISTORICAL_TOKENS) settings.historicalTokens = tokens;
+            } catch (NumberFormatException ignored) { }
+            try {
+                int sessions = Integer.parseInt(properties.getProperty("sessionsBeforeCollapse", Integer.toString(settings.sessionsBeforeCollapse)));
+                if (sessions >= 1 && sessions <= MAX_SESSIONS_BEFORE_COLLAPSE) settings.sessionsBeforeCollapse = sessions;
+            } catch (NumberFormatException ignored) { }
+        } catch (IOException | IllegalArgumentException ignored) {
+            return settings;
+        }
+        return settings;
+    }
+
+    public void save(Path path) {
+        Properties properties = new Properties();
+        properties.setProperty("openPaused", Boolean.toString(openPaused));
+        properties.setProperty("automaticWebSearch", Boolean.toString(automaticWebSearch));
+        properties.setProperty("sendShortcut", sendShortcut.name().toLowerCase(java.util.Locale.ROOT));
+        properties.setProperty("historyTurns", Integer.toString(historyTurns));
+        properties.setProperty("historicalTokens", Integer.toString(historicalTokens));
+        properties.setProperty("sessionsBeforeCollapse", Integer.toString(sessionsBeforeCollapse));
+        if (modelId != null) properties.setProperty("modelId", modelId);
+        properties.setProperty("reasoningEffort", reasoningEffort.name().toLowerCase(java.util.Locale.ROOT));
+        try {
+            if (path.getParent() != null) Files.createDirectories(path.getParent());
+            try (OutputStream output = Files.newOutputStream(path)) {
+                properties.store(output, "PackSage settings");
+            }
+        } catch (IOException exception) {
+            throw new IllegalStateException("could not save PackSage settings", exception);
+        }
+    }
+
+    public boolean openPaused() { return openPaused; }
+    public boolean automaticWebSearch() { return automaticWebSearch; }
+    public int historyTurns() { return historyTurns; }
+    public int historicalTokens() { return historicalTokens; }
+    public SendShortcut sendShortcut() { return sendShortcut; }
+    public int sessionsBeforeCollapse() { return sessionsBeforeCollapse; }
+    public String modelId() { return modelId; }
+    public ModelBackend.ReasoningEffort reasoningEffort() { return reasoningEffort; }
+
+    public void setOpenPaused(boolean value) { openPaused = value; }
+    public void setAutomaticWebSearch(boolean value) { automaticWebSearch = value; }
+    public void setSendShortcut(SendShortcut value) { sendShortcut = value == null ? SendShortcut.ENTER : value; }
+    public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; }
+    public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; }
+
+    public boolean setHistoryTurns(int value) {
+        if (value < 1 || value > MAX_HISTORY_TURNS) return false;
+        historyTurns = value;
+        return true;
+    }
+
+    public boolean setHistoricalTokens(int value) {
+        if (value < 1 || value > MAX_HISTORICAL_TOKENS) return false;
+        historicalTokens = value;
+        return true;
+    }
+
+    public boolean setSessionsBeforeCollapse(int value) {
+        if (value < 1 || value > MAX_SESSIONS_BEFORE_COLLAPSE) return false;
+        sessionsBeforeCollapse = value;
+        return true;
+    }
+
+    public ChatContracts.HistoryLimits historyLimits() {
+        return new ChatContracts.HistoryLimits(historyTurns, historicalTokens);
+    }
+}

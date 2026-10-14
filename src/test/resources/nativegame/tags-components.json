@@ -1,0 +1,7 @@
+{
+  "tags": {"#lights": ["mod:lantern", "mod:lamp"]},
+  "components": {
+    "mod:lantern": {"minecraft:name": "glowing"},
+    "mod:lamp": {"minecraft:name": "warm"}
+  }
+}

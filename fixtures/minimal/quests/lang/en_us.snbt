@@ -1,0 +1,9 @@
+{
+  chapter.7000000000000001.title: "PackSage Fixture"
+  quest.1000000000000001.title: "Gather the fixture input"
+  quest.1000000000000002.title: "Craft the fixture lantern"
+  quest.1000000000000003.title: "Check the alternate input"
+  task.2000000000000001.title: "Gather coal"
+  task.2000000000000002.title: "Craft a lantern"
+  task.2000000000000003.title: "Check charcoal"
+}

@@ -1,0 +1,11 @@
+# Model settings, guide navigation and follow-ups
+
+Use the updated full assistant in the **Packsage** profile. The assistant builds and installs the JAR; these checks only require Minecraft controls. Results belong in the [validation record](../validation/2026-10-13-model-controls-followups.md).
+
+1. Open PackSage with **P**, then **Settings**. Record the displayed model and reasoning effort. Choose another visible model if the account offers one, select an explicit effort, and click **Back**. Confirm the existing conversation returns. Open Settings again and use **Escape**; confirm it also returns and retains the choices. Restart Minecraft and check the saved choices once more.
+2. Send a short question with an explicit reasoning effort. Record the answer or exact rejection. If the route rejects that effort, select **DEFAULT** and retry; later search and screenshot inputs should remain available. Leave **DEFAULT** selected for the remaining local checks.
+3. Set **Automatic search** off in Settings and **Search** off beside the question. Keep the fixture resource pack enabled. Send `Find the installed Nature's Aura entry Aura, conceptually. Quote its fixture marker and open that entry.` Expect the installed entry text with `PackSage fixture override`; click its navigation button and confirm the correct book page opens.
+4. Send `In PackSage Fixture, what depends on Gather the fixture input? Read my current quest progress.` Then change progression through ordinary gameplay if possible and send `check again`. Expect a fresh quest-progress lookup that remembers the prior question. Confirm the reported task counts against the quest screen.
+5. Send `Read general.fieldCreatorRange from Nature's Aura's config and read my current PackSage Fixture quest progress.` Both answers should be grounded in installed sources. The assistant can inspect the conversation log for a multi-call response; a single-call response alone does not prove that parallel calls are disabled.
+
+Report missing controls, the displayed model/effort, wrong guide page, forgotten follow-up, or visible errors. Config and quest reads already passed in the supplied screenshots; this retest focuses on the corrected behavior. Live account support for explicit effort and parallel-call parameters remains unverified until these requests complete.

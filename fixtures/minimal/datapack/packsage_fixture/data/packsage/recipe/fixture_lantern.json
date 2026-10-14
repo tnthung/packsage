@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": ["CCC", "CTC", "CCC"],
+  "key": {
+    "C": {
+      "tag": "packsage:fixture_inputs"
+    },
+    "T": {
+      "item": "minecraft:torch"
+    }
+  },
+  "result": {
+    "id": "minecraft:lantern",
+    "count": 1
+  }
+}

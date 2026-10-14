@@ -35,8 +35,9 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
 
     @Override public String sourceIdentity(Evidence.Scope scope) {
         var manager = BookDataManager.get();
-        return scope + ":" + manager.isLoaded() + ":"
-                + manager.areBooksBuilt() + ":" + manager.getBooks().size();
+        var books = manager.getBooks();
+        return Integer.toHexString(scope.hashCode()) + ":" + System.identityHashCode(books) + ":"
+                + manager.isLoaded() + ":" + manager.areBooksBuilt() + ":" + books.size();
     }
 
     @Override public CandidatePage candidates(String afterPosition, int limit, Toolbox.DocumentBudget budget) {
@@ -76,7 +77,6 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
                 if (!afterFound) {
                     nextPosition = categoryPosition;
                     if (categoryPosition.equals(afterPosition)) afterFound = true;
-                    else continue;
                 }
                 nextPosition = categoryPosition;
                 for (BookEntry entry : category.getEntries().values()) {

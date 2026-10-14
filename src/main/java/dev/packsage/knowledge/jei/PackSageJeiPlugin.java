@@ -329,7 +329,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         continue;
                     }
                     var catalystCapture = categoryKnown ? catalysts(runtime, manager, type, budget)
-                            : new CatalystCapture(List.of(), true, false, false);
+                            : new CatalystCapture(List.of(), false, false, false);
                     partial |= catalystCapture.partial();
                     if (budget.exhausted()) {
                         hasMore = true;

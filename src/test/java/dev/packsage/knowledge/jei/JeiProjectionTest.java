@@ -254,13 +254,13 @@ class JeiProjectionTest {
     }
 
     @Test
-    void invalidOutputItemIsRejectedBeforeProviderDispatch() {
+    void invalidOutputItemIsRejectedOnlyByTheMatchingProvider() {
         var registry = new AdapterRegistry();
         registry.register(new JeiProvider(new JeiProvider.Snapshot(SCOPE, 1, List.of(), ignored -> { })));
 
         assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failureCode(registry.dispatch(recipeRequest("jei",
                 "minecraft:this_item_does_not_exist"), context(registry, Map.of()))));
-        assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failureCode(registry.dispatch(recipeRequest("native",
+        assertEquals(Toolbox.Code.NOT_HANDLED, failureCode(registry.dispatch(recipeRequest("native",
                 "minecraft:this_item_does_not_exist"), context(registry, Map.of()))));
     }
 

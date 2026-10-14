@@ -366,6 +366,53 @@ class NativeStorageReaderTest {
         assertEquals(Evidence.Coverage.UNAVAILABLE, empty.coverage());
     }
 
+    @Test
+    void itemReadUsesTheResolvedMainInventorySlotAndBindsItsContinuation() {
+        var shulker = new ItemStack(Items.SHULKER_BOX);
+        shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(
+                new ItemStack(Items.COAL, 3), new ItemStack(Items.STONE, 4))));
+        var resolved = new ArrayList<String>();
+        var reader = new NativeStorageReader(Runnable::run, () -> FIRST, () -> 0,
+                (reference, scope) -> {
+                    resolved.add(reference);
+                    assertEquals(FIRST, scope);
+                    return new NativeInventoryReader.LocatedItem("main", 5, null, false, shulker);
+                }, () -> RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
+        var first = reader.read(new StorageReader.Request(StorageReader.Target.ITEM,
+                "native:inventory:fixture:main:5", null, List.of(), 1, null, FIRST)).toCompletableFuture().join();
+        assertEquals(Evidence.Coverage.COMPLETE, first.coverage());
+        assertEquals(List.of("native:inventory:fixture:main:5"), resolved);
+        var payload = first.records().getFirst().payload().values();
+        var owner = (Evidence.JsonObject) ((Evidence.JsonArray) payload.get("owners")).values().getFirst();
+        assertEquals("main", ((Evidence.JsonString) owner.values().get("section")).value());
+        assertEquals(5, ((Evidence.JsonNumber) owner.values().get("slot")).value().intValueExact());
+        assertNotNull(first.nextCursor());
+        var wrong = reader.read(new StorageReader.Request(StorageReader.Target.ITEM,
+                "native:inventory:other:main:5", null, List.of(), 1, first.nextCursor(), FIRST)).toCompletableFuture().join();
+        assertEquals(Evidence.Outcome.UNKNOWN, wrong.outcome());
+        var next = reader.read(new StorageReader.Request(StorageReader.Target.ITEM,
+                "native:inventory:fixture:main:5", null, List.of(), 1, first.nextCursor(), FIRST)).toCompletableFuture().join();
+        assertEquals(Evidence.Coverage.COMPLETE, next.coverage());
+        assertNull(next.nextCursor());
+        var entry = (Evidence.JsonObject) ((Evidence.JsonArray) next.records().getFirst().payload().values().get("entries")).values().getFirst();
+        assertEquals("minecraft:stone", ((Evidence.JsonString) ((Evidence.JsonObject) entry.values().get("payload")).values().get("id")).value());
+        assertEquals(1, resolved.size());
+    }
+
+    @Test
+    void changedSlotReferenceReturnsUnknownInsteadOfReadingTheReplacement() {
+        var reader = new NativeStorageReader(Runnable::run, () -> FIRST, () -> 0,
+                (reference, scope) -> { throw new IllegalArgumentException("inventory slot contents changed"); },
+                () -> RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
+        var result = reader.read(new StorageReader.Request(StorageReader.Target.ITEM,
+                "native:inventory:fixture:main:5", null, List.of(), 32, null, FIRST)).toCompletableFuture().join();
+        assertEquals(Evidence.Outcome.UNKNOWN, result.outcome());
+        assertEquals(Evidence.Coverage.UNAVAILABLE, result.coverage());
+        var payload = result.records().getFirst().payload().values();
+        assertTrue(((Evidence.JsonArray) payload.get("entries")).values().isEmpty());
+        assertEquals("inventory slot contents changed", ((Evidence.JsonString) payload.get("detail")).value());
+    }
+
     private static NativeStorageReader openedReader(AtomicLong now, java.util.function.Supplier<Evidence.Scope> scope,
                                                     List<Evidence.Record> entries) {
         var reader = new NativeStorageReader(Runnable::run, scope, now::get);

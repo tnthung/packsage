@@ -512,7 +512,7 @@ public final class FtbProvider implements KnowledgeProvider {
             if (cursor != null) {
                 startPhase = Integer.parseInt(cursorParts[3]);
                 startIndex = Integer.parseInt(cursorParts[4]);
-                if (startPhase < -1 || startPhase > 3 || startIndex < 0
+                if (startPhase < -1 || startPhase > 4 || startIndex < 0
                         || startPhase == -1 && startIndex != 0) throw new NumberFormatException();
             }
         } catch (NumberFormatException failure) {
@@ -562,34 +562,51 @@ public final class FtbProvider implements KnowledgeProvider {
             var next = (String) null;
             var previousOwner = "";
             var partial = false;
-            var chapters = exactChapter == null ? file.getAllChapters() : List.of(exactChapter);
-            var chapterIndex = 0;
-            outer: while (chapterIndex < chapters.size()) {
+            var chapterGroups = exactChapter == null ? file.getChapterGroups().iterator() : null;
+            var chapterIterator = exactChapter == null ? List.<Chapter>of().iterator() : List.of(exactChapter).iterator();
+            outer: while (true) {
+                if (!chapterIterator.hasNext()) {
+                    if (chapterGroups == null || !chapterGroups.hasNext()) break;
+                    if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                            "FTB cursor cannot reach the next chapter group within the read budget; restart the search");
+                    chapterIterator = chapterGroups.next().getChapters().iterator();
+                    continue;
+                }
                 var candidate = position++;
                 if (!budget.document()) {
                     next = fileIdentity + "|" + candidate + "|" + previousOwner + "|-1|0";
                     partial = true;
                     break;
                 }
-                var chapter = chapters.get(chapterIndex++);
-                if (candidate == traversalStart - 1 && traversalPhase == -1 && !traversalExpectedOwner.equals(chapter.getCodeString()))
-                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor owner changed; restart the search");
+                var chapter = chapterIterator.next();
+                if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                        "FTB cursor cannot resolve the current chapter owner within the read budget; restart the search");
                 var chapterId = chapter.getCodeString();
-                if (candidate == traversalStart && traversalPhase >= 0 && (traversalPhase != 3 || !expectedOwner.equals(chapterId)))
+                if (candidate == traversalStart - 1 && traversalPhase == -1 && !traversalExpectedOwner.equals(chapterId))
+                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor owner changed; restart the search");
+                if (candidate == traversalStart && traversalPhase >= 0
+                        && ((traversalPhase != 3 && traversalPhase != 4) || !expectedOwner.equals(chapterId)))
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor no longer identifies the same source; restart the search");
                 previousOwner = chapterId;
+                if (candidate >= traversalStart && (!budget.bytes(64)
+                        || !budget.value() || !budget.value() || !budget.value() || !budget.value() || !budget.value()
+                        || !budget.value() || !budget.bytes(4096))) {
+                    next = fileIdentity + "|" + candidate + "|" + chapterId + "|4|0";
+                    partial = true;
+                    break;
+                }
                 var group = chapter.getGroup();
                 var groupId = group == null ? "" : group.getCodeString();
                 var chapterTitle = Snapshot.displayTitle(chapter);
                 var groupTitle = group == null ? "" : Snapshot.displayTitle(group);
                 var chapterQuests = chapter.getQuests();
-                if (candidate >= traversalStart && (traversalPhase == -1 || traversalPhase == 3)) {
+                if (candidate >= traversalStart && (traversalPhase == -1 || traversalPhase == 3 || traversalPhase == 4)) {
                     var questIds = new ArrayList<String>();
-                    var questIndex = 0;
                     var initialQuestIndex = candidate == traversalStart && traversalPhase == 3 ? traversalIndex : 0;
+                    var questIndex = initialQuestIndex;
                     var chapterPartial = initialQuestIndex > 0;
                     while (questIndex < chapterQuests.size()) {
-                        if (!budget.value()) {
+                        if (!budget.value() || !budget.bytes(64)) {
                             next = fileIdentity + "|" + candidate + "|" + chapterId + "|3|" + questIndex;
                             partial = true;
                             chapterPartial = true;
@@ -597,31 +614,23 @@ public final class FtbProvider implements KnowledgeProvider {
                         }
                         var quest = chapterQuests.get(questIndex);
                         var questId = quest.getCodeString();
-                        if (questIndex++ >= initialQuestIndex) {
-                            if (!budget.bytes(questId.length() * 2)) {
-                                next = fileIdentity + "|" + candidate + "|" + chapterId + "|3|" + (questIndex - 1);
-                                partial = true;
-                                chapterPartial = true;
-                                break;
-                            }
-                            questIds.add(questId);
-                        }
+                        questIds.add(questId);
+                        questIndex++;
                     }
                     var chapterVisible = currentTeam == null ? null : Snapshot.safeBoolean(
                             () -> chapter.isVisible(currentTeam), new ArrayList<>(), "chapter " + chapterId);
                     if (chapterPartial) chapterVisible = null;
-                    if (!budget.bytes((chapterId.length() + chapterTitle.length() + groupId.length() + groupTitle.length()) * 2)) {
-                        next = fileIdentity + "|" + candidate + "|" + chapterId + "|3|" + questIndex;
-                        partial = true;
-                    }
                     var chapterRecord = new ChapterRecord(chapterId, chapterTitle, groupId, groupTitle, questIds, chapterVisible);
                     var snapshot = new Snapshot(scope, scope.requestGeneration(), List.of(chapterRecord), List.of(), List.of(),
                             ignored -> { }, new WeakReference<>(file), List.of());
-                    var text = query.toLowerCase(Locale.ROOT);
-                    if (query.isEmpty() || chapterId.toLowerCase(Locale.ROOT).contains(text)
-                            || chapterTitle.toLowerCase(Locale.ROOT).contains(text) || groupId.toLowerCase(Locale.ROOT).contains(text)
-                            || groupTitle.toLowerCase(Locale.ROOT).contains(text)
-                            || questIds.stream().anyMatch(value -> value.toLowerCase(Locale.ROOT).contains(text)))
+                    java.util.function.Predicate<String> matches = value -> {
+                        if (query.isEmpty()) return true;
+                        for (var index = 0; index <= value.length() - query.length(); index++)
+                            if (value.regionMatches(true, index, query, 0, query.length())) return true;
+                        return false;
+                    };
+                    if (matches.test(chapterId) || matches.test(chapterTitle) || matches.test(groupId)
+                            || matches.test(groupTitle) || questIds.stream().anyMatch(matches))
                         records.add(toRecord(chapterRecord, snapshot));
                     if (next != null || records.size() >= limit) {
                         if (next == null) next = fileIdentity + "|" + (candidate + 1) + "|" + chapterId + "|-1|0";
@@ -638,6 +647,8 @@ public final class FtbProvider implements KnowledgeProvider {
                         break outer;
                     }
                     var quest = questIterator.next();
+                    if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                            "FTB cursor cannot resolve the current quest owner within the read budget; restart the search");
                     var id = quest.getCodeString();
                     if (questCandidate == traversalStart - 1 && traversalPhase == -1 && !traversalExpectedOwner.equals(id))
                         throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor owner changed; restart the search");
@@ -647,11 +658,12 @@ public final class FtbProvider implements KnowledgeProvider {
                         continue;
                     }
                     var phase = questCandidate == traversalStart ? traversalPhase : 0;
-                    if (phase >= 0 && !traversalExpectedOwner.equals(id))
+                    if (questCandidate == traversalStart && traversalPhase >= 0
+                            && !traversalExpectedOwner.equals(id))
                         throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor no longer identifies the same source; restart the search");
                     if (phase == 3) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                             "FTB cursor phase does not match its source; restart the search");
-                    if (!budget.bytes(id.length() * 2)) {
+                    if (!budget.bytes(64)) {
                         next = fileIdentity + "|" + questCandidate + "|" + id + "|0|0";
                         partial = true;
                         break outer;
@@ -662,6 +674,11 @@ public final class FtbProvider implements KnowledgeProvider {
                     var rewards = new ArrayList<RewardRecord>();
                     var progressTasks = new ArrayList<TaskRecord>();
                     var progressRewards = new ArrayList<RewardRecord>();
+                    if (phase <= 0 && !budget.value()) {
+                        next = fileIdentity + "|" + questCandidate + "|" + id + "|0|0";
+                        partial = true;
+                        break outer;
+                    }
                     var dependencyIterator = quest.streamDependencies().iterator();
                     var dependencyIndex = 0;
                     if (phase <= 0) while (dependencyIterator.hasNext()) {
@@ -683,7 +700,11 @@ public final class FtbProvider implements KnowledgeProvider {
                     }
                     var selectedPhase = phase < 0 ? 0 : phase;
                     if (next == null && selectedPhase <= 0) selectedPhase = 1;
-                    var questTasks = quest.getTasks();
+                    if (next == null && selectedPhase <= 1 && !budget.value()) {
+                        next = fileIdentity + "|" + questCandidate + "|" + id + "|1|0";
+                        partial = true;
+                    }
+                    var questTasks = next == null ? quest.getTasks() : List.<Task>of();
                     var taskStart = selectedPhase == 1 && phase == 1 ? nestedStart : 0;
                     var taskIndex = 0;
                     var taskIterator = questTasks.iterator();
@@ -693,7 +714,10 @@ public final class FtbProvider implements KnowledgeProvider {
                             partial = true;
                             break;
                         }
-                        if (taskIndex >= taskStart && !budget.bytes(1024)) {
+                        if (taskIndex >= taskStart && (!budget.value() || !budget.value() || !budget.value()
+                                || !budget.value() || !budget.value() || !budget.value() || !budget.value()
+                                || !budget.value() || !budget.value() || !budget.value() || !budget.value()
+                                || !budget.value() || !budget.value() || !budget.value() || !budget.bytes(1024))) {
                             next = fileIdentity + "|" + questCandidate + "|" + id + "|1|" + taskIndex;
                             partial = true;
                             break;
@@ -704,7 +728,11 @@ public final class FtbProvider implements KnowledgeProvider {
                         progressTasks.add(Snapshot.taskRecord(task, currentTeam, new ArrayList<>()));
                     }
                     if (next == null && selectedPhase == 1) selectedPhase = 2;
-                    var questRewards = quest.getRewards();
+                    if (next == null && selectedPhase <= 2 && !budget.value()) {
+                        next = fileIdentity + "|" + questCandidate + "|" + id + "|2|0";
+                        partial = true;
+                    }
+                    var questRewards = next == null ? quest.getRewards() : List.<Reward>of();
                     var rewardStart = selectedPhase == 2 && phase == 2 ? nestedStart : 0;
                     var rewardIndex = 0;
                     var rewardIterator = questRewards.iterator();
@@ -714,7 +742,10 @@ public final class FtbProvider implements KnowledgeProvider {
                             partial = true;
                             break;
                         }
-                        if (rewardIndex >= rewardStart && !budget.bytes(1024)) {
+                        if (rewardIndex >= rewardStart && (!budget.value() || !budget.value() || !budget.value()
+                                || !budget.value() || !budget.value() || !budget.value() || !budget.value()
+                                || !budget.value() || !budget.value() || !budget.value() || !budget.value()
+                                || !budget.value() || !budget.bytes(1024))) {
                             next = fileIdentity + "|" + questCandidate + "|" + id + "|2|" + rewardIndex;
                             partial = true;
                             break;
@@ -729,11 +760,12 @@ public final class FtbProvider implements KnowledgeProvider {
                     var requirement = Snapshot.dependencyRequirement(quest);
                     var oneDependency = "one_completed".equals(requirement) || "one_started".equals(requirement);
                     var questTitle = Snapshot.displayTitle(quest);
+                    var rawTitle = quest.getRawTitle();
                     var questRecord = new QuestRecord(id, questTitle, chapter.getCodeString(), dependencies,
                             oneDependency ? dependencies.stream().map(List::of).toList()
                                     : dependencies.isEmpty() ? List.of() : List.of(List.copyOf(dependencies)),
                             quest.getMinRequiredDependencies(), tasks, rewards, requirement,
-                            Snapshot.maximumCompletableDependencies(quest), quest.getRawTitle());
+                            Snapshot.maximumCompletableDependencies(quest), rawTitle);
                     var errors = new ArrayList<String>();
                     var progress = new Progress(id,
                             currentTeam == null ? null : Snapshot.safeBoolean(() -> quest.isVisible(currentTeam), errors, "quest " + id + " visibility"),
@@ -745,17 +777,18 @@ public final class FtbProvider implements KnowledgeProvider {
                             progressTasks, progressRewards);
                     var snapshot = new Snapshot(scope, scope.requestGeneration(), List.of(), List.of(questRecord),
                             List.of(progress), ignored -> { }, new WeakReference<>(file), errors);
-                    var text = query.toLowerCase(Locale.ROOT);
-                    if (query.isEmpty() || id.toLowerCase(Locale.ROOT).contains(text)
-                            || questTitle.toLowerCase(Locale.ROOT).contains(text)
-                            || questRecord.chapter().toLowerCase(Locale.ROOT).contains(text)
-                            || questRecord.dependencies().stream().anyMatch(value -> value.toLowerCase(Locale.ROOT).contains(text))
-                            || questRecord.tasks().stream().anyMatch(value -> value.id().toLowerCase(Locale.ROOT).contains(text)
-                            || value.type().toLowerCase(Locale.ROOT).contains(text)
-                            || value.itemId() != null && value.itemId().toLowerCase(Locale.ROOT).contains(text))
-                            || questRecord.rewards().stream().anyMatch(value -> value.id().toLowerCase(Locale.ROOT).contains(text)
-                            || value.type().toLowerCase(Locale.ROOT).contains(text)
-                            || value.itemId() != null && value.itemId().toLowerCase(Locale.ROOT).contains(text)))
+                    java.util.function.Predicate<String> matches = value -> {
+                        if (query.isEmpty()) return true;
+                        for (var index = 0; index <= value.length() - query.length(); index++)
+                            if (value.regionMatches(true, index, query, 0, query.length())) return true;
+                        return false;
+                    };
+                    if (matches.test(id) || matches.test(rawTitle) || matches.test(questTitle)
+                            || matches.test(questRecord.chapter()) || questRecord.dependencies().stream().anyMatch(matches)
+                            || questRecord.tasks().stream().anyMatch(value -> matches.test(value.id())
+                            || matches.test(value.type()) || value.itemId() != null && matches.test(value.itemId()))
+                            || questRecord.rewards().stream().anyMatch(value -> matches.test(value.id())
+                            || matches.test(value.type()) || value.itemId() != null && matches.test(value.itemId())))
                         records.add(toRecord(questRecord, snapshot));
                     questIndex++;
                     if (records.size() >= limit || next != null) {

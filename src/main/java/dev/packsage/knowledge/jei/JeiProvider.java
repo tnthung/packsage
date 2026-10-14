@@ -32,7 +32,7 @@ public final class JeiProvider implements KnowledgeProvider {
 
     @FunctionalInterface
     public interface SnapshotSource {
-        Snapshot capture(Evidence.Scope scope, Evidence.Query query);
+        Snapshot capture(Evidence.Scope scope, Evidence.Query query, Toolbox.DocumentBudget budget);
     }
 
     public record Ingredient(String type, String comparisonIdentity, Evidence.JsonObject components,
@@ -158,7 +158,7 @@ public final class JeiProvider implements KnowledgeProvider {
 
     public JeiProvider(Function<Evidence.Scope, Snapshot> snapshots, Executor clientExecutor,
                        BooleanSupplier owningThread) {
-        this((scope, query) -> snapshots.apply(scope), clientExecutor, owningThread);
+        this((scope, query, budget) -> snapshots.apply(scope), clientExecutor, owningThread);
     }
 
     public JeiProvider(Function<Evidence.Scope, Snapshot> snapshots, Executor clientExecutor) {
@@ -170,11 +170,11 @@ public final class JeiProvider implements KnowledgeProvider {
     }
 
     public JeiProvider(Supplier<Snapshot> snapshots) {
-        this((scope, query) -> snapshots.get(), snapshots, Runnable::run, () -> true);
+        this((scope, query, budget) -> snapshots.get(), snapshots, Runnable::run, () -> true);
     }
 
     public JeiProvider(Supplier<Snapshot> snapshots, Executor clientExecutor, BooleanSupplier owningThread) {
-        this((scope, query) -> snapshots.get(), snapshots, clientExecutor, owningThread);
+        this((scope, query, budget) -> snapshots.get(), snapshots, clientExecutor, owningThread);
     }
 
     public JeiProvider(Supplier<Snapshot> snapshots, Executor clientExecutor) {
@@ -254,7 +254,7 @@ public final class JeiProvider implements KnowledgeProvider {
                 ? value.value().intValue() : 16;
         try {
             return query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(arguments), limit,
-                    sourceCursor == null ? null : request.scope(), sourceCursor), request.scope()).thenApply(result -> {
+                    sourceCursor == null ? null : request.scope(), sourceCursor), request.scope(), context.documentBudget()).thenApply(result -> {
                 if (!request.scope().equals(context.currentScope().get())) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE,
                         "scope changed while reading JEI");
                 if (result.coverage() == Evidence.Coverage.ERROR) throw new Toolbox.Failure(
@@ -277,7 +277,8 @@ public final class JeiProvider implements KnowledgeProvider {
         if (reference.kind() != Evidence.RecordKind.RECIPE) return CompletableFuture.failedFuture(
                 new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "expected an observed JEI recipe reference"));
         return query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of(
-                "id", new Evidence.JsonString(reference.sourceHandle()))), 1, null, null), request.scope())
+                "id", new Evidence.JsonString(reference.sourceHandle()))), 1, null, null), request.scope(),
+                context.documentBudget())
                 .thenApply(result -> {
                     if (!request.scope().equals(context.currentScope().get())) throw new Toolbox.Failure(
                             Toolbox.Code.STALE_SCOPE, "scope changed while reading JEI");
@@ -353,8 +354,14 @@ public final class JeiProvider implements KnowledgeProvider {
 
     @Override
     public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+        return query(query, scope, new Toolbox.DocumentBudget());
+    }
+
+    private CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope,
+                                                   Toolbox.DocumentBudget budget) {
         Objects.requireNonNull(query);
         Objects.requireNonNull(scope);
+        Objects.requireNonNull(budget);
         if (!runtimeAvailable) return CompletableFuture.completedFuture(unavailableResult());
         var cursor = parseCursor(query.cursor());
         if (cursor < 0) return CompletableFuture.completedFuture(errorResult("JEI cursor is invalid; repeat the search without a cursor"));
@@ -370,7 +377,7 @@ public final class JeiProvider implements KnowledgeProvider {
                 }
                 lastCaptureTick = tick;
                 try {
-                    captured.complete(snapshots.capture(scope, query));
+                    captured.complete(snapshots.capture(scope, query, budget));
                 } catch (Throwable failure) {
                     captured.completeExceptionally(failure);
                 }
@@ -418,7 +425,7 @@ public final class JeiProvider implements KnowledgeProvider {
             try {
                 var query = new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of(
                         "id", new Evidence.JsonString(target.sourceHandle()))), 1, null, null);
-                var snapshot = snapshots.capture(scope, query);
+                var snapshot = snapshots.capture(scope, query, new Toolbox.DocumentBudget());
                 if (snapshot == null || !sameScope(snapshot.scope(), scope)) {
                     result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
                             "JEI target is outside the active runtime"));
@@ -527,7 +534,11 @@ public final class JeiProvider implements KnowledgeProvider {
 
     private static Evidence.Result queryScopedResult(Snapshot snapshot) {
         var records = snapshot.projections().stream().map(projection -> toRecord(projection, snapshot)).toList();
-        return result(records, snapshot.coverage(), snapshot.nextCursor());
+        var detail = snapshot.projections().stream().map(Projection::error).filter(Objects::nonNull)
+                .findFirst().orElse(null);
+        var result = result(records, snapshot.coverage(), snapshot.nextCursor());
+        return detail == null ? result : new Evidence.Result(result.records(), result.coverage(), result.outcome(),
+                result.nextCursor(), detail);
     }
 
     private static Evidence.Result result(List<Evidence.Record> records, Evidence.Coverage coverage, String next) {
@@ -618,7 +629,10 @@ public final class JeiProvider implements KnowledgeProvider {
     private static int parseCursor(String cursor) {
         if (cursor == null) return 0;
         try {
-            var value = Integer.parseInt(cursor);
+            var parts = cursor.split("\\|", -1);
+            var value = Integer.parseInt(parts.length == 2 ? parts[1] : cursor);
+            if (parts.length == 2 && Long.parseLong(parts[0]) < 0) return -1;
+            if (parts.length > 2) return -1;
             return value < 0 ? -1 : value;
         } catch (NumberFormatException ignored) {
             return -1;

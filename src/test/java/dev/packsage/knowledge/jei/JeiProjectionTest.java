@@ -47,7 +47,7 @@ class JeiProjectionTest {
     void recipeAdapterUsesOutputFocusAndRebuildsCurrentProjection() {
         var readCount = new AtomicInteger();
         var seenOutput = new AtomicReference<String>();
-        var provider = new JeiProvider((scope, query) -> {
+        var provider = new JeiProvider((scope, query, budget) -> {
             seenOutput.set(((Evidence.JsonString) query.arguments().values().get("outputItem")).value());
             var title = readCount.incrementAndGet() == 1 ? "Old recipe" : "Current recipe";
             var output = new JeiProvider.Ingredient("item", "minecraft:stone", new Evidence.JsonObject(Map.of()),
@@ -152,10 +152,11 @@ class JeiProjectionTest {
         var replacement = new JeiProvider.Projection("mod:category", "mod:category#c", "mod:third",
                 "Third", List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
                 Evidence.DecodingStatus.VERIFIED, null);
-        var provider = new JeiProvider((scope, query) -> {
+        var replaced = new AtomicBoolean();
+        var provider = new JeiProvider((scope, query, budget) -> {
             if (query.operation() == Evidence.Operation.GET) {
                 var id = ((Evidence.JsonString) query.arguments().values().get("id")).value();
-                return id.equals(first.viewerHandle())
+                return !replaced.get() && id.equals(first.viewerHandle())
                         ? new JeiProvider.Snapshot(scope, 7, 3, List.of(first), ignored -> { })
                         : new JeiProvider.Snapshot(scope, 8, 1, List.of(replacement), ignored -> { });
             }
@@ -178,6 +179,7 @@ class JeiProjectionTest {
         provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
                 new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("replacement"))), 1, null, null), SCOPE)
                 .toCompletableFuture().join();
+        replaced.set(true);
         assertEquals(Evidence.NavigationStatus.STALE, provider.open(firstTarget, SCOPE).status());
     }
 
@@ -187,7 +189,7 @@ class JeiProjectionTest {
                 "Target", List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
                 Evidence.DecodingStatus.VERIFIED, null);
         var present = new AtomicBoolean(true);
-        var provider = new JeiProvider((scope, query) -> {
+        var provider = new JeiProvider((scope, query, budget) -> {
             if (query.operation() == Evidence.Operation.GET) return new JeiProvider.Snapshot(scope, 4, 2,
                     present.get() ? List.of(target) : List.of(), ignored -> { });
             return new JeiProvider.Snapshot(scope, 4, 1, List.of(target), ignored -> { });
@@ -238,7 +240,7 @@ class JeiProjectionTest {
         var clientTasks = new java.util.ArrayDeque<Runnable>();
         var laterTick = new java.util.ArrayList<Runnable>();
         var captureTicks = new java.util.ArrayList<Long>();
-        var provider = new JeiProvider((scope, query) -> {
+        var provider = new JeiProvider((scope, query, budget) -> {
             captureTicks.add(tick[0]);
             assertEquals("nothing", ((Evidence.JsonString) query.arguments().values().get("text")).value());
             int next = query.cursor() == null ? 1 : Integer.parseInt(query.cursor()) + 1;
@@ -732,7 +734,7 @@ class JeiProjectionTest {
     @Test
     void snapshotFactoryReceivesSuppliedScopeAndProjectionErrorsStayVisible() throws Exception {
         var supplied = new AtomicReference<Evidence.Scope>();
-        JeiProvider.SnapshotSource source = (scope, query) -> {
+        JeiProvider.SnapshotSource source = (scope, query, budget) -> {
             supplied.set(scope);
             var projection = JeiProvider.Projection.error("addon:category", "jei/4/9/addon:category/recipe-0",
                     null, "Custom", "projection failed");

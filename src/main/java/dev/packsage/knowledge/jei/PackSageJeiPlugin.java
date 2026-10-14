@@ -2,11 +2,10 @@ package dev.packsage.knowledge.jei;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
+import dev.packsage.knowledge.Toolbox;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
-import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.IFocus;
@@ -17,7 +16,6 @@ import mezz.jei.api.recipe.vanilla.IJeiIngredientInfoRecipe;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -27,6 +25,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.math.BigDecimal;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -123,7 +122,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
             navigationRegistrations.clear();
         }
 
-        private JeiProvider.Snapshot snapshot(Evidence.Scope scope, Evidence.Query query) {
+        private JeiProvider.Snapshot snapshot(Evidence.Scope scope, Evidence.Query query, Toolbox.DocumentBudget budget) {
             if (!active) return new JeiProvider.Snapshot(scope, generation, snapshotVersions.incrementAndGet(), List.of(),
                     ignored -> { }, Evidence.Coverage.UNAVAILABLE, true, null);
             if (!owningThread()) throw new IllegalStateException("JEI snapshot must be captured on the client thread");
@@ -191,9 +190,11 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 Evidence.Coverage.UNAVAILABLE, true, null);
                     }
                     var canonical = canonical(category, retained.recipe());
+                    var budget = new Toolbox.DocumentBudget();
+                    var catalystCapture = catalysts(runtime, manager, type, budget);
                     projection = project(runtime, manager, category, retained.recipe(), categoryId, id,
                             canonical.value(), title(category, categoryId), knownCategory(categoryId), canonical.failed(),
-                            catalysts(runtime, manager, type));
+                            catalystCapture, budget);
                     if (!projection.visible() || !projection.visibilityKnown()) {
                         return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
                                 Evidence.Coverage.UNAVAILABLE, true, null);
@@ -207,14 +208,35 @@ public final class PackSageJeiPlugin implements IModPlugin {
             }
             var projections = new ArrayList<JeiProvider.Projection>();
             var navigation = new LinkedHashMap<String, RegisteredRecipe>();
-            var cursor = parseCursor(query.cursor());
+            var cursorParts = query.cursor() == null ? new String[0] : query.cursor().split("\\|", -1);
+            var cursor = 0;
+            try {
+                if (query.cursor() != null && cursorParts.length != 2
+                        || query.cursor() != null && Long.parseLong(cursorParts[0]) != generation) {
+                    throw new NumberFormatException();
+                }
+                if (query.cursor() != null) cursor = Integer.parseInt(cursorParts[1]);
+                if (cursor < 0) throw new NumberFormatException();
+            } catch (NumberFormatException invalidCursor) {
+                return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(
+                        JeiProvider.Projection.error("unknown:category", "jei/" + generation + "/cursor", null,
+                                "JEI cursor", "JEI cursor no longer identifies this runtime position")),
+                        ignored -> { }, Evidence.Coverage.ERROR, true, null);
+            }
             var cursorCategory = cursor / CURSOR_RADIX;
             var cursorRecipe = cursor % CURSOR_RADIX;
+            if (query.cursor() != null && (cursorCategory >= MAX_CATEGORIES || cursorRecipe >= MAX_SCANNED_RECIPES)) {
+                return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(
+                        JeiProvider.Projection.error("unknown:category", "jei/" + generation + "/cursor", null,
+                                "JEI cursor", "JEI cursor cannot be resumed within the current source bounds")),
+                        ignored -> { }, Evidence.Coverage.ERROR, true, null);
+            }
             var pageLimit = Math.min(query.limit(), MAX_PAGE);
             var text = stringArgument(query.arguments(), "text");
-            text = text == null ? "" : text.toLowerCase(java.util.Locale.ROOT);
+            text = text == null ? "" : text;
             var scanned = 0;
             var categoryCount = 0;
+            var categoriesVisited = 0;
             var hasMore = false;
             var nextCategory = 0;
             var nextRecipe = 0;
@@ -222,22 +244,45 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var opaque = false;
             var error = false;
             var categoryLookupFailed = false;
+            var cursorInvalid = false;
+            var cursorCategoryFound = false;
             try (var categories = manager.createRecipeCategoryLookup().includeHidden().limitFocus(focuses).get()) {
                 var categoryIterator = categories.iterator();
                 while (categoryIterator.hasNext()) {
-                    var categoryIndex = categoryCount++;
-                    if (categoryIndex - cursorCategory >= MAX_CATEGORIES) {
+                    var categoryIndex = categoryCount;
+                    var seekingCategory = categoryIndex < cursorCategory;
+                    if (categoriesVisited >= MAX_CATEGORIES) {
                         partial = true;
                         hasMore = true;
                         nextCategory = categoryIndex;
                         nextRecipe = 0;
                         break;
                     }
+                    if (!budget.value() || !budget.bytes(512)) {
+                        if (seekingCategory) cursorInvalid = true;
+                        else {
+                            partial = true;
+                            hasMore = true;
+                            nextCategory = categoryIndex;
+                            nextRecipe = 0;
+                        }
+                        break;
+                    }
                     var category = categoryIterator.next();
-                    if (categoryIndex < cursorCategory) continue;
+                    categoryCount++;
+                    categoriesVisited++;
+                    if (categoryIndex == cursorCategory) cursorCategoryFound = true;
+                    if (seekingCategory) continue;
                     var categoryId = categoryId(category, categoryCount);
                     var categoryKnown = knownCategory(categoryId);
                     opaque |= !categoryKnown;
+                    if (!budget.value() || !budget.bytes(1024)) {
+                        partial = true;
+                        hasMore = true;
+                        nextCategory = categoryIndex;
+                        nextRecipe = 0;
+                        break;
+                    }
                     var title = title(category, categoryId);
                     var categoryCursor = categoryIndex == cursorCategory ? cursorRecipe : 0;
                     RecipeType<?> type;
@@ -266,18 +311,21 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         if (hasMore) break;
                         continue;
                     }
-                    var catalystCapture = catalysts(runtime, manager, type);
+                    var catalystCapture = categoryKnown ? catalysts(runtime, manager, type, budget)
+                            : new CatalystCapture(List.of(), true, false, false);
                     partial |= catalystCapture.partial();
+                    if (budget.exhausted()) {
+                        hasMore = true;
+                        nextCategory = categoryIndex;
+                        nextRecipe = categoryCursor;
+                        break;
+                    }
                     try (var recipes = manager.createRecipeLookup(type).includeHidden().limitFocus(focuses).get()) {
                         var recipeIterator = recipes.iterator();
                         var recipeCount = 0;
                         var recipeOrdinal = 0;
                         while (recipeIterator.hasNext()) {
-                            if (recipeOrdinal < categoryCursor) {
-                                recipeIterator.next();
-                                recipeOrdinal++;
-                                continue;
-                            }
+                            var seekingRecipe = recipeOrdinal < categoryCursor;
                             if (projections.size() >= pageLimit || scanned >= MAX_SCANNED_RECIPES) {
                                 partial |= scanned >= MAX_SCANNED_RECIPES;
                                 hasMore = true;
@@ -285,18 +333,33 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 nextRecipe = recipeOrdinal;
                                 break;
                             }
+                            if (!budget.document() || !budget.value()) {
+                                if (seekingRecipe) cursorInvalid = true;
+                                else {
+                                    partial = true;
+                                    hasMore = true;
+                                    nextCategory = categoryIndex;
+                                    nextRecipe = recipeOrdinal;
+                                }
+                                break;
+                            }
                             var recipe = recipeIterator.next();
                             recipeOrdinal++;
                             recipeCount++;
+                            if (seekingRecipe) continue;
                             scanned++;
-                            var canonicalCapture = canonical(category, recipe);
+                            var canonicalCapture = categoryKnown && budget.value() && budget.bytes(512)
+                                    ? canonical(category, recipe) : new Canonical(null, true);
+                            if (canonicalCapture.failed()) partial = true;
                             var handle = sourceHandle(generation, snapshotVersion, categoryId, canonicalCapture.value(), recipe, recipeOrdinal);
                             var candidate = matches(categoryId, title, canonicalCapture.value(), handle, query.operation(), id, text);
                             if (!candidate) continue;
                             JeiProvider.Projection projection;
                             try {
-                                projection = project(runtime, manager, category, recipe, categoryId, handle,
-                                        canonicalCapture.value(), title, categoryKnown, canonicalCapture.failed(), catalystCapture);
+                                projection = categoryKnown ? project(runtime, manager, category, recipe, categoryId, handle,
+                                        canonicalCapture.value(), title, true, canonicalCapture.failed(), catalystCapture, budget)
+                                        : JeiProvider.Projection.opaque(categoryId, handle, title,
+                                        "JEI category semantics are not decoded by PackSage");
                             } catch (Throwable failure) {
                                 projection = JeiProvider.Projection.error(categoryId, handle, canonicalCapture.value(),
                                         title, failure.toString());
@@ -313,7 +376,15 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             partial |= projection.coverage() == Evidence.Coverage.PARTIAL;
                             opaque |= projection.coverage() == Evidence.Coverage.OPAQUE;
                             error |= projection.coverage() == Evidence.Coverage.ERROR;
+                            if (budget.exhausted()) {
+                                partial = true;
+                                hasMore = recipeIterator.hasNext() || categoryIterator.hasNext();
+                                nextCategory = recipeIterator.hasNext() ? categoryIndex : categoryIndex + 1;
+                                nextRecipe = recipeIterator.hasNext() ? recipeOrdinal : 0;
+                                break;
+                            }
                         }
+                        if (categoryIndex == cursorCategory && categoryCursor > recipeOrdinal && !hasMore) cursorInvalid = true;
                         if (hasMore) break;
                         if (recipeCount == 0 && !categoryKnown && categoryCursor == 0 && matches(categoryId, title, null,
                                 categoryHandle(snapshotVersion, categoryId), query.operation(), id, text)) {
@@ -355,6 +426,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                     }
                     if (hasMore) break;
                 }
+                if (query.cursor() != null && !cursorCategoryFound && !hasMore) cursorInvalid = true;
             } catch (Throwable failure) {
                 categoryLookupFailed = true;
                 var handle = "jei/" + generation + "/" + snapshotVersion + "/category-lookup";
@@ -362,10 +434,14 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         "JEI category lookup", failure.toString()));
                 error = true;
             }
+            if (cursorInvalid) return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(
+                    JeiProvider.Projection.error("unknown:category", "jei/" + generation + "/cursor", null,
+                            "JEI cursor", "JEI cursor no longer identifies this runtime position")),
+                    ignored -> { }, Evidence.Coverage.ERROR, true, null);
             if (categoryLookupFailed || scanned >= MAX_SCANNED_RECIPES) partial = true;
             var coverage = error ? Evidence.Coverage.ERROR : partial ? Evidence.Coverage.PARTIAL
                     : opaque ? Evidence.Coverage.OPAQUE : Evidence.Coverage.COMPLETE;
-            var next = hasMore ? Integer.toString(nextCategory * CURSOR_RADIX + nextRecipe) : null;
+            var next = hasMore ? generation + "|" + (nextCategory * CURSOR_RADIX + nextRecipe) : null;
             return new JeiProvider.Snapshot(scope, generation, snapshotVersion, projections, handle -> {
                 var registered = navigation.get(handle);
                 if (!active) throw new IllegalStateException("JEI runtime unavailable");
@@ -379,7 +455,12 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                                             String categoryId, String handle, String canonical,
                                                             String title, boolean knownCategory,
                                                             boolean canonicalFailed,
-                                                            CatalystCapture catalystCapture) {
+                                                            CatalystCapture catalystCapture,
+                                                            Toolbox.DocumentBudget budget) {
+            if (!budget.value() || !budget.bytes(2048)) return new JeiProvider.Projection(categoryId, handle,
+                    canonical, title, List.of(), catalystCapture.ingredients(), List.of(), false, false,
+                    Evidence.Coverage.PARTIAL, Evidence.DecodingStatus.PARTIAL,
+                    "JEI shared read budget ended before recipe layout extraction");
             var layout = manager.createRecipeLayoutDrawable((IRecipeCategory<Object>) category, recipe,
                     new EmptyFocusGroup()).orElse(null);
             if (layout == null) return JeiProvider.Projection.error(categoryId, handle, canonical, title,
@@ -390,14 +471,29 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var visible = catalystCapture.visible();
             var visibilityKnown = catalystCapture.visibilityKnown();
             var slotIndex = 0;
-            for (var slotView : slotsView.getSlotViews()) {
+            var slots = slotsView.getSlotViews().iterator();
+            while (slots.hasNext()) {
+                if (!budget.value() || !budget.bytes(256)) return new JeiProvider.Projection(categoryId, handle,
+                        canonical, title, capturedSlots, catalystCapture.ingredients(), List.of(), false, false,
+                        Evidence.Coverage.PARTIAL, Evidence.DecodingStatus.PARTIAL,
+                        "JEI shared read budget ended at a recipe slot");
+                var slotView = slots.next();
                 var ingredients = new ArrayList<JeiProvider.Ingredient>();
-                for (var ingredient : slotView.getAllIngredientsList()) {
-                    var captured = ingredient(runtime, ingredient, slotView.getRole());
+                var ingredientValues = slotView.getAllIngredientsList().iterator();
+                while (ingredientValues.hasNext()) {
+                    if (!budget.value()) return new JeiProvider.Projection(categoryId, handle, canonical, title,
+                            capturedSlots, catalystCapture.ingredients(), List.of(), false, false,
+                            Evidence.Coverage.PARTIAL, Evidence.DecodingStatus.PARTIAL,
+                            "JEI shared read budget ended at a slot ingredient");
+                    var captured = ingredient(runtime, ingredientValues.next(), slotView.getRole(), budget);
                     ingredients.add(captured.ingredient());
                     partial |= captured.partial();
                     visible &= captured.visible();
                     visibilityKnown &= captured.visibilityKnown();
+                    if (budget.exhausted()) return new JeiProvider.Projection(categoryId, handle, canonical, title,
+                            capturedSlots, catalystCapture.ingredients(), List.of(), false, false,
+                            Evidence.Coverage.PARTIAL, Evidence.DecodingStatus.PARTIAL,
+                            "JEI shared read budget ended at a slot ingredient");
                 }
                 var groupId = slotView.getSlotName().orElse("slot-" + slotIndex++);
                 capturedSlots.add(new JeiProvider.Slot(groupId, ingredients, role(slotView.getRole())));
@@ -410,14 +506,27 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var information = new ArrayList<String>();
             try {
                 if (recipe instanceof IJeiIngredientInfoRecipe infoRecipe) {
-                    information.addAll(infoRecipe.getDescription().stream().map(value -> value.getString()).toList());
+                    var description = infoRecipe.getDescription().iterator();
+                    while (description.hasNext()) {
+                        if (!budget.value() || !budget.bytes(1024)) { partial = true; break; }
+                        var text = description.next().getString();
+                        if (text.length() <= 512) information.add(text);
+                        else partial = true;
+                    }
                 }
             } catch (Throwable ignored) {
                 partial = true;
             }
             try {
-                information.addAll(((IRecipeCategory<Object>) category).getTooltipStrings(recipe, slotsView, 0, 0).stream()
-                        .map(Component::getString).toList());
+                if (budget.value()) {
+                    var tooltip = ((IRecipeCategory<Object>) category).getTooltipStrings(recipe, slotsView, 0, 0).iterator();
+                    while (tooltip.hasNext()) {
+                        if (!budget.value() || !budget.bytes(1024)) { partial = true; break; }
+                        var text = tooltip.next().getString();
+                        if (text.length() <= 512) information.add(text);
+                        else partial = true;
+                    }
+                } else partial = true;
             } catch (Throwable ignored) {
                 partial = true;
             }
@@ -429,7 +538,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
                     catalystCapture.ingredients(), information, visible, visibilityKnown, coverage, decoding, null);
         }
 
-        private static CatalystCapture catalysts(IJeiRuntime runtime, IRecipeManager manager, RecipeType<?> type) {
+        private static CatalystCapture catalysts(IJeiRuntime runtime, IRecipeManager manager, RecipeType<?> type,
+                                                  Toolbox.DocumentBudget budget) {
             var result = new ArrayList<JeiProvider.Ingredient>();
             var partial = false;
             var visible = true;
@@ -442,12 +552,14 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         partial = true;
                         break;
                     }
+                    if (!budget.value()) { partial = true; break; }
                     var value = iterator.next();
-                    var captured = ingredient(runtime, value, RecipeIngredientRole.CATALYST);
+                    var captured = ingredient(runtime, value, RecipeIngredientRole.CATALYST, budget);
                     result.add(captured.ingredient());
                     partial |= captured.partial();
                     visible &= captured.visible();
                     visibilityKnown &= captured.visibilityKnown();
+                    if (budget.exhausted()) { partial = true; break; }
                 }
                 return new CatalystCapture(result, partial, visible, visibilityKnown);
             } catch (Throwable failure) {
@@ -456,7 +568,10 @@ public final class PackSageJeiPlugin implements IModPlugin {
         }
 
         private static CapturedIngredient ingredient(IJeiRuntime runtime, ITypedIngredient<?> typed,
-                                                     RecipeIngredientRole role) {
+                                                     RecipeIngredientRole role, Toolbox.DocumentBudget budget) {
+            if (!budget.value() || !budget.bytes(1024)) return new CapturedIngredient(
+                    new JeiProvider.Ingredient("unknown", "budget:unread", new Evidence.JsonObject(Map.of()),
+                            null, Evidence.Consumption.UNKNOWN), true, false, false);
             var type = typed.getType();
             var value = typed.getIngredient();
             var partial = false;
@@ -464,47 +579,35 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var identity = "unknown:" + typeId + ":" + value.getClass().getName();
             if (value instanceof ItemStack stack) {
                 typeId = type.getUid();
-                identity = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString() + "|components="
-                        + stack.getComponents();
+                identity = BuiltInRegistries.ITEM.getKey(stack.getItem()) + "|componentsHash="
+                        + stack.getComponents().hashCode();
+                partial = !stack.getComponents().isEmpty();
             } else {
-                try {
-                    var helper = ingredientHelper(runtime, value);
-                    identity = helper.getUniqueId(value, UidContext.Recipe);
-                } catch (Throwable failure) {
-                    partial = true;
-                    identity = typeId + ":" + value.getClass().getName() + ":" + String.valueOf(value);
-                }
+                identity = typeId + ":" + value.getClass().getName();
                 partial = true;
             }
             Integer quantity = null;
             try {
                 if (value instanceof ItemStack stack) quantity = stack.getCount();
-                else {
-                    var helper = ingredientHelper(runtime, value);
-                    var amount = helper.getAmount(value);
-                    if (amount > 0 && amount <= Integer.MAX_VALUE) quantity = (int) amount;
-                    else if (amount > Integer.MAX_VALUE) partial = true;
-                }
             } catch (Throwable ignored) {
                 partial = true;
             }
             var componentValues = new LinkedHashMap<String, Evidence.JsonValue>();
             if (value instanceof ItemStack stack) {
-                componentValues.put("componentIdentity", new Evidence.JsonString(stack.getComponents().toString()));
+                componentValues.put("componentCount", new Evidence.JsonNumber(BigDecimal.valueOf(
+                        stack.getComponents().size())));
+                componentValues.put("componentHash", new Evidence.JsonNumber(BigDecimal.valueOf(
+                        stack.getComponents().hashCode())));
                 componentValues.put("descriptionId", new Evidence.JsonString(stack.getDescriptionId()));
             } else {
                 componentValues.put("valueClass", new Evidence.JsonString(value.getClass().getName()));
-                try {
-                    var helper = ingredientHelper(runtime, value);
-                    componentValues.put("displayName", new Evidence.JsonString(helper.getDisplayName(value)));
-                } catch (Throwable failure) {
-                    partial = true;
-                }
+                partial = true;
             }
             var components = new Evidence.JsonObject(componentValues);
             var visible = true;
             var visibilityKnown = true;
             try {
+                if (!budget.value()) throw new IllegalStateException("JEI shared read budget ended before visibility lookup");
                 visible = runtime.getIngredientVisibility().isIngredientVisible(typed);
             } catch (Throwable ignored) {
                 partial = true;
@@ -515,10 +618,6 @@ public final class PackSageJeiPlugin implements IModPlugin {
                     : role == RecipeIngredientRole.CATALYST ? Evidence.Consumption.REUSED : Evidence.Consumption.UNKNOWN;
             return new CapturedIngredient(new JeiProvider.Ingredient(typeId, identity, components, quantity, consumption),
                     partial, visible, visibilityKnown);
-        }
-
-        private static IIngredientHelper<Object> ingredientHelper(IJeiRuntime runtime, Object value) {
-            return (IIngredientHelper<Object>) (IIngredientHelper<?>) runtime.getIngredientManager().getIngredientHelper(value);
         }
 
         private record CapturedIngredient(JeiProvider.Ingredient ingredient, boolean partial, boolean visible,
@@ -584,8 +683,9 @@ public final class PackSageJeiPlugin implements IModPlugin {
 
         private static String sourceHandle(long generation, long snapshotVersion, String categoryId, String canonical,
                                            Object recipe, int ordinal) {
-            var identity = canonical == null ? recipe.getClass().getName() + "-" + Integer.toHexString(
-                    String.valueOf(recipe).hashCode()) + "-" + ordinal : "recipe-" + canonical + "-" + ordinal;
+            var identity = canonical == null ? recipe.getClass().getName() + "-"
+                    + Integer.toHexString(System.identityHashCode(recipe)) + "-" + ordinal
+                    : "recipe-" + canonical + "-" + ordinal;
             return "jei/" + generation + "/" + snapshotVersion + "/" + categoryId + "/" + identity;
         }
 
@@ -602,10 +702,15 @@ public final class PackSageJeiPlugin implements IModPlugin {
             if (operation == Evidence.Operation.GET && id != null && !id.equals(canonical)
                     && !id.equals(handle) && !id.equals(categoryId)) return false;
             if (operation != Evidence.Operation.SEARCH && operation != Evidence.Operation.RELATED) return true;
-            return text.isEmpty() || categoryId.toLowerCase(java.util.Locale.ROOT).contains(text)
-                    || title.toLowerCase(java.util.Locale.ROOT).contains(text)
-                    || canonical != null && canonical.toLowerCase(java.util.Locale.ROOT).contains(text)
-                    || handle.toLowerCase(java.util.Locale.ROOT).contains(text);
+            if (text.isEmpty()) return true;
+            java.util.function.Predicate<String> contains = value -> {
+                if (value == null || value.length() < text.length()) return false;
+                for (var index = 0; index <= value.length() - text.length(); index++) {
+                    if (value.regionMatches(true, index, text, 0, text.length())) return true;
+                }
+                return false;
+            };
+            return contains.test(categoryId) || contains.test(title) || contains.test(canonical) || contains.test(handle);
         }
 
         private static String stringArgument(Evidence.JsonObject arguments, String key) {

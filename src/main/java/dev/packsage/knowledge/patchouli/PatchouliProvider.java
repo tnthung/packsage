@@ -40,7 +40,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Client-visible loaded Patchouli books and their immutable entry snapshots. */
+/** Fresh, bounded evidence from client-visible loaded Patchouli books. */
 public final class PatchouliProvider implements KnowledgeProvider {
     public static final String ID = "patchouli";
     public static final String VERSION = "1.21.1-92";
@@ -109,14 +109,8 @@ public final class PatchouliProvider implements KnowledgeProvider {
         }
     }
 
-    private record LivePosition(int bookIndex, int entryIndex, int pageIndex, int mappingIndex, int phase,
-                                String bookId, String entryId) { }
-
-    private record BoundedJson(Evidence.JsonValue value, boolean complete) { }
-
-    private record BoundedPage(PageRecord page, boolean complete) { }
-
-    private record BoundedEntry(EntryRecord entry, int nextPage, int nextMapping, int nextPhase, boolean complete) { }
+    private record LiveCursor(int offset, String owner, int ownerToken, boolean after,
+                              PatchouliLiveReader.Position position) { }
 
     public record Snapshot(Evidence.Scope scope, long generation, List<BookRecord> books,
                            Consumer<Navigation> navigator, Evidence.Coverage coverage, String failure) {
@@ -321,7 +315,10 @@ public final class PatchouliProvider implements KnowledgeProvider {
     private final Executor clientExecutor;
     private final Supplier<Evidence.Scope> scopeSource;
     private final BooleanSupplier owningThread;
-    private volatile Snapshot current;
+    private final Supplier<Map<ResourceLocation, Book>> liveBooks;
+    private volatile Evidence.Scope lastScope;
+    private volatile Evidence.Coverage latestCoverage = Evidence.Coverage.UNAVAILABLE;
+    private volatile boolean opaque;
     private volatile long lifecycleGeneration;
     private volatile long currentLifecycleGeneration = -1;
     private volatile String failure;
@@ -333,15 +330,22 @@ public final class PatchouliProvider implements KnowledgeProvider {
 
     private PatchouliProvider(Supplier<Snapshot> snapshots, Executor clientExecutor,
                               Supplier<Evidence.Scope> scopeSource, BooleanSupplier owningThread) {
+        this(snapshots, clientExecutor, scopeSource, owningThread, () -> BookRegistry.INSTANCE.books);
+    }
+
+    PatchouliProvider(Supplier<Snapshot> snapshots, Executor clientExecutor,
+                      Supplier<Evidence.Scope> scopeSource, BooleanSupplier owningThread,
+                      Supplier<Map<ResourceLocation, Book>> liveBooks) {
         this.snapshots = Objects.requireNonNull(snapshots);
         this.clientExecutor = Objects.requireNonNull(clientExecutor);
         this.scopeSource = scopeSource;
         this.owningThread = Objects.requireNonNull(owningThread);
+        this.liveBooks = Objects.requireNonNull(liveBooks);
     }
 
     public static PatchouliProvider forMinecraft(Supplier<Evidence.Scope> scopeSource, Executor clientExecutor) {
         Objects.requireNonNull(scopeSource);
-        return new PatchouliProvider(() -> Snapshot.capture(scopeSource.get()), clientExecutor, scopeSource,
+        return new PatchouliProvider(() -> null, clientExecutor, scopeSource,
                 () -> Minecraft.getInstance().isSameThread());
     }
 
@@ -362,23 +366,15 @@ public final class PatchouliProvider implements KnowledgeProvider {
 
     @Override
     public ProviderStatus status() {
-        var snapshot = current;
         if (failure != null) return new ProviderStatus(Availability.ERROR, VERSION, failure);
-        if (unavailable || snapshot == null) {
+        if (unavailable || scopeSource == null && lastScope == null)
             return new ProviderStatus(Availability.UNAVAILABLE, VERSION, "Patchouli runtime unavailable");
-        }
-        if (currentLifecycleGeneration != lifecycleGeneration) {
-            return new ProviderStatus(Availability.PARTIAL, VERSION, "Patchouli snapshot was invalidated");
-        }
-        if (snapshot.coverage() == Evidence.Coverage.ERROR) {
-            return new ProviderStatus(Availability.ERROR, VERSION,
-                    snapshot.failure() == null ? "Patchouli snapshot capture failed" : snapshot.failure());
-        }
-        var opaque = snapshot.books().stream().flatMap(book -> book.entries().stream())
-                .flatMap(entry -> entry.pages().stream()).anyMatch(page -> page.decoding() == Evidence.DecodingStatus.OPAQUE);
-        var partial = snapshot.coverage() != Evidence.Coverage.COMPLETE || opaque;
-        return new ProviderStatus(partial ? Availability.PARTIAL : Availability.AVAILABLE, VERSION,
-                snapshot.failure() == null ? "loaded Patchouli books generation " + snapshot.generation() : snapshot.failure());
+        if (scopeSource != null) return new ProviderStatus(Availability.AVAILABLE, VERSION, "loaded Patchouli registry is available");
+        if (currentLifecycleGeneration != lifecycleGeneration)
+            return new ProviderStatus(Availability.PARTIAL, VERSION, "Patchouli observation was invalidated");
+        if (latestCoverage == Evidence.Coverage.ERROR) return new ProviderStatus(Availability.ERROR, VERSION, "current guide extraction failed");
+        return new ProviderStatus(latestCoverage != Evidence.Coverage.COMPLETE || opaque ? Availability.PARTIAL : Availability.AVAILABLE,
+                VERSION, "current loaded guide status");
     }
 
     @Override
@@ -416,7 +412,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
         }
         var limit = request.arguments().values().get("limit") instanceof Evidence.JsonNumber value
                 ? value.value().intValue() : 16;
-        if (scopeSource != null) return searchLiveDocument(request, context, query.value(), sourceCursor, limit);
+        if (scopeSource != null) return searchLiveDocument(request, context, query.value(), sourceCursor, limit, null);
         try {
             return query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(arguments), limit,
                     sourceCursor == null ? null : request.scope(), sourceCursor), request.scope()).thenApply(result -> {
@@ -443,24 +439,15 @@ public final class PatchouliProvider implements KnowledgeProvider {
                 new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "expected an observed Patchouli guide reference"));
         var id = reference.sourceHandle();
         if (scopeSource != null) {
-            var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
-            arguments.put("query", new Evidence.JsonString(id.substring(id.indexOf('#') + 1)));
-            arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString(ID),
-                    "types", new Evidence.JsonArray(List.of(new Evidence.JsonString("guide"))))));
-            arguments.put("limit", new Evidence.JsonNumber(BigDecimal.valueOf(256)));
-            return searchLiveDocument(new PackSageTools.ReadRequest("search_document",
-                    new Evidence.JsonObject(arguments), request.scope()), context,
-                    ((Evidence.JsonString) arguments.get("query")).value(), null, 256).thenApply(result -> {
+            return searchLiveDocument(request, context, "", null, 1, id).thenApply(result -> {
                 var record = result.records().stream().filter(value -> value.source().sourceHandle().equals(id))
                         .findFirst().orElseThrow(() -> new Toolbox.Failure(Toolbox.Code.UNAVAILABLE,
                                 "the observed guide entry is no longer available"));
                 return new Evidence.Result(List.of(record), record.source().coverage(), result.outcome(), null, result.detail());
             });
         }
-        var separator = id.indexOf('#');
-        var entryId = separator < 0 ? id : id.substring(separator + 1);
         return query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of(
-                "id", new Evidence.JsonString(entryId))), 1, null, null), request.scope())
+                "id", new Evidence.JsonString(id))), 1, null, null), request.scope())
                 .thenApply(result -> {
                     if (!request.scope().equals(context.currentScope().get())) throw new Toolbox.Failure(
                             Toolbox.Code.STALE_SCOPE, "scope changed while reading Patchouli");
@@ -473,127 +460,125 @@ public final class PatchouliProvider implements KnowledgeProvider {
     }
 
     private CompletionStage<Evidence.Result> searchLiveDocument(PackSageTools.ReadRequest request, Toolbox.Context context,
-                                                                 String query, String cursor, int limit) {
-        var start = 0;
-        var startPage = 0;
-        var cursorOwner = cursor != null && cursor.split(":", -1).length == 3
-                ? cursor.split(":", -1)[0] : null;
+                                                                 String query, String cursor, int limit, String exactHandle) {
+        LiveCursor resume = null;
         if (cursor != null) {
             try {
-                var position = cursor.split(":", -1);
-                var ownerOffset = position.length == 3 ? 1 : 0;
-                start = Integer.parseInt(position[ownerOffset]);
-                startPage = position.length == ownerOffset + 2 ? Integer.parseInt(position[ownerOffset + 1]) : 0;
-                if (position.length > ownerOffset + 2 || startPage < 0) throw new NumberFormatException();
-            } catch (NumberFormatException failure) { return CompletableFuture.failedFuture(
-                    new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Patchouli source position is invalid; restart the search")); }
-            if (start < 0) return CompletableFuture.failedFuture(
-                    new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Patchouli source position is invalid; restart the search"));
+                var value = com.google.gson.JsonParser.parseString(cursor).getAsJsonObject();
+                if (value.get("lifecycle").getAsLong() != lifecycleGeneration) throw new IllegalArgumentException();
+                resume = new LiveCursor(value.get("offset").getAsInt(), value.get("owner").getAsString(),
+                        value.get("ownerToken").getAsInt(), value.get("after").getAsBoolean(),
+                        new PatchouliLiveReader.Position(value.get("page").getAsInt(), value.get("node").getAsInt(),
+                                value.get("textOffset").getAsInt(), value.get("mapping").getAsInt()));
+                if (resume.offset() < 0 || resume.position().page() < 0 || resume.position().node() < 0
+                        || resume.position().textOffset() < 0 || resume.position().mapping() < 0) throw new IllegalArgumentException();
+            } catch (RuntimeException failure) {
+                return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                        "Patchouli continuation is invalid or its loaded registry was reloaded"));
+            }
         }
-        var offset = start;
-        var initialPage = startPage;
+        var selected = resume;
         return CompletableFuture.supplyAsync(() -> {
             if (unavailable) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Patchouli runtime is unavailable");
             if (!owningThread.getAsBoolean()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                     "Patchouli live traversal must run on the client thread");
-            var scope = scopeSource.get();
-            if (!request.scope().equals(scope) || !request.scope().equals(context.currentScope().get()))
+            if (!request.scope().equals(scopeSource.get()) || !request.scope().equals(context.currentScope().get()))
                 throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "repeat the lookup in the current scope");
-            if (cursorOwner != null && !cursorOwner.equals(Integer.toString(System.identityHashCode(BookRegistry.INSTANCE))))
-                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
-                        "Patchouli cursor belongs to a replaced registry; restart the search");
-            var budget = context.documentBudget();
+            var books = liveBooks.get();
             var records = new ArrayList<Evidence.Record>();
-            var liveBooks = new java.util.LinkedHashMap<String, BookRecord>();
-            var position = 0;
-            var next = (String) null;
-            var currentGeneration = lifecycleGeneration;
-            outer: for (var book : BookRegistry.INSTANCE.books.values()) {
+            LiveCursor next = null;
+            boolean partial = false;
+            int index = 0;
+            var bookIterator = books.values().iterator();
+            if (exactHandle != null) {
+                var parts = exactHandle.split("#", -1);
+                if (parts.length != 2) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "guide reference is not book-qualified");
+                var key = ResourceLocation.tryParse(parts[0]);
+                var book = key == null ? null : books.get(key);
+                if (book == null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "the loaded guide book is unavailable");
+                bookIterator = List.of(book).iterator();
+            }
+            outer: while (bookIterator.hasNext()) {
+                if (!context.documentBudget().document()) {
+                    throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "Patchouli book seek exceeds the shared read budget");
+                }
+                var book = bookIterator.next();
                 var contents = book.getContents();
-                if (contents == null || contents.isErrored()) continue;
-                for (var entry : contents.entries.values()) {
-                    var candidate = position++;
-                    if (candidate < offset) {
-                        if (!budget.document()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
-                                "Patchouli source position exceeds the bounded seek; restart the search");
+                if (contents == null || contents.isErrored()) { partial = true; continue; }
+                var iterator = contents.entries.values().iterator();
+                if (exactHandle != null) {
+                    var entryKey = ResourceLocation.tryParse(exactHandle.substring(exactHandle.indexOf('#') + 1));
+                    var entry = entryKey == null ? null : contents.entries.get(entryKey);
+                    if (entry == null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "the loaded guide entry is unavailable");
+                    iterator = List.of(entry).iterator();
+                }
+                while (iterator.hasNext()) {
+                    if (!context.documentBudget().document()) {
+                        throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "Patchouli entry seek exceeds the shared read budget");
+                    }
+                    var entry = iterator.next();
+                    String owner = book.id + "#" + entry.getId();
+                    int token = System.identityHashCode(entry);
+                    int candidate = index++;
+                    if (selected != null && candidate < selected.offset()) continue;
+                    if (selected != null && candidate == selected.offset()) {
+                        if (!owner.equals(selected.owner()) || token != selected.ownerToken()) throw new Toolbox.Failure(
+                                Toolbox.Code.INVALID_CURSOR, "Patchouli continuation owner changed; restart the search");
+                        if (selected.after()) continue;
+                    }
+                    if (entry.shouldHide() || entry.isLocked()) {
+                        if (exactHandle != null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "the observed guide is hidden or locked");
                         continue;
                     }
-                    if (!budget.document()) { next = candidate + ":0"; break outer; }
-                    if (entry.shouldHide() || entry.isLocked()) continue;
-                    var id = entry.getId().toString();
-                    var title = entry.getName().getString();
-                    var pages = new ArrayList<PageRecord>();
-                    var partial = false;
-                    var pageIndex = 0;
-                    for (var page : entry.getPages()) {
-                        if (pageIndex < (candidate == offset ? initialPage : 0)) {
-                            if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
-                                    "Patchouli page position exceeds the bounded seek; restart the search");
-                            pageIndex++;
-                            continue;
-                        }
-                        pageIndex++;
-                        if (!page.isPageUnlocked()) { partial = true; continue; }
-                        if (!budget.value()) { partial = true; next = candidate + ":" + (pageIndex - 1); break; }
-                        var source = page.sourceObject;
-                        var type = source != null && source.has("type") && source.get("type").isJsonPrimitive()
-                                ? source.get("type").getAsString() : page.getClass().getSimpleName();
+                    if (context.documentBudget().remainingBytes() < 4096) {
+                        next = new LiveCursor(candidate, owner, token, false, new PatchouliLiveReader.Position(0, 0, 0, 0));
                         partial = true;
-                        var text = (String) null;
-                        if (page instanceof PageWithText && source != null && source.has("text")
-                                && source.get("text").isJsonPrimitive()) {
-                            var raw = source.get("text").getAsString();
-                            if (budget.bytes(raw.length() * 2)) {
-                                var translated = page.i18n(raw);
-                                if (budget.bytes(translated.length() * 2)) text = translated;
-                                else partial = true;
-                            }
-                            else partial = true;
-                        }
-                        if (!budget.bytes(type.length() * 2)) { partial = true; type = "unknown"; }
-                        var supported = page instanceof PageText || page instanceof PageSpotlight || page instanceof PageCrafting
-                                || page instanceof PageSmelting || page instanceof PageBlasting || page instanceof PageSmoking
-                                || page instanceof PageCampfireCooking || page instanceof PageSmithing || page instanceof PageStonecutting;
-                        pages.add(new PageRecord(pageIndex - 1, type, new Evidence.JsonObject(Map.of()), text,
-                                List.of(), List.of(), true, supported ? Evidence.DecodingStatus.VERIFIED
-                                : Evidence.DecodingStatus.OPAQUE));
+                        break outer;
                     }
-                    if (candidate == offset && initialPage > 0) partial = true;
-                    var found = new EntryRecord(book.id.toString(), id, title, pages, true, false, entry.isSecret(),
-                            false, List.of(), List.of(), partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                            partial ? "bounded live guide fragment" : null);
-                    if (query.isEmpty() || id.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT))
-                            || book.id.toString().toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT))
-                            || title.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT))
-                            || pages.stream().anyMatch(value -> value.text() != null
-                            && value.text().toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))) {
-                        var prior = liveBooks.get(book.id.toString());
-                        var entries = new ArrayList<EntryRecord>(prior == null ? List.of() : prior.entries());
-                        entries.add(found);
-                        liveBooks.put(book.id.toString(), new BookRecord(book.id.toString(), book.name, entries,
-                                List.of(), Evidence.Coverage.PARTIAL, "bounded live guide fragments"));
-                        var snapshot = new Snapshot(scope, scope.requestGeneration(), new ArrayList<>(liveBooks.values()),
-                                navigation -> PatchouliAPI.get().openBookEntry(ResourceLocation.parse(navigation.bookId()),
-                                        ResourceLocation.parse(navigation.entryId()), navigation.page()));
-                        current = snapshot;
-                        currentLifecycleGeneration = currentGeneration;
-                        records.add(toRecord(found, snapshot, matchingPages(found, Evidence.Operation.SEARCH,
-                                query.toLowerCase(Locale.ROOT)), currentGeneration));
+                    var fragment = PatchouliLiveReader.entry(book, entry,
+                            selected != null && candidate == selected.offset() && !selected.after() ? selected.position() : null,
+                            context.documentBudget());
+                    var found = fragment.record();
+                    partial |= found.coverage() != Evidence.Coverage.COMPLETE;
+                    if (exactHandle != null || matches(found, query.toLowerCase(Locale.ROOT))
+                            || found.pages().stream().anyMatch(page -> Evidence.serialize(page.payload()).toLowerCase(Locale.ROOT)
+                            .contains(query.toLowerCase(Locale.ROOT)))) {
+                        var observation = new Snapshot(request.scope(), request.scope().requestGeneration(), List.of(), ignored -> { });
+                        records.add(toRecord(found, observation, matchingPages(found, Evidence.Operation.SEARCH,
+                                query.toLowerCase(Locale.ROOT)), lifecycleGeneration));
                     }
-                    if (records.size() >= limit || next != null) {
-                        if (next == null) next = Integer.toString(position);
+                    if (fragment.next() != null) {
+                        next = new LiveCursor(candidate, owner, token, false, fragment.next());
+                        partial = true;
+                        break outer;
+                    }
+                    if (records.size() >= limit) {
+                        if (iterator.hasNext() || bookIterator.hasNext()) next = new LiveCursor(candidate, owner, token, true,
+                                new PatchouliLiveReader.Position(0, 0, 0, 0));
                         break outer;
                     }
                 }
             }
+            if (selected != null && index <= selected.offset()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                    "Patchouli continuation owner is no longer present");
             if (!request.scope().equals(context.currentScope().get()) || !request.scope().equals(scopeSource.get()))
                 throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "scope changed while reading Patchouli");
-            var coverage = records.stream().anyMatch(record -> record.source().coverage() != Evidence.Coverage.COMPLETE)
-                    ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
-            var continuation = next == null ? null : next.contains(":") ? next : next + ":0";
-            return result(records, coverage, continuation == null ? null : encodeDocumentCursor(query,
-                            System.identityHashCode(BookRegistry.INSTANCE) + ":" + continuation, request.scope()),
-                    budget.exhausted() ? "Patchouli live traversal reached the shared read budget" : null);
+            String continuation = null;
+            if (next != null && exactHandle == null) {
+                var value = new JsonObject();
+                value.addProperty("lifecycle", lifecycleGeneration);
+                value.addProperty("offset", next.offset());
+                value.addProperty("owner", next.owner());
+                value.addProperty("ownerToken", next.ownerToken());
+                value.addProperty("after", next.after());
+                value.addProperty("page", next.position().page());
+                value.addProperty("node", next.position().node());
+                value.addProperty("textOffset", next.position().textOffset());
+                value.addProperty("mapping", next.position().mapping());
+                continuation = encodeDocumentCursor(query, value.toString(), request.scope());
+            }
+            return result(records, partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, continuation,
+                    next != null || partial ? "bounded current guide evidence; narrow the query or continue discovery" : null);
         }, clientExecutor);
     }
 
@@ -636,6 +621,11 @@ public final class PatchouliProvider implements KnowledgeProvider {
         unavailable = false;
         failure = null;
         var generation = ++lifecycleGeneration;
+        if (scopeSource != null) {
+            lastScope = null;
+            currentLifecycleGeneration = -1;
+            return;
+        }
         try {
             clientExecutor.execute(() -> {
                 if (generation != lifecycleGeneration || unavailable) return;
@@ -643,26 +633,29 @@ public final class PatchouliProvider implements KnowledgeProvider {
                     var snapshot = snapshots.get();
                     if (generation != lifecycleGeneration || unavailable) return;
                     if (snapshot == null) {
-                        current = null;
+                        lastScope = null;
                         currentLifecycleGeneration = -1;
                         failure = "Patchouli runtime unavailable";
                     } else if (!scopeIsCurrent(snapshot.scope())) {
-                        current = null;
+                        lastScope = null;
                         currentLifecycleGeneration = -1;
                         failure = "Patchouli snapshot belongs to an inactive scope";
                     } else {
-                        current = snapshot;
+                        lastScope = snapshot.scope();
+                        latestCoverage = snapshot.coverage();
+                        opaque = snapshot.books().stream().flatMap(book -> book.entries().stream()).flatMap(entry -> entry.pages().stream())
+                                .anyMatch(page -> page.decoding() == Evidence.DecodingStatus.OPAQUE);
                         currentLifecycleGeneration = generation;
                         failure = snapshot.coverage() == Evidence.Coverage.ERROR ? snapshot.failure() : null;
                     }
                 } catch (RuntimeException | LinkageError captureFailure) {
-                    current = null;
+                    lastScope = null;
                     currentLifecycleGeneration = -1;
                     failure = "Patchouli capture failed: " + captureFailure;
                 }
             });
         } catch (RuntimeException schedulingFailure) {
-            current = null;
+            lastScope = null;
             currentLifecycleGeneration = -1;
             failure = "Patchouli client-thread scheduling failed: " + schedulingFailure;
         }
@@ -676,7 +669,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
     public void unavailable() {
         unavailable = true;
         ++lifecycleGeneration;
-        current = null;
+        lastScope = null;
         currentLifecycleGeneration = -1;
         failure = null;
     }
@@ -691,6 +684,14 @@ public final class PatchouliProvider implements KnowledgeProvider {
         }
         if (query.operation() == Evidence.Operation.SEARCH
                 && stringArgument(query.arguments(), "text") == null) return CompletableFuture.completedFuture(errorResult());
+        if (scopeSource != null) {
+            var context = new Toolbox.Context(scopeSource, Map.of(), new dev.packsage.knowledge.AdapterRegistry(),
+                    new Toolbox.DocumentBudget(), null);
+            var request = new PackSageTools.ReadRequest("search_document", query.arguments(), scope);
+            return searchLiveDocument(request, context, query.operation() == Evidence.Operation.SEARCH
+                    ? stringArgument(query.arguments(), "text") : "", query.cursor(), query.limit(),
+                    query.operation() == Evidence.Operation.GET ? stringArgument(query.arguments(), "id") : null);
+        }
         var start = query.cursor() == null ? 0 : parseCursor(query.cursor());
         if (start < 0) return CompletableFuture.completedFuture(errorResult());
         if (unavailable) return CompletableFuture.completedFuture(unavailableResult());
@@ -707,7 +708,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
                     return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, failure);
                 }
                 if (snapshot == null) {
-                    current = null;
+                    lastScope = null;
                     currentLifecycleGeneration = -1;
                     failure = "Patchouli runtime unavailable";
                     return unavailableResult();
@@ -718,8 +719,13 @@ public final class PatchouliProvider implements KnowledgeProvider {
                     return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null,
                             "Patchouli snapshot scope does not match the requested active scope");
                 }
-                current = snapshot;
-                currentLifecycleGeneration = generation;
+                if (scopeSource == null) {
+                    lastScope = snapshot.scope();
+                        latestCoverage = snapshot.coverage();
+                        opaque = snapshot.books().stream().flatMap(book -> book.entries().stream()).flatMap(entry -> entry.pages().stream())
+                                .anyMatch(page -> page.decoding() == Evidence.DecodingStatus.OPAQUE);
+                    currentLifecycleGeneration = generation;
+                }
                 failure = snapshot.coverage() == Evidence.Coverage.ERROR ? snapshot.failure() : null;
                 return querySnapshot(query, snapshot, start, generation);
             });
@@ -734,88 +740,82 @@ public final class PatchouliProvider implements KnowledgeProvider {
     public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
         Objects.requireNonNull(target);
         Objects.requireNonNull(scope);
-        var snapshot = current;
-        if (snapshot == null || unavailable) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "Patchouli runtime unavailable");
-        }
-        if (currentLifecycleGeneration != lifecycleGeneration) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
-                    "Patchouli target belongs to an invalidated snapshot");
-        }
-        if (!ID.equals(target.providerId()) || !sameScope(snapshot.scope(), scope) || !sameScope(target.scope(), scope)
-                || !scopeIsCurrent(snapshot.scope()))
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "Patchouli target is outside the active runtime scope");
-        var sourceHandle = target.sourceHandle();
+        if (unavailable) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "Patchouli runtime unavailable");
+        if (!ID.equals(target.providerId()) || !sameScope(target.scope(), scope) || !scopeIsCurrent(scope))
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "guide target is outside the active scope");
         var parts = target.targetId().split("#", -1);
-        if (parts.length != 3) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "malformed Patchouli page target");
-        }
-        var generationMarker = parts[2].indexOf("@lifecycle=");
-        if (generationMarker <= 0 || !sourceHandle.equals(parts[0] + "#" + parts[1])
-                || generationMarker + "@lifecycle=".length() >= parts[2].length()) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
-                    "Patchouli target identity does not match its source");
-        }
-        final long targetGeneration;
-        try {
-            targetGeneration = Long.parseLong(parts[2].substring(generationMarker + "@lifecycle=".length()));
-        } catch (NumberFormatException malformedGeneration) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "malformed Patchouli target generation");
-        }
+        if (parts.length != 3 || !target.sourceHandle().equals(parts[0] + "#" + parts[1]))
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "guide target identity does not match its source");
         final int page;
+        final long generation;
         try {
-            page = Integer.parseInt(parts[2].substring(0, generationMarker));
-        } catch (NumberFormatException malformedPage) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "malformed Patchouli page target");
-        }
-        if (!target.targetId().equals(parts[0] + "#" + parts[1] + "#" + page + "@lifecycle=" + targetGeneration)) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
-                    "Patchouli target identity is not canonical");
-        }
-        if (page < 0 || targetGeneration != lifecycleGeneration) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "Patchouli target is stale");
-        }
-        var entry = snapshot.books().stream().filter(book -> book.id().equals(parts[0])).flatMap(book -> book.entries().stream())
-                .filter(value -> value.id().equals(parts[1])).findFirst().orElse(null);
-        var pageRecord = entry == null ? null : entry.pages().stream().filter(value -> value.index() == page).findFirst().orElse(null);
-        if (entry == null || !entry.visible() || entry.locked() || entry.hidden() || pageRecord == null) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "Patchouli entry is unavailable or hidden");
-        }
-        if (entry.coverage() == Evidence.Coverage.ERROR) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "Patchouli entry capture failed");
-        }
-        if (!pageRecord.visible()) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "Patchouli page is locked");
-        }
-        if (owningThread.getAsBoolean()) {
-            try {
-                snapshot.navigator().accept(new Navigation(parts[0], parts[1], page));
-                return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "Patchouli entry opened");
-            } catch (RuntimeException navigationFailure) {
-                return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, navigationFailure.toString());
-            }
+            var marker = parts[2].indexOf("@lifecycle=");
+            page = Integer.parseInt(parts[2].substring(0, marker));
+            generation = Long.parseLong(parts[2].substring(marker + "@lifecycle=".length()));
+            if (page < 0 || generation != lifecycleGeneration || !target.targetId().equals(parts[0] + "#" + parts[1]
+                    + "#" + page + "@lifecycle=" + generation)) throw new IllegalArgumentException();
+        } catch (RuntimeException malformed) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "guide target page or lifecycle is invalid");
         }
         var result = new CompletableFuture<Evidence.NavigationResult>();
-        try {
-            clientExecutor.execute(() -> {
-                if (unavailable || current != snapshot || currentLifecycleGeneration != lifecycleGeneration
-                        || !scopeIsCurrent(snapshot.scope())) {
-                    result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
-                            "Patchouli snapshot changed before navigation"));
-                    return;
+        Runnable action = () -> {
+            if (unavailable || generation != lifecycleGeneration || !scopeIsCurrent(scope)) {
+                result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "guide scope changed before navigation"));
+                return;
+            }
+            try {
+                if (scopeSource != null) {
+                    var bookKey = ResourceLocation.tryParse(parts[0]);
+                    var book = bookKey == null ? null : liveBooks.get().get(bookKey);
+                    var contents = book == null ? null : book.getContents();
+                    var entryKey = ResourceLocation.tryParse(parts[1]);
+                    var entry = contents == null || contents.isErrored() || entryKey == null ? null : contents.entries.get(entryKey);
+                    if (entry == null || entry.shouldHide() || entry.isLocked()) {
+                        result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "guide entry is currently unavailable or hidden"));
+                        return;
+                    }
+                    var field = BookEntry.class.getDeclaredField("realPages");
+                    field.setAccessible(true);
+                    var loadedPages = (List<?>) field.get(entry);
+                    int displayIndex = 0;
+                    boolean found = false;
+                    var budget = new Toolbox.DocumentBudget();
+                    for (int index = 0; index < loadedPages.size() && budget.value(); index++) {
+                        var loadedPage = (BookPage) loadedPages.get(index);
+                        if (book.advancementsEnabled() && !loadedPage.isPageUnlocked()) continue;
+                        if (displayIndex++ == page) { found = loadedPage.isPageUnlocked(); break; }
+                    }
+                    if (!found) {
+                        result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "guide page is locked, missing or beyond the navigation bound"));
+                        return;
+                    }
+                    PatchouliAPI.get().openBookEntry(bookKey, entryKey, page);
+                } else {
+                    var observation = snapshots.get();
+                    if (observation == null || !sameScope(observation.scope(), scope)) {
+                        result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "guide runtime is unavailable or changed scope"));
+                        return;
+                    }
+                    var entry = observation.books().stream().filter(book -> book.id().equals(parts[0])).flatMap(book -> book.entries().stream())
+                            .filter(value -> value.id().equals(parts[1])).findFirst().orElse(null);
+                    var currentPage = entry == null ? null : entry.pages().stream().filter(value -> value.index() == page).findFirst().orElse(null);
+                    if (entry == null || !entry.visible() || entry.locked() || entry.hidden() || currentPage == null || !currentPage.visible()) {
+                        result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "guide entry or page is currently unavailable"));
+                        return;
+                    }
+                    if (entry.coverage() == Evidence.Coverage.ERROR) {
+                        result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "current guide extraction failed"));
+                        return;
+                    }
+                    observation.navigator().accept(new Navigation(parts[0], parts[1], page));
                 }
-                try {
-                    snapshot.navigator().accept(new Navigation(parts[0], parts[1], page));
-                    result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED,
-                            "Patchouli entry opened"));
-                } catch (RuntimeException navigationFailure) {
-                    result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR,
-                            navigationFailure.toString()));
-                }
-            });
-        } catch (RuntimeException schedulingFailure) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, schedulingFailure.toString());
-        }
+                result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "current guide entry opened"));
+            } catch (RuntimeException | ReflectiveOperationException navigationFailure) {
+                result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, navigationFailure.toString()));
+            }
+        };
+        if (owningThread.getAsBoolean()) action.run();
+        else clientExecutor.execute(action);
         try {
             return result.get(5, TimeUnit.SECONDS);
         } catch (java.util.concurrent.TimeoutException timeout) {
@@ -823,8 +823,8 @@ public final class PatchouliProvider implements KnowledgeProvider {
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, "Patchouli navigation was interrupted");
-        } catch (java.util.concurrent.ExecutionException executionFailure) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, executionFailure.getCause().toString());
+        } catch (java.util.concurrent.ExecutionException failure) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, failure.getCause().toString());
         }
     }
 

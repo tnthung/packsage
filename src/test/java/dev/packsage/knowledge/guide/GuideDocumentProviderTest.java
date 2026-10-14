@@ -70,10 +70,10 @@ class GuideDocumentProviderTest {
 
         @Override
         public Fragment readFragment(String id, String fragmentPosition, int maxChars, Toolbox.DocumentBudget budget) {
-            if (!budget.value()) return new Fragment("", "page:budget", null, Evidence.Coverage.PARTIAL, "budget exhausted");
-            if (fragmentPosition == null) return new Fragment("first needle", "page:first", "page:second",
+            if (!budget.value()) return new Fragment("", "page:budget", 0, null, Evidence.Coverage.PARTIAL, "budget exhausted");
+            if (fragmentPosition == null) return new Fragment("first needle", "page:first", 0, "page:second",
                     Evidence.Coverage.PARTIAL, null);
-            return new Fragment(secondText.get(), "page:second", null, Evidence.Coverage.COMPLETE, null);
+            return new Fragment(secondText.get(), "page:second", 0, null, Evidence.Coverage.COMPLETE, null);
         }
 
         @Override

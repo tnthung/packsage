@@ -36,6 +36,51 @@ class PatchouliProviderTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "zh_tw", "team", "patchouli-1", 1);
 
     @Test
+    void boundedPageContinuationReadsCurrentTextAndPreservesStructuredFields() {
+        var page = new vazkii.patchouli.client.book.page.PageText();
+        page.sourceObject = new JsonObject();
+        page.sourceObject.addProperty("type", "patchouli:text");
+        page.sourceObject.addProperty("text", "a".repeat(50000));
+        var firstBudget = new Toolbox.DocumentBudget();
+        var first = PatchouliLiveReader.page(page, 0, false, 0, 0, firstBudget);
+        assertFalse(first.complete());
+        assertTrue(first.nextTextOffset() > 0);
+        assertTrue(firstBudget.remainingBytes() >= 0);
+        assertTrue(Evidence.serialize(first.record().payload()).contains("fragments"));
+        page.sourceObject.addProperty("text", "b".repeat(50000));
+        var next = PatchouliLiveReader.page(page, 0, false, first.nextNode(), first.nextTextOffset(), new Toolbox.DocumentBudget());
+        assertTrue(Evidence.serialize(next.record().payload()).contains("bbbb"));
+        assertFalse(Evidence.serialize(next.record().payload()).contains("aaaa"));
+        assertTrue(next.nextTextOffset() > first.nextTextOffset() || next.nextNode() > first.nextNode());
+
+        page.sourceObject.addProperty("text", "Current short text");
+        page.sourceObject.addProperty("item", "minecraft:stone");
+        page.sourceObject.addProperty("recipe", "minecraft:stone_recipe");
+        var complete = PatchouliLiveReader.page(page, 0, false, 0, 0, new Toolbox.DocumentBudget());
+        assertTrue(complete.complete());
+        assertEquals(new Evidence.JsonString("Current short text"), complete.record().payload().values().get("text"));
+        assertEquals("Current short text", complete.record().text());
+        assertEquals(List.of("minecraft:stone"), complete.record().itemLinks());
+        assertEquals(List.of("minecraft:stone_recipe"), complete.record().recipeLinks());
+    }
+
+    @Test
+    void navigationResolvesCurrentFixtureRatherThanTheLastReadBody() {
+        var page = new PatchouliProvider.PageRecord(0, "text", new Evidence.JsonObject(Map.of()), "text",
+                List.of(), List.of(), true, Evidence.DecodingStatus.VERIFIED);
+        var entry = new PatchouliProvider.EntryRecord("fixture:book", "fixture:entry", "Entry",
+                List.of(page), true, false, false, false, List.of());
+        var current = new AtomicReference<>(new PatchouliProvider.Snapshot(SCOPE, 1,
+                List.of(new PatchouliProvider.BookRecord("fixture:book", "Book", List.of(entry), List.of())), ignored -> { }));
+        var provider = new PatchouliProvider(current::get, Runnable::run);
+        provider.refresh();
+        current.set(new PatchouliProvider.Snapshot(SCOPE, 2, List.of(), ignored -> { throw new AssertionError("stale navigation"); }));
+        var target = new Evidence.NavigationTarget(SCOPE, "patchouli", "fixture:book#fixture:entry",
+                "fixture:book#fixture:entry#0@lifecycle=1");
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, provider.open(target, SCOPE).status());
+    }
+
+    @Test
     void documentAdapterMatchesGuideRequestsAndRebuildsCurrentSnapshot() {
         var generation = new AtomicInteger();
         var provider = new PatchouliProvider(() -> {

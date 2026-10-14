@@ -32,7 +32,17 @@ public final class RelicsGuideReader implements GuideDocumentReader {
     @Override public String sourceIdentity(Evidence.Scope scope) {
         var client = Minecraft.getInstance();
         var tag = client.level == null ? null : client.level.registryAccess().registryOrThrow(Registries.ITEM).getTag(RELIC_TAG).orElse(null);
-        return "relics:tag=" + (tag == null ? "none" : System.identityHashCode(tag) + ":" + tag.size())
+        String tagIdentity = "none";
+        if (tag != null) {
+            try {
+                var contents = tag.getClass().getDeclaredField("contents");
+                contents.setAccessible(true);
+                tagIdentity = System.identityHashCode(contents.get(tag)) + ":" + tag.size();
+            } catch (ReflectiveOperationException | RuntimeException failure) {
+                throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "cannot identify the current Relics tag generation");
+            }
+        }
+        return "relics:tag=" + tagIdentity
                 + ":player=" + (client.player == null ? "none" : client.player.getUUID()) + ":locale=" + scope.resourcesLocale();
     }
 
@@ -67,6 +77,11 @@ public final class RelicsGuideReader implements GuideDocumentReader {
             var relicTag = itemRegistry.getTag(RELIC_TAG).orElse(null);
             if (relicTag == null) return new CandidatePage(List.of(), afterPosition, false,
                     Evidence.Coverage.PARTIAL, "the loaded item registry has no relics:relic tag");
+            if (relicTag.size() == 0) {
+                if (afterPosition != null) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                        "Relics tag changed; restart the lookup");
+                return new CandidatePage(List.of(), null, false, Evidence.Coverage.COMPLETE, null);
+            }
             if (afterItem >= relicTag.size()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                     "Relics registry cursor is out of range");
             var relicItems = relicTag.iterator();
@@ -135,8 +150,16 @@ public final class RelicsGuideReader implements GuideDocumentReader {
             Item item = BuiltInRegistries.ITEM.getOptional(itemKey).orElse(null);
             var relicType = Class.forName(RELIC_ITEM, false, RelicsGuideReader.class.getClassLoader());
             var client = Minecraft.getInstance();
-            if (item == null || client.player == null || !relicType.isInstance(item))
-                return new Fragment("", id, 0, null, Evidence.Coverage.PARTIAL, "current Relics definition is unavailable");
+            if (item == null || !relicType.isInstance(item))
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "Relics item is no longer registered");
+            if (client.player == null || client.level == null)
+                throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Relics requires a current player and loaded level");
+            var itemRegistry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
+            var relicTag = itemRegistry.getTag(RELIC_TAG).orElse(null);
+            var holder = itemRegistry.getHolder(itemKey).orElse(null);
+            if (relicTag == null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "the loaded item registry has no relics:relic tag");
+            if (holder == null || !relicTag.contains(holder))
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "item is no longer a member of relics:relic");
             Object relicData = relicType.getMethod("getRelicData", net.minecraft.world.entity.LivingEntity.class,
                     net.minecraft.world.item.ItemStack.class).invoke(item, client.player, item.getDefaultInstance());
             Object abilities = relicData.getClass().getMethod("getAbilitiesData").invoke(relicData);
@@ -170,6 +193,8 @@ public final class RelicsGuideReader implements GuideDocumentReader {
                 return textFragment(id, rendered, mode, index, textOffset, maxChars, modeCount, budget);
             }
             return new Fragment("", id, 0, null, Evidence.Coverage.COMPLETE, null);
+        } catch (Toolbox.Failure failure) {
+            throw failure;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
             return new Fragment("", id, 0, null, Evidence.Coverage.PARTIAL, "current Relics ability documentation is unavailable");
         }

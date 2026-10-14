@@ -44,6 +44,55 @@ class JeiProjectionTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "jei-1", 1);
 
     @Test
+    void recipeAdapterAcceptsNullOutputAndDeclinesBeforeValidatingAnotherProvider() {
+        var reads = new AtomicInteger();
+        var provider = new JeiProvider((scope, query, budget) -> {
+            reads.incrementAndGet();
+            assertFalse(query.arguments().values().containsKey("outputItem"));
+            return new JeiProvider.Snapshot(scope, 1, 1, List.of(), ignored -> { },
+                    Evidence.Coverage.COMPLETE, true, null);
+        }, Runnable::run, () -> true);
+        var registry = new AdapterRegistry();
+        registry.register(provider);
+        var request = new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of(
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"),
+                        "outputItem", new Evidence.JsonNull())))), SCOPE);
+
+        assertTrue(provider.searchRecipe(request, context(registry, Map.of())).toCompletableFuture().join().records().isEmpty());
+        assertEquals(1, reads.get());
+        assertEquals(Toolbox.Code.NOT_HANDLED, failureCode(provider.searchRecipe(
+                recipeRequest("native", "not an item"), context(registry, Map.of()))));
+    }
+
+    @Test
+    void maximumLengthRecipeQueryCanContinueThroughPublicValidation() {
+        var positions = new java.util.ArrayList<String>();
+        var provider = new JeiProvider((scope, query, budget) -> {
+            positions.add(query.cursor());
+            return new JeiProvider.Snapshot(scope, 1, positions.size(), List.of(), ignored -> { },
+                    Evidence.Coverage.PARTIAL, true, query.cursor() == null ? "1" : null);
+        }, Runnable::run, () -> true);
+        var registry = new AdapterRegistry();
+        registry.register(provider);
+        var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+        arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"),
+                "text", new Evidence.JsonString("\u754C".repeat(512)))));
+        var first = provider.searchRecipe(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(arguments), SCOPE),
+                context(registry, Map.of())).toCompletableFuture().join();
+        assertTrue(first.nextCursor().length() <= 1024);
+        arguments.put("cursor", new Evidence.JsonString(first.nextCursor()));
+        var response = new PackSageTools(request -> provider.searchRecipe(request, context(registry, Map.of())))
+                .execute(new dev.packsage.model.ModelBackend.ToolCall("continued", "search_recipe",
+                        Evidence.serialize(new Evidence.JsonObject(arguments))), SCOPE).toCompletableFuture().join();
+        assertFalse(response.result().error());
+        assertEquals("1", positions.getLast());
+        arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"),
+                "text", new Evidence.JsonString("changed"))));
+        assertEquals(Toolbox.Code.INVALID_CURSOR, failureCode(provider.searchRecipe(new PackSageTools.ReadRequest(
+                "search_recipe", new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of()))));
+    }
+
+    @Test
     void recipeAdapterUsesOutputFocusAndRebuildsCurrentProjection() {
         var readCount = new AtomicInteger();
         var seenOutput = new AtomicReference<String>();
@@ -480,6 +529,9 @@ class JeiProjectionTest {
             var hiddenRecipe = new AtomicBoolean();
             var hiddenCategory = new AtomicBoolean();
             var hiddenIngredient = new AtomicBoolean();
+            var recipeVisits = new AtomicInteger();
+            var categoryVisits = new AtomicInteger();
+            var categoryPrefix = new AtomicInteger();
             var limitedRecipeTypes = new AtomicReference<Object>();
             var focusFactoryType = IJeiRuntime.class.getMethod("getJeiHelpers").getReturnType()
                     .getMethod("getFocusFactory").getReturnType();
@@ -572,7 +624,7 @@ class JeiProjectionTest {
                                                 yield lookup;
                                             }
                                             case "get" -> hiddenRecipe.get() && !includeHidden.get()
-                                                    ? Stream.empty() : recipes.get().stream();
+                                                    ? Stream.empty() : recipes.get().stream().peek(value -> recipeVisits.incrementAndGet());
                                             default -> null;
                                         };
                                     });
@@ -591,7 +643,9 @@ class JeiProjectionTest {
                                             }
                                             case "get" -> hiddenCategory.get() && !includeHidden.get()
                                                     ? Stream.empty() : currentCategory.get() == null
-                                                    ? Stream.empty() : Stream.of(currentCategory.get());
+                                                    ? Stream.empty() : Stream.concat(Stream.generate(() -> replacementCategory)
+                                                    .limit(categoryPrefix.get()), Stream.of(currentCategory.get()))
+                                                    .peek(value -> categoryVisits.incrementAndGet());
                                             default -> null;
                                         };
                                     });
@@ -661,6 +715,25 @@ class JeiProjectionTest {
             assertEquals(Evidence.Coverage.UNAVAILABLE, unretainedHandle.coverage());
             assertTrue(unretainedHandle.records().isEmpty());
             assertEquals(focusApplicationsBeforeUnknown, focusApplications.get());
+
+            var distantRecipes = new java.util.ArrayList<Object>(java.util.Collections.nCopies(4096, replacementRecipe));
+            distantRecipes.set(4095, recipe);
+            recipes.set(distantRecipes);
+            recipeVisits.set(0);
+            PackSageJeiPlugin.clientTicked();
+            var boundedRecipeRead = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.ERROR, boundedRecipeRead.coverage());
+            assertTrue(boundedRecipeRead.records().isEmpty());
+            assertTrue(recipeVisits.get() <= 2048);
+            recipes.set(List.of(recipe));
+            categoryPrefix.set(400);
+            categoryVisits.set(0);
+            PackSageJeiPlugin.clientTicked();
+            var boundedCategoryRead = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.ERROR, boundedCategoryRead.coverage());
+            assertTrue(boundedCategoryRead.records().isEmpty());
+            assertTrue(categoryVisits.get() <= 256);
+            categoryPrefix.set(0);
 
             var laterRecipe = new Object();
             var laterRecipes = new java.util.ArrayList<Object>();

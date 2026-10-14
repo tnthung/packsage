@@ -2,6 +2,8 @@
 
 Date: 2026-10-14
 
+Status: historical implementation specification. The [capability alignment](2026-10-14-capability-reader-alignment.md) subsequently replaced held-only selection with observed item slots. The [behavior-driven tool design](2026-10-14-behavior-driven-tools.md) now proposes one inventory query with adapter-registered target types, including native player, opened, targeted block/entity and item selectors; that migration is not implemented.
+
 ## Requested scope
 
 The player requests opened-container, targeted-storage and held-storage inspection, with room for future version-specific readers for AE terminals, backpacks, drawers and similar mods. This adds an internal reader boundary, not a public registration framework or all those integrations immediately.

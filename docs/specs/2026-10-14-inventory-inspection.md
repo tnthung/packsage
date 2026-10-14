@@ -2,6 +2,8 @@
 
 Date: 2026-10-14
 
+Status: historical implementation specification. See the [capability alignment](2026-10-14-capability-reader-alignment.md) for the later delivered search/reference contract and the [behavior-driven tool design](2026-10-14-behavior-driven-tools.md) for its proposed unified replacement. The behavior below remains evidence of the original scope, not the next model-facing API.
+
 ## Requested behavior
 
 The player can ask PackSage to inspect the contents of their vanilla player inventory or the armor they are wearing without supplying item IDs first. Retrieval remains on demand and read-only; ordinary message context continues to include only the focused gameplay observation.

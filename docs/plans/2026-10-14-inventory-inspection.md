@@ -1,5 +1,7 @@
 # Inventory inspection implementation plan
 
+Status: historical implementation plan. The [behavior-driven tool design](../specs/2026-10-14-behavior-driven-tools.md) proposes the next inventory contract; do not use these original tool-wiring steps as its migration plan.
+
 **Spec:** [Inventory and armor inspection](../specs/2026-10-14-inventory-inspection.md).
 
 1. Extend inventory capture and provider selection so an on-demand empty identity selection enumerates all occupied vanilla player slots, with explicit slot locations and merged components.

@@ -2,6 +2,8 @@
 
 Date: 2026-10-14
 
+Status: implemented baseline. The [behavior-driven tool design](2026-10-14-behavior-driven-tools.md) proposes replacing the split model-facing contracts below with `search_inventory(target, filter?, cursor?, limit?)`. Review that document for the intended next design; this specification and its validation describe the existing implementation, not acceptance of the replacement.
+
 ## Scope
 
 Align existing inventory and storage readers with the accepted feature-first roadmap. Preserve the shared pack, recipe, quest, config, guide and history tools. This work does not implement the unchecked mod integrations or registry catalogs in the roadmap.

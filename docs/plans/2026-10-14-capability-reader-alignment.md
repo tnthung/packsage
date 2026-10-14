@@ -1,5 +1,7 @@
 # Capability reader alignment implementation plan
 
+Status: completed implementation record. The [behavior-driven tool design](../specs/2026-10-14-behavior-driven-tools.md) proposes the next contract; the tasks and interfaces below document the delivered split and are not the migration plan.
+
 **Goal:** Align existing model reads with shared inventory and slot-based storage capabilities.
 
 **Architecture:** An `InventoryReader` returns scoped records and issues per-observation slot references. Its native implementation owns copied slot observations and validates them on resolution. `NativeStorageReader` consumes that native slot resolver while returning the same generic storage evidence contract; model dispatch never gains mod-specific calling conventions.

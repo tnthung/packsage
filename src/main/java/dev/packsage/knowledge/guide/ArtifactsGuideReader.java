@@ -43,6 +43,9 @@ public final class ArtifactsGuideReader implements GuideDocumentReader {
         String next = afterPosition;
         boolean more = false;
         boolean partial = false;
+        int registeredItemCount = 0;
+        int artifactItemCount = 0;
+        int inspectedComponentCount = 0;
         try {
             int afterItemIndex = -1;
             int afterComponentIndex = -1;
@@ -72,14 +75,17 @@ public final class ArtifactsGuideReader implements GuideDocumentReader {
                 if (itemIndex < afterItemIndex) { itemIndex++; continue; }
                 if (!budget.value()) { next = itemIndex + ":-1"; more = true; partial = true; break; }
                 if (!(registeredItem instanceof Item item)) { partial = true; itemIndex++; continue; }
+                registeredItemCount++;
                 String itemId = BuiltInRegistries.ITEM.getKey(item).toString();
                 int currentItemIndex = itemIndex++;
                 if (!itemId.startsWith("artifacts:")) { next = currentItemIndex + ":-1"; continue; }
+                artifactItemCount++;
                 var stack = item.getDefaultInstance();
                 int componentIndex = 0;
                 for (Object supplier : componentTypes) {
                     if (currentItemIndex == afterItemIndex && componentIndex <= afterComponentIndex) { componentIndex++; continue; }
                     if (!budget.value()) { next = currentItemIndex + ":" + (componentIndex - 1); more = true; partial = true; break; }
+                    inspectedComponentCount++;
                     if (!(supplier instanceof Supplier<?> componentSupplier)) {
                         partial = true;
                         next = currentItemIndex + ":" + componentIndex++;
@@ -95,12 +101,6 @@ public final class ArtifactsGuideReader implements GuideDocumentReader {
                     String componentName = String.valueOf(BuiltInRegistries.DATA_COMPONENT_TYPE.getKey(type));
                     Object ability = stack.get(type);
                     if (ability == null || !abilityClass.isInstance(ability)) {
-                        next = currentItemIndex + ":" + componentIndex;
-                        componentIndex++;
-                        continue;
-                    }
-                    boolean nonCosmetic = (boolean) abilityClass.getMethod("isNonCosmetic").invoke(ability);
-                    if (!nonCosmetic) {
                         next = currentItemIndex + ":" + componentIndex;
                         componentIndex++;
                         continue;
@@ -121,9 +121,15 @@ public final class ArtifactsGuideReader implements GuideDocumentReader {
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
             partial = true;
         }
+        String detail = partial ? "Artifacts ability registry traversal was bounded or its optional API was unavailable" : null;
+        if (!partial && candidates.isEmpty() && afterPosition == null) {
+            partial = true;
+            detail = "Artifacts traversal found no default-stack ability components (registeredItems=" + registeredItemCount
+                    + ", artifactsItems=" + artifactItemCount + ", orderedComponents=" + inspectedComponentCount + ")";
+        }
         return new CandidatePage(candidates, more ? next : null, more,
                 partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                partial ? "Artifacts ability registry traversal was bounded or its optional API was unavailable" : null);
+                detail);
     }
 
     @Override

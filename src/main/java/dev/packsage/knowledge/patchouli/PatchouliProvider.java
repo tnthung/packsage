@@ -547,6 +547,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
                     }
                     var fragment = PatchouliLiveReader.entry(book, entry,
                             selected != null && candidate == selected.offset() && !selected.after() ? selected.position() : null,
+                            query.length() * 2,
                             context.documentBudget());
                     var found = fragment.record();
                     partial |= found.coverage() != Evidence.Coverage.COMPLETE;

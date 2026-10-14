@@ -33,7 +33,7 @@ final class PatchouliLiveReader {
     record Entry(PatchouliProvider.EntryRecord record, Position next) { }
     record Page(PatchouliProvider.PageRecord record, int nextNode, int nextTextOffset, boolean complete) { }
 
-    static Entry entry(Book book, BookEntry entry, Position position, Toolbox.DocumentBudget budget) {
+    static Entry entry(Book book, BookEntry entry, Position position, int queryOverlap, Toolbox.DocumentBudget budget) {
         try {
             if (!budget.value() || !budget.bytes(2048)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                     "Patchouli entry metadata exceeds the remaining read budget");
@@ -62,7 +62,7 @@ final class PatchouliLiveReader {
                 if (!visible) { partial = true; pageIndex++; continue; }
                 var fragment = page(page, displayPage, book.i18n,
                         position != null && pageIndex == position.page() ? position.node() : 0,
-                        position != null && pageIndex == position.page() ? position.textOffset() : 0, budget);
+                        position != null && pageIndex == position.page() ? position.textOffset() : 0, queryOverlap, budget);
                 pages.add(fragment.record());
                 if (!fragment.complete()) {
                     next = new Position(pageIndex, fragment.nextNode(), fragment.nextTextOffset(), 0);
@@ -111,7 +111,7 @@ final class PatchouliLiveReader {
         }
     }
 
-    static Page page(BookPage page, int pageIndex, boolean translated, int startNode, int startOffset,
+    static Page page(BookPage page, int pageIndex, boolean translated, int startNode, int startOffset, int queryOverlap,
                      Toolbox.DocumentBudget budget) {
         if (startNode < 0 || startOffset < 0) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid page position");
         var root = new JsonObject();
@@ -171,13 +171,16 @@ final class PatchouliLiveReader {
                     String raw = value.getAsString();
                     int offset = currentNode == startNode ? startOffset : 0;
                     if (offset > raw.length()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Patchouli text changed; restart the lookup");
+                    int copyStart = Math.max(0, offset - queryOverlap);
+                    if (copyStart > 0 && Character.isLowSurrogate(raw.charAt(copyStart))) copyStart--;
+                    if (!budget.bytes((offset - copyStart) * 12)) { nextNode = currentNode; nextOffset = offset; return; }
                     int end = offset + Math.min(raw.length() - offset, Math.max(0, (budget.remainingBytes() - 16) / 12));
                     if (end < raw.length() && end > offset && Character.isHighSurrogate(raw.charAt(end - 1))) end--;
                     if (end == offset && end < raw.length()) { nextNode = currentNode; nextOffset = offset; return; }
                     if (!budget.bytes((end - offset) * 12 + 16)) { nextNode = currentNode; nextOffset = offset; return; }
-                    String part = raw.substring(offset, end);
+                    String part = raw.substring(copyStart, end);
                     fragment.put("value", new Evidence.JsonString(part));
-                    fragment.put("textOffset", new Evidence.JsonNumber(BigDecimal.valueOf(offset)));
+                    fragment.put("textOffset", new Evidence.JsonNumber(BigDecimal.valueOf(copyStart)));
                     fragment.put("complete", new Evidence.JsonBoolean(offset == 0 && end == raw.length()));
                     if (path.equals(List.of(new Evidence.JsonString("text")))) text.append(part);
                     if (offset == 0 && end == raw.length() && path.stream().anyMatch(key -> key instanceof Evidence.JsonString field

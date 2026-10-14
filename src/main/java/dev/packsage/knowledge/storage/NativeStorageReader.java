@@ -368,6 +368,8 @@ public final class NativeStorageReader implements StorageReader {
         var details = new LinkedHashMap<String, Evidence.JsonValue>();
         details.put("observation", new Evidence.JsonString("inventory_item_storage"));
         details.put("slotReference", new Evidence.JsonString(slotReference));
+        details.put("ownerIdentity", new Evidence.JsonString(slotReference + "|" + ownerIdentity + "|"
+                + (container != null ? "container" : "") + (bundle != null ? "bundle" : "")));
         details.put("sourceKind", new Evidence.JsonString("item_container"));
         details.put("completeness", new Evidence.JsonString(coverage == Evidence.Coverage.COMPLETE ? "complete"
                 : coverage == Evidence.Coverage.PARTIAL ? "partial" : "unknown"));

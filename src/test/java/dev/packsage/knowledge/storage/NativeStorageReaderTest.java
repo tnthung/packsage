@@ -362,6 +362,14 @@ class NativeStorageReaderTest {
         assertEquals("native:inventory:fixture:offhand:0", ((Evidence.JsonString) bundlePayload.values().get("slotReference")).value());
         assertEquals(0, ((Evidence.JsonNumber) ((bundlePayload).values().get("componentSlot"))).value().intValueExact());
         assertEquals(3, ((Evidence.JsonNumber) ((bundlePayload).values().get("count"))).value().intValueExact());
+        var replacedOwner = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false, bundle),
+                "native:inventory:fixture:main:5", FIRST, registries, Instant.EPOCH, 0);
+        assertFalse(observation.details().get("ownerIdentity").equals(replacedOwner.details().get("ownerIdentity")));
+        shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.DIAMOND, 2))));
+        var changedContents = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false, shulker),
+                "native:inventory:fixture:main:5", FIRST, registries, Instant.EPOCH, 0);
+        assertEquals(observation.details().get("ownerIdentity"), changedContents.details().get("ownerIdentity"));
+        assertEquals(new Evidence.JsonString("minecraft:diamond"), changedContents.entries().getFirst().payload().values().get("id"));
 
         var owners = ((Evidence.JsonArray) ((new Evidence.JsonObject(observation.details())).values().get("owners")));
         assertTrue(((Evidence.JsonObject) (owners.values().getFirst())).values().containsKey("components"));

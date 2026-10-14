@@ -155,7 +155,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                     throw new IllegalArgumentException("unknown or invalid outputItem " + outputItem);
                 }
                 var item = BuiltInRegistries.ITEM.getOptional(itemId)
-                        .orElseThrow(() -> new IllegalArgumentException("unknown outputItem " + outputItem));
+                        .orElseThrow(() -> new IllegalArgumentException("unknown outputItem " + itemId));
                 var stack = new ItemStack(item);
                 focuses = List.of((IFocus<?>) runtime.getJeiHelpers().getFocusFactory().createFocus(
                         RecipeIngredientRole.OUTPUT, VanillaTypes.ITEM_STACK, stack));

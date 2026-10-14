@@ -103,7 +103,7 @@ public final class FtbProvider implements KnowledgeProvider {
 
     public record ChapterRecord(String id, String title, String group, String groupTitle, int questOffset,
                                 List<String> quests, List<ChapterChildProgress> questProgress,
-                                boolean childRangeComplete, Boolean visible) {
+                                boolean childRangeComplete, Boolean visible, boolean titleComplete) {
         public ChapterRecord {
             Objects.requireNonNull(id);
             Objects.requireNonNull(title);
@@ -115,12 +115,18 @@ public final class FtbProvider implements KnowledgeProvider {
         }
 
         public ChapterRecord(String id, String title, String group, String groupTitle,
+                             int questOffset, List<String> quests, List<ChapterChildProgress> questProgress,
+                             boolean childRangeComplete, Boolean visible) {
+            this(id, title, group, groupTitle, questOffset, quests, questProgress, childRangeComplete, visible, true);
+        }
+
+        public ChapterRecord(String id, String title, String group, String groupTitle,
                              List<String> quests, Boolean visible) {
-            this(id, title, group, groupTitle, 0, quests, List.of(), true, visible);
+            this(id, title, group, groupTitle, 0, quests, List.of(), true, visible, true);
         }
 
         public ChapterRecord(String id, String title, String group, List<String> quests, Boolean visible) {
-            this(id, title, group, "", 0, quests, List.of(), true, visible);
+            this(id, title, group, "", 0, quests, List.of(), true, visible, true);
         }
     }
 
@@ -695,25 +701,48 @@ public final class FtbProvider implements KnowledgeProvider {
                         && ((traversalPhase != 3 && traversalPhase != 4) || !expectedOwner.equals(chapterId)))
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor no longer identifies the same source; restart the search");
                 previousOwner = chapterId;
-                if (candidate >= traversalStart && (!budget.bytes(64)
+                var emitChapter = candidate >= traversalStart
+                        && (traversalPhase == -1 || traversalPhase == 3 || traversalPhase == 4);
+                if (emitChapter && (!budget.bytes(64)
                         || !budget.value() || !budget.value() || !budget.value() || !budget.value() || !budget.value()
                         || !budget.value() || currentTeam != null && !budget.value() || !budget.bytes(4096))) {
                     next = fileIdentity + "|" + candidate + "|" + chapterId + "|4|0";
                     partial = true;
                     break;
                 }
-                var group = chapter.getGroup();
+                var group = emitChapter ? chapter.getGroup() : null;
                 var groupId = group == null ? "" : group.getCodeString();
-                var rawChapterTitle = chapter.getRawTitle();
-                var chapterTitle = rawChapterTitle.length() > 512 ? rawChapterTitle.substring(0, 512)
-                        : Snapshot.displayTitle(chapter);
-                var rawGroupTitle = group == null ? "" : group.getRawTitle();
-                var groupTitle = rawGroupTitle.length() > 512 ? rawGroupTitle.substring(0, 512)
-                        : group == null ? "" : Snapshot.displayTitle(group);
+                var chapterTitle = chapterId;
+                var groupTitle = "";
+                var chapterTitleComplete = false;
+                if (emitChapter) {
+                    var rawChapterTitle = chapter.getRawTitle();
+                    chapterTitle = rawChapterTitle.length() > 512 ? rawChapterTitle.substring(0, 512) : rawChapterTitle;
+                    chapterTitleComplete = rawChapterTitle.length() <= 512;
+                    if (rawChapterTitle.isEmpty()) {
+                        chapterTitle = chapter.getTitle().getString(513);
+                        if (chapterTitle.length() > 512) {
+                            chapterTitle = chapterTitle.substring(0, 512);
+                            chapterTitleComplete = false;
+                        }
+                    }
+                    if (group != null) {
+                        var rawGroupTitle = group.getRawTitle();
+                        groupTitle = rawGroupTitle.length() > 512 ? rawGroupTitle.substring(0, 512) : rawGroupTitle;
+                        chapterTitleComplete &= rawGroupTitle.length() <= 512;
+                        if (rawGroupTitle.isEmpty()) {
+                            groupTitle = group.getTitle().getString(513);
+                            if (groupTitle.length() > 512) {
+                                groupTitle = groupTitle.substring(0, 512);
+                                chapterTitleComplete = false;
+                            }
+                        }
+                    }
+                }
                 if (candidate < traversalStart && !budget.value()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                         "FTB cursor cannot read the current chapter within the read budget; restart the search");
                 var chapterQuests = chapter.getQuests();
-                if (candidate >= traversalStart && (traversalPhase == -1 || traversalPhase == 3 || traversalPhase == 4)) {
+                if (emitChapter) {
                     var questIds = new ArrayList<String>();
                     var questProgress = new ArrayList<ChapterChildProgress>();
                     var initialQuestIndex = candidate == traversalStart && traversalPhase == 3 ? traversalIndex : 0;
@@ -738,7 +767,7 @@ public final class FtbProvider implements KnowledgeProvider {
                         questIndex++;
                     }
                     var chapterRecord = new ChapterRecord(chapterId, chapterTitle, groupId, groupTitle, initialQuestIndex,
-                            questIds, questProgress, !chapterPartial, null);
+                            questIds, questProgress, !chapterPartial, null, chapterTitleComplete);
                     var snapshot = new Snapshot(scope, scope.requestGeneration(), List.of(chapterRecord), List.of(), List.of(),
                             ignored -> { }, new WeakReference<>(file), List.of());
                     java.util.function.Predicate<String> matches = value -> {
@@ -1268,6 +1297,7 @@ public final class FtbProvider implements KnowledgeProvider {
         values.put("chapterId", new Evidence.JsonString(chapter.id()));
         values.put("group", new Evidence.JsonString(chapter.group()));
         values.put("groupTitle", new Evidence.JsonString(chapter.groupTitle()));
+        values.put("titleComplete", new Evidence.JsonBoolean(chapter.titleComplete()));
         values.put("visible", nullableBoolean(chapter.visible()));
         values.put("questOffset", number(chapter.questOffset()));
         values.put("questRangeComplete", new Evidence.JsonBoolean(chapter.childRangeComplete()));
@@ -1275,7 +1305,7 @@ public final class FtbProvider implements KnowledgeProvider {
         values.put("questProgress", new Evidence.JsonArray(chapter.questProgress().stream().map(value ->
                 (Evidence.JsonValue) new Evidence.JsonObject(java.util.Map.of("questId", new Evidence.JsonString(value.questId()),
                         "visible", nullableBoolean(value.visible()), "completed", nullableBoolean(value.completed())))).toList()));
-        var coverage = chapter.visible() == null || !chapter.childRangeComplete()
+        var coverage = chapter.visible() == null || !chapter.childRangeComplete() || !chapter.titleComplete()
                 || chapter.questProgress().stream().anyMatch(value -> value.visible() == null || value.completed() == null)
                 ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
         var source = new Evidence.Source(snapshot.scope(), ID, VERSION, chapter.id(), snapshot.generation(), Instant.now(),

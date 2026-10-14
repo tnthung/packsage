@@ -229,7 +229,20 @@ class FtbProviderTest {
                 if (cursor != null) arguments.put("cursor", new Evidence.JsonString(cursor));
                 var page = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
                         new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of())).toCompletableFuture().get();
-                assertEquals(1, page.records().size());
+                if (page.records().isEmpty()) {
+                    var details = "pageIndex=" + pageIndex + ", cursor=" + cursor + ", nextCursor="
+                            + page.nextCursor() + ", coverage=" + page.coverage() + ", outcome=" + page.outcome()
+                            + ", detail=" + page.detail();
+                    assertNotNull(cursor, "empty page must follow a continuation: " + details);
+                    assertNull(page.nextCursor(), "empty terminal page must not continue: " + details);
+                    assertEquals(2301, observedTaskIds.size(), "empty terminal page before all task IDs: " + details);
+                    break;
+                }
+                assertEquals(1, page.records().size(), "pageIndex=" + pageIndex + ", cursor=" + cursor
+                        + ", nextCursor=" + page.nextCursor() + ", coverage=" + page.coverage()
+                        + ", outcome=" + page.outcome() + ", detail=" + page.detail() + ", sources="
+                        + page.records().stream().map(record -> record.source().provider() + ":"
+                        + record.source().sourceHandle() + ":" + record.source().coverage()).toList());
                 var payload = page.records().getFirst().payload().values();
                 var taskOffset = ((Evidence.JsonNumber) payload.get("taskOffset")).value().intValue();
                 var taskValues = ((Evidence.JsonArray) payload.get("tasks")).values();

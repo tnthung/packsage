@@ -39,6 +39,16 @@ public final class PatchouliLiveReader {
 
     public static Entry entry(Book book, BookEntry entry, Position position, int queryOverlap, int maxChars,
                               Toolbox.DocumentBudget budget) {
+        return entry(book, entry, position, queryOverlap, maxChars, true, budget);
+    }
+
+    public static Entry entry(Book book, BookEntry entry, Position position, int queryOverlap, int maxChars,
+                              boolean includeMappings, Toolbox.DocumentBudget budget) {
+        return entry(book, entry, position, queryOverlap, maxChars, includeMappings, Integer.MAX_VALUE, budget);
+    }
+
+    public static Entry entry(Book book, BookEntry entry, Position position, int queryOverlap, int maxChars,
+                              boolean includeMappings, int maxPages, Toolbox.DocumentBudget budget) {
         try {
             if (!budget.value() || !budget.bytes(2048)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                     "Patchouli entry metadata exceeds the remaining read budget");
@@ -46,7 +56,7 @@ public final class PatchouliLiveReader {
             nameField.setAccessible(true);
             var name = (String) nameField.get(entry);
             if (book.i18n) name = Language.getInstance().getOrDefault(name);
-            boolean partial = name.length() > 256 || position != null;
+            boolean partial = name.length() > 256;
             if (name.length() > 256) name = name.substring(0, 256);
             // getPages() filters and materializes the entire list in these supported releases.
             // Read its already materialized backing list and apply the same unlock predicate lazily.
@@ -57,6 +67,7 @@ public final class PatchouliLiveReader {
             Position next = null;
             int pageIndex = 0;
             int displayIndex = 0;
+            int pagesRead = 0;
             while (pageIndex < loadedPages.size()) {
                 if (!budget.value() || budget.remainingBytes() < 2048) { next = new Position(pageIndex, 0, 0, 0); break; }
                 var page = (BookPage) loadedPages.get(pageIndex);
@@ -71,16 +82,21 @@ public final class PatchouliLiveReader {
                         maxChars, budget);
                 pages.add(fragment.record());
                 maxChars -= fragment.copiedChars();
+                pagesRead++;
                 if (!fragment.complete()) {
                     next = new Position(pageIndex, fragment.nextNode(), fragment.nextTextOffset(), 0);
                     break;
                 }
                 pageIndex++;
+                if (pagesRead >= maxPages && pageIndex < loadedPages.size()) {
+                    next = new Position(pageIndex, 0, 0, 0);
+                    break;
+                }
             }
             if (position != null && pageIndex < position.page()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                     "Patchouli page seek exceeded its budget or the entry changed");
             var mappings = new ArrayList<String>();
-            if (next == null) {
+            if (next == null && includeMappings) {
                 var mappingsField = BookEntry.class.getDeclaredField("extraRecipeMappings");
                 mappingsField.setAccessible(true);
                 var loadedMappings = (Map<?, ?>) mappingsField.get(entry);
@@ -115,6 +131,21 @@ public final class PatchouliLiveReader {
                     partial ? "bounded live guide fragment; source paths and text offsets identify partial fields" : null), next);
         } catch (ReflectiveOperationException failure) {
             throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "Patchouli loaded entry contract is unavailable");
+        }
+    }
+
+    public static String title(Book book, BookEntry entry, Toolbox.DocumentBudget budget) {
+        try {
+            if (!budget.value() || !budget.bytes(2048)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "Patchouli entry title exceeds the remaining read budget");
+            var nameField = BookEntry.class.getDeclaredField("name");
+            nameField.setAccessible(true);
+            var name = (String) nameField.get(entry);
+            if (book.i18n) name = Language.getInstance().getOrDefault(name);
+            if (name.length() > 256) name = name.substring(0, 256);
+            return name;
+        } catch (ReflectiveOperationException failure) {
+            throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "Patchouli entry title is unavailable");
         }
     }
 

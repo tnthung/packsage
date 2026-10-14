@@ -17,6 +17,11 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
     public static final String ID = "actuallyadditions";
     public static final String VERSION = "1.3.26";
     private static final ResourceLocation BOOK_ID = ResourceLocation.parse("actuallyadditions:booklet");
+    private final Supplier<Object> bookSource;
+
+    public ActuallyAdditionsGuideReader() { this(ActuallyAdditionsGuideReader::liveBook); }
+
+    ActuallyAdditionsGuideReader(Supplier<Object> bookSource) { this.bookSource = Objects.requireNonNull(bookSource); }
 
     public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> scope, Executor clientExecutor) {
         return new GuideDocumentProvider(new ActuallyAdditionsGuideReader(), scope, clientExecutor);
@@ -28,7 +33,7 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
 
     @Override
     public String sourceIdentity(Evidence.Scope scope) {
-        var book = book();
+        var book = bookSource.get();
         return scope.worldSession() + "|" + scope.resourcesLocale() + "|" + scope.providerRuntime()
                 + "|" + (book == null ? "unloaded" : System.identityHashCode(book));
     }
@@ -36,9 +41,17 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
     @Override
     public CandidatePage candidates(String afterPosition, int limit, Toolbox.DocumentBudget budget) {
         if (limit < 1) throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "candidate limit must be positive");
-        var contents = contents();
-        if (contents == null) return new CandidatePage(List.of(), null, false, Evidence.Coverage.UNAVAILABLE,
+        var book = bookSource.get();
+        if (book == null) return new CandidatePage(List.of(), null, false, Evidence.Coverage.UNAVAILABLE,
                 "Actually Additions booklet or Patchouli is not loaded");
+        Object contents;
+        try {
+            contents = book.getClass().getMethod("getContents").invoke(book);
+            if (contents == null || (boolean) contents.getClass().getMethod("isErrored").invoke(contents))
+                return new CandidatePage(List.of(), null, false, Evidence.Coverage.PARTIAL, "booklet contents are not ready");
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+            return new CandidatePage(List.of(), null, false, Evidence.Coverage.PARTIAL, "booklet contents are currently unreadable");
+        }
         try {
             var entries = (Map<?, ?>) contents.getClass().getField("entries").get(contents);
             var candidates = new ArrayList<Candidate>();
@@ -49,17 +62,21 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
                 if (!budget.value()) return new CandidatePage(candidates, next, next != null, Evidence.Coverage.PARTIAL,
                         "booklet traversal reached the source-work bound");
                 var entry = iterator.next();
-                var id = entryId(entry);
+                var id = entry.getClass().getMethod("getId").invoke(entry).toString();
                 if (!afterSeen) {
                     if (id.equals(afterPosition)) afterSeen = true;
                     next = id;
                     continue;
                 }
-                if (!visible(entry)) { next = id; continue; }
-                if (!budget.bytes(Math.min(512, id.length() * 6 + 128)))
+                if ((boolean) entry.getClass().getMethod("shouldHide").invoke(entry)
+                        || (boolean) entry.getClass().getMethod("isLocked").invoke(entry)) { next = id; continue; }
+                if (!budget.bytes(id.length() * 6 + 128))
                     return new CandidatePage(candidates, next, false, Evidence.Coverage.PARTIAL,
                             "booklet metadata reached the output bound");
-                candidates.add(new Candidate(id, entryTitle(entry), id, List.of("patchouli:book:" + BOOK_ID), Evidence.Coverage.COMPLETE));
+                var helper = Class.forName("dev.packsage.knowledge.patchouli.PatchouliLiveReader");
+                var title = (String) helper.getMethod("title", book.getClass(), entry.getClass(), Toolbox.DocumentBudget.class)
+                        .invoke(null, book, entry, budget);
+                candidates.add(new Candidate(id, title, id, List.of("patchouli:book:" + BOOK_ID), Evidence.Coverage.COMPLETE));
                 next = id;
                 if (candidates.size() == limit)
                     return new CandidatePage(candidates, next, iterator.hasNext(), iterator.hasNext()
@@ -78,27 +95,30 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
     @Override
     public Fragment readFragment(String id, String fragmentPosition, int maxChars, Toolbox.DocumentBudget budget) {
         if (maxChars < 1) throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "fragment limit must be positive");
-        var book = book();
-        var contents = contents(book);
-        if (contents == null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Actually Additions booklet is not loaded");
+        var book = bookSource.get();
+        if (book == null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Actually Additions booklet is not loaded");
         try {
+            var contents = book.getClass().getMethod("getContents").invoke(book);
+            if (contents == null || (boolean) contents.getClass().getMethod("isErrored").invoke(contents))
+                throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Actually Additions booklet is not ready");
             var entryId = ResourceLocation.parse(id);
             var entry = (Map<?, ?>) contents.getClass().getField("entries").get(contents);
-            if (!budget.value() || !budget.bytes(Math.min(512, id.length() * 6 + 128)))
+            if (!budget.value() || !budget.bytes(id.length() * 6 + 128))
                 throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "booklet entry exceeded the read budget");
             var current = entry.get(entryId);
-            if (current == null || !visible(current)) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
+            if (current == null || (boolean) current.getClass().getMethod("shouldHide").invoke(current)
+                    || (boolean) current.getClass().getMethod("isLocked").invoke(current)) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
                     "Actually Additions booklet entry is no longer visible");
-            int[] position = fragmentPosition == null ? new int[]{0, 0, 0} : parsePosition(fragmentPosition);
+            int[] position = fragmentPosition == null ? new int[]{0, 0, 0, 0} : parsePosition(fragmentPosition);
             int overlap = Math.min(511, Math.min(position[2], maxChars - 1));
             int newChars = maxChars - overlap;
             var reader = Class.forName("dev.packsage.knowledge.patchouli.PatchouliLiveReader");
             var positionType = Class.forName("dev.packsage.knowledge.patchouli.PatchouliLiveReader$Position");
             var sourcePosition = positionType.getConstructor(int.class, int.class, int.class, int.class)
-                    .newInstance(position[0], position[1], position[2], 0);
+                    .newInstance(position[0], position[1], position[2], position[3]);
             Method read = java.util.Arrays.stream(reader.getMethods()).filter(method -> method.getName().equals("entry")
-                    && method.getParameterCount() == 6).findFirst().orElseThrow();
-            var result = read.invoke(null, book, current, sourcePosition, overlap, newChars, budget);
+                    && method.getParameterCount() == 8).findFirst().orElseThrow();
+            var result = read.invoke(null, book, current, sourcePosition, overlap, newChars, false, 1, budget);
             var record = result.getClass().getMethod("record").invoke(result);
             var pages = (List<?>) record.getClass().getMethod("pages").invoke(record);
             var text = new StringBuilder();
@@ -109,10 +129,12 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
             }
             var following = result.getClass().getMethod("next").invoke(result);
             var next = following == null ? null : position(following);
-            if (text.length() > maxChars) text.setLength(maxChars);
-            return new Fragment(text.toString(), position[0] + "," + position[1] + "," + position[2], overlap, next,
-                    next == null ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
-                    text.isEmpty() ? "booklet page has no bounded text content" : null);
+            var recordCoverage = (Evidence.Coverage) record.getClass().getMethod("coverage").invoke(record);
+            var detail = (String) record.getClass().getMethod("failure").invoke(record);
+            if (text.isEmpty() && recordCoverage == Evidence.Coverage.COMPLETE) recordCoverage = Evidence.Coverage.PARTIAL;
+            if (text.isEmpty() && detail == null) detail = "booklet page has no bounded text content";
+            return new Fragment(text.toString(), position[0] + "," + position[1] + "," + position[2] + "," + position[3],
+                    overlap, next, recordCoverage, detail);
         } catch (Toolbox.Failure failure) {
             throw failure;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
@@ -122,15 +144,25 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
 
     @Override
     public ResolvedDocument resolve(String id, int maxChars, Toolbox.DocumentBudget budget) {
-        var contents = contents();
-        if (contents == null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Actually Additions booklet is not loaded");
+        var book = bookSource.get();
+        if (book == null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Actually Additions booklet is not loaded");
         Candidate candidate;
         try {
+            var contents = book.getClass().getMethod("getContents").invoke(book);
+            if (contents == null || (boolean) contents.getClass().getMethod("isErrored").invoke(contents))
+                throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Actually Additions booklet is not ready");
             var current = ((Map<?, ?>) contents.getClass().getField("entries").get(contents)).get(ResourceLocation.parse(id));
-            if (current == null || !visible(current)) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
+            if (current == null || (boolean) current.getClass().getMethod("shouldHide").invoke(current)
+                    || (boolean) current.getClass().getMethod("isLocked").invoke(current)) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
                     "Actually Additions booklet entry is no longer available");
-            var entryId = entryId(current);
-            candidate = new Candidate(entryId, entryTitle(current), entryId,
+            var entryId = current.getClass().getMethod("getId").invoke(current).toString();
+            if (!budget.value() || !budget.bytes(entryId.length() * 6 + 128))
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "booklet metadata reached the read bound");
+            var helper = Class.forName("dev.packsage.knowledge.patchouli.PatchouliLiveReader");
+            var titleMethod = java.util.Arrays.stream(helper.getMethods()).filter(method -> method.getName().equals("title")
+                    && method.getParameterCount() == 3).findFirst().orElseThrow();
+            var title = (String) titleMethod.invoke(null, book, current, budget);
+            candidate = new Candidate(entryId, title, entryId,
                     List.of("patchouli:book:" + BOOK_ID), Evidence.Coverage.COMPLETE);
         } catch (Toolbox.Failure failure) {
             throw failure;
@@ -140,7 +172,7 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
         return new ResolvedDocument(candidate, readFragment(id, null, maxChars, budget));
     }
 
-    private static Object book() {
+    private static Object liveBook() {
         try {
             var registry = Class.forName("vazkii.patchouli.common.book.BookRegistry");
             var instance = registry.getField("INSTANCE").get(null);
@@ -150,47 +182,23 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
         }
     }
 
-    private static Object contents() { return contents(book()); }
-
-    private static Object contents(Object book) {
-        if (book == null) return null;
-        try {
-            var contents = book.getClass().getMethod("getContents").invoke(book);
-            return contents == null || (boolean) contents.getClass().getMethod("isErrored").invoke(contents) ? null : contents;
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
-            return null;
-        }
-    }
-
-    private static boolean visible(Object entry) throws ReflectiveOperationException {
-        return !(boolean) entry.getClass().getMethod("shouldHide").invoke(entry)
-                && !(boolean) entry.getClass().getMethod("isLocked").invoke(entry);
-    }
-
-    private static String entryId(Object entry) throws ReflectiveOperationException {
-        return entry.getClass().getMethod("getId").invoke(entry).toString();
-    }
-
-    private static String entryTitle(Object entry) throws ReflectiveOperationException {
-        var component = entry.getClass().getMethod("getName").invoke(entry);
-        return Objects.toString(component.getClass().getMethod("getString").invoke(component));
-    }
-
     private static String position(Object value) throws ReflectiveOperationException {
         return value.getClass().getMethod("page").invoke(value) + ","
                 + value.getClass().getMethod("node").invoke(value) + ","
-                + value.getClass().getMethod("textOffset").invoke(value);
+                + value.getClass().getMethod("textOffset").invoke(value) + ","
+                + value.getClass().getMethod("mapping").invoke(value);
     }
 
     private static int[] parsePosition(String value) {
         var parts = value.split(",", -1);
-        if (parts.length != 3) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid booklet fragment position");
+        if (parts.length != 4) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid booklet fragment position");
         try {
             int page = Integer.parseInt(parts[0]);
             int node = Integer.parseInt(parts[1]);
             int offset = Integer.parseInt(parts[2]);
-            if (page < 0 || node < 0 || offset < 0) throw new NumberFormatException();
-            return new int[]{page, node, offset};
+            int mapping = Integer.parseInt(parts[3]);
+            if (page < 0 || node < 0 || offset < 0 || mapping < 0) throw new NumberFormatException();
+            return new int[]{page, node, offset, mapping};
         } catch (NumberFormatException failure) {
             throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid booklet fragment position");
         }

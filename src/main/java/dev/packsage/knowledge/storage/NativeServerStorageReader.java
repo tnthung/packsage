@@ -145,9 +145,11 @@ final class NativeServerStorageReader {
                 || !Objects.equals(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()), selection.entityType())) {
             return unavailable(request, scope, monotonicClock, "target entity changed or is unavailable");
         }
+        if (entity.getBoundingBox().distanceToSqr(player.getEyePosition()) > range * range) {
+            return unavailable(request, scope, monotonicClock, "target entity is outside interaction range");
+        }
         var entityType = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
-        if (entityType == null || !entityType.getNamespace().equals("minecraft")) return unavailable(request, scope, monotonicClock,
-                "modded target entity types are unsupported");
+        if (entityType == null) return unavailable(request, scope, monotonicClock, "target entity type is unavailable");
         if (entity instanceof AbstractHorse horse && supportedHorse(horse)) return readHorse(horse, player, request, scope, monotonicClock);
         if ((entity.getClass() == ChestBoat.class || entity.getClass() == MinecartChest.class)
                 && entity instanceof ContainerEntity container) return readVehicleContainer(container, entity, player, request, scope, monotonicClock);
@@ -162,7 +164,7 @@ final class NativeServerStorageReader {
         if (chunk == null) return unavailable(request, scope, monotonicClock, "target chunk is not loaded");
         BlockState state = chunk.getBlockState(pos);
         var blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-        if (blockId == null || !blockId.getNamespace().equals("minecraft") || !blockId.toString().equals(selection.blockType())
+        if (blockId == null || !blockId.toString().equals(selection.blockType())
                 || !state.toString().equals(selection.blockState())) {
             return unavailable(request, scope, monotonicClock, "target block changed");
         }

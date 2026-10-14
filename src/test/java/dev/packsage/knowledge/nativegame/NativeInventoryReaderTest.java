@@ -141,6 +141,26 @@ class NativeInventoryReaderTest {
     }
 
     @Test
+    void summaryEvidenceReadsFreshCaptureInsteadOfTheOldObservation() {
+        var captures = new AtomicInteger();
+        var reader = new NativeInventoryReader(Runnable::run, () -> SCOPE, request -> {
+            var capture = captures.incrementAndGet();
+            var summary = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "inventory-summary:old",
+                    1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                    Evidence.RecordKind.OTHER, "Player inventory observation",
+                    new Evidence.JsonObject(Map.of("capture", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(capture)))), List.of());
+            return new NativeInventoryReader.Capture(List.of(), summary, Evidence.Coverage.COMPLETE, Instant.EPOCH, capture);
+        }, address -> null, captures::get);
+
+        var first = reader.readEvidence("inventory-summary:old", SCOPE);
+        var second = reader.readEvidence("inventory-summary:old", SCOPE);
+
+        assertEquals(1, ((Evidence.JsonNumber) first.payload().values().get("capture")).value().intValueExact());
+        assertEquals(2, ((Evidence.JsonNumber) second.payload().values().get("capture")).value().intValueExact());
+        assertEquals(2, captures.get());
+    }
+
+    @Test
     void outputBudgetCreatesStablePagesWithoutDroppingRecords() {
         var now = new AtomicLong(1_000);
         var slots = new java.util.ArrayList<NativeInventoryReader.CapturedSlot>();
@@ -162,22 +182,23 @@ class NativeInventoryReaderTest {
                 address -> null, now::get);
         var tools = new PackSageTools(read -> {
             var values = read.arguments().values();
-            var fields = ((Evidence.JsonArray) values.get("fields")).values().stream()
+            var filter = (Evidence.JsonObject) values.get("filter");
+            var ids = ((Evidence.JsonArray) filter.values().get("ids")).values().stream()
                     .map(value -> ((Evidence.JsonString) value).value()).toList();
             var cursorValue = values.get("cursor");
             var cursor = cursorValue instanceof Evidence.JsonString value ? value.value() : null;
             var limit = ((Evidence.JsonNumber) values.get("limit")).value().intValueExact();
-            var text = ((Evidence.JsonString) values.get("text")).value();
-            return reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH, List.of(), text, fields,
-                    limit, cursor, read.scope()));
+            return reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
+                    new InventoryReader.Filter(List.of(), ids, List.of(), List.of(), List.of()), limit, cursor, read.scope()));
         });
-        var page = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH, List.of(), "minecraft:apple",
-                List.of("id"), 32, null, SCOPE)).toCompletableFuture().join();
+        var page = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
+                new InventoryReader.Filter(List.of(), List.of("minecraft:apple"), List.of(), List.of(), List.of()), 32, null, SCOPE))
+                .toCompletableFuture().join();
         var titles = new java.util.ArrayList<String>();
         String toolCursor = null;
         var pageIndex = 0;
         while (true) {
-            var arguments = "{\"text\":\"minecraft:apple\",\"fields\":[\"id\"],\"limit\":32,\"cursor\":"
+            var arguments = "{\"target\":{\"type\":\"player\"},\"filter\":{\"ids\":[\"minecraft:apple\"]},\"limit\":32,\"cursor\":"
                     + (toolCursor == null ? "null" : "\"" + toolCursor + "\"") + "}";
             var toolResponse = tools.execute(new ModelBackend.ToolCall("budget-" + pageIndex++, "search_inventory", arguments), SCOPE)
                     .toCompletableFuture().join();
@@ -208,8 +229,9 @@ class NativeInventoryReaderTest {
             assertEquals(page.nextCursor() == null, nextToolCursor == null);
             if (page.nextCursor() == null) break;
             toolCursor = nextToolCursor;
-            page = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH, List.of(), "minecraft:apple",
-                    List.of("id"), 32, page.nextCursor(), SCOPE)).toCompletableFuture().join();
+            page = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
+                    new InventoryReader.Filter(List.of(), List.of("minecraft:apple"), List.of(), List.of(), List.of()),
+                    32, page.nextCursor(), SCOPE)).toCompletableFuture().join();
         }
 
         assertEquals(slots.stream().map(NativeInventoryReader.CapturedSlot::name).toList(), titles);

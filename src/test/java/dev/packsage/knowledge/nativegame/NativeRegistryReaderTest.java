@@ -48,6 +48,16 @@ class NativeRegistryReaderTest {
     }
 
     @Test
+    void unknownExactIdDoesNotResolveToDefaultedRegistryEntry() {
+        var page = NativeRegistryReader.searchEntries(BuiltInRegistries.ITEM, "item", null,
+                List.of("packsage:missing_item_regression"), List.of(), 0, 1, SCOPE,
+                item -> record(BuiltInRegistries.ITEM.getKey(item).toString()));
+
+        assertTrue(page.records().isEmpty());
+        assertTrue(page.exhausted());
+    }
+
+    @Test
     void itemTagContinuationAdvancesPastTheCandidateBoundOnFreshIterators() {
         var first = NativeRegistryReader.page(IntStream.range(0, 600).iterator(), 512, 16,
                 value -> true, NativeRegistryReaderTest::record);

@@ -84,24 +84,29 @@ final class NativeRegistryReader {
         return switch (selectedRegistry) {
             case "item" -> {
                 var registry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
+                if (!registry.containsKey(key)) yield null;
                 var value = registry.get(key);
                 yield value == null ? null : entry(selectedRegistry, value, registry, client, scope);
             }
             case "block" -> {
                 var registry = client.level.registryAccess().registryOrThrow(Registries.BLOCK);
+                if (!registry.containsKey(key)) yield null;
                 var value = registry.get(key);
                 yield value == null ? null : entry(selectedRegistry, value, registry, client, scope);
             }
             case "enchantment" -> {
                 var registry = client.level.registryAccess().registryOrThrow(Registries.ENCHANTMENT);
+                if (!registry.containsKey(key)) yield null;
                 var value = registry.get(key);
                 yield value == null ? null : entry(selectedRegistry, value, registry, client, scope);
             }
             case "mob_effect" -> {
+                if (!BuiltInRegistries.MOB_EFFECT.containsKey(key)) yield null;
                 var value = BuiltInRegistries.MOB_EFFECT.get(key);
                 yield value == null ? null : entry(selectedRegistry, value, BuiltInRegistries.MOB_EFFECT, client, scope);
             }
             case "potion" -> {
+                if (!BuiltInRegistries.POTION.containsKey(key)) yield null;
                 var value = BuiltInRegistries.POTION.get(key);
                 yield value == null ? null : entry(selectedRegistry, value, BuiltInRegistries.POTION, client, scope);
             }
@@ -118,6 +123,7 @@ final class NativeRegistryReader {
             for (String identity : ids) {
                 var key = ResourceLocation.tryParse(identity);
                 if (key == null || !key.toString().equals(identity) || !seen.add(identity)) continue;
+                if (!registry.containsKey(key)) continue;
                 T value = registry.get(key);
                 if (value == null || !matchesIdentityAndTags(registry, value, identity, text, ids, tags)) continue;
                 var record = recordFactory.apply(value);

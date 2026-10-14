@@ -9,11 +9,12 @@ import net.minecraft.server.Bootstrap;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.CraftingContainer;
+import net.minecraft.world.inventory.FurnaceFuelSlot;
 import net.minecraft.world.inventory.FurnaceMenu;
+import net.minecraft.world.inventory.FurnaceResultSlot;
 import net.minecraft.world.inventory.ResultSlot;
-import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.TransientCraftingContainer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BundleContents;
@@ -298,21 +299,22 @@ class NativeStorageReaderTest {
 
     @Test
     void openedInventoryFiltersUseOrWithinFieldsAndAndAcrossFields() {
-        var apple = record(FIRST, "minecraft:apple", "Apple", new Evidence.JsonObject(Map.of(
+        var apple = new Evidence.Record(record(FIRST, "minecraft:apple", "Apple").source(), Evidence.RecordKind.ITEM, "Apple", new Evidence.JsonObject(Map.of(
                 "id", new Evidence.JsonString("minecraft:apple"), "name", new Evidence.JsonString("Apple"),
                 "tags", new Evidence.JsonArray(List.of(new Evidence.JsonString("minecraft:logs"))),
                 "tooltip", new Evidence.JsonArray(List.of(new Evidence.JsonString("Red fruit"))),
-                "section", new Evidence.JsonString("menu"))));
-        var carrot = record(FIRST, "minecraft:carrot", "Carrot", new Evidence.JsonObject(Map.of(
+                "section", new Evidence.JsonString("menu"))), List.of());
+        var carrot = new Evidence.Record(record(FIRST, "minecraft:carrot", "Carrot").source(), Evidence.RecordKind.ITEM, "Carrot", new Evidence.JsonObject(Map.of(
                 "id", new Evidence.JsonString("minecraft:carrot"), "name", new Evidence.JsonString("Carrot"),
                 "tags", new Evidence.JsonArray(List.of(new Evidence.JsonString("minecraft:foods"))),
                 "tooltip", new Evidence.JsonArray(List.of(new Evidence.JsonString("Orange food"))),
-                "section", new Evidence.JsonString("menu"))));
-        var excludedApple = record(FIRST, "minecraft:apple", "Apple in cargo", new Evidence.JsonObject(Map.of(
+                "section", new Evidence.JsonString("menu"))), List.of());
+        var excludedApple = new Evidence.Record(record(FIRST, "minecraft:apple", "Apple in cargo").source(), Evidence.RecordKind.ITEM,
+                "Apple in cargo", new Evidence.JsonObject(Map.of(
                 "id", new Evidence.JsonString("minecraft:apple"), "name", new Evidence.JsonString("Apple"),
                 "tags", new Evidence.JsonArray(List.of(new Evidence.JsonString("minecraft:foods"))),
                 "tooltip", new Evidence.JsonArray(List.of(new Evidence.JsonString("Red fruit"))),
-                "section", new Evidence.JsonString("cargo"))));
+                "section", new Evidence.JsonString("cargo"))), List.of());
         var reader = new NativeStorageReader(Runnable::run, () -> FIRST, () -> 0);
         reader.storeOpenedFixture(List.of(apple, carrot, excludedApple), FIRST, Instant.EPOCH, 0, "Opened inventory",
                 Map.of("observation", new Evidence.JsonString("fixture")), Evidence.Coverage.PARTIAL);
@@ -395,20 +397,23 @@ class NativeStorageReaderTest {
     }
 
     @Test
-    void openedInventoryIncludesVanillaMachineStockAndExcludesCraftingPreviews() {
+    void openedInventoryRecognizesFurnaceStockSlotsAndExcludesCraftingPreviews() {
         var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
-        var playerInventory = new net.minecraft.world.entity.player.Inventory(null);
-        var furnaceContents = new SimpleContainer(3);
-        furnaceContents.setItem(0, new ItemStack(Items.RAW_IRON));
-        furnaceContents.setItem(1, new ItemStack(Items.COAL));
-        furnaceContents.setItem(2, new ItemStack(Items.IRON_INGOT));
-        var furnace = new FurnaceMenu(1, playerInventory, furnaceContents, new SimpleContainerData(4));
-        var furnaceEntries = NativeStorageReader.openedEntries(furnace, playerInventory, FIRST, Instant.EPOCH, registries).entries();
-        assertEquals(List.of("minecraft:raw_iron", "minecraft:coal", "minecraft:iron_ingot"),
-                furnaceEntries.stream().map(Evidence.Record::title).toList());
+        var machineContents = new SimpleContainer(3);
+        machineContents.setItem(1, new ItemStack(Items.COAL));
+        machineContents.setItem(2, new ItemStack(Items.IRON_INGOT));
+        var furnaceOutput = new FurnaceResultSlot(null, machineContents, 2, 0, 0);
+        var furnaceFuel = new FurnaceFuelSlot(null, machineContents, 1, 0, 0);
+        assertTrue(NativeStorageReader.supportedStockSlot(FurnaceMenu.class, furnaceOutput));
+        assertTrue(NativeStorageReader.supportedStockSlot(FurnaceMenu.class, furnaceFuel));
+        assertFalse(NativeStorageReader.supportedStockSlot(TestMenu.class, furnaceOutput));
+        var playerInventory = new SimpleContainer(0);
+        var unsupportedMenu = new TestMenu();
+        unsupportedMenu.slots.add(furnaceOutput);
+        assertTrue(NativeStorageReader.openedEntries(unsupportedMenu, playerInventory, FIRST, Instant.EPOCH, registries).entries().isEmpty());
 
         var crafting = new TestMenu();
-        var craftingInput = new net.minecraft.world.inventory.TransientCraftingContainer(crafting, 2, 2);
+        var craftingInput = new TransientCraftingContainer(crafting, 2, 2);
         var craftingOutput = new SimpleContainer(1);
         craftingOutput.setItem(0, new ItemStack(Items.CRAFTING_TABLE));
         crafting.slots.add(new ResultSlot(null, craftingInput, craftingOutput, 0, 0, 0));

@@ -47,10 +47,19 @@ public interface InventoryReader {
         public Request(Operation operation, List<String> identities, String text, List<String> fields, int limit,
                        String cursor, Evidence.Scope scope) {
             this(operation, operation == Operation.READ ? new Filter(List.of(), identities, List.of(), List.of(), List.of())
-                    : new Filter(fields == null || fields.isEmpty() || fields.contains("name") ? text == null ? List.of() : List.of(text) : List.of(),
-                    fields == null || fields.isEmpty() || fields.contains("id") ? text == null ? List.of() : List.of(text) : List.of(),
-                    fields != null && fields.contains("tag") && text != null ? List.of(text) : List.of(),
-                    fields != null && fields.contains("tooltip") && text != null ? List.of(text) : List.of(), List.of()), limit, cursor, scope);
+                    : searchFilter(text, fields), limit, cursor, scope);
+        }
+
+        private static Filter searchFilter(String text, List<String> fields) {
+            if (text == null || text.isBlank() || fields != null && (fields.size() > 4
+                    || fields.stream().anyMatch(field -> field == null || !List.of("name", "id", "tag", "tooltip").contains(field))
+                    || fields.stream().distinct().count() != fields.size())) {
+                throw new IllegalArgumentException("inventory search text or fields are invalid");
+            }
+            return new Filter(fields == null || fields.isEmpty() || fields.contains("name") ? List.of(text) : List.of(),
+                    fields == null || fields.isEmpty() || fields.contains("id") ? List.of(text) : List.of(),
+                    fields != null && fields.contains("tag") ? List.of(text) : List.of(),
+                    fields != null && fields.contains("tooltip") ? List.of(text) : List.of(), List.of());
         }
 
         public List<String> identities() { return filter.ids(); }

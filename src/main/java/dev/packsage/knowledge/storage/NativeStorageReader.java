@@ -99,13 +99,8 @@ public final class NativeStorageReader implements StorageReader {
         for (int index = 0; index < menu.slots.size(); index++) {
             Slot slot = menu.slots.get(index);
             var slotType = slot.getClass();
-            var brewingSlotType = slotType.getName();
             if (slot.container == playerInventory || slotType != Slot.class
-                    && !((slotType == FurnaceResultSlot.class || slotType == FurnaceFuelSlot.class) && (menu.getClass() == FurnaceMenu.class
-                    || menu.getClass() == BlastFurnaceMenu.class || menu.getClass() == SmokerMenu.class)
-                    || menu.getClass() == BrewingStandMenu.class && (brewingSlotType.equals("net.minecraft.world.inventory.BrewingStandMenu$PotionSlot")
-                    || brewingSlotType.equals("net.minecraft.world.inventory.BrewingStandMenu$IngredientsSlot")
-                    || brewingSlotType.equals("net.minecraft.world.inventory.BrewingStandMenu$FuelSlot")))) continue;
+                    && !supportedStockSlot(menu.getClass(), slot)) continue;
             ItemStack stack = slot.getItem().copy();
             if (stack.isEmpty()) continue;
             if (entries.size() == MAX_ENTRIES) {
@@ -177,6 +172,16 @@ public final class NativeStorageReader implements StorageReader {
                     id == null ? "unknown:item" : id.toString(), new Evidence.JsonObject(payload), List.of()));
         }
         return new OpenedEntries(entries, truncated);
+    }
+
+    static boolean supportedStockSlot(Class<?> menuType, Slot slot) {
+        var slotType = slot.getClass();
+        var slotName = slotType.getName();
+        return (slotType == FurnaceResultSlot.class || slotType == FurnaceFuelSlot.class)
+                && (menuType == FurnaceMenu.class || menuType == BlastFurnaceMenu.class || menuType == SmokerMenu.class)
+                || menuType == BrewingStandMenu.class && (slotName.equals("net.minecraft.world.inventory.BrewingStandMenu$PotionSlot")
+                || slotName.equals("net.minecraft.world.inventory.BrewingStandMenu$IngredientsSlot")
+                || slotName.equals("net.minecraft.world.inventory.BrewingStandMenu$FuelSlot"));
     }
 
     synchronized void storeOpenedFixture(List<Evidence.Record> entries, Evidence.Scope scope, Instant capturedAt,

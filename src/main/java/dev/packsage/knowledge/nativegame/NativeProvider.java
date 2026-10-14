@@ -96,13 +96,27 @@ public final class NativeProvider implements KnowledgeProvider {
                     Evidence.Outcome.UNKNOWN, null, "native recipe source unavailable");
             var key = ResourceLocation.tryParse(itemIdentity);
             if (key == null || !key.toString().equals(itemIdentity)
-                    || client.level.registryAccess().registryOrThrow(Registries.ITEM).get(key) == null) {
+                    || !client.level.registryAccess().registryOrThrow(Registries.ITEM).containsKey(key)) {
                 throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "recipe output item is unknown");
             }
             var candidates = NativeRecipeReader.planCandidates(client, scope);
             var index = new KnowledgeIndex();
             index.replace(new NativeSnapshot(scope, candidates));
             var result = new RecipePlanner(index).plan(itemIdentity, quantity, scope, maxDepth);
+            var planRecords = new ArrayList<Evidence.Record>();
+            for (int route = 0; route < result.records().size(); route++) {
+                var record = result.records().get(route);
+                var sourceHandle = "plan|" + itemIdentity + "|" + quantity + "|" + maxDepth + "|" + route + "|"
+                        + record.source().sourceHandle();
+                var source = record.source();
+                var targets = record.targets().stream().map(target -> new Evidence.NavigationTarget(target.scope(), target.providerId(),
+                        sourceHandle, target.targetId())).toList();
+                planRecords.add(new Evidence.Record(new Evidence.Source(source.scope(), source.providerId(), source.providerVersion(),
+                        sourceHandle, source.observedGeneration(), source.observedAt(), source.activity(), source.coverage(),
+                        source.authority(), source.provenance()), record.kind(), record.title(), record.payload(), targets,
+                        record.recipePayload()));
+            }
+            result = new Evidence.Result(planRecords, result.coverage(), result.outcome(), result.nextCursor(), result.detail());
             boolean scanPartial = client.level.getRecipeManager().getRecipes().size() > NativeRecipeReader.MAX_CANDIDATES;
             if (scanPartial) return partial(result, "bounded-live-recipe-scan");
             return result;
@@ -228,6 +242,7 @@ public final class NativeProvider implements KnowledgeProvider {
                 throw new IllegalArgumentException("limit must be an integer");
             }
             int limit = limitValue instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 16;
+            if (limit < 1 || limit > 64) throw new IllegalArgumentException("limit must be between 1 and 64");
             var signature = signature(request);
             int offset = cursorOffset(request, signature);
             return client.submit(() -> NativeRegistryReader.search(client, registry.value(), text, ids, tags, offset, limit, request.scope()))
@@ -274,12 +289,13 @@ public final class NativeProvider implements KnowledgeProvider {
                 throw new IllegalArgumentException("limit must be an integer");
             }
             int limit = limitValue instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 16;
+            if (limit < 1 || limit > 64) throw new IllegalArgumentException("limit must be between 1 and 64");
             var signature = signature(request);
             int offset = cursorOffset(request, signature);
             return client.submit(() -> {
                 if (client.level == null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "native recipe source unavailable");
-                if (output != null && client.level.registryAccess().registryOrThrow(Registries.ITEM)
-                        .get(ResourceLocation.parse(output)) == null) throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS,
+                if (output != null && !client.level.registryAccess().registryOrThrow(Registries.ITEM)
+                        .containsKey(ResourceLocation.parse(output))) throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS,
                         "recipe output item is unknown");
                 return NativeRecipeReader.search(client, output, text, offset, limit, request.scope());
             }).thenApply(page -> {
@@ -331,8 +347,37 @@ public final class NativeProvider implements KnowledgeProvider {
         if (client == null) return unavailable(request.scope(), "live native evidence source unavailable");
         var source = reference.sourceHandle();
         if (source.startsWith("storage:")) return storage.readEvidence(source, request.scope());
-        if (source.startsWith("inventory:")) return client.submit(() -> inventory.readEvidence(source, request.scope()))
+        if (source.startsWith("inventory:") || source.startsWith("inventory-summary:")) return client.submit(() -> inventory.readEvidence(source, request.scope()))
                 .thenApply(value -> value == null ? unknownReference(request.scope()) : result(value));
+        if (source.startsWith("plan|")) {
+            var parts = source.split("\\|", 6);
+            if (parts.length != 6 || parts[5].isBlank()) return CompletableFuture.completedFuture(unknownReference(request.scope()));
+            var identity = ResourceLocation.tryParse(parts[1]);
+            if (identity == null || !identity.toString().equals(parts[1])) return CompletableFuture.completedFuture(unknownReference(request.scope()));
+            long quantity;
+            int depth;
+            int route;
+            try {
+                quantity = Long.parseLong(parts[2]);
+                depth = Integer.parseInt(parts[3]);
+                route = Integer.parseInt(parts[4]);
+            } catch (NumberFormatException failure) {
+                return CompletableFuture.completedFuture(unknownReference(request.scope()));
+            }
+            if (quantity < 1 || quantity > 1_000_000 || depth < 0 || depth > 8 || route < 0) {
+                return CompletableFuture.completedFuture(unknownReference(request.scope()));
+            }
+            return planRecipe(parts[1], quantity, request.scope(), depth).thenApply(current -> {
+                var record = route < current.records().size() ? current.records().get(route) : null;
+                if (record != null && record.source().sourceHandle().equals(source)) return result(record);
+                if (current.coverage() == Evidence.Coverage.UNAVAILABLE || current.coverage() == Evidence.Coverage.ERROR) return current;
+                if (current.coverage() == Evidence.Coverage.PARTIAL || current.coverage() == Evidence.Coverage.OPAQUE) {
+                    return new Evidence.Result(List.of(), current.coverage(), Evidence.Outcome.UNKNOWN, null,
+                            "derived recipe plan route is no longer available at this position");
+                }
+                return unknownReference(request.scope());
+            });
+        }
         if (source.startsWith("item:") || source.startsWith("block:") || source.startsWith("tag:")
                 || source.startsWith("enchantment:") || source.startsWith("mob_effect:") || source.startsWith("potion:")) {
             int separator = source.indexOf(':');
@@ -423,9 +468,13 @@ public final class NativeProvider implements KnowledgeProvider {
         var token = cursorValue instanceof Evidence.JsonString value ? value.value() : null;
         if (token == null) return 0;
         synchronized (cursors) {
-            var state = cursors.remove(token);
-            if (state == null || state.createdAtNanos() + CURSOR_TTL_NANOS <= System.nanoTime()) throw new Toolbox.Failure(
+            var state = cursors.get(token);
+            if (state == null) throw new Toolbox.Failure(
                     Toolbox.Code.INVALID_CURSOR, "native cursor is unknown or expired; repeat the lookup");
+            if (state.createdAtNanos() + CURSOR_TTL_NANOS <= System.nanoTime()) {
+                cursors.remove(token);
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "native cursor is unknown or expired; repeat the lookup");
+            }
             if (!state.scope().equals(request.scope()) || !state.signature().equals(signature)) throw new Toolbox.Failure(
                     Toolbox.Code.INVALID_CURSOR, "native cursor does not match this query or scope");
             return state.offset();
@@ -501,7 +550,7 @@ public final class NativeProvider implements KnowledgeProvider {
     }
 
     private static Evidence.Result unknownResult() {
-        return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null);
+        return new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null);
     }
 
     private void clearCursors() {

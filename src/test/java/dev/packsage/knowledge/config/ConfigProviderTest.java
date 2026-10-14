@@ -30,6 +30,37 @@ class ConfigProviderTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "config-test", 1);
 
     @Test
+    void observedConfigReferencesReadChangedFilesAndAcceptEntryAliases() throws Exception {
+        Path root = Files.createTempDirectory("packsage-config-live");
+        Path file = root.resolve("example-common.toml");
+        Files.writeString(file, "enabled = false\n");
+        var entry = new NeoForgeConfigCatalog.Entry("example", "COMMON", "example:COMMON:example-common.toml",
+                file.getFileName().toString(), file, false, Map.of("enabled",
+                new NeoForgeConfigCatalog.Value(null, true, true, "Feature toggle", "WORLD", null, null)));
+        var service = new dev.packsage.knowledge.KnowledgeService(List.of(new ConfigProvider(
+                NeoForgeConfigCatalog.supplied(() -> List.of(entry)), List.of(root))), () -> SCOPE);
+        var discovered = service.execute(new dev.packsage.model.PackSageTools.ReadRequest("list_configs",
+                new Evidence.JsonObject(Map.of()), SCOPE)).toCompletableFuture().join().records().getFirst();
+        assertEquals(new Evidence.JsonBoolean(false), discovered.payload().values().get("savedValue"));
+        Files.writeString(file, "enabled = true\n");
+        var refreshed = service.execute(new dev.packsage.model.PackSageTools.ReadRequest("read_evidence",
+                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString(
+                        "config:" + discovered.source().sourceHandle()))))), SCOPE)).toCompletableFuture().join();
+        assertEquals(new Evidence.JsonBoolean(true), refreshed.records().getFirst().payload().values().get("savedValue"));
+        for (var handle : List.of(entry.handle(), "config:" + entry.handle(), "config:" + discovered.source().sourceHandle())) {
+            var read = service.execute(new dev.packsage.model.PackSageTools.ReadRequest("read_config",
+                    new Evidence.JsonObject(Map.of("handle", new Evidence.JsonString(handle), "key", new Evidence.JsonString("enabled"))), SCOPE))
+                    .toCompletableFuture().join();
+            assertEquals(new Evidence.JsonBoolean(true), read.records().getFirst().payload().values().get("savedValue"));
+            assertEquals(new Evidence.JsonBoolean(true), read.records().getFirst().payload().values().get("loadedValue"));
+        }
+        Files.writeString(file, "enabled = false\n");
+        assertEquals(new Evidence.JsonBoolean(false), service.execute(new dev.packsage.model.PackSageTools.ReadRequest("search_config",
+                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("enabled"))), SCOPE)).toCompletableFuture().join()
+                .records().getFirst().payload().values().get("savedValue"));
+    }
+
+    @Test
     void runtimeVersionRangesAcceptTheSupportedNeoForgeAndFmlLines() {
         assertTrue(NeoForgeConfigCatalog.versionMatches("[21.1.202,21.2)", "21.1.202"));
         assertTrue(NeoForgeConfigCatalog.versionMatches("[21.1.202,21.2)", "21.1.250-NEOFORGE"));

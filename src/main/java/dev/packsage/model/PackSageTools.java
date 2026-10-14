@@ -66,59 +66,87 @@ public final class PackSageTools {
     }
 
     public static List<ModelBackend.ToolDefinition> definitions(List<Toolbox.Metadata> metadata) {
-        var documentProviders = metadata.stream().filter(value -> !value.documentTypes().isEmpty()).map(Toolbox.Metadata::id).distinct().toList();
-        var recipeProviders = metadata.stream().filter(Toolbox.Metadata::recipes).map(Toolbox.Metadata::id).distinct().toList();
-        var registryProviders = metadata.stream().filter(value -> !value.registries().isEmpty()).map(Toolbox.Metadata::id).distinct().toList();
-        var types = metadata.stream().flatMap(value -> value.documentTypes().stream()).distinct().toList();
-        var registries = metadata.stream().flatMap(value -> value.registries().stream()).distinct().toList();
         var targetChoices = new JsonArray();
-        metadata.forEach(value -> value.inventoryTargets().forEach((type, schema) -> {
-            var targetSchema = JsonParser.parseString(schema).getAsJsonObject();
-            targetChoices.add(targetSchema);
-        }));
-        var targetSchema = new JsonObject(); targetSchema.add("oneOf", targetChoices);
+        metadata.forEach(adapter -> adapter.inventoryTargets().values().forEach(schema -> targetChoices.add(JsonParser.parseString(schema))));
+        var targetSchema = new JsonObject();
+        targetSchema.add("oneOf", targetChoices);
         var definitions = new ArrayList<ModelBackend.ToolDefinition>();
-        for (var name : List.of("search_document", "search_recipe", "search_registry", "search_inventory", "read_evidence", "read_progress", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history")) {
+        for (var name : List.of("search_document", "search_recipe", "search_registry", "search_inventory", "read_evidence", "read_progress",
+                "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history")) {
             var properties = new JsonObject();
-            var requiredNames = new ArrayList<String>();
-            var description = "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
+            var required = new JsonArray();
             switch (name) {
-                case "search_document" -> { properties.add("query", stringSchema(512)); requiredNames.add("query"); properties.add("filter", objectSchema(Map.of("types", arraySchema(types, 16), "provider", enumStringSchema(documentProviders, 32)))); }
-                case "search_recipe" -> properties.add("filter", objectSchema(Map.of("text", stringSchema(512), "outputItem", idSchema(), "provider", enumStringSchema(recipeProviders, 32))));
-                case "search_registry" -> { properties.add("registry", enumRequiredStringSchema(registries, 64)); requiredNames.add("registry"); properties.add("filter", objectSchema(Map.of("text", stringSchema(512), "ids", idArraySchema(64), "tags", idArraySchema(64), "provider", enumStringSchema(registryProviders, 32)))); }
-                case "search_inventory" -> { properties.add("target", targetSchema); requiredNames.add("target"); properties.add("filter", objectSchema(Map.of("names", stringArraySchema(32, 256), "ids", idArraySchema(32), "tags", idArraySchema(32), "tooltip", stringArraySchema(32, 512), "sections", stringArraySchema(32, 64)))); }
-                case "read_evidence", "read_progress" -> { properties.add("handles", handlesSchema(16)); requiredNames.add("handles"); }
-                case "plan_recipe" -> { properties.add("identity", idSchema()); properties.add("quantity", integerSchema(1, 1000000)); properties.add("depth", nullableIntegerSchema(0, 8)); requiredNames.addAll(List.of("identity", "quantity")); }
-                case "search_config", "search_history" -> { properties.add("text", stringSchema(512)); requiredNames.add("text"); }
-                case "read_config" -> { properties.add("handle", stringSchema(1024)); properties.add("key", nullableStringSchema(512)); properties.add("section", nullableStringSchema(512)); requiredNames.add("handle"); }
-                case "read_history" -> { properties.add("handles", handlesSchema(8)); properties.add("maxChars", nullableIntegerSchema(256, 16000)); requiredNames.add("handles"); }
+                case "search_document" -> {
+                    properties.add("query", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":512}"));
+                    required.add("query");
+                    var types = JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"maxItems\":16,\"items\":{\"type\":\"string\",\"maxLength\":64}}").getAsJsonObject();
+                    types.getAsJsonObject("items").add("enum", JSON.toJsonTree(metadata.stream().flatMap(adapter -> adapter.documentTypes().stream()).distinct().toList()));
+                    var filter = JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{},\"additionalProperties\":false}").getAsJsonObject();
+                    filter.getAsJsonObject("properties").add("types", types);
+                    properties.add("filter", filter);
+                }
+                case "search_recipe" -> properties.add("filter", JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":512},\"outputItem\":{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"additionalProperties\":false}"));
+                case "search_registry" -> {
+                    var registry = JsonParser.parseString("{\"type\":\"string\",\"maxLength\":64}").getAsJsonObject();
+                    registry.add("enum", JSON.toJsonTree(metadata.stream().flatMap(adapter -> adapter.registries().stream()).distinct().toList()));
+                    properties.add("registry", registry);
+                    required.add("registry");
+                    properties.add("filter", JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":512},\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}}},\"additionalProperties\":false}"));
+                }
+                case "search_inventory" -> {
+                    properties.add("target", targetSchema);
+                    required.add("target");
+                    properties.add("filter", JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{\"names\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}},\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tooltip\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":512}},\"sections\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":64}}},\"additionalProperties\":false}"));
+                }
+                case "read_evidence", "read_progress" -> { properties.add("handles", JsonParser.parseString("{\"type\":\"array\",\"minItems\":1,\"maxItems\":16,\"items\":{\"type\":\"string\",\"maxLength\":1024}}")); required.add("handles"); }
+                case "read_history" -> {
+                    properties.add("handles", JsonParser.parseString("{\"type\":\"array\",\"minItems\":1,\"maxItems\":8,\"items\":{\"type\":\"string\",\"maxLength\":1024}}"));
+                    properties.add("maxChars", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":256,\"maximum\":16000}"));
+                    required.add("handles");
+                }
+                case "plan_recipe" -> {
+                    properties.add("identity", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}"));
+                    properties.add("quantity", JsonParser.parseString("{\"type\":\"integer\",\"minimum\":1,\"maximum\":1000000}"));
+                    properties.add("depth", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":0,\"maximum\":8}"));
+                    required.add("identity");
+                    required.add("quantity");
+                }
+                case "search_config", "search_history" -> { properties.add("text", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":512}")); required.add("text"); }
+                case "read_config" -> {
+                    properties.add("handle", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":1024}"));
+                    properties.add("key", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":512}"));
+                    properties.add("section", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":512}"));
+                    properties.add("limit", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":64}"));
+                    required.add("handle");
+                }
                 case "list_configs" -> { }
                 default -> throw new IllegalStateException(name);
             }
-            if (List.of("search_document", "search_recipe", "search_registry", "search_inventory", "list_configs", "search_config", "search_history").contains(name)) {
-                properties.add("limit", nullableIntegerSchema(1, name.equals("search_inventory") ? 32 : name.equals("search_history") ? 16 : 64));
-                properties.add("cursor", nullableStringSchema(1024));
+            if (List.of("search_document", "search_recipe", "search_registry").contains(name)) {
+                var provider = JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":32}").getAsJsonObject();
+                var choices = new JsonArray();
+                metadata.stream().filter(adapter -> name.equals("search_document") ? !adapter.documentTypes().isEmpty()
+                        : name.equals("search_recipe") ? adapter.recipes() : !adapter.registries().isEmpty()).map(Toolbox.Metadata::id).distinct().forEach(choices::add);
+                choices.add(com.google.gson.JsonNull.INSTANCE);
+                provider.add("enum", choices);
+                properties.getAsJsonObject("filter").getAsJsonObject("properties").add("provider", provider);
             }
-            if (name.equals("read_config")) properties.add("limit", nullableIntegerSchema(1, 64));
-            var schema = new JsonObject(); schema.addProperty("type", "object"); schema.addProperty("additionalProperties", false); schema.add("properties", properties);
-            var required = new JsonArray(); requiredNames.forEach(required::add); schema.add("required", required);
-            definitions.add(new ModelBackend.ToolDefinition(name, description, schema.toString()));
+            if (List.of("search_document", "search_recipe", "search_registry", "search_inventory", "list_configs", "search_config", "search_history").contains(name)) {
+                var limit = JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":64}").getAsJsonObject();
+                limit.addProperty("maximum", name.equals("search_inventory") ? 32 : name.equals("search_history") ? 16 : 64);
+                properties.add("limit", limit);
+                properties.add("cursor", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":1024}"));
+            }
+            var schema = new JsonObject();
+            schema.addProperty("type", "object");
+            schema.addProperty("additionalProperties", false);
+            schema.add("properties", properties);
+            schema.add("required", required);
+            definitions.add(new ModelBackend.ToolDefinition(name, "Read current evidence for " + name
+                    + ". Preserve source authority, partial coverage and observed references.", schema.toString()));
         }
         return List.copyOf(definitions);
     }
-
-    private static JsonObject stringSchema(int maxLength) { var schema = new JsonObject(); schema.addProperty("type", "string"); schema.addProperty("maxLength", maxLength); return schema; }
-    private static JsonObject nullableStringSchema(int maxLength) { var schema = stringSchema(maxLength); var types = new JsonArray(); types.add("string"); types.add("null"); schema.add("type", types); return schema; }
-    private static JsonObject idSchema() { var schema = nullableStringSchema(256); schema.addProperty("pattern", "^[a-z0-9_.-]+:[a-z0-9/._-]+$"); return schema; }
-    private static JsonObject enumStringSchema(List<String> values, int maxLength) { var schema = nullableStringSchema(maxLength); var array = new JsonArray(); values.forEach(array::add); array.add(com.google.gson.JsonNull.INSTANCE); schema.add("enum", array); return schema; }
-    private static JsonObject enumRequiredStringSchema(List<String> values, int maxLength) { var schema = stringSchema(maxLength); var array = new JsonArray(); values.forEach(array::add); schema.add("enum", array); return schema; }
-    private static JsonObject integerSchema(int min, int max) { var schema = new JsonObject(); schema.addProperty("type", "integer"); schema.addProperty("minimum", min); schema.addProperty("maximum", max); return schema; }
-    private static JsonObject nullableIntegerSchema(int min, int max) { var schema = integerSchema(min, max); var types = new JsonArray(); types.add("integer"); types.add("null"); schema.add("type", types); return schema; }
-    private static JsonObject stringArraySchema(int maxItems, int maxLength) { var schema = new JsonObject(); var types = new JsonArray(); types.add("array"); types.add("null"); schema.add("type", types); schema.addProperty("maxItems", maxItems); schema.add("items", stringSchema(maxLength)); return schema; }
-    private static JsonObject idArraySchema(int maxItems) { var schema = stringArraySchema(maxItems, 256); schema.getAsJsonObject("items").addProperty("pattern", "^[a-z0-9_.-]+:[a-z0-9/._-]+$"); return schema; }
-    private static JsonObject arraySchema(List<String> values, int maxItems) { var schema = stringArraySchema(maxItems, 64); var choices = new JsonArray(); values.forEach(choices::add); schema.getAsJsonObject("items").add("enum", choices); return schema; }
-    private static JsonObject handlesSchema(int maxItems) { var schema = new JsonObject(); schema.addProperty("type", "array"); schema.addProperty("minItems", 1); schema.addProperty("maxItems", maxItems); schema.add("items", stringSchema(1024)); return schema; }
-    private static JsonObject objectSchema(Map<String, JsonObject> fields) { var schema = new JsonObject(); var types = new JsonArray(); types.add("object"); types.add("null"); schema.add("type", types); var props = new JsonObject(); fields.forEach(props::add); schema.add("properties", props); schema.addProperty("additionalProperties", false); return schema; }
 
     private static void validateValue(com.google.gson.JsonElement json, JsonObject rule, String name) {
         if (rule.has("oneOf")) {
@@ -129,7 +157,7 @@ public final class PackSageTools {
             throw new IllegalArgumentException("invalid selection: " + name);
         }
         if (json.isJsonNull()) {
-            if (!(rule.get("type").isJsonArray() && rule.getAsJsonArray("type").asList().stream().anyMatch(type -> type.getAsString().equals("null")))) {
+            if (!(rule.has("type") && rule.get("type").isJsonArray() && rule.getAsJsonArray("type").asList().stream().anyMatch(type -> type.getAsString().equals("null")))) {
                 throw new IllegalArgumentException("argument cannot be null: " + name);
             }
             return;
@@ -202,8 +230,16 @@ public final class PackSageTools {
             if (call.name().equals("read_config") && !(arguments.values().get("key") instanceof Evidence.JsonString)
                     && !(arguments.values().get("section") instanceof Evidence.JsonString)) throw new IllegalArgumentException("select a config key or section");
             return dispatch.apply(new ReadRequest(call.name(), arguments, scope)).handle((result, failure) -> {
-                if (failure != null || result == null) return new ToolResponse(new ModelBackend.ToolResult(call.callId(),
-                        "{\"coverage\":\"ERROR\",\"outcome\":\"ERROR\",\"detail\":\"evidence extraction failed\",\"records\":[]}", true), List.of());
+                if (failure != null || result == null) {
+                    while (failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null) failure = failure.getCause();
+                    var error = new JsonObject();
+                    error.addProperty("coverage", "ERROR");
+                    error.addProperty("outcome", "ERROR");
+                    error.addProperty("detail", failure == null ? "evidence extraction returned no result" : failure.getMessage());
+                    if (failure instanceof Toolbox.Failure typed) error.addProperty("code", typed.code().name());
+                    error.add("records", new JsonArray());
+                    return new ToolResponse(new ModelBackend.ToolResult(call.callId(), error.toString(), true), List.of());
+                }
                 if (result.records().stream().anyMatch(record -> !record.source().scope().equals(scope)
                         || record.targets().stream().anyMatch(target -> !target.scope().equals(scope)
                         || !target.providerId().equals(record.source().providerId()) || !target.sourceHandle().equals(record.source().sourceHandle())))) {
@@ -243,7 +279,7 @@ public final class PackSageTools {
             var error = new JsonObject();
             error.addProperty("coverage", "ERROR");
             error.addProperty("outcome", "ERROR");
-            error.addProperty("detail", failure instanceof IllegalArgumentException ? failure.getMessage() : "invalid read tool arguments");
+            error.addProperty("detail", failure instanceof IllegalArgumentException || failure instanceof Toolbox.Failure ? failure.getMessage() : "invalid read tool arguments");
             return CompletableFuture.completedFuture(new ToolResponse(new ModelBackend.ToolResult(call.callId(), error.toString(), true), List.of()));
         }
     }

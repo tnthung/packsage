@@ -29,9 +29,9 @@
 
 **Interfaces:** `InventoryReader.Request(Operation operation, List<String> identities, String text, List<String> fields, int limit, String cursor, Evidence.Scope scope)`, with `Operation.READ` and `SEARCH`; `CompletionStage<Evidence.Result> read(Request request)`. `NativeInventoryReader` has production constructor `(Minecraft, Executor, Supplier<Evidence.Scope>)`, `clear()`, and client-thread `LocatedItem resolve(String slotReference, Evidence.Scope scope)`. `LocatedItem` identifies section, local slot, role and a copied stack. Keep test capture seams within the native implementation.
 
-- [ ] Write and run failing tests for nested-content omission, field matching, malformed IDs, selected empty slots, scoped immutable references and stable bounded cursors.
-- [ ] Implement capture, metadata bounds and native reference resolution, with `ItemStack` count/component comparison on a fresh lookup.
-- [ ] Run focused inventory tests and record results. Do not run concurrent Gradle processes while another writer changes shared integration files.
+- [x] Write and run failing tests for nested-content omission, field matching, malformed IDs, selected empty slots, scoped immutable references and stable bounded cursors.
+- [x] Implement capture, metadata bounds and native reference resolution, with `ItemStack` count/component comparison on a fresh lookup.
+- [x] Run focused inventory tests and record results. Do not run concurrent Gradle processes while another writer changes shared integration files.
 
 ## Task 2: Slot-based storage and model wiring
 
@@ -39,10 +39,10 @@
 
 **Interfaces:** `StorageReader.Target.ITEM` replaces `HELD`. `StorageReader.Request` adds nullable `String slotReference` immediately after target; item reads require it, opened/targeted reads reject it. The native storage constructor receives the native inventory slot resolver. KnowledgeService consumes `InventoryReader`, routes `read_inventory`/`search_inventory` requests, and passes item references to storage.
 
-- [ ] Write/run failing schema and storage tests for item references, section identity, stale stack/component rejection and selected-item coverage.
-- [ ] Replace hand-loop capture with selected-slot capture and bind storage continuations to the reference as well as filters/scope. Preserve existing opened/targeted regression cases.
-- [ ] Wire both readers into ClientAssistant; clear inventory references with storage observations on invalidation. Update tool descriptions and grounding instructions.
-- [ ] Run focused integration tests and full `gradlew.bat test build --no-daemon`; handle failures and commit the coherent inventory/storage alignment.
+- [x] Write/run failing schema and storage tests for item references, section identity, stale stack/component rejection and selected-item coverage.
+- [x] Replace hand-loop capture with selected-slot capture and bind storage continuations to the reference as well as filters/scope. Preserve existing opened/targeted regression cases.
+- [x] Wire both readers into ClientAssistant; clear inventory references with storage observations on invalidation. Update tool descriptions and grounding instructions.
+- [x] Run focused integration tests and full `gradlew.bat test build --no-daemon`; handle failures and commit the coherent inventory/storage alignment.
 
 ## Task 3: Live acceptance and documentation
 

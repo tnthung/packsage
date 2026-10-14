@@ -55,6 +55,10 @@ class ClientAssistantTest {
                 "next", "query detail");
         KnowledgeProvider delegate = new KnowledgeProvider() {
             public String id() { return "jei"; }
+            @Override public Metadata metadata() { return new Metadata("jei", List.of(), true, List.of(), Map.of()); }
+            @Override public java.util.concurrent.CompletionStage<Evidence.Result> searchRecipe(dev.packsage.model.PackSageTools.ReadRequest request, Context context) {
+                return CompletableFuture.completedFuture(result);
+            }
             public ProviderStatus status() {
                 return new ProviderStatus(Availability.AVAILABLE, "baseline", "ready");
             }
@@ -91,6 +95,13 @@ class ClientAssistantTest {
         assertEquals(record.payload(), wrappedRecord.payload());
         assertEquals(record.targets(), wrappedRecord.targets());
         assertEquals(record.recipePayload(), wrappedRecord.recipePayload());
+        var registry = new dev.packsage.knowledge.AdapterRegistry();
+        registry.register(wrapper);
+        assertTrue(registry.metadata().getFirst().recipes());
+        assertEquals(wrapped, registry.dispatch(new dev.packsage.model.PackSageTools.ReadRequest("search_recipe",
+                new Evidence.JsonObject(Map.of("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"))))), scope),
+                new dev.packsage.knowledge.Toolbox.Context(() -> scope, Map.of(), registry, new dev.packsage.knowledge.Toolbox.DocumentBudget(), null))
+                .toCompletableFuture().join());
     }
 
     @Test

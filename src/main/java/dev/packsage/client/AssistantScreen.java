@@ -42,6 +42,7 @@ public final class AssistantScreen extends Screen {
     private String sessionSearch = "";
     private Runnable settingsOpener = () -> { };
     private Runnable settingsSaver = () -> { };
+    private net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> containerScreen;
     private RuntimeState runtimeState = new RuntimeState(true, true, false);
     private int scrollOffset;
     private int contentHeight;
@@ -1104,9 +1105,13 @@ public final class AssistantScreen extends Screen {
 
     public void close() { }
 
+    public void setContainerScreen(net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> screen) { containerScreen = screen; }
+
     @Override
     public void onClose() {
-        if (minecraft != null) super.onClose();
+        if (minecraft != null && containerScreen != null && minecraft.player != null
+                && minecraft.player.containerMenu == containerScreen.getMenu()) minecraft.setScreen(containerScreen);
+        else if (minecraft != null) super.onClose();
     }
 
     public void stop() { actions.stop(); }

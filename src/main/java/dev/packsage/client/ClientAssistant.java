@@ -8,10 +8,9 @@ import dev.packsage.chat.PackSageSettings;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.KnowledgeService;
+import dev.packsage.model.PackSageTools;
 import dev.packsage.knowledge.config.ConfigProvider;
 import dev.packsage.knowledge.nativegame.NativeProvider;
-import dev.packsage.knowledge.storage.NativeStorageReader;
-import dev.packsage.knowledge.nativegame.NativeInventoryReader;
 import dev.packsage.model.GroundingInstructions;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.chatgpt.ChatGptAuth;
@@ -97,8 +96,6 @@ public final class ClientAssistant {
     private final Map<String, OptionalStatus> optionalStatuses;
     private final AssistantRuntime runtime;
     private AssistantScreen assistantScreen;
-    private NativeStorageReader storage;
-    private NativeInventoryReader inventory;
     private boolean settingsOpen;
     private CopiedWorld activeWorld;
     private ChatContracts.WorldIdentity activeIdentity;
@@ -143,22 +140,16 @@ public final class ClientAssistant {
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post ignored) -> tick());
         NeoForge.EVENT_BUS.addListener((ScreenEvent.KeyPressed.Pre event) -> {
             if (!(event.getScreen() instanceof AbstractContainerScreen<?> screen) || client.level == null
-                    || client.player == null || activeScope == null || storage == null
+                    || client.player == null || activeScope == null
                     || !openAssistant.matches(event.getKeyCode(), event.getScanCode())) return;
             if (screen.getFocused() instanceof EditBox && (event.getKeyCode() >= org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE
                     && event.getKeyCode() <= org.lwjgl.glfw.GLFW.GLFW_KEY_GRAVE_ACCENT
                     || event.getKeyCode() >= org.lwjgl.glfw.GLFW.GLFW_KEY_KP_0
                     && event.getKeyCode() <= org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ADD
                     || event.getKeyCode() == org.lwjgl.glfw.GLFW.GLFW_KEY_KP_EQUAL)) return;
-            try {
-                storage.captureOpened(screen, activeScope);
-            } catch (RuntimeException failure) {
-                storage.clear();
-                PackSageLog.LOGGER.warn("PackSage opened storage capture failed", failure);
-            }
             event.setCanceled(true);
-            screen.onClose();
             assistantScreen = runtime.openScreen(this::openSettings);
+            assistantScreen.setContainerScreen(screen);
             assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));
             client.setScreen(assistantScreen);
         });
@@ -316,8 +307,6 @@ public final class ClientAssistant {
     }
 
     private void resetSession() {
-        if (storage != null) storage.clear();
-        if (inventory != null) inventory.clear();
         levelToken++;
         sessionEpoch++;
         sessionId = UUID.randomUUID();
@@ -338,8 +327,6 @@ public final class ClientAssistant {
     }
 
     private void invalidateEvidence() {
-        if (storage != null) storage.clear();
-        if (inventory != null) inventory.clear();
         if (!client.isSameThread() || activeIdentity == null || activeWorld == null) return;
         providerRuntimeEpoch++;
         activeScope = scopeFor(activeIdentity.worldOrServer(), sessionId, resourcesEpoch, locale,
@@ -413,18 +400,14 @@ public final class ClientAssistant {
     }
 
     private KnowledgeService knowledge(Supplier<Evidence.Scope> scope) {
-        NativeProvider nativeProvider = new NativeProvider(client, workerExecutor);
-        inventory = new NativeInventoryReader(client, workerExecutor, scope);
-        storage = new NativeStorageReader(client, workerExecutor, scope, inventory::resolve);
+        NativeProvider nativeProvider = new NativeProvider(client, workerExecutor, scope);
         var providers = new ArrayList<KnowledgeProvider>();
         providers.add(nativeProvider);
         providers.add(jeiProvider());
         providers.add(optionalMinecraftProvider("ftb_quests", FTB_CLASS, "forMinecraft", scope));
         providers.add(ConfigProvider.production(configRoots(), clientExecutor, workerExecutor, client::isSameThread));
         providers.add(optionalMinecraftProvider("patchouli", PATCHOULI_CLASS, "forMinecraft", scope));
-        return new KnowledgeService(providers, scope,
-                plan -> nativeProvider.planRecipe(plan.identity(), plan.quantity(), plan.scope(), plan.depth()),
-                inventory, storage);
+        return new KnowledgeService(providers, scope);
     }
 
     private KnowledgeProvider jeiProvider() {
@@ -535,6 +518,29 @@ public final class ClientAssistant {
             this.delegate = Objects.requireNonNull(delegate);
         }
 
+        @Override public Metadata metadata() {
+            Object current = delegate.get();
+            return current instanceof KnowledgeProvider provider ? provider.metadata()
+                    : new StatusProvider(id(), status.actualVersion(), Evidence.Coverage.UNAVAILABLE, "runtime unavailable").metadata();
+        }
+
+        private CompletionStage<Evidence.Result> invoke(java.util.function.Function<KnowledgeProvider, CompletionStage<Evidence.Result>> operation) {
+            Object current = delegate.get();
+            return operation.apply(current instanceof KnowledgeProvider provider ? provider
+                    : new StatusProvider(id(), status.actualVersion(), Evidence.Coverage.UNAVAILABLE, "runtime unavailable"))
+                    .thenApply(result -> new Evidence.Result(result.records().stream().map(record -> {
+                        var source = record.source();
+                        return new Evidence.Record(new Evidence.Source(source.scope(), source.providerId(), status.actualVersion(),
+                                source.sourceHandle(), source.observedGeneration(), source.observedAt(), source.activity(), source.coverage(),
+                                source.authority(), source.provenance()), record.kind(), record.title(), record.payload(), record.targets(), record.recipePayload());
+                    }).toList(), result.coverage(), result.outcome(), result.nextCursor(), result.detail()));
+        }
+
+        @Override public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Context context) { return invoke(provider -> provider.searchDocument(request, context)); }
+        @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) { return invoke(provider -> provider.searchRecipe(request, context)); }
+        @Override public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Context context) { return invoke(provider -> provider.readEvidence(request, context)); }
+        @Override public CompletionStage<Evidence.Result> readProgress(PackSageTools.ReadRequest request, Context context) { return invoke(provider -> provider.readProgress(request, context)); }
+
         @Override
         public String id() { return status.id(); }
 
@@ -619,6 +625,37 @@ public final class ClientAssistant {
             this.version = version;
             this.coverage = coverage;
             this.detail = detail;
+        }
+
+        @Override public Metadata metadata() {
+            return new Metadata(id, id.equals("ftb_quests") ? List.of("quest") : id.equals("patchouli") ? List.of("guide") : List.of(),
+                    id.equals("jei"), List.of(), Map.of());
+        }
+
+        @Override public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Context context) {
+            var filter = request.arguments().values().get("filter") instanceof Evidence.JsonObject value ? value.values() : Map.<String, Evidence.JsonValue>of();
+            if (metadata().documentTypes().isEmpty() || !(filter.get("provider") instanceof Evidence.JsonString provider) || !provider.value().equals(id)) {
+                return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "different document source"));
+            }
+            return CompletableFuture.failedFuture(new Failure(Code.UNAVAILABLE, detail));
+        }
+
+        @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) {
+            var filter = request.arguments().values().get("filter") instanceof Evidence.JsonObject value ? value.values() : Map.<String, Evidence.JsonValue>of();
+            if (!metadata().recipes() || !(filter.get("provider") instanceof Evidence.JsonString provider) || !provider.value().equals(id)) {
+                return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "different recipe source"));
+            }
+            return CompletableFuture.failedFuture(new Failure(Code.UNAVAILABLE, detail));
+        }
+
+        @Override public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Context context) {
+            if (!context.reference(request).providerId().equals(id)) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "different evidence owner"));
+            return CompletableFuture.failedFuture(new Failure(Code.UNAVAILABLE, detail));
+        }
+
+        @Override public CompletionStage<Evidence.Result> readProgress(PackSageTools.ReadRequest request, Context context) {
+            if (!id.equals("ftb_quests")) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "different progress owner"));
+            return readEvidence(request, context);
         }
 
         @Override public String id() { return id; }

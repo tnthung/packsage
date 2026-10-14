@@ -53,7 +53,7 @@ final class PatchouliLiveReader {
             int pageIndex = 0;
             int displayIndex = 0;
             while (pageIndex < loadedPages.size()) {
-                if (!budget.value()) { next = new Position(pageIndex, 0, 0, 0); break; }
+                if (!budget.value() || budget.remainingBytes() < 2048) { next = new Position(pageIndex, 0, 0, 0); break; }
                 var page = (BookPage) loadedPages.get(pageIndex);
                 boolean visible = !book.advancementsEnabled() || page.isPageUnlocked();
                 int displayPage = displayIndex;
@@ -97,6 +97,8 @@ final class PatchouliLiveReader {
                         "Patchouli mapping seek exceeded its budget or the entry changed");
             }
             partial |= next != null;
+            if (next != null && next.equals(position) && pages.isEmpty() && mappings.isEmpty())
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "Patchouli continuation cannot advance within the read budget");
             var provenance = entry.getAddedBy();
             var sources = provenance == null || provenance.isBlank() ? List.<String>of()
                     : List.of("patchouli:resource:" + provenance.substring(0, Math.min(256, provenance.length())));

@@ -487,6 +487,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
             var books = liveBooks.get();
             var records = new ArrayList<Evidence.Record>();
             LiveCursor next = null;
+            LiveCursor lastVisited = null;
             boolean partial = false;
             int index = 0;
             var bookIterator = books.values().iterator();
@@ -500,6 +501,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
             }
             outer: while (bookIterator.hasNext()) {
                 if (!context.documentBudget().document()) {
+                    if (lastVisited != null) { next = lastVisited; partial = true; break; }
                     throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "Patchouli book seek exceeds the shared read budget");
                 }
                 var book = bookIterator.next();
@@ -514,12 +516,14 @@ public final class PatchouliProvider implements KnowledgeProvider {
                 }
                 while (iterator.hasNext()) {
                     if (!context.documentBudget().document()) {
+                        if (lastVisited != null) { next = lastVisited; partial = true; break outer; }
                         throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "Patchouli entry seek exceeds the shared read budget");
                     }
                     var entry = iterator.next();
                     String owner = book.id + "#" + entry.getId();
                     int token = System.identityHashCode(entry);
                     int candidate = index++;
+                    lastVisited = new LiveCursor(candidate, owner, token, true, new PatchouliLiveReader.Position(0, 0, 0, 0));
                     if (selected != null && candidate < selected.offset()) continue;
                     if (selected != null && candidate == selected.offset()) {
                         if (!owner.equals(selected.owner()) || token != selected.ownerToken()) throw new Toolbox.Failure(

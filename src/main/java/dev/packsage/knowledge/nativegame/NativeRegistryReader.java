@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 final class NativeRegistryReader {
     static final int MAX_CANDIDATES = 512;
@@ -39,9 +40,13 @@ final class NativeRegistryReader {
                        int offset, int limit, Evidence.Scope scope) {
         if (!client.isSameThread()) throw new IllegalStateException("native registry read must run on the client thread");
         if (client.level == null) throw new IllegalStateException("client level unavailable");
+        if (ids.size() > 32 || tags.size() > 32 || java.util.stream.Stream.concat(ids.stream(), tags.stream()).anyMatch(identity -> {
+            var parsed = ResourceLocation.tryParse(identity);
+            return parsed == null || !parsed.toString().equals(identity);
+        })) throw new IllegalArgumentException("registry IDs and tags must be canonical identities, up to 32 each");
         if (selectedRegistry.equals("item_tag")) {
             if (!tags.isEmpty()) throw new UnsupportedOperationException("item_tag does not support an entry-membership tags filter");
-            return searchItemTags(client, text, ids, offset, limit, scope);
+            return searchItemTags(client.level.registryAccess().registryOrThrow(Registries.ITEM), text, ids, offset, limit, scope);
         }
         return switch (selectedRegistry) {
             case "item" -> {
@@ -104,9 +109,26 @@ final class NativeRegistryReader {
         };
     }
 
-    private static <T> Page searchEntries(Registry<T> registry, String selectedRegistry, String text,
-                                          List<String> ids, List<String> tags, int offset, int limit,
-                                          Evidence.Scope scope, Function<T, Evidence.Record> recordFactory) {
+    static <T> Page searchEntries(Registry<T> registry, String selectedRegistry, String text,
+                                  List<String> ids, List<String> tags, int offset, int limit,
+                                  Evidence.Scope scope, Function<T, Evidence.Record> recordFactory) {
+        if (!ids.isEmpty()) {
+            var matches = new ArrayList<Evidence.Record>();
+            var seen = new java.util.HashSet<String>();
+            for (String identity : ids) {
+                var key = ResourceLocation.tryParse(identity);
+                if (key == null || !key.toString().equals(identity) || !seen.add(identity)) continue;
+                T value = registry.get(key);
+                if (value == null || !matchesIdentityAndTags(registry, value, identity, text, ids, tags)) continue;
+                var record = recordFactory.apply(value);
+                matches.add(record);
+            }
+            int start = Math.min(offset, matches.size());
+            int end = Math.min(matches.size(), start + limit);
+            var pageRecords = matches.subList(start, end);
+            return new Page(pageRecords, end, end == matches.size(), pageRecords.stream()
+                    .anyMatch(record -> record.source().coverage() != Evidence.Coverage.COMPLETE), matches.size());
+        }
         int size = registry.size();
         int index = Math.min(offset, size);
         int scanned = 0;
@@ -127,32 +149,52 @@ final class NativeRegistryReader {
         return new Page(records, index, index >= size, partial, scanned);
     }
 
-    private static Page searchItemTags(Minecraft client, String text, List<String> ids, int offset, int limit,
+    private static Page searchItemTags(Registry<Item> registry, String text, List<String> ids, int offset, int limit,
                                        Evidence.Scope scope) {
-        var registry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
-        var iterator = registry.getTags().iterator();
-        int skipped = 0;
-        while (skipped < offset && iterator.hasNext()) {
-            iterator.next();
-            skipped++;
+        if (!ids.isEmpty()) {
+            var matches = new ArrayList<Evidence.Record>();
+            var seen = new java.util.HashSet<String>();
+            for (String identity : ids) {
+                var key = ResourceLocation.tryParse(identity);
+                if (key == null || !key.toString().equals(identity) || !seen.add(identity)) continue;
+                var tag = registry.getTag(TagKey.create(Registries.ITEM, key)).orElse(null);
+                if (tag == null || text != null && !identity.toLowerCase(Locale.ROOT).contains(text.toLowerCase(Locale.ROOT))) continue;
+                matches.add(itemTag(key, tag, registry, scope));
+            }
+            int start = Math.min(offset, matches.size());
+            int end = Math.min(matches.size(), start + limit);
+            var pageRecords = matches.subList(start, end);
+            return new Page(pageRecords, end, end == matches.size(), pageRecords.stream()
+                    .anyMatch(record -> record.source().coverage() != Evidence.Coverage.COMPLETE), matches.size());
         }
-        int scanned = skipped;
+        return page(registry.getTags().iterator(), offset, limit, pair -> {
+            var identity = pair.getFirst().location().toString();
+            return (ids.isEmpty() || ids.contains(identity))
+                    && (text == null || identity.toLowerCase(Locale.ROOT).contains(text.toLowerCase(Locale.ROOT)));
+        }, pair -> itemTag(pair.getFirst().location(), pair.getSecond(), registry, scope));
+    }
+
+    static <T> Page page(java.util.Iterator<T> iterator, int offset, int limit, Predicate<T> matches,
+                         Function<T, Evidence.Record> recordFactory) {
+        int index = 0;
+        while (index < offset && iterator.hasNext()) {
+            iterator.next();
+            index++;
+        }
+        int scanned = 0;
         var records = new ArrayList<Evidence.Record>();
         var partial = false;
         while (iterator.hasNext() && scanned < MAX_CANDIDATES) {
-            var pair = iterator.next();
-            int candidateIndex = scanned++;
-            var key = pair.getFirst().location();
-            var identity = key.toString();
-            if ((!ids.isEmpty() && !ids.contains(identity))
-                    || text != null && !identity.toLowerCase(Locale.ROOT).contains(text.toLowerCase(Locale.ROOT))) continue;
-            if (records.size() == limit) return new Page(records, candidateIndex, false, partial, scanned);
-            var record = itemTag(key, pair.getSecond(), registry, scope);
+            T candidate = iterator.next();
+            index++;
+            scanned++;
+            if (!matches.test(candidate)) continue;
+            var record = recordFactory.apply(candidate);
             records.add(record);
             partial |= record.source().coverage() != Evidence.Coverage.COMPLETE;
-            if (records.size() == limit) return new Page(records, scanned, !iterator.hasNext(), partial, scanned);
+            if (records.size() == limit) return new Page(records, index, !iterator.hasNext(), partial, scanned);
         }
-        return new Page(records, scanned, !iterator.hasNext(), partial, scanned);
+        return new Page(records, index, !iterator.hasNext(), partial, scanned);
     }
 
     private static <T> boolean matchesIdentityAndTags(Registry<T> registry, T value, String identity,

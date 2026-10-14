@@ -1,5 +1,6 @@
 package dev.packsage.knowledge.nativegame;
 
+import com.google.common.collect.ImmutableCollection;
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
@@ -22,16 +23,13 @@ final class NativeRecipeReader {
         if (client.level == null) throw new IllegalStateException("client level unavailable");
         Registry<Item> itemRegistry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
         var recipes = client.level.getRecipeManager().getRecipes();
-        var iterator = recipes.iterator();
-        int index = 0;
-        while (index < offset && iterator.hasNext()) {
-            iterator.next();
-            index++;
-        }
+        if (!(recipes instanceof ImmutableCollection<?> immutableRecipes)) return new Page(List.of(), offset, false, 0);
+        var orderedRecipes = immutableRecipes.asList();
         var records = new ArrayList<Evidence.Record>();
+        int index = Math.min(offset, orderedRecipes.size());
         int scanned = 0;
-        while (iterator.hasNext() && scanned < MAX_CANDIDATES) {
-            RecipeHolder<?> holder = iterator.next();
+        while (index < orderedRecipes.size() && scanned < MAX_CANDIDATES) {
+            RecipeHolder<?> holder = (RecipeHolder<?>) orderedRecipes.get(index);
             index++;
             scanned++;
             var record = NativeSnapshot.copyRecipe(holder, client.level.registryAccess(), itemRegistry,
@@ -44,7 +42,7 @@ final class NativeRecipeReader {
             records.add(record);
             if (records.size() == limit) break;
         }
-        return new Page(records, index, !iterator.hasNext(), scanned);
+        return new Page(records, index, index >= orderedRecipes.size(), scanned);
     }
 
     static Evidence.Record read(Minecraft client, String identity, Evidence.Scope scope) {

@@ -10,7 +10,13 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.BlastFurnaceMenu;
+import net.minecraft.world.inventory.BrewingStandMenu;
+import net.minecraft.world.inventory.FurnaceMenu;
+import net.minecraft.world.inventory.FurnaceFuelSlot;
+import net.minecraft.world.inventory.FurnaceResultSlot;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.SmokerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.item.component.ItemContainerContents;
@@ -50,8 +56,7 @@ public final class NativeStorageReader implements StorageReader {
     private final Supplier<HolderLookup.Provider> registries;
     private final LinkedHashMap<String, Cursor> cursors = new LinkedHashMap<>();
     private final LinkedHashMap<String, Reference> references = new LinkedHashMap<>();
-    // This retained observation is used only by constructor-less fixture readers; runtime reads always use client state.
-    private Observation opened;
+    private Observation fixtureOpened;
 
     public NativeStorageReader(Minecraft client, Executor executor, Supplier<Evidence.Scope> currentScope,
                                BiFunction<String, Evidence.Scope, NativeInventoryReader.LocatedItem> itemResolver) {
@@ -93,7 +98,14 @@ public final class NativeStorageReader implements StorageReader {
         var truncated = false;
         for (int index = 0; index < menu.slots.size(); index++) {
             Slot slot = menu.slots.get(index);
-            if (slot.getClass() != Slot.class || slot.container == playerInventory) continue;
+            var slotType = slot.getClass();
+            var brewingSlotType = slotType.getName();
+            if (slot.container == playerInventory || slotType != Slot.class
+                    && !((slotType == FurnaceResultSlot.class || slotType == FurnaceFuelSlot.class) && (menu.getClass() == FurnaceMenu.class
+                    || menu.getClass() == BlastFurnaceMenu.class || menu.getClass() == SmokerMenu.class)
+                    || menu.getClass() == BrewingStandMenu.class && (brewingSlotType.equals("net.minecraft.world.inventory.BrewingStandMenu$PotionSlot")
+                    || brewingSlotType.equals("net.minecraft.world.inventory.BrewingStandMenu$IngredientsSlot")
+                    || brewingSlotType.equals("net.minecraft.world.inventory.BrewingStandMenu$FuelSlot")))) continue;
             ItemStack stack = slot.getItem().copy();
             if (stack.isEmpty()) continue;
             if (entries.size() == MAX_ENTRIES) {
@@ -167,16 +179,19 @@ public final class NativeStorageReader implements StorageReader {
         return new OpenedEntries(entries, truncated);
     }
 
-    synchronized void storeOpened(List<Evidence.Record> entries, Evidence.Scope scope, Instant capturedAt,
-                                  long capturedNanos, String title, Map<String, Evidence.JsonValue> details,
-                                  Evidence.Coverage coverage) {
-        opened = new Observation(entries, scope, capturedAt, capturedNanos,
-                title.length() <= 256 ? title : title.substring(0, 256), details, coverage,
-                List.of("client-storage-observation", "last-opened-menu"));
+    synchronized void storeOpenedFixture(List<Evidence.Record> entries, Evidence.Scope scope, Instant capturedAt,
+                                         long capturedNanos, String title, Map<String, Evidence.JsonValue> details,
+                                         Evidence.Coverage coverage) {
+        if (client != null) throw new IllegalStateException("fixture opened observations are unavailable at runtime");
+        var fixtureDetails = new LinkedHashMap<>(details);
+        fixtureDetails.putIfAbsent("ownerIdentity", new Evidence.JsonString("fixture-opened-menu"));
+        fixtureOpened = new Observation(entries, scope, capturedAt, capturedNanos,
+                title.length() <= 256 ? title : title.substring(0, 256), fixtureDetails, coverage,
+                List.of("fixture-client-storage-observation"));
     }
 
     public synchronized void clear() {
-        opened = null;
+        fixtureOpened = null;
         cursors.clear();
         references.clear();
     }
@@ -192,19 +207,26 @@ public final class NativeStorageReader implements StorageReader {
         }
         if (!reference.scope().equals(scope) || !scope.equals(currentScope.get())) return CompletableFuture.failedFuture(
                 new IllegalArgumentException("storage evidence scope changed"));
-        return CompletableFuture.supplyAsync(() -> client == null || client.isSameThread()
-                ? readEvidenceOnClient(reference, scope) : client.submit(() -> readEvidenceOnClient(reference, scope)).join(), executor);
+        return client == null ? CompletableFuture.supplyAsync(() -> readEvidenceOnClient(reference, scope), executor)
+                .thenCompose(result -> result)
+                : client.submit(() -> readEvidenceOnClient(reference, scope)).thenCompose(result -> result);
     }
 
-    private Evidence.Result readEvidenceOnClient(Reference reference, Evidence.Scope scope) {
-        if (!scope.equals(currentScope.get())) return error(reference.request(), "storage evidence scope changed");
+    private CompletionStage<Evidence.Result> readEvidenceOnClient(Reference reference, Evidence.Scope scope) {
+        if (!scope.equals(currentScope.get())) return CompletableFuture.completedFuture(error(reference.request(), "storage evidence scope changed"));
         var request = reference.request();
+        if (request.target() != Target.OPENED && request.target() != Target.ITEM && client != null) {
+            return captureTargeted(request, scope).thenApply(observation -> observation == null
+                    || !reference.ownerId().equals(ownerId(observation)) ? error(request, "storage target changed or is no longer available")
+                    : makePage(filter(observation.entries(), request), request, reference.offset(), reference.observationId(), observation,
+                    new Cursor(reference.offset(), reference.observationId(), reference.ownerId(), request, reference.createdNanos())));
+        }
         var observation = request.target() == Target.OPENED ? validOpened(scope, request.filter()) : request.target() == Target.ITEM
-                ? captureItem(request, scope) : client == null ? unknown(request, scope, "native client unavailable") : captureTargeted(request, scope);
-        if (observation == null || !reference.ownerId().equals(ownerId(observation))) return error(request,
-                "storage target changed or is no longer available");
-        return makePage(filter(observation.entries(), request), request, reference.offset(), reference.observationId(), observation,
-                new Cursor(reference.offset(), reference.observationId(), reference.ownerId(), request, reference.createdNanos()));
+                ? captureItem(request, scope) : unknown(request, scope, "native client unavailable");
+        if (observation == null || !reference.ownerId().equals(ownerId(observation))) return CompletableFuture.completedFuture(error(request,
+                "storage target changed or is no longer available"));
+        return CompletableFuture.completedFuture(makePage(filter(observation.entries(), request), request, reference.offset(), reference.observationId(), observation,
+                new Cursor(reference.offset(), reference.observationId(), reference.ownerId(), request, reference.createdNanos())));
     }
 
     @Override
@@ -213,11 +235,11 @@ public final class NativeStorageReader implements StorageReader {
         if (request.limit() > MAX_PAGE) {
             return CompletableFuture.completedFuture(error(request, "limit must be between 1 and 32"));
         }
-        return CompletableFuture.supplyAsync(() -> client == null || client.isSameThread() ? readOnClient(request)
-                : client.submit(() -> readOnClient(request)).join(), executor);
+        return client == null ? CompletableFuture.supplyAsync(() -> readOnClient(request), executor).thenCompose(result -> result)
+                : client.submit(() -> readOnClient(request)).thenCompose(result -> result);
     }
 
-    private Evidence.Result readOnClient(Request request) {
+    private CompletionStage<Evidence.Result> readOnClient(Request request) {
         synchronized (this) {
             expireCursors();
         }
@@ -226,10 +248,10 @@ public final class NativeStorageReader implements StorageReader {
                 || !scope.resourcesLocale().equals(request.scope().resourcesLocale())
                 || !scope.playerTeam().equals(request.scope().playerTeam())
                 || !scope.providerRuntime().equals(request.scope().providerRuntime())) {
-            return error(request, "evidence scope changed; repeat the lookup");
+            return CompletableFuture.completedFuture(error(request, "evidence scope changed; repeat the lookup"));
         }
         if (request.cursor() != null) return readCursor(request, scope);
-        Observation observation;
+        Observation observation = null;
         if (request.target() == Target.OPENED) {
             observation = validOpened(scope, request.filter());
         } else if (request.target() == Target.ITEM) {
@@ -237,10 +259,11 @@ public final class NativeStorageReader implements StorageReader {
         } else if (client == null) {
             observation = unknown(request, scope, "native client unavailable");
         } else {
-            observation = captureTargeted(request, scope);
+            return captureTargeted(request, scope).thenApply(result -> result == null ? error(request, "selected inventory source is unavailable")
+                    : firstPage(result, request));
         }
-        if (observation == null) return error(request, "selected inventory source is unavailable");
-        return firstPage(observation, request);
+        if (observation == null) return CompletableFuture.completedFuture(error(request, "selected inventory source is unavailable"));
+        return CompletableFuture.completedFuture(firstPage(observation, request));
     }
 
     private synchronized Observation validOpened(Evidence.Scope scope, InventoryReader.Filter filter) {
@@ -257,26 +280,26 @@ public final class NativeStorageReader implements StorageReader {
             var capturedNanos = monotonicClock.getAsLong();
             var captured = openedEntries(menu, client.player.getInventory(), scope, capturedAt, client.level.registryAccess(),
                     filter, client.player);
-            var identity = type + ":" + menu.containerId;
+            var identity = client.level.dimension().location() + ":" + client.player.getUUID() + ":" + type + ":" + menu.containerId;
             return new Observation(captured.entries(), scope, capturedAt, capturedNanos, "Opened inventory",
                     Map.of("observation", new Evidence.JsonString("live_opened_menu"), "completeness", new Evidence.JsonString("partial"),
                             "menuType", new Evidence.JsonString(type.toString()),
                             "ownerIdentity", new Evidence.JsonString(identity)), Evidence.Coverage.PARTIAL,
                     List.of("current-client-menu-slots"));
         }
-        if (opened == null) return null;
-        if (monotonicClock.getAsLong() - opened.createdNanos() >= TTL_NANOS
-                || !scope.worldSession().equals(opened.scope().worldSession())
-                || !scope.resourcesLocale().equals(opened.scope().resourcesLocale())
-                || !scope.playerTeam().equals(opened.scope().playerTeam())
-                || !scope.providerRuntime().equals(opened.scope().providerRuntime())) {
-            opened = null;
+        if (fixtureOpened == null) return null;
+        if (monotonicClock.getAsLong() - fixtureOpened.createdNanos() >= TTL_NANOS
+                || !scope.worldSession().equals(fixtureOpened.scope().worldSession())
+                || !scope.resourcesLocale().equals(fixtureOpened.scope().resourcesLocale())
+                || !scope.playerTeam().equals(fixtureOpened.scope().playerTeam())
+                || !scope.providerRuntime().equals(fixtureOpened.scope().providerRuntime())) {
+            fixtureOpened = null;
             return null;
         }
-        return opened;
+        return fixtureOpened;
     }
 
-    private Observation captureTargeted(Request request, Evidence.Scope scope) {
+    private CompletionStage<Observation> captureTargeted(Request request, Evidence.Scope scope) {
         return NativeServerStorageReader.read(client, request, scope, monotonicClock, currentScope);
     }
 
@@ -519,28 +542,34 @@ public final class NativeStorageReader implements StorageReader {
         return makePage(filter(observation.entries(), request), request, 0, UUID.randomUUID().toString(), observation, null);
     }
 
-    private Evidence.Result readCursor(Request request, Evidence.Scope scope) {
+    private CompletionStage<Evidence.Result> readCursor(Request request, Evidence.Scope scope) {
         Cursor cursor;
         synchronized (this) {
             cursor = cursors.get(request.cursor());
-            if (cursor == null) return error(request, "storage cursor is unknown or expired; repeat the lookup");
+            if (cursor == null) return CompletableFuture.completedFuture(error(request, "storage cursor is unknown or expired; repeat the lookup"));
             if (!cursor.request().target().equals(request.target()) || !Objects.equals(cursor.request().text(), request.text())
                     || !Objects.equals(cursor.request().slotReference(), request.slotReference())
                     || !cursor.request().identities().equals(request.identities())
                     || !cursor.request().filter().equals(request.filter()) || !cursor.request().scope().equals(request.scope())
                     || !scope.equals(request.scope())) {
-                return error(request, "storage cursor does not match this query or scope");
+                return CompletableFuture.completedFuture(error(request, "storage cursor does not match this query or scope"));
             }
             cursors.remove(request.cursor());
         }
-        Observation observation = request.target() == Target.OPENED ? validOpened(scope, request.filter()) : request.target() == Target.ITEM
-                ? captureItem(request, scope) : client == null ? unknown(request, scope, "native client unavailable") : captureTargeted(request, scope);
-        if (observation == null) return error(request, "inventory target is no longer available; repeat the lookup");
-        if (!cursor.ownerId().equals(ownerId(observation))) return error(request, "inventory target changed; repeat the lookup");
-        return makePage(filter(observation.entries(), request), request, cursor.offset(), cursor.snapshotId(), observation, cursor);
+        if (request.target() != Target.OPENED && request.target() != Target.ITEM && client != null) {
+            return captureTargeted(request, scope).thenApply(observation -> observation == null
+                    ? error(request, "inventory target is no longer available; repeat the lookup")
+                    : !cursor.ownerId().equals(ownerId(observation)) ? error(request, "inventory target changed; repeat the lookup")
+                    : makePage(filter(observation.entries(), request), request, cursor.offset(), cursor.observationId(), observation, cursor));
+        }
+        var observation = request.target() == Target.OPENED ? validOpened(scope, request.filter()) : request.target() == Target.ITEM
+                ? captureItem(request, scope) : unknown(request, scope, "native client unavailable");
+        if (observation == null) return CompletableFuture.completedFuture(error(request, "inventory target is no longer available; repeat the lookup"));
+        if (!cursor.ownerId().equals(ownerId(observation))) return CompletableFuture.completedFuture(error(request, "inventory target changed; repeat the lookup"));
+        return CompletableFuture.completedFuture(makePage(filter(observation.entries(), request), request, cursor.offset(), cursor.observationId(), observation, cursor));
     }
 
-    private Evidence.Result makePage(List<Evidence.Record> entries, Request request, int offset, String snapshotId,
+    private Evidence.Result makePage(List<Evidence.Record> entries, Request request, int offset, String observationId,
                                      Observation observation, Cursor previous) {
         if (offset < 0 || offset > entries.size()) return error(request, "storage cursor offset is invalid");
         var end = Math.min(entries.size(), offset + request.limit());
@@ -573,14 +602,14 @@ public final class NativeStorageReader implements StorageReader {
         if (end < entries.size()) {
             next = UUID.randomUUID().toString();
             synchronized (this) {
-                cursors.put(next, new Cursor(end, snapshotId, ownerId(observation), request, observation.createdNanos()));
+                cursors.put(next, new Cursor(end, observationId, ownerId(observation), request, observation.createdNanos()));
                 while (cursors.size() > MAX_RETAINED) cursors.remove(cursors.keySet().iterator().next());
             }
         }
         var payload = envelope(request, observation, pageEntries, next);
-        var sourceHandle = "storage:" + snapshotId + ":" + (previous == null ? 0 : previous.offset());
+        var sourceHandle = "storage:" + observationId + ":" + (previous == null ? 0 : previous.offset());
         synchronized (this) {
-            references.put(sourceHandle, new Reference(snapshotId, previous == null ? 0 : previous.offset(),
+            references.put(sourceHandle, new Reference(observationId, previous == null ? 0 : previous.offset(),
                     ownerId(observation), request, observation.scope(), observation.createdNanos()));
             while (references.size() > MAX_ENTRIES) references.remove(references.keySet().iterator().next());
         }
@@ -598,14 +627,14 @@ public final class NativeStorageReader implements StorageReader {
         return new Evidence.Result(List.of(record), observation.coverage(), outcome, next);
     }
 
-    static Evidence.Result pageRecords(List<Evidence.Record> entries, Request request, int offset, String snapshotId,
+    static Evidence.Result pageRecords(List<Evidence.Record> entries, Request request, int offset, String observationId,
                                        Evidence.Coverage coverage, Instant capturedAt) {
         var scope = entries.isEmpty() ? request.scope() : entries.getFirst().source().scope();
         var observation = new Observation(entries, scope, capturedAt, 0, "Storage contents",
                 Map.of("completeness", new Evidence.JsonString(coverage.name().toLowerCase(java.util.Locale.ROOT))),
                 coverage, List.of("client-storage-observation"));
         var reader = new NativeStorageReader(Runnable::run, request::scope, () -> 0L);
-        return reader.makePage(entries, request, offset, snapshotId, observation, null);
+        return reader.makePage(entries, request, offset, observationId, observation, null);
     }
 
     private static Evidence.JsonObject envelope(Request request, Observation observation, List<Evidence.JsonValue> entries,
@@ -687,7 +716,7 @@ public final class NativeStorageReader implements StorageReader {
         }
     }
 
-    private record Cursor(int offset, String snapshotId, String ownerId, Request request, long createdNanos) { }
+    private record Cursor(int offset, String observationId, String ownerId, Request request, long createdNanos) { }
     private record Reference(String observationId, int offset, String ownerId, Request request, Evidence.Scope scope,
                             long createdNanos) { }
 }

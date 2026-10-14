@@ -11,7 +11,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Containers;
@@ -22,8 +21,10 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.animal.horse.Donkey;
 import net.minecraft.world.entity.animal.horse.Horse;
+import net.minecraft.world.entity.animal.horse.Llama;
 import net.minecraft.world.entity.animal.horse.Mule;
 import net.minecraft.world.entity.animal.horse.SkeletonHorse;
+import net.minecraft.world.entity.animal.horse.TraderLlama;
 import net.minecraft.world.entity.animal.horse.ZombieHorse;
 import net.minecraft.world.entity.vehicle.ChestBoat;
 import net.minecraft.world.entity.vehicle.ContainerEntity;
@@ -59,7 +60,6 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 
@@ -71,16 +71,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
 import java.util.function.LongSupplier;
 
 final class NativeServerStorageReader {
     private NativeServerStorageReader() { }
 
-    static NativeStorageReader.Observation read(Minecraft client, StorageReader.Request request, Evidence.Scope scope,
-                                                LongSupplier monotonicClock, Supplier<Evidence.Scope> currentScope) {
+    static CompletionStage<NativeStorageReader.Observation> read(Minecraft client, StorageReader.Request request, Evidence.Scope scope,
+                                                                  LongSupplier monotonicClock, Supplier<Evidence.Scope> currentScope) {
         if (!client.isSameThread()) throw new IllegalStateException("target selection must run on the client thread");
-        if (client.player == null || client.level == null) return unavailable(request, scope, monotonicClock, "client player or level unavailable");
+        if (client.player == null || client.level == null) return CompletableFuture.completedFuture(
+                unavailable(request, scope, monotonicClock, "client player or level unavailable"));
         Selection selection = null;
         if (request.target() == StorageReader.Target.RIDDEN) {
             var vehicle = client.player.getVehicle();
@@ -98,25 +101,26 @@ final class NativeServerStorageReader {
             selection = new Selection(request.target(), client.player.getUUID(), client.level.dimension(), entity.getUUID(),
                     type, hit.getLocation(), null, null, null);
         }
-        if (selection == null) return unavailable(request, scope, monotonicClock,
-                request.target() == StorageReader.Target.RIDDEN ? "player is not riding a supported container entity" : "no supported targeted inventory");
+        if (selection == null) return CompletableFuture.completedFuture(unavailable(request, scope, monotonicClock,
+                request.target() == StorageReader.Target.RIDDEN ? "player is not riding a supported container entity" : "no supported targeted inventory"));
         var server = client.getSingleplayerServer();
-        if (server == null) return unavailable(request, scope, monotonicClock, "private integrated server unavailable");
+        if (server == null) return CompletableFuture.completedFuture(
+                unavailable(request, scope, monotonicClock, "private integrated server unavailable"));
         var selected = selection;
-        return server.submit(() -> readServer(server, selected, request, scope, monotonicClock, currentScope)).join();
+        return server.submit(() -> readServer(server, selected, request, scope, monotonicClock, currentScope))
+                .handle((observation, failure) -> failure == null ? observation
+                        : unavailable(request, scope, monotonicClock, "private integrated read failed"));
     }
 
     private static NativeStorageReader.Observation readServer(MinecraftServer server, Selection selection,
                                                               StorageReader.Request request, Evidence.Scope scope,
                                                               LongSupplier monotonicClock, Supplier<Evidence.Scope> currentScope) {
         if (!scope.equals(currentScope.get())) return unavailable(request, scope, monotonicClock, "evidence scope changed");
-        if (server.isPublished() || server.getSingleplayerProfile() == null
-                || !Objects.equals(server.getSingleplayerProfile().getId(), selection.playerId())
-                || !server.isSingleplayerOwner(server.getSingleplayerProfile())) {
-            return unavailable(request, scope, monotonicClock, "private integrated owner read is unavailable");
-        }
+        var profile = server.getSingleplayerProfile();
         var players = server.getPlayerList().getPlayers();
-        if (players.size() != 1 || !players.getFirst().getUUID().equals(selection.playerId())) {
+        var serverPlayerId = players.size() == 1 ? players.getFirst().getUUID() : null;
+        if (profile == null || !server.isSingleplayerOwner(profile)
+                || !privateOwnerReadAllowed(server.isPublished(), profile.getId(), selection.playerId(), serverPlayerId, players.size())) {
             return unavailable(request, scope, monotonicClock, "integrated server is published or has another connected player");
         }
         ServerPlayer player = players.getFirst();
@@ -141,6 +145,9 @@ final class NativeServerStorageReader {
                 || !Objects.equals(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()), selection.entityType())) {
             return unavailable(request, scope, monotonicClock, "target entity changed or is unavailable");
         }
+        var entityType = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+        if (entityType == null || !entityType.getNamespace().equals("minecraft")) return unavailable(request, scope, monotonicClock,
+                "modded target entity types are unsupported");
         if (entity instanceof AbstractHorse horse && supportedHorse(horse)) return readHorse(horse, player, request, scope, monotonicClock);
         if ((entity.getClass() == ChestBoat.class || entity.getClass() == MinecartChest.class)
                 && entity instanceof ContainerEntity container) return readVehicleContainer(container, entity, player, request, scope, monotonicClock);
@@ -151,21 +158,22 @@ final class NativeServerStorageReader {
                                                              StorageReader.Request request, Evidence.Scope scope,
                                                              LongSupplier monotonicClock) {
         BlockPos pos = selection.blockPos();
-        var chunk = loadedChunk(level.getChunkSource(), pos);
+        var chunk = level.getChunkSource().getChunkNow(pos.getX() >> 4, pos.getZ() >> 4);
         if (chunk == null) return unavailable(request, scope, monotonicClock, "target chunk is not loaded");
         BlockState state = chunk.getBlockState(pos);
         var blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-        if (blockId == null || !blockId.toString().equals(selection.blockType()) || !state.toString().equals(selection.blockState())) {
+        if (blockId == null || !blockId.getNamespace().equals("minecraft") || !blockId.toString().equals(selection.blockType())
+                || !state.toString().equals(selection.blockState())) {
             return unavailable(request, scope, monotonicClock, "target block changed");
         }
         var blockEntity = chunk.getBlockEntity(pos);
-        if (blockEntity == null || !supportedBlockEntity(blockEntity)) return unavailable(request, scope, monotonicClock,
+        if (blockEntity == null || !supportedBlockEntity(state, blockEntity)) return unavailable(request, scope, monotonicClock,
                 "target block inventory is unsupported");
         var halves = new ArrayList<BlockHalf>();
         if (state.getBlock() instanceof ChestBlock chest && state.hasProperty(ChestBlock.TYPE)
                 && state.getValue(ChestBlock.TYPE) != ChestType.SINGLE) {
             BlockPos otherPos = pos.relative(ChestBlock.getConnectedDirection(state));
-            var otherChunk = loadedChunk(level.getChunkSource(), otherPos);
+            var otherChunk = level.getChunkSource().getChunkNow(otherPos.getX() >> 4, otherPos.getZ() >> 4);
             if (otherChunk == null) return unavailable(request, scope, monotonicClock, "both chest halves must already be loaded");
             BlockState otherState = otherChunk.getBlockState(otherPos);
             var opposite = otherState.hasProperty(ChestBlock.TYPE) ? otherState.getValue(ChestBlock.TYPE) : ChestType.SINGLE;
@@ -177,7 +185,8 @@ final class NativeServerStorageReader {
             }
             BlockPos above = pos.above();
             BlockPos otherAbove = otherPos.above();
-            if (loadedChunk(level.getChunkSource(), above) == null || loadedChunk(level.getChunkSource(), otherAbove) == null
+            if (level.getChunkSource().getChunkNow(above.getX() >> 4, above.getZ() >> 4) == null
+                    || level.getChunkSource().getChunkNow(otherAbove.getX() >> 4, otherAbove.getZ() >> 4) == null
                     || ChestBlock.isChestBlockedAt(level, pos) || ChestBlock.isChestBlockedAt(level, otherPos)) {
                 return unavailable(request, scope, monotonicClock, "double chest is blocked or not fully loaded");
             }
@@ -189,18 +198,21 @@ final class NativeServerStorageReader {
         } else {
             if (blockEntity instanceof ChestBlockEntity && state.getBlock() instanceof ChestBlock) {
                 BlockPos above = pos.above();
-                if (loadedChunk(level.getChunkSource(), above) == null || ChestBlock.isChestBlockedAt(level, pos)) {
+                if (level.getChunkSource().getChunkNow(above.getX() >> 4, above.getZ() >> 4) == null
+                        || ChestBlock.isChestBlockedAt(level, pos)) {
                     return unavailable(request, scope, monotonicClock, "chest is blocked or adjacent chunk is not loaded");
                 }
             }
             halves.add(new BlockHalf((BaseContainerBlockEntity) blockEntity, pos, "container"));
         }
         for (BlockHalf half : halves) {
-            if (half.container() instanceof RandomizableContainerBlockEntity randomizable && randomizable.getLootTable() != null) {
+            boolean hasPendingLoot = half.container() instanceof RandomizableContainerBlockEntity randomizable
+                    && randomizable.getLootTable() != null;
+            if (!mayReadContainerContents(LockCode.NO_LOCK, hasPendingLoot)) {
                 return unavailable(request, scope, monotonicClock, "pending loot table contents are unavailable");
             }
             var lock = half.container().collectComponents().getOrDefault(DataComponents.LOCK, LockCode.NO_LOCK);
-            if (!lock.key().isEmpty()) return unavailable(request, scope, monotonicClock, "locked containers are unavailable");
+            if (!mayReadContainerContents(lock, false)) return unavailable(request, scope, monotonicClock, "locked containers are unavailable");
         }
         var entries = new ArrayList<Evidence.Record>();
         var positions = new ArrayList<Evidence.JsonValue>();
@@ -212,7 +224,9 @@ final class NativeServerStorageReader {
             for (int slot = 0; slot < component.getSlots(); slot++) {
                 ItemStack stack = component.getStackInSlot(slot);
                 if (stack.isEmpty()) continue;
-                entries.add(storageEntry(stack, scope, capturedAt, "container", outputSlot++, slot, selection, half.position(),
+                entries.add(storageEntry(stack, scope, capturedAt, "container", outputSlot++, slot,
+                        blockId + ":" + level.dimension().location() + ":" + pos.asLong() + ":" + selection.blockState(),
+                        half.position(),
                         half.section(), level.registryAccess(), request.filter(), player, level));
                 if (entries.size() == 256) return unavailable(request, scope, monotonicClock, "container contents exceed the read bound");
             }
@@ -221,7 +235,8 @@ final class NativeServerStorageReader {
         stateValues.put("id", new Evidence.JsonString(blockId.toString()));
         stateValues.put("position", position(pos, "target"));
         stateValues.put("positions", new Evidence.JsonArray(positions));
-        stateValues.put("ownerIdentity", new Evidence.JsonString(blockId + ":" + pos.asLong() + ":" + selection.blockState()));
+        stateValues.put("ownerIdentity", new Evidence.JsonString(blockId + ":" + level.dimension().location() + ":"
+                + pos.asLong() + ":" + selection.blockState()));
         stateValues.put("observation", new Evidence.JsonString("private_integrated_owner"));
         stateValues.put("contentsStatus", new Evidence.JsonString("complete"));
         var coverage = entries.stream().anyMatch(entry -> entry.source().coverage() != Evidence.Coverage.COMPLETE)
@@ -240,14 +255,15 @@ final class NativeServerStorageReader {
         for (int slot = 0; slot < container.getContainerSize(); slot++) {
             ItemStack stack = container.getItem(slot).copy();
             if (stack.isEmpty()) continue;
-            entries.add(storageEntry(stack, scope, capturedAt, "cargo", slot, slot, null, null, "cargo",
+            entries.add(storageEntry(stack, scope, capturedAt, "cargo", slot, slot,
+                    entity.getUUID() + ":" + player.serverLevel().dimension().location(), null, "cargo",
                     player.serverLevel().registryAccess(), request.filter(), player, player.serverLevel()));
             if (entries.size() == 256) return unavailable(request, scope, monotonicClock, "vehicle contents exceed the read bound");
         }
         var identity = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         var details = new LinkedHashMap<String, Evidence.JsonValue>();
         details.put("id", new Evidence.JsonString(identity == null ? "unknown:entity" : identity.toString()));
-        details.put("ownerIdentity", new Evidence.JsonString(entity.getUUID().toString()));
+        details.put("ownerIdentity", new Evidence.JsonString(entity.getUUID() + ":" + player.serverLevel().dimension().location()));
         details.put("entityIdentity", new Evidence.JsonString(entity.getUUID().toString()));
         details.put("observation", new Evidence.JsonString("private_integrated_owner"));
         details.put("contentsStatus", new Evidence.JsonString("complete"));
@@ -262,24 +278,31 @@ final class NativeServerStorageReader {
                                                              Evidence.Scope scope, LongSupplier monotonicClock) {
         if (!horse.isTamed() || horse.isVehicle() && !horse.hasPassenger(player)) return unavailable(request, scope, monotonicClock,
                 "horse inventory is not accessible to the current player");
+        boolean llama = horse.getClass() == Llama.class || horse.getClass() == TraderLlama.class;
         var capturedAt = Instant.now();
         var entries = new ArrayList<Evidence.Record>();
         ItemStack bodyArmor = horse.getItemBySlot(EquipmentSlot.BODY).copy();
-        if (!bodyArmor.isEmpty()) entries.add(storageEntry(bodyArmor, scope, capturedAt, "body_armor", 0, 0, null, null,
-                "body_armor", player.serverLevel().registryAccess(), request.filter(), player, player.serverLevel()));
+        if (!bodyArmor.isEmpty()) entries.add(storageEntry(bodyArmor, scope, capturedAt, llama ? "body_carpet" : "body_armor", 0, 0,
+                horse.getUUID() + ":" + player.serverLevel().dimension().location(), null, llama ? "body_carpet" : "body_armor",
+                player.serverLevel().registryAccess(), request.filter(), player, player.serverLevel()));
         var container = horse.getInventory();
         for (int slot = 0; slot < container.getContainerSize(); slot++) {
             ItemStack stack = container.getItem(slot).copy();
+            if (llama && slot == 0) {
+                if (!stack.isEmpty()) return unavailable(request, scope, monotonicClock, "llama saddle slot is outside its inventory contract");
+                continue;
+            }
             if (stack.isEmpty()) continue;
             String section = slot == 0 ? "saddle" : "cargo";
-            entries.add(storageEntry(stack, scope, capturedAt, section, slot, slot, null, null, section,
+            entries.add(storageEntry(stack, scope, capturedAt, section, slot, slot,
+                    horse.getUUID() + ":" + player.serverLevel().dimension().location(), null, section,
                     player.serverLevel().registryAccess(), request.filter(), player, player.serverLevel()));
             if (entries.size() == 256) return unavailable(request, scope, monotonicClock, "horse inventory exceeds the read bound");
         }
         var identity = BuiltInRegistries.ENTITY_TYPE.getKey(horse.getType());
         var details = new LinkedHashMap<String, Evidence.JsonValue>();
         details.put("id", new Evidence.JsonString(identity == null ? "unknown:horse" : identity.toString()));
-        details.put("ownerIdentity", new Evidence.JsonString(horse.getUUID().toString()));
+        details.put("ownerIdentity", new Evidence.JsonString(horse.getUUID() + ":" + player.serverLevel().dimension().location()));
         details.put("entityIdentity", new Evidence.JsonString(horse.getUUID().toString()));
         details.put("observation", new Evidence.JsonString("private_integrated_owner"));
         details.put("contentsStatus", new Evidence.JsonString("complete"));
@@ -291,7 +314,7 @@ final class NativeServerStorageReader {
     }
 
     private static Evidence.Record storageEntry(ItemStack stack, Evidence.Scope scope, Instant capturedAt,
-                                                String storageType, int slot, int sourceSlot, Selection selection,
+                                                String storageType, int slot, int sourceSlot, String ownerIdentity,
                                                 BlockPos position, String section, net.minecraft.core.HolderLookup.Provider registries,
                                                 InventoryReader.Filter filter, ServerPlayer player, Level level) {
         var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
@@ -302,6 +325,7 @@ final class NativeServerStorageReader {
         payload.put("id", new Evidence.JsonString(identity));
         payload.put("name", new Evidence.JsonString(name));
         payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
+        payload.put("ownerIdentity", new Evidence.JsonString(ownerIdentity));
         payload.put("section", new Evidence.JsonString(section));
         payload.put("storageType", new Evidence.JsonString(storageType));
         payload.put("componentSlot", new Evidence.JsonNumber(BigDecimal.valueOf(sourceSlot)));
@@ -345,8 +369,8 @@ final class NativeServerStorageReader {
             }
         }
         if (position != null) payload.put("position", position(position, section));
-        if (selection != null && selection.entityId() != null) payload.put("entityIdentity", new Evidence.JsonString(selection.entityId().toString()));
-        var source = new Evidence.Source(scope, "native", "1.21.1", "server-storage-entry:" + storageType + ":" + slot,
+        var source = new Evidence.Source(scope, "native", "1.21.1", "server-storage-entry:" + scope.worldSession() + ":"
+                + ownerIdentity + ":" + section + ":" + sourceSlot + ":" + slot,
                 scope.requestGeneration(), capturedAt, Evidence.Activity.ACTIVE, partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
                 Evidence.Authority.SERVER_READ, List.of("private_integrated_owner", "server-read", "serialized-item-components"));
         return new Evidence.Record(source, Evidence.RecordKind.ITEM, identity, new Evidence.JsonObject(payload), List.of());
@@ -358,21 +382,35 @@ final class NativeServerStorageReader {
                 "section", new Evidence.JsonString(section)));
     }
 
-    private static LevelChunk loadedChunk(ServerChunkCache chunks, BlockPos pos) {
-        return chunks.getChunkNow(pos.getX() >> 4, pos.getZ() >> 4);
+    static boolean privateOwnerReadAllowed(boolean published, UUID profileId, UUID clientPlayerId,
+                                           UUID serverPlayerId, int connectedPlayers) {
+        return !published && connectedPlayers == 1 && profileId != null
+                && profileId.equals(clientPlayerId) && profileId.equals(serverPlayerId);
+    }
+
+    static boolean mayReadContainerContents(LockCode lock, boolean hasPendingLoot) {
+        return !hasPendingLoot && lock.key().isEmpty();
     }
 
     private static boolean supportedHorse(AbstractHorse horse) {
         return horse.getClass() == Horse.class || horse.getClass() == Donkey.class || horse.getClass() == Mule.class
-                || horse.getClass() == SkeletonHorse.class || horse.getClass() == ZombieHorse.class;
+                || horse.getClass() == SkeletonHorse.class || horse.getClass() == ZombieHorse.class
+                || horse.getClass() == Llama.class || horse.getClass() == TraderLlama.class;
     }
 
-    private static boolean supportedBlockEntity(net.minecraft.world.level.block.entity.BlockEntity blockEntity) {
+    private static boolean supportedBlockEntity(BlockState state, net.minecraft.world.level.block.entity.BlockEntity blockEntity) {
         Class<?> type = blockEntity.getClass();
-        return type == ChestBlockEntity.class || type == BarrelBlockEntity.class || type == ShulkerBoxBlockEntity.class
-                || type == DispenserBlockEntity.class || type == DropperBlockEntity.class || type == HopperBlockEntity.class
-                || type == FurnaceBlockEntity.class || type == SmokerBlockEntity.class || type == BlastFurnaceBlockEntity.class
-                || type == BrewingStandBlockEntity.class;
+        Class<?> block = state.getBlock().getClass();
+        return type == ChestBlockEntity.class && block == ChestBlock.class
+                || type == BarrelBlockEntity.class && block == BarrelBlock.class
+                || type == ShulkerBoxBlockEntity.class && block == ShulkerBoxBlock.class
+                || type == DispenserBlockEntity.class && block == DispenserBlock.class
+                || type == DropperBlockEntity.class && block == DropperBlock.class
+                || type == HopperBlockEntity.class && block == HopperBlock.class
+                || type == FurnaceBlockEntity.class && block == FurnaceBlock.class
+                || type == SmokerBlockEntity.class && block == SmokerBlock.class
+                || type == BlastFurnaceBlockEntity.class && block == BlastFurnaceBlock.class
+                || type == BrewingStandBlockEntity.class && block == BrewingStandBlock.class;
     }
 
     private static NativeStorageReader.Observation unavailable(StorageReader.Request request, Evidence.Scope scope,

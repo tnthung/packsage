@@ -104,7 +104,7 @@ public final class NativeProvider implements KnowledgeProvider {
             index.replace(new NativeSnapshot(scope, candidates));
             var result = new RecipePlanner(index).plan(itemIdentity, quantity, scope, maxDepth);
             boolean scanPartial = client.level.getRecipeManager().getRecipes().size() > NativeRecipeReader.MAX_CANDIDATES;
-            if (scanPartial && result.coverage() == Evidence.Coverage.COMPLETE) return partial(result, "bounded-live-recipe-scan");
+            if (scanPartial) return partial(result, "bounded-live-recipe-scan");
             return result;
         }).thenApply(result -> publish(result, scope));
     }
@@ -134,10 +134,31 @@ public final class NativeProvider implements KnowledgeProvider {
         }
         var fields = filterValue instanceof Evidence.JsonObject value ? value : new Evidence.JsonObject(Map.of());
         try {
-            var filter = new InventoryReader.Filter(strings(fields, "names"), strings(fields, "ids"), strings(fields, "tags"),
-                    strings(fields, "tooltip"), strings(fields, "sections"));
-            int limit = integer(request.arguments(), "limit", 32);
-            String cursor = string(request.arguments(), "cursor");
+            var filterValues = new LinkedHashMap<String, List<String>>();
+            for (String field : List.of("names", "ids", "tags", "tooltip", "sections")) {
+                var value = fields.values().get(field);
+                if (value == null || value instanceof Evidence.JsonNull) {
+                    filterValues.put(field, List.of());
+                } else if (value instanceof Evidence.JsonArray array
+                        && array.values().stream().allMatch(Evidence.JsonString.class::isInstance)) {
+                    filterValues.put(field, array.values().stream().map(Evidence.JsonString.class::cast)
+                            .map(Evidence.JsonString::value).toList());
+                } else {
+                    throw new IllegalArgumentException(field + " must be an array of strings");
+                }
+            }
+            var filter = new InventoryReader.Filter(filterValues.get("names"), filterValues.get("ids"), filterValues.get("tags"),
+                    filterValues.get("tooltip"), filterValues.get("sections"));
+            var limitValue = request.arguments().values().get("limit");
+            if (limitValue != null && !(limitValue instanceof Evidence.JsonNull) && !(limitValue instanceof Evidence.JsonNumber)) {
+                throw new IllegalArgumentException("limit must be an integer");
+            }
+            int limit = limitValue instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 32;
+            var cursorValue = request.arguments().values().get("cursor");
+            if (cursorValue != null && !(cursorValue instanceof Evidence.JsonNull) && !(cursorValue instanceof Evidence.JsonString)) {
+                throw new IllegalArgumentException("cursor must be a string");
+            }
+            String cursor = cursorValue instanceof Evidence.JsonString value ? value.value() : null;
             if (type.value().equals("player")) return inventory.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
                     filter, limit, cursor, request.scope()));
             if (type.value().equals("opened") || type.value().equals("targeted") || type.value().equals("ridden") || type.value().equals("item")) {
@@ -164,7 +185,11 @@ public final class NativeProvider implements KnowledgeProvider {
 
     @Override
     public CompletionStage<Evidence.Result> searchRegistry(PackSageTools.ReadRequest request, Toolbox.Context context) {
-        var filter = object(request.arguments(), "filter");
+        var filterValue = request.arguments().values().get("filter");
+        if (filterValue != null && !(filterValue instanceof Evidence.JsonObject) && !(filterValue instanceof Evidence.JsonNull)) {
+            return invalid("filter must be an object");
+        }
+        var filter = filterValue instanceof Evidence.JsonObject value ? value : new Evidence.JsonObject(Map.of());
         if (!providerSelected(filter)) return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "different registry source"));
         if (client == null) return unavailable(request.scope(), "live native registry source unavailable");
         var registryValue = request.arguments().values().get("registry");
@@ -172,12 +197,37 @@ public final class NativeProvider implements KnowledgeProvider {
         if (!metadata().registries().contains(registry.value())) return CompletableFuture.failedFuture(
                 new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "unsupported native registry"));
         try {
-            String text = string(filter, "text");
-            var ids = strings(filter, "ids");
-            var tags = strings(filter, "tags");
+            var textValue = filter.values().get("text");
+            if (textValue != null && !(textValue instanceof Evidence.JsonNull) && !(textValue instanceof Evidence.JsonString)) {
+                throw new IllegalArgumentException("text must be a string");
+            }
+            String text = textValue instanceof Evidence.JsonString value ? value.value() : null;
+            var filterValues = new LinkedHashMap<String, List<String>>();
+            for (String field : List.of("ids", "tags")) {
+                var value = filter.values().get(field);
+                if (value == null || value instanceof Evidence.JsonNull) {
+                    filterValues.put(field, List.of());
+                } else if (value instanceof Evidence.JsonArray array
+                        && array.values().stream().allMatch(Evidence.JsonString.class::isInstance)) {
+                    filterValues.put(field, array.values().stream().map(Evidence.JsonString.class::cast)
+                            .map(Evidence.JsonString::value).toList());
+                } else {
+                    throw new IllegalArgumentException(field + " must be an array of strings");
+                }
+            }
+            var ids = filterValues.get("ids");
+            var tags = filterValues.get("tags");
             if (registry.value().equals("item_tag") && !tags.isEmpty()) return CompletableFuture.failedFuture(
                     new Toolbox.Failure(Toolbox.Code.UNSUPPORTED_FILTER, "item_tag does not support a tags membership filter"));
-            int limit = integer(request.arguments(), "limit", 16);
+            if (ids.size() > 32 || tags.size() > 32 || java.util.stream.Stream.concat(ids.stream(), tags.stream()).anyMatch(identity -> {
+                var parsed = ResourceLocation.tryParse(identity);
+                return parsed == null || !parsed.toString().equals(identity);
+            })) throw new IllegalArgumentException("registry IDs and tags must be canonical identities, up to 32 each");
+            var limitValue = request.arguments().values().get("limit");
+            if (limitValue != null && !(limitValue instanceof Evidence.JsonNull) && !(limitValue instanceof Evidence.JsonNumber)) {
+                throw new IllegalArgumentException("limit must be an integer");
+            }
+            int limit = limitValue instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 16;
             var signature = signature(request);
             int offset = cursorOffset(request, signature);
             return client.submit(() -> NativeRegistryReader.search(client, registry.value(), text, ids, tags, offset, limit, request.scope()))
@@ -197,17 +247,33 @@ public final class NativeProvider implements KnowledgeProvider {
 
     @Override
     public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Toolbox.Context context) {
-        var filter = object(request.arguments(), "filter");
+        var filterValue = request.arguments().values().get("filter");
+        if (filterValue != null && !(filterValue instanceof Evidence.JsonObject) && !(filterValue instanceof Evidence.JsonNull)) {
+            return invalid("filter must be an object");
+        }
+        var filter = filterValue instanceof Evidence.JsonObject value ? value : new Evidence.JsonObject(Map.of());
         if (!providerSelected(filter)) return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "different recipe source"));
         if (client == null) return unavailable(request.scope(), "live native recipe source unavailable");
-        var output = string(filter, "outputItem");
-        var text = string(filter, "text");
+        var outputValue = filter.values().get("outputItem");
+        var textValue = filter.values().get("text");
+        if (outputValue != null && !(outputValue instanceof Evidence.JsonNull) && !(outputValue instanceof Evidence.JsonString)) {
+            return invalid("outputItem must be a string");
+        }
+        if (textValue != null && !(textValue instanceof Evidence.JsonNull) && !(textValue instanceof Evidence.JsonString)) {
+            return invalid("text must be a string");
+        }
+        var output = outputValue instanceof Evidence.JsonString value ? value.value() : null;
+        var text = textValue instanceof Evidence.JsonString value ? value.value() : null;
         if (output != null) {
             var key = ResourceLocation.tryParse(output);
             if (key == null || !key.toString().equals(output)) return invalid("outputItem must be a canonical item identity");
         }
         try {
-            int limit = integer(request.arguments(), "limit", 16);
+            var limitValue = request.arguments().values().get("limit");
+            if (limitValue != null && !(limitValue instanceof Evidence.JsonNull) && !(limitValue instanceof Evidence.JsonNumber)) {
+                throw new IllegalArgumentException("limit must be an integer");
+            }
+            int limit = limitValue instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 16;
             var signature = signature(request);
             int offset = cursorOffset(request, signature);
             return client.submit(() -> {
@@ -232,10 +298,22 @@ public final class NativeProvider implements KnowledgeProvider {
 
     @Override
     public CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Toolbox.Context context) {
-        var identity = string(request.arguments(), "identity");
+        var identityValue = request.arguments().values().get("identity");
+        if (identityValue != null && !(identityValue instanceof Evidence.JsonNull) && !(identityValue instanceof Evidence.JsonString)) {
+            return invalid("identity must be a string");
+        }
+        var identity = identityValue instanceof Evidence.JsonString value ? value.value() : null;
         if (identity == null) return invalid("identity is required");
-        var quantity = integer(request.arguments(), "quantity", 1);
-        var depth = integer(request.arguments(), "depth", 4);
+        var quantityValue = request.arguments().values().get("quantity");
+        var depthValue = request.arguments().values().get("depth");
+        if (quantityValue != null && !(quantityValue instanceof Evidence.JsonNull) && !(quantityValue instanceof Evidence.JsonNumber)) {
+            return invalid("quantity must be an integer");
+        }
+        if (depthValue != null && !(depthValue instanceof Evidence.JsonNull) && !(depthValue instanceof Evidence.JsonNumber)) {
+            return invalid("depth must be an integer");
+        }
+        var quantity = quantityValue instanceof Evidence.JsonNumber number ? number.value().longValueExact() : 1;
+        var depth = depthValue instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 4;
         if (quantity < 1 || quantity > 1_000_000 || depth < 0 || depth > 8) return invalid("recipe quantity or depth is outside bounds");
         return planRecipe(identity, quantity, request.scope(), depth);
     }
@@ -254,8 +332,7 @@ public final class NativeProvider implements KnowledgeProvider {
         var source = reference.sourceHandle();
         if (source.startsWith("storage:")) return storage.readEvidence(source, request.scope());
         if (source.startsWith("inventory:")) return client.submit(() -> inventory.readEvidence(source, request.scope()))
-                .thenApply(value -> value == null ? null : new Evidence.Result(List.of(value), value.source().coverage(),
-                        value.source().coverage() == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, null));
+                .thenApply(value -> value == null ? unknownReference(request.scope()) : result(value));
         if (source.startsWith("item:") || source.startsWith("block:") || source.startsWith("tag:")
                 || source.startsWith("enchantment:") || source.startsWith("mob_effect:") || source.startsWith("potion:")) {
             int separator = source.indexOf(':');
@@ -296,10 +373,9 @@ public final class NativeProvider implements KnowledgeProvider {
         try {
             captured = client == null ? CompletableFuture.supplyAsync(() -> {
                 var snapshot = NativeSnapshot.capture(snapshotSource);
-                return new Captured(selectedIdentities == null ? snapshot : selectedInventory(snapshot, selectedIdentities), 0);
+                return new Captured(selectedIdentities == null ? snapshot : selectedInventory(snapshot, selectedIdentities));
             }, executor) : client.submit(() -> new Captured(selectedIdentities == null ? NativeSnapshot.capture(client, scope)
-                    : NativeSnapshot.captureSelectedInventory(client, scope, selectedIdentities),
-                    client.level == null ? 0 : System.identityHashCode(client.level)));
+                    : NativeSnapshot.captureSelectedInventory(client, scope, selectedIdentities)));
         } catch (RuntimeException failure) {
             return CompletableFuture.completedFuture(failed("native capture could not start", failure));
         }
@@ -318,7 +394,6 @@ public final class NativeProvider implements KnowledgeProvider {
             }
         }, executor).thenCompose(result -> client == null ? CompletableFuture.completedFuture(publish(result, scope))
                 : client.submit(() -> {
-                    int levelToken = client.level == null ? 0 : System.identityHashCode(client.level);
                     if (!scope.equals(activeScope.get()) || currentScope.get() != null && !scope.equals(currentScope.get())
                             || result == null) return unknownResult();
                     return publish(result, scope);
@@ -341,7 +416,11 @@ public final class NativeProvider implements KnowledgeProvider {
     }
 
     private int cursorOffset(PackSageTools.ReadRequest request, String signature) {
-        var token = string(request.arguments(), "cursor");
+        var cursorValue = request.arguments().values().get("cursor");
+        if (cursorValue != null && !(cursorValue instanceof Evidence.JsonNull) && !(cursorValue instanceof Evidence.JsonString)) {
+            throw new IllegalArgumentException("cursor must be a string");
+        }
+        var token = cursorValue instanceof Evidence.JsonString value ? value.value() : null;
         if (token == null) return 0;
         synchronized (cursors) {
             var state = cursors.remove(token);
@@ -376,36 +455,6 @@ public final class NativeProvider implements KnowledgeProvider {
         throw new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "different native source");
     }
 
-    private static Evidence.JsonObject object(Evidence.JsonObject parent, String field) {
-        var value = parent.values().get(field);
-        if (value == null || value instanceof Evidence.JsonNull) return new Evidence.JsonObject(Map.of());
-        if (value instanceof Evidence.JsonObject object) return object;
-        throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, field + " must be an object");
-    }
-
-    private static List<String> strings(Evidence.JsonObject object, String field) {
-        var value = object.values().get(field);
-        if (value == null || value instanceof Evidence.JsonNull) return List.of();
-        if (!(value instanceof Evidence.JsonArray array) || array.values().stream().anyMatch(item -> !(item instanceof Evidence.JsonString))) {
-            throw new IllegalArgumentException(field + " must be an array of strings");
-        }
-        return array.values().stream().map(Evidence.JsonString.class::cast).map(Evidence.JsonString::value).toList();
-    }
-
-    private static String string(Evidence.JsonObject object, String field) {
-        var value = object.values().get(field);
-        if (value == null || value instanceof Evidence.JsonNull) return null;
-        if (value instanceof Evidence.JsonString text) return text.value();
-        throw new IllegalArgumentException(field + " must be a string");
-    }
-
-    private static int integer(Evidence.JsonObject object, String field, int fallback) {
-        var value = object.values().get(field);
-        if (value == null || value instanceof Evidence.JsonNull) return fallback;
-        if (!(value instanceof Evidence.JsonNumber number)) throw new IllegalArgumentException(field + " must be an integer");
-        return number.value().intValueExact();
-    }
-
     private static Evidence.Result result(Evidence.Record record) {
         var coverage = record.source().coverage();
         return new Evidence.Result(List.of(record), coverage, coverage == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE
@@ -421,7 +470,8 @@ public final class NativeProvider implements KnowledgeProvider {
                     java.util.stream.Stream.concat(source.provenance().stream(), java.util.stream.Stream.of(provenance)).toList()),
                     record.kind(), record.title(), record.payload(), record.targets(), record.recipePayload());
         }).toList();
-        return new Evidence.Result(records, Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, result.nextCursor(), result.detail());
+        return new Evidence.Result(records, Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, result.nextCursor(),
+                result.detail() == null ? provenance : result.detail());
     }
 
     private static CompletionStage<Evidence.Result> invalid(String detail) {
@@ -470,6 +520,6 @@ public final class NativeProvider implements KnowledgeProvider {
     }
 
     private record QueryCursor(int offset, String signature, Evidence.Scope scope, long createdAtNanos) { }
-    private record Captured(NativeSnapshot snapshot, int levelToken) { }
+    private record Captured(NativeSnapshot snapshot) { }
     private record CaptureResult(Captured captured, Throwable failure) { }
 }

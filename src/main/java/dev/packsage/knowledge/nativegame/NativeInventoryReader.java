@@ -204,7 +204,10 @@ public final class NativeInventoryReader implements InventoryReader {
         var records = new ArrayList<Evidence.Record>();
         var end = Math.min(offset, all.size());
         var outputBytes = 0;
-        if (offset == 0) { records.add(capture.summary()); outputBytes = Evidence.serialize(capture.summary().payload()).getBytes(StandardCharsets.UTF_8).length + 256; }
+        if (offset == 0 && request.operation() == Operation.READ) {
+            records.add(capture.summary());
+            outputBytes = Evidence.serialize(capture.summary().payload()).getBytes(StandardCharsets.UTF_8).length + 256;
+        }
         while (end < all.size() && end - offset < request.limit()) {
             var record = all.get(end);
             var recordBytes = Evidence.serialize(record.payload()).getBytes(StandardCharsets.UTF_8).length

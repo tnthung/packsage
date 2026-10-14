@@ -69,6 +69,39 @@ class NativeInventoryReaderTest {
     }
 
     @Test
+    void inventoryFiltersUseOrWithinFieldsAndAndAcrossFields() {
+        var apple = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "apple", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Apple", new Evidence.JsonObject(Map.of()), List.of());
+        var carrot = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "carrot", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Carrot", new Evidence.JsonObject(Map.of()), List.of());
+        var excludedApple = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "excluded", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Apple in armor", new Evidence.JsonObject(Map.of()), List.of());
+        var slots = List.of(
+                new NativeInventoryReader.CapturedSlot("hotbar", 0, null, true, "minecraft:apple", "Apple", "apple", apple,
+                        List.of("minecraft:logs"), List.of("Red fruit"), new ItemStack(Items.APPLE)),
+                new NativeInventoryReader.CapturedSlot("main", 0, null, false, "minecraft:carrot", "Carrot", "carrot", carrot,
+                        List.of("minecraft:foods"), List.of("Orange food"), new ItemStack(Items.CARROT)),
+                new NativeInventoryReader.CapturedSlot("armor", 0, "head", false, "minecraft:apple", "Apple in armor",
+                        "excluded", excludedApple, List.of("minecraft:foods"), List.of("Red fruit"), new ItemStack(Items.APPLE)));
+        var summary = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "summary", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.OTHER, "Inventory", new Evidence.JsonObject(Map.of()), List.of());
+        var reader = new NativeInventoryReader(Runnable::run, () -> SCOPE,
+                request -> new NativeInventoryReader.Capture(slots, summary, Evidence.Coverage.COMPLETE, Instant.EPOCH, 1),
+                address -> null, () -> 1);
+        var filter = new InventoryReader.Filter(List.of("APP", "carro"), List.of("minecraft:apple", "minecraft:carrot"),
+                List.of("minecraft:logs", "minecraft:foods"), List.of("red", "orange"), List.of("hotbar", "main"));
+
+        var result = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH, filter, 32, null, SCOPE))
+                .toCompletableFuture().join();
+
+        assertEquals(List.of("Apple", "Carrot"), result.records().stream().map(Evidence.Record::title).toList());
+    }
+
+    @Test
     void referenceResolutionReadsCurrentStackAtObservedLocationAndReturnsCopies() {
         var now = new AtomicLong(1_000);
         var stack = new ItemStack(Items.SHULKER_BOX);
@@ -193,7 +226,7 @@ class NativeInventoryReaderTest {
                 request -> new NativeInventoryReader.Capture(List.of(), summary, Evidence.Coverage.PARTIAL, Instant.EPOCH, now.get()),
                 address -> null, now::get);
 
-        var result = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH, List.of(), "ores",
+        var result = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH, List.of(), "minecraft:ores",
                 List.of("tag"), 8, null, SCOPE)).toCompletableFuture().join();
 
         assertTrue(result.records().isEmpty());

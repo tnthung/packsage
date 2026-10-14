@@ -9,6 +9,10 @@ import net.minecraft.server.Bootstrap;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.CraftingContainer;
+import net.minecraft.world.inventory.FurnaceMenu;
+import net.minecraft.world.inventory.ResultSlot;
+import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -150,14 +154,14 @@ class NativeStorageReaderTest {
     void openedCursorRereadsCurrentContentsAfterANewerCapture() {
         var now = new AtomicLong(100);
         var reader = new NativeStorageReader(Runnable::run, () -> FIRST, now::get);
-        reader.storeOpened(List.of(record(FIRST, "minecraft:stone", "Stone"), record(FIRST, "minecraft:dirt", "Dirt")),
+        reader.storeOpenedFixture(List.of(record(FIRST, "minecraft:stone", "Stone"), record(FIRST, "minecraft:dirt", "Dirt")),
                 FIRST, Instant.EPOCH, now.get(), "Old chest", Map.of("completeness", new Evidence.JsonString("partial")), Evidence.Coverage.PARTIAL);
         var first = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 1, null, FIRST))
                 .toCompletableFuture().join();
         var oldCursor = first.nextCursor();
         assertNotNull(oldCursor);
 
-        reader.storeOpened(List.of(record(FIRST, "minecraft:diamond", "Diamond"), record(FIRST, "minecraft:emerald", "Emerald")), FIRST, Instant.ofEpochSecond(1),
+        reader.storeOpenedFixture(List.of(record(FIRST, "minecraft:diamond", "Diamond"), record(FIRST, "minecraft:emerald", "Emerald")), FIRST, Instant.ofEpochSecond(1),
                 now.get(), "New chest", Map.of("completeness", new Evidence.JsonString("partial")), Evidence.Coverage.PARTIAL);
         var second = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 1, oldCursor, FIRST))
                 .toCompletableFuture().join();
@@ -170,6 +174,24 @@ class NativeStorageReaderTest {
         assertEquals(firstSourceHandle.substring(0, firstSourceHandle.lastIndexOf(':')) + ":1",
                 second.records().getFirst().source().sourceHandle());
         assertNull(second.nextCursor());
+    }
+
+    @Test
+    void openedCursorRejectsAChangedOwnerIdentity() {
+        var now = new AtomicLong(100);
+        var reader = new NativeStorageReader(Runnable::run, () -> FIRST, now::get);
+        reader.storeOpenedFixture(List.of(record(FIRST, "minecraft:stone", "Stone"), record(FIRST, "minecraft:dirt", "Dirt")), FIRST, Instant.EPOCH, now.get(),
+                "Opened inventory", Map.of("ownerIdentity", new Evidence.JsonString("old-owner")), Evidence.Coverage.PARTIAL);
+        var first = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 1, null, FIRST))
+                .toCompletableFuture().join();
+        reader.storeOpenedFixture(List.of(record(FIRST, "minecraft:diamond", "Diamond")), FIRST, Instant.ofEpochSecond(1), now.get(),
+                "Opened inventory", Map.of("ownerIdentity", new Evidence.JsonString("new-owner")), Evidence.Coverage.PARTIAL);
+
+        var changed = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 1, first.nextCursor(), FIRST))
+                .toCompletableFuture().join();
+
+        assertEquals(Evidence.Outcome.UNKNOWN, changed.outcome());
+        assertEquals("inventory target changed; repeat the lookup", changed.detail());
     }
 
     @Test
@@ -212,7 +234,7 @@ class NativeStorageReaderTest {
                 .toCompletableFuture().join();
         assertEquals(Evidence.Outcome.UNKNOWN, expired.outcome());
 
-        reader.storeOpened(List.of(record(FIRST, "minecraft:stone", "Stone")), FIRST, Instant.EPOCH, now.get(),
+        reader.storeOpenedFixture(List.of(record(FIRST, "minecraft:stone", "Stone")), FIRST, Instant.EPOCH, now.get(),
                 "Chest", Map.of(), Evidence.Coverage.PARTIAL);
         reader.clear();
         assertEquals(Evidence.Outcome.UNKNOWN,
@@ -272,6 +294,39 @@ class NativeStorageReaderTest {
         var byComponentText = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, "hidden phrase", List.of(), 32, null, FIRST))
                 .toCompletableFuture().join();
         assertTrue(((Evidence.JsonArray) ((byComponentText.records().getFirst().payload()).values().get("entries"))).values().isEmpty());
+    }
+
+    @Test
+    void openedInventoryFiltersUseOrWithinFieldsAndAndAcrossFields() {
+        var apple = record(FIRST, "minecraft:apple", "Apple", new Evidence.JsonObject(Map.of(
+                "id", new Evidence.JsonString("minecraft:apple"), "name", new Evidence.JsonString("Apple"),
+                "tags", new Evidence.JsonArray(List.of(new Evidence.JsonString("minecraft:logs"))),
+                "tooltip", new Evidence.JsonArray(List.of(new Evidence.JsonString("Red fruit"))),
+                "section", new Evidence.JsonString("menu"))));
+        var carrot = record(FIRST, "minecraft:carrot", "Carrot", new Evidence.JsonObject(Map.of(
+                "id", new Evidence.JsonString("minecraft:carrot"), "name", new Evidence.JsonString("Carrot"),
+                "tags", new Evidence.JsonArray(List.of(new Evidence.JsonString("minecraft:foods"))),
+                "tooltip", new Evidence.JsonArray(List.of(new Evidence.JsonString("Orange food"))),
+                "section", new Evidence.JsonString("menu"))));
+        var excludedApple = record(FIRST, "minecraft:apple", "Apple in cargo", new Evidence.JsonObject(Map.of(
+                "id", new Evidence.JsonString("minecraft:apple"), "name", new Evidence.JsonString("Apple"),
+                "tags", new Evidence.JsonArray(List.of(new Evidence.JsonString("minecraft:foods"))),
+                "tooltip", new Evidence.JsonArray(List.of(new Evidence.JsonString("Red fruit"))),
+                "section", new Evidence.JsonString("cargo"))));
+        var reader = new NativeStorageReader(Runnable::run, () -> FIRST, () -> 0);
+        reader.storeOpenedFixture(List.of(apple, carrot, excludedApple), FIRST, Instant.EPOCH, 0, "Opened inventory",
+                Map.of("observation", new Evidence.JsonString("fixture")), Evidence.Coverage.PARTIAL);
+        var filter = new dev.packsage.knowledge.inventory.InventoryReader.Filter(List.of("APP", "carro"),
+                List.of("minecraft:apple", "minecraft:carrot"), List.of("minecraft:logs", "minecraft:foods"),
+                List.of("red", "orange"), List.of("menu"));
+
+        var result = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 8, null,
+                FIRST, filter)).toCompletableFuture().join();
+        var entries = ((Evidence.JsonArray) result.records().getFirst().payload().values().get("entries")).values();
+
+        assertEquals(List.of("minecraft:apple", "minecraft:carrot"), entries.stream().map(value ->
+                ((Evidence.JsonString) ((Evidence.JsonObject) ((Evidence.JsonObject) value).values().get("payload"))
+                        .values().get("id")).value()).toList());
     }
 
     @Test
@@ -340,6 +395,27 @@ class NativeStorageReaderTest {
     }
 
     @Test
+    void openedInventoryIncludesVanillaMachineStockAndExcludesCraftingPreviews() {
+        var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+        var playerInventory = new net.minecraft.world.entity.player.Inventory(null);
+        var furnaceContents = new SimpleContainer(3);
+        furnaceContents.setItem(0, new ItemStack(Items.RAW_IRON));
+        furnaceContents.setItem(1, new ItemStack(Items.COAL));
+        furnaceContents.setItem(2, new ItemStack(Items.IRON_INGOT));
+        var furnace = new FurnaceMenu(1, playerInventory, furnaceContents, new SimpleContainerData(4));
+        var furnaceEntries = NativeStorageReader.openedEntries(furnace, playerInventory, FIRST, Instant.EPOCH, registries).entries();
+        assertEquals(List.of("minecraft:raw_iron", "minecraft:coal", "minecraft:iron_ingot"),
+                furnaceEntries.stream().map(Evidence.Record::title).toList());
+
+        var crafting = new TestMenu();
+        var craftingInput = new CraftingContainer(crafting, 2, 2);
+        var craftingOutput = new SimpleContainer(1);
+        craftingOutput.setItem(0, new ItemStack(Items.CRAFTING_TABLE));
+        crafting.slots.add(new ResultSlot(null, craftingInput, craftingOutput, 0, 0, 0));
+        assertTrue(NativeStorageReader.openedEntries(crafting, playerInventory, FIRST, Instant.EPOCH, registries).entries().isEmpty());
+    }
+
+    @Test
     void recognizedEmptyComponentDiffersFromUnsupportedAndEmptySlots() {
         var shulker = new ItemStack(Items.SHULKER_BOX);
         var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
@@ -396,7 +472,7 @@ class NativeStorageReaderTest {
         assertNull(next.nextCursor());
         var entry = (Evidence.JsonObject) ((Evidence.JsonArray) next.records().getFirst().payload().values().get("entries")).values().getFirst();
         assertEquals("minecraft:stone", ((Evidence.JsonString) ((Evidence.JsonObject) entry.values().get("payload")).values().get("id")).value());
-        assertEquals(1, resolved.size());
+        assertEquals(2, resolved.size());
     }
 
     @Test
@@ -416,7 +492,7 @@ class NativeStorageReaderTest {
     private static NativeStorageReader openedReader(AtomicLong now, java.util.function.Supplier<Evidence.Scope> scope,
                                                     List<Evidence.Record> entries) {
         var reader = new NativeStorageReader(Runnable::run, scope, now::get);
-        reader.storeOpened(entries, FIRST, Instant.EPOCH, now.get(), "Opened chest",
+        reader.storeOpenedFixture(entries, FIRST, Instant.EPOCH, now.get(), "Opened chest",
                 Map.of("observation", new Evidence.JsonString("last_opened_menu"), "completeness", new Evidence.JsonString("partial")), Evidence.Coverage.PARTIAL);
         return reader;
     }

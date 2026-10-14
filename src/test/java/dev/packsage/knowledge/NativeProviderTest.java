@@ -17,6 +17,14 @@ class NativeProviderTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "native", 1);
 
     @Test
+    void advertisesAllNativeRegistryKinds() {
+        var provider = new NativeProvider(() -> new NativeSnapshot(SCOPE, List.of()), Runnable::run);
+
+        assertEquals(List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion"),
+                provider.metadata().registries());
+    }
+
+    @Test
     void activeRecipeReplacesShippedRecipeAndRemovedRecipeIsAbsent() throws Exception {
         var active = record("minecraft:torch", Evidence.Activity.ACTIVE, "Torch", "minecraft:coal");
         var shipped = record("minecraft:torch", Evidence.Activity.SHIPPED, "Torch", "minecraft:charcoal");

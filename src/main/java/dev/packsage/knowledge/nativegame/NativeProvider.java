@@ -73,7 +73,8 @@ public final class NativeProvider implements KnowledgeProvider {
 
     @Override
     public Toolbox.Metadata metadata() {
-        return new Toolbox.Metadata(id(), List.of(), true, List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion"),
+        return new Toolbox.Metadata(id(), List.of(), true, List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion",
+                "dimension", "dimension_type"),
                 PackSageTools.NATIVE_INVENTORY_TARGETS);
     }
 
@@ -233,6 +234,8 @@ public final class NativeProvider implements KnowledgeProvider {
             var tags = filterValues.get("tags");
             if (registry.value().equals("item_tag") && !tags.isEmpty()) return CompletableFuture.failedFuture(
                     new Toolbox.Failure(Toolbox.Code.UNSUPPORTED_FILTER, "item_tag does not support a tags membership filter"));
+            if (registry.value().equals("dimension") && !tags.isEmpty()) return CompletableFuture.failedFuture(
+                    new Toolbox.Failure(Toolbox.Code.UNSUPPORTED_FILTER, "dimension does not support tag membership filters"));
             if (ids.size() > 32 || tags.size() > 32 || java.util.stream.Stream.concat(ids.stream(), tags.stream()).anyMatch(identity -> {
                 var parsed = ResourceLocation.tryParse(identity);
                 return parsed == null || !parsed.toString().equals(identity);
@@ -245,7 +248,11 @@ public final class NativeProvider implements KnowledgeProvider {
             if (limit < 1 || limit > 64) throw new IllegalArgumentException("limit must be between 1 and 64");
             var signature = signature(request);
             int offset = cursorOffset(request, signature);
-            return client.submit(() -> NativeRegistryReader.search(client, registry.value(), text, ids, tags, offset, limit, request.scope()))
+            CompletionStage<NativeRegistryReader.Page> search = registry.value().equals("dimension")
+                    ? client.submit(() -> NativeDimensionReader.search(client, offset, limit, text, ids, request.scope(), currentScope))
+                    .thenCompose(Function.identity())
+                    : client.submit(() -> NativeRegistryReader.search(client, registry.value(), text, ids, tags, offset, limit, request.scope()));
+            return search
                     .thenApply(page -> {
                         String next = page.exhausted() || page.nextOffset() <= offset ? null : storeCursor(page.nextOffset(), signature, request.scope());
                         boolean partial = page.partial() || !page.exhausted();
@@ -379,13 +386,17 @@ public final class NativeProvider implements KnowledgeProvider {
             });
         }
         if (source.startsWith("item:") || source.startsWith("block:") || source.startsWith("tag:")
-                || source.startsWith("enchantment:") || source.startsWith("mob_effect:") || source.startsWith("potion:")) {
+                || source.startsWith("enchantment:") || source.startsWith("mob_effect:") || source.startsWith("potion:")
+                || source.startsWith("dimension_type:")) {
             int separator = source.indexOf(':');
             var registry = source.substring(0, separator).equals("tag") ? "item_tag" : source.substring(0, separator);
             var identity = source.substring(separator + 1);
             return client.submit(() -> NativeRegistryReader.read(client, registry, identity, request.scope()))
                     .thenApply(value -> value == null ? unknownReference(request.scope()) : result(value));
         }
+        if (source.startsWith("dimension:")) return client.submit(() -> NativeDimensionReader.read(client,
+                source.substring("dimension:".length()), request.scope(), currentScope)).thenCompose(Function.identity())
+                .thenApply(value -> value == null ? unknownReference(request.scope()) : result(value));
         return client.submit(() -> NativeRecipeReader.read(client, source, request.scope()))
                 .thenApply(value -> value == null ? unknownReference(request.scope()) : result(value));
     }

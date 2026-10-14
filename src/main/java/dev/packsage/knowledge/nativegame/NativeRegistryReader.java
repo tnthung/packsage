@@ -13,6 +13,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.alchemy.Potion;
@@ -68,6 +69,11 @@ final class NativeRegistryReader {
                     scope, value -> entry(selectedRegistry, value, BuiltInRegistries.MOB_EFFECT, client, scope));
             case "potion" -> searchEntries(BuiltInRegistries.POTION, selectedRegistry, text, ids, tags, offset, limit,
                     scope, value -> entry(selectedRegistry, value, BuiltInRegistries.POTION, client, scope));
+            case "dimension_type" -> {
+                var registry = client.level.registryAccess().registryOrThrow(Registries.DIMENSION_TYPE);
+                yield searchEntries(registry, selectedRegistry, text, ids, tags, offset, limit, scope,
+                        value -> dimensionType(value, registry, scope));
+            }
             default -> throw new IllegalArgumentException("unsupported native registry: " + selectedRegistry);
         };
     }
@@ -109,6 +115,12 @@ final class NativeRegistryReader {
                 if (!BuiltInRegistries.POTION.containsKey(key)) yield null;
                 var value = BuiltInRegistries.POTION.get(key);
                 yield value == null ? null : entry(selectedRegistry, value, BuiltInRegistries.POTION, client, scope);
+            }
+            case "dimension_type" -> {
+                var registry = client.level.registryAccess().registryOrThrow(Registries.DIMENSION_TYPE);
+                if (!registry.containsKey(key)) yield null;
+                var value = registry.get(key);
+                yield value == null ? null : dimensionType(value, registry, scope);
             }
             default -> null;
         };
@@ -234,6 +246,35 @@ final class NativeRegistryReader {
         if (value instanceof MobEffect effect) return effect(effect, identity, scope);
         if (value instanceof Potion potion) return potion(potion, identity, scope);
         throw new IllegalArgumentException("unsupported native registry value: " + selectedRegistry);
+    }
+
+    private static Evidence.Record dimensionType(DimensionType value, Registry<DimensionType> registry, Evidence.Scope scope) {
+        var key = registry.getKey(value);
+        var identity = key == null ? "unknown:dimension_type" : key.toString();
+        var tags = registry.getHolder(key).map(holder -> holder.tags().map(tag -> tag.location().toString()).toList()).orElse(List.of());
+        var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+        payload.put("registry", new Evidence.JsonString("dimension_type"));
+        payload.put("id", new Evidence.JsonString(identity));
+        payload.put("identity", new Evidence.JsonString(identity));
+        payload.put("minY", new Evidence.JsonNumber(BigDecimal.valueOf(value.minY())));
+        payload.put("height", new Evidence.JsonNumber(BigDecimal.valueOf(value.height())));
+        payload.put("logicalHeight", new Evidence.JsonNumber(BigDecimal.valueOf(value.logicalHeight())));
+        payload.put("coordinateScale", new Evidence.JsonNumber(BigDecimal.valueOf(value.coordinateScale())));
+        payload.put("skylight", new Evidence.JsonBoolean(value.hasSkyLight()));
+        payload.put("ceiling", new Evidence.JsonBoolean(value.hasCeiling()));
+        payload.put("natural", new Evidence.JsonBoolean(value.natural()));
+        payload.put("ultraWarm", new Evidence.JsonBoolean(value.ultraWarm()));
+        payload.put("bedWorks", new Evidence.JsonBoolean(value.bedWorks()));
+        payload.put("respawnAnchorWorks", new Evidence.JsonBoolean(value.respawnAnchorWorks()));
+        payload.put("piglinSafe", new Evidence.JsonBoolean(value.piglinSafe()));
+        payload.put("hasRaids", new Evidence.JsonBoolean(value.hasRaids()));
+        value.fixedTime().ifPresent(time -> payload.put("fixedTime", new Evidence.JsonNumber(BigDecimal.valueOf(time))));
+        payload.put("effects", new Evidence.JsonString(value.effectsLocation().toString()));
+        payload.put("infiniburn", new Evidence.JsonString(value.infiniburn().location().toString()));
+        payload.put("tags", new Evidence.JsonArray(tags.stream().map(Evidence.JsonString::new)
+                .map(tag -> (Evidence.JsonValue) tag).toList()));
+        return record("dimension_type", identity, Evidence.RecordKind.OTHER, identity, payload,
+                Evidence.Coverage.COMPLETE, List.of("client-registry:dimension-type"), scope);
     }
 
     private static Evidence.Record item(Item item, String identity, Registry<Item> registry,

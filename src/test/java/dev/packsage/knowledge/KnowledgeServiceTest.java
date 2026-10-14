@@ -227,6 +227,24 @@ class KnowledgeServiceTest {
         assertEquals(Evidence.Coverage.UNAVAILABLE, result.records().getFirst().source().coverage());
     }
 
+    @Test
+    void failedFreshReadsNeverPromoteReturnedBodiesToSuccessfulEvidence() {
+        for (var coverage : List.of(Evidence.Coverage.ERROR, Evidence.Coverage.UNAVAILABLE)) {
+            var failed = new PagedProvider("quests", query -> query.operation() == Evidence.Operation.GET
+                    ? new Evidence.Result(List.of(record("quests", "a", Evidence.RecordKind.QUEST)), coverage,
+                    coverage == Evidence.Coverage.ERROR ? Evidence.Outcome.ERROR : Evidence.Outcome.UNKNOWN, null, "current source unavailable")
+                    : page(List.of(record("quests", "a", Evidence.RecordKind.QUEST)), null));
+            var service = service(failed);
+            search(service, Map.of("query", text("")));
+            var progress = execute(service, "read_progress", Map.of("handles", strings("quests:a")));
+            assertEquals(List.of("progress-status:a"), handles(progress));
+            assertEquals(Evidence.Coverage.PARTIAL, progress.coverage());
+            var evidence = execute(service, "read_evidence", Map.of("handles", strings("quests:a")));
+            assertEquals(Evidence.Outcome.ERROR, evidence.outcome());
+            assertTrue(evidence.records().isEmpty());
+        }
+    }
+
     private static KnowledgeService service(KnowledgeProvider... providers) { return new KnowledgeService(List.of(providers), () -> SCOPE); }
     private static Evidence.Result search(KnowledgeService service, Map<String, Evidence.JsonValue> arguments) { return execute(service, "search_document", arguments); }
     private static Evidence.Result execute(KnowledgeService service, String tool, Map<String, Evidence.JsonValue> arguments) {

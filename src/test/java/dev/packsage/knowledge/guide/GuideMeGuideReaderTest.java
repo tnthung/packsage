@@ -43,7 +43,7 @@ class GuideMeGuideReaderTest {
     }
 
     @Test
-    void exhaustedCandidateBudgetReturnsAContinuationThatCanBeRetried() {
+    void exhaustedCandidateBudgetPreservesProgressAndFailsWhenReseekingCannotAdvance() {
         var basePages = new java.util.ArrayList<ParsedGuidePage>();
         var developmentPages = new java.util.ArrayList<ParsedGuidePage>();
         for (int index = 0; index < 2100; index++) {
@@ -61,8 +61,25 @@ class GuideMeGuideReaderTest {
         assertNotNull(exhausted.nextPosition());
         assertTrue(exhausted.more());
         assertEquals(Evidence.Coverage.PARTIAL, exhausted.coverage());
-        assertTrue(retried.more());
-        assertEquals(exhausted.nextPosition(), retried.nextPosition());
+        var failure = org.junit.jupiter.api.Assertions.assertThrows(Toolbox.Failure.class,
+                () -> reader.candidates(exhausted.nextPosition(), 1, new Toolbox.DocumentBudget()));
+        assertEquals(Toolbox.Code.EXTRACTION_FAILED, failure.code());
+    }
+
+    @Test
+    void exhaustedMetadataByteBudgetLeavesFirstCandidateAvailableToRetry() {
+        var page = new ParsedGuidePage(PAGE_ID, "en_us", new MdAstRoot());
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, List.of(page))));
+        var reader = new GuideMeGuideReader();
+        var exhaustedBudget = new Toolbox.DocumentBudget();
+        assertTrue(exhaustedBudget.bytes(96 * 1024 - 200));
+
+        var exhausted = reader.candidates(null, 1, exhaustedBudget);
+        var retried = reader.candidates(exhausted.nextPosition(), 1, new Toolbox.DocumentBudget());
+
+        assertTrue(exhausted.candidates().isEmpty());
+        assertTrue(exhausted.more());
+        assertEquals("fixture:book#fixture:entry", retried.candidates().getFirst().id());
     }
 
     @Test

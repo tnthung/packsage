@@ -45,13 +45,17 @@ public interface GuideDocumentReader {
         }
     }
 
-    /** nextPosition marks the last source entry traversed, including hidden entries. */
+    /**
+     * nextPosition marks the last source entry traversed, including hidden entries. An empty page that could not charge
+     * for its next source entry may return the unchanged position (including null before the first entry) with more=true.
+     */
     record CandidatePage(List<Candidate> candidates, String nextPosition, boolean more,
                          Evidence.Coverage coverage, String detail) {
         public CandidatePage {
             candidates = List.copyOf(candidates);
             Objects.requireNonNull(coverage);
-            if (more && nextPosition == null) throw new IllegalArgumentException("more candidates require a continuation position");
+            if (more && nextPosition == null && !candidates.isEmpty())
+                throw new IllegalArgumentException("non-empty candidate pages require a continuation position");
         }
     }
 

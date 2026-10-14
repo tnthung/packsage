@@ -277,8 +277,7 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
                 details.add("guide traversal reached its per-call work bound");
                 if (activeCandidateId != null) nextCursor = saveCursor(search, scope, sourceIdentity,
                         afterPosition, activeCandidateId, fragmentPosition);
-                else if (afterPosition != null) nextCursor = saveCursor(search, scope, sourceIdentity,
-                        afterPosition, null, null);
+                else nextCursor = saveCursor(search, scope, sourceIdentity, afterPosition, null, null);
                 break;
             }
             int pageLimit = Math.min(MAX_CANDIDATES_PER_PAGE, MAX_CANDIDATES_PER_CALL - inspectedCandidates);
@@ -308,12 +307,25 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
             inspectedCandidates += page.candidates().size();
             coverage = mergeCoverage(coverage, page.coverage());
             if (page.detail() != null) details.add(boundedDetail(page.detail()));
-            if (page.more() && Objects.equals(page.nextPosition(), afterPosition)) {
+            boolean stalledPage = Objects.equals(page.nextPosition(), afterPosition);
+            boolean budgetBlocked = context.documentBudget().exhausted()
+                    || context.documentBudget().remainingBytes() < 4;
+            if (page.more() && page.nextPosition() == null && afterPosition != null) {
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "guide reader reset its source position");
+            }
+            if (page.more() && stalledPage && (!page.candidates().isEmpty() || !budgetBlocked)) {
                 throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "guide reader did not advance its source position");
             }
             if (page.candidates().isEmpty()) {
                 if (!page.more()) {
                     sourceComplete = page.coverage() == Evidence.Coverage.COMPLETE;
+                    break;
+                }
+                if (stalledPage) {
+                    coverage = mergeCoverage(coverage, Evidence.Coverage.PARTIAL);
+                    if (page.detail() == null) details.add("guide source budget stopped before the next candidate");
+                    nextCursor = saveCursor(search, scope, sourceIdentity, afterPosition, null, null);
+                    stopped = true;
                     break;
                 }
                 afterPosition = page.nextPosition();

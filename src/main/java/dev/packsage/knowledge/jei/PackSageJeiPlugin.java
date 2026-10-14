@@ -168,8 +168,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             Evidence.Coverage.UNAVAILABLE, true, null);
                 }
                 var categoryRegistered = false;
-                try (var categories = manager.createRecipeCategoryLookup().limitFocus(focuses).get()
-                        .limit(MAX_CATEGORIES)) {
+                try (var categories = manager.createRecipeCategoryLookup().limitTypes(List.of(type))
+                        .limitFocus(focuses).get()) {
                     categoryRegistered = categories.anyMatch(value -> value == category);
                 }
                 if (!categoryRegistered) {
@@ -183,8 +183,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             "JEI category has no detached recipe projection");
                 } else {
                     var recipeRegistered = false;
-                    try (var recipes = manager.createRecipeLookup(type).limitFocus(focuses).get()
-                            .limit(MAX_SCANNED_RECIPES)) {
+                    try (var recipes = manager.createRecipeLookup(type).limitFocus(focuses).get()) {
                         recipeRegistered = recipes.anyMatch(value -> value == retained.recipe());
                     }
                     if (!recipeRegistered) {

@@ -415,6 +415,7 @@ class JeiProjectionTest {
             var hiddenRecipe = new AtomicBoolean();
             var hiddenCategory = new AtomicBoolean();
             var hiddenIngredient = new AtomicBoolean();
+            var limitedRecipeTypes = new AtomicReference<Object>();
             var focusFactoryType = IJeiRuntime.class.getMethod("getJeiHelpers").getReturnType()
                     .getMethod("getFocusFactory").getReturnType();
             var focusFactory = Proxy.newProxyInstance(focusFactoryType.getClassLoader(), new Class<?>[] { focusFactoryType },
@@ -516,7 +517,7 @@ class JeiProjectionTest {
                                     new Class<?>[] { IRecipeCategoriesLookup.class }, (lookup, lookupMethod, lookupArguments) -> {
                                         return switch (lookupMethod.getName()) {
                                             case "includeHidden" -> { includeHidden.set(true); yield lookup; }
-                                            case "limitTypes" -> lookup;
+                                            case "limitTypes" -> { limitedRecipeTypes.set(lookupArguments[0]); yield lookup; }
                                             case "limitFocus" -> {
                                                 appliedFocus.set(lookupArguments[0]);
                                                 focusApplications.incrementAndGet();
@@ -579,6 +580,7 @@ class JeiProjectionTest {
             assertNotEquals(initial.source().provenance(), refreshed.records().getFirst().source().provenance());
             assertEquals(nextScope, refreshed.records().getFirst().source().scope());
             assertEquals(2, refreshed.records().getFirst().recipePayload().outputs().getFirst().quantity());
+            assertEquals(List.of(type), limitedRecipeTypes.get());
             assertEquals(Evidence.NavigationStatus.OPENED,
                     plugin.provider().open(refreshed.records().getFirst().targets().getFirst(), nextScope).status());
             assertSame(recipe, shownRecipes.get().getFirst());
@@ -591,6 +593,30 @@ class JeiProjectionTest {
             assertEquals(Evidence.Coverage.UNAVAILABLE, unretainedHandle.coverage());
             assertTrue(unretainedHandle.records().isEmpty());
             assertEquals(focusApplicationsBeforeUnknown, focusApplications.get());
+
+            var laterRecipe = new Object();
+            var laterRecipes = new java.util.ArrayList<Object>();
+            for (var index = 0; index < 2048; index++) laterRecipes.add(new Object());
+            laterRecipes.add(laterRecipe);
+            recipes.set(List.copyOf(laterRecipes));
+            PackSageJeiPlugin.clientTicked();
+            var laterPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),
+                            "outputItem", new Evidence.JsonString("minecraft:stone"))), 1, SCOPE, "2048"), SCOPE)
+                    .toCompletableFuture().get();
+            assertEquals(1, laterPage.records().size());
+            var laterHandle = laterPage.records().getFirst().source().sourceHandle();
+            PackSageJeiPlugin.clientTicked();
+            var laterRefresh = plugin.provider().query(new Evidence.Query(Evidence.Operation.GET,
+                    new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(laterHandle))), 1, null, null), nextScope)
+                    .toCompletableFuture().get();
+            assertEquals(1, laterRefresh.records().size());
+            assertEquals(laterHandle, laterRefresh.records().getFirst().source().sourceHandle());
+            assertEquals(List.of(type), limitedRecipeTypes.get());
+            assertEquals(Evidence.NavigationStatus.OPENED,
+                    plugin.provider().open(laterRefresh.records().getFirst().targets().getFirst(), nextScope).status());
+            assertSame(laterRecipe, shownRecipes.get().getFirst());
+            recipes.set(List.of(recipe));
 
             for (var foreignScope : List.of(
                     new Evidence.Scope("other-world", "en_us", "team", "jei-1", 2),

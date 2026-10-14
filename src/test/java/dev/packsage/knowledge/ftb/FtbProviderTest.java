@@ -4,6 +4,9 @@ import dev.ftb.mods.ftbquests.client.ClientQuestFile;
 import dev.ftb.mods.ftbquests.quest.Chapter;
 import dev.ftb.mods.ftbquests.quest.Quest;
 import dev.ftb.mods.ftbquests.quest.TeamData;
+import dev.ftb.mods.ftbquests.quest.task.ItemTask;
+import dev.ftb.mods.ftbquests.quest.task.Task;
+import dev.ftb.mods.ftbquests.quest.task.TaskType;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.AdapterRegistry;
@@ -11,6 +14,8 @@ import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -141,6 +146,75 @@ class FtbProviderTest {
             } catch (java.util.concurrent.CompletionException failure) {
                 assertEquals(Toolbox.Code.INVALID_CURSOR, ((Toolbox.Failure) failure.getCause()).code());
             }
+        } finally {
+            minecraftInstance.set(null, previousMinecraft);
+        }
+    }
+
+    @Test
+    void liveWalkerEmitsLargeQuestTaskRangesBeforeContinuingAndSkipsUnknownCallbacks() throws Exception {
+        var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var fakeMinecraft = (Minecraft) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, Minecraft.class);
+        var minecraftInstance = Minecraft.class.getDeclaredField("instance");
+        minecraftInstance.setAccessible(true);
+        var previousMinecraft = minecraftInstance.get(null);
+        minecraftInstance.set(null, fakeMinecraft);
+        try {
+            var file = new ClientQuestFile();
+            var group = file.getDefaultChapterGroup();
+            var chapter = new Chapter(0x200L, file, group);
+            chapter.setRawTitle("Large task chapter");
+            group.addChapter(chapter);
+            chapter.onCreated();
+            var quest = new Quest(0x2000L, chapter);
+            quest.setRawTitle("Large task quest");
+            quest.onCreated();
+            chapter.addQuest(quest);
+            for (var index = 0; index < 180; index++) {
+                quest.addTask(new ItemTask(0x3000L + index, quest)
+                        .setStackAndCount(new ItemStack(Items.STONE), 1));
+            }
+            quest.addTask(new Task(0x4000L, quest) {
+                @Override public TaskType getType() { throw new AssertionError("unknown task type callback"); }
+                @Override public long getMaxProgress() { throw new AssertionError("unknown task progress callback"); }
+            });
+            var provider = new FtbProvider(() -> { throw new AssertionError("production query captured a full snapshot"); },
+                    Runnable::run, () -> SCOPE, () -> file, () -> true, true);
+            var registry = new AdapterRegistry();
+            registry.register(provider);
+            var queryText = "é".repeat(512);
+            quest.setRawTitle(queryText);
+            var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+            arguments.put("query", new Evidence.JsonString(queryText));
+            arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString(FtbProvider.ID),
+                    "types", new Evidence.JsonArray(List.of(new Evidence.JsonString("quest"))))));
+            arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
+            var request = new PackSageTools.ReadRequest("search_document", new Evidence.JsonObject(arguments), SCOPE);
+            var observedTaskIds = new java.util.ArrayList<String>();
+            var cursor = (String) null;
+            for (var pageIndex = 0; pageIndex < 8; pageIndex++) {
+                if (cursor != null) arguments.put("cursor", new Evidence.JsonString(cursor));
+                var page = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                        new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of())).toCompletableFuture().get();
+                assertEquals(1, page.records().size());
+                var payload = page.records().getFirst().payload().values();
+                var taskOffset = ((Evidence.JsonNumber) payload.get("taskOffset")).value().intValue();
+                var taskValues = ((Evidence.JsonArray) payload.get("tasks")).values();
+                assertEquals(observedTaskIds.size(), taskOffset);
+                for (var taskValue : taskValues) observedTaskIds.add(((Evidence.JsonString)
+                        ((Evidence.JsonObject) taskValue).values().get("id")).value());
+                cursor = page.nextCursor();
+                if (pageIndex == 0) {
+                    assertTrue(taskValues.size() > 0);
+                    assertTrue(cursor.length() <= 1024);
+                }
+                if (cursor == null) break;
+            }
+            assertEquals(181, observedTaskIds.size());
+            assertEquals(180, new java.util.HashSet<>(observedTaskIds).size());
         } finally {
             minecraftInstance.set(null, previousMinecraft);
         }

@@ -392,7 +392,8 @@ public final class NativeProvider implements KnowledgeProvider {
             var registry = source.substring(0, separator).equals("tag") ? "item_tag" : source.substring(0, separator);
             var identity = source.substring(separator + 1);
             return client.submit(() -> NativeRegistryReader.read(client, registry, identity, request.scope()))
-                    .thenApply(value -> value == null ? unknownReference(request.scope()) : result(value));
+                    .thenApply(value -> currentScope.get() != null && !request.scope().equals(currentScope.get())
+                            ? unknownReference(request.scope()) : value == null ? unknownReference(request.scope()) : result(value));
         }
         if (source.startsWith("dimension:")) return client.submit(() -> NativeDimensionReader.read(client,
                 source.substring("dimension:".length()), request.scope(), currentScope)).thenCompose(Function.identity())

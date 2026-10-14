@@ -248,10 +248,17 @@ final class NativeRegistryReader {
         throw new IllegalArgumentException("unsupported native registry value: " + selectedRegistry);
     }
 
-    private static Evidence.Record dimensionType(DimensionType value, Registry<DimensionType> registry, Evidence.Scope scope) {
+    static Evidence.Record dimensionType(DimensionType value, Registry<DimensionType> registry, Evidence.Scope scope) {
         var key = registry.getKey(value);
         var identity = key == null ? "unknown:dimension_type" : key.toString();
-        var tags = registry.getHolder(key).map(holder -> holder.tags().map(tag -> tag.location().toString()).toList()).orElse(List.of());
+        var tags = key == null ? List.<String>of() : registry.getHolder(key)
+                .map(holder -> holder.tags().map(tag -> tag.location().toString()).limit(MAX_MEMBERS + 1L).toList()).orElse(List.of());
+        boolean tagsPartial = tags.size() > MAX_MEMBERS;
+        return projectDimensionType(value, identity, tags.stream().limit(MAX_MEMBERS).toList(), tagsPartial, scope);
+    }
+
+    static Evidence.Record projectDimensionType(DimensionType value, String identity, List<String> tags,
+                                                boolean tagsPartial, Evidence.Scope scope) {
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("registry", new Evidence.JsonString("dimension_type"));
         payload.put("id", new Evidence.JsonString(identity));
@@ -274,7 +281,7 @@ final class NativeRegistryReader {
         payload.put("tags", new Evidence.JsonArray(tags.stream().map(Evidence.JsonString::new)
                 .map(tag -> (Evidence.JsonValue) tag).toList()));
         return record("dimension_type", identity, Evidence.RecordKind.OTHER, identity, payload,
-                Evidence.Coverage.COMPLETE, List.of("client-registry:dimension-type"), scope);
+                tagsPartial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, List.of("client-registry:dimension-type"), scope);
     }
 
     private static Evidence.Record item(Item item, String identity, Registry<Item> registry,

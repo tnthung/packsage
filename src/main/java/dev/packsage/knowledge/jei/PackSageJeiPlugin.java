@@ -368,7 +368,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             scanned++;
                             var canonicalCapture = categoryKnown && budget.value() && budget.bytes(512)
                                     ? canonical(category, recipe) : new Canonical(null, true);
-                            if (canonicalCapture.failed()) partial = true;
+                            if (categoryKnown && canonicalCapture.failed()) partial = true;
                             var handle = sourceHandle(generation, snapshotVersion, categoryId, canonicalCapture.value(), recipe, recipeOrdinal);
                             var candidate = matches(categoryId, title, canonicalCapture.value(), handle, query.operation(), id, text);
                             if (!candidate) continue;

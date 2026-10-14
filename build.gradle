@@ -69,7 +69,6 @@ if (project.hasProperty('packsageBootstrapOnly')) {
             'dev/packsage/PackSage.java',
             'dev/packsage/PackSageLog.java',
             'dev/packsage/knowledge/Evidence.java',
-            'dev/packsage/knowledge/KnowledgeProvider.java',
             'dev/packsage/model/ModelBackend.java',
             'dev/packsage/model/chatgpt/*.java',
             'dev/packsage/chat/ChatContracts.java',

@@ -35,27 +35,27 @@
 
 Files: new `knowledge/Toolbox.java`, `knowledge/AdapterRegistry.java`; `KnowledgeProvider.java`; new `ToolboxTest.java`.
 
-- [ ] Add failing tests for default decline, ordered fallback, empty/partial success, real-error propagation, duplicate registration and metadata contributions.
-- [ ] Introduce twelve methods returning `CompletionStage<Evidence.Result>`, structured asynchronous failures, scoped reference/context data and adapter metadata. Register instances, not matching callbacks.
-- [ ] Pass the focused registry tests.
+- [x] Add failing tests for default decline, ordered fallback, empty/partial success, real-error propagation, duplicate registration and metadata contributions.
+- [x] Introduce twelve methods returning `CompletionStage<Evidence.Result>`, structured asynchronous failures, scoped reference/context data and adapter metadata. Register instances, not matching callbacks.
+- [x] Pass the focused registry tests.
 
 ### 2. Public schemas and grounding
 
 Files: `model/PackSageTools.java`, `model/GroundingInstructions.java` and corresponding tests.
 
-- [ ] Pin the new twelve-tool catalog and nested target/filter validation with failing tests.
-- [ ] Supply adapter-contributed target/registry/provider metadata to tool definitions and validation; preserve existing limits and model-backend nullable schema requirements.
-- [ ] Update grounding to use discovery families, unified inventory selection and fresh references.
-- [ ] Pass focused model tests.
+- [x] Pin the new twelve-tool catalog and nested target/filter validation with failing tests.
+- [x] Supply adapter-contributed target/registry/provider metadata to tool definitions and validation; preserve existing limits and model-backend nullable schema requirements.
+- [x] Update grounding to use discovery families, unified inventory selection and fresh references.
+- [x] Pass focused model tests.
 
 ### 3. Service composition, references, config and history
 
 Files: `KnowledgeService.java`, `client/ClientAssistant.java`, `chat/AssistantRuntime.java`, `chat/HistoryAdapter.java`, `config/ConfigProvider.java`; corresponding integration tests.
 
-- [ ] Test metadata-driven document/recipe discovery, strict request-error propagation, mixed-owner refresh and live config/history reads.
-- [ ] Replace provider/target switches with registry calls; keep only reference metadata and compose bounded discovery inside a coordinating adapter.
-- [ ] Register history with replacement exclusion, retain version gates/status adapters, and preserve navigation/lifecycle checks.
-- [ ] Pass focused service/runtime/config/history tests.
+- [x] Test metadata-driven document/recipe discovery, strict request-error propagation, mixed-owner refresh and live config/history reads.
+- [x] Replace provider/target switches with registry calls; keep only reference metadata and compose bounded discovery inside a coordinating adapter.
+- [x] Register history with replacement exclusion, retain version gates/status adapters, and preserve navigation/lifecycle checks.
+- [x] Pass focused service/runtime/config/history tests.
 
 ### 4. Native inventory and registries
 
@@ -71,10 +71,10 @@ Files: `nativegame/NativeProvider.java`, `NativeInventoryReader.java`, `NativeSn
 
 Files: `jei/JeiProvider.java`, `ftb/FtbProvider.java`, `patchouli/PatchouliProvider.java` and corresponding tests.
 
-- [ ] Test fresh handle reads, JEI output focus, document type/provider matching and bounded extraction/continuation on large documents.
-- [ ] Move matching into adapter methods. Refresh live source identities for reads/navigation without replaying old bodies.
-- [ ] Charge shared document budgets before traversal/copy/decode and keep nested continuation metadata only. Preserve structured fields and unknown custom semantics.
-- [ ] Pass focused provider tests.
+- [x] Test fresh handle reads, JEI output focus, document type/provider matching and bounded extraction/continuation on large documents.
+- [x] Move matching into adapter methods. Refresh live source identities for reads/navigation without replaying old bodies.
+- [x] Charge shared document budgets before traversal/copy/decode and keep nested continuation metadata only. Preserve structured fields and unknown custom semantics.
+- [x] Pass focused provider tests.
 
 ### 6. Full checks and live verification
 

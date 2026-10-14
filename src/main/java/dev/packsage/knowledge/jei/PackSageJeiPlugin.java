@@ -96,11 +96,13 @@ public final class PackSageJeiPlugin implements IModPlugin {
         private static final int MAX_CATEGORIES = 256;
         private static final int MAX_SCANNED_RECIPES = 2048;
         private static final int MAX_PAGE = 64;
+        private static final int MAX_NAVIGATION_REGISTRATIONS = 512;
         private static final int CURSOR_RADIX = 1_000_000;
 
         private final IJeiRuntime runtime;
         private final long generation;
         private final AtomicLong snapshotVersions = new AtomicLong();
+        private final LinkedHashMap<String, RegisteredRecipe> navigationRegistrations = new LinkedHashMap<>();
         private volatile boolean active = true;
 
         private RuntimeState(IJeiRuntime runtime, long generation) {
@@ -118,6 +120,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
 
         private void unavailable() {
             active = false;
+            navigationRegistrations.clear();
         }
 
         private JeiProvider.Snapshot snapshot(Evidence.Scope scope, Evidence.Query query) {
@@ -127,6 +130,24 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var snapshotVersion = snapshotVersions.incrementAndGet();
             var manager = runtime.getRecipeManager();
             var outputItem = stringArgument(query.arguments(), "outputItem");
+            var id = stringArgument(query.arguments(), "id");
+            var retained = query.operation() == Evidence.Operation.GET && id != null
+                    ? navigationRegistrations.get(id) : null;
+            if (query.operation() == Evidence.Operation.GET && retained == null && id != null && id.startsWith("jei/")) {
+                return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
+                        Evidence.Coverage.UNAVAILABLE, true, null);
+            }
+            if (retained != null) {
+                if (!retained.scope().worldSession().equals(scope.worldSession())
+                        || !retained.scope().resourcesLocale().equals(scope.resourcesLocale())
+                        || !retained.scope().playerTeam().equals(scope.playerTeam())
+                        || !retained.scope().providerRuntime().equals(scope.providerRuntime())
+                        || outputItem != null && !outputItem.equals(retained.outputItem())) {
+                    return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
+                            Evidence.Coverage.UNAVAILABLE, true, null);
+                }
+                outputItem = retained.outputItem();
+            }
             List<IFocus<?>> focuses = List.of();
             if (outputItem != null) {
                 var itemId = ResourceLocation.tryParse(outputItem);
@@ -139,6 +160,52 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 focuses = List.of((IFocus<?>) runtime.getJeiHelpers().getFocusFactory().createFocus(
                         RecipeIngredientRole.OUTPUT, VanillaTypes.ITEM_STACK, stack));
             }
+            if (retained != null) {
+                var category = retained.category();
+                var type = category.getRecipeType();
+                if (manager.getRecipeCategory(type) != category) {
+                    return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
+                            Evidence.Coverage.UNAVAILABLE, true, null);
+                }
+                var categoryRegistered = false;
+                try (var categories = manager.createRecipeCategoryLookup().limitFocus(focuses).get()
+                        .limit(MAX_CATEGORIES)) {
+                    categoryRegistered = categories.anyMatch(value -> value == category);
+                }
+                if (!categoryRegistered) {
+                    return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
+                            Evidence.Coverage.UNAVAILABLE, true, null);
+                }
+                var categoryId = categoryId(category, 0);
+                JeiProvider.Projection projection;
+                if (retained.recipe() == null) {
+                    projection = JeiProvider.Projection.opaque(categoryId, id, title(category, categoryId),
+                            "JEI category has no detached recipe projection");
+                } else {
+                    var recipeRegistered = false;
+                    try (var recipes = manager.createRecipeLookup(type).limitFocus(focuses).get()
+                            .limit(MAX_SCANNED_RECIPES)) {
+                        recipeRegistered = recipes.anyMatch(value -> value == retained.recipe());
+                    }
+                    if (!recipeRegistered) {
+                        return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
+                                Evidence.Coverage.UNAVAILABLE, true, null);
+                    }
+                    var canonical = canonical(category, retained.recipe());
+                    projection = project(runtime, manager, category, retained.recipe(), categoryId, id,
+                            canonical.value(), title(category, categoryId), knownCategory(categoryId), canonical.failed(),
+                            catalysts(runtime, manager, type));
+                    if (!projection.visible() || !projection.visibilityKnown()) {
+                        return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
+                                Evidence.Coverage.UNAVAILABLE, true, null);
+                    }
+                }
+                return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(projection), handle -> {
+                    if (!active) throw new IllegalStateException("JEI runtime unavailable");
+                    if (!id.equals(handle)) throw new IllegalArgumentException("unknown JEI projection " + handle);
+                    showRecipe(runtime, retained);
+                }, projection.coverage(), true, null);
+            }
             var projections = new ArrayList<JeiProvider.Projection>();
             var navigation = new LinkedHashMap<String, RegisteredRecipe>();
             var cursor = parseCursor(query.cursor());
@@ -147,7 +214,6 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var pageLimit = Math.min(query.limit(), MAX_PAGE);
             var text = stringArgument(query.arguments(), "text");
             text = text == null ? "" : text.toLowerCase(java.util.Locale.ROOT);
-            var id = stringArgument(query.arguments(), "id");
             var scanned = 0;
             var categoryCount = 0;
             var hasMore = false;
@@ -238,7 +304,12 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             }
                             projections.add(projection);
                             if (projection.coverage() != Evidence.Coverage.ERROR) {
-                                navigation.put(handle, new RegisteredRecipe(category, recipe));
+                                var registration = new RegisteredRecipe(category, recipe, scope, outputItem);
+                                navigation.put(handle, registration);
+                                navigationRegistrations.put(handle, registration);
+                                while (navigationRegistrations.size() > MAX_NAVIGATION_REGISTRATIONS) {
+                                    navigationRegistrations.remove(navigationRegistrations.keySet().iterator().next());
+                                }
                             }
                             partial |= projection.coverage() == Evidence.Coverage.PARTIAL;
                             opaque |= projection.coverage() == Evidence.Coverage.OPAQUE;
@@ -255,7 +326,12 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             } else {
                                 projections.add(JeiProvider.Projection.opaque(categoryId, handle, title,
                                         "JEI category has no detached recipe projection"));
-                                navigation.put(handle, new RegisteredRecipe(category, null));
+                                var registration = new RegisteredRecipe(category, null, scope, outputItem);
+                                navigation.put(handle, registration);
+                                navigationRegistrations.put(handle, registration);
+                                while (navigationRegistrations.size() > MAX_NAVIGATION_REGISTRATIONS) {
+                                    navigationRegistrations.remove(navigationRegistrations.keySet().iterator().next());
+                                }
                             }
                         }
                     } catch (Throwable failure) {
@@ -458,7 +534,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
 
         private record Canonical(String value, boolean failed) { }
 
-        private record RegisteredRecipe(IRecipeCategory<?> category, Object recipe) { }
+        private record RegisteredRecipe(IRecipeCategory<?> category, Object recipe, Evidence.Scope scope,
+                                        String outputItem) { }
 
         private static <T> void showRecipe(IJeiRuntime runtime, RegisteredRecipe registered) {
             if (registered.recipe() == null) {

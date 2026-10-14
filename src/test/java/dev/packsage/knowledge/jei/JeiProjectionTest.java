@@ -10,6 +10,7 @@ import mezz.jei.api.recipe.RecipeType;
 import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.api.constants.VanillaTypes;
+import mezz.jei.api.ingredients.ITypedIngredient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -23,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -30,6 +32,7 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -391,7 +394,7 @@ class JeiProjectionTest {
     }
 
     @Test
-    void focusedScannerPassesOutputFocusToCategoryAndRecipeLookups() throws Exception {
+    void focusedScannerRefreshesExactHandlesOnlyForCurrentVisibleRegistrations() throws Exception {
         var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
         unsafeField.setAccessible(true);
         var unsafe = unsafeField.get(null);
@@ -407,12 +410,17 @@ class JeiProjectionTest {
             var focusArguments = new AtomicReference<Object[]>();
             var appliedFocus = new AtomicReference<Object>();
             var focusApplications = new AtomicInteger();
+            var focusCreations = new AtomicInteger();
             var shownRecipes = new AtomicReference<List<?>>();
+            var hiddenRecipe = new AtomicBoolean();
+            var hiddenCategory = new AtomicBoolean();
+            var hiddenIngredient = new AtomicBoolean();
             var focusFactoryType = IJeiRuntime.class.getMethod("getJeiHelpers").getReturnType()
                     .getMethod("getFocusFactory").getReturnType();
             var focusFactory = Proxy.newProxyInstance(focusFactoryType.getClassLoader(), new Class<?>[] { focusFactoryType },
                     (proxy, method, arguments) -> {
                         if (!method.getName().equals("createFocus")) return null;
+                        focusCreations.incrementAndGet();
                         focusArguments.set(arguments);
                         var focusType = method.getReturnType();
                         return Proxy.newProxyInstance(focusType.getClassLoader(), new Class<?>[] { focusType },
@@ -428,21 +436,29 @@ class JeiProjectionTest {
                         case "getTitle" -> Component.literal("Crafting");
                         default -> null;
                     });
+            var replacementCategory = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
+                    new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
+                        case "getRecipeType" -> type;
+                        case "getTitle" -> Component.literal("Replacement crafting");
+                        default -> null;
+                    });
             var recipe = new Object();
-            var recipeLookup = (IRecipeLookup<Object>) Proxy.newProxyInstance(IRecipeLookup.class.getClassLoader(),
-                    new Class<?>[] { IRecipeLookup.class }, (proxy, method, arguments) -> switch (method.getName()) {
-                        case "includeHidden" -> proxy;
-                        case "limitFocus" -> { appliedFocus.set(arguments[0]); focusApplications.incrementAndGet(); yield proxy; }
-                        case "get" -> Stream.of(recipe);
+            var replacementRecipe = new Object();
+            var recipes = new AtomicReference<List<Object>>(List.of(recipe));
+            var currentCategory = new AtomicReference<IRecipeCategory<?>>(category);
+            var managerCategory = new AtomicReference<IRecipeCategory<?>>(category);
+            var item = BuiltInRegistries.ITEM.get(ResourceLocation.fromNamespaceAndPath("minecraft", "stone"));
+            var outputStack = new ItemStack(item);
+            var typedIngredient = Proxy.newProxyInstance(ITypedIngredient.class.getClassLoader(),
+                    new Class<?>[] { ITypedIngredient.class }, (proxy, method, arguments) -> switch (method.getName()) {
+                        case "getType" -> VanillaTypes.ITEM_STACK;
+                        case "getIngredient" -> outputStack;
                         default -> null;
                     });
-            var categoryLookup = (IRecipeCategoriesLookup) Proxy.newProxyInstance(IRecipeCategoriesLookup.class.getClassLoader(),
-                    new Class<?>[] { IRecipeCategoriesLookup.class }, (proxy, method, arguments) -> switch (method.getName()) {
-                        case "includeHidden", "limitTypes" -> proxy;
-                        case "limitFocus" -> { appliedFocus.set(arguments[0]); focusApplications.incrementAndGet(); yield proxy; }
-                        case "get" -> Stream.of(category);
-                        default -> null;
-                    });
+            var visibilityType = IJeiRuntime.class.getMethod("getIngredientVisibility").getReturnType();
+            var visibility = Proxy.newProxyInstance(visibilityType.getClassLoader(), new Class<?>[] { visibilityType },
+                    (proxy, method, arguments) -> method.getName().equals("isIngredientVisible")
+                            ? !hiddenIngredient.get() : null);
             var catalystLookup = (IRecipeCatalystLookup) Proxy.newProxyInstance(IRecipeCatalystLookup.class.getClassLoader(),
                     new Class<?>[] { IRecipeCatalystLookup.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "includeHidden" -> proxy;
@@ -451,8 +467,6 @@ class JeiProjectionTest {
                     });
             var manager = (IRecipeManager) Proxy.newProxyInstance(IRecipeManager.class.getClassLoader(),
                     new Class<?>[] { IRecipeManager.class }, (proxy, method, arguments) -> switch (method.getName()) {
-                        case "createRecipeCategoryLookup" -> categoryLookup;
-                        case "createRecipeLookup" -> recipeLookup;
                         case "createRecipeCatalystLookup" -> catalystLookup;
                         case "createRecipeLayoutDrawable" -> {
                             var layoutArgument = ((ParameterizedType) method.getGenericReturnType()).getActualTypeArguments()[0];
@@ -466,7 +480,7 @@ class JeiProjectionTest {
                             var slotView = Proxy.newProxyInstance(slotViewType.getClassLoader(), new Class<?>[] { slotViewType },
                                     (slotProxy, slotMethod, slotArgs) -> switch (slotMethod.getName()) {
                                         case "getRole" -> RecipeIngredientRole.OUTPUT;
-                                        case "getAllIngredientsList" -> List.of();
+                                        case "getAllIngredientsList" -> List.of(typedIngredient);
                                         case "getSlotName" -> java.util.Optional.of("result");
                                         default -> null;
                                     });
@@ -477,6 +491,43 @@ class JeiProjectionTest {
                                     (layoutProxy, layoutMethod, layoutArgs) -> layoutMethod.getName().equals("getRecipeSlotsView")
                                             ? slots : null);
                             yield java.util.Optional.of(layout);
+                        }
+                        case "getRecipeCategory" -> managerCategory.get();
+                        case "createRecipeLookup" -> {
+                            var includeHidden = new AtomicBoolean();
+                            yield Proxy.newProxyInstance(IRecipeLookup.class.getClassLoader(),
+                                    new Class<?>[] { IRecipeLookup.class }, (lookup, lookupMethod, lookupArguments) -> {
+                                        return switch (lookupMethod.getName()) {
+                                            case "includeHidden" -> { includeHidden.set(true); yield lookup; }
+                                            case "limitFocus" -> {
+                                                appliedFocus.set(lookupArguments[0]);
+                                                focusApplications.incrementAndGet();
+                                                yield lookup;
+                                            }
+                                            case "get" -> hiddenRecipe.get() && !includeHidden.get()
+                                                    ? Stream.empty() : recipes.get().stream();
+                                            default -> null;
+                                        };
+                                    });
+                        }
+                        case "createRecipeCategoryLookup" -> {
+                            var includeHidden = new AtomicBoolean();
+                            yield Proxy.newProxyInstance(IRecipeCategoriesLookup.class.getClassLoader(),
+                                    new Class<?>[] { IRecipeCategoriesLookup.class }, (lookup, lookupMethod, lookupArguments) -> {
+                                        return switch (lookupMethod.getName()) {
+                                            case "includeHidden" -> { includeHidden.set(true); yield lookup; }
+                                            case "limitTypes" -> lookup;
+                                            case "limitFocus" -> {
+                                                appliedFocus.set(lookupArguments[0]);
+                                                focusApplications.incrementAndGet();
+                                                yield lookup;
+                                            }
+                                            case "get" -> hiddenCategory.get() && !includeHidden.get()
+                                                    ? Stream.empty() : currentCategory.get() == null
+                                                    ? Stream.empty() : Stream.of(currentCategory.get());
+                                            default -> null;
+                                        };
+                                    });
                         }
                         default -> null;
                     });
@@ -490,6 +541,7 @@ class JeiProjectionTest {
                     new Class<?>[] { IJeiRuntime.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "getRecipeManager" -> manager;
                         case "getJeiHelpers" -> helpers;
+                        case "getIngredientVisibility" -> visibility;
                         case "getRecipesGui" -> recipesGui;
                         default -> null;
                     });
@@ -502,16 +554,89 @@ class JeiProjectionTest {
                     .toCompletableFuture().get();
 
             assertEquals(2, focusApplications.get(), "both JEI category and recipe lookups must receive the output focus");
+            assertEquals(1, focusCreations.get());
             assertNotNull(appliedFocus.get());
             assertEquals(RecipeIngredientRole.OUTPUT, focusArguments.get()[0]);
             assertEquals(VanillaTypes.ITEM_STACK, focusArguments.get()[1]);
-            assertEquals(BuiltInRegistries.ITEM.get(ResourceLocation.fromNamespaceAndPath("minecraft", "stone")),
-                    ((ItemStack) focusArguments.get()[2]).getItem());
+            assertSame(item, ((ItemStack) focusArguments.get()[2]).getItem());
             assertEquals("Crafting", result.records().getFirst().title());
             assertEquals(1, result.records().getFirst().targets().size());
+            var initial = result.records().getFirst();
+            assertEquals(1, initial.recipePayload().outputs().getFirst().quantity());
+            var handle = initial.source().sourceHandle();
+            var nextScope = new Evidence.Scope("world", "en_us", "team", "jei-1", 2);
+            var exactGet = new Evidence.Query(Evidence.Operation.GET,
+                    new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(handle))), 4, null, null);
+
+            outputStack.setCount(2);
+            PackSageJeiPlugin.clientTicked();
+            var refreshed = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            assertEquals(1, refreshed.records().size());
+            assertEquals(Evidence.Coverage.COMPLETE, refreshed.coverage());
+            assertEquals(4, focusApplications.get());
+            assertEquals(2, focusCreations.get(), "exact revalidation must reapply the original output focus");
+            assertEquals(handle, refreshed.records().getFirst().source().sourceHandle());
+            assertNotEquals(initial.source().provenance(), refreshed.records().getFirst().source().provenance());
+            assertEquals(nextScope, refreshed.records().getFirst().source().scope());
+            assertEquals(2, refreshed.records().getFirst().recipePayload().outputs().getFirst().quantity());
             assertEquals(Evidence.NavigationStatus.OPENED,
-                    plugin.provider().open(result.records().getFirst().targets().getFirst(), SCOPE).status());
+                    plugin.provider().open(refreshed.records().getFirst().targets().getFirst(), nextScope).status());
             assertSame(recipe, shownRecipes.get().getFirst());
+
+            var focusApplicationsBeforeUnknown = focusApplications.get();
+            PackSageJeiPlugin.clientTicked();
+            var unretainedHandle = plugin.provider().query(new Evidence.Query(Evidence.Operation.GET,
+                    new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("jei/1/999/minecraft:crafting/old"))),
+                    4, null, null), nextScope).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.UNAVAILABLE, unretainedHandle.coverage());
+            assertTrue(unretainedHandle.records().isEmpty());
+            assertEquals(focusApplicationsBeforeUnknown, focusApplications.get());
+
+            for (var foreignScope : List.of(
+                    new Evidence.Scope("other-world", "en_us", "team", "jei-1", 2),
+                    new Evidence.Scope("world", "fr_fr", "team", "jei-1", 2),
+                    new Evidence.Scope("world", "en_us", "other-team", "jei-1", 2),
+                    new Evidence.Scope("world", "en_us", "team", "jei-2", 2))) {
+                PackSageJeiPlugin.clientTicked();
+                var foreign = plugin.provider().query(exactGet, foreignScope).toCompletableFuture().get();
+                assertEquals(Evidence.Coverage.UNAVAILABLE, foreign.coverage());
+                assertTrue(foreign.records().isEmpty());
+            }
+
+            hiddenIngredient.set(true);
+            PackSageJeiPlugin.clientTicked();
+            var hiddenByIngredient = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.UNAVAILABLE, hiddenByIngredient.coverage());
+            hiddenIngredient.set(false);
+
+            hiddenRecipe.set(true);
+            PackSageJeiPlugin.clientTicked();
+            var hiddenByRecipe = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.UNAVAILABLE, hiddenByRecipe.coverage());
+            hiddenRecipe.set(false);
+
+            hiddenCategory.set(true);
+            PackSageJeiPlugin.clientTicked();
+            var hiddenByCategory = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.UNAVAILABLE, hiddenByCategory.coverage());
+            hiddenCategory.set(false);
+
+            recipes.set(List.of(replacementRecipe));
+            PackSageJeiPlugin.clientTicked();
+            var replacedRecipe = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.UNAVAILABLE, replacedRecipe.coverage());
+
+            recipes.set(List.of());
+            PackSageJeiPlugin.clientTicked();
+            var removedRecipe = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.UNAVAILABLE, removedRecipe.coverage());
+            recipes.set(List.of(recipe));
+
+            currentCategory.set(replacementCategory);
+            managerCategory.set(replacementCategory);
+            PackSageJeiPlugin.clientTicked();
+            var replacedCategory = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.UNAVAILABLE, replacedCategory.coverage());
         } finally {
             minecraftInstance.set(null, previousMinecraft);
         }

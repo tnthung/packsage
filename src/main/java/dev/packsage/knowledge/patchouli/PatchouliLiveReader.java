@@ -26,14 +26,19 @@ import java.util.List;
 import java.util.Map;
 
 /** Stateless bounded reads of the already loaded Patchouli objects. */
-final class PatchouliLiveReader {
+public final class PatchouliLiveReader {
     private PatchouliLiveReader() { }
 
-    record Position(int page, int node, int textOffset, int mapping) { }
-    record Entry(PatchouliProvider.EntryRecord record, Position next) { }
-    record Page(PatchouliProvider.PageRecord record, int nextNode, int nextTextOffset, boolean complete) { }
+    public record Position(int page, int node, int textOffset, int mapping) { }
+    public record Entry(PatchouliProvider.EntryRecord record, Position next) { }
+    public record Page(PatchouliProvider.PageRecord record, int nextNode, int nextTextOffset, boolean complete, int copiedChars) { }
 
-    static Entry entry(Book book, BookEntry entry, Position position, int queryOverlap, Toolbox.DocumentBudget budget) {
+    public static Entry entry(Book book, BookEntry entry, Position position, int queryOverlap, Toolbox.DocumentBudget budget) {
+        return entry(book, entry, position, queryOverlap, Integer.MAX_VALUE, budget);
+    }
+
+    public static Entry entry(Book book, BookEntry entry, Position position, int queryOverlap, int maxChars,
+                              Toolbox.DocumentBudget budget) {
         try {
             if (!budget.value() || !budget.bytes(2048)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                     "Patchouli entry metadata exceeds the remaining read budget");
@@ -62,8 +67,10 @@ final class PatchouliLiveReader {
                 if (!visible) { partial = true; pageIndex++; continue; }
                 var fragment = page(page, displayPage, book.i18n,
                         position != null && pageIndex == position.page() ? position.node() : 0,
-                        position != null && pageIndex == position.page() ? position.textOffset() : 0, queryOverlap, budget);
+                        position != null && pageIndex == position.page() ? position.textOffset() : 0, queryOverlap,
+                        maxChars, budget);
                 pages.add(fragment.record());
+                maxChars -= fragment.copiedChars();
                 if (!fragment.complete()) {
                     next = new Position(pageIndex, fragment.nextNode(), fragment.nextTextOffset(), 0);
                     break;
@@ -113,6 +120,11 @@ final class PatchouliLiveReader {
 
     static Page page(BookPage page, int pageIndex, boolean translated, int startNode, int startOffset, int queryOverlap,
                      Toolbox.DocumentBudget budget) {
+        return page(page, pageIndex, translated, startNode, startOffset, queryOverlap, Integer.MAX_VALUE, budget);
+    }
+
+    static Page page(BookPage page, int pageIndex, boolean translated, int startNode, int startOffset, int queryOverlap,
+                     int maxChars, Toolbox.DocumentBudget budget) {
         if (startNode < 0 || startOffset < 0) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid page position");
         var root = new JsonObject();
         var source = page.sourceObject == null ? new JsonObject() : page.sourceObject;
@@ -126,6 +138,8 @@ final class PatchouliLiveReader {
             int node;
             int nextNode = -1;
             int nextOffset;
+            int copiedChars;
+            int remainingChars = maxChars;
             final List<Evidence.JsonValue> fragments = new ArrayList<>();
             final List<String> items = new ArrayList<>();
             final List<String> recipes = new ArrayList<>();
@@ -171,14 +185,18 @@ final class PatchouliLiveReader {
                     String raw = value.getAsString();
                     int offset = currentNode == startNode ? startOffset : 0;
                     if (offset > raw.length()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Patchouli text changed; restart the lookup");
+                    if (remainingChars == 0) { nextNode = currentNode; nextOffset = offset; return; }
                     int copyStart = Math.max(0, offset - queryOverlap);
                     if (copyStart > 0 && Character.isLowSurrogate(raw.charAt(copyStart))) copyStart--;
                     if (!budget.bytes((offset - copyStart) * 12)) { nextNode = currentNode; nextOffset = offset; return; }
-                    int end = offset + Math.min(raw.length() - offset, Math.max(0, (budget.remainingBytes() - 16) / 12));
+                    int end = offset + Math.min(Math.min(raw.length() - offset, remainingChars),
+                            Math.max(0, (budget.remainingBytes() - 16) / 12));
                     if (end < raw.length() && end > offset && Character.isHighSurrogate(raw.charAt(end - 1))) end--;
                     if (end == offset && end < raw.length()) { nextNode = currentNode; nextOffset = offset; return; }
                     if (!budget.bytes((end - offset) * 12 + 16)) { nextNode = currentNode; nextOffset = offset; return; }
                     String part = raw.substring(copyStart, end);
+                    copiedChars += end - offset;
+                    remainingChars -= end - offset;
                     fragment.put("value", new Evidence.JsonString(part));
                     fragment.put("textOffset", new Evidence.JsonNumber(BigDecimal.valueOf(copyStart)));
                     fragment.put("complete", new Evidence.JsonBoolean(offset == 0 && end == raw.length()));
@@ -213,6 +231,7 @@ final class PatchouliLiveReader {
                 : new Evidence.JsonObject(Map.of("fragments", new Evidence.JsonArray(walker.fragments)));
         return new Page(new PatchouliProvider.PageRecord(pageIndex, type, payload, walker.text.isEmpty() ? null : walker.text.toString(),
                 walker.items, walker.recipes, true, complete && startNode == 0 ? supported ? Evidence.DecodingStatus.VERIFIED
-                : Evidence.DecodingStatus.OPAQUE : Evidence.DecodingStatus.PARTIAL), walker.nextNode, walker.nextOffset, complete);
+                : Evidence.DecodingStatus.OPAQUE : Evidence.DecodingStatus.PARTIAL), walker.nextNode, walker.nextOffset, complete,
+                walker.copiedChars);
     }
 }

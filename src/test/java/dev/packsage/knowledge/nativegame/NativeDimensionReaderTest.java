@@ -81,6 +81,21 @@ class NativeDimensionReaderTest {
     }
 
     @Test
+    void fullScanAtSeekLimitIsPartialAndDoesNotOfferAnUnusableCursor() {
+        var keys = new LinkedHashSet<ResourceKey<Level>>();
+        for (int index = 0; index < 2600; index++) keys.add(ResourceKey.create(Registries.DIMENSION,
+                ResourceLocation.fromNamespaceAndPath("test", "dimension_" + index)));
+
+        var capped = NativeDimensionReader.clientPage(keys, 1536, 16, "absent", List.of(), SCOPE);
+
+        assertTrue(capped.records().isEmpty());
+        assertFalse(capped.exhausted());
+        assertTrue(capped.partial());
+        assertEquals(1536, capped.nextOffset());
+        assertTrue(capped.detail().contains("narrow"));
+    }
+
+    @Test
     void dimensionTypeProjectionIncludesEnvironmentalRulesAndTags() {
         var type = new DimensionType(java.util.OptionalLong.empty(), true, false, false, true, 1.0, true, false,
                 0, 256, 256, TagKey.create(Registries.BLOCK, ResourceLocation.withDefaultNamespace("infiniburn_overworld")),

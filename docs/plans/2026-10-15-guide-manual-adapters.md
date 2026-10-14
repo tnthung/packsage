@@ -19,5 +19,5 @@ Extend the approved [tool contract](../specs/2026-10-14-behavior-driven-tools.md
 - [x] Implement Actually Additions booklet, Relics and Artifacts source readers with source-specific regression coverage.
 - [x] Register all six logical providers, expose metadata/status and verify provider-qualified and combined discovery through existing dispatch.
 - [x] Run focused tests and the full build; independently review freshness, bounds, optional loading and source semantics; fix findings in separate commits.
-- [ ] Install the tested artifact with Minecraft closed, run computer-use checks in `OoO - PackSage Trial`, and inspect actual call/result pairs for all six sources and fresh evidence reads.
-- [ ] Update the six roadmap checkboxes only for delivered behavior; record tests, installed observations and remaining source limitations in a dated validation report.
+- [x] Install the tested artifact with Minecraft closed, run computer-use checks in `OoO - PackSage Trial`, and inspect actual call/result pairs for all six sources and fresh evidence reads.
+- [x] Update the six roadmap checkboxes only for delivered behavior; record tests, installed observations and remaining source limitations in a dated validation report.

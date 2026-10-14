@@ -78,3 +78,18 @@ Fresh contents, player/container separation, closed-menu invalidation, targeted 
 Unresolved finding: `NativeStorageReader.validOpened` unconditionally constructs runtime opened-menu observations with `completeness=partial` and `Coverage.PARTIAL`, even for this fully read two-stack vanilla chest. The raw result provides no explanation, so the model warns that unseen contents may exist. This is a coverage-reporting issue, not observed stale contents. Do not mark opened-chest coverage reporting fully accepted until it is corrected and retested.
 
 Restored the original 3 dirt and 7 cobblestone in their original chest slots, with the temporary player slot empty. Left Minecraft running in the trial world with PackSage displaying the final unavailable-target result; the camera points at grass. Health remained full and level 57. No other world was opened.
+
+## Double chest follow-up
+
+The player added the adjacent chest and authorized the next live check. Used the same running trial world, installed artifact and replay file as the prepared-chest follow-up. The visible large chest initially contained 3 dirt in menu slot 27 and 7 cobblestone in slot 28. Temporarily moved the dirt to slot 0 to ensure both physical halves contained stock.
+
+| Request / ID | Observed result |
+| --- | --- |
+| `DOUBLE_CHEST_A` / `614bbf9f-97fa-4add-aa43-edda911372ad` | Two opened searches with limit 1: dirt x3 at menu slot 0, then cobblestone x7 at slot 28. First page had a cursor/hasMore; second terminated. Each stack appeared once. Both pages remained VIEWER/PARTIAL because of the previously recorded opened-menu coverage issue. |
+| `DOUBLE_CHEST_B` / `42fa3a0c-50eb-4f19-899d-e79a6a91e53a` | With the menu closed, two targeted pages with limit 1 returned dirt x3 from the left half at (12, 2, -1026), componentSlot 0, then cobblestone x7 from the right half at (13, 2, -1026), componentSlot 1. A separate limit-32 read returned both stacks together. All three reads reported SERVER_READ/COMPLETE; the first paged read still carried a continuation and hasMore=true. |
+
+Both requests completed; all five actual calls/results were inspected in the saved replay. Counts, physical halves, page advancement, termination and absence of duplicates matched the visible inventory. The model issued the limit-32 comparison alongside the initial limit-1 request, before requesting the continuation; no contents changed during these reads. Only the half at (12, 2, -1026) was targeted, so this is not proof that aiming at either half produces identical ordering.
+
+Additional unresolved metadata finding: targeted cobblestone reports `menuSlot=1`, whereas the opened large-chest menu reports slot 28. Its right-half position and `componentSlot=1` are correct. `NativeServerStorageReader.readBlock` passes an occupied-entry ordinal (`outputSlot++`) into the menu-slot field instead of the combined chest slot. Contents are correct, but the field is misleading and should not be treated as a GUI slot index until corrected or explicitly renamed.
+
+Restored dirt to its original menu slot 27; cobblestone remained at slot 28 throughout. Left the large chest menu open, with the original counts and player inventory unchanged. No code changes, build or automated test rerun were made for this validation-only step.

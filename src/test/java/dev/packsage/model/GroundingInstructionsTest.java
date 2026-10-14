@@ -63,6 +63,12 @@ class GroundingInstructionsTest {
         assertTrue(request.instructions().contains("outputItem"));
         assertTrue(request.instructions().contains("search_history"));
         assertTrue(request.instructions().contains("read_history"));
+        assertTrue(request.instructions().contains("search_document"));
+        assertTrue(request.instructions().contains("search_recipe"));
+        assertTrue(request.instructions().contains("search_registry"));
+        assertTrue(request.instructions().contains("search_inventory"));
+        assertFalse(request.instructions().contains("read_storage"));
+        assertFalse(request.instructions().contains("read_inventory"));
         assertTrue(request.instructions().contains("historical conversation"));
         assertTrue(request.instructions().contains("The final user message is the only current request."));
         assertTrue(request.instructions().contains("Do not summarize gameplay metadata, continue an earlier topic, or retrieve unrelated evidence."));

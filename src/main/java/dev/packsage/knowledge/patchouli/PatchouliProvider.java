@@ -461,11 +461,12 @@ public final class PatchouliProvider implements KnowledgeProvider {
 
     private CompletionStage<Evidence.Result> searchLiveDocument(PackSageTools.ReadRequest request, Toolbox.Context context,
                                                                  String query, String cursor, int limit, String exactHandle) {
+        long generation = lifecycleGeneration;
         LiveCursor resume = null;
         if (cursor != null) {
             try {
                 var value = com.google.gson.JsonParser.parseString(cursor).getAsJsonObject();
-                if (value.get("lifecycle").getAsLong() != lifecycleGeneration) throw new IllegalArgumentException();
+                if (value.get("lifecycle").getAsLong() != generation) throw new IllegalArgumentException();
                 resume = new LiveCursor(value.get("offset").getAsInt(), value.get("owner").getAsString(),
                         value.get("ownerToken").getAsInt(), value.get("after").getAsBoolean(),
                         new PatchouliLiveReader.Position(value.get("page").getAsInt(), value.get("node").getAsInt(),
@@ -480,6 +481,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
         var selected = resume;
         return CompletableFuture.supplyAsync(() -> {
             if (unavailable) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Patchouli runtime is unavailable");
+            if (generation != lifecycleGeneration) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "Patchouli reloaded before the live read");
             if (!owningThread.getAsBoolean()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                     "Patchouli live traversal must run on the client thread");
             if (!request.scope().equals(scopeSource.get()) || !request.scope().equals(context.currentScope().get()))
@@ -553,7 +555,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
                             .contains(query.toLowerCase(Locale.ROOT)))) {
                         var observation = new Snapshot(request.scope(), request.scope().requestGeneration(), List.of(), ignored -> { });
                         records.add(toRecord(found, observation, matchingPages(found, Evidence.Operation.SEARCH,
-                                query.toLowerCase(Locale.ROOT)), lifecycleGeneration));
+                                query.toLowerCase(Locale.ROOT)), generation));
                     }
                     if (fragment.next() != null) {
                         next = new LiveCursor(candidate, owner, token, false, fragment.next());
@@ -569,12 +571,12 @@ public final class PatchouliProvider implements KnowledgeProvider {
             }
             if (selected != null && index <= selected.offset()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                     "Patchouli continuation owner is no longer present");
-            if (!request.scope().equals(context.currentScope().get()) || !request.scope().equals(scopeSource.get()))
+            if (generation != lifecycleGeneration || !request.scope().equals(context.currentScope().get()) || !request.scope().equals(scopeSource.get()))
                 throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "scope changed while reading Patchouli");
             String continuation = null;
             if (next != null && exactHandle == null) {
                 var value = new JsonObject();
-                value.addProperty("lifecycle", lifecycleGeneration);
+                value.addProperty("lifecycle", generation);
                 value.addProperty("offset", next.offset());
                 value.addProperty("owner", next.owner());
                 value.addProperty("ownerToken", next.ownerToken());

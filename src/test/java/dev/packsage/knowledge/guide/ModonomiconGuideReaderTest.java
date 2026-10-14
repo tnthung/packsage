@@ -4,8 +4,13 @@ import com.klikli_dev.modonomicon.book.BookTextHolder;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.Toolbox;
+import net.minecraft.locale.Language;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
+import net.minecraft.util.FormattedCharSequence;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -79,5 +84,34 @@ class ModonomiconGuideReaderTest {
                 "x", 0, 0, 0, 1, 1, budget, false));
 
         assertEquals(Toolbox.Code.EXTRACTION_FAILED, failure.code());
+    }
+
+    @Test
+    void literalAndTranslatedBookTextHoldersResolveWithoutRenderingWholeComponents() {
+        var language = new FixtureLanguage(Map.of("packsage.fixture.translation", "Translated fixture text"));
+        var literal = ModonomiconGuideReader.localizedText(new BookTextHolder(Component.literal("Literal fixture text")), language);
+        var translatedString = ModonomiconGuideReader.localizedText(new BookTextHolder("packsage.fixture.translation"), language);
+        var translatedComponent = ModonomiconGuideReader.localizedText(
+                new BookTextHolder(Component.translatable("packsage.fixture.translation")), language);
+        var missing = ModonomiconGuideReader.localizedText(new BookTextHolder("packsage.fixture.missing"), language);
+
+        assertEquals("Literal fixture text", literal.text());
+        assertEquals("Translated fixture text", translatedString.text());
+        assertEquals("Translated fixture text", translatedComponent.text());
+        assertEquals("packsage.fixture.missing", missing.text());
+        assertTrue(missing.partial());
+    }
+
+    private static final class FixtureLanguage extends Language {
+        private final Map<String, String> translations;
+
+        private FixtureLanguage(Map<String, String> translations) {
+            this.translations = Map.copyOf(translations);
+        }
+
+        @Override public String getOrDefault(String key, String fallback) { return translations.getOrDefault(key, fallback); }
+        @Override public boolean has(String key) { return translations.containsKey(key); }
+        @Override public boolean isDefaultRightToLeft() { return false; }
+        @Override public FormattedCharSequence getVisualOrder(FormattedText text) { return FormattedCharSequence.EMPTY; }
     }
 }

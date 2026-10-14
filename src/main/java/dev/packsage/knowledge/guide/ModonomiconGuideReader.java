@@ -2,6 +2,7 @@ package dev.packsage.knowledge.guide;
 
 import com.klikli_dev.modonomicon.book.Book;
 import com.klikli_dev.modonomicon.book.BookCategory;
+import com.klikli_dev.modonomicon.book.BookTextHolder;
 import com.klikli_dev.modonomicon.book.entries.BookEntry;
 import com.klikli_dev.modonomicon.book.page.BookPage;
 import com.klikli_dev.modonomicon.book.page.BookTextPage;
@@ -12,6 +13,9 @@ import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.Toolbox;
 import net.minecraft.client.Minecraft;
 import net.minecraft.locale.Language;
+import net.minecraft.network.chat.ComponentContents;
+import net.minecraft.network.chat.contents.PlainTextContents;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
@@ -22,6 +26,8 @@ import java.util.function.Supplier;
 public final class ModonomiconGuideReader implements GuideDocumentReader {
     private static final String VERSION = "1.120.4";
     private static final String SEPARATOR = "|";
+
+    record LocalizedText(String text, boolean partial) { }
 
     ModonomiconGuideReader() { }
 
@@ -176,18 +182,16 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
             }
             for (; fieldIndex < 2; fieldIndex++, textOffset = 0) {
                 var holder = fieldIndex == 0 ? textPage.getTitle() : textPage.getText();
-                if (holder == null || holder.isEmpty()) continue;
+                if (holder == null || !holder.hasComponent() && holder.isEmpty()) continue;
                 if (!budget.value() || !budget.bytes(64)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                         "Modonomicon text extraction reached its read budget");
-                if (holder.hasComponent()) {
+                var localized = localizedText(holder, Language.getInstance());
+                if (localized.text() == null) {
                     partial = true;
                     continue;
                 }
-                var language = Language.getInstance();
-                var key = holder.getKey();
-                var text = language.getOrDefault(key);
-                return textFragment(text, pageIndex, fieldIndex, textOffset, pages.size(), maxChars, budget,
-                        partial || !language.has(key));
+                return textFragment(localized.text(), pageIndex, fieldIndex, textOffset, pages.size(), maxChars, budget,
+                        partial || localized.partial());
             }
         }
         if (pageIndex == 0 && pages.isEmpty()) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
@@ -266,5 +270,30 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
                 hasNext ? nextPosition : null, partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
                 sourcePartial ? "component-backed Modonomicon fields remain unread" : overlapPartial
                         ? "fragment overlap was shortened to preserve a text boundary" : null);
+    }
+
+    static LocalizedText localizedText(BookTextHolder holder, Language language) {
+        if (holder == null) return new LocalizedText(null, true);
+        if (!holder.hasComponent()) {
+            var key = holder.getKey();
+            if (key == null) return new LocalizedText(null, true);
+            var text = language.getOrDefault(key, key);
+            return new LocalizedText(text == null ? key : text, text == null || !language.has(key));
+        }
+        var component = holder.getComponent();
+        if (component == null) return new LocalizedText(null, true);
+        ComponentContents contents = component.getContents();
+        if (contents instanceof PlainTextContents.LiteralContents literal) {
+            return new LocalizedText(literal.text(), !component.getSiblings().isEmpty());
+        }
+        if (contents instanceof TranslatableContents translatable && translatable.getArgs().length == 0) {
+            var key = translatable.getKey();
+            if (key == null) return new LocalizedText(null, true);
+            var fallback = translatable.getFallback();
+            var translated = language.getOrDefault(key, fallback == null ? key : fallback);
+            return new LocalizedText(translated == null ? fallback == null ? key : fallback : translated,
+                    !component.getSiblings().isEmpty() || !language.has(key));
+        }
+        return new LocalizedText(null, true);
     }
 }

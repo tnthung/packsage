@@ -158,6 +158,34 @@ class GuideDocumentProviderTest {
         assertEquals("page:second", ((Evidence.JsonString) result.records().getFirst().payload().values().get("fragment")).value());
     }
 
+    @Test
+    void exhaustedEmptyCandidatePageReturnsRetryCursorAtTheSamePosition() {
+        var reader = new FixtureReader();
+        reader.exhaustFirstCandidatePage.set(true);
+        var provider = new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run);
+        var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+        arguments.put("query", new Evidence.JsonString("needle"));
+        arguments.put("filter", new Evidence.JsonObject(Map.of(
+                "provider", new Evidence.JsonString("fixture_guide"),
+                "types", new Evidence.JsonArray(List.of(new Evidence.JsonString("guide"))))));
+        arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
+        var firstContext = new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null);
+
+        var first = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(arguments), SCOPE), firstContext).toCompletableFuture().join();
+
+        assertTrue(first.records().isEmpty());
+        assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
+        assertNotNull(first.nextCursor());
+        var continuedArguments = new java.util.LinkedHashMap<>(arguments);
+        continuedArguments.put("cursor", new Evidence.JsonString(first.nextCursor()));
+        var secondContext = new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null);
+        var continued = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(continuedArguments), SCOPE), secondContext).toCompletableFuture().join();
+
+        assertEquals("fixture:guide/entry", continued.records().getFirst().source().sourceHandle());
+    }
+
     private static final class FixtureReader implements GuideDocumentReader {
         private final String providerId;
         private final String candidateId;
@@ -167,6 +195,7 @@ class GuideDocumentProviderTest {
         private final AtomicBoolean hiddenFirstPage = new AtomicBoolean();
         private final AtomicInteger hiddenPageCalls = new AtomicInteger();
         private final AtomicBoolean boundaryMode = new AtomicBoolean();
+        private final AtomicBoolean exhaustFirstCandidatePage = new AtomicBoolean();
 
         private FixtureReader() { this("fixture_guide", "fixture:guide/entry"); }
 
@@ -181,6 +210,11 @@ class GuideDocumentProviderTest {
 
         @Override
         public CandidatePage candidates(String afterPosition, int limit, Toolbox.DocumentBudget budget) {
+            if (exhaustFirstCandidatePage.compareAndSet(true, false)) {
+                while (budget.value()) { }
+                return new CandidatePage(List.of(), afterPosition, true, Evidence.Coverage.PARTIAL,
+                        "source traversal budget exhausted before the next candidate");
+            }
             if (!budget.value()) return new CandidatePage(List.of(), "fixture:guide/entry", true,
                     Evidence.Coverage.PARTIAL, "budget exhausted");
             if (hiddenFirstPage.get() && afterPosition == null) return new CandidatePage(List.of(), "fixture:hidden", true,

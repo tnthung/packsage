@@ -3,6 +3,8 @@ package dev.packsage.chat;
 import dev.packsage.client.GameplayContextCapture;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeService;
+import dev.packsage.knowledge.Toolbox;
+import dev.packsage.model.PackSageTools;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.GroundingInstructions;
 import org.junit.jupiter.api.Test;
@@ -531,8 +533,11 @@ class AssistantRuntimeTest {
         AtomicInteger factoryCalls = new AtomicInteger();
         CompletableFuture<Evidence.Result> pendingTool = new CompletableFuture<>();
         var knowledgeFactory = (java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService>) current -> {
-            int factoryCall = factoryCalls.getAndIncrement();
-            return new KnowledgeService(List.of(), current);
+            factoryCalls.incrementAndGet();
+            return new KnowledgeService(List.of(new Toolbox() {
+                @Override public Metadata metadata() { return new Metadata("native", List.of(), true, List.of(), Map.of()); }
+                @Override public CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Context context) { return pendingTool; }
+            }), current);
         };
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
                 new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
@@ -544,7 +549,7 @@ class AssistantRuntimeTest {
                 MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
         runtime.send("question", false, false);
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("call", "plan_recipe", "{\"identity\":\"item\",\"quantity\":1}"),
+                new ModelBackend.ToolCall("call", "plan_recipe", "{\"identity\":\"minecraft:torch\",\"quantity\":1}"),
                 List.of(), null));
 
         ChatContracts.WorldIdentity nextWorld = new ChatContracts.WorldIdentity("world-2", "World 2");
@@ -834,7 +839,12 @@ class AssistantRuntimeTest {
         var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
                 scope -> {
                     if (failKnowledge.get()) throw new IllegalStateException("provider refresh failed");
-                    return new KnowledgeService(List.of(), scope);
+                    return new KnowledgeService(List.of(new Toolbox() {
+                        @Override public Metadata metadata() { return new Metadata("native", List.of(), true, List.of(), Map.of()); }
+                        @Override public CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Context context) {
+                            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
+                        }
+                    }), scope);
                 },
                 GroundingInstructions::historyTextBudget, GroundingInstructions::build, model -> 512,
                 ignored -> { }, ignored -> { });

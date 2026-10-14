@@ -261,7 +261,8 @@ class KnowledgeServiceTest {
             if (!text(id).equals(filter.values().get("provider"))) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "other source"));
             return query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(Map.of("text", request.arguments().values().get("query"))),
                     request.arguments().values().get("limit") instanceof Evidence.JsonNumber limit ? limit.value().intValueExact() : 16,
-                    SCOPE, request.arguments().values().get("cursor") instanceof Evidence.JsonString cursor ? cursor.value() : null), request.scope());
+                    request.arguments().values().get("cursor") instanceof Evidence.JsonString ? SCOPE : null,
+                    request.arguments().values().get("cursor") instanceof Evidence.JsonString cursor ? cursor.value() : null), request.scope());
         }
         @Override public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Context context) {
             var reference = context.reference(request);

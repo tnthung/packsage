@@ -87,7 +87,7 @@ public final class ConfigProvider implements KnowledgeProvider {
         }
         return query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(arguments),
                 request.arguments().values().get("limit") instanceof Evidence.JsonNumber limit ? limit.value().intValueExact() : 16,
-                request.scope(), position), request.scope()).thenApply(result -> {
+                position == null ? null : request.scope(), position), request.scope()).thenApply(result -> {
             if (result.nextCursor() == null) return result;
             var token = java.util.UUID.randomUUID().toString();
             synchronized (cursors) {

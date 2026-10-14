@@ -190,7 +190,6 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 Evidence.Coverage.UNAVAILABLE, true, null);
                     }
                     var canonical = canonical(category, retained.recipe());
-                    var budget = new Toolbox.DocumentBudget();
                     var catalystCapture = catalysts(runtime, manager, type, budget);
                     projection = project(runtime, manager, category, retained.recipe(), categoryId, id,
                             canonical.value(), title(category, categoryId), knownCategory(categoryId), canonical.failed(),

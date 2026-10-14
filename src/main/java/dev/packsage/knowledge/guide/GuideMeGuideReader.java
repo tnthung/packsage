@@ -31,7 +31,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
             var iterator = guides.iterator();
             int hash = 1;
             int count = 0;
-            while (iterator.hasNext() && count < 2048) {
+            while (iterator.hasNext() && count < 256) {
                 var guide = iterator.next();
                 var pages = guide.getClass().getDeclaredField("pages");
                 pages.setAccessible(true);
@@ -45,7 +45,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                     hash = 31 * hash + pageMap.size();
                     var entries = pageMap.entrySet().iterator();
                     int entryCount = 0;
-                    while (entries.hasNext() && entryCount < 256) {
+                    while (entries.hasNext() && entryCount < 32) {
                         var entry = entries.next();
                         hash = 31 * hash + entry.getKey().hashCode();
                         hash = 31 * hash + System.identityHashCode(entry.getValue());
@@ -308,10 +308,12 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
             int startOffset = positionKind != null && positionKind.equals("l") ? offset : 0;
             if (startOffset > value.length()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                     "GuideME page text changed; restart the lookup");
-            walker.overlap = Math.min(Math.min(GuideDocumentReader.FRAGMENT_OVERLAP_CHARS, startOffset), maxChars - 1);
+            int availableChars = budget.remainingBytes() / 6;
+            walker.overlap = Math.min(Math.min(Math.min(GuideDocumentReader.FRAGMENT_OVERLAP_CHARS, startOffset), maxChars - 1),
+                    Math.max(0, availableChars - 1));
             int copyStart = startOffset - walker.overlap;
             int copyEnd = startOffset + Math.min(Math.min(value.length() - startOffset, maxChars - walker.overlap),
-                    budget.remainingBytes() / 6);
+                    availableChars - walker.overlap);
             if (copyEnd < value.length() && copyEnd > startOffset && Character.isHighSurrogate(value.charAt(copyEnd - 1))) copyEnd--;
             if (copyEnd == startOffset && startOffset < value.length())
                 throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "GuideME text fragment cannot advance within the remaining read budget");

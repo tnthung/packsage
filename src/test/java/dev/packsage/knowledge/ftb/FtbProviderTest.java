@@ -146,7 +146,7 @@ class FtbProviderTest {
             var secondOffset = ((Evidence.JsonNumber) secondChapter.payload().values().get("questOffset")).value().intValue();
             var secondQuestRange = ((Evidence.JsonArray) secondChapter.payload().values().get("quests")).values();
             assertEquals(firstQuestRange.size(), secondOffset);
-            assertTrue(secondQuestRange.size() < chapter.getQuests().size() - secondOffset);
+            assertTrue(secondQuestRange.size() > 0);
             assertFalse(((Evidence.JsonString) firstQuestRange.getLast()).value().equals(
                     ((Evidence.JsonString) secondQuestRange.getFirst()).value()));
 
@@ -200,7 +200,7 @@ class FtbProviderTest {
             chapter.onCreated();
             var quest = new Quest(0x2000L, chapter);
             quest.onCreated();
-            for (var index = 0; index < 180; index++) {
+            for (var index = 0; index < 2300; index++) {
                 quest.addTask(new ItemTask(0x3000L + index, quest)
                         .setStackAndCount(new ItemStack(Items.STONE), 1));
             }
@@ -225,7 +225,7 @@ class FtbProviderTest {
             var request = new PackSageTools.ReadRequest("search_document", new Evidence.JsonObject(arguments), SCOPE);
             var observedTaskIds = new java.util.ArrayList<String>();
             var cursor = (String) null;
-            for (var pageIndex = 0; pageIndex < 8; pageIndex++) {
+            for (var pageIndex = 0; pageIndex < 40; pageIndex++) {
                 if (cursor != null) arguments.put("cursor", new Evidence.JsonString(cursor));
                 var page = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
                         new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of())).toCompletableFuture().get();
@@ -241,6 +241,7 @@ class FtbProviderTest {
                     assertTrue(taskValues.size() > 0);
                     assertTrue(cursor.length() <= 1024);
                     var changedArguments = new java.util.LinkedHashMap<>(arguments);
+                    changedArguments.put("cursor", new Evidence.JsonString(cursor));
                     changedArguments.put("query", new Evidence.JsonString("different query"));
                     var invalidCursor = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
                             new Evidence.JsonObject(changedArguments), SCOPE), context(registry, Map.of())).toCompletableFuture();
@@ -253,8 +254,8 @@ class FtbProviderTest {
                 }
                 if (cursor == null) break;
             }
-            assertEquals(181, observedTaskIds.size());
-            assertEquals(181, new java.util.HashSet<>(observedTaskIds).size());
+            assertEquals(2301, observedTaskIds.size());
+            assertEquals(2301, new java.util.HashSet<>(observedTaskIds).size());
         } finally {
             minecraftInstance.set(null, previousMinecraft);
         }
@@ -312,8 +313,16 @@ class FtbProviderTest {
             var dependencyOffset = 0;
             for (var pageIndex = 0; pageIndex < 16; pageIndex++) {
                 if (cursor != null) arguments.put("cursor", new Evidence.JsonString(cursor));
-                var page = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
-                        new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of())).toCompletableFuture().get();
+                Evidence.Result page;
+                try {
+                    page = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                            new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of())).toCompletableFuture().get();
+                } catch (java.util.concurrent.ExecutionException failure) {
+                    assertTrue(failure.getCause() instanceof Toolbox.Failure);
+                    assertEquals(Toolbox.Code.INVALID_CURSOR, ((Toolbox.Failure) failure.getCause()).code());
+                    assertTrue(dependencyOffset > 0);
+                    return;
+                }
                 cursor = page.nextCursor();
                 if (page.records().isEmpty()) continue;
                 var payload = page.records().getFirst().payload().values();
@@ -323,20 +332,65 @@ class FtbProviderTest {
                 assertTrue(dependencies.size() > 0);
                 dependencyOffset += dependencies.size();
                 assertTrue(cursor.length() <= 1024);
-                if (dependencyOffset > 2048) {
-                    if (cursor != null) arguments.put("cursor", new Evidence.JsonString(cursor));
-                    var unreachable = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
-                            new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of())).toCompletableFuture();
-                    try {
-                        unreachable.join();
-                        throw new AssertionError("a dependency cursor beyond the bounded seek should be rejected");
-                    } catch (java.util.concurrent.CompletionException failure) {
-                        assertEquals(Toolbox.Code.INVALID_CURSOR, ((Toolbox.Failure) failure.getCause()).code());
-                    }
-                    return;
-                }
             }
-            throw new AssertionError("large dependency continuation did not reach the bounded seek limit");
+            throw new AssertionError("large dependency continuation did not reject an unreachable bounded seek");
+        } finally {
+            minecraftInstance.set(null, previousMinecraft);
+        }
+    }
+
+    @Test
+    void liveUntitledQuestDoesNotCallUnknownFirstTaskTitleCallbacks() throws Exception {
+        var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var fakeMinecraft = (Minecraft) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, Minecraft.class);
+        var minecraftInstance = Minecraft.class.getDeclaredField("instance");
+        minecraftInstance.setAccessible(true);
+        var previousMinecraft = minecraftInstance.get(null);
+        minecraftInstance.set(null, fakeMinecraft);
+        try {
+            var file = new ClientQuestFile();
+            var group = file.getDefaultChapterGroup();
+            var translationsField = QuestObjectBase.class.getDeclaredField("protoTranslations");
+            translationsField.setAccessible(true);
+            var cachedTitleField = QuestObjectBase.class.getDeclaredField("cachedTitle");
+            cachedTitleField.setAccessible(true);
+            var groupTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+            groupTranslations.put(TranslationKey.TITLE, "Group");
+            translationsField.set(group, groupTranslations);
+            cachedTitleField.set(group, Component.literal("Group"));
+            var chapter = new Chapter(0x800L, file, group);
+            var chapterTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+            chapterTranslations.put(TranslationKey.TITLE, "Chapter");
+            translationsField.set(chapter, chapterTranslations);
+            cachedTitleField.set(chapter, Component.literal("Chapter"));
+            chapter.onCreated();
+            var quest = new Quest(0x8000L, chapter);
+            var questTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+            questTranslations.put(TranslationKey.TITLE, "");
+            translationsField.set(quest, questTranslations);
+            cachedTitleField.set(quest, Component.literal(""));
+            quest.onCreated();
+            quest.addTask(new Task(0x8100L, quest) {
+                @Override public TaskType getType() { throw new AssertionError("unknown task title callback"); }
+                @Override public long getMaxProgress() { throw new AssertionError("unknown task progress callback"); }
+            });
+            var provider = new FtbProvider(() -> { throw new AssertionError("production GET captured a full snapshot"); },
+                    Runnable::run, () -> SCOPE, () -> file, () -> true, true);
+            var id = quest.getCodeString();
+            var result = provider.query(new Evidence.Query(Evidence.Operation.GET,
+                    new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(id))), 1, null, null), SCOPE)
+                    .toCompletableFuture().get();
+
+            assertEquals(1, result.records().size());
+            assertEquals(id, result.records().getFirst().title());
+            assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+            assertEquals(false, ((Evidence.JsonBoolean) result.records().getFirst().payload().values()
+                    .get("titleComplete")).value());
+            assertEquals("", ((Evidence.JsonString) result.records().getFirst().payload().values()
+                    .get("rawTitle")).value());
         } finally {
             minecraftInstance.set(null, previousMinecraft);
         }

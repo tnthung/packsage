@@ -130,7 +130,7 @@ public final class FtbProvider implements KnowledgeProvider {
                               String dependencyRequirement, Integer maximumCompletableDependencies,
                               String rawTitle, int dependencyOffset, boolean dependencyRangeComplete,
                               int taskOffset, boolean taskRangeComplete, int rewardOffset,
-                              boolean rewardRangeComplete) {
+                              boolean rewardRangeComplete, boolean titleComplete) {
         public QuestRecord {
             Objects.requireNonNull(id);
             Objects.requireNonNull(title);
@@ -142,6 +142,18 @@ public final class FtbProvider implements KnowledgeProvider {
             rewards = List.copyOf(rewards);
             if (dependencyOffset < 0 || taskOffset < 0 || rewardOffset < 0)
                 throw new IllegalArgumentException("nested source offsets must not be negative");
+        }
+
+        public QuestRecord(String id, String title, String chapter, List<String> dependencies,
+                           List<List<String>> dependencyBranches, int minimumDependencies,
+                           List<TaskRecord> tasks, List<RewardRecord> rewards,
+                           String dependencyRequirement, Integer maximumCompletableDependencies,
+                           String rawTitle, int dependencyOffset, boolean dependencyRangeComplete,
+                           int taskOffset, boolean taskRangeComplete, int rewardOffset,
+                           boolean rewardRangeComplete) {
+            this(id, title, chapter, dependencies, dependencyBranches, minimumDependencies, tasks, rewards,
+                    dependencyRequirement, maximumCompletableDependencies, rawTitle, dependencyOffset,
+                    dependencyRangeComplete, taskOffset, taskRangeComplete, rewardOffset, rewardRangeComplete, true);
         }
 
         public QuestRecord(String id, String title, String chapter, List<String> dependencies,
@@ -831,7 +843,7 @@ public final class FtbProvider implements KnowledgeProvider {
                         next = fileIdentity + "|" + questCandidate + "|" + id + "|1|0";
                         partial = true;
                     }
-                    var questTasks = next == null && selectedPhase == 1 ? quest.getTasksAsList() : List.<Task>of();
+                    var questTasks = quest.getTasksAsList();
                     var taskStart = selectedPhase == 1 && phase == 1 ? nestedStart : 0;
                     var taskIndex = taskStart;
                     if (taskStart > 0 && taskStart >= questTasks.size()) throw new Toolbox.Failure(
@@ -886,7 +898,6 @@ public final class FtbProvider implements KnowledgeProvider {
                         partial = true;
                     }
                     var questRewards = next == null && selectedPhase == 2 ? quest.getRewards() : List.<Reward>of();
-                    var rewardList = (List<?>) questRewards;
                     var rewardStart = selectedPhase == 2 && phase == 2 ? nestedStart : 0;
                     var rewardIndex = rewardStart;
                     if (rewardStart > 0 && rewardStart >= questRewards.size()) throw new Toolbox.Failure(
@@ -905,7 +916,7 @@ public final class FtbProvider implements KnowledgeProvider {
                             partial = true;
                             break;
                         }
-                        var reward = (Reward) rewardList.get(rewardIndex++);
+                        var reward = (Reward) ((List<?>) questRewards).get(rewardIndex++);
                         var nativeReward = reward.getClass() == AdvancementReward.class
                                 || reward.getClass() == AllTableReward.class || reward.getClass() == ChoiceReward.class
                                 || reward.getClass() == CommandReward.class || reward.getClass() == CurrencyReward.class
@@ -940,14 +951,37 @@ public final class FtbProvider implements KnowledgeProvider {
                     var rawTitle = quest.getRawTitle();
                     var titleTruncated = rawTitle.length() > 512;
                     if (titleTruncated) rawTitle = rawTitle.substring(0, 512);
-                    var questTitle = titleTruncated ? rawTitle : Snapshot.displayTitle(quest);
+                    var titleComplete = !titleTruncated;
+                    var questTitle = rawTitle;
+                    if (titleTruncated) {
+                        questTitle = rawTitle;
+                    } else if (!rawTitle.isEmpty()) {
+                        questTitle = Snapshot.displayTitle(quest);
+                    } else if (!budget.value()) {
+                        partial = true;
+                        titleComplete = false;
+                        questTitle = id;
+                    } else {
+                        var firstTask = questTasks.isEmpty() ? null : questTasks.getFirst();
+                        var firstTaskHasKnownTitle = firstTask == null
+                                || firstTask.getClass() == AdvancementTask.class || firstTask.getClass() == BiomeTask.class
+                                || firstTask.getClass() == CheckmarkTask.class || firstTask.getClass() == DimensionTask.class
+                                || firstTask.getClass() == EnergyTask.class || firstTask.getClass() == FluidTask.class
+                                || firstTask.getClass() == ItemTask.class || firstTask.getClass() == KillTask.class
+                                || firstTask.getClass() == LocationTask.class || firstTask.getClass() == ObservationTask.class
+                                || firstTask.getClass() == StageTask.class || firstTask.getClass() == StatTask.class
+                                || firstTask.getClass() == StructureTask.class || firstTask.getClass() == XPTask.class
+                                || firstTask.getClass() == ForgeEnergyTask.class;
+                        titleComplete = firstTaskHasKnownTitle;
+                        questTitle = titleComplete ? Snapshot.displayTitle(quest) : id;
+                    }
                     var questRecord = new QuestRecord(id, questTitle, chapterId, dependencies,
                             oneDependency ? dependencies.stream().map(List::of).toList()
                                     : dependencies.isEmpty() ? List.of() : List.of(List.copyOf(dependencies)),
                             quest.getMinRequiredDependencies(), tasks, rewards, requirement,
                             Snapshot.maximumCompletableDependencies(quest), rawTitle,
                             phase == 0 ? nestedStart : 0, dependencyRangeComplete,
-                            taskStart, taskRangeComplete, rewardStart, rewardRangeComplete);
+                            taskStart, taskRangeComplete, rewardStart, rewardRangeComplete, titleComplete);
                     var progress = new Progress(id,
                             null, null, null, currentTeam == null ? null : currentTeam.isCompleted(quest), null,
                             progressTasks, progressRewards);
@@ -1237,6 +1271,7 @@ public final class FtbProvider implements KnowledgeProvider {
         var values = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
         values.put("questId", new Evidence.JsonString(quest.id()));
         values.put("rawTitle", new Evidence.JsonString(quest.rawTitle() == null ? quest.title() : quest.rawTitle()));
+        values.put("titleComplete", new Evidence.JsonBoolean(quest.titleComplete()));
         values.put("chapter", new Evidence.JsonString(quest.chapter()));
         values.put("dependencyOffset", number(quest.dependencyOffset()));
         values.put("dependencyRangeComplete", new Evidence.JsonBoolean(quest.dependencyRangeComplete()));
@@ -1274,6 +1309,7 @@ public final class FtbProvider implements KnowledgeProvider {
                 || progress.completed() == null || progress.rewardClaimed() == null;
         var coverage = opaque || progressUnknown || quest.dependencyRequirement() == null
                 || !quest.dependencyRangeComplete() || !quest.taskRangeComplete() || !quest.rewardRangeComplete()
+                || !quest.titleComplete()
                 ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
         var source = new Evidence.Source(snapshot.scope(), ID, VERSION, quest.id(), snapshot.generation(), Instant.now(),
                 Evidence.Activity.ACTIVE, coverage, Evidence.Authority.LOADED,

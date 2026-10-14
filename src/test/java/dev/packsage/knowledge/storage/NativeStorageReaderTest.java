@@ -408,7 +408,7 @@ class NativeStorageReaderTest {
                 furnaceEntries.stream().map(Evidence.Record::title).toList());
 
         var crafting = new TestMenu();
-        var craftingInput = new CraftingContainer(crafting, 2, 2);
+        var craftingInput = new net.minecraft.world.inventory.TransientCraftingContainer(crafting, 2, 2);
         var craftingOutput = new SimpleContainer(1);
         craftingOutput.setItem(0, new ItemStack(Items.CRAFTING_TABLE));
         crafting.slots.add(new ResultSlot(null, craftingInput, craftingOutput, 0, 0, 0));

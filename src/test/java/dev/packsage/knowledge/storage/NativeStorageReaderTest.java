@@ -97,6 +97,7 @@ class NativeStorageReaderTest {
         var captured = NativeStorageReader.openedEntries(menu, playerInventory, FIRST, Instant.EPOCH,
                 RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
 
+        assertEquals(Evidence.Coverage.COMPLETE, captured.coverage());
         assertEquals(2, captured.entries().size());
         assertEquals(0, ((Evidence.JsonNumber) ((captured.entries().getFirst().payload()).values().get("menuSlot"))).value().intValueExact());
         assertEquals(2, ((Evidence.JsonNumber) ((captured.entries().get(1).payload()).values().get("menuSlot"))).value().intValueExact());
@@ -122,6 +123,7 @@ class NativeStorageReaderTest {
 
         assertEquals(256, captured.entries().size());
         assertFalse(captured.truncated());
+        assertEquals(Evidence.Coverage.COMPLETE, captured.coverage());
     }
 
     @Test
@@ -445,14 +447,18 @@ class NativeStorageReaderTest {
         var playerInventory = new SimpleContainer(0);
         var unsupportedMenu = new TestMenu();
         unsupportedMenu.slots.add(furnaceOutput);
-        assertTrue(NativeStorageReader.openedEntries(unsupportedMenu, playerInventory, FIRST, Instant.EPOCH, registries).entries().isEmpty());
+        var unsupported = NativeStorageReader.openedEntries(unsupportedMenu, playerInventory, FIRST, Instant.EPOCH, registries);
+        assertTrue(unsupported.entries().isEmpty());
+        assertEquals(Evidence.Coverage.PARTIAL, unsupported.coverage());
 
         var crafting = new TestMenu();
         var craftingInput = new TransientCraftingContainer(crafting, 2, 2);
         var craftingOutput = new SimpleContainer(1);
         craftingOutput.setItem(0, new ItemStack(Items.CRAFTING_TABLE));
         crafting.slots.add(new ResultSlot(null, craftingInput, craftingOutput, 0, 0, 0));
-        assertTrue(NativeStorageReader.openedEntries(crafting, playerInventory, FIRST, Instant.EPOCH, registries).entries().isEmpty());
+        var craftingCapture = NativeStorageReader.openedEntries(crafting, playerInventory, FIRST, Instant.EPOCH, registries);
+        assertTrue(craftingCapture.entries().isEmpty());
+        assertEquals(Evidence.Coverage.PARTIAL, craftingCapture.coverage());
     }
 
     @Test

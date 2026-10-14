@@ -101,15 +101,20 @@ public final class NativeStorageReader implements StorageReader {
                                                 InventoryReader.Filter filter, net.minecraft.world.entity.player.Player player) {
         var entries = new ArrayList<Evidence.Record>();
         var truncated = false;
+        var coverage = Evidence.Coverage.COMPLETE;
         for (int index = 0; index < menu.slots.size(); index++) {
             Slot slot = menu.slots.get(index);
             var slotType = slot.getClass();
-            if (slot.container == playerInventory || slotType != Slot.class
-                    && !supportedStockSlot(menu.getClass(), slot)) continue;
+            if (slot.container == playerInventory) continue;
+            if (slotType != Slot.class && !supportedStockSlot(menu.getClass(), slot)) {
+                coverage = Evidence.Coverage.PARTIAL;
+                continue;
+            }
             ItemStack stack = slot.getItem().copy();
             if (stack.isEmpty()) continue;
             if (entries.size() == MAX_ENTRIES) {
                 truncated = true;
+                coverage = Evidence.Coverage.PARTIAL;
                 break;
             }
             Evidence.JsonObject encodedComponents;
@@ -128,9 +133,12 @@ public final class NativeStorageReader implements StorageReader {
                     || Evidence.serialize(encodedComponents).getBytes(StandardCharsets.UTF_8).length > MAX_ENTRY_METADATA;
             var payload = new LinkedHashMap<String, Evidence.JsonValue>();
             var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+            var name = stack.getHoverName().getString();
+            boolean nameTruncated = name.length() > 256;
+            var entryPartial = metadataTruncated || nameTruncated && !filter.names().isEmpty();
+            if (entryPartial) coverage = Evidence.Coverage.PARTIAL;
             payload.put("id", new Evidence.JsonString(id == null ? "unknown:item" : id.toString()));
-            payload.put("name", new Evidence.JsonString(stack.getHoverName().getString().length() <= 256
-                    ? stack.getHoverName().getString() : stack.getHoverName().getString().substring(0, 256)));
+            payload.put("name", new Evidence.JsonString(nameTruncated ? name.substring(0, 256) : name));
             payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
             payload.put("menuSlot", new Evidence.JsonNumber(BigDecimal.valueOf(index)));
             payload.put("observation", new Evidence.JsonString("live_opened_menu"));
@@ -139,25 +147,38 @@ public final class NativeStorageReader implements StorageReader {
                     ? stack.is(ItemTags.WOOL_CARPETS) ? "body_carpet" : "body_armor" : "cargo"));
             if (!filter.tags().isEmpty()) {
                 try {
-                    payload.put("tags", new Evidence.JsonArray(stack.getTags().limit(129)
-                            .map(tag -> new Evidence.JsonString(tag.location().toString()))
-                            .map(value -> (Evidence.JsonValue) value).toList()));
+                    var tags = stack.getTags().limit(129).map(tag -> new Evidence.JsonString(tag.location().toString())).toList();
+                    if (tags.size() > 128) {
+                        entryPartial = true;
+                        coverage = Evidence.Coverage.PARTIAL;
+                    }
+                    payload.put("tags", new Evidence.JsonArray(tags.stream().map(value -> (Evidence.JsonValue) value).toList()));
                 } catch (RuntimeException failure) {
                     payload.put("tags", new Evidence.JsonArray(List.of()));
+                    entryPartial = true;
+                    coverage = Evidence.Coverage.PARTIAL;
                 }
             }
             if (!filter.tooltip().isEmpty()) {
                 try {
-                    var lines = player == null ? List.<net.minecraft.network.chat.Component>of() : stack.getTooltipLines(
+                    var lines = player == null ? null : stack.getTooltipLines(
                             net.minecraft.world.item.Item.TooltipContext.of(player.level()), player,
                             net.minecraft.world.item.TooltipFlag.NORMAL);
-                    payload.put("tooltip", new Evidence.JsonArray(lines.stream().limit(33).map(net.minecraft.network.chat.Component::getString)
+                    if (lines == null) entryPartial = true;
+                    var tooltipLines = lines == null ? List.<net.minecraft.network.chat.Component>of() : lines;
+                    if (tooltipLines.size() > 32 || tooltipLines.stream().anyMatch(line -> line.getString().length() > 256)) {
+                        entryPartial = true;
+                    }
+                    payload.put("tooltip", new Evidence.JsonArray(tooltipLines.stream().limit(33).map(net.minecraft.network.chat.Component::getString)
                             .map(value -> new Evidence.JsonString(value.length() <= 256 ? value : value.substring(0, 256)))
                             .map(value -> (Evidence.JsonValue) value).toList()));
                 } catch (RuntimeException failure) {
                     payload.put("tooltip", new Evidence.JsonArray(List.of()));
+                    entryPartial = true;
+                    coverage = Evidence.Coverage.PARTIAL;
                 }
             }
+            if (entryPartial) coverage = Evidence.Coverage.PARTIAL;
             if (stack.has(DataComponents.CONTAINER) || stack.has(DataComponents.BUNDLE_CONTENTS)) {
                 payload.put("nestedStorageContentsOmitted", new Evidence.JsonBoolean(true));
             }
@@ -168,17 +189,19 @@ public final class NativeStorageReader implements StorageReader {
             if (!metadataTruncated && Evidence.serialize(new Evidence.JsonObject(payload)).getBytes(StandardCharsets.UTF_8).length
                     > MAX_ENTRY_METADATA) {
                 metadataTruncated = true;
+                entryPartial = true;
+                coverage = Evidence.Coverage.PARTIAL;
                 payload.put("components", new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))));
                 payload.put("metadataStatus", new Evidence.JsonString("unknown_truncated"));
             }
             var source = new Evidence.Source(scope, "native", "1.21.1", "storage-entry:opened:" + index,
                     scope.requestGeneration(), capturedAt, Evidence.Activity.ACTIVE,
-                    metadataTruncated ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                    entryPartial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
                     Evidence.Authority.VIEWER, List.of("client-visible-menu-slot"));
             entries.add(new Evidence.Record(source, Evidence.RecordKind.ITEM,
                     id == null ? "unknown:item" : id.toString(), new Evidence.JsonObject(payload), List.of()));
         }
-        return new OpenedEntries(entries, truncated);
+        return new OpenedEntries(entries, truncated, coverage);
     }
 
     static boolean supportedStockSlot(Class<?> menuType, Slot slot) {
@@ -315,9 +338,10 @@ public final class NativeStorageReader implements StorageReader {
             var identity = client.level.dimension().location() + ":" + client.player.getUUID() + ":" + menuType + ":"
                     + menu.containerId + ":" + openedMenuIdentity;
             return new Observation(captured.entries(), scope, capturedAt, capturedNanos, "Opened inventory",
-                    Map.of("observation", new Evidence.JsonString("live_opened_menu"), "completeness", new Evidence.JsonString("partial"),
+                    Map.of("observation", new Evidence.JsonString("live_opened_menu"), "completeness",
+                            new Evidence.JsonString(captured.coverage().name().toLowerCase(java.util.Locale.ROOT)),
                             "menuType", new Evidence.JsonString(menuType),
-                            "ownerIdentity", new Evidence.JsonString(identity)), Evidence.Coverage.PARTIAL,
+                            "ownerIdentity", new Evidence.JsonString(identity)), captured.coverage(),
                     List.of("current-client-menu-slots"));
         }
         if (fixtureOpened == null) return null;
@@ -747,7 +771,7 @@ public final class NativeStorageReader implements StorageReader {
         }
     }
 
-    record OpenedEntries(List<Evidence.Record> entries, boolean truncated) {
+    record OpenedEntries(List<Evidence.Record> entries, boolean truncated, Evidence.Coverage coverage) {
         OpenedEntries {
             entries = List.copyOf(entries);
         }

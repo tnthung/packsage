@@ -409,7 +409,11 @@ final class NativeRegistryReader {
         return registry.equals("item_tag") ? "tag:" + identity : registry + ":" + identity;
     }
 
-    record Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, boolean partial, int scanned) {
+    record Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, boolean partial, int scanned, String detail) {
+        Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, boolean partial, int scanned) {
+            this(records, nextOffset, exhausted, partial, scanned, null);
+        }
+
         Page {
             records = List.copyOf(records);
         }

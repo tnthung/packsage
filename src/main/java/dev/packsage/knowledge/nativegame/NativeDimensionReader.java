@@ -83,19 +83,20 @@ final class NativeDimensionReader {
             }
             int start = Math.min(offset, matches.size());
             int end = Math.min(matches.size(), start + limit);
-            return page(matches.subList(start, end), end, end == matches.size(), ids.size());
+            return page(matches.subList(start, end), end, end == matches.size(), ids.size(), false, null);
         }
         var iterator = server.levelKeys().iterator();
+        if (offset > MAX_SEEK) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                "dimension continuation exceeds the bounded seek; use an exact dimension ID");
         int sought = 0;
-        while (iterator.hasNext() && sought < offset && sought < MAX_SEEK) {
+        while (iterator.hasNext() && sought < offset) {
             iterator.next();
             sought++;
         }
-        if (sought < offset) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
-                "dimension continuation exceeds the bounded seek; use an exact dimension ID");
         var records = new ArrayList<Evidence.Record>();
         int scanned = 0;
-        while (iterator.hasNext() && scanned < MAX_CANDIDATES) {
+        int scanLimit = Math.min(MAX_CANDIDATES, MAX_SEEK - offset);
+        while (iterator.hasNext() && scanned < scanLimit) {
             var key = iterator.next();
             scanned++;
             String identity = key.location().toString();
@@ -103,9 +104,15 @@ final class NativeDimensionReader {
             ServerLevel level = server.getLevel(key);
             if (level == null) continue;
             records.add(serverRecord(level, identity, scope));
-            if (records.size() == limit) return page(records, offset + scanned, !iterator.hasNext(), scanned);
+            if (records.size() == limit) {
+                boolean seekCapped = offset + scanned >= MAX_SEEK && iterator.hasNext();
+                return page(records, seekCapped ? offset : offset + scanned, !iterator.hasNext(), scanned, false,
+                        seekCapped ? "dimension scan reached the bounded continuation seek; narrow by ID or text" : null);
+            }
         }
-        return page(records, offset + scanned, !iterator.hasNext(), scanned);
+        boolean seekCapped = scanned == scanLimit && offset + scanned >= MAX_SEEK && iterator.hasNext();
+        return page(records, seekCapped ? offset : offset + scanned, !iterator.hasNext(), scanned, false,
+                seekCapped ? "dimension scan reached the bounded continuation seek; narrow by ID or text" : null);
     }
 
     static NativeRegistryReader.Page clientPage(Set<ResourceKey<Level>> known, int offset, int limit,
@@ -123,37 +130,41 @@ final class NativeDimensionReader {
             }
             int start = Math.min(offset, matches.size());
             int end = Math.min(matches.size(), start + limit);
-            return page(matches.subList(start, end), end, end == matches.size(), ids.size(), true);
+            return page(matches.subList(start, end), end, end == matches.size(), ids.size(), true, null);
         }
         var iterator = known.iterator();
+        if (offset > MAX_SEEK) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                "dimension continuation exceeds the bounded seek; use an exact dimension ID");
         int sought = 0;
-        while (iterator.hasNext() && sought < offset && sought < MAX_SEEK) {
+        while (iterator.hasNext() && sought < offset) {
             iterator.next();
             sought++;
         }
-        if (sought < offset) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
-                "dimension continuation exceeds the bounded seek; use an exact dimension ID");
         var records = new ArrayList<Evidence.Record>();
         int scanned = 0;
-        while (iterator.hasNext() && scanned < MAX_CANDIDATES) {
+        int scanLimit = Math.min(MAX_CANDIDATES, MAX_SEEK - offset);
+        while (iterator.hasNext() && scanned < scanLimit) {
             String identity = iterator.next().location().toString();
             scanned++;
             if (text != null && !identity.toLowerCase(java.util.Locale.ROOT).contains(text.toLowerCase(java.util.Locale.ROOT))) continue;
             records.add(dimensionRecord(identity, null, scope, Evidence.Coverage.PARTIAL, Evidence.Authority.LOADED,
                     "client-known-dimension"));
-            if (records.size() == limit) return page(records, offset + scanned, !iterator.hasNext(), scanned, true);
+            if (records.size() == limit) {
+                boolean seekCapped = offset + scanned >= MAX_SEEK && iterator.hasNext();
+                return page(records, seekCapped ? offset : offset + scanned, !iterator.hasNext(), scanned, true,
+                        seekCapped ? "dimension scan reached the bounded continuation seek; narrow by ID or text" : null);
+            }
         }
-        return page(records, offset + scanned, !iterator.hasNext(), scanned, true);
-    }
-
-    private static NativeRegistryReader.Page page(List<Evidence.Record> records, int nextOffset, boolean exhausted, int scanned) {
-        return page(records, nextOffset, exhausted, scanned, false);
+        boolean seekCapped = scanned == scanLimit && offset + scanned >= MAX_SEEK && iterator.hasNext();
+        return page(records, seekCapped ? offset : offset + scanned, !iterator.hasNext(), scanned, true,
+                seekCapped ? "dimension scan reached the bounded continuation seek; narrow by ID or text" : null);
     }
 
     private static NativeRegistryReader.Page page(List<Evidence.Record> records, int nextOffset, boolean exhausted, int scanned,
-                                                   boolean forcePartial) {
+                                                   boolean forcePartial, String detail) {
         return new NativeRegistryReader.Page(records, nextOffset, exhausted,
-                forcePartial || !exhausted || records.stream().anyMatch(record -> record.source().coverage() != Evidence.Coverage.COMPLETE), scanned);
+                forcePartial || !exhausted || records.stream().anyMatch(record -> record.source().coverage() != Evidence.Coverage.COMPLETE),
+                scanned, detail);
     }
 
     private static Evidence.Record serverRecord(ServerLevel level, String identity, Evidence.Scope scope) {

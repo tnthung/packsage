@@ -210,10 +210,6 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                 int overlap;
                 boolean partial;
 
-                List<?> children(Object current) throws ReflectiveOperationException {
-                    return parentType.isInstance(current) ? (List<?>) parentType.getMethod("children").invoke(current) : null;
-                }
-
                 void findFirst(Object current, List<Integer> path, int depth) throws ReflectiveOperationException {
                     if (found != null || resumePath != null) return;
                     if (depth > 64) { partial = true; return; }
@@ -226,7 +222,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                         found = current;
                         foundPath = List.copyOf(path);
                     } else if (parentType.isInstance(current)) {
-                        var values = children(current);
+                        var values = (List<?>) parentType.getMethod("children").invoke(current);
                         for (int index = 0; index < values.size(); index++) {
                             path.add(index);
                             findFirst(values.get(index), path, depth + 1);
@@ -246,7 +242,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                             partial = true;
                             return null;
                         }
-                        var values = children(current);
+                        var values = (List<?>) parentType.getMethod("children").invoke(current);
                         if (index >= values.size()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                 "GuideME page structure changed; restart the lookup");
                         current = values.get(index);
@@ -260,7 +256,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                     locate(root, path, ancestors);
                     if (resumePath != null) return;
                     for (int depth = path.size() - 1; depth >= 0; depth--) {
-                        var values = children(ancestors.get(depth));
+                        var values = (List<?>) parentType.getMethod("children").invoke(ancestors.get(depth));
                         for (int index = path.get(depth) + 1; index < values.size(); index++) {
                             var nextPath = new ArrayList<>(path.subList(0, depth));
                             nextPath.add(index);
@@ -309,8 +305,10 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
             if (startOffset > value.length()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                     "GuideME page text changed; restart the lookup");
             int availableChars = budget.remainingBytes() / 6;
-            walker.overlap = Math.min(Math.min(Math.min(GuideDocumentReader.FRAGMENT_OVERLAP_CHARS, startOffset), maxChars - 1),
+            int expectedOverlap = Math.min(GuideDocumentReader.FRAGMENT_OVERLAP_CHARS, startOffset);
+            walker.overlap = Math.min(Math.min(expectedOverlap, maxChars - 1),
                     Math.max(0, availableChars - 1));
+            if (walker.overlap < expectedOverlap) walker.partial = true;
             int copyStart = startOffset - walker.overlap;
             int copyEnd = startOffset + Math.min(Math.min(value.length() - startOffset, maxChars - walker.overlap),
                     availableChars - walker.overlap);
@@ -322,9 +320,12 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
             String text = value.substring(copyStart, copyEnd);
             String nextPosition = copyEnd < value.length() ? walker.encode("l", walker.foundPath, copyEnd)
                     : walker.encode("a", walker.foundPath, 0);
+            String detail = walker.overlap < expectedOverlap
+                    ? "GuideME fragment overlap was shortened by the output or byte bound"
+                    : walker.partial ? "GuideME AST contains unsupported nodes" : null;
             return new Fragment(text, id + "|" + walker.encode("l", walker.foundPath, startOffset),
                     walker.overlap, nextPosition, walker.partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                    walker.partial ? "GuideME AST contains unsupported nodes" : null);
+                    detail);
         } catch (Toolbox.Failure failure) {
             throw failure;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {

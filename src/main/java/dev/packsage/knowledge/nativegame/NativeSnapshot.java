@@ -9,6 +9,7 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.core.component.DataComponentMap;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -129,7 +130,8 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                                            net.minecraft.core.HolderLookup.Provider registries, String section,
                                            int slot, String equipmentSlot, boolean selectedHotbar) {
         var identity = itemIdentity(stack, itemRegistry);
-        var components = codecJson(DataComponentMap.CODEC, stack.getComponents(), registries);
+        var components = codecJson(DataComponentMap.CODEC, stack.getComponents().filter(type ->
+                type != DataComponents.CONTAINER && type != DataComponents.BUNDLE_CONTENTS), registries);
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("id", new Evidence.JsonString(identity));
         payload.put("inventoryObservation", new Evidence.JsonString("occupied"));
@@ -139,6 +141,9 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         payload.put("name", new Evidence.JsonString(stack.getHoverName().getString()));
         payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
         payload.put("components", components);
+        if (stack.has(DataComponents.CONTAINER) || stack.has(DataComponents.BUNDLE_CONTENTS)) {
+            payload.put("nestedStorageContentsOmitted", new Evidence.JsonBoolean(true));
+        }
         if (equipmentSlot != null) payload.put("equipmentSlot", new Evidence.JsonString(equipmentSlot));
         var source = new Evidence.Source(scope, "native", "1.21.1", "inventory:" + section + ":" + slot,
                 scope.requestGeneration(), Instant.now(), Evidence.Activity.ACTIVE,

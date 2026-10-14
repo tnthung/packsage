@@ -9,6 +9,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.BundleContents;
+import net.minecraft.world.item.component.ItemContainerContents;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -57,5 +59,31 @@ class NativeSnapshotInventoryTest {
         assertEquals("inventory:offhand:0", offhand.source().sourceHandle());
         assertEquals("offhand", ((Evidence.JsonString) offhand.payload().values().get("equipmentSlot")).value());
         assertFalse(((Evidence.JsonBoolean) armor.payload().values().get("selectedHotbar")).value());
+    }
+
+    @Test
+    void inventoryMetadataOmitsNestedContainerContentsAndMarksTheOmission() {
+        var nested = new ItemStack(Items.SHULKER_BOX);
+        nested.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(java.util.List.of(new ItemStack(Items.DIAMOND))));
+        var stack = new ItemStack(Items.SHULKER_BOX);
+        stack.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(java.util.List.of(nested)));
+        var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+
+        var record = NativeSnapshot.inventoryRecord(SCOPE, stack, BuiltInRegistries.ITEM, registries,
+                "main", 0, null, false);
+        var payload = record.payload().values();
+        var encodedComponents = JsonParser.parseString(Evidence.serialize(payload.get("components"))).getAsJsonObject();
+
+        assertFalse(encodedComponents.has("minecraft:container"));
+        assertTrue(((Evidence.JsonBoolean) payload.get("nestedStorageContentsOmitted")).value());
+
+        var bundle = new ItemStack(Items.BUNDLE);
+        bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(java.util.List.of(new ItemStack(Items.DIAMOND))));
+        var bundleRecord = NativeSnapshot.inventoryRecord(SCOPE, bundle, BuiltInRegistries.ITEM, registries,
+                "main", 1, null, false);
+        var bundleComponents = JsonParser.parseString(Evidence.serialize(bundleRecord.payload().values().get("components")))
+                .getAsJsonObject();
+        assertFalse(bundleComponents.has("minecraft:bundle_contents"));
+        assertTrue(((Evidence.JsonBoolean) bundleRecord.payload().values().get("nestedStorageContentsOmitted")).value());
     }
 }

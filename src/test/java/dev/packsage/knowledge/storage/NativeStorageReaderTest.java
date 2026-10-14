@@ -2,16 +2,24 @@ package dev.packsage.knowledge.storage;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.nativegame.NativeInventoryReader;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.animal.horse.Horse;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.FurnaceFuelSlot;
 import net.minecraft.world.inventory.FurnaceMenu;
 import net.minecraft.world.inventory.FurnaceResultSlot;
+import net.minecraft.world.inventory.HorseInventoryMenu;
 import net.minecraft.world.inventory.ResultSlot;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.TransientCraftingContainer;
@@ -19,6 +27,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.item.component.ItemContainerContents;
+import net.minecraft.world.level.Level;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -35,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NativeStorageReaderTest {
@@ -443,6 +453,99 @@ class NativeStorageReaderTest {
         craftingOutput.setItem(0, new ItemStack(Items.CRAFTING_TABLE));
         crafting.slots.add(new ResultSlot(null, craftingInput, craftingOutput, 0, 0, 0));
         assertTrue(NativeStorageReader.openedEntries(crafting, playerInventory, FIRST, Instant.EPOCH, registries).entries().isEmpty());
+    }
+
+    @Test
+    void openedHorseMenuReadsCurrentSlotsAndBindsCursorToTheExactMenu() throws Exception {
+        var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var allocateInstance = unsafe.getClass().getMethod("allocateInstance", Class.class);
+        var fakeMinecraft = (Minecraft) allocateInstance.invoke(unsafe, Minecraft.class);
+        var fakePlayer = (LocalPlayer) allocateInstance.invoke(unsafe, LocalPlayer.class);
+        var fakeLevel = (ClientLevel) allocateInstance.invoke(unsafe, ClientLevel.class);
+        var minecraftInstance = Minecraft.class.getDeclaredField("instance");
+        minecraftInstance.setAccessible(true);
+        var previousMinecraft = minecraftInstance.get(null);
+        var gameThread = Minecraft.class.getDeclaredField("gameThread");
+        gameThread.setAccessible(true);
+        gameThread.set(fakeMinecraft, Thread.currentThread());
+        var playerField = Minecraft.class.getDeclaredField("player");
+        playerField.setAccessible(true);
+        playerField.set(fakeMinecraft, fakePlayer);
+        var levelField = Minecraft.class.getDeclaredField("level");
+        levelField.setAccessible(true);
+        levelField.set(fakeMinecraft, fakeLevel);
+        var dimensionField = Level.class.getDeclaredField("dimension");
+        dimensionField.setAccessible(true);
+        dimensionField.set(fakeLevel, Level.OVERWORLD);
+        var registryAccess = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+        var registryAccessField = Level.class.getDeclaredField("registryAccess");
+        registryAccessField.setAccessible(true);
+        registryAccessField.set(fakeLevel, registryAccess);
+        var uuidField = Entity.class.getDeclaredField("uuid");
+        uuidField.setAccessible(true);
+        uuidField.set(fakePlayer, java.util.UUID.randomUUID());
+        var inventory = new Inventory(fakePlayer);
+        var playerInventoryField = Player.class.getDeclaredField("inventory");
+        playerInventoryField.setAccessible(true);
+        playerInventoryField.set(fakePlayer, inventory);
+        var inventoryMenuField = Player.class.getDeclaredField("inventoryMenu");
+        inventoryMenuField.setAccessible(true);
+        inventoryMenuField.set(fakePlayer, allocateInstance.invoke(unsafe, net.minecraft.world.inventory.InventoryMenu.class));
+        var containerMenuField = Player.class.getDeclaredField("containerMenu");
+        containerMenuField.setAccessible(true);
+
+        try {
+            var horse = new Horse(EntityType.HORSE, null);
+            var horseInventory = new SimpleContainer(4);
+            horseInventory.setItem(0, new ItemStack(Items.SADDLE));
+            horseInventory.setItem(1, new ItemStack(Items.DIAMOND));
+            horse.getBodyArmorAccess().setItem(0, new ItemStack(Items.DIAMOND_HORSE_ARMOR));
+            var menu = new HorseInventoryMenu(7, inventory, horseInventory, horse, 1);
+            containerMenuField.set(fakePlayer, menu);
+            minecraftInstance.set(null, fakeMinecraft);
+
+            assertThrows(UnsupportedOperationException.class, menu::getType);
+            assertFalse(menu.stillValid(fakePlayer), "the client proxy inventory is deliberately rejected by native stillValid");
+            var reader = new NativeStorageReader(fakeMinecraft, Runnable::run, () -> FIRST, (reference, scope) -> null);
+            var all = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 32, null, FIRST))
+                    .toCompletableFuture().join();
+            assertEquals(Evidence.Outcome.PARTIAL, all.outcome());
+            var sections = ((Evidence.JsonArray) all.records().getFirst().payload().values().get("entries")).values().stream()
+                    .map(value -> ((Evidence.JsonObject) ((Evidence.JsonObject) value).values().get("payload")).values().get("section"))
+                    .map(Evidence.JsonString.class::cast).map(Evidence.JsonString::value).toList();
+            assertEquals(List.of("saddle", "body_armor", "cargo"), sections);
+
+            var bodyFilter = new dev.packsage.knowledge.inventory.InventoryReader.Filter(List.of(), List.of(), List.of(), List.of(), List.of("body_armor"));
+            var body = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 32, null, FIRST, bodyFilter))
+                    .toCompletableFuture().join();
+            assertEquals(1, ((Evidence.JsonArray) body.records().getFirst().payload().values().get("entries")).values().size());
+
+            var first = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 1, null, FIRST))
+                    .toCompletableFuture().join();
+            assertNotNull(first.nextCursor());
+            horse.getBodyArmorAccess().setItem(0, new ItemStack(Items.IRON_HORSE_ARMOR));
+            var next = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 1, first.nextCursor(), FIRST))
+                    .toCompletableFuture().join();
+            var nextPayload = (Evidence.JsonObject) ((Evidence.JsonObject) ((Evidence.JsonArray)
+                    next.records().getFirst().payload().values().get("entries")).values().getFirst()).values().get("payload");
+            assertEquals("minecraft:iron_horse_armor", ((Evidence.JsonString) nextPayload.values().get("id")).value());
+
+            var changedMenuCursor = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 1, null, FIRST))
+                    .toCompletableFuture().join().nextCursor();
+            containerMenuField.set(fakePlayer, new HorseInventoryMenu(7, inventory, new SimpleContainer(4), horse, 1));
+            var changedMenu = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 1, changedMenuCursor, FIRST))
+                    .toCompletableFuture().join();
+            assertEquals("inventory target changed; repeat the lookup", changedMenu.detail());
+
+            containerMenuField.set(fakePlayer, new TestMenu());
+            var unsupported = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 1, null, FIRST))
+                    .toCompletableFuture().join();
+            assertEquals(Evidence.Outcome.UNKNOWN, unsupported.outcome());
+        } finally {
+            minecraftInstance.set(null, previousMinecraft);
+        }
     }
 
     @Test

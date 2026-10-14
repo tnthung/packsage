@@ -322,6 +322,7 @@ final class NativeServerStorageReader {
         var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         var identity = id == null ? "unknown:item" : id.toString();
         var name = stack.getHoverName().getString();
+        boolean nameTruncated = name.length() > 256;
         if (name.length() > 256) name = name.substring(0, 256);
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("id", new Evidence.JsonString(identity));
@@ -342,10 +343,12 @@ final class NativeServerStorageReader {
         } catch (RuntimeException failure) {
             components = new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown")));
         }
-        boolean partial = components.values().containsKey("status")
+        boolean metadataTruncated = components.values().containsKey("status")
                 || Evidence.serialize(components).getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 12 * 1024;
-        payload.put("components", partial ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))) : components);
-        if (partial) payload.put("metadataStatus", new Evidence.JsonString("unknown_truncated"));
+        boolean partial = metadataTruncated || nameTruncated && !filter.names().isEmpty();
+        payload.put("components", metadataTruncated ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))) : components);
+        if (metadataTruncated) payload.put("metadataStatus", new Evidence.JsonString("unknown_truncated"));
+        if (nameTruncated) payload.put("nameStatus", new Evidence.JsonString("truncated"));
         if (!filter.tags().isEmpty()) {
             try {
                 var tags = stack.getTags().limit(129).map(tag -> tag.location().toString()).toList();

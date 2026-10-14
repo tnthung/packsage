@@ -479,6 +479,7 @@ public final class NativeStorageReader implements StorageReader {
         var metadataTruncated = components.values().containsKey("status")
                 || Evidence.serialize(components).getBytes(StandardCharsets.UTF_8).length > MAX_ENTRY_METADATA;
         var itemName = stack.getHoverName().getString();
+        boolean nameTruncated = itemName.length() > 256;
         if (itemName.length() > 256) itemName = itemName.substring(0, 256);
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("id", new Evidence.JsonString(identity));
@@ -486,7 +487,8 @@ public final class NativeStorageReader implements StorageReader {
         payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
         payload.put("components", metadataTruncated
                 ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))) : components);
-        var partial = metadataTruncated;
+        var partial = metadataTruncated || nameTruncated && !filter.names().isEmpty();
+        if (nameTruncated) payload.put("nameStatus", new Evidence.JsonString("truncated"));
         if (!filter.tags().isEmpty()) {
             try {
                 var tags = stack.getTags().limit(129).map(tag -> tag.location().toString()).toList();

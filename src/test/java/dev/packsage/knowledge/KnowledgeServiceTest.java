@@ -175,6 +175,20 @@ class KnowledgeServiceTest {
     }
 
     @Test
+    void discoveryRejectsForeignProviderKindsAndNavigationOwnership() {
+        var current = record("guide", "entry", Evidence.RecordKind.GUIDE);
+        for (var invalid : List.of(record("foreign", "entry", Evidence.RecordKind.GUIDE),
+                record("guide", "entry", Evidence.RecordKind.ITEM),
+                new Evidence.Record(current.source(), current.kind(), current.title(), current.payload(),
+                        List.of(new Evidence.NavigationTarget(SCOPE, "foreign", "entry", "page"))))) {
+            var result = search(service(new PagedProvider("guide", query -> page(List.of(invalid), null))), Map.of("query", text("")));
+            assertEquals(Evidence.Outcome.ERROR, result.outcome());
+            assertTrue(result.records().isEmpty());
+            assertTrue(result.detail().contains("INVALID_REFERENCE"));
+        }
+    }
+
+    @Test
     void referencesReadCurrentBodiesAndRejectUnknownOrChangedIdentity() {
         var current = new AtomicReference<>(record("guide", "same", Evidence.RecordKind.GUIDE));
         var source = new PagedProvider("guide", query -> page(List.of(current.get()), null));

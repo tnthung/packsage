@@ -185,6 +185,15 @@ public final class KnowledgeService {
                         return result;
                     }).thenCompose(result -> {
                         if (result.records().size() > limit - records.size()) throw new Failure(Code.EXTRACTION_FAILED, "adapter exceeded its requested page limit");
+                        if (result.records().stream().anyMatch(record -> !record.source().providerId().equals(sources.get(index))
+                                || !record.source().scope().equals(request.scope())
+                                || record.targets().stream().anyMatch(target -> !target.scope().equals(request.scope())
+                                || !target.providerId().equals(record.source().providerId()) || !target.sourceHandle().equals(record.source().sourceHandle()))
+                                || !(record.kind() == Evidence.RecordKind.OTHER && record.source().sourceHandle().startsWith("status:"))
+                                && (request.tool().equals("search_recipe") ? record.kind() != Evidence.RecordKind.RECIPE
+                                : record.kind() != Evidence.RecordKind.GUIDE && record.kind() != Evidence.RecordKind.QUEST))) {
+                            throw new Failure(Code.INVALID_REFERENCE, "adapter returned evidence outside its discovery source or kind");
+                        }
                         records.addAll(result.records());
                         if (result.detail() != null) notes.add(sources.get(index) + ": " + result.detail());
                         if (result.nextCursor() != null && result.nextCursor().equals(sourceCursor)) throw new Failure(Code.INVALID_CURSOR, "source continuation did not advance");

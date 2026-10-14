@@ -30,6 +30,7 @@ class InventoryReaderTest {
         assertThrows(IllegalArgumentException.class, () -> new InventoryReader.Request(InventoryReader.Operation.READ,
                 List.of(), null, List.of(), 8, "x".repeat(1025), SCOPE));
         assertEquals(List.of("name", "id"), new InventoryReader.Request(InventoryReader.Operation.SEARCH,
-                List.of(), "diamond", List.of(), 8, null, SCOPE).fields());
+                new InventoryReader.Filter(List.of("diamond"), List.of("minecraft:diamond"), List.of(), List.of(), List.of()),
+                8, null, SCOPE).fields());
     }
 }

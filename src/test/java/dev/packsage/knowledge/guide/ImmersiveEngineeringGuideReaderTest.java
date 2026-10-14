@@ -8,6 +8,8 @@ import java.io.StringReader;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ImmersiveEngineeringGuideReaderTest {
     @Test
@@ -38,6 +40,18 @@ class ImmersiveEngineeringGuideReaderTest {
         assertEquals("ab", fragment.text());
         assertEquals("2", fragment.nextPosition());
         assertEquals(Evidence.Coverage.PARTIAL, fragment.coverage());
+    }
+
+    @Test
+    void insufficientTextBudgetMarksExhaustionForCursorResumption() {
+        var budget = new Toolbox.DocumentBudget();
+        budget.bytes(96 * 1024 - 4);
+
+        var failure = assertThrows(Toolbox.Failure.class, () -> ImmersiveEngineeringGuideReader.readText(
+                new StringReader("text"), "manual/test", 0, 1, 0, budget));
+
+        assertEquals(Toolbox.Code.EXTRACTION_FAILED, failure.code());
+        assertTrue(budget.exhausted());
     }
 
     @Test

@@ -122,8 +122,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
     @Override
     public Fragment readFragment(String id, String fragmentPosition, int maxChars, Toolbox.DocumentBudget budget) {
         try {
-            if (!budget.value() || !budget.bytes(id.length() * 6 + 512)) throw new Toolbox.Failure(
-                    Toolbox.Code.EXTRACTION_FAILED, "Immersive Engineering entry exceeds the remaining read budget");
+            if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "Immersive Engineering entry traversal exceeds the remaining read budget");
             var helper = Class.forName(MANUAL_HELPER, false, ImmersiveEngineeringGuideReader.class.getClassLoader());
             var manual = helper.getMethod("getManual").invoke(null);
             var entryMap = (Map<?, ?>) manual.getClass().getField("contentsByName").get(manual);
@@ -211,7 +211,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
             if (maxChars < 1) throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS,
                     "Immersive Engineering fragment limit must be positive");
             int requestedOverlap = Math.min(Math.max(0, overlapLimit), offset);
-            int overlap = Math.min(requestedOverlap, maxChars - 1);
+            int overlap = Math.min(requestedOverlap,
+                    Math.min(maxChars - 1, Math.max(0, budget.remainingBytes() / 6 - 1)));
             boolean overlapShortened = overlap < requestedOverlap;
             int seek = offset - overlap;
             char[] buffer = new char[Math.min(1024, Math.max(1, seek))];
@@ -228,8 +229,11 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
             int maxNewChars = maxChars - overlap;
             int boundedNewChars = Math.min(Math.min(maxNewChars, MAX_SEEK_CHARS - offset),
                     Math.max(0, budget.remainingBytes() / 6 - overlap));
-            if (boundedNewChars == 0 && budget.remainingBytes() < (overlap + 1) * 6) throw new Toolbox.Failure(
-                    Toolbox.Code.EXTRACTION_FAILED, "Immersive Engineering text exceeds the remaining read budget");
+            if (boundedNewChars == 0 && MAX_SEEK_CHARS > offset && budget.remainingBytes() < (overlap + 1) * 6) {
+                budget.bytes(6);
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                        "Immersive Engineering text exceeds the remaining read budget");
+            }
             if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                     "Immersive Engineering text exceeds the remaining read budget");
             int requested = overlap + boundedNewChars;

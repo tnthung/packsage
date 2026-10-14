@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -241,7 +242,7 @@ class FtbProviderTest {
                 assertEquals(1, page.records().size(), "pageIndex=" + pageIndex + ", cursor=" + cursor
                         + ", nextCursor=" + page.nextCursor() + ", coverage=" + page.coverage()
                         + ", outcome=" + page.outcome() + ", detail=" + page.detail() + ", sources="
-                        + page.records().stream().map(record -> record.source().provider() + ":"
+                        + page.records().stream().map(record -> record.source().providerId() + ":"
                         + record.source().sourceHandle() + ":" + record.source().coverage()).toList());
                 var payload = page.records().getFirst().payload().values();
                 var taskOffset = ((Evidence.JsonNumber) payload.get("taskOffset")).value().intValue();

@@ -18,7 +18,7 @@ class PackSageToolsTest {
 
     @Test
     void exposesOnlyTheBoundedReadTools() {
-        assertEquals(List.of("search_pack", "read_evidence", "plan_recipe", "read_inventory", "read_storage", "read_progress",
+        assertEquals(List.of("search_pack", "read_evidence", "plan_recipe", "read_inventory", "search_inventory", "read_storage", "read_progress",
                 "list_configs", "search_config", "read_config", "search_history", "read_history"), PackSageTools.definitions().stream()
                 .map(ModelBackend.ToolDefinition::name).toList());
         for (var definition : PackSageTools.definitions()) {
@@ -36,18 +36,45 @@ class PackSageToolsTest {
             return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                     Evidence.Outcome.UNKNOWN, null));
         });
-        for (var target : List.of("opened", "targeted", "held")) {
+        for (var target : List.of("opened", "targeted")) {
             assertFalse(tools.execute(new ModelBackend.ToolCall("storage", "read_storage", "{\"target\":\"" + target
                     + "\",\"text\":null,\"identities\":null,\"limit\":32,\"cursor\":null}"), SCOPE)
                     .toCompletableFuture().get().result().error());
         }
+        assertFalse(tools.execute(new ModelBackend.ToolCall("item", "read_storage",
+                "{\"target\":\"item\",\"slotReference\":\"native:inventory:observation:main:4\"}"), SCOPE)
+                .toCompletableFuture().get().result().error());
         for (var arguments : List.of("{}", "{\"target\":null}", "{\"target\":\"nearby\"}",
-                "{\"target\":\"held\",\"limit\":33}", "{\"target\":\"opened\",\"limit\":0}",
-                "{\"target\":\"held\",\"identities\":[1]}", "{\"target\":\"opened\",\"write\":true}")) {
+                "{\"target\":\"item\",\"limit\":33}", "{\"target\":\"opened\",\"limit\":0}",
+                "{\"target\":\"item\",\"identities\":[1]}", "{\"target\":\"opened\",\"write\":true}",
+                "{\"target\":\"held\"}", "{\"target\":\"item\"}", "{\"target\":\"item\",\"slotReference\":\" \"}",
+                "{\"target\":\"opened\",\"slotReference\":\"native:inventory:slot\"}")) {
             assertTrue(tools.execute(new ModelBackend.ToolCall("invalid", "read_storage", arguments), SCOPE)
                     .toCompletableFuture().get().result().error());
         }
         assertEquals(3, requested.get());
+    }
+
+    @Test
+    void inventorySearchUsesOneFieldContractAndRejectsMalformedQueriesBeforeDispatch() throws Exception {
+        var dispatched = new AtomicInteger();
+        var tools = new PackSageTools(request -> {
+            dispatched.incrementAndGet();
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                    Evidence.Outcome.COMPLETE, null));
+        });
+        assertFalse(tools.execute(new ModelBackend.ToolCall("search", "search_inventory",
+                "{\"text\":\"iron\",\"fields\":[\"name\",\"id\",\"tag\",\"tooltip\"],\"limit\":1,\"cursor\":null}"), SCOPE)
+                .toCompletableFuture().get().result().error());
+        for (var call : List.of(new ModelBackend.ToolCall("blank", "search_inventory", "{\"text\":\" \"}"),
+                new ModelBackend.ToolCall("missing", "search_inventory", "{}"),
+                new ModelBackend.ToolCall("fields", "search_inventory", "{\"text\":\"iron\",\"fields\":[\"nbt\"]}"),
+                new ModelBackend.ToolCall("limit", "search_inventory", "{\"text\":\"iron\",\"limit\":33}"),
+                new ModelBackend.ToolCall("invalidId", "read_inventory", "{\"identities\":[\"bad item id\"]}"),
+                new ModelBackend.ToolCall("invalidId", "read_storage", "{\"target\":\"opened\",\"identities\":[\"Bad:ID\"]}"))) {
+            assertTrue(tools.execute(call, SCOPE).toCompletableFuture().get().result().error(), call.callId());
+        }
+        assertEquals(1, dispatched.get());
     }
 
     @Test

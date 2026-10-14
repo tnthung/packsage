@@ -60,7 +60,7 @@ class AssistantIntegrationTest {
                                 new Provider("guide", List.of(documentation), false)), current,
                         ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                                 Evidence.Outcome.UNKNOWN, null)),
-                        (ignored, ignoredScope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                        inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                                 Evidence.Outcome.UNKNOWN, null))),
                 turn -> turn.tokenCount(), GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
 
@@ -174,7 +174,7 @@ class AssistantIntegrationTest {
                             return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "quest opened");
                         }
                     }), current, ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
-                            Evidence.Outcome.COMPLETE, null)), (identities, scope) -> CompletableFuture.completedFuture(
+                            Evidence.Outcome.COMPLETE, null)), inventoryRequest -> CompletableFuture.completedFuture(
                             new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
                     turn -> turn.tokenCount(), GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
             runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
@@ -208,7 +208,7 @@ class AssistantIntegrationTest {
         var service = new KnowledgeService(List.of(new Provider("native", List.of(loaded), false),
                 new Provider("guide", List.of(external), false)), current::get,
                 request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                (identities, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
         var tools = new PackSageTools(service::execute);
 
         var search = tools.execute(new ModelBackend.ToolCall("search", "search_pack", "{\"text\":\"torch\"}"), SCOPE)
@@ -243,7 +243,7 @@ class AssistantIntegrationTest {
         var service = new KnowledgeService(List.of(provider), () -> SCOPE,
                 request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                         Evidence.Outcome.UNKNOWN, null)),
-                (identities, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                         Evidence.Outcome.UNKNOWN, null)));
 
         service.execute(new PackSageTools.ReadRequest("search_pack",
@@ -297,7 +297,7 @@ class AssistantIntegrationTest {
         var service = new KnowledgeService(List.of(unavailableProvider, freshProvider), () -> SCOPE,
                 request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                         Evidence.Outcome.UNKNOWN, null)),
-                (identities, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                         Evidence.Outcome.UNKNOWN, null)));
 
         service.execute(new PackSageTools.ReadRequest("search_pack",
@@ -326,7 +326,7 @@ class AssistantIntegrationTest {
         var service = new KnowledgeService(List.of(new Provider("native", List.of(loaded), false),
                 new Provider("broken", List.of(), true)), () -> SCOPE,
                 request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                (identities, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
 
         var response = new PackSageTools(service::execute).execute(new ModelBackend.ToolCall("search", "search_pack", "{\"text\":\"torch\"}"), SCOPE)
                 .toCompletableFuture().get();
@@ -344,7 +344,7 @@ class AssistantIntegrationTest {
             @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) { return pending; }
         };
         var service = new KnowledgeService(List.of(provider), current::get,
-                request -> pending, (identities, scope) -> pending);
+                request -> pending, inventoryRequest -> pending);
         var request = service.execute(new PackSageTools.ReadRequest("search_pack", new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("torch"))), SCOPE));
         current.set(new Evidence.Scope("another-world", "resources", "team", "runtime", 2));
         pending.complete(new Evidence.Result(List.of(record("native", "torch", Evidence.Authority.LOADED, "7 torches")),

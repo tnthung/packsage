@@ -195,7 +195,7 @@ class JeiProjectionTest {
         var service = new dev.packsage.knowledge.KnowledgeService(List.of(provider), () -> SCOPE,
                 plan -> java.util.concurrent.CompletableFuture.completedFuture(new Evidence.Result(List.of(),
                         Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                (identities, scope) -> java.util.concurrent.CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                inventoryRequest -> java.util.concurrent.CompletableFuture.completedFuture(new Evidence.Result(List.of(),
                         Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)));
 
         var result = service.execute(new dev.packsage.model.PackSageTools.ReadRequest("search_pack",

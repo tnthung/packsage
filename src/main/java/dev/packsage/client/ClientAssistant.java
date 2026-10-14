@@ -11,6 +11,7 @@ import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.knowledge.config.ConfigProvider;
 import dev.packsage.knowledge.nativegame.NativeProvider;
 import dev.packsage.knowledge.storage.NativeStorageReader;
+import dev.packsage.knowledge.nativegame.NativeInventoryReader;
 import dev.packsage.model.GroundingInstructions;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.chatgpt.ChatGptAuth;
@@ -97,6 +98,7 @@ public final class ClientAssistant {
     private final AssistantRuntime runtime;
     private AssistantScreen assistantScreen;
     private NativeStorageReader storage;
+    private NativeInventoryReader inventory;
     private boolean settingsOpen;
     private CopiedWorld activeWorld;
     private ChatContracts.WorldIdentity activeIdentity;
@@ -315,6 +317,7 @@ public final class ClientAssistant {
 
     private void resetSession() {
         if (storage != null) storage.clear();
+        if (inventory != null) inventory.clear();
         levelToken++;
         sessionEpoch++;
         sessionId = UUID.randomUUID();
@@ -336,6 +339,7 @@ public final class ClientAssistant {
 
     private void invalidateEvidence() {
         if (storage != null) storage.clear();
+        if (inventory != null) inventory.clear();
         if (!client.isSameThread() || activeIdentity == null || activeWorld == null) return;
         providerRuntimeEpoch++;
         activeScope = scopeFor(activeIdentity.worldOrServer(), sessionId, resourcesEpoch, locale,
@@ -410,7 +414,8 @@ public final class ClientAssistant {
 
     private KnowledgeService knowledge(Supplier<Evidence.Scope> scope) {
         NativeProvider nativeProvider = new NativeProvider(client, workerExecutor);
-        storage = new NativeStorageReader(client, workerExecutor, scope);
+        inventory = new NativeInventoryReader(client, workerExecutor, scope);
+        storage = new NativeStorageReader(client, workerExecutor, scope, inventory::resolve);
         var providers = new ArrayList<KnowledgeProvider>();
         providers.add(nativeProvider);
         providers.add(jeiProvider());
@@ -419,7 +424,7 @@ public final class ClientAssistant {
         providers.add(optionalMinecraftProvider("patchouli", PATCHOULI_CLASS, "forMinecraft", scope));
         return new KnowledgeService(providers, scope,
                 plan -> nativeProvider.planRecipe(plan.identity(), plan.quantity(), plan.scope(), plan.depth()),
-                (identities, scopeValue) -> nativeProvider.readInventory(identities, scopeValue), storage);
+                inventory, storage);
     }
 
     private KnowledgeProvider jeiProvider() {

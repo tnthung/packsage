@@ -134,7 +134,7 @@ class PatchouliProviderTest {
         var knowledge = new KnowledgeService(List.of(provider), () -> SCOPE,
                 ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
                         Evidence.Outcome.COMPLETE, null)),
-                (ignored, ignoredScope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
                         Evidence.Outcome.COMPLETE, null)));
         var tools = new PackSageTools(knowledge::execute);
 

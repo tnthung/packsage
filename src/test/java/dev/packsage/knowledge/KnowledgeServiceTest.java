@@ -78,7 +78,7 @@ class KnowledgeServiceTest {
         };
         var service = new KnowledgeService(List.of(provider), currentScope::get,
                 plan -> CompletableFuture.completedFuture(page(List.of(), null)),
-                (identities, scope) -> CompletableFuture.completedFuture(page(List.of(), null)));
+                inventoryRequest -> CompletableFuture.completedFuture(page(List.of(), null)));
         var refresh = service.refreshNavigation(historical, SCOPE);
         currentScope.set(new Evidence.Scope("world", "resources-2", "team", "runtime", 2));
         pending.complete(page(List.of(new Evidence.Record(new Evidence.Source(SCOPE, "patchouli", "fixture", "book:guide", 1,
@@ -133,8 +133,8 @@ class KnowledgeServiceTest {
         var service = new KnowledgeService(List.of(), () -> SCOPE,
                 plan -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
                         Evidence.Outcome.COMPLETE, null)),
-                (identities, scope) -> {
-                    selections.add(identities);
+                inventoryRequest -> {
+                    selections.add(inventoryRequest.identities());
                     return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
                             Evidence.Outcome.COMPLETE, null));
                 });
@@ -143,6 +143,26 @@ class KnowledgeServiceTest {
         execute(service, "read_inventory", Map.of("identities", new Evidence.JsonNull()));
 
         assertEquals(List.of(List.of(), List.of()), selections);
+    }
+
+    @Test
+    void inventorySearchRoutesFieldsAndCursorThroughTheSameReader() {
+        var selected = new java.util.concurrent.atomic.AtomicReference<dev.packsage.knowledge.inventory.InventoryReader.Request>();
+        var service = new KnowledgeService(List.of(), () -> SCOPE,
+                plan -> CompletableFuture.completedFuture(page(List.of(), null)), request -> {
+                    selected.set(request);
+                    return CompletableFuture.completedFuture(page(List.of(), "next"));
+                });
+        var result = execute(service, "search_inventory", Map.of("text", text("iron"),
+                "fields", new Evidence.JsonArray(List.of(text("tag"), text("tooltip"))),
+                "limit", number(2), "cursor", text("previous")));
+        assertEquals(dev.packsage.knowledge.inventory.InventoryReader.Operation.SEARCH, selected.get().operation());
+        assertEquals(List.of("tag", "tooltip"), selected.get().fields());
+        assertEquals("iron", selected.get().text());
+        assertEquals(2, selected.get().limit());
+        assertEquals("previous", selected.get().cursor());
+        assertEquals(SCOPE, selected.get().scope());
+        assertEquals("next", result.nextCursor());
     }
 
     @Test
@@ -298,7 +318,7 @@ class KnowledgeServiceTest {
         var service = new KnowledgeService(List.of(), () -> SCOPE,
                 plan -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
                         Evidence.Outcome.COMPLETE, null)),
-                (identities, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
                         Evidence.Outcome.COMPLETE, null)), request -> {
                     requested.set(request);
                     return CompletableFuture.completedFuture(new Evidence.Result(List.of(page), Evidence.Coverage.PARTIAL,
@@ -317,7 +337,7 @@ class KnowledgeServiceTest {
         assertEquals("next", result.nextCursor());
         assertEquals(List.of(page), execute(service, "read_evidence", Map.of("handles",
                 new Evidence.JsonArray(List.of(text("native:storage:fixture:0"))))).records());
-        assertEquals(Evidence.Outcome.UNKNOWN, execute(service(), "read_storage", Map.of("target", text("held"))).outcome());
+        assertEquals(Evidence.Outcome.UNKNOWN, execute(service(), "read_storage", Map.of("target", text("item"), "slotReference", text("native:inventory:fixture:main:4"))).outcome());
     }
 
     @Test
@@ -347,7 +367,7 @@ class KnowledgeServiceTest {
 
         var planFailure = new KnowledgeService(List.of(), () -> SCOPE,
                 plan -> CompletableFuture.failedFuture(new IllegalStateException("planner broke")),
-                (identities, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                         Evidence.Outcome.UNKNOWN, null)));
         var plan = planFailure.execute(new PackSageTools.ReadRequest("plan_recipe", new Evidence.JsonObject(Map.of(
                 "identity", text("minecraft:torch"), "quantity", number(1))), SCOPE)).toCompletableFuture().join();
@@ -393,7 +413,7 @@ class KnowledgeServiceTest {
     private static KnowledgeService service(KnowledgeProvider... providers) {
         return new KnowledgeService(List.of(providers), () -> SCOPE,
                 plan -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                (identities, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)));
+                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)));
     }
 
     private static Evidence.Result search(KnowledgeService service, Map<String, Evidence.JsonValue> arguments) {

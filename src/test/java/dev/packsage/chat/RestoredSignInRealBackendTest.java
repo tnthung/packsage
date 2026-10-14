@@ -93,7 +93,7 @@ class RestoredSignInRealBackendTest {
                 DIRECT, DIRECT, current -> new KnowledgeService(List.of(), current,
                         ignored -> CompletableFuture.completedFuture(
                                 new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                        (ignored, scopeValue) -> CompletableFuture.completedFuture(
+                        inventoryRequest -> CompletableFuture.completedFuture(
                                 new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null))),
                 turn -> turn.tokenCount(), prepared -> {
                     throw new UnsupportedOperationException();

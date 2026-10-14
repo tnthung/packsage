@@ -41,7 +41,7 @@ public final class PackSageTools {
 
     public static List<ModelBackend.ToolDefinition> definitions() {
         var definitions = new ArrayList<ModelBackend.ToolDefinition>();
-        for (var name : List.of("search_pack", "read_evidence", "plan_recipe", "read_inventory", "read_storage", "read_progress",
+        for (var name : List.of("search_pack", "read_evidence", "plan_recipe", "read_inventory", "search_inventory", "read_storage", "read_progress",
                 "list_configs", "search_config", "read_config", "search_history", "read_history")) {
             var properties = new JsonObject();
             var description = switch (name) {
@@ -54,8 +54,9 @@ public final class PackSageTools {
                         + "Detail explains errors and bounded partial results.";
                 case "read_evidence" -> "Read only previously observed provider-qualified source handles in this request.";
                 case "plan_recipe" -> "Retrieve bounded recipe routes, preserving alternatives, quantities and unknown semantics.";
-                case "read_inventory" -> "Read occupied slots in the current vanilla player inventory, armor and offhand when identities is omitted or null; optionally filter by selected item IDs. Slot indices are local to each section; main inventory starts at 0 after the hotbar.";
-                case "read_storage" -> "Read bounded storage observations: opened is the last container captured with the PackSage shortcut, held inspects supported main/offhand item storage, and targeted reports available target evidence. Opened menu slots are partial visible evidence, not full mod storage/network totals. Preserve capture time and unknown contents; follow cursors with unchanged target and filters.";
+                case "read_inventory" -> "Read occupied vanilla player inventory and equipment slots; optionally filter exact item IDs. Returns scoped slotReference values and selected mainhand/offhand locations, including empty selections. Slot indices are local to each section; main inventory starts at 0 after the hotbar. Nested storage contents require read_storage. Follow cursors with unchanged filters.";
+                case "search_inventory" -> "Search occupied vanilla player inventory and equipment using one literal case-insensitive phrase. Select fields name, id, tag or tooltip; null fields searches name and ID. Results identify their slotReference, location, capture time and coverage. This runtime does not search storage networks or opened containers. Missing selected fields make coverage partial; no matches then do not prove absence. Follow cursors with unchanged text and fields.";
+                case "read_storage" -> "Read bounded storage observations: opened is the last container captured with the PackSage shortcut, item inspects storage at a slotReference returned by read_inventory or search_inventory in this request, and targeted reports available target evidence. Hands are ordinary slot selections. Changed items or stale references require a fresh inventory read. Opened menu slots are partial visible evidence, not full mod storage/network totals. Preserve capture time and unknown contents; follow cursors with unchanged target, slotReference and filters.";
                 case "read_progress" -> "Read previously observed provider-qualified quest references and current team progression, "
                         + "in batches of up to 16. Raw quest IDs listed in a chapter must first be discovered with search_pack.";
                 case "list_configs" -> "List accessible observed configuration values and handles; saved and loaded views differ.";
@@ -71,8 +72,8 @@ public final class PackSageTools {
                         + "Historical answers are recollections, not authoritative current game evidence.";
                 default -> throw new IllegalStateException(name);
             };
-            if (name.equals("search_pack") || name.equals("search_config") || name.equals("search_history")) {
-                properties.add("text", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":512}"));
+            if (name.equals("search_pack") || name.equals("search_config") || name.equals("search_history") || name.equals("search_inventory")) {
+                properties.add("text", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":" + (name.equals("search_inventory") ? 256 : 512) + "}"));
             }
             if (name.equals("search_pack")) {
                 properties.add("kinds", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"maxItems\":7,\"items\":{\"type\":\"string\",\"enum\":[\"RECIPE\",\"QUEST\",\"CONFIG\",\"GUIDE\",\"ITEM\",\"BLOCK\",\"OTHER\"]}}"));
@@ -89,8 +90,12 @@ public final class PackSageTools {
             if (name.equals("read_inventory")) {
                 properties.add("identities", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"minItems\":1,\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}}"));
             }
+            if (name.equals("search_inventory")) {
+                properties.add("fields", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"minItems\":1,\"maxItems\":4,\"items\":{\"type\":\"string\",\"enum\":[\"name\",\"id\",\"tag\",\"tooltip\"]}}"));
+            }
             if (name.equals("read_storage")) {
-                properties.add("target", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":32,\"enum\":[\"opened\",\"targeted\",\"held\"]}"));
+                properties.add("target", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":32,\"enum\":[\"opened\",\"targeted\",\"item\"]}"));
+                properties.add("slotReference", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":1024}"));
                 properties.add("text", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256}"));
                 properties.add("identities", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"minItems\":1,\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}}"));
             }
@@ -104,10 +109,10 @@ public final class PackSageTools {
                 properties.add("key", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":512}"));
                 properties.add("section", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":512}"));
             }
-            if (!name.equals("plan_recipe") && !name.equals("read_evidence") && !name.equals("read_inventory")
+            if (!name.equals("plan_recipe") && !name.equals("read_evidence")
                     && !name.equals("read_progress") && !name.equals("read_history")) {
                 properties.add("limit", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":"
-                        + (name.equals("search_history") ? 16 : name.equals("read_storage") ? 32 : 64) + "}"));
+                        + (name.equals("search_history") ? 16 : name.equals("read_storage") || name.equals("read_inventory") || name.equals("search_inventory") ? 32 : 64) + "}"));
                 if (!name.equals("read_config")) properties.add("cursor", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":1024}"));
             }
             var schema = new JsonObject();
@@ -144,6 +149,12 @@ public final class PackSageTools {
                             throw new IllegalArgumentException("invalid selected identity");
                         }
                         if (entry.getKey().equals("kinds")) Evidence.RecordKind.valueOf(((Evidence.JsonString) selected).value());
+                        if (entry.getKey().equals("fields") && !List.of("name", "id", "tag", "tooltip").contains(((Evidence.JsonString) selected).value())) {
+                            throw new IllegalArgumentException("invalid inventory search field");
+                        }
+                        if (entry.getKey().equals("identities") && !((Evidence.JsonString) selected).value().matches("[a-z0-9_.-]+:[a-z0-9/._-]+")) {
+                            throw new IllegalArgumentException("identity must be a valid item resource ID");
+                        }
                     }
                 } else if (rule.has("minimum")) {
                     if (!(value instanceof Evidence.JsonNumber)) throw new IllegalArgumentException("integer argument required");
@@ -153,14 +164,14 @@ public final class PackSageTools {
                     throw new IllegalArgumentException("invalid text argument: " + entry.getKey());
                 } else if (entry.getKey().equals("provider") && !List.of("native", "jei", "ftb_quests", "config", "patchouli").contains(string.value())) {
                     throw new IllegalArgumentException("invalid provider");
-                } else if (entry.getKey().equals("target") && !List.of("opened", "targeted", "held").contains(string.value())) {
+                } else if (entry.getKey().equals("target") && !List.of("opened", "targeted", "item").contains(string.value())) {
                     throw new IllegalArgumentException("invalid storage target");
                 } else if (entry.getKey().equals("outputItem") && !string.value().matches("[a-z0-9_.-]+:[a-z0-9/._-]+")) {
                     throw new IllegalArgumentException("outputItem must be a valid item resource ID");
                 }
             }
             for (var required : switch (call.name()) {
-                case "search_pack", "search_config", "search_history" -> List.of("text");
+                case "search_pack", "search_config", "search_history", "search_inventory" -> List.of("text");
                 case "read_evidence", "read_progress", "read_history" -> List.of("handles");
                 case "read_storage" -> List.of("target");
                 case "plan_recipe" -> List.of("identity", "quantity");
@@ -169,8 +180,17 @@ public final class PackSageTools {
             }) {
                 if (!arguments.values().containsKey(required) || arguments.values().get(required) instanceof Evidence.JsonNull) throw new IllegalArgumentException("missing argument: " + required);
             }
-            if (call.name().equals("search_history") && ((Evidence.JsonString) arguments.values().get("text")).value().isBlank()) {
-                throw new IllegalArgumentException("history search text must not be blank");
+            if ((call.name().equals("search_history") || call.name().equals("search_inventory"))
+                    && ((Evidence.JsonString) arguments.values().get("text")).value().isBlank()) {
+                throw new IllegalArgumentException("search text must not be blank");
+            }
+            if (call.name().equals("read_storage")) {
+                var item = ((Evidence.JsonString) arguments.values().get("target")).value().equals("item");
+                var reference = arguments.values().get("slotReference");
+                if (item && (!(reference instanceof Evidence.JsonString value) || value.value().isBlank())) {
+                    throw new IllegalArgumentException("item storage requires an observed slotReference");
+                }
+                if (!item && reference instanceof Evidence.JsonString) throw new IllegalArgumentException("slotReference requires target=item");
             }
             if (arguments.values().get("outputItem") instanceof Evidence.JsonString
                     && (!(arguments.values().get("provider") instanceof Evidence.JsonString provider) || !provider.value().equals("jei"))) {

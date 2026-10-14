@@ -117,7 +117,7 @@ class AssistantRuntimeTest {
                 current -> new KnowledgeService(List.of(), current,
                         ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
                                 Evidence.Outcome.COMPLETE, null)),
-                        (ignored, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                        inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
                                 Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
                 turn -> turn.tokenCount(), ignored -> { throw new AssertionError("request must be rejected"); },
                 ignored -> 512, ignored -> { }, ignored -> { });
@@ -159,7 +159,7 @@ class AssistantRuntimeTest {
                 current -> new KnowledgeService(List.of(), current,
                         ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
                                 Evidence.Outcome.COMPLETE, null)),
-                        (ignored, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                        inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
                                 Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
                 turn -> turn.tokenCount(), ignored -> { throw new AssertionError("No model request expected"); },
                 ignored -> 512, ignored -> { }, ignored -> { });
@@ -190,7 +190,7 @@ class AssistantRuntimeTest {
                 current -> new KnowledgeService(List.of(), current,
                         ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                                 Evidence.Outcome.UNKNOWN, null)),
-                        (ignored, scope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                        inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
                                 Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null))), storeExecutor);
         runtime.enterWorld(WORLD, SCOPE);
         while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
@@ -520,7 +520,7 @@ class AssistantRuntimeTest {
             return new KnowledgeService(List.of(), current,
                     ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                             Evidence.Outcome.UNKNOWN, null)),
-                    (ignored, scopeValue) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                    inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                             Evidence.Outcome.UNKNOWN, null)));
         };
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
@@ -551,7 +551,7 @@ class AssistantRuntimeTest {
             return new KnowledgeService(List.of(), current,
                     ignored -> factoryCall == 1 ? pendingTool : CompletableFuture.completedFuture(
                             new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)),
-                    (ignored, scopeValue) -> CompletableFuture.completedFuture(
+                    inventoryRequest -> CompletableFuture.completedFuture(
                             new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
         };
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
@@ -585,7 +585,7 @@ class AssistantRuntimeTest {
                 current -> new KnowledgeService(List.of(), current,
                         ignored -> CompletableFuture.completedFuture(
                                 new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                        (ignored, scopeValue) -> CompletableFuture.completedFuture(
+                        inventoryRequest -> CompletableFuture.completedFuture(
                                 new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null))),
                 ignored -> { });
         runtime.enterWorld(WORLD, SCOPE);
@@ -738,7 +738,7 @@ class AssistantRuntimeTest {
                         operationalScope.set(current);
                         return new KnowledgeService(List.of(), current,
                                 ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)),
-                                (ignored, currentValue) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+                                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
                     }, turn -> turn.tokenCount(), request -> {
                         prepared.set(request);
                         return new ModelBackend.Request(MODEL.id(), "instructions", List.of(new ModelBackend.Message(ModelBackend.Role.USER,
@@ -812,7 +812,7 @@ class AssistantRuntimeTest {
             var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
                     current -> new KnowledgeService(List.of(), current,
                             ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)),
-                            (ignored, currentValue) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
+                            inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
                     turn -> turn.tokenCount(), ignored -> { throw new AssertionError("No model request expected"); },
                     ignored -> 512, ignored -> { }, ignored -> { });
             runtime.enterWorld(WORLD, SCOPE);
@@ -865,7 +865,7 @@ class AssistantRuntimeTest {
                     return new KnowledgeService(List.of(), scope,
                         ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
                                 Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                        (ignored, selectedScope) -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                        inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
                                 Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)));
                 },
                 GroundingInstructions::historyTextBudget, GroundingInstructions::build, model -> 512,
@@ -947,7 +947,7 @@ class AssistantRuntimeTest {
                 externalNavigation, current -> new KnowledgeService(List.of(), current,
                         ignored -> CompletableFuture.completedFuture(
                                 new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                        (ignored, scopeValue) -> CompletableFuture.completedFuture(
+                        inventoryRequest -> CompletableFuture.completedFuture(
                                 new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null))), DIRECT);
     }
 

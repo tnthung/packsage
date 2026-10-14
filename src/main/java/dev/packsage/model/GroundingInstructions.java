@@ -22,6 +22,7 @@ public final class GroundingInstructions {
             Prefer active loaded facts over viewer displays, installed documentation, saved files and web guidance.
             Keep conflicting sources distinct. A namespace alone does not establish authorship.
             Distinguish complete, partial, opaque, unavailable and failed extraction. No match under partial coverage is not proof of absence.
+            When comparing multiple searches, match each result to its tool call and filter. Before answering, cross-check every reported match, count and no-match claim against that result's returned records; do not infer one filter's outcome from another.
             Follow pagination or narrow the lookup when a result is bounded. Preserve recipe AND slots and OR alternatives,
             quantities, reusable catalysts, remainders and unknown machine constraints. Do not promise a cheapest route.
             Cite local claims using the exact provider-qualified reference returned by a tool, such as [native:minecraft:torch].

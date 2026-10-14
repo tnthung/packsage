@@ -2,8 +2,22 @@
 
 ## Unreleased
 
+### 2026-10-15
+
+- Added live guide/manual text discovery and evidence reads for Modonomicon, GuideME, Immersive Engineering, Actually Additions, Relics and Artifacts, with provider-owned version checks, localized text, bounded fragments and metadata-only continuations.
+- Supported the verified Reliquified Artifacts replacement path while retaining Artifacts source identity. Ability documentation remains distinct from equipped item rolls and active effects.
+- Fixed guide continuation at extraction budgets, live membership/reload invalidation, Modonomicon text-holder handling and GuideME no-progress boundaries. IE requires normal manual initialization and reports bounded extraction explicitly.
+- Verified dimension discovery after a real dimension transition, including stale-handle rejection and fresh dimension-type reads. Reconciled inventory roadmap completion against recorded live checks.
+- Recorded [cross-mod player workflows](docs/validation/2026-10-15-cross-mod-workflows.md): held-bundle ingredients and current inventory can be combined with JEI recipes, but ordinary questions exposed guide retrieval, recipe-counting and AA textless-page failures. Individual source acceptance does not establish complete player-facing workflow acceptance.
+
+The [six-source guide validation](docs/validation/2026-10-15-guide-manual-adapters.md) records 482 automated tests with four skips and installed source checks. Cross-mod failures remain tracked separately; physical power transfer, crafting and fall damage were not tested by those assistant workflows.
+
 ### 2026-10-14
 
+- Migrated the public tools to the shared `Toolbox` adapter contract: adapters own matching, only `NotHandled` advances dispatch, and every tool query resolves current sources. Added behavior-based document, recipe, registry, inventory, evidence, progress, planning, config and history operations.
+- Added bounded live registry discovery for effects, enchantments, potions, runtime dimensions and dimension types, including private integrated-server authorization and explicit client-only coverage limits.
+- Added live targeted/ridden block and entity inventory access where authorized, horse-menu support and owner/scope revalidation. Verified chest, double-chest, bundle, shulker, minecart and donkey cases; documented modded boat access limits.
+- Corrected opened-menu completeness and GUI slot indices, bounded quest/page extraction, fresh JEI recipe membership checks and opaque recipe coverage. Cursor continuations retain identity/position metadata rather than saved result bodies.
 - Reworked inventory access behind a shared reader contract and added bounded `search_inventory` for item names, IDs, synchronized tags and tooltip text in vanilla player inventory/equipment.
 - Replaced hand-specific storage targeting with scoped item-slot references. Added empty mainhand/offhand location metadata, fresh stack/component revalidation and direct vanilla container/bundle reads at arbitrary observed player slots. General inventory metadata omits nested storage contents.
 - Standardized storage continuation on opaque `nextCursor` values and removed the misleading internal offset from model output. Added serializer-budget and stale-slot regressions; corrected compilation and tool-count expectations in separate follow-up commits.
@@ -13,7 +27,7 @@
 - Added content-free request timing traces from Send through gameplay/screenshot capture, request preparation, HTTP response headers, streamed text, tool rounds, retries, completion and persistence.
 - Fixed navigation from older and restored local references by revalidating the exact source and destination against the current provider before opening, while preserving historical answers and scoped model evidence.
 - Fixed clipped navigation status text by including the transcript's initial inset in scroll-height measurements.
-- Added a structured [adapter roadmap](docs/roadmap/2026-10-13-todo.md) with one feature per checklist item, including shared enchantment, potion, effect and brewing readers. Documented the [shared registries and mod-owned mechanics](docs/research/2026-10-14-enchantment-potion-registries.md); these readers remain planned work.
+- Added a structured [adapter roadmap](docs/roadmap/2026-10-13-todo.md) with one feature per checklist item, including shared enchantment, potion, effect and brewing readers. Documented the [shared registries and mod-owned mechanics](docs/research/2026-10-14-enchantment-potion-registries.md); later registry discovery is delivered, while specialized mechanics retain their roadmap status.
 - Updated the implementation plan's parallel ownership and commit workflow to reflect the agreed execution rules.
 
 Recorded [ATM10 inventory/storage checks](docs/validation/2026-10-14-inventory-storage-inspection.md) and [historical quest navigation/status checks](docs/validation/2026-10-14-historical-navigation.md). Specialized mod storage remains unsupported, and opened-menu observations remain partial. The latest recorded navigation build passed 400 tests with four existing skips. [Greeting timing measurements](docs/validation/2026-10-14-request-timing.md) separate local preparation from HTTP/stream waiting without promising a latency bound.

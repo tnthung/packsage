@@ -57,11 +57,7 @@ class AssistantIntegrationTest {
                                         return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, target.targetId());
                                     }
                                 },
-                                new Provider("guide", List.of(documentation), false)), current,
-                        ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
-                                Evidence.Outcome.UNKNOWN, null)),
-                        inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
-                                Evidence.Outcome.UNKNOWN, null))),
+                                new Provider("guide", List.of(documentation), false)), current),
                 turn -> turn.tokenCount(), GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
 
         runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
@@ -74,7 +70,7 @@ class AssistantIntegrationTest {
         assertEquals(1, backend.requests.size());
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Checking installed evidence. ", null, List.of(), List.of(), null));
         assertEquals("Checking installed evidence. ", runtime.view().streamingAnswer());
-        var searchCall = new ModelBackend.ToolCall("search-1", "search_pack", "{\"text\":\"torch\"}");
+        var searchCall = new ModelBackend.ToolCall("search-1", "search_recipe", "{\"filter\":{\"text\":\"torch\"}}");
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, searchCall, List.of(), List.of(), null));
         assertEquals(1, backend.submitted.size());
         assertTrue(backend.submitted.get(0).serializedResult().contains("native:torch"));
@@ -173,9 +169,7 @@ class AssistantIntegrationTest {
                             opened.set(target);
                             return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "quest opened");
                         }
-                    }), current, ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
-                            Evidence.Outcome.COMPLETE, null)), inventoryRequest -> CompletableFuture.completedFuture(
-                            new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
+                    }), current),
                     turn -> turn.tokenCount(), GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
             runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
             assertEquals("Historical quest answer", runtime.view().conversation().turns().getFirst().answer());
@@ -206,12 +200,10 @@ class AssistantIntegrationTest {
         var external = record("guide", "torch", Evidence.Authority.INSTALLED_DOCUMENTATION, "4 torches");
         var current = new AtomicReference<>(SCOPE);
         var service = new KnowledgeService(List.of(new Provider("native", List.of(loaded), false),
-                new Provider("guide", List.of(external), false)), current::get,
-                request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+                new Provider("guide", List.of(external), false)), current::get);
         var tools = new PackSageTools(service::execute);
 
-        var search = tools.execute(new ModelBackend.ToolCall("search", "search_pack", "{\"text\":\"torch\"}"), SCOPE)
+        var search = tools.execute(new ModelBackend.ToolCall("search", "search_recipe", "{\"filter\":{\"text\":\"torch\"}}"), SCOPE)
                 .toCompletableFuture().get();
         assertEquals(List.of(loaded, external), search.records());
         var read = tools.execute(new ModelBackend.ToolCall("read", "read_evidence", "{\"handles\":[\"native:torch\",\"guide:torch\"]}"), SCOPE)
@@ -240,14 +232,10 @@ class AssistantIntegrationTest {
                         Evidence.Outcome.COMPLETE, null)) : CompletableFuture.completedFuture(current.get());
             }
         };
-        var service = new KnowledgeService(List.of(provider), () -> SCOPE,
-                request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
-                        Evidence.Outcome.UNKNOWN, null)),
-                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
-                        Evidence.Outcome.UNKNOWN, null)));
+        var service = new KnowledgeService(List.of(provider), () -> SCOPE);
 
-        service.execute(new PackSageTools.ReadRequest("search_pack",
-                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("quest"))), SCOPE))
+        service.execute(new PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(Map.of("query", new Evidence.JsonString("quest"))), SCOPE))
                 .toCompletableFuture().get();
         var progress = service.execute(new PackSageTools.ReadRequest("read_progress",
                 new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString("ftb_quests:quest"))))), SCOPE))
@@ -294,14 +282,10 @@ class AssistantIntegrationTest {
                         Evidence.Outcome.COMPLETE, null));
             }
         };
-        var service = new KnowledgeService(List.of(unavailableProvider, freshProvider), () -> SCOPE,
-                request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
-                        Evidence.Outcome.UNKNOWN, null)),
-                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
-                        Evidence.Outcome.UNKNOWN, null)));
+        var service = new KnowledgeService(List.of(unavailableProvider, freshProvider), () -> SCOPE);
 
-        service.execute(new PackSageTools.ReadRequest("search_pack",
-                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("quest"))), SCOPE))
+        service.execute(new PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(Map.of("query", new Evidence.JsonString("quest"))), SCOPE))
                 .toCompletableFuture().get();
         var progress = service.execute(new PackSageTools.ReadRequest("read_progress",
                 new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(
@@ -324,15 +308,12 @@ class AssistantIntegrationTest {
     void preservesUnaffectedEvidenceWhenAnotherProviderFails() throws Exception {
         var loaded = record("native", "torch", Evidence.Authority.LOADED, "7 torches");
         var service = new KnowledgeService(List.of(new Provider("native", List.of(loaded), false),
-                new Provider("broken", List.of(), true)), () -> SCOPE,
-                request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+                new Provider("broken", List.of(), true)), () -> SCOPE);
 
-        var response = new PackSageTools(service::execute).execute(new ModelBackend.ToolCall("search", "search_pack", "{\"text\":\"torch\"}"), SCOPE)
+        var response = new PackSageTools(service::execute).execute(new ModelBackend.ToolCall("search", "search_recipe", "{\"filter\":{\"text\":\"torch\"}}"), SCOPE)
                 .toCompletableFuture().get();
         assertTrue(response.records().contains(loaded));
-        assertTrue(response.records().stream().anyMatch(record -> record.source().providerId().equals("broken")
-                && record.source().coverage() == Evidence.Coverage.ERROR));
+        assertTrue(response.result().serializedResult().contains("broken"));
         assertTrue(response.result().serializedResult().contains("PARTIAL"));
     }
 
@@ -343,13 +324,12 @@ class AssistantIntegrationTest {
         KnowledgeProvider provider = new Provider("native", List.of(), false) {
             @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) { return pending; }
         };
-        var service = new KnowledgeService(List.of(provider), current::get,
-                request -> pending, inventoryRequest -> pending);
-        var request = service.execute(new PackSageTools.ReadRequest("search_pack", new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("torch"))), SCOPE));
+        var service = new KnowledgeService(List.of(provider), current::get);
+        var request = service.execute(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("torch"))), SCOPE));
         current.set(new Evidence.Scope("another-world", "resources", "team", "runtime", 2));
         pending.complete(new Evidence.Result(List.of(record("native", "torch", Evidence.Authority.LOADED, "7 torches")),
                 Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
-        assertEquals(Evidence.Outcome.ERROR, request.toCompletableFuture().get().outcome());
+        assertThrows(java.util.concurrent.ExecutionException.class, () -> request.toCompletableFuture().get());
     }
 
     private static Evidence.Record record(String provider, String handle, Evidence.Authority authority, String title) {
@@ -384,10 +364,23 @@ class AssistantIntegrationTest {
             this.fail = fail;
         }
 
+        @Override public Metadata metadata() { return new Metadata(id, List.of("quest"), true, List.of(), Map.of()); }
+        @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) {
+            var filter = request.arguments().values().get("filter") instanceof Evidence.JsonObject value ? value.values() : Map.<String, Evidence.JsonValue>of();
+            if (!new Evidence.JsonString(id).equals(filter.get("provider"))) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "other source"));
+            return query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(filter), 16, null, null), request.scope());
+        }
+        @Override public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Context context) { return searchRecipe(request, context); }
+        @Override public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Context context) {
+            var reference = context.reference(request);
+            if (!reference.providerId().equals(id)) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "other source"));
+            return query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(reference.sourceHandle()))), 1, null, null), request.scope());
+        }
+        @Override public CompletionStage<Evidence.Result> readProgress(PackSageTools.ReadRequest request, Context context) { return readEvidence(request, context); }
         @Override public String id() { return id; }
         @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
         @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
-            return fail ? CompletableFuture.failedFuture(new IllegalStateException("failed capture"))
+            return fail ? CompletableFuture.failedFuture(new dev.packsage.knowledge.Toolbox.Failure(dev.packsage.knowledge.Toolbox.Code.EXTRACTION_FAILED, "failed capture"))
                     : CompletableFuture.completedFuture(new Evidence.Result(records, Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
         }
         @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {

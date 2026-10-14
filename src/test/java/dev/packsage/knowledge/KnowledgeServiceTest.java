@@ -76,9 +76,7 @@ class KnowledgeServiceTest {
                 return pending;
             }
         };
-        var service = new KnowledgeService(List.of(provider), currentScope::get,
-                plan -> CompletableFuture.completedFuture(page(List.of(), null)),
-                inventoryRequest -> CompletableFuture.completedFuture(page(List.of(), null)));
+        var service = new KnowledgeService(List.of(provider), currentScope::get);
         var refresh = service.refreshNavigation(historical, SCOPE);
         currentScope.set(new Evidence.Scope("world", "resources-2", "team", "runtime", 2));
         pending.complete(page(List.of(new Evidence.Record(new Evidence.Source(SCOPE, "patchouli", "fixture", "book:guide", 1,
@@ -128,353 +126,149 @@ class KnowledgeServiceTest {
     }
 
     @Test
-    void inventoryToolRoutesOmittedAndNullIdentitiesAsAnEmptySelection() {
-        var selections = new ArrayList<List<String>>();
-        var service = new KnowledgeService(List.of(), () -> SCOPE,
-                plan -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
-                        Evidence.Outcome.COMPLETE, null)),
-                inventoryRequest -> {
-                    selections.add(inventoryRequest.identities());
-                    return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
-                            Evidence.Outcome.COMPLETE, null));
-                });
-
-        execute(service, "read_inventory", Map.of());
-        execute(service, "read_inventory", Map.of("identities", new Evidence.JsonNull()));
-
-        assertEquals(List.of(List.of(), List.of()), selections);
+    void unqualifiedDiscoveryUsesMetadataAndQualifiedRequests() {
+        var first = new PagedProvider("source_a", query -> page(List.of(record("source_a", "first", Evidence.RecordKind.GUIDE)), null));
+        var second = new PagedProvider("source_b", query -> page(List.of(record("source_b", "second", Evidence.RecordKind.GUIDE)), null));
+        assertEquals(List.of("first", "second"), handles(search(service(first, second), Map.of("query", text("")))));
+        assertEquals(1, first.queries.size());
+        assertEquals(1, second.queries.size());
+        assertEquals(List.of("first"), handles(search(service(first, second), Map.of("query", text(""),
+                "filter", new Evidence.JsonObject(Map.of("provider", text("source_a")))))));
     }
 
     @Test
-    void inventorySearchRoutesFieldsAndCursorThroughTheSameReader() {
-        var selected = new java.util.concurrent.atomic.AtomicReference<dev.packsage.knowledge.inventory.InventoryReader.Request>();
-        var service = new KnowledgeService(List.of(), () -> SCOPE,
-                plan -> CompletableFuture.completedFuture(page(List.of(), null)), request -> {
-                    selected.set(request);
-                    return CompletableFuture.completedFuture(page(List.of(), "next"));
-                });
-        var result = execute(service, "search_inventory", Map.of("text", text("iron"),
-                "fields", new Evidence.JsonArray(List.of(text("tag"), text("tooltip"))),
-                "limit", number(2), "cursor", text("previous")));
-        assertEquals(dev.packsage.knowledge.inventory.InventoryReader.Operation.SEARCH, selected.get().operation());
-        assertEquals(List.of("tag", "tooltip"), selected.get().fields());
-        assertEquals("iron", selected.get().text());
-        assertEquals(2, selected.get().limit());
-        assertEquals("previous", selected.get().cursor());
-        assertEquals(SCOPE, selected.get().scope());
-        assertEquals("next", result.nextCursor());
-    }
-
-    @Test
-    void searchKeepsPagingAcrossEmptyProviderPagesUntilTheLimitIsFilled() {
-        var pages = List.of(page(List.of(), "1"), page(List.of(), "2"),
-                page(List.of(record("jei", "r1", Evidence.RecordKind.RECIPE), record("jei", "r2", Evidence.RecordKind.RECIPE)), "3"),
-                page(List.of(record("jei", "r3", Evidence.RecordKind.RECIPE), record("jei", "r4", Evidence.RecordKind.RECIPE)), "4"),
-                page(List.of(record("jei", "r5", Evidence.RecordKind.RECIPE)), null));
-        var provider = new PagedProvider("jei", query -> pages.get(query.cursor() == null ? 0 : Integer.parseInt(query.cursor())));
-        var service = service(provider);
-
-        var first = search(service, Map.of("text", text("r"), "limit", number(4)));
-
-        assertEquals(List.of("r1", "r2", "r3", "r4"), handles(first));
-        assertNotNull(first.nextCursor());
-        assertEquals(Evidence.Outcome.COMPLETE, first.outcome());
-
-        var second = search(service, Map.of("text", text("r"), "limit", number(2), "cursor", text(first.nextCursor())));
-
-        assertEquals(List.of("r5"), handles(second));
-        assertNull(second.nextCursor());
-        assertEquals(Evidence.Outcome.COMPLETE, second.outcome());
-    }
-
-    @Test
-    void kindsAreForwardedAndFilterBeforeAPageCanEndTheCall() {
-        var nativePages = List.of(
-                page(List.of(record("native", "torch-item", Evidence.RecordKind.ITEM), record("native", "torch-tag", Evidence.RecordKind.OTHER)), "1"),
-                page(List.of(record("native", "torch-recipe", Evidence.RecordKind.RECIPE)), null));
-        var nativeProvider = new PagedProvider("native", query -> nativePages.get(query.cursor() == null ? 0 : Integer.parseInt(query.cursor())));
-        var guideProvider = new PagedProvider("patchouli", query -> page(List.of(record("patchouli", "guide", Evidence.RecordKind.GUIDE)), null));
-        var service = service(nativeProvider, guideProvider);
-
-        var recipes = search(service, Map.of("text", text("torch"), "kinds", kinds("RECIPE")));
-
-        assertEquals(List.of("torch-recipe"), handles(recipes));
-        assertNull(recipes.nextCursor());
-        assertTrue(guideProvider.queries.isEmpty(), "a GUIDE-only provider must be skipped for RECIPE searches");
-        assertEquals(kinds("RECIPE"), nativeProvider.queries.getFirst().arguments().values().get("kinds"));
-    }
-
-    @Test
-    void providersThatCannotProduceTheRequestedKindsAreSkipped() {
-        var jeiProvider = new PagedProvider("jei", query -> page(List.of(), "1"));
-        var nativeProvider = new PagedProvider("native", query -> page(List.of(), null));
-        var guideProvider = new PagedProvider("patchouli", query -> page(List.of(record("patchouli", "intro/aura", Evidence.RecordKind.GUIDE)), null));
-        var service = service(nativeProvider, jeiProvider, guideProvider);
-
-        var guides = search(service, Map.of("text", text("aura"), "kinds", kinds("GUIDE")));
-
-        assertEquals(List.of("intro/aura"), handles(guides));
-        assertTrue(jeiProvider.queries.isEmpty());
-        assertTrue(nativeProvider.queries.isEmpty());
-    }
-
-    @Test
-    void providerAndOutputItemFiltersSkipEarlierProvidersAndArePartOfCursorIdentity() {
-        var nativeProvider = new PagedProvider("native", query -> page(List.of(record("native", "wrong", Evidence.RecordKind.RECIPE)), null));
-        var jeiProvider = new PagedProvider("jei", query -> page(List.of(), "1"));
-        var service = service(nativeProvider, jeiProvider);
-        Map<String, Evidence.JsonValue> args = Map.of("text", text(""), "provider", text("jei"), "outputItem", text("minecraft:stone"));
-
-        var first = search(service, args);
-
-        assertTrue(nativeProvider.queries.isEmpty(), "provider filtering must skip native before its page consumes the budget");
-        assertEquals(text("minecraft:stone"), jeiProvider.queries.getFirst().arguments().values().get("outputItem"));
-        Map<String, Evidence.JsonValue> changedFilter = new LinkedHashMap<>(args);
-        changedFilter.put("outputItem", text("minecraft:dirt"));
-        changedFilter.put("cursor", text(first.nextCursor()));
-        var mismatch = search(service, changedFilter);
-        assertEquals(Evidence.Outcome.ERROR, mismatch.outcome());
-        assertTrue(mismatch.detail().contains("cursor does not match"), mismatch.detail());
-    }
-
-    @Test
-    void providerStatusRecordsSurviveTheKindsFilter() {
-        var unsupported = new PagedProvider("patchouli", query -> new Evidence.Result(List.of(new Evidence.Record(
-                new Evidence.Source(SCOPE, "patchouli", "1.21.1-92", "status:patchouli", 1, Instant.EPOCH, Evidence.Activity.UNKNOWN,
-                        Evidence.Coverage.PARTIAL, Evidence.Authority.UNKNOWN, List.of()), Evidence.RecordKind.OTHER,
-                "patchouli version is outside the tested version", new Evidence.JsonObject(Map.of()), List.of())),
-                Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, null));
-        var service = service(unsupported);
-
-        var result = search(service, Map.of("text", text("aura"), "kinds", kinds("GUIDE")));
-
-        assertEquals(List.of("status:patchouli"), handles(result));
-        assertEquals(Evidence.Outcome.PARTIAL, result.outcome());
-    }
-
-    @Test
-    void emptyPartialProviderResultKeepsItsDiagnosticDetail() {
-        var provider = new PagedProvider("jei", query -> new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL,
-                Evidence.Outcome.PARTIAL, null, "JEI projection is incomplete"));
-
-        var result = search(service(provider), Map.of("text", text("lantern")));
-
-        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
-        assertEquals(Evidence.Outcome.PARTIAL, result.outcome());
-        assertTrue(result.detail() != null && result.detail().contains("JEI projection is incomplete"), result.detail());
-    }
-
-    @Test
-    void reachingTheWorkBoundWithoutMatchesSaysSoAndReturnsACursor() {
-        var provider = new PagedProvider("jei", query -> page(List.of(),
-                Integer.toString(query.cursor() == null ? 1 : Integer.parseInt(query.cursor()) + 1)));
-        var service = service(provider);
-
-        var result = search(service, Map.of("text", text("nothing")));
-
-        assertTrue(result.records().isEmpty());
-        assertEquals(KnowledgeService.MAX_PROVIDER_PAGES_PER_CALL, provider.queries.size());
-        assertNotNull(result.nextCursor());
-        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
-        assertEquals(Evidence.Outcome.PARTIAL, result.outcome());
-        assertNotNull(result.detail());
-        assertTrue(result.detail().contains("bound"), result.detail());
-        assertTrue(result.detail().contains("no matching records"), result.detail());
-
-        var next = search(service, Map.of("text", text("nothing"), "cursor", text(result.nextCursor())));
-        assertEquals(Evidence.Outcome.PARTIAL, next.outcome());
-        assertEquals(2 * KnowledgeService.MAX_PROVIDER_PAGES_PER_CALL, provider.queries.size());
-    }
-
-    @Test
-    void cursorReusedWithADifferentLimitContinuesButADifferentQueryExplainsTheError() {
-        var pages = List.of(page(List.of(record("native", "a", Evidence.RecordKind.ITEM)), "1"),
-                page(List.of(record("native", "b", Evidence.RecordKind.ITEM)), null));
-        var service = service(new PagedProvider("native", query -> pages.get(query.cursor() == null ? 0 : Integer.parseInt(query.cursor()))));
-
-        var first = search(service, Map.of("text", text("x"), "limit", number(1)));
-        assertEquals(List.of("a"), handles(first));
-
-        var continued = search(service, Map.of("text", text("x"), "limit", number(64), "cursor", text(first.nextCursor())));
-        assertEquals(List.of("b"), handles(continued));
-        assertEquals(Evidence.Outcome.COMPLETE, continued.outcome());
-
-        var mismatched = search(service, Map.of("text", text("y"), "cursor", text(first.nextCursor())));
-        assertEquals(Evidence.Outcome.ERROR, mismatched.outcome());
-        assertTrue(mismatched.detail().contains("cursor does not match"), mismatched.detail());
-
-        var unknown = search(service, Map.of("text", text("x"), "cursor", text("missing")));
-        assertEquals(Evidence.Outcome.ERROR, unknown.outcome());
-        assertTrue(unknown.detail().contains("cursor"), unknown.detail());
-    }
-
-    @Test
-    void storageDispatchUsesTheReaderBoundaryAndCachesReturnedEvidence() {
-        var requested = new java.util.concurrent.atomic.AtomicReference<dev.packsage.knowledge.storage.StorageReader.Request>();
-        var source = new Evidence.Source(SCOPE, "native", "1.21.1", "storage:fixture:0", 1, Instant.EPOCH,
-                Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.VIEWER, List.of());
-        var page = new Evidence.Record(source, Evidence.RecordKind.OTHER, "Opened chest",
-                new Evidence.JsonObject(Map.of("entries", new Evidence.JsonArray(List.of()))), List.of());
-        var service = new KnowledgeService(List.of(), () -> SCOPE,
-                plan -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
-                        Evidence.Outcome.COMPLETE, null)),
-                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
-                        Evidence.Outcome.COMPLETE, null)), request -> {
-                    requested.set(request);
-                    return CompletableFuture.completedFuture(new Evidence.Result(List.of(page), Evidence.Coverage.PARTIAL,
-                            Evidence.Outcome.PARTIAL, "next"));
-                });
-
-        var result = execute(service, "read_storage", Map.of("target", text("opened"), "text", text("stone"),
-                "identities", new Evidence.JsonNull(), "limit", number(2), "cursor", text("previous")));
-
-        assertEquals(dev.packsage.knowledge.storage.StorageReader.Target.OPENED, requested.get().target());
-        assertEquals(SCOPE, requested.get().scope());
-        assertEquals("stone", requested.get().text());
-        assertEquals(List.of(), requested.get().identities());
-        assertEquals(2, requested.get().limit());
-        assertEquals("previous", requested.get().cursor());
-        assertEquals("next", result.nextCursor());
-        assertEquals(List.of(page), execute(service, "read_evidence", Map.of("handles",
-                new Evidence.JsonArray(List.of(text("native:storage:fixture:0"))))).records());
-        assertEquals(Evidence.Outcome.UNKNOWN, execute(service(), "read_storage", Map.of("target", text("item"), "slotReference", text("native:inventory:fixture:main:4"))).outcome());
-    }
-
-    @Test
-    void errorsCarryANonEmptyDetailIncludingTheProviderException() {
-        var failing = new PagedProvider("native", query -> { throw new IllegalStateException("snapshot capture exploded"); });
-        var service = service(failing);
-
-        var search = search(service, Map.of("text", text("x")));
-        var status = search.records().getFirst();
-        assertEquals("status:native", status.source().sourceHandle());
-        assertTrue(Evidence.serialize(status.payload()).contains("IllegalStateException"));
-        assertTrue(Evidence.serialize(status.payload()).contains("snapshot capture exploded"));
-        assertNotNull(search.detail());
-
-        var unknownHandle = execute(service, "read_evidence", Map.of("handles",
-                new Evidence.JsonArray(List.of(text("native:missing")))));
-        assertEquals(Evidence.Outcome.ERROR, unknownHandle.outcome());
-        assertTrue(unknownHandle.detail().contains("native:missing"), unknownHandle.detail());
-
-        var unknownTool = execute(service, "run_command", Map.of());
-        assertEquals(Evidence.Outcome.ERROR, unknownTool.outcome());
-        assertFalse(unknownTool.detail().isBlank());
-
-        var malformed = execute(service, "read_evidence", Map.of("handles", text("not-an-array")));
-        assertEquals(Evidence.Outcome.ERROR, malformed.outcome());
-        assertTrue(malformed.detail().contains("ClassCastException"), malformed.detail());
-
-        var planFailure = new KnowledgeService(List.of(), () -> SCOPE,
-                plan -> CompletableFuture.failedFuture(new IllegalStateException("planner broke")),
-                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
-                        Evidence.Outcome.UNKNOWN, null)));
-        var plan = planFailure.execute(new PackSageTools.ReadRequest("plan_recipe", new Evidence.JsonObject(Map.of(
-                "identity", text("minecraft:torch"), "quantity", number(1))), SCOPE)).toCompletableFuture().join();
-        assertEquals(Evidence.Outcome.ERROR, plan.outcome());
-        assertTrue(plan.detail().contains("planner broke"), plan.detail());
-        var inventory = planFailure.execute(new PackSageTools.ReadRequest("read_inventory", new Evidence.JsonObject(Map.of(
-                "identities", new Evidence.JsonArray(List.of(text("minecraft:torch"))))), SCOPE)).toCompletableFuture().join();
-        assertEquals(Evidence.Coverage.UNAVAILABLE, inventory.coverage());
-        assertNotNull(inventory.detail());
-    }
-
-    @Test
-    void readConfigAcceptsTheShortEntryHandleAndDropsTheUnusableCursor() {
-        var entry = "naturesaura:COMMON:naturesaura-common.toml";
-        var queries = new ArrayList<Evidence.Query>();
-        var config = new PagedProvider("config", query -> {
-            queries.add(query);
-            return page(List.of(configRecord(entry, "general.fieldCreatorRange")), "7");
+    void discoveryPreservesContinuationAtResultAndWorkBounds() {
+        var source = new PagedProvider("guide", query -> {
+            int position = query.cursor() == null ? 0 : Integer.parseInt(query.cursor());
+            return page(position < 9 ? List.of() : List.of(record("guide", "found", Evidence.RecordKind.GUIDE)),
+                    position < 9 ? Integer.toString(position + 1) : null);
         });
-        var service = service(config);
-
-        var unknown = execute(service, "read_config", Map.of("handle", text(entry), "key", text("general.fieldCreatorRange")));
-        assertEquals(Evidence.Outcome.ERROR, unknown.outcome());
-        assertTrue(unknown.detail().contains("config:<owner>:<SCOPE>:<file>#<key>"), unknown.detail());
-
-        execute(service, "search_config", Map.of("text", text("range")));
-        var read = execute(service, "read_config", Map.of("handle", text(entry), "key", text("general.fieldCreatorRange")));
-
-        assertEquals(List.of(entry + "#general.fieldCreatorRange"), handles(read));
-        assertNull(read.nextCursor());
-        var get = queries.getLast();
-        assertEquals(Evidence.Operation.GET, get.operation());
-        assertEquals(text(entry), get.arguments().values().get("id"));
-
-        var prefixed = execute(service, "read_config", Map.of("handle", text("config:" + entry), "key", text("general.fieldCreatorRange")));
-        assertEquals(Evidence.Outcome.COMPLETE, prefixed.outcome());
-
-        var stillUnknown = execute(service, "read_config", Map.of("handle", text("naturesaura:CLIENT:other.toml"), "key", text("a")));
-        assertEquals(Evidence.Outcome.ERROR, stillUnknown.outcome());
-        assertTrue(stillUnknown.detail().contains("config:" + entry + "#general.fieldCreatorRange"), stillUnknown.detail());
+        var service = service(source);
+        var first = search(service, Map.of("query", text("")));
+        assertEquals(8, source.queries.size());
+        assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
+        assertNotNull(first.nextCursor());
+        assertEquals(List.of("found"), handles(search(service, Map.of("query", text(""), "cursor", text(first.nextCursor())))));
+        var two = service(new PagedProvider("a", query -> page(List.of(record("a", "one", Evidence.RecordKind.GUIDE)), null)),
+                new PagedProvider("b", query -> page(List.of(record("b", "two", Evidence.RecordKind.GUIDE)), null)));
+        var page = search(two, Map.of("query", text(""), "limit", number(1)));
+        assertNotNull(page.nextCursor());
+        assertEquals(List.of("two"), handles(search(two, Map.of("query", text(""), "limit", number(8), "cursor", text(page.nextCursor())))));
+        assertEquals(Evidence.Outcome.ERROR, search(two, Map.of("query", text("changed"), "cursor", text(page.nextCursor()))).outcome());
     }
 
-    private static KnowledgeService service(KnowledgeProvider... providers) {
-        return new KnowledgeService(List.of(providers), () -> SCOPE,
-                plan -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)));
+    @Test
+    void discoveryPropagatesRequestFailuresAndOnlyCombinesSourceFailures() {
+        for (var code : List.of(Toolbox.Code.INVALID_ARGUMENTS, Toolbox.Code.INVALID_CURSOR, Toolbox.Code.INVALID_REFERENCE,
+                Toolbox.Code.STALE_SCOPE, Toolbox.Code.UNSUPPORTED_FILTER, Toolbox.Code.UNAVAILABLE, Toolbox.Code.EXTRACTION_FAILED)) {
+            var broken = new PagedProvider("broken", query -> { throw new Toolbox.Failure(code, "test failure"); });
+            var service = service(new PagedProvider("good", query -> page(List.of(record("good", "one", Evidence.RecordKind.GUIDE)), null)), broken);
+            var result = search(service, Map.of("query", text("")));
+            if (code == Toolbox.Code.UNAVAILABLE || code == Toolbox.Code.EXTRACTION_FAILED) {
+                assertEquals(List.of("one"), handles(result));
+                assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+            } else {
+                assertEquals(Evidence.Outcome.ERROR, result.outcome());
+                assertTrue(result.detail().contains(code.name()));
+            }
+        }
     }
 
-    private static Evidence.Result search(KnowledgeService service, Map<String, Evidence.JsonValue> arguments) {
-        return execute(service, "search_pack", arguments);
+    @Test
+    void referencesReadCurrentBodiesAndRejectUnknownOrChangedIdentity() {
+        var current = new AtomicReference<>(record("guide", "same", Evidence.RecordKind.GUIDE));
+        var source = new PagedProvider("guide", query -> page(List.of(current.get()), null));
+        var service = service(source);
+        search(service, Map.of("query", text("")));
+        var replacement = new Evidence.Record(current.get().source(), current.get().kind(), "changed now",
+                new Evidence.JsonObject(Map.of("live", text("new value"))), List.of());
+        current.set(replacement);
+        assertEquals(List.of(replacement), execute(service, "read_evidence", Map.of("handles", strings("guide:same"))).records());
+        assertEquals(Evidence.Operation.GET, source.queries.getLast().operation());
+        current.set(record("guide", "different", Evidence.RecordKind.GUIDE));
+        assertEquals(Evidence.Outcome.ERROR, execute(service, "read_evidence", Map.of("handles", strings("guide:same"))).outcome());
+        assertEquals(Evidence.Outcome.ERROR, execute(service, "read_evidence", Map.of("handles", strings("guide:unknown"))).outcome());
     }
 
+    @Test
+    void mixedReadsValidateWholeBatchBeforeReadingAndShareDocumentBudget() {
+        var budgets = new ArrayList<Toolbox.DocumentBudget>();
+        var one = new PagedProvider("one", query -> page(List.of(record("one", "a", Evidence.RecordKind.GUIDE)), null)) {
+            @Override public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Context context) {
+                if (context.reference(request).providerId().equals(id())) budgets.add(context.documentBudget());
+                return super.readEvidence(request, context);
+            }
+        };
+        var two = new PagedProvider("two", query -> page(List.of(record("two", "b", Evidence.RecordKind.GUIDE)), null)) {
+            @Override public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Context context) {
+                if (context.reference(request).providerId().equals(id())) budgets.add(context.documentBudget());
+                return super.readEvidence(request, context);
+            }
+        };
+        var service = service(one, two);
+        search(service, Map.of("query", text("")));
+        assertEquals(Evidence.Outcome.ERROR, execute(service, "read_evidence", Map.of("handles", strings("one:a", "two:unknown"))).outcome());
+        assertTrue(budgets.isEmpty());
+        assertEquals(2, execute(service, "read_evidence", Map.of("handles", strings("one:a", "two:b"))).records().size());
+        assertEquals(budgets.get(0), budgets.get(1));
+    }
+
+    @Test
+    void progressFailuresReturnCurrentStatusAndKeepOtherFreshResults() {
+        var failed = new PagedProvider("quests_a", query -> query.operation() == Evidence.Operation.GET
+                ? new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)
+                : page(List.of(record("quests_a", "a", Evidence.RecordKind.QUEST)), null));
+        var good = new PagedProvider("quests_b", query -> page(List.of(record("quests_b", "b", Evidence.RecordKind.QUEST)), null));
+        var service = service(failed, good);
+        search(service, Map.of("query", text("")));
+        var result = execute(service, "read_progress", Map.of("handles", strings("quests_a:a", "quests_b:b")));
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertEquals(List.of("progress-status:a", "b"), handles(result));
+        assertEquals(Evidence.Coverage.UNAVAILABLE, result.records().getFirst().source().coverage());
+    }
+
+    private static KnowledgeService service(KnowledgeProvider... providers) { return new KnowledgeService(List.of(providers), () -> SCOPE); }
+    private static Evidence.Result search(KnowledgeService service, Map<String, Evidence.JsonValue> arguments) { return execute(service, "search_document", arguments); }
     private static Evidence.Result execute(KnowledgeService service, String tool, Map<String, Evidence.JsonValue> arguments) {
-        return service.execute(new PackSageTools.ReadRequest(tool, new Evidence.JsonObject(new LinkedHashMap<>(arguments)), SCOPE))
-                .toCompletableFuture().join();
+        try {
+            return service.execute(new PackSageTools.ReadRequest(tool, new Evidence.JsonObject(new LinkedHashMap<>(arguments)), SCOPE)).toCompletableFuture().join();
+        } catch (RuntimeException failure) {
+            return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, failure.getMessage());
+        }
     }
-
-    private static List<String> handles(Evidence.Result result) {
-        return result.records().stream().map(record -> record.source().sourceHandle()).toList();
-    }
-
-    private static Evidence.Result page(List<Evidence.Record> records, String next) {
-        return new Evidence.Result(records, Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, next);
-    }
-
-    private static Evidence.JsonString text(String value) {
-        return new Evidence.JsonString(value);
-    }
-
-    private static Evidence.JsonNumber number(int value) {
-        return new Evidence.JsonNumber(BigDecimal.valueOf(value));
-    }
-
-    private static Evidence.JsonArray kinds(String... values) {
-        return new Evidence.JsonArray(java.util.Arrays.stream(values).map(value -> (Evidence.JsonValue) new Evidence.JsonString(value)).toList());
-    }
-
+    private static List<String> handles(Evidence.Result result) { return result.records().stream().map(record -> record.source().sourceHandle()).toList(); }
+    private static Evidence.Result page(List<Evidence.Record> records, String next) { return new Evidence.Result(records, Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, next); }
+    private static Evidence.JsonString text(String value) { return new Evidence.JsonString(value); }
+    private static Evidence.JsonNumber number(int value) { return new Evidence.JsonNumber(BigDecimal.valueOf(value)); }
+    private static Evidence.JsonArray strings(String... values) { return new Evidence.JsonArray(java.util.Arrays.stream(values).map(value -> (Evidence.JsonValue) text(value)).toList()); }
     private static Evidence.Record record(String provider, String handle, Evidence.RecordKind kind) {
         return new Evidence.Record(new Evidence.Source(SCOPE, provider, "fixture", handle, 1, Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()), kind, handle,
                 new Evidence.JsonObject(Map.of()), List.of());
     }
 
-    private static Evidence.Record configRecord(String entry, String key) {
-        return new Evidence.Record(new Evidence.Source(SCOPE, "config", "fixture", entry + "#" + key, 1, Instant.EPOCH,
-                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.SAVED_CONFIG, List.of()),
-                Evidence.RecordKind.CONFIG, key, new Evidence.JsonObject(Map.of("handle", text(entry), "key", text(key))), List.of());
-    }
-
     private static class PagedProvider implements KnowledgeProvider {
         private final String id;
         private final Function<Evidence.Query, Evidence.Result> pages;
         private final List<Evidence.Query> queries = new ArrayList<>();
-
-        private PagedProvider(String id, Function<Evidence.Query, Evidence.Result> pages) {
-            this.id = id;
-            this.pages = pages;
-        }
-
+        private PagedProvider(String id, Function<Evidence.Query, Evidence.Result> pages) { this.id = id; this.pages = pages; }
         @Override public String id() { return id; }
+        @Override public Metadata metadata() { return new Metadata(id, List.of("guide", "quest"), false, List.of(), Map.of()); }
         @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
-        @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
-            queries.add(query);
-            return CompletableFuture.completedFuture(pages.apply(query));
+        @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) { queries.add(query); return CompletableFuture.completedFuture(pages.apply(query)); }
+        @Override public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Context context) {
+            var filter = (Evidence.JsonObject) request.arguments().values().get("filter");
+            if (!text(id).equals(filter.values().get("provider"))) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "other source"));
+            return query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(Map.of("text", request.arguments().values().get("query"))),
+                    request.arguments().values().get("limit") instanceof Evidence.JsonNumber limit ? limit.value().intValueExact() : 16,
+                    SCOPE, request.arguments().values().get("cursor") instanceof Evidence.JsonString cursor ? cursor.value() : null), request.scope());
         }
-        @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "fixture");
+        @Override public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Context context) {
+            var reference = context.reference(request);
+            if (!id.equals(reference.providerId())) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "other source"));
+            return query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of("id", text(reference.sourceHandle()))), 1, null, null), request.scope());
         }
+        @Override public CompletionStage<Evidence.Result> readProgress(PackSageTools.ReadRequest request, Context context) { return readEvidence(request, context); }
+        @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) { return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "fixture"); }
     }
 }

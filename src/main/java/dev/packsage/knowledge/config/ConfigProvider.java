@@ -2,6 +2,7 @@ package dev.packsage.knowledge.config;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
+import dev.packsage.model.PackSageTools;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -33,6 +34,8 @@ public final class ConfigProvider implements KnowledgeProvider {
     private static final int MAX_FILES = 256;
     private static final int MAX_DEPTH = 32;
 
+    private record Cursor(String tool, Map<String, Evidence.JsonValue> arguments, Evidence.Scope scope, String position) { }
+    private final Map<String, Cursor> cursors = new LinkedHashMap<>();
     private final NeoForgeConfigCatalog.Reader catalog;
     private final List<Path> roots;
     private final Executor clientExecutor;
@@ -60,6 +63,73 @@ public final class ConfigProvider implements KnowledgeProvider {
                                             BooleanSupplier owningThread) {
         return new ConfigProvider(NeoForgeConfigCatalog.reflective(), knownRoots, clientExecutor, workerExecutor,
                 owningThread);
+    }
+
+    @Override
+    public CompletionStage<Evidence.Result> listConfigs(PackSageTools.ReadRequest request, Context context) {
+        return searchConfig(request, context);
+    }
+
+    @Override
+    public CompletionStage<Evidence.Result> searchConfig(PackSageTools.ReadRequest request, Context context) {
+        var arguments = new LinkedHashMap<>(request.arguments().values());
+        arguments.remove("cursor");
+        arguments.remove("limit");
+        String position = null;
+        if (request.arguments().values().get("cursor") instanceof Evidence.JsonString token) {
+            Cursor cursor;
+            synchronized (cursors) { cursor = cursors.get(token.value()); }
+            if (cursor == null || !cursor.tool().equals(request.tool()) || !cursor.arguments().equals(arguments)) {
+                throw new Failure(Code.INVALID_CURSOR, "config cursor does not match this query");
+            }
+            if (!cursor.scope().equals(request.scope())) throw new Failure(Code.STALE_SCOPE, "config cursor scope changed");
+            position = cursor.position();
+        }
+        return query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(arguments),
+                request.arguments().values().get("limit") instanceof Evidence.JsonNumber limit ? limit.value().intValueExact() : 16,
+                request.scope(), position), request.scope()).thenApply(result -> {
+            if (result.nextCursor() == null) return result;
+            var token = java.util.UUID.randomUUID().toString();
+            synchronized (cursors) {
+                cursors.put(token, new Cursor(request.tool(), Map.copyOf(arguments), request.scope(), result.nextCursor()));
+                while (cursors.size() > 128) cursors.remove(cursors.keySet().iterator().next());
+            }
+            return new Evidence.Result(result.records(), result.coverage(), result.outcome(), token, result.detail());
+        });
+    }
+
+    @Override
+    public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Context context) {
+        var reference = context.reference(request);
+        if (!reference.providerId().equals(ID)) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "different evidence owner"));
+        var separator = reference.sourceHandle().lastIndexOf('#');
+        if (separator < 0) throw new Failure(Code.INVALID_REFERENCE, "config reference has no key");
+        return query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of(
+                "id", new Evidence.JsonString(reference.sourceHandle().substring(0, separator)),
+                "key", new Evidence.JsonString(reference.sourceHandle().substring(separator + 1)))), 1, null, null), request.scope());
+    }
+
+    @Override
+    public CompletionStage<Evidence.Result> readConfig(PackSageTools.ReadRequest request, Context context) {
+        String requested = ((Evidence.JsonString) request.arguments().values().get("handle")).value();
+        var entries = new LinkedHashSet<String>();
+        for (var reference : context.references().values()) {
+            if (!reference.providerId().equals(ID) || reference.kind() != Evidence.RecordKind.CONFIG || !reference.scope().equals(request.scope())) continue;
+            String entry = reference.sourceHandle().contains("#") ? reference.sourceHandle().substring(0, reference.sourceHandle().lastIndexOf('#')) : reference.sourceHandle();
+            if (requested.equals(entry) || requested.equals(ID + ":" + entry) || requested.equals(reference.sourceHandle())
+                    || requested.equals(ID + ":" + reference.sourceHandle())) entries.add(entry);
+        }
+        if (entries.size() != 1) throw new Failure(Code.INVALID_REFERENCE, "use an unambiguous observed config reference");
+        var arguments = new LinkedHashMap<String, Evidence.JsonValue>();
+        arguments.put("id", new Evidence.JsonString(entries.iterator().next()));
+        boolean exact = request.arguments().values().get("key") instanceof Evidence.JsonString;
+        if (exact) arguments.put("key", request.arguments().values().get("key"));
+        else if (request.arguments().values().get("section") instanceof Evidence.JsonString section) arguments.put("text", section);
+        return query(new Evidence.Query(exact ? Evidence.Operation.GET : Evidence.Operation.SEARCH, new Evidence.JsonObject(arguments),
+                request.arguments().values().get("limit") instanceof Evidence.JsonNumber limit ? limit.value().intValueExact() : 16,
+                null, null), request.scope()).thenApply(result -> result.nextCursor() == null ? result : new Evidence.Result(
+                        result.records(), Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, null,
+                        "more config keys match; narrow section/key or increase limit"));
     }
 
     @Override

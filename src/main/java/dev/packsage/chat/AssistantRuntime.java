@@ -81,11 +81,16 @@ public final class AssistantRuntime implements ChatActions {
         this.externalNavigation = Objects.requireNonNull(externalNavigation);
         this.knowledgeFactory = Objects.requireNonNull(knowledgeFactory);
         this.knowledge = Objects.requireNonNull(this.knowledgeFactory.apply(this::currentScope));
-        this.tools = new PackSageTools(this.knowledge::execute);
+        this.tools = new PackSageTools(this.knowledge::execute, this.knowledge.metadata());
         this.capture = Objects.requireNonNull(Objects.requireNonNull(captureFactory).apply(this::currentScope));
         this.controller = new RequestController(store, backend, controllerExecutor,
                 capture::capture, capture::cancel, ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
-                this::executeTool, historyCounter, requestBuilder, this::publishControllerView);
+                this::executeTool, historyCounter, prepared -> {
+                    var request = requestBuilder.apply(prepared);
+                    return new ModelBackend.Request(request.modelId(), request.instructions(), request.input(),
+                            PackSageTools.definitions(knowledge.metadata()), request.searchMode(), request.requestId(),
+                            request.outputBudget(), request.reasoningEffort());
+                }, this::publishControllerView);
     }
 
     public void enterWorld(ChatContracts.WorldIdentity world, Evidence.Scope scope) {
@@ -121,12 +126,14 @@ public final class AssistantRuntime implements ChatActions {
             publishCurrentView(epoch);
             return;
         }
-        PackSageTools nextTools = new PackSageTools(nextKnowledge::execute);
+        var nextHistory = new HistoryAdapter(store, world, this::currentScope);
+        nextKnowledge.register(nextHistory);
+        PackSageTools nextTools = new PackSageTools(nextKnowledge::execute, nextKnowledge.metadata());
         synchronized (stateLock) {
             if (epoch != worldEpoch || !world.equals(this.world) || !scope.equals(this.scope)) return;
             knowledge = nextKnowledge;
             tools = nextTools;
-            historyAdapter = new HistoryAdapter(store, world, this::currentScope);
+            historyAdapter = nextHistory;
         }
         publishCurrentView(epoch);
     }
@@ -730,10 +737,9 @@ public final class AssistantRuntime implements ChatActions {
     private CompletionStage<ChatContracts.ToolResponse> executeTool(ChatContracts.ToolRequest request) {
         PackSageTools currentTools;
         synchronized (stateLock) {
-            HistoryAdapter currentHistory = historyAdapter;
-            currentTools = currentHistory != null && (request.call().name().equals("search_history")
-                    || request.call().name().equals("read_history"))
-                    ? new PackSageTools(read -> currentHistory.execute(read, request.submission().replacing())) : tools;
+            var currentKnowledge = knowledge;
+            currentTools = new PackSageTools(read -> currentKnowledge.execute(read,
+                    request.submission().replacing() == null ? null : request.submission().replacing().value()), currentKnowledge.metadata());
         }
         return currentTools.execute(request.call(), request.submission().scope()).thenApply(response -> {
             List<Evidence.Source> sources = response.records().stream().map(Evidence.Record::source).distinct().toList();

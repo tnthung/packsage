@@ -114,11 +114,7 @@ class AssistantRuntimeTest {
         java.util.ArrayDeque<Runnable> clientTasks = new java.util.ArrayDeque<>();
         FakeBackend backend = new FakeBackend();
         var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, clientTasks::addLast,
-                current -> new KnowledgeService(List.of(), current,
-                        ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
-                                Evidence.Outcome.COMPLETE, null)),
-                        inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
-                                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
+                current -> new KnowledgeService(List.of(), current),
                 turn -> turn.tokenCount(), ignored -> { throw new AssertionError("request must be rejected"); },
                 ignored -> 512, ignored -> { }, ignored -> { });
         runtime.enterWorld(WORLD, SCOPE);
@@ -156,11 +152,7 @@ class AssistantRuntimeTest {
         java.util.ArrayDeque<Runnable> clientTasks = new java.util.ArrayDeque<>();
         FakeBackend backend = new FakeBackend();
         var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, clientTasks::addLast,
-                current -> new KnowledgeService(List.of(), current,
-                        ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
-                                Evidence.Outcome.COMPLETE, null)),
-                        inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
-                                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
+                current -> new KnowledgeService(List.of(), current),
                 turn -> turn.tokenCount(), ignored -> { throw new AssertionError("No model request expected"); },
                 ignored -> 512, ignored -> { }, ignored -> { });
         runtime.enterWorld(WORLD, SCOPE);
@@ -187,11 +179,7 @@ class AssistantRuntimeTest {
         FakeBackend backend = new FakeBackend();
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
                 new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
-                current -> new KnowledgeService(List.of(), current,
-                        ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
-                                Evidence.Outcome.UNKNOWN, null)),
-                        inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
-                                Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null))), storeExecutor);
+                current -> new KnowledgeService(List.of(), current), storeExecutor);
         runtime.enterWorld(WORLD, SCOPE);
         while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
         var sessions = runtime.sessions();
@@ -517,11 +505,7 @@ class AssistantRuntimeTest {
         AtomicInteger factoryCalls = new AtomicInteger();
         var knowledgeFactory = (java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService>) current -> {
             if (factoryCalls.incrementAndGet() == 3) throw new IllegalStateException("provider refresh failed");
-            return new KnowledgeService(List.of(), current,
-                    ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
-                            Evidence.Outcome.UNKNOWN, null)),
-                    inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
-                            Evidence.Outcome.UNKNOWN, null)));
+            return new KnowledgeService(List.of(), current);
         };
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
                 new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
@@ -548,11 +532,7 @@ class AssistantRuntimeTest {
         CompletableFuture<Evidence.Result> pendingTool = new CompletableFuture<>();
         var knowledgeFactory = (java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService>) current -> {
             int factoryCall = factoryCalls.getAndIncrement();
-            return new KnowledgeService(List.of(), current,
-                    ignored -> factoryCall == 1 ? pendingTool : CompletableFuture.completedFuture(
-                            new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)),
-                    inventoryRequest -> CompletableFuture.completedFuture(
-                            new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+            return new KnowledgeService(List.of(), current);
         };
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
                 new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
@@ -582,11 +562,7 @@ class AssistantRuntimeTest {
         FakeBackend backend = new FakeBackend();
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
                 new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
-                current -> new KnowledgeService(List.of(), current,
-                        ignored -> CompletableFuture.completedFuture(
-                                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                        inventoryRequest -> CompletableFuture.completedFuture(
-                                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null))),
+                current -> new KnowledgeService(List.of(), current),
                 ignored -> { });
         runtime.enterWorld(WORLD, SCOPE);
         runtime.signIn();
@@ -736,9 +712,7 @@ class AssistantRuntimeTest {
             }, ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
                     DIRECT, DIRECT, current -> {
                         operationalScope.set(current);
-                        return new KnowledgeService(List.of(), current,
-                                ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)),
-                                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+                        return new KnowledgeService(List.of(), current);
                     }, turn -> turn.tokenCount(), request -> {
                         prepared.set(request);
                         return new ModelBackend.Request(MODEL.id(), "instructions", List.of(new ModelBackend.Message(ModelBackend.Role.USER,
@@ -810,9 +784,7 @@ class AssistantRuntimeTest {
             ChatContracts.Conversation selected = store.newConversation(WORLD).toCompletableFuture().join();
             FakeBackend backend = new FakeBackend();
             var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
-                    current -> new KnowledgeService(List.of(), current,
-                            ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)),
-                            inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))),
+                    current -> new KnowledgeService(List.of(), current),
                     turn -> turn.tokenCount(), ignored -> { throw new AssertionError("No model request expected"); },
                     ignored -> 512, ignored -> { }, ignored -> { });
             runtime.enterWorld(WORLD, SCOPE);
@@ -862,11 +834,7 @@ class AssistantRuntimeTest {
         var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
                 scope -> {
                     if (failKnowledge.get()) throw new IllegalStateException("provider refresh failed");
-                    return new KnowledgeService(List.of(), scope,
-                        ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
-                                Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                        inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
-                                Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)));
+                    return new KnowledgeService(List.of(), scope);
                 },
                 GroundingInstructions::historyTextBudget, GroundingInstructions::build, model -> 512,
                 ignored -> { }, ignored -> { });
@@ -944,11 +912,7 @@ class AssistantRuntimeTest {
                                             java.util.function.Consumer<Boolean> pauseGame,
                                             java.util.function.Consumer<String> externalNavigation) throws Exception {
         return runtime(backend, captureFactory, scope, request, preparedRequest, settings, budget, pauseGame,
-                externalNavigation, current -> new KnowledgeService(List.of(), current,
-                        ignored -> CompletableFuture.completedFuture(
-                                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                        inventoryRequest -> CompletableFuture.completedFuture(
-                                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null))), DIRECT);
+                externalNavigation, current -> new KnowledgeService(List.of(), current), DIRECT);
     }
 
     private static AssistantRuntime runtime(FakeBackend backend,

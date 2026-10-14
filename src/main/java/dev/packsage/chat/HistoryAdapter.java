@@ -1,6 +1,7 @@
 package dev.packsage.chat;
 
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 
 import java.util.List;
@@ -13,7 +14,18 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
 
-final class HistoryAdapter {
+final class HistoryAdapter implements Toolbox {
+    @Override public Metadata metadata() { return new Metadata("history", List.of(), false, List.of(), java.util.Map.of()); }
+
+    @Override public CompletionStage<Evidence.Result> searchHistory(PackSageTools.ReadRequest request, Context context) {
+        return execute(request, context.replacingRequestId() == null ? null : new ChatContracts.RequestId(context.replacingRequestId()));
+    }
+
+    @Override public CompletionStage<Evidence.Result> readHistory(PackSageTools.ReadRequest request, Context context) {
+        return execute(request, context.replacingRequestId() == null ? null : new ChatContracts.RequestId(context.replacingRequestId()));
+    }
+
+
     private record Cursor(String text, ChatContracts.RequestId excluded, ConversationStore.HistoryCursor position) { }
     private record Handle(ConversationStore.HistoryLocator locator, ChatContracts.RequestId requestId) { }
     private final ConversationStore store;

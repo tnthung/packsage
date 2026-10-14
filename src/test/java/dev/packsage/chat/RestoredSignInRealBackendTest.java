@@ -90,11 +90,7 @@ class RestoredSignInRealBackendTest {
                 scope -> new GameplayContextCapture(
                         () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
                         ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, scope),
-                DIRECT, DIRECT, current -> new KnowledgeService(List.of(), current,
-                        ignored -> CompletableFuture.completedFuture(
-                                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                        inventoryRequest -> CompletableFuture.completedFuture(
-                                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null))),
+                DIRECT, DIRECT, current -> new KnowledgeService(List.of(), current),
                 turn -> turn.tokenCount(), prepared -> {
                     throw new UnsupportedOperationException();
                 }, model -> 512, ignored -> { }, ignored -> { });

@@ -116,3 +116,17 @@ The player then opened the boat inventory. Its visible title was `Skyroot Boat w
 - Targeted: UNAVAILABLE, exact detail `target block inventory is unsupported`. This call selected a block while seated, not the boat entity; it does not validate targeted Skyroot or vanilla chest-boat reads.
 
 Restored the 3 dirt to the original player slot and left the empty boat inventory open. No fixture or internal bundle/shulker contents were altered. Positive native chest-boat targeted/ridden coverage remains pending; opened Skyroot cargo reading is now observed. No implementation changes were made.
+
+## Chest-bearing donkey follow-up
+
+The player aimed at a tame native donkey with a chest, identity `bece15dc-5466-41b3-bdc7-32475c393508` in compactmachines:compact_world. Used `computer-use:computer-use` and the same installed artifact/replay. Its inventory visibly had no saddle and no cargo. Mounted it, opened its inventory, temporarily put the player's 3 dirt into the first cargo slot, then restored the dirt to main inventory slot 1. The player assisted with dismounting after computer-use Shift input did not reliably trigger it.
+
+| Request / ID | Observed result |
+| --- | --- |
+| `DONKEY_LIVE_A` / `f306f0b7-c238-44fe-a188-d64e5e78319a` | Targeted search and evidence reread returned the correct donkey with COMPLETE empty contents and SERVER_READ authority. Before mounting, ridden returned UNAVAILABLE. |
+| `DONKEY_LIVE_B` / `4a9f9ee3-7272-44b1-ad3a-23ad61aeac27` | With dirt x3 in cargo, opened returned the cargo at menu slot 2, VIEWER/PARTIAL. Ridden search and evidence reread returned the same donkey and dirt x3 in section cargo, componentSlot/menuSlot 1, SERVER_READ/COMPLETE. Opening PackSage from the native horse menu preserved access without a crash. |
+| `DONKEY_LIVE_C` / `aa9746dc-870c-42e8-9ae5-99a5f6844c9b` | After cargo restoration, menu closure and player-assisted dismount: ridden was UNAVAILABLE (`player is not riding a supported container entity`), opened was UNAVAILABLE, and targeted returned the same donkey with COMPLETE empty contents. |
+
+All three requests completed; nine actual calls/results were inspected in the saved replay. Targeted access, opened/ridden positive cargo reads, evidence rereads, restored empty contents and dismount/menu-close invalidation passed. Positive saddle/equipment handling was not tested because none was equipped. The existing opened-menu partial-label issue persists. The opened/server `menuSlot` values also differ (2 versus 1 for the same cargo slot), extending the recorded slot-metadata ambiguity to mounts; counts and cargo classification were correct.
+
+The donkey's original empty cargo and player inventory were restored. Left the player dismounted, with PackSage displaying the final results and the donkey still targeted. No code, build or automated test changes were made.

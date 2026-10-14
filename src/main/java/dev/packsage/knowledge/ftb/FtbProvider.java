@@ -1009,7 +1009,7 @@ public final class FtbProvider implements KnowledgeProvider {
             if (query.cursorScope() != null && !sameScope(query.cursorScope(), scope))
                 return CompletableFuture.completedFuture(malformed("FTB cursor belongs to another scope"));
             try {
-                var context = new Toolbox.Context(scopeSource, Map.of(), new dev.packsage.knowledge.AdapterRegistry(),
+                var context = new Toolbox.Context(scopeSource, java.util.Map.of(), new dev.packsage.knowledge.AdapterRegistry(),
                         new Toolbox.DocumentBudget(), null);
                 if (query.cursor() != null && query.cursor().startsWith("ftb:")
                         && !context.documentBudget().bytes(query.cursor().length() * 2))

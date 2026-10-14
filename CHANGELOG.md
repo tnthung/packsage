@@ -7,6 +7,7 @@
 - Reworked inventory access behind a shared reader contract and added bounded `search_inventory` for item names, IDs, synchronized tags and tooltip text in vanilla player inventory/equipment.
 - Replaced hand-specific storage targeting with scoped item-slot references. Added empty mainhand/offhand location metadata, fresh stack/component revalidation and direct vanilla container/bundle reads at arbitrary observed player slots. General inventory metadata omits nested storage contents.
 - Standardized storage continuation on opaque `nextCursor` values and removed the misleading internal offset from model output. Added serializer-budget and stale-slot regressions; corrected compilation and tool-count expectations in separate follow-up commits.
+- Fixed JEI Recipe citations by retaining bounded exact native registrations and freshly revalidating their current category, recipe, visibility and scope before opening. Links remain usable after later chat requests within the active runtime; cross-restart recipe recovery remains unsupported.
 - Added on-demand inspection of occupied vanilla hotbar, main inventory, armor and offhand slots without requiring item IDs, preserving slot identity and copied item components.
 - Added bounded storage inspection with paging and original observation timestamps: visible non-player slots from opened menus, direct synchronized contents of held vanilla containers and bundles, and targeted block identity with explicit unavailable contents. Added an internal reader boundary for future mod-specific storage support.
 - Added content-free request timing traces from Send through gameplay/screenshot capture, request preparation, HTTP response headers, streamed text, tool rounds, retries, completion and persistence.
@@ -17,7 +18,7 @@
 
 Recorded [ATM10 inventory/storage checks](docs/validation/2026-10-14-inventory-storage-inspection.md) and [historical quest navigation/status checks](docs/validation/2026-10-14-historical-navigation.md). Specialized mod storage remains unsupported, and opened-menu observations remain partial. The latest recorded navigation build passed 400 tests with four existing skips. [Greeting timing measurements](docs/validation/2026-10-14-request-timing.md) separate local preparation from HTTP/stream waiting without promising a latency bound.
 
-The [capability reader alignment checks](docs/validation/2026-10-14-capability-reader-alignment.md) record 411 passing automated tests and four skips, plus live inventory/search/slot-storage observations in the minimal fixture, FTB Evolution and ATM10. Mod storage/network support remains planned. Existing quest/config extraction limits and a separate JEI navigation refresh failure are recorded explicitly.
+The [capability reader alignment checks](docs/validation/2026-10-14-capability-reader-alignment.md) record 411 passing automated tests and four skips, plus live inventory/search/slot-storage observations in the minimal fixture, FTB Evolution and ATM10. The [JEI follow-up](docs/validation/2026-10-14-jei-navigation-refresh.md) also passed actual recipe-page opening in all three profiles, including an older link after a subsequent fixture request. Mod storage/network support remains planned; existing quest/config extraction limits remain explicit.
 
 ### 2026-10-13
 

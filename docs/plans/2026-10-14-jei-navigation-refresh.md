@@ -16,7 +16,7 @@ The shared-reader acceptance checks found a JEI navigation failure in Evolution 
 
 - [x] Add a regression covering an exact GET after capture versions advance, plus rejection when the original registration is removed or replaced.
 - [x] Write and commit the bounded JEI correction; run focused tests and the full test/build suite, correcting failures in separate commits.
-- [ ] Install a verified JAR with clients closed; check actual JEI navigation and record the tested pack versions and limitations.
-- [ ] Update validation/changelog and run relative-link and diff checks.
+- [x] Install a verified JAR with clients closed; check actual JEI navigation and record the tested pack versions and limitations.
+- [x] Update validation/changelog and run relative-link and diff checks.
 
 Exact membership uses the known recipe type and original output focus without an arbitrary prefix cap; a valid recipe can come from a later cursor page. Only the verified registration is decoded, and retained registrations remain bounded to 512. Automated and live results are recorded in the [validation report](../validation/2026-10-14-jei-navigation-refresh.md).

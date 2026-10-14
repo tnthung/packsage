@@ -1,6 +1,6 @@
 # JEI navigation refresh validation
 
-Date: 2026-10-14. Status: automated checks passed; live navigation pending.
+Date: 2026-10-14. Status: automated checks and live navigation passed in all three profiles.
 
 ## Defect and correction
 
@@ -31,5 +31,7 @@ Minimal fixture replay: `packsage/New_World-8a315c270917e038/bffb2bf9-4cd6-4d29-
 Evolution replay: `packsage/PackSage_Evolution_Trial-2dc1b88ff37c5763/b9b53b70-3e22-4176-ae91-a0c0e95e901c-1f24e5c099a0393d.jsonl`. In the existing trial world, `JEI_NAV_EVO_A` completed with one focused `search_pack` call, a four-torch result and the exact `jei/1/1/minecraft:crafting/recipe-minecraft:torch-7` reference. Clicking Recipe opened the actual JEI Crafting page with four torches; Escape returned to PackSage. Used GPT-6-Luna / medium, Search off, Screenshot off and paused chat. No crafting or item transfer was performed.
 
 ATM10 replay: `packsage/OoO_-_PackSage_Trial-814a1737fe55fba5/02c5b6fa-4c17-4f89-8f15-78eb283423e2-a2771324a2bdb4cb.jsonl`. In the backed-up trial copy, `JEI_NAV_ATM_A` completed with one focused `search_pack` call, a four-torch result and the exact `jei/1/1/minecraft:crafting/recipe-minecraft:torch-9` reference. Clicking Recipe opened the actual JEI Crafting page with four torches; Escape returned to PackSage. Used GPT-6-Luna / medium, Search off, Screenshot off and paused chat. No crafting or item transfer was performed; original `OoO` was not opened.
+
+All three trial worlds were saved through their normal Save and Quit action, then their clients exited. A fresh window inventory confirmed no Minecraft test client remained open. Original `OoO` and its verified backup were left untouched.
 
 This correction does not add persistent cross-restart JEI recipe identifiers. A handle must still have an exact retained registration in the active runtime.

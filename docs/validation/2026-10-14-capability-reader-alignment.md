@@ -1,6 +1,6 @@
 # Capability reader alignment validation
 
-Date: 2026-10-14. Status: shared-reader live checks passed; JEI navigation follow-up in progress.
+Date: 2026-10-14. Status: shared-reader live checks passed; separate JEI navigation follow-up passed.
 
 ## Build and automated checks
 
@@ -65,7 +65,8 @@ Replay: profile-local `packsage/OoO_-_PackSage_Trial-814a1737fe55fba5/9623b8a6-a
 - `ALIGN_ATM_B`, sent at 03:07:01 UTC, completed with six tool calls and no rejected calls. It discovered Basic Tools quests and refreshed Wooden Pickaxe (zero/incomplete) and Stone Pickaxe (one/complete), with partial quest metadata. The PneumaticCraft Getting Started entry was complete. The canonical JEI crafting record returned four torches with complete viewer coverage; the additional Create record was opaque. Patchouli `useShiftForQuickLookup` explicitly returned saved and loaded values of false under partial config catalog coverage.
 - Clicking Config opened read-only source details with the same recorded values and provenance. Clicking Recipe failed with `Navigation target is no longer available`. Read-only source review identified the earlier navigation refresh's exact-GET request conflicting with JEI's snapshot-version-specific handles, rather than an inventory-reader regression. A [separate follow-up](../plans/2026-10-14-jei-navigation-refresh.md) preserves exact recipe binding while refreshing its current projection.
 
-## Remaining acceptance
+## Acceptance and limits
 
-- Complete the separate JEI navigation correction and save/quit the trial world.
+- The [separate JEI correction](2026-10-14-jei-navigation-refresh.md) passed automated checks and actual recipe-page opening in the minimal fixture, Evolution and ATM10. Its later installed JAR and exact runtime-registration limits are recorded there.
+- All trial worlds were saved normally and all three test clients exited. Original ATM10 `OoO` and its verified backup remain untouched.
 - No multiplayer/LAN, Curios, mod storage/network integration, or universal tooltip-provider compatibility is established by these checks.

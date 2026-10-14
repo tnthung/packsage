@@ -90,7 +90,6 @@ class FtbProviderTest {
             chapterTranslations.put(TranslationKey.TITLE, "");
             translationsField.set(chapter, chapterTranslations);
             cachedTitleField.set(chapter, Component.literal(""));
-            group.addChapter(chapter);
             chapter.onCreated();
             var firstQuestId = 0x1000L;
             for (var index = 0; index < 800; index++) {
@@ -101,7 +100,6 @@ class FtbProviderTest {
                 translationsField.set(quest, questTranslations);
                 cachedTitleField.set(quest, Component.literal(questTitle));
                 quest.onCreated();
-                chapter.addQuest(quest);
             }
             var team = new TeamData(java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"), file);
             file.selfTeamData = team;
@@ -158,7 +156,6 @@ class FtbProviderTest {
             replacementTranslations.put(TranslationKey.TITLE, "Replacement chapter");
             translationsField.set(replacement, replacementTranslations);
             cachedTitleField.set(replacement, Component.literal("Replacement chapter"));
-            group.addChapter(replacement);
             replacement.onCreated();
             var changedOwner = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
                     new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of())).toCompletableFuture();
@@ -200,11 +197,9 @@ class FtbProviderTest {
             chapterTranslations.put(TranslationKey.TITLE, "");
             translationsField.set(chapter, chapterTranslations);
             cachedTitleField.set(chapter, Component.literal(""));
-            group.addChapter(chapter);
             chapter.onCreated();
             var quest = new Quest(0x2000L, chapter);
             quest.onCreated();
-            chapter.addQuest(quest);
             for (var index = 0; index < 180; index++) {
                 quest.addTask(new ItemTask(0x3000L + index, quest)
                         .setStackAndCount(new ItemStack(Items.STONE), 1));

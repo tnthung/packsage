@@ -4,15 +4,17 @@ Scope: the six guide/manual sources in the [roadmap](../roadmap/2026-10-13-todo.
 
 ## Automated checks
 
-The first full implementation run passed 475 tests across 47 suites: 0 failures, 0 errors, 4 skipped. The focused guide and existing Patchouli suites passed. The portable Java 21 runtime was used for Gradle. `build` produced the full JAR, not the bootstrap subset.
+The latest full implementation run completed 481 tests: 0 failures, 0 errors, 4 skipped. The focused guide and existing Patchouli suites passed. The portable Java 21 runtime was used for Gradle. `build` produced the full JAR, not the bootstrap subset.
 
 Observed regressions included wrong-provider evidence dispatch, booklet fragments spending their text allowance on discarded structured fields, and source-specific compilation/fixture errors. These were corrected in separate commits. Tests cover fresh evidence reads, scope/query/source identity rejection, hidden candidate progression, overlapped text fragments and bounded source extraction.
 
-Independent review checked shared registration, client-thread execution, reference ownership, scope checks and source continuations. It subsequently found two budget-bound continuation defects in GuideME and Actually Additions; their fixes and final rerun are pending below. Fixture coverage does not establish installed mod compatibility.
+Independent review checked shared registration, client-thread execution, reference ownership, scope checks and source continuations. GuideME and Actually Additions budget-bound continuation findings were fixed and included in the full rerun. Live testing exposed additional text-holder and exhausted-fragment issues; their fixes are also included. The shared fragment retry regression failed before the fix and passed afterward, checking changed live text on both initial and later fragment retries. Relics discovery now uses its native live item tag and validates tag generation/membership when continuing or rereading. Fixture coverage does not establish installed mod compatibility.
 
 ## Installed checks
 
 Initial test artifact SHA-256: `CC0D52A95097DF097D0908035E4DF84710C64D188C5300D8C9AC9A8ACB1EC79A`. Build output, `dist/packsage.jar` and ATM10's installed `mods/packsage.jar` matched after copying with Minecraft closed.
+
+Updated test artifact SHA-256: `F59F10669A895669165BCBFAB0F19458936E0DA5DC6538EB0FEEFC593146585D`. The full suite/build passed before installation; all three JAR hashes matched with Minecraft closed. Updated-artifact live checks are pending.
 
 Only `OoO - PackSage Trial` is used for acceptance testing. Initial live requests below used the initial artifact, before the subsequent fixes; final-artifact acceptance remains pending.
 

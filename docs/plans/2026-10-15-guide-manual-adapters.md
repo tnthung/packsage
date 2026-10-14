@@ -13,11 +13,11 @@ Extend the approved [tool contract](../specs/2026-10-14-behavior-driven-tools.md
 
 ## Work steps
 
-- [ ] Verify installed source APIs and record concrete source/version evidence.
-- [ ] Add shared bounded guide traversal/reference tests, observe meaningful failures, then implement the common provider infrastructure required by the readers.
-- [ ] Implement Modonomicon, GuideME and Immersive Engineering source readers with source-specific regression coverage.
-- [ ] Implement Actually Additions booklet, Relics and Artifacts source readers with source-specific regression coverage.
-- [ ] Register all six logical providers, expose metadata/status and verify provider-qualified and combined discovery through existing dispatch.
-- [ ] Run focused tests and the full build; independently review freshness, bounds, optional loading and source semantics; fix findings in separate commits.
+- [x] Verify installed source APIs and record concrete source/version evidence.
+- [x] Add shared bounded guide traversal/reference tests, observe meaningful failures, then implement the common provider infrastructure required by the readers.
+- [x] Implement Modonomicon, GuideME and Immersive Engineering source readers with source-specific regression coverage.
+- [x] Implement Actually Additions booklet, Relics and Artifacts source readers with source-specific regression coverage.
+- [x] Register all six logical providers, expose metadata/status and verify provider-qualified and combined discovery through existing dispatch.
+- [x] Run focused tests and the full build; independently review freshness, bounds, optional loading and source semantics; fix findings in separate commits.
 - [ ] Install the tested artifact with Minecraft closed, run computer-use checks in `OoO - PackSage Trial`, and inspect actual call/result pairs for all six sources and fresh evidence reads.
 - [ ] Update the six roadmap checkboxes only for delivered behavior; record tests, installed observations and remaining source limitations in a dated validation report.

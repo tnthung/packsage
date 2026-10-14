@@ -72,7 +72,7 @@ class GroundingInstructionsTest {
         assertTrue(request.instructions().contains("historical conversation"));
         assertTrue(request.instructions().contains("The final user message is the only current request."));
         assertTrue(request.instructions().contains("Do not summarize gameplay metadata, continue an earlier topic, or retrieve unrelated evidence."));
-        assertTrue(request.instructions().contains("Retrieve pack evidence before asserting recipes"));
+        assertTrue(request.instructions().contains("Retrieve relevant installed-pack evidence before making claims about recipes"));
         assertTrue(request.instructions().contains("Continue an earlier topic only when the latest request asks for it or depends on it."));
         assertTrue(request.instructions().contains("short, direct reply without unrelated evidence lookup"));
         assertTrue(request.instructions().contains("retrieve fresh evidence before making current pack claims"));
@@ -81,7 +81,7 @@ class GroundingInstructionsTest {
         assertTrue(request.instructions().contains("try an empty query with a provider filter when appropriate"));
         assertTrue(request.instructions().contains("omit text unless it is an additional intended filter"));
         assertTrue(request.instructions().contains("unchanged query, filters and limit"));
-        assertTrue(request.instructions().contains("Cursors continue searches; references identify records for reads."));
+        assertTrue(request.instructions().contains("Cursors continue searches; returned record references identify evidence to read."));
         assertTrue(request.instructions().contains("count each required input slot and its quantity once"));
         assertTrue(request.instructions().contains("vanilla armor coverage does not establish accessory-slot coverage"));
         assertTrue(request.instructions().contains("reread current inventory and recipe evidence"));

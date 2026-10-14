@@ -24,6 +24,8 @@ Resolved findings include discovery provider/kind ownership, missing-field absen
 
 The reviewed native server policy explicitly authorizes private integrated-world owner reads. It does not reproduce protection-mod GUI hooks. Same-ID item swaps at an unchanged location and container contract remain location-based; an ID or container-contract change invalidates continuation. A pre-existing recursive planner cap concern was declined as a migration blocker because current native recipes report unknown consumption and do not enter that recursion.
 
+JEI's public native lookup API owns focus search, visibility filtering, category sorting and plugin lookup work. PackSage bounds its own inspection of returned categories/recipes and projection extraction, including retained-reference membership checks; these caps do not bound JEI's internal work or wall-clock time. The pinned public API has no raw paged membership endpoint. Retain native focus and visibility semantics rather than clone the recipe system or claim an end-to-end work bound.
+
 ## Installed live checks
 
 Pending. Use only ATM10's `OoO - PackSage Trial`; the original `OoO` is outside the test scope. The CurseForge profile has been observed through `computer-use:computer-use`, but Minecraft has not been launched for this candidate and no live tool acceptance is claimed yet.

@@ -405,6 +405,22 @@ class NativeStorageReaderTest {
     }
 
     @Test
+    void selectedNameTruncationCannotProveCompleteAbsence() {
+        var child = new ItemStack(Items.DIAMOND);
+        child.set(DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal("x".repeat(256) + "needle"));
+        var owner = new ItemStack(Items.SHULKER_BOX);
+        owner.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(child)));
+        var location = new NativeInventoryReader.LocatedItem("main", 0, null, false, owner);
+        var reader = new NativeStorageReader(Runnable::run, () -> FIRST, () -> 0,
+                (reference, scope) -> location, () -> RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
+        var result = reader.read(new StorageReader.Request(StorageReader.Target.ITEM, "slot", 
+                new dev.packsage.knowledge.inventory.InventoryReader.Filter(List.of("needle"), List.of(), List.of(), List.of(), List.of()),
+                32, null, FIRST)).toCompletableFuture().join();
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertEquals(0, ((Evidence.JsonArray) result.records().getFirst().payload().values().get("entries")).values().size());
+    }
+
+    @Test
     void openedInventoryRecognizesFurnaceStockSlotsAndExcludesCraftingPreviews() {
         var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
         var machineContents = new SimpleContainer(3);

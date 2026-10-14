@@ -106,3 +106,13 @@ The player prepared a bundle, shulker box, chest boat and chest minecart. Contin
 Both requests completed; all nine calls/results were inspected in the saved replay. Targeted minecart identity was `3310651a-c151-42b0-b8e8-40eca16c0780`. Item-reference resolution, hand selection, minecart cargo reads, changed-to-empty freshness and closed-menu invalidation passed. The known opened-menu partial-label issue also affects the minecart. Bundle/shulker internal contents were not mutated during this follow-up, so their content-mutation freshness is not established by these calls.
 
 Restored dirt to main inventory slot 1, bundle to hotbar 4, shulker to hotbar 5, offhand empty and selected hotbar 7. Minecart was empty again. Camera control through mouse dragging proved unreliable while trying to aim at the boat, so stopped input and asked the player to open the boat inventory. Boat checks remain pending at this checkpoint. No code, build or automated test changes were made.
+
+### Skyroot chest boat
+
+The player then opened the boat inventory. Its visible title was `Skyroot Boat with Chest`, a modded fixture, and cargo was empty. Temporarily placed the player's 3 dirt into cargo slot 0. Request `BOAT_LIVE_A` / `2845e324-3023-43dc-a652-d275a45b4c06` completed with three calls in the same replay:
+
+- Opened: correctly returned dirt x3 at menu slot 0, VIEWER/PARTIAL through the current `minecraft:generic_9x3` menu.
+- Ridden: UNAVAILABLE, exact detail `target entity type is unsupported`. This is an observed compatibility limit for the ridden Skyroot boat. The current native server reader accepts exact `ChestBoat` and `MinecartChest` classes, not arbitrary subclasses.
+- Targeted: UNAVAILABLE, exact detail `target block inventory is unsupported`. This call selected a block while seated, not the boat entity; it does not validate targeted Skyroot or vanilla chest-boat reads.
+
+Restored the 3 dirt to the original player slot and left the empty boat inventory open. No fixture or internal bundle/shulker contents were altered. Positive native chest-boat targeted/ridden coverage remains pending; opened Skyroot cargo reading is now observed. No implementation changes were made.

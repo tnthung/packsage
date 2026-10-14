@@ -69,7 +69,9 @@ public final class KnowledgeService {
                         boolean mismatched = result != null && result.records().stream().anyMatch(record ->
                                 !record.source().scope().equals(request.scope()) || !record.source().providerId().equals(reference.providerId())
                                 || !record.source().sourceHandle().equals(reference.sourceHandle()) || record.kind() != reference.kind());
-                        if (request.tool().equals("read_progress") && (failure != null || result == null || result.records().isEmpty() || mismatched)) {
+                        boolean unavailable = result != null && (result.coverage() == Evidence.Coverage.ERROR
+                                || result.coverage() == Evidence.Coverage.UNAVAILABLE || result.outcome() == Evidence.Outcome.ERROR);
+                        if (request.tool().equals("read_progress") && (failure != null || result == null || result.records().isEmpty() || mismatched || unavailable)) {
                             String detail = failure != null ? failure.getMessage() : result != null && result.detail() != null ? result.detail()
                                     : "current quest progress is unavailable or its identity changed";
                             result = new Evidence.Result(List.of(new Evidence.Record(new Evidence.Source(request.scope(), reference.providerId(),
@@ -80,6 +82,9 @@ public final class KnowledgeService {
                                     Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, null, detail);
                         } else {
                             if (failure != null) throw new CompletionException(failure);
+                            if (result == null || unavailable) throw new Toolbox.Failure(result != null && result.coverage() == Evidence.Coverage.UNAVAILABLE
+                                    ? Toolbox.Code.UNAVAILABLE : Toolbox.Code.EXTRACTION_FAILED,
+                                    result != null && result.detail() != null ? result.detail() : "current evidence is unavailable");
                             if (mismatched) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "adapter returned a different reference identity");
                         }
                         var records = new ArrayList<>(previous.records());

@@ -252,7 +252,9 @@ public final class PackSageTools {
                 json.addProperty("nextCursor", result.nextCursor());
                 if (result.detail() != null) json.addProperty("detail", result.detail());
                 var records = new JsonArray();
+                json.add("records", records);
                 var accepted = new ArrayList<Evidence.Record>();
+                int outputBytes = json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
                 for (var record : result.records()) {
                     var encoded = new JsonObject();
                     encoded.addProperty("reference", record.source().providerId() + ":" + record.source().sourceHandle());
@@ -262,8 +264,10 @@ public final class PackSageTools {
                     encoded.addProperty("title", record.title());
                     encoded.add("payload", JsonParser.parseString(Evidence.serialize(record.payload())));
                     encoded.add("recipe", JSON.toJsonTree(record.recipePayload()));
+                    int recordBytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + (records.isEmpty() ? 0 : 1);
                     if (!record.source().sourceHandle().startsWith("status:")
-                            && accepted.stream().filter(value -> !value.source().sourceHandle().startsWith("status:")).count() == 64 ||records.toString().length() + encoded.toString().length() > 131_072) {
+                            && accepted.stream().filter(value -> !value.source().sourceHandle().startsWith("status:")).count() == 64
+                            || outputBytes + recordBytes > 131_072 - 128) {
                         json.addProperty("coverage", "PARTIAL");
                         json.addProperty("outcome", "PARTIAL");
                         json.addProperty("detail", "tool output limit reached; narrow the lookup");
@@ -271,8 +275,16 @@ public final class PackSageTools {
                     }
                     records.add(encoded);
                     accepted.add(record);
+                    outputBytes += recordBytes;
                 }
-                json.add("records", records);
+                if (json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 131_072) {
+                    json.addProperty("coverage", "PARTIAL");
+                    json.addProperty("outcome", "PARTIAL");
+                    json.addProperty("nextCursor", (String) null);
+                    json.addProperty("detail", "tool output limit reached; narrow the lookup");
+                    json.add("records", new JsonArray());
+                    accepted.clear();
+                }
                 return new ToolResponse(new ModelBackend.ToolResult(call.callId(), json.toString(), result.outcome() == Evidence.Outcome.ERROR), accepted);
             });
         } catch (RuntimeException failure) {
@@ -280,6 +292,7 @@ public final class PackSageTools {
             error.addProperty("coverage", "ERROR");
             error.addProperty("outcome", "ERROR");
             error.addProperty("detail", failure instanceof IllegalArgumentException || failure instanceof Toolbox.Failure ? failure.getMessage() : "invalid read tool arguments");
+            if (failure instanceof Toolbox.Failure typed) error.addProperty("code", typed.code().name());
             return CompletableFuture.completedFuture(new ToolResponse(new ModelBackend.ToolResult(call.callId(), error.toString(), true), List.of()));
         }
     }

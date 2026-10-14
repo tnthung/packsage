@@ -55,7 +55,7 @@ class NativeStorageReaderTest {
         assertEquals(Instant.EPOCH, page.source().observedAt());
         assertEquals(SECOND, page.source().scope());
         assertEquals(FIRST.requestGeneration(), page.source().observedGeneration());
-        assertEquals("1", ((Evidence.JsonString) ((page.payload()).values().get("nextOffset"))).value());
+        assertFalse(page.payload().values().containsKey("nextOffset"));
         assertEquals("partial", ((Evidence.JsonString) ((page.payload()).values().get("completeness"))).value());
         assertEquals(1, ((Evidence.JsonArray) ((page.payload()).values().get("entries"))).values().size());
     }
@@ -129,7 +129,7 @@ class NativeStorageReaderTest {
         assertTrue(returned > 0);
         assertTrue(returned < entries.size());
         assertNotNull(first.nextCursor());
-        assertEquals(Integer.toString(returned), ((Evidence.JsonString) ((firstPage).values().get("nextOffset"))).value());
+        assertFalse(firstPage.values().containsKey("nextOffset"));
         assertTrue(Evidence.serialize(firstPage).getBytes(StandardCharsets.UTF_8).length <= 96 * 1024);
 
         var second = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 32, first.nextCursor(), FIRST))

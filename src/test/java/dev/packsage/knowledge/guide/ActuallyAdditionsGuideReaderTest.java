@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ActuallyAdditionsGuideReaderTest {
@@ -120,6 +121,28 @@ class ActuallyAdditionsGuideReaderTest {
             var secondPage = reader.candidates(firstPage.nextPosition(), 1, new Toolbox.DocumentBudget());
             assertEquals(List.of(entryId.toString()), firstPage.candidates().stream().map(GuideDocumentReader.Candidate::id).toList());
             assertEquals(List.of(secondEntryId.toString()), secondPage.candidates().stream().map(GuideDocumentReader.Candidate::id).toList());
+
+            var craftingPage = new vazkii.patchouli.client.book.page.PageCrafting();
+            craftingPage.sourceObject = new JsonObject();
+            craftingPage.sourceObject.addProperty("type", "patchouli:crafting");
+            craftingPage.sourceObject.addProperty("recipe", "fixture:recipe");
+            var followingPage = new PageText();
+            followingPage.sourceObject = new JsonObject();
+            followingPage.sourceObject.addProperty("type", "patchouli:text");
+            followingPage.sourceObject.addProperty("text", "text after crafting page");
+            realPages.set(entry, List.of(page, craftingPage, followingPage));
+            var emptyPage = reader.readFragment(entryId.toString(), "1,0,0,0", 64, new Toolbox.DocumentBudget());
+            assertEquals("", emptyPage.text());
+            assertEquals("2,0,0,0", emptyPage.nextPosition());
+            var afterEmptyPage = reader.readFragment(entryId.toString(), emptyPage.nextPosition(), 64, new Toolbox.DocumentBudget());
+            assertEquals("text after crafting page", afterEmptyPage.text());
+
+            var boundedBudget = new Toolbox.DocumentBudget();
+            assertTrue(boundedBudget.bytes(96 * 1024 - entryId.toString().length() * 6 - 128 - 2048));
+            var failure = assertThrows(Toolbox.Failure.class,
+                    () -> reader.readFragment(entryId.toString(), "0,0,0,0", 64, boundedBudget));
+            assertTrue(boundedBudget.exhausted());
+            assertTrue(failure.getMessage().contains("Patchouli continuation cannot advance within the read budget"));
         } finally {
             configField.set(null, originalConfig);
         }

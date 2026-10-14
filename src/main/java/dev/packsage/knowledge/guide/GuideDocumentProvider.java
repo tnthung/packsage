@@ -377,6 +377,14 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
                     try {
                         fragment = reader.readFragment(candidate.id(), fragmentPosition, maxChars, context.documentBudget());
                     } catch (Toolbox.Failure failure) {
+                        if (failure.code() == Toolbox.Code.EXTRACTION_FAILED && context.documentBudget().exhausted()) {
+                            coverage = mergeCoverage(coverage, Evidence.Coverage.PARTIAL);
+                            details.add(boundedDetail(failure.getMessage()));
+                            nextCursor = saveCursor(search, scope, sourceIdentity, afterPosition,
+                                    candidate.id(), fragmentPosition);
+                            stopped = true;
+                            break;
+                        }
                         if (failure.code() != Toolbox.Code.UNAVAILABLE && failure.code() != Toolbox.Code.EXTRACTION_FAILED) throw failure;
                         coverage = mergeCoverage(coverage, Evidence.Coverage.PARTIAL);
                         details.add(boundedDetail(failure.getMessage()));

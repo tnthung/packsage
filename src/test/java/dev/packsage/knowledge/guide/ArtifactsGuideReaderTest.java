@@ -17,7 +17,8 @@ class ArtifactsGuideReaderTest {
     @Test
     void exposesOnlyThePinnedArtifactsGuideSource() {
         Executor clientExecutor = Runnable::run;
-        var provider = ArtifactsGuideReader.forMinecraft(() -> new Evidence.Scope("world", "en_us", "team", "source", 1),
+        var provider = new GuideDocumentProvider(new ArtifactsGuideReader(),
+                () -> new Evidence.Scope("world", "en_us", "team", "source", 1),
                 clientExecutor);
 
         assertEquals("artifacts", provider.id());

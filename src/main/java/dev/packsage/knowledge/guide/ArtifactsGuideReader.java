@@ -9,6 +9,7 @@ import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.fml.ModList;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -26,6 +27,18 @@ public final class ArtifactsGuideReader implements GuideDocumentReader {
     ArtifactsGuideReader() { }
 
     public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor) {
+        var modList = ModList.get();
+        if (modList.isLoaded("reliquified_artifacts")) {
+            String addonVersion = modList.getModContainerById("reliquified_artifacts")
+                    .map(container -> container.getModInfo().getVersion().toString()).orElse("unknown");
+            String relicsVersion = modList.getModContainerById("relics")
+                    .map(container -> container.getModInfo().getVersion().toString()).orElse("unknown");
+            if (!addonVersion.equals("1.0.8") || !relicsVersion.equals("0.12.8"))
+                throw new IllegalStateException("unsupported Reliquified Artifacts/Relics versions: "
+                        + addonVersion + "/" + relicsVersion);
+            return new GuideDocumentProvider(new RelicsGuideReader("artifacts", "13.2.3", "artifacts"),
+                    currentScope, clientExecutor);
+        }
         return new GuideDocumentProvider(new ArtifactsGuideReader(), currentScope, clientExecutor);
     }
 
@@ -43,9 +56,6 @@ public final class ArtifactsGuideReader implements GuideDocumentReader {
         String next = afterPosition;
         boolean more = false;
         boolean partial = false;
-        int registeredItemCount = 0;
-        int artifactItemCount = 0;
-        int inspectedComponentCount = 0;
         try {
             int afterItemIndex = -1;
             int afterComponentIndex = -1;
@@ -75,17 +85,14 @@ public final class ArtifactsGuideReader implements GuideDocumentReader {
                 if (itemIndex < afterItemIndex) { itemIndex++; continue; }
                 if (!budget.value()) { next = itemIndex + ":-1"; more = true; partial = true; break; }
                 if (!(registeredItem instanceof Item item)) { partial = true; itemIndex++; continue; }
-                registeredItemCount++;
                 String itemId = BuiltInRegistries.ITEM.getKey(item).toString();
                 int currentItemIndex = itemIndex++;
                 if (!itemId.startsWith("artifacts:")) { next = currentItemIndex + ":-1"; continue; }
-                artifactItemCount++;
                 var stack = item.getDefaultInstance();
                 int componentIndex = 0;
                 for (Object supplier : componentTypes) {
                     if (currentItemIndex == afterItemIndex && componentIndex <= afterComponentIndex) { componentIndex++; continue; }
                     if (!budget.value()) { next = currentItemIndex + ":" + (componentIndex - 1); more = true; partial = true; break; }
-                    inspectedComponentCount++;
                     if (!(supplier instanceof Supplier<?> componentSupplier)) {
                         partial = true;
                         next = currentItemIndex + ":" + componentIndex++;
@@ -121,15 +128,9 @@ public final class ArtifactsGuideReader implements GuideDocumentReader {
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
             partial = true;
         }
-        String detail = partial ? "Artifacts ability registry traversal was bounded or its optional API was unavailable" : null;
-        if (!partial && candidates.isEmpty() && afterPosition == null) {
-            partial = true;
-            detail = "Artifacts traversal found no default-stack ability components (registeredItems=" + registeredItemCount
-                    + ", artifactsItems=" + artifactItemCount + ", orderedComponents=" + inspectedComponentCount + ")";
-        }
         return new CandidatePage(candidates, more ? next : null, more,
                 partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                detail);
+                partial ? "Artifacts ability registry traversal was bounded or its optional API was unavailable" : null);
     }
 
     @Override

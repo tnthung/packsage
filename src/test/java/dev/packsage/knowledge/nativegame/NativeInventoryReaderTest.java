@@ -2,6 +2,8 @@ package dev.packsage.knowledge.nativegame;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.inventory.InventoryReader;
+import dev.packsage.model.ModelBackend;
+import dev.packsage.model.PackSageTools;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
@@ -18,6 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -109,7 +112,7 @@ class NativeInventoryReaderTest {
         var body = "x".repeat(8 * 1024);
         for (int index = 0; index < 20; index++) {
             var reference = "native:inventory:observation:main:" + index;
-            var record = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", reference, 1,
+            var record = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", reference.substring("native:".length()), 1,
                     Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
                     Evidence.RecordKind.ITEM, "Apple " + index, new Evidence.JsonObject(Map.of("metadata", new Evidence.JsonString(body))),
                     List.of());
@@ -122,23 +125,59 @@ class NativeInventoryReaderTest {
         var reader = new NativeInventoryReader(Runnable::run, () -> SCOPE,
                 request -> new NativeInventoryReader.Capture(slots, summary, Evidence.Coverage.COMPLETE, Instant.EPOCH, now.get()),
                 address -> null, now::get);
+        var tools = new PackSageTools(read -> {
+            var values = read.arguments().values();
+            var fields = ((Evidence.JsonArray) values.get("fields")).values().stream()
+                    .map(value -> ((Evidence.JsonString) value).value()).toList();
+            var cursorValue = values.get("cursor");
+            var cursor = cursorValue instanceof Evidence.JsonString value ? value.value() : null;
+            var limit = ((Evidence.JsonNumber) values.get("limit")).value().intValueExact();
+            var text = ((Evidence.JsonString) values.get("text")).value();
+            return reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH, List.of(), text, fields,
+                    limit, cursor, read.scope()));
+        });
         var page = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH, List.of(), "minecraft:apple",
                 List.of("id"), 32, null, SCOPE)).toCompletableFuture().join();
         var titles = new java.util.ArrayList<String>();
+        String toolCursor = null;
+        var pageIndex = 0;
         while (true) {
-            titles.addAll(page.records().stream().map(Evidence.Record::title).toList());
+            var arguments = "{\"text\":\"minecraft:apple\",\"fields\":[\"id\"],\"limit\":32,\"cursor\":"
+                    + (toolCursor == null ? "null" : "\"" + toolCursor + "\"") + "}";
+            var toolResponse = tools.execute(new ModelBackend.ToolCall("budget-" + pageIndex++, "search_inventory", arguments), SCOPE)
+                    .toCompletableFuture().join();
+            var toolJson = com.google.gson.JsonParser.parseString(toolResponse.result().serializedResult()).getAsJsonObject();
+            var encodedRecords = toolJson.getAsJsonArray("records");
+            assertFalse(toolJson.has("detail") && toolJson.get("detail").getAsString()
+                    .contains("tool output limit reached"));
+            assertEquals(page.records(), toolResponse.records());
+            assertEquals(page.records().size(), encodedRecords.size());
+            for (int index = 0; index < encodedRecords.size(); index++) {
+                var encoded = encodedRecords.get(index).getAsJsonObject();
+                var expected = page.records().get(index);
+                assertEquals(expected.title(), encoded.get("title").getAsString());
+                assertEquals(expected.source().providerId() + ":" + expected.source().sourceHandle(),
+                        encoded.get("reference").getAsString());
+                assertEquals(com.google.gson.JsonParser.parseString(Evidence.serialize(expected.payload())), encoded.get("payload"));
+            }
+            titles.addAll(toolResponse.records().stream().map(Evidence.Record::title).toList());
             assertTrue(page.records().stream().mapToInt(record -> Evidence.serialize(record.payload())
                     .getBytes(java.nio.charset.StandardCharsets.UTF_8).length
                     + record.title().getBytes(java.nio.charset.StandardCharsets.UTF_8).length
                     + record.source().sourceHandle().getBytes(java.nio.charset.StandardCharsets.UTF_8).length
                     + record.source().provenance().stream().mapToInt(value -> value.getBytes(
                             java.nio.charset.StandardCharsets.UTF_8).length).sum() + 256).sum() <= 96 * 1024);
+            var actualCursorValue = toolJson.get("nextCursor");
+            var nextToolCursor = actualCursorValue == null || actualCursorValue.isJsonNull()
+                    ? null : actualCursorValue.getAsString();
+            assertEquals(page.nextCursor() == null, nextToolCursor == null);
             if (page.nextCursor() == null) break;
+            toolCursor = nextToolCursor;
             page = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH, List.of(), "minecraft:apple",
                     List.of("id"), 32, page.nextCursor(), SCOPE)).toCompletableFuture().join();
         }
 
-        assertEquals(20, titles.size());
+        assertEquals(slots.stream().map(NativeInventoryReader.CapturedSlot::name).toList(), titles);
         assertEquals(20, titles.stream().distinct().count());
     }
 

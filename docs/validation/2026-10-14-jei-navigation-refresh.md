@@ -22,8 +22,10 @@ The [shared-reader trial](2026-10-14-capability-reader-alignment.md) exposed fai
 
 | Profile | Minecraft / NeoForge | JEI | Result |
 | --- | --- | --- | --- |
-| Packsage minimal fixture | 1.21.1 / 21.1.202 | 19.27.0.340 | Pending. |
+| Packsage minimal fixture | 1.21.1 / 21.1.202 | 19.27.0.340 | Latest and older-after-follow-up Recipe links opened the correct JEI page. |
 | FTB Evolution 1.45.0 | 1.21.1 / 21.1.250 | 19.57.0.450 | Pending. |
 | ATM10 8.2 trial copy | 1.21.1 / 21.1.251 | 19.57.0.446 | Pending. |
+
+Minimal fixture replay: `packsage/New_World-8a315c270917e038/bffb2bf9-4cd6-4d29-9f78-9a1a8e1807f3-f3b0f6737caac42c.jsonl`. `JEI_NAV_MIN_A` completed with one focused JEI search and a one-torch result matching the installed override. Clicking its Recipe citation opened the actual JEI Crafting page. After returning to chat, `JEI_NAV_MIN_B` completed with `NEXT`, no tool calls and request generation 2. Clicking the original Recipe citation again opened the same correct JEI page. No crafting or item transfer was performed.
 
 This correction does not add persistent cross-restart JEI recipe identifiers. A handle must still have an exact retained registration in the active runtime.

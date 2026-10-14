@@ -90,7 +90,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                             more = true;
                             if (!afterSeen) throw new Toolbox.Failure(
                                     Toolbox.Code.EXTRACTION_FAILED, "GuideME page traversal cannot seek past its current cursor within the source-work bound");
-                            if (afterPosition != null && java.util.Objects.equals(next, afterPosition)) throw new Toolbox.Failure(
+                            if (java.util.Objects.equals(next, afterPosition)) throw new Toolbox.Failure(
                                     Toolbox.Code.EXTRACTION_FAILED, "GuideME page traversal exhausted its work bound while seeking past the current cursor");
                             return true;
                         }
@@ -138,7 +138,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                 if (!budget.value()) {
                     if (!collector.afterSeen) throw new Toolbox.Failure(
                             Toolbox.Code.EXTRACTION_FAILED, "GuideME guide traversal cannot seek past its current cursor within the source-work bound");
-                    if (afterPosition != null && java.util.Objects.equals(collector.next, afterPosition)) throw new Toolbox.Failure(
+                    if (java.util.Objects.equals(collector.next, afterPosition)) throw new Toolbox.Failure(
                             Toolbox.Code.EXTRACTION_FAILED, "GuideME guide traversal exhausted its work bound while seeking past the current cursor");
                     return new CandidatePage(candidates, collector.next, true, Evidence.Coverage.PARTIAL,
                             "GuideME traversal reached the source-work bound");

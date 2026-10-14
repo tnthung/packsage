@@ -3,7 +3,9 @@ package dev.packsage.knowledge.ftb;
 import dev.ftb.mods.ftbquests.client.ClientQuestFile;
 import dev.ftb.mods.ftbquests.quest.Chapter;
 import dev.ftb.mods.ftbquests.quest.Quest;
+import dev.ftb.mods.ftbquests.quest.QuestObjectBase;
 import dev.ftb.mods.ftbquests.quest.TeamData;
+import dev.ftb.mods.ftbquests.quest.translation.TranslationKey;
 import dev.ftb.mods.ftbquests.quest.task.ItemTask;
 import dev.ftb.mods.ftbquests.quest.task.Task;
 import dev.ftb.mods.ftbquests.quest.task.TaskType;
@@ -14,10 +16,12 @@ import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 import java.nio.charset.StandardCharsets;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -70,30 +74,32 @@ class FtbProviderTest {
         minecraftInstance.setAccessible(true);
         var previousMinecraft = minecraftInstance.get(null);
         minecraftInstance.set(null, fakeMinecraft);
-        var optionsField = Minecraft.class.getDeclaredField("options");
-        optionsField.setAccessible(true);
-        var options = unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, optionsField.getType());
-        var languageCode = optionsField.getType().getDeclaredField("languageCode");
-        languageCode.setAccessible(true);
-        var languageOffset = unsafe.getClass().getMethod("objectFieldOffset", java.lang.reflect.Field.class)
-                .invoke(unsafe, languageCode);
-        unsafe.getClass().getMethod("putObject", Object.class, long.class, Object.class)
-                .invoke(unsafe, options, languageOffset, "en_us");
-        var optionsOffset = unsafe.getClass().getMethod("objectFieldOffset", java.lang.reflect.Field.class)
-                .invoke(unsafe, optionsField);
-        unsafe.getClass().getMethod("putObject", Object.class, long.class, Object.class)
-                .invoke(unsafe, fakeMinecraft, optionsOffset, options);
         try {
             var file = new ClientQuestFile();
             var group = file.getDefaultChapterGroup();
+            var translationsField = QuestObjectBase.class.getDeclaredField("protoTranslations");
+            translationsField.setAccessible(true);
+            var cachedTitleField = QuestObjectBase.class.getDeclaredField("cachedTitle");
+            cachedTitleField.setAccessible(true);
+            var groupTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+            groupTranslations.put(TranslationKey.TITLE, "");
+            translationsField.set(group, groupTranslations);
+            cachedTitleField.set(group, Component.literal(""));
             var chapter = new Chapter(0x100L, file, group);
-            chapter.setRawTitle("Large chapter");
+            var chapterTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+            chapterTranslations.put(TranslationKey.TITLE, "");
+            translationsField.set(chapter, chapterTranslations);
+            cachedTitleField.set(chapter, Component.literal(""));
             group.addChapter(chapter);
             chapter.onCreated();
             var firstQuestId = 0x1000L;
             for (var index = 0; index < 800; index++) {
                 var quest = new Quest(firstQuestId + index, chapter);
-                quest.setRawTitle("Live quest " + index);
+                var questTitle = "Live quest " + index;
+                var questTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+                questTranslations.put(TranslationKey.TITLE, questTitle);
+                translationsField.set(quest, questTranslations);
+                cachedTitleField.set(quest, Component.literal(questTitle));
                 quest.onCreated();
                 chapter.addQuest(quest);
             }
@@ -148,7 +154,10 @@ class FtbProviderTest {
 
             group.removeChapter(chapter);
             var replacement = new Chapter(0x101L, file, group);
-            replacement.setRawTitle("Replacement chapter");
+            var replacementTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+            replacementTranslations.put(TranslationKey.TITLE, "Replacement chapter");
+            translationsField.set(replacement, replacementTranslations);
+            cachedTitleField.set(replacement, Component.literal("Replacement chapter"));
             group.addChapter(replacement);
             replacement.onCreated();
             var changedOwner = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
@@ -175,28 +184,25 @@ class FtbProviderTest {
         minecraftInstance.setAccessible(true);
         var previousMinecraft = minecraftInstance.get(null);
         minecraftInstance.set(null, fakeMinecraft);
-        var optionsField = Minecraft.class.getDeclaredField("options");
-        optionsField.setAccessible(true);
-        var options = unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, optionsField.getType());
-        var languageCode = optionsField.getType().getDeclaredField("languageCode");
-        languageCode.setAccessible(true);
-        var languageOffset = unsafe.getClass().getMethod("objectFieldOffset", java.lang.reflect.Field.class)
-                .invoke(unsafe, languageCode);
-        unsafe.getClass().getMethod("putObject", Object.class, long.class, Object.class)
-                .invoke(unsafe, options, languageOffset, "en_us");
-        var optionsOffset = unsafe.getClass().getMethod("objectFieldOffset", java.lang.reflect.Field.class)
-                .invoke(unsafe, optionsField);
-        unsafe.getClass().getMethod("putObject", Object.class, long.class, Object.class)
-                .invoke(unsafe, fakeMinecraft, optionsOffset, options);
         try {
             var file = new ClientQuestFile();
             var group = file.getDefaultChapterGroup();
+            var translationsField = QuestObjectBase.class.getDeclaredField("protoTranslations");
+            translationsField.setAccessible(true);
+            var cachedTitleField = QuestObjectBase.class.getDeclaredField("cachedTitle");
+            cachedTitleField.setAccessible(true);
+            var groupTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+            groupTranslations.put(TranslationKey.TITLE, "");
+            translationsField.set(group, groupTranslations);
+            cachedTitleField.set(group, Component.literal(""));
             var chapter = new Chapter(0x200L, file, group);
-            chapter.setRawTitle("Large task chapter");
+            var chapterTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+            chapterTranslations.put(TranslationKey.TITLE, "");
+            translationsField.set(chapter, chapterTranslations);
+            cachedTitleField.set(chapter, Component.literal(""));
             group.addChapter(chapter);
             chapter.onCreated();
             var quest = new Quest(0x2000L, chapter);
-            quest.setRawTitle("Large task quest");
             quest.onCreated();
             chapter.addQuest(quest);
             for (var index = 0; index < 180; index++) {
@@ -212,7 +218,10 @@ class FtbProviderTest {
             var registry = new AdapterRegistry();
             registry.register(provider);
             var queryText = "é".repeat(512);
-            quest.setRawTitle(queryText);
+            var questTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+            questTranslations.put(TranslationKey.TITLE, queryText);
+            translationsField.set(quest, questTranslations);
+            cachedTitleField.set(quest, Component.literal(queryText));
             var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
             arguments.put("query", new Evidence.JsonString(queryText));
             arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString(FtbProvider.ID),

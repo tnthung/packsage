@@ -43,6 +43,29 @@ class GuideMeGuideReaderTest {
     }
 
     @Test
+    void exhaustedCandidateBudgetReturnsAContinuationThatCanBeRetried() {
+        var basePages = new java.util.ArrayList<ParsedGuidePage>();
+        var developmentPages = new java.util.ArrayList<ParsedGuidePage>();
+        for (int index = 0; index < 2100; index++) {
+            var id = ResourceLocation.parse("fixture:page_" + index);
+            basePages.add(new ParsedGuidePage(id, "en_us", new MdAstRoot()));
+            developmentPages.add(new ParsedGuidePage(id, "en_us", new MdAstRoot()));
+        }
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, basePages, developmentPages)));
+        var reader = new GuideMeGuideReader();
+
+        var exhausted = reader.candidates(null, 1, new Toolbox.DocumentBudget());
+        var retried = reader.candidates(exhausted.nextPosition(), 1, new Toolbox.DocumentBudget());
+
+        assertTrue(exhausted.candidates().isEmpty());
+        assertNotNull(exhausted.nextPosition());
+        assertTrue(exhausted.more());
+        assertEquals(Evidence.Coverage.PARTIAL, exhausted.coverage());
+        assertTrue(retried.more());
+        assertEquals(exhausted.nextPosition(), retried.nextPosition());
+    }
+
+    @Test
     void longAstTextContinuesWithBoundedOverlapAndFreshPageResolution() {
         String source = "needle-".repeat(200);
         var root = new MdAstRoot();

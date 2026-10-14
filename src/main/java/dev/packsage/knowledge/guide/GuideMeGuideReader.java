@@ -84,18 +84,25 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                              boolean laterSourceExists) throws ReflectiveOperationException {
                     var iterator = pages.entrySet().iterator();
                     while (iterator.hasNext()) {
-                        if (!budget.value()) { partial = true; stopped = true; return true; }
+                        if (!budget.value()) {
+                            partial = true;
+                            stopped = true;
+                            more = true;
+                            if (!afterSeen) throw new Toolbox.Failure(
+                                    Toolbox.Code.EXTRACTION_FAILED, "GuideME page traversal cannot seek past its current cursor within the source-work bound");
+                            return true;
+                        }
                         var entry = (Map.Entry<?, ?>) iterator.next();
                         String pageId = String.valueOf(entry.getKey());
                         String id = guideId + "#" + pageId;
                         String position = id + "|" + layer;
-                        if (layer.equals("base") && overrides.containsKey(entry.getKey())) {
-                            next = position;
-                            continue;
-                        }
                         if (!afterSeen) {
                             next = position;
                             if (position.equals(afterPosition) || id.equals(afterPosition)) afterSeen = true;
+                            continue;
+                        }
+                        if (layer.equals("base") && overrides.containsKey(entry.getKey())) {
+                            next = position;
                             continue;
                         }
                         String language = String.valueOf(entry.getValue().getClass().getMethod("getLanguage").invoke(entry.getValue()));
@@ -107,6 +114,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                         if (!budget.bytes(id.length() * 6 + language.length() * 6 + 192)) {
                             partial = true;
                             stopped = true;
+                            more = true;
                             return true;
                         }
                         next = position;
@@ -125,8 +133,12 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
             var collector = new Collector();
             var guideIterator = guides.iterator();
             while (guideIterator.hasNext()) {
-                if (!budget.value()) return new CandidatePage(candidates, collector.next, false, Evidence.Coverage.PARTIAL,
-                        "GuideME traversal reached the source-work bound");
+                if (!budget.value()) {
+                    if (!collector.afterSeen) throw new Toolbox.Failure(
+                            Toolbox.Code.EXTRACTION_FAILED, "GuideME guide traversal cannot seek past its current cursor within the source-work bound");
+                    return new CandidatePage(candidates, collector.next, true, Evidence.Coverage.PARTIAL,
+                            "GuideME traversal reached the source-work bound");
+                }
                 var guide = guideIterator.next();
                 String guideId = String.valueOf(guide.getClass().getMethod("getId").invoke(guide));
                 var pagesField = guide.getClass().getDeclaredField("pages");

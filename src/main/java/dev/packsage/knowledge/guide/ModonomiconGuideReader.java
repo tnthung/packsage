@@ -52,7 +52,7 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
         String nextPosition = afterPosition;
         var coverage = Evidence.Coverage.COMPLETE;
         for (Book book : manager.getBooks().values()) {
-            for (BookCategory category : book.getCategoriesSorted()) {
+            for (BookCategory category : book.getCategories().values()) {
                 for (BookEntry entry : category.getEntries().values()) {
                     if (!budget.value()) {
                         if (nextPosition == null || nextPosition.equals(afterPosition)) throw new Toolbox.Failure(
@@ -138,7 +138,7 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
         var pages = entry.getPages();
         var partial = false;
         for (; pageIndex < pages.size(); pageIndex++, fieldIndex = 0, textOffset = 0) {
-            if (!budget.value()) return new Fragment("", pageIndex + ":" + fieldIndex + ":" + textOffset, null,
+            if (!budget.value()) return new Fragment("", pageIndex + ":" + fieldIndex + ":" + textOffset, 0, null,
                     Evidence.Coverage.PARTIAL, "Modonomicon page traversal reached its value budget");
             BookPage page = pages.get(pageIndex);
             if (!unlocks.isUnlockedFor(player, page)) continue;
@@ -149,28 +149,36 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
             for (; fieldIndex < 2; fieldIndex++, textOffset = 0) {
                 var holder = fieldIndex == 0 ? textPage.getTitle() : textPage.getText();
                 if (holder == null || holder.isEmpty()) continue;
-                if (!budget.value() || !budget.bytes(64)) return new Fragment("", pageIndex + ":" + fieldIndex + ":" + textOffset,
+                if (!budget.value() || !budget.bytes(64)) return new Fragment("", pageIndex + ":" + fieldIndex + ":" + textOffset, 0,
                         null, Evidence.Coverage.PARTIAL, "Modonomicon text extraction reached its read budget");
                 var text = holder.getString();
                 if (textOffset > text.length()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                         "Modonomicon text changed; restart the lookup");
-                var overlap = textOffset == 0 ? 0 : Math.min(GuideDocumentReader.FRAGMENT_OVERLAP_CHARS, textOffset);
+                var requestedOverlap = textOffset == 0 ? 0 : Math.min(GuideDocumentReader.FRAGMENT_OVERLAP_CHARS, textOffset);
+                var overlap = Math.min(requestedOverlap, maxChars - 1);
                 var start = textOffset - overlap;
+                var overlapPartial = overlap < requestedOverlap;
+                if (start > 0 && Character.isLowSurrogate(text.charAt(start))) {
+                    start++;
+                    overlap--;
+                    overlapPartial = true;
+                }
                 var count = Math.min(text.length() - textOffset, Math.min(maxChars - overlap,
                         Math.max(0, budget.remainingBytes() / 12)));
-                if (count == 0 && textOffset < text.length()) return new Fragment("", pageIndex + ":" + fieldIndex + ":" + textOffset,
+                if (count == 0 && textOffset < text.length()) return new Fragment("", pageIndex + ":" + fieldIndex + ":" + textOffset, 0,
                         null, Evidence.Coverage.PARTIAL, "Modonomicon text cannot advance within the remaining byte budget");
                 var end = textOffset + count;
                 if (end < text.length() && end > textOffset && Character.isHighSurrogate(text.charAt(end - 1))) end--;
-                var value = text.substring(start, end);
-                if (!budget.bytes(value.length() * 12 + 32)) return new Fragment("", pageIndex + ":" + fieldIndex + ":" + textOffset,
+                if (!budget.bytes((end - start) * 12 + 32)) return new Fragment("", pageIndex + ":" + fieldIndex + ":" + textOffset, 0,
                         null, Evidence.Coverage.PARTIAL, "Modonomicon text reached its byte budget");
+                var value = text.substring(start, end);
                 var nextPosition = end < text.length() ? pageIndex + ":" + fieldIndex + ":" + end
                         : fieldIndex == 0 ? pageIndex + ":1:0" : pageIndex + 1 + ":0:0";
                 return new Fragment(value, pageIndex + ":" + fieldIndex + ":" + start, overlap,
-                        end < text.length() || pageIndex + 1 < pages.size() ? nextPosition : null,
-                        partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                        partial ? "non-text Modonomicon pages remain unread" : null);
+                        end < text.length() || fieldIndex == 0 || pageIndex + 1 < pages.size() ? nextPosition : null,
+                        partial || overlapPartial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                        partial ? "non-text Modonomicon pages remain unread"
+                                : overlapPartial ? "fragment overlap was shortened to preserve a text boundary" : null);
             }
         }
         if (pageIndex == 0 && pages.isEmpty()) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
@@ -205,10 +213,10 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
                 || !unlocks.isUnlockedFor(player, entry)) {
             throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "Modonomicon entry is unavailable or locked");
         }
+        if (!budget.bytes(id.length() * 6 + 2048)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                "Modonomicon candidate metadata exceeds its read budget");
         var title = entry.getName();
         var candidateCoverage = title.length() > 256 ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
-        if (!budget.bytes((id.length() + Math.min(title.length(), 256)) * 6 + 128)) throw new Toolbox.Failure(
-                Toolbox.Code.EXTRACTION_FAILED, "Modonomicon candidate metadata exceeds its read budget");
         if (title.length() > 256) title = title.substring(0, 256);
         var candidate = new Candidate(id, title, id, List.of("modonomicon:book:" + bookId,
                 "modonomicon:category:" + categoryId), candidateCoverage);

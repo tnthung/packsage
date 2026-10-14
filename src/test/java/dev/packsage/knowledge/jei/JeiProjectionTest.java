@@ -435,6 +435,7 @@ class JeiProjectionTest {
                     new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "getRecipeType" -> type;
                         case "getTitle" -> Component.literal("Crafting");
+                        case "getTooltipStrings" -> List.of();
                         default -> null;
                     });
             var replacementCategory = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),

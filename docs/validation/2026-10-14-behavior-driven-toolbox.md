@@ -1,6 +1,6 @@
 # Behavior-driven Toolbox validation
 
-Date: 2026-10-14. Status: implementation, independent source review, automated build and installed live tool checks completed. The follow-up below verifies positive opened/targeted chest reads and records an unresolved opened-menu coverage-label issue. Mount fixtures remain outside observed live coverage.
+Date: 2026-10-14. Status: initial implementation, independent source review, automated build and installed live tool checks completed. Prepared-fixture follow-ups also cover single/double chests, bundle/shulker contents, chest minecart and chest-bearing donkey. They found opened-menu coverage and server slot-metadata defects, plus one incorrect model summary. The correction checkpoint below distinguishes fixes from observed acceptance. This is not exhaustive live coverage of every checklist case.
 
 The [specification](../specs/2026-10-14-behavior-driven-tools.md) defines the contract. The [implementation plan](../plans/2026-10-14-behavior-driven-toolbox.md) and [live checklist](../testing/2026-10-14-behavior-driven-toolbox.md) track the requested work. Earlier validation documents describe older artifacts and do not establish acceptance of this migration.
 
@@ -148,3 +148,22 @@ Request `MIXED_CHEST_A` / `3a9d9b1c-a3a7-4f20-88b4-c52d15c94009` completed with 
 All opened results remained PARTIAL due to the existing coverage-label issue; an empty result must not be presented as complete absence. The first assistant answer incorrectly stated that names=[CoBbLe] returned no matches, despite its call-ID-matched tool result containing both stacks. This is an observed answer-grounding/reporting failure, not a failed filter. Isolated repeat `MIXED_CHEST_B` / `76996653-9108-477b-807b-edc7c4aa8ffe` made one fresh name-filter call and correctly reported both stacks in the final answer. The repeat does not erase the earlier reporting failure.
 
 Ten actual calls across two completed requests were inspected. Pagination and filter execution passed against the fixture; multi-query answer accuracy has the issue above. Left PackSage displaying the correct isolated result over the still-open chest. Inventory contents were untouched. No code changes or automated test rerun were made.
+
+## Follow-up assessment
+
+Across the original run and prepared-fixture follow-ups, 22 completed requests contain 96 inspected tool calls. The original run covers all twelve signatures; follow-ups provide deeper inventory evidence. These counts describe the original installed artifact, not a later correction build.
+
+| Area | Observed acceptance | Remaining live coverage |
+| --- | --- | --- |
+| Player and held storage | Player slots/equipment, reference discovery, mainhand/offhand bundle and shulker direct contents, unsupported item rejection and hand replacement. | Mutating internal bundle/shulker contents; same-request source mutation behind an existing reference. |
+| Opened containers | Single/double chest, minecart, Skyroot boat and donkey contents; player slots excluded; count changes and closure invalidate access. | Corrected COMPLETE/PARTIAL reporting requires the correction build. |
+| Targeted containers | Single/double chest and minecart current stock, empty transitions, evidence rereads and non-container rejection. | Both double-chest aiming directions; lock/block/pending-loot and remote-server denials are not claimed as live-tested here. |
+| Mounts and boats | Donkey targeted/opened/ridden cargo and dismount invalidation. Skyroot boat opened cargo works. | Positive equipped saddle/body items and native chest-boat targeted/ridden reads. Skyroot ridden access is explicitly unsupported by the reviewed native contract. |
+| Filters and pagination | Separate duplicate stacks, exact IDs, logs tag, mixed-case literal names, OR within IDs, AND across fields, four-page termination without omissions/duplicates. | Tooltip/section filter combinations and mutations between live pages were not exhaustively exercised. |
+| Other tool families | All signatures exercised, six registry kinds, FTB/Patchouli discovery and rereads, JEI output focus, native recipe evidence/planning, configs and history. | Document/recipe scan bounds prevented some named matches; no exhaustive pack-content or progression-mutation claim. |
+
+### Incorrect multi-query answer
+
+Independent trace matched `call_UY7jK740kvvf0L8nXpHZ0k6Z` to names=[CoBbLe] and its two cobblestone records. `RequestController.toolReady` validates IDs, `ChatGptBackend.Exchange.submit` rejects unknown/duplicate IDs, and continuation construction looks each result up by its call ID. Parallel completion order does not swap these responses. No deterministic filter or delivery defect was established; exact outgoing HTTP bytes were not captured.
+
+Commit `2f1f569` adds a focused grounding instruction to reconcile each reported filter outcome, count and no-match claim with its returned records. This is a model-behavior mitigation, not a guarantee of correct future summaries. The earlier incorrect answer remains a recorded failure even if a subsequent repeat passes.

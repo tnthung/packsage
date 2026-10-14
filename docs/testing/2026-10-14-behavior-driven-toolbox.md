@@ -1,6 +1,6 @@
 # Behavior-driven Toolbox live checks
 
-Use only `OoO - PackSage Trial` in the existing Packsage instance. The original `OoO` world is outside this test scope. Build, automated checks and JAR installation are performed by the assistant through `scripts/build.ps1`; the checks below verify the installed game through the computer-use skill.
+Use only `OoO - PackSage Trial` in the existing All the Mods 10 - ATM10 instance. The original `OoO` world is outside this test scope. The assistant runs build and automated checks through `scripts/build.ps1`, then copies the full artifact to ATM10 while Minecraft is closed; the script itself installs the separate minimal Packsage profile. The checks below verify the installed game through the computer-use skill.
 
 These instructions supersede the old captured-menu workflow in [inventory and storage inspection](2026-10-14-inventory-storage-inspection.md). Expected behavior is defined by the [tool specification](../specs/2026-10-14-behavior-driven-tools.md). Record observed results separately in `docs/validation/2026-10-14-behavior-driven-toolbox.md`; this checklist is not evidence that a check passed.
 

@@ -26,4 +26,14 @@ Only `OoO - PackSage Trial` is used for acceptance testing. Initial live request
 | `463fd3d1-cbf3-4f31-93ac-b5546c393472` | Fresh AA discovery followed by the exact returned reference succeeded; timestamps changed from `22:58:54.139944800Z` to `22:58:57.410915200Z`. GuideME continuation advanced from literal position `l:1.0:0` to terminal position `a:1.0`; rereading resolved the current first fragment again. |
 | `5edf0fa2-e64d-4d46-ba66-00292e70cd47` | After opening IE's manual normally, a search for `Greetings and welcome` exhausted its extraction budget without a continuation; fix pending. AA with type `quest` returned `NOT_HANDLED`. An invented GuideME cursor returned `INVALID_CURSOR`. |
 
-The native Engineer's Manual Introduction visibly starts with `Greetings and welcome to Immersive Engineering.` A temporary manual was created in the trial world for this comparison; cleanup is pending. Opening it initializes IE's entry metadata, while tool calls themselves do not open or reload it.
+The native Engineer's Manual Introduction visibly starts with `Greetings and welcome to Immersive Engineering.` A temporary manual was created in the trial world for comparison, then removed; hotbar slot 9 was restored. Obtaining it triggered the trial world's IE advancement. Opening it initializes IE's entry metadata, while tool calls themselves do not open or reload it.
+
+### Updated artifact observations
+
+| Request | Observed call/result evidence |
+|---|---|
+| `00dc3945-f6bd-41fa-9377-31c77d1e3217` | Modonomicon returned the Neovitae Spiritus fragment; Relics returned Leafy Mantle's camouflage description. Both exact references reread successfully. Artifacts visited 49 registered items and 1,176 ordered component pairs but found no ability components; it now explicitly reported partial coverage. |
+| `403ee420-4334-4b3c-a9af-6bbd5844a6e8` | GuideME's `energy` body search reached Auroral's introduction after two continuations; fresh evidence reread returned its current first fragment. AA's `Atomic Reconstructor` search and reread passed. IE's introduction search returned continuation cursors across five bounded calls, without reaching that passage; this does not establish absence. |
+| `4c44c926-d241-45ba-af93-2cced0a17ba6` | IE empty-query search returned Fluid Pipes; fresh read returned the same passage. Continuation advanced to Catwalks and its reread passed. Searching `versatile and efficient method of transporting fluids` matched Fluid Pipes. The native manual's Storage & Transport > Fluid Pipes page visibly matched that passage. |
+
+The installed Reliquified Artifacts 1.0.8 replaces Artifacts registrations with Relics-backed item classes. Its mixins explain why the base Artifacts component reader found no abilities in this pack. A version-gated reuse of the live Relics definition reader is being implemented; final acceptance for that combination is pending.

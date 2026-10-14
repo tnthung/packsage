@@ -22,7 +22,7 @@ Copied `build/libs/packsage-0.1.0.jar` to `mods/packsage.jar` in all three close
 | --- | --- | --- |
 | Packsage minimal fixture | 1.21.1 / 21.1.202 | Inventory/search/container and existing adapter probes passed; corrected paging probe passed. |
 | FTB Evolution 1.45.0 | 1.21.1 / 21.1.250 | Shared inventory/search/item-target checks passed; existing retrieval limits recorded below. |
-| ATM10 8.2 | 1.21.1 / 21.1.251 | Pending. |
+| ATM10 8.2 | 1.21.1 / 21.1.251 | Shared inventory/search/arbitrary-slot bundle checks passed; existing adapter probe pending. |
 
 ## Minimal fixture observations
 
@@ -52,7 +52,18 @@ Replay: profile-local `packsage/PackSage_Evolution_Trial-2dc1b88ff37c5763/e62e83
 - Ars Nouveau `general.sylphManaCost` explicitly returned saved and loaded values of 250. Config catalog coverage remained partial with the bounded-extraction diagnostic; this value does not establish complete catalog capture.
 - The combined question repeated some inventory/search reads and made two rejected recipe calls: `outputItem` with the native provider, then a JEI cursor reused with changed filters. These did not affect successful inventory/search/storage results. Efficient model call selection and full real-pack extraction are not established by this check. A Recipe click did not visibly change screens in this pass, so JEI page opening is not claimed.
 
+## ATM10 observations
+
+World: existing backed-up `OoO - PackSage Trial`, selected by its trial folder label in the world list. The original `OoO` was not opened. The client loaded 535 mods. Used GPT-6-Luna / medium, Search off, Screenshot off, and paused gameplay. No items were moved, added or removed.
+
+Replay: profile-local `packsage/OoO_-_PackSage_Trial-814a1737fe55fba5/9623b8a6-ad4a-49ba-9544-6557c2bf905a-f05668e4ac0a28f8.jsonl`.
+
+- `ALIGN_ATM_A`, sent at 03:02:01 UTC, completed. Four `read_inventory(limit=8)` pages followed the returned opaque cursors and retained the original 03:02:04 UTC observation. Complete coverage returned seven occupied hotbar slots, 20 main slots and four armor slots; the main stacks totalled 285 items. The four equipped pieces were Unobtainium boots, leggings, chestplate and helmet. Mainhand identified the sword at hotbar 0; offhand was explicitly empty.
+- All four `pickaxe` field searches were complete: name, ID and tooltip each found the Unobtainium Pickaxe, while tag search additionally found the Inferium Paxel through `#minecraft:pickaxes`.
+- `read_storage(target=item)` used the inventory observation's main-slot-2 reference to read the existing bundle without holding it. The selected item reported supported bundle storage, complete direct contents, zero entries and no continuation cursor. This distinguishes observed empty native storage from unsupported formats while an unrelated sword remains selected.
+- Separate item reads correctly identified the sword at hotbar 0 and Tier 3 Pocket Storage at hotbar 8, returning unavailable/unknown contents for both. No internal `nextOffset` appeared. Pocket Storage integration remains pending; no empty-container claim was made.
+
 ## Remaining acceptance
 
-- Run real inventory/search/item-storage and existing-adapter probes in ATM10, recording actual results and limits.
+- Complete the existing-adapter probe in ATM10 and save/quit the trial world.
 - No multiplayer/LAN, Curios, mod storage/network integration, or universal tooltip-provider compatibility is established by these checks.

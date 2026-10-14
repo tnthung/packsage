@@ -1,6 +1,6 @@
 # Capability reader alignment validation
 
-Date: 2026-10-14. Status: live acceptance in progress.
+Date: 2026-10-14. Status: shared-reader live checks passed; JEI navigation follow-up in progress.
 
 ## Build and automated checks
 
@@ -22,7 +22,7 @@ Copied `build/libs/packsage-0.1.0.jar` to `mods/packsage.jar` in all three close
 | --- | --- | --- |
 | Packsage minimal fixture | 1.21.1 / 21.1.202 | Inventory/search/container and existing adapter probes passed; corrected paging probe passed. |
 | FTB Evolution 1.45.0 | 1.21.1 / 21.1.250 | Shared inventory/search/item-target checks passed; existing retrieval limits recorded below. |
-| ATM10 8.2 | 1.21.1 / 21.1.251 | Shared inventory/search/arbitrary-slot bundle checks passed; existing adapter probe pending. |
+| ATM10 8.2 | 1.21.1 / 21.1.251 | Shared inventory/search/arbitrary-slot bundle and existing retrieval checks passed; JEI navigation failure recorded below. |
 
 ## Minimal fixture observations
 
@@ -62,8 +62,10 @@ Replay: profile-local `packsage/OoO_-_PackSage_Trial-814a1737fe55fba5/9623b8a6-a
 - All four `pickaxe` field searches were complete: name, ID and tooltip each found the Unobtainium Pickaxe, while tag search additionally found the Inferium Paxel through `#minecraft:pickaxes`.
 - `read_storage(target=item)` used the inventory observation's main-slot-2 reference to read the existing bundle without holding it. The selected item reported supported bundle storage, complete direct contents, zero entries and no continuation cursor. This distinguishes observed empty native storage from unsupported formats while an unrelated sword remains selected.
 - Separate item reads correctly identified the sword at hotbar 0 and Tier 3 Pocket Storage at hotbar 8, returning unavailable/unknown contents for both. No internal `nextOffset` appeared. Pocket Storage integration remains pending; no empty-container claim was made.
+- `ALIGN_ATM_B`, sent at 03:07:01 UTC, completed with six tool calls and no rejected calls. It discovered Basic Tools quests and refreshed Wooden Pickaxe (zero/incomplete) and Stone Pickaxe (one/complete), with partial quest metadata. The PneumaticCraft Getting Started entry was complete. The canonical JEI crafting record returned four torches with complete viewer coverage; the additional Create record was opaque. Patchouli `useShiftForQuickLookup` explicitly returned saved and loaded values of false under partial config catalog coverage.
+- Clicking Config opened read-only source details with the same recorded values and provenance. Clicking Recipe failed with `Navigation target is no longer available`. Read-only source review identified the earlier navigation refresh's exact-GET request conflicting with JEI's snapshot-version-specific handles, rather than an inventory-reader regression. A [separate follow-up](../plans/2026-10-14-jei-navigation-refresh.md) preserves exact recipe binding while refreshing its current projection.
 
 ## Remaining acceptance
 
-- Complete the existing-adapter probe in ATM10 and save/quit the trial world.
+- Complete the separate JEI navigation correction and save/quit the trial world.
 - No multiplayer/LAN, Curios, mod storage/network integration, or universal tooltip-provider compatibility is established by these checks.

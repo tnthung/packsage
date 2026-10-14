@@ -38,6 +38,26 @@ class PackSageToolsTest {
     }
 
     @Test
+    void dimensionSelectorsAreAdvertisedAndReachDispatch() throws Exception {
+        var requests = new java.util.ArrayList<PackSageTools.ReadRequest>();
+        var tools = new PackSageTools(request -> {
+            requests.add(request);
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                    Evidence.Outcome.COMPLETE, null));
+        });
+        var schema = JsonParser.parseString(PackSageTools.definitions().stream()
+                .filter(value -> value.name().equals("search_registry")).findFirst().orElseThrow().serializedSchema()).getAsJsonObject();
+        for (String registry : List.of("dimension", "dimension_type")) {
+            assertTrue(schema.getAsJsonObject("properties").getAsJsonObject("registry").getAsJsonArray("enum")
+                    .contains(new com.google.gson.JsonPrimitive(registry)));
+            assertFalse(tools.execute(new ModelBackend.ToolCall(registry, "search_registry",
+                    "{\"registry\":\"" + registry + "\",\"filter\":{\"ids\":[\"minecraft:overworld\"]}}"), SCOPE)
+                    .toCompletableFuture().get().result().error());
+        }
+        assertEquals(2, requests.size());
+    }
+
+    @Test
     void validatesNestedTargetFilterAndRegisteredMetadataBeforeDispatch() throws Exception {
         var calls = new AtomicInteger();
         var custom = new Toolbox.Metadata("ae2", List.of("network_doc"), false, List.of("channel"), Map.of(

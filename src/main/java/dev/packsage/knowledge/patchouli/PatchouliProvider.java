@@ -111,6 +111,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
 
     private record LiveCursor(int offset, String owner, int ownerToken, boolean after,
                               PatchouliLiveReader.Position position) { }
+    private record DocumentCursor(String query, Evidence.Scope scope, String position) { }
 
     public record Snapshot(Evidence.Scope scope, long generation, List<BookRecord> books,
                            Consumer<Navigation> navigator, Evidence.Coverage coverage, String failure) {
@@ -316,6 +317,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
     private final Supplier<Evidence.Scope> scopeSource;
     private final BooleanSupplier owningThread;
     private final Supplier<Map<ResourceLocation, Book>> liveBooks;
+    private final Map<String, DocumentCursor> documentCursors = new java.util.LinkedHashMap<>();
     private volatile Evidence.Scope lastScope;
     private volatile Evidence.Coverage latestCoverage = Evidence.Coverage.UNAVAILABLE;
     private volatile boolean opaque;
@@ -593,38 +595,22 @@ public final class PatchouliProvider implements KnowledgeProvider {
         }, clientExecutor);
     }
 
-    private static String encodeDocumentCursor(String query, String position, Evidence.Scope scope) {
-        var scopeValue = Evidence.serialize(new Evidence.JsonObject(Map.of(
-                "world", new Evidence.JsonString(scope.worldSession()),
-                "locale", new Evidence.JsonString(scope.resourcesLocale()),
-                "team", new Evidence.JsonString(scope.playerTeam()),
-                "runtime", new Evidence.JsonString(scope.providerRuntime()),
-                "generation", new Evidence.JsonNumber(BigDecimal.valueOf(scope.requestGeneration())))));
-        var value = new Evidence.JsonObject(Map.of("query", new Evidence.JsonString(query),
-                "scope", new Evidence.JsonString(scopeValue), "position", new Evidence.JsonString(position)));
-        return "patchouli:" + java.util.Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(Evidence.serialize(value).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    private String encodeDocumentCursor(String query, String position, Evidence.Scope scope) {
+        var token = "patchouli:" + java.util.UUID.randomUUID();
+        synchronized (documentCursors) {
+            documentCursors.put(token, new DocumentCursor(query, scope, position));
+            while (documentCursors.size() > 128) documentCursors.remove(documentCursors.keySet().iterator().next());
+        }
+        return token;
     }
 
-    private static String decodeDocumentCursor(String cursor, String query, Evidence.Scope scope) {
+    private String decodeDocumentCursor(String cursor, String query, Evidence.Scope scope) {
         if (cursor == null) return null;
-        try {
-            if (!cursor.startsWith("patchouli:")) throw new IllegalArgumentException();
-            var value = Evidence.deserializeObject(new String(java.util.Base64.getUrlDecoder().decode(cursor.substring(10)),
-                    java.nio.charset.StandardCharsets.UTF_8));
-            var scopeValue = Evidence.serialize(new Evidence.JsonObject(Map.of(
-                    "world", new Evidence.JsonString(scope.worldSession()),
-                    "locale", new Evidence.JsonString(scope.resourcesLocale()),
-                    "team", new Evidence.JsonString(scope.playerTeam()),
-                    "runtime", new Evidence.JsonString(scope.providerRuntime()),
-                    "generation", new Evidence.JsonNumber(BigDecimal.valueOf(scope.requestGeneration())))));
-            if (!(value.values().get("query") instanceof Evidence.JsonString savedQuery) || !query.equals(savedQuery.value())
-                    || !(value.values().get("scope") instanceof Evidence.JsonString savedScope) || !scopeValue.equals(savedScope.value())
-                    || !(value.values().get("position") instanceof Evidence.JsonString position)
-                    || position.value().isBlank()) throw new IllegalArgumentException();
-            return position.value();
-        } catch (RuntimeException failure) {
-            throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Patchouli cursor is invalid for this query or scope; restart the search");
+        synchronized (documentCursors) {
+            var saved = documentCursors.get(cursor);
+            if (saved == null || !query.equals(saved.query()) || !scope.equals(saved.scope())) throw new Toolbox.Failure(
+                    Toolbox.Code.INVALID_CURSOR, "Patchouli cursor is invalid for this query or scope; restart the search");
+            return saved.position();
         }
     }
 

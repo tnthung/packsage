@@ -86,6 +86,29 @@ class PatchouliProviderTest {
     }
 
     @Test
+    void maximumLengthMultibyteQueryProducesABoundedContinuationToken() {
+        var query = "\u754C".repeat(512);
+        var entry = new PatchouliProvider.EntryRecord("fixture:book", "fixture:entry", query,
+                List.of(), true, false, false, false, List.of());
+        var provider = new PatchouliProvider(() -> new PatchouliProvider.Snapshot(SCOPE, 1,
+                List.of(new PatchouliProvider.BookRecord("fixture:book", "Book", List.of(entry, entry), List.of())), ignored -> { }), Runnable::run);
+        var registry = new AdapterRegistry();
+        registry.register(provider);
+        var arguments = new java.util.LinkedHashMap<>(documentRequest("patchouli", "guide").arguments().values());
+        arguments.put("query", new Evidence.JsonString(query));
+        arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
+        var first = provider.searchDocument(new PackSageTools.ReadRequest("search_document", new Evidence.JsonObject(arguments), SCOPE),
+                context(registry, Map.of())).toCompletableFuture().join();
+        assertTrue(first.nextCursor().length() <= 1024);
+        arguments.put("cursor", new Evidence.JsonString(first.nextCursor()));
+        var response = new dev.packsage.model.PackSageTools(request -> provider.searchDocument(request, context(registry, Map.of())))
+                .execute(new dev.packsage.model.ModelBackend.ToolCall("continued", "search_document", Evidence.serialize(new Evidence.JsonObject(arguments))), SCOPE)
+                .toCompletableFuture().join();
+        assertFalse(response.result().error());
+        assertEquals(1, response.records().size());
+    }
+
+    @Test
     void documentAdapterMatchesGuideRequestsAndRebuildsCurrentSnapshot() {
         var generation = new AtomicInteger();
         var provider = new PatchouliProvider(() -> {

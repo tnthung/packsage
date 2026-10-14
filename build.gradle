@@ -72,7 +72,8 @@ if (project.hasProperty('packsageBootstrapOnly')) {
             'dev/packsage/model/ModelBackend.java',
             'dev/packsage/model/chatgpt/*.java',
             'dev/packsage/chat/ChatContracts.java',
-            'dev/packsage/chat/ChatActions.java'])
+            'dev/packsage/chat/ChatActions.java',
+            'dev/packsage/chat/PackSageSettings.java'])
     def productionEntrypoint = file('src/main/java/dev/packsage/PackSage.java').absolutePath
     sourceSets.main.java.exclude { details -> details.file.absolutePath == productionEntrypoint }
     sourceSets.main.resources.setIncludes(['META-INF/neoforge.mods.toml', 'pack.mcmeta', 'assets/packsage/lang/en_us.json'])

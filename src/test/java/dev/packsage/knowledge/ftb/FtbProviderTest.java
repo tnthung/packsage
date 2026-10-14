@@ -261,6 +261,88 @@ class FtbProviderTest {
     }
 
     @Test
+    void liveDependencyContinuationAdvancesThenRejectsAnUnreachableBoundedSeek() throws Exception {
+        var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var fakeMinecraft = (Minecraft) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, Minecraft.class);
+        var minecraftInstance = Minecraft.class.getDeclaredField("instance");
+        minecraftInstance.setAccessible(true);
+        var previousMinecraft = minecraftInstance.get(null);
+        minecraftInstance.set(null, fakeMinecraft);
+        try {
+            var file = new ClientQuestFile();
+            var group = file.getDefaultChapterGroup();
+            var translationsField = QuestObjectBase.class.getDeclaredField("protoTranslations");
+            translationsField.setAccessible(true);
+            var cachedTitleField = QuestObjectBase.class.getDeclaredField("cachedTitle");
+            cachedTitleField.setAccessible(true);
+            var groupTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+            groupTranslations.put(TranslationKey.TITLE, "");
+            translationsField.set(group, groupTranslations);
+            cachedTitleField.set(group, Component.literal(""));
+            var chapter = new Chapter(0x500L, file, group);
+            var chapterTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+            chapterTranslations.put(TranslationKey.TITLE, "");
+            translationsField.set(chapter, chapterTranslations);
+            cachedTitleField.set(chapter, Component.literal(""));
+            chapter.onCreated();
+            var quest = new Quest(0x5000L, chapter);
+            var questTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
+            questTranslations.put(TranslationKey.TITLE, "target quest");
+            translationsField.set(quest, questTranslations);
+            cachedTitleField.set(quest, Component.literal("target quest"));
+            quest.onCreated();
+            for (var index = 0; index < 2500; index++) {
+                var dependency = new Quest(0x6000L + index, chapter);
+                dependency.onCreated();
+                quest.addDependency(dependency);
+            }
+            var provider = new FtbProvider(() -> { throw new AssertionError("production query captured a full snapshot"); },
+                    Runnable::run, () -> SCOPE, () -> file, () -> true, true);
+            var registry = new AdapterRegistry();
+            registry.register(provider);
+            var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+            arguments.put("query", new Evidence.JsonString("target"));
+            arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString(FtbProvider.ID),
+                    "types", new Evidence.JsonArray(List.of(new Evidence.JsonString("quest"))))));
+            arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
+            var cursor = (String) null;
+            var dependencyOffset = 0;
+            for (var pageIndex = 0; pageIndex < 16; pageIndex++) {
+                if (cursor != null) arguments.put("cursor", new Evidence.JsonString(cursor));
+                var page = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                        new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of())).toCompletableFuture().get();
+                cursor = page.nextCursor();
+                if (page.records().isEmpty()) continue;
+                var payload = page.records().getFirst().payload().values();
+                var offset = ((Evidence.JsonNumber) payload.get("dependencyOffset")).value().intValue();
+                var dependencies = ((Evidence.JsonArray) payload.get("dependencies")).values();
+                assertEquals(dependencyOffset, offset);
+                assertTrue(dependencies.size() > 0);
+                dependencyOffset += dependencies.size();
+                assertTrue(cursor.length() <= 1024);
+                if (dependencyOffset > 2048) {
+                    if (cursor != null) arguments.put("cursor", new Evidence.JsonString(cursor));
+                    var unreachable = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                            new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of())).toCompletableFuture();
+                    try {
+                        unreachable.join();
+                        throw new AssertionError("a dependency cursor beyond the bounded seek should be rejected");
+                    } catch (java.util.concurrent.CompletionException failure) {
+                        assertEquals(Toolbox.Code.INVALID_CURSOR, ((Toolbox.Failure) failure.getCause()).code());
+                    }
+                    return;
+                }
+            }
+            throw new AssertionError("large dependency continuation did not reach the bounded seek limit");
+        } finally {
+            minecraftInstance.set(null, previousMinecraft);
+        }
+    }
+
+    @Test
     void preservesFullWidthQuestIdDependenciesAndSeparateProgressOverlay() throws Exception {
         var quest = new FtbProvider.QuestRecord(LARGE_ID, "Target", "chapter", List.of("1", "2"),
                 List.of(List.of("1"), List.of("2")), 1,

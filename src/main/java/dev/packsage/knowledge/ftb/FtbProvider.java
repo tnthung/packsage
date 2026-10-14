@@ -799,7 +799,7 @@ public final class FtbProvider implements KnowledgeProvider {
                         var dependencyIterator = quest.streamDependencies().iterator();
                         while (dependencyIterator.hasNext()) {
                             if (!budget.value()) {
-                                if (dependencyIndex < (phase == 0 ? nestedStart : 0))
+                                if (phase == 0 && nestedStart > 0 && dependencyIndex <= nestedStart)
                                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                             "FTB dependency cursor cannot be reached within the read budget; restart or narrow the search");
                                 next = fileIdentity + "|" + questCandidate + "|" + id + "|0|"
@@ -831,7 +831,7 @@ public final class FtbProvider implements KnowledgeProvider {
                         next = fileIdentity + "|" + questCandidate + "|" + id + "|1|0";
                         partial = true;
                     }
-                    var questTasks = next == null && selectedPhase == 1 ? quest.getTasks() : List.<Task>of();
+                    var questTasks = next == null && selectedPhase == 1 ? quest.getTasksAsList() : List.<Task>of();
                     var taskStart = selectedPhase == 1 && phase == 1 ? nestedStart : 0;
                     var taskIndex = taskStart;
                     if (taskStart > 0 && taskStart >= questTasks.size()) throw new Toolbox.Failure(
@@ -886,6 +886,7 @@ public final class FtbProvider implements KnowledgeProvider {
                         partial = true;
                     }
                     var questRewards = next == null && selectedPhase == 2 ? quest.getRewards() : List.<Reward>of();
+                    var rewardList = (List<?>) questRewards;
                     var rewardStart = selectedPhase == 2 && phase == 2 ? nestedStart : 0;
                     var rewardIndex = rewardStart;
                     if (rewardStart > 0 && rewardStart >= questRewards.size()) throw new Toolbox.Failure(
@@ -904,7 +905,7 @@ public final class FtbProvider implements KnowledgeProvider {
                             partial = true;
                             break;
                         }
-                        var reward = questRewards.get(rewardIndex++);
+                        var reward = (Reward) rewardList.get(rewardIndex++);
                         var nativeReward = reward.getClass() == AdvancementReward.class
                                 || reward.getClass() == AllTableReward.class || reward.getClass() == ChoiceReward.class
                                 || reward.getClass() == CommandReward.class || reward.getClass() == CurrencyReward.class

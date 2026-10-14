@@ -17,7 +17,7 @@
 
 Recorded [ATM10 inventory/storage checks](docs/validation/2026-10-14-inventory-storage-inspection.md) and [historical quest navigation/status checks](docs/validation/2026-10-14-historical-navigation.md). Specialized mod storage remains unsupported, and opened-menu observations remain partial. The latest recorded navigation build passed 400 tests with four existing skips. [Greeting timing measurements](docs/validation/2026-10-14-request-timing.md) separate local preparation from HTTP/stream waiting without promising a latency bound.
 
-The [capability reader alignment checks](docs/validation/2026-10-14-capability-reader-alignment.md) record 411 passing automated tests and four skips, the live minimal-fixture observations, and ongoing FTB Evolution/ATM10 acceptance. Mod storage/network support remains planned.
+The [capability reader alignment checks](docs/validation/2026-10-14-capability-reader-alignment.md) record 411 passing automated tests and four skips, plus live inventory/search/slot-storage observations in the minimal fixture, FTB Evolution and ATM10. Mod storage/network support remains planned. Existing quest/config extraction limits and a separate JEI navigation refresh failure are recorded explicitly.
 
 ### 2026-10-13
 

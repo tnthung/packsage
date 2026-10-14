@@ -48,7 +48,9 @@
 
 **Files:** add `docs/validation/2026-10-14-capability-reader-alignment.md`; update roadmap completion limits and changelog.
 
-- [ ] Use computer-use to save/exit any active client; copy the verified JAR to all three closed profiles and verify hashes.
-- [ ] Launch minimal fixture, FTB Evolution and ATM10 sequentially. Exercise inventory/search/slot-storage through real chat tools and inspect replay logs. Check existing guide/quest/recipe access; preserve unsupported-source unknown results.
-- [ ] Record pack versions, world used, observed queries/results, JAR hash and any live limitations. Mark only actually delivered roadmap capabilities complete.
-- [ ] Run local Markdown-link checks and `git diff --check`; commit acceptance/docs separately.
+- [x] Use computer-use to save/exit any active client; copy the verified JAR to all three closed profiles and verify hashes.
+- [x] Launch minimal fixture, FTB Evolution and ATM10 sequentially. Exercise inventory/search/slot-storage through real chat tools and inspect replay logs. Check existing guide/quest/recipe access; preserve unsupported-source unknown results.
+- [x] Record pack versions, world used, observed queries/results, JAR hash and any live limitations. Mark only actually delivered roadmap capabilities complete.
+- [x] Run local Markdown-link checks and `git diff --check`; commit acceptance/docs separately.
+
+Shared-reader acceptance is recorded in the [validation report](../validation/2026-10-14-capability-reader-alignment.md). The separate [JEI navigation follow-up](2026-10-14-jei-navigation-refresh.md) addresses the existing exact-handle refresh failure found during these checks.

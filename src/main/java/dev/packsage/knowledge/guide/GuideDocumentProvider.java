@@ -106,23 +106,26 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
                 var sourceIdentity = sourceIdentity(scope);
                 var budget = new Toolbox.DocumentBudget();
                 if (!budget.document()) return result(List.of(), Evidence.Coverage.PARTIAL, null, "guide evidence budget exhausted");
-                int maxChars = fragmentLimit(budget);
+                int maxChars = Math.min(MAX_FRAGMENT_CHARS, budget.remainingBytes() / 4);
                 GuideDocumentReader.ResolvedDocument resolved;
                 try {
                     resolved = reader.resolve(handle.value(), maxChars, budget);
                 } catch (Toolbox.Failure failure) {
                     throw failure;
                 } catch (RuntimeException | LinkageError failure) {
-                    throw extractionFailure("guide evidence resolution failed", failure);
+                    throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                            "guide evidence resolution failed: " + failure);
                 }
                 validateFragment(resolved.fragment(), null, maxChars);
                 if (!handle.value().equals(resolved.candidate().id())) throw new Toolbox.Failure(
                         Toolbox.Code.INVALID_REFERENCE, "guide source resolved a different identity");
                 var record = documentRecord(scope, resolved.candidate(), resolved.fragment());
                 requireStableRead(scope, sourceIdentity);
-                return result(List.of(record), record.source().coverage(), null,
-                        resolved.fragment().nextPosition() == null ? resolved.fragment().detail()
-                                : joinDetail(resolved.fragment().detail(), "guide evidence is a bounded current fragment"));
+                String detail = resolved.fragment().detail();
+                if (resolved.fragment().nextPosition() != null) detail = detail == null || detail.isBlank()
+                        ? "guide evidence is a bounded current fragment"
+                        : boundedDetail(detail + "; guide evidence is a bounded current fragment");
+                return result(List.of(record), record.source().coverage(), null, detail);
             });
         }
         return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED,
@@ -151,7 +154,10 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
         return schedule(() -> {
             requireScope(request.scope());
             var reference = context.reference(request);
-            if (!id().equals(reference.providerId()) || reference.kind() != Evidence.RecordKind.GUIDE) {
+            if (!id().equals(reference.providerId())) {
+                throw new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "guide reference belongs to another provider");
+            }
+            if (reference.kind() != Evidence.RecordKind.GUIDE) {
                 throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "expected an observed guide document reference");
             }
             if (reference.sourceHandle().isBlank() || reference.sourceHandle().length() > MAX_ID_CHARS) {
@@ -160,14 +166,15 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
             var sourceIdentity = sourceIdentity(request.scope());
             var budget = context.documentBudget();
             if (!budget.document()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide evidence budget exhausted");
-            int maxChars = fragmentLimit(budget);
+            int maxChars = Math.min(MAX_FRAGMENT_CHARS, budget.remainingBytes() / 4);
             GuideDocumentReader.ResolvedDocument resolved;
             try {
                 resolved = reader.resolve(reference.sourceHandle(), maxChars, budget);
             } catch (Toolbox.Failure failure) {
                 throw failure;
             } catch (RuntimeException | LinkageError failure) {
-                throw extractionFailure("guide evidence resolution failed", failure);
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                        "guide evidence resolution failed: " + failure);
             }
             validateFragment(resolved.fragment(), null, maxChars);
             if (!reference.sourceHandle().equals(resolved.candidate().id())) {
@@ -175,9 +182,11 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
             }
             var record = documentRecord(request.scope(), resolved.candidate(), resolved.fragment());
             requireStableRead(request.scope(), sourceIdentity);
-            return result(List.of(record), record.source().coverage(), null,
-                    resolved.fragment().nextPosition() == null ? resolved.fragment().detail()
-                            : joinDetail(resolved.fragment().detail(), "guide evidence is a bounded current fragment"));
+            String detail = resolved.fragment().detail();
+            if (resolved.fragment().nextPosition() != null) detail = detail == null || detail.isBlank()
+                    ? "guide evidence is a bounded current fragment"
+                    : boundedDetail(detail + "; guide evidence is a bounded current fragment");
+            return result(List.of(record), record.source().coverage(), null, detail);
         });
     }
 
@@ -351,7 +360,7 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
                         stopped = true;
                         break;
                     }
-                    int maxChars = fragmentLimit(context.documentBudget());
+                    int maxChars = Math.min(MAX_FRAGMENT_CHARS, context.documentBudget().remainingBytes() / 4);
                     GuideDocumentReader.Fragment fragment;
                     try {
                         fragment = reader.readFragment(candidate.id(), fragmentPosition, maxChars, context.documentBudget());
@@ -503,10 +512,6 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
         return false;
     }
 
-    private int fragmentLimit(Toolbox.DocumentBudget budget) {
-        return Math.min(MAX_FRAGMENT_CHARS, budget.remainingBytes() / 4);
-    }
-
     private CursorPosition decodeCursor(Search search, Evidence.Scope scope, String sourceIdentity) {
         synchronized (documentCursors) {
             var now = System.nanoTime();
@@ -553,7 +558,8 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
         } catch (Toolbox.Failure failure) {
             throw failure;
         } catch (RuntimeException | LinkageError failure) {
-            throw extractionFailure("guide source identity could not be read", failure);
+            throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide source identity could not be read: " + failure);
         }
         if (identity == null || identity.isBlank() || identity.length() > 512) {
             throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "guide source identity is unavailable");
@@ -566,7 +572,8 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
         try {
             current = currentScope.get();
         } catch (RuntimeException | LinkageError failure) {
-            throw extractionFailure("current guide scope could not be read", failure);
+            throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "current guide scope could not be read: " + failure);
         }
         if (!scope.equals(current)) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE,
                 "repeat the guide lookup in the current scope");
@@ -595,18 +602,8 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
         return Evidence.Coverage.COMPLETE;
     }
 
-    private static String joinDetail(String first, String second) {
-        if (first == null || first.isBlank()) return second;
-        if (second == null || second.isBlank()) return first;
-        return boundedDetail(first + "; " + second);
-    }
-
     private static String boundedDetail(String value) {
         if (value == null) return null;
         return value.length() <= MAX_DETAIL_CHARS ? value : value.substring(0, MAX_DETAIL_CHARS);
-    }
-
-    private static Toolbox.Failure extractionFailure(String message, Throwable cause) {
-        return new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, message + ": " + cause);
     }
 }

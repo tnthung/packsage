@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -75,5 +76,122 @@ class PackSageToolsTest {
         assertTrue(tools.execute(new ModelBackend.ToolCall("missing", "search_document", "{}"), SCOPE).toCompletableFuture().get().result().error());
         assertTrue(tools.execute(new ModelBackend.ToolCall("badid", "search_registry", "{\"registry\":\"item\",\"filter\":{\"ids\":[\"bad\"]}}"), SCOPE).toCompletableFuture().get().result().error());
         assertEquals(5, requests.size());
+    }
+    @Test
+    void preservesExactScopeAndReturnsReadablePayloadWithSourceAndTargets() throws Exception {
+        var requested = new AtomicReference<PackSageTools.ReadRequest>();
+        var source = new Evidence.Source(SCOPE, "native", "1.21.1", "minecraft:torch", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("pack:override"));
+        var target = new Evidence.NavigationTarget(SCOPE, "native", "minecraft:torch", "minecraft:torch");
+        var record = new Evidence.Record(source, Evidence.RecordKind.RECIPE, "Torch",
+                new Evidence.JsonObject(Map.of("count", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(7)))), List.of(target));
+        var tools = new PackSageTools(request -> {
+            requested.set(request);
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(record), Evidence.Coverage.COMPLETE,
+                    Evidence.Outcome.COMPLETE, null));
+        });
+
+        var response = tools.execute(new ModelBackend.ToolCall("call", "search_document", "{\"query\":\"torch\"}"), SCOPE)
+                .toCompletableFuture().get();
+
+        assertEquals(SCOPE, requested.get().scope());
+        assertFalse(response.result().error());
+        assertEquals(List.of(record), response.records());
+        var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals(7, json.getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("payload").get("count").getAsInt());
+        assertEquals("minecraft:torch", json.getAsJsonArray("records").get(0).getAsJsonObject()
+                .getAsJsonObject("source").get("sourceHandle").getAsString());
+        assertTrue(json.getAsJsonArray("records").get(0).getAsJsonObject().get("navigable").getAsBoolean());
+    }
+
+    @Test
+    void serializesResultDetailSoTheModelCanCorrectItself() throws Exception {
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, "cursor does not match this query")));
+
+        var response = tools.execute(new ModelBackend.ToolCall("a", "search_document", "{\"query\":\"none\"}"), SCOPE)
+                .toCompletableFuture().get();
+
+        assertTrue(response.result().error());
+        var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals("cursor does not match this query", json.get("detail").getAsString());
+
+        var plain = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+        var plainJson = JsonParser.parseString(plain.execute(new ModelBackend.ToolCall("b", "search_document", "{\"query\":\"none\"}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        assertFalse(plainJson.has("detail"));
+    }
+
+    @Test
+    void marksRecordsWithoutTargetsAsNotNavigable() throws Exception {
+        var record = new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "item:torch", 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Torch", new Evidence.JsonObject(Map.of()), List.of());
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(record),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+
+        var json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("a", "search_document", "{\"query\":\"torch\"}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+
+        assertFalse(json.getAsJsonArray("records").get(0).getAsJsonObject().get("navigable").getAsBoolean());
+    }
+
+    @Test
+    void providerStatusRecordsDoNotCountTowardTheRecordCap() throws Exception {
+        var records = new java.util.ArrayList<Evidence.Record>();
+        records.add(new Evidence.Record(new Evidence.Source(SCOPE, "jei", "fixture", "status:jei", 1, Instant.EPOCH,
+                Evidence.Activity.UNKNOWN, Evidence.Coverage.UNAVAILABLE, Evidence.Authority.UNKNOWN, List.of()),
+                Evidence.RecordKind.OTHER, "JEI unavailable", new Evidence.JsonObject(Map.of()), List.of()));
+        for (int index = 0; index < 64; index++) {
+            records.add(new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "item:" + index, 1, Instant.EPOCH,
+                    Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                    Evidence.RecordKind.ITEM, "Item " + index, new Evidence.JsonObject(Map.of()), List.of()));
+        }
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+
+        var response = tools.execute(new ModelBackend.ToolCall("a", "search_document", "{\"query\":\"item\"}"), SCOPE)
+                .toCompletableFuture().get();
+
+        assertEquals(65, response.records().size());
+        assertEquals("COMPLETE", JsonParser.parseString(response.result().serializedResult()).getAsJsonObject().get("outcome").getAsString());
+    }
+
+    @Test
+    void distinguishesEmptyMatchesFromFailedExtractionAndRejectsForeignScope() throws Exception {
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+        assertFalse(tools.execute(new ModelBackend.ToolCall("a", "search_document", "{\"query\":\"none\"}"), SCOPE)
+                .toCompletableFuture().get().result().error());
+
+        var failed = new PackSageTools(request -> CompletableFuture.failedFuture(new IllegalStateException("unreadable")));
+        assertTrue(failed.execute(new ModelBackend.ToolCall("b", "search_document", "{\"query\":\"none\"}"), SCOPE)
+                .toCompletableFuture().get().result().error());
+
+        var foreign = new Evidence.Source(new Evidence.Scope("other-world", "resources", "team", "runtime", 1),
+                "native", "1.21.1", "torch", 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of());
+        var stale = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(
+                new Evidence.Record(foreign, Evidence.RecordKind.ITEM, "Torch", new Evidence.JsonObject(Map.of()), List.of())),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+        assertTrue(stale.execute(new ModelBackend.ToolCall("c", "search_document", "{\"query\":\"torch\"}"), SCOPE)
+                .toCompletableFuture().get().result().error());
+    }
+    @Test
+    void outputEnvelopeCountsUtf8BytesAndPreservesTypedAdapterErrors() throws Exception {
+        var record = new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "large", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Large", new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("\u754C".repeat(50000)))), List.of());
+        var response = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(record),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))).execute(
+                new ModelBackend.ToolCall("large", "search_registry", "{\"registry\":\"item\"}"), SCOPE).toCompletableFuture().get();
+        assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131072);
+        assertTrue(response.result().serializedResult().contains("PARTIAL"));
+        var error = new PackSageTools(request -> CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "repeat lookup")))
+                .execute(new ModelBackend.ToolCall("bad", "search_recipe", "{}"), SCOPE).toCompletableFuture().get();
+        assertTrue(error.result().error());
+        assertTrue(error.result().serializedResult().contains("INVALID_CURSOR"));
+        assertTrue(error.result().serializedResult().contains("repeat lookup"));
     }
 }

@@ -61,11 +61,11 @@ Files: `KnowledgeService.java`, `client/ClientAssistant.java`, `chat/AssistantRu
 
 Files: `nativegame/NativeProvider.java`, `NativeInventoryReader.java`, `NativeSnapshot.java`, `inventory/InventoryReader.java`, `storage/NativeStorageReader.java`, `StorageReader.java`, `client/ClientAssistant.java`; native reader tests.
 
-- [ ] Test filter combinations, live pagination, location references, all five selectors and six registry kinds.
-- [ ] Implement native adapter operations, standard definitions and current instance evidence; keep registry definitions distinct from actual stacks/effects.
-- [ ] Replace captured opened-menu reuse with a maintained live menu or explicit unavailability. Read integrated-server containers/entities on the server thread with identity/access/loot guards; remote unsupported paths remain unavailable.
-- [ ] Preserve direct item component reads, equipment/cargo sections and component-distinct variants.
-- [ ] Pass focused native tests.
+- [x] Test filter combinations, live pagination, location references, all five selectors and six registry kinds.
+- [x] Implement native adapter operations, standard definitions and current instance evidence; keep registry definitions distinct from actual stacks/effects.
+- [x] Replace captured opened-menu reuse with a maintained live menu or explicit unavailability. Read integrated-server containers/entities on the server thread with identity/access/loot guards; remote unsupported paths remain unavailable.
+- [x] Preserve direct item component reads, equipment/cargo sections and component-distinct variants.
+- [x] Pass focused native tests.
 
 ### 5. Optional adapters and bounded document extraction
 
@@ -80,8 +80,8 @@ Files: `jei/JeiProvider.java`, `ftb/FtbProvider.java`, `patchouli/PatchouliProvi
 
 Files: updated testing/validation records under `docs/testing/` and `docs/validation/`, plus this progress checklist.
 
-- [ ] Run the full JUnit suite/build with the portable Java 21 environment; fix failures.
-- [ ] Obtain an independent review of the implementation and resolve material findings.
+- [x] Run the full JUnit suite/build with the portable Java 21 environment; fix failures.
+- [x] Obtain an independent review of the implementation and resolve material findings.
 - [ ] Run `scripts/build.ps1` to produce/install the candidate; verify its artifact identity.
 - [ ] Use the computer-use skill to launch/restart the fixture instance and test the tool catalog, inventory selectors/freshness, registry kinds, document/recipe discovery and reference refresh.
 - [ ] Record exact observed results and any environment-dependent coverage limits; finish with `git diff --check`.
@@ -93,3 +93,5 @@ Files: updated testing/validation records under `docs/testing/` and `docs/valida
 - Runtime migration is in progress. The user explicitly authorized separate implementation commits on 2026-10-14; automated/live results will be recorded as they run.
 
 - Private native endpoint policy: server reads are authorized only for an unpublished integrated server with exactly one connected player, whose UUID matches both the captured client and the integrated singleplayer profile. This is an explicit local owner read policy, not a claim to reproduce third-party protection interaction hooks. Revalidate on the server thread; inspect only already loaded targets under reviewed native contracts; deny locks, pending loot, excessive range, changed ownership and unsupported contracts. Remote/published sessions need a separate authenticated endpoint. Server-derived records use `SERVER_READ` authority and identify this policy.
+
+- Final local checkpoint `3869ee3`: 439 tests, zero failures/errors, four skips; full build passed. Source review closed through `0ebd365`. Installation and live testing are paused at the player's request until they finish playing and give the go-ahead. See the [validation record](../validation/2026-10-14-behavior-driven-toolbox.md) for the artifact hash and pending acceptance.

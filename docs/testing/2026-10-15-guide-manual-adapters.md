@@ -1,0 +1,11 @@
+# Guide and manual live checks
+
+Use the full rebuilt JAR in ATM10 and only `OoO - PackSage Trial`. The assistant runs Gradle/build checks and installs while Minecraft is closed. Preserve the player's model and search settings. Inspect saved tool calls/results rather than treating the generated answer alone as proof.
+
+1. For each provider (`modonomicon`, `guideme`, `immersiveengineering`, `actuallyadditions`, `relics`, `artifacts`), call `search_document` with query `""`, filter `{types:["guide"],provider:<id>}`, limit 1. Expect a source-owned guide reference with localized text, explicit source coverage and a bounded continuation if more content remains. Missing initialization or unsupported content must be explained, not reported as complete absence.
+2. Use `read_evidence` on each returned handle. Expect the same logical provider and identity, a current timestamp, and current text. A bounded evidence reread may be partial; search continuation supplies later text fragments.
+3. Search an observed distinctive phrase through its provider. Expect title/body matching without unrelated sources. Follow at least one continuation with unchanged query/filter/limit; expect progression through the same source, not a saved result page. Where a document spans fragments, the handle remains stable and text ranges are labeled.
+4. Query with the `quest` type and a guide-only provider. Expect explicit non-handling through the shared dispatcher; it must not return guide records as quests. Test an unknown/altered cursor and confirm it fails explicitly rather than silently restarting.
+5. Compare at least one manual passage against the normal in-game manual if it can be opened without changing gameplay. Tools must not open manuals, unlock content, change equipment or reload resources as a discovery side effect. An unavailable manual may require the player to open it normally; record that prerequisite.
+
+Relics/Artifacts records are ability documentation/default definitions. They must not be presented as the player's current relic levels, configured rolls or active effects. Actually Additions uses its loaded Patchouli booklet in the inspected release. Record exact provider versions, artifact hash, request IDs, actual results and any source-specific limitations in the validation report. Automated source fixtures are not installed compatibility proof.

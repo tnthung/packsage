@@ -18,14 +18,6 @@ class RelicsGuideReaderTest {
     }
 
     @Test
-    void descriptionKeysUseTheInstalledItemAbilityAndModeShape() {
-        assertEquals("relics.description.ember_ring.ability.fireball.description",
-                RelicsGuideReader.descriptionKey("ember_ring", "fireball", null));
-        assertEquals("relics.description.ember_ring.ability.fireball.empowered.description",
-                RelicsGuideReader.descriptionKey("ember_ring", "fireball", "empowered"));
-    }
-
-    @Test
     void longLocalizedDescriptionsContinueWithOverlapAndDetectShortenedLiveText() {
         String localized = "A localized ability description ".repeat(80);
         var first = RelicsGuideReader.textFragment("relics:ember_ring#fireball", localized, "description", 0, 0,

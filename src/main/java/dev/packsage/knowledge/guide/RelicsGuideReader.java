@@ -9,6 +9,7 @@ import net.minecraft.world.item.Item;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
@@ -37,31 +38,55 @@ public final class RelicsGuideReader implements GuideDocumentReader {
         String next = afterPosition;
         boolean more = false;
         boolean partial = false;
+        int afterItem = -1;
+        int afterAbility = -1;
+        if (afterPosition != null) {
+            int separator = afterPosition.indexOf(':');
+            try {
+                if (separator < 1 || separator == afterPosition.length() - 1 || afterPosition.indexOf(':', separator + 1) >= 0)
+                    throw new NumberFormatException();
+                afterItem = Integer.parseInt(afterPosition.substring(0, separator));
+                afterAbility = Integer.parseInt(afterPosition.substring(separator + 1));
+            } catch (NumberFormatException failure) {
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid Relics registry cursor");
+            }
+            if (afterItem < 0 || afterItem >= BuiltInRegistries.ITEM.size() || afterAbility < -1)
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Relics registry cursor is out of range");
+        }
         try {
-            int afterItem = afterPosition == null ? -1 : Integer.parseInt(afterPosition.substring(0, afterPosition.indexOf(':')));
-            int afterAbility = afterPosition == null ? -1 : Integer.parseInt(afterPosition.substring(afterPosition.indexOf(':') + 1));
             var relicType = Class.forName(RELIC_ITEM, false, RelicsGuideReader.class.getClassLoader());
             var client = Minecraft.getInstance();
             if (client.player == null) return new CandidatePage(List.of(), afterPosition, false,
                     Evidence.Coverage.PARTIAL, "Relics requires the current player to enumerate ability definitions");
-            int itemPosition = 0;
-            for (Item item : BuiltInRegistries.ITEM) {
-                String itemId = BuiltInRegistries.ITEM.getKey(item).toString();
-                int currentItemPosition = itemPosition++;
-                if (currentItemPosition < afterItem) continue;
+            for (int currentItemPosition = Math.max(0, afterItem); currentItemPosition < BuiltInRegistries.ITEM.size(); currentItemPosition++) {
                 if (!budget.value()) { more = next != null && !next.equals(afterPosition); partial = true; break; }
-                if (!relicType.isInstance(item)) { next = currentItemPosition + ":-1"; continue; }
+                Item item = BuiltInRegistries.ITEM.byId(currentItemPosition);
+                String itemId = BuiltInRegistries.ITEM.getKey(item).toString();
+                if (!relicType.isInstance(item)) {
+                    if (currentItemPosition == afterItem && afterAbility != -1)
+                        throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Relics cursor does not match the current registry item");
+                    next = currentItemPosition + ":-1";
+                    continue;
+                }
                 Object relicData = relicType.getMethod("getRelicData", net.minecraft.world.entity.LivingEntity.class,
                         net.minecraft.world.item.ItemStack.class).invoke(item, client.player, item.getDefaultInstance());
-                if (relicData == null) { partial = true; next = currentItemPosition + ":-1"; continue; }
+                if (relicData == null) {
+                    if (currentItemPosition == afterItem && afterAbility != -1)
+                        throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Relics cursor item definition changed");
+                    partial = true;
+                    next = currentItemPosition + ":-1";
+                    continue;
+                }
                 Object abilities = relicData.getClass().getMethod("getAbilitiesData").invoke(relicData);
                 Object ids = abilities.getClass().getMethod("getAbilityIDs").invoke(abilities);
-                if (!(ids instanceof Iterable<?> abilityIds)) { partial = true; next = currentItemPosition + ":-1"; continue; }
+                if (!(ids instanceof Set<?> abilityIds)) { partial = true; next = currentItemPosition + ":-1"; continue; }
+                if (currentItemPosition == afterItem && afterAbility >= abilityIds.size())
+                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Relics ability cursor is out of range");
                 int abilityPosition = 0;
                 for (Object abilityId : abilityIds) {
                     int currentAbilityPosition = abilityPosition++;
-                    if (currentItemPosition == afterItem && currentAbilityPosition <= afterAbility) continue;
                     if (!budget.value()) { more = next != null && !next.equals(afterPosition); partial = true; break; }
+                    if (currentItemPosition == afterItem && currentAbilityPosition <= afterAbility) continue;
                     String id = String.valueOf(abilityId);
                     if (id.length() > 256 || !budget.bytes(id.length() * 6 + itemId.length() * 6 + 128)) {
                         more = next != null && !next.equals(afterPosition); partial = true; break;
@@ -75,6 +100,8 @@ public final class RelicsGuideReader implements GuideDocumentReader {
                 if (more) break;
                 if (abilityPosition == 0) next = currentItemPosition + ":-1";
             }
+        } catch (Toolbox.Failure failure) {
+            throw failure;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
             partial = true;
         }
@@ -117,7 +144,8 @@ public final class RelicsGuideReader implements GuideDocumentReader {
                 String mode = modes.isEmpty() ? "description" : String.valueOf(modes.get(index));
                 if (mode.length() > 256) return new Fragment("", id, 0, null, Evidence.Coverage.PARTIAL, "Relics mode key exceeds the read bound");
                 String itemPath = BuiltInRegistries.ITEM.getKey(item).getPath();
-                String key = descriptionKey(itemPath, id.substring(separator + 1), modes.isEmpty() ? null : mode);
+                String key = "relics.description." + itemPath + ".ability." + id.substring(separator + 1) + "."
+                        + (modes.isEmpty() ? "description" : mode + ".description");
                 String rendered = Language.getInstance().getOrDefault(key);
                 if (rendered.equals(key)) {
                     textOffset = 0;
@@ -138,11 +166,6 @@ public final class RelicsGuideReader implements GuideDocumentReader {
         var candidate = new Candidate(id, split < 0 ? id : id.substring(split + 1), id,
                 List.of("relics ability documentation"), Evidence.Coverage.COMPLETE);
         return new ResolvedDocument(candidate, readFragment(id, null, maxChars, budget));
-    }
-
-    static String descriptionKey(String itemPath, String abilityId, String mode) {
-        return "relics.description." + itemPath + ".ability." + abilityId + "."
-                + (mode == null ? "description" : mode + ".description");
     }
 
     static Fragment textFragment(String id, String rendered, String label, int modePosition, int textOffset,

@@ -219,14 +219,13 @@ final class NativeServerStorageReader {
         var entries = new ArrayList<Evidence.Record>();
         var positions = new ArrayList<Evidence.JsonValue>();
         var capturedAt = Instant.now();
-        int outputSlot = 0;
         for (BlockHalf half : halves) {
             var component = half.container().collectComponents().getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
             positions.add(position(half.position(), half.section()));
             for (int slot = 0; slot < component.getSlots(); slot++) {
                 ItemStack stack = component.getStackInSlot(slot);
                 if (stack.isEmpty()) continue;
-                entries.add(storageEntry(stack, scope, capturedAt, "container", outputSlot++, slot,
+                entries.add(storageEntry(stack, scope, capturedAt, "container", slot + (half.section().equals("right") ? 27 : 0), slot,
                         blockId + ":" + level.dimension().location() + ":" + pos.asLong() + ":" + selection.blockState(),
                         half.position(),
                         half.section(), level.registryAccess(), request.filter(), player, level));
@@ -284,7 +283,7 @@ final class NativeServerStorageReader {
         var capturedAt = Instant.now();
         var entries = new ArrayList<Evidence.Record>();
         ItemStack bodyArmor = horse.getItemBySlot(EquipmentSlot.BODY).copy();
-        if (!bodyArmor.isEmpty()) entries.add(storageEntry(bodyArmor, scope, capturedAt, llama ? "body_carpet" : "body_armor", 0, 0,
+        if (!bodyArmor.isEmpty()) entries.add(storageEntry(bodyArmor, scope, capturedAt, llama ? "body_carpet" : "body_armor", 1, 0,
                 horse.getUUID() + ":" + player.serverLevel().dimension().location(), null, llama ? "body_carpet" : "body_armor",
                 player.serverLevel().registryAccess(), request.filter(), player, player.serverLevel()));
         var container = horse.getInventory();
@@ -296,7 +295,7 @@ final class NativeServerStorageReader {
             }
             if (stack.isEmpty()) continue;
             String section = slot == 0 ? "saddle" : "cargo";
-            entries.add(storageEntry(stack, scope, capturedAt, section, slot, slot,
+            entries.add(storageEntry(stack, scope, capturedAt, section, slot == 0 ? 0 : slot + 1, slot,
                     horse.getUUID() + ":" + player.serverLevel().dimension().location(), null, section,
                     player.serverLevel().registryAccess(), request.filter(), player, player.serverLevel()));
             if (entries.size() == 256) return unavailable(request, scope, monotonicClock, "horse inventory exceeds the read bound");

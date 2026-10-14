@@ -44,7 +44,7 @@ public final class NativeInventoryReader implements InventoryReader {
     private final LinkedHashMap<String, CursorState> cursors = new LinkedHashMap<>();
 
     public NativeInventoryReader(Minecraft client, Executor executor, Supplier<Evidence.Scope> currentScope) {
-        this(Objects.requireNonNull(client), executor, currentScope, request -> capture(client, request),
+        this(Objects.requireNonNull(client), executor, currentScope, request -> capture(client, request, () -> System.nanoTime() / 1_000_000L),
                 address -> locate(client, address), () -> System.nanoTime() / 1_000_000L);
     }
 
@@ -128,7 +128,7 @@ public final class NativeInventoryReader implements InventoryReader {
     private Evidence.Result readCursor(Request request) {
         synchronized (this) {
             var state = cursors.get(request.cursor());
-            if (state == null || state.capture().capturedAtMillis() + OBSERVATION_TTL_MILLIS <= clock.getAsLong()) {
+            if (state == null || state.capture().capture().capturedAtMillis() + OBSERVATION_TTL_MILLIS <= clock.getAsLong()) {
                 cursors.remove(request.cursor());
                 return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null,
                         "inventory cursor is unknown or expired");
@@ -209,7 +209,7 @@ public final class NativeInventoryReader implements InventoryReader {
         return false;
     }
 
-    private static Capture capture(Minecraft client, Request request) {
+    private static Capture capture(Minecraft client, Request request, LongSupplier clock) {
         var scope = request.scope();
         if (!client.isSameThread()) throw new IllegalStateException("inventory capture must run on the client thread");
         if (client.level == null || client.player == null) return new Capture(List.of(), unavailable(scope,

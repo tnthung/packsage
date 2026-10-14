@@ -24,10 +24,12 @@ The [shared-reader trial](2026-10-14-capability-reader-alignment.md) exposed fai
 | --- | --- | --- | --- |
 | Packsage minimal fixture | 1.21.1 / 21.1.202 | 19.27.0.340 | Latest and older-after-follow-up Recipe links opened the correct JEI page. |
 | FTB Evolution 1.45.0 | 1.21.1 / 21.1.250 | 19.57.0.450 | Recipe citation opened the correct four-torch JEI crafting page. |
-| ATM10 8.2 trial copy | 1.21.1 / 21.1.251 | 19.57.0.446 | Pending. |
+| ATM10 8.2 trial copy | 1.21.1 / 21.1.251 | 19.57.0.446 | Recipe citation opened the correct four-torch JEI crafting page. |
 
 Minimal fixture replay: `packsage/New_World-8a315c270917e038/bffb2bf9-4cd6-4d29-9f78-9a1a8e1807f3-f3b0f6737caac42c.jsonl`. `JEI_NAV_MIN_A` completed with one focused JEI search and a one-torch result matching the installed override. Clicking its Recipe citation opened the actual JEI Crafting page. After returning to chat, `JEI_NAV_MIN_B` completed with `NEXT`, no tool calls and request generation 2. Clicking the original Recipe citation again opened the same correct JEI page. No crafting or item transfer was performed.
 
 Evolution replay: `packsage/PackSage_Evolution_Trial-2dc1b88ff37c5763/b9b53b70-3e22-4176-ae91-a0c0e95e901c-1f24e5c099a0393d.jsonl`. In the existing trial world, `JEI_NAV_EVO_A` completed with one focused `search_pack` call, a four-torch result and the exact `jei/1/1/minecraft:crafting/recipe-minecraft:torch-7` reference. Clicking Recipe opened the actual JEI Crafting page with four torches; Escape returned to PackSage. Used GPT-6-Luna / medium, Search off, Screenshot off and paused chat. No crafting or item transfer was performed.
+
+ATM10 replay: `packsage/OoO_-_PackSage_Trial-814a1737fe55fba5/02c5b6fa-4c17-4f89-8f15-78eb283423e2-a2771324a2bdb4cb.jsonl`. In the backed-up trial copy, `JEI_NAV_ATM_A` completed with one focused `search_pack` call, a four-torch result and the exact `jei/1/1/minecraft:crafting/recipe-minecraft:torch-9` reference. Clicking Recipe opened the actual JEI Crafting page with four torches; Escape returned to PackSage. Used GPT-6-Luna / medium, Search off, Screenshot off and paused chat. No crafting or item transfer was performed; original `OoO` was not opened.
 
 This correction does not add persistent cross-restart JEI recipe identifiers. A handle must still have an exact retained registration in the active runtime.

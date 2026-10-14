@@ -18,6 +18,14 @@ class RelicsGuideReaderTest {
     }
 
     @Test
+    void configuredReaderUsesItsProviderIdentityAndVersion() {
+        var reader = new RelicsGuideReader("artifacts", "13.2.3", "artifacts");
+
+        assertEquals("artifacts", reader.providerId());
+        assertEquals("13.2.3", reader.version());
+    }
+
+    @Test
     void longLocalizedDescriptionsContinueWithOverlapAndDetectShortenedLiveText() {
         String localized = "A localized ability description ".repeat(80);
         var first = RelicsGuideReader.textFragment("relics:ember_ring#fireball", localized, "description", 0, 0,

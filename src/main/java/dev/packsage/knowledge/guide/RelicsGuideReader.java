@@ -20,18 +20,30 @@ import java.util.function.Supplier;
 public final class RelicsGuideReader implements GuideDocumentReader {
     private static final String RELIC_ITEM = "it.hurts.sskirillss.relics.api.relics.IRelicItem";
     private static final TagKey<Item> RELIC_TAG = TagKey.create(Registries.ITEM, ResourceLocation.parse("relics:relic"));
+    private static final TagKey<Item> ARTIFACTS_TAG = TagKey.create(Registries.ITEM, ResourceLocation.parse("artifacts:artifacts"));
+    private final String readerProviderId;
+    private final String readerVersion;
+    private final String itemNamespace;
+    private final TagKey<Item> discoveryTag;
 
-    private RelicsGuideReader() { }
+    private RelicsGuideReader() { this("relics", "0.12.8", null); }
+
+    RelicsGuideReader(String providerId, String version, String itemNamespace) {
+        this.readerProviderId = providerId;
+        this.readerVersion = version;
+        this.itemNamespace = itemNamespace;
+        this.discoveryTag = "artifacts".equals(itemNamespace) ? ARTIFACTS_TAG : RELIC_TAG;
+    }
 
     public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor) {
         return new GuideDocumentProvider(new RelicsGuideReader(), currentScope, clientExecutor);
     }
 
-    @Override public String providerId() { return "relics"; }
-    @Override public String version() { return "0.12.8"; }
+    @Override public String providerId() { return readerProviderId; }
+    @Override public String version() { return readerVersion; }
     @Override public String sourceIdentity(Evidence.Scope scope) {
         var client = Minecraft.getInstance();
-        var tag = client.level == null ? null : client.level.registryAccess().registryOrThrow(Registries.ITEM).getTag(RELIC_TAG).orElse(null);
+        var tag = client.level == null ? null : client.level.registryAccess().registryOrThrow(Registries.ITEM).getTag(discoveryTag).orElse(null);
         String tagIdentity = "none";
         if (tag != null) {
             try {
@@ -42,7 +54,7 @@ public final class RelicsGuideReader implements GuideDocumentReader {
                 throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "cannot identify the current Relics tag generation");
             }
         }
-        return "relics:tag=" + tagIdentity
+        return readerProviderId + ":" + readerVersion + ":namespace=" + itemNamespace + ":tag=" + discoveryTag.location() + ":" + tagIdentity
                 + ":player=" + (client.player == null ? "none" : client.player.getUUID()) + ":locale=" + scope.resourcesLocale();
     }
 
@@ -74,9 +86,9 @@ public final class RelicsGuideReader implements GuideDocumentReader {
             if (client.player == null || client.level == null) return new CandidatePage(List.of(), afterPosition, false,
                     Evidence.Coverage.PARTIAL, "Relics requires the current player and loaded item tags to enumerate ability definitions");
             var itemRegistry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
-            var relicTag = itemRegistry.getTag(RELIC_TAG).orElse(null);
+            var relicTag = itemRegistry.getTag(discoveryTag).orElse(null);
             if (relicTag == null) return new CandidatePage(List.of(), afterPosition, false,
-                    Evidence.Coverage.PARTIAL, "the loaded item registry has no relics:relic tag");
+                    Evidence.Coverage.PARTIAL, "the loaded item registry has no " + discoveryTag.location() + " tag");
             if (relicTag.size() == 0) {
                 if (afterPosition != null) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                         "Relics tag changed; restart the lookup");
@@ -91,7 +103,9 @@ public final class RelicsGuideReader implements GuideDocumentReader {
                 Item item = relicItems.next().value();
                 int itemPosition = currentItemPosition++;
                 if (itemPosition < afterItem) continue;
-                String itemId = BuiltInRegistries.ITEM.getKey(item).toString();
+                var itemKey = BuiltInRegistries.ITEM.getKey(item);
+                if (itemNamespace != null && !itemNamespace.equals(itemKey.getNamespace())) continue;
+                String itemId = itemKey.toString();
                 if (!relicType.isInstance(item)) {
                     if (itemPosition == afterItem && afterAbility != -1)
                         throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Relics cursor does not match its current tag item");
@@ -147,6 +161,8 @@ public final class RelicsGuideReader implements GuideDocumentReader {
             int separator = id.indexOf('#');
             if (separator < 1) return new Fragment("", id, 0, null, Evidence.Coverage.PARTIAL, "invalid Relics document identity");
             var itemKey = net.minecraft.resources.ResourceLocation.parse(id.substring(0, separator));
+            if (itemNamespace != null && !itemNamespace.equals(itemKey.getNamespace()))
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "item belongs to another guide namespace");
             Item item = BuiltInRegistries.ITEM.getOptional(itemKey).orElse(null);
             var relicType = Class.forName(RELIC_ITEM, false, RelicsGuideReader.class.getClassLoader());
             var client = Minecraft.getInstance();
@@ -155,11 +171,13 @@ public final class RelicsGuideReader implements GuideDocumentReader {
             if (client.player == null || client.level == null)
                 throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Relics requires a current player and loaded level");
             var itemRegistry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
-            var relicTag = itemRegistry.getTag(RELIC_TAG).orElse(null);
+            var relicTag = itemRegistry.getTag(discoveryTag).orElse(null);
             var holder = itemRegistry.getHolder(itemKey).orElse(null);
-            if (relicTag == null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "the loaded item registry has no relics:relic tag");
+            if (relicTag == null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE,
+                    "the loaded item registry has no " + discoveryTag.location() + " tag");
             if (holder == null || !relicTag.contains(holder))
-                throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "item is no longer a member of relics:relic");
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
+                        "item is no longer a member of " + discoveryTag.location());
             Object relicData = relicType.getMethod("getRelicData", net.minecraft.world.entity.LivingEntity.class,
                     net.minecraft.world.item.ItemStack.class).invoke(item, client.player, item.getDefaultInstance());
             Object abilities = relicData.getClass().getMethod("getAbilitiesData").invoke(relicData);

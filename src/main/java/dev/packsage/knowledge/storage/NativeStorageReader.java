@@ -492,7 +492,7 @@ public final class NativeStorageReader implements StorageReader {
             pageEntries.add(new Evidence.JsonObject(item));
         }
         while (!pageEntries.isEmpty()) {
-            var testPayload = envelope(request, observation, pageEntries, end < entries.size() ? "pending" : null, offset);
+            var testPayload = envelope(request, observation, pageEntries, end < entries.size() ? "pending" : null);
             if (Evidence.serialize(testPayload).getBytes(StandardCharsets.UTF_8).length <= MAX_PAGE_PAYLOAD) break;
             pageEntries.removeLast();
             end--;
@@ -508,7 +508,7 @@ public final class NativeStorageReader implements StorageReader {
                 while (cursors.size() > MAX_RETAINED) cursors.remove(cursors.keySet().iterator().next());
             }
         }
-        var payload = envelope(request, observation, pageEntries, next, offset);
+        var payload = envelope(request, observation, pageEntries, next);
         var source = new Evidence.Source(request.scope(), "native", "1.21.1",
                 "storage:" + snapshotId + ":" + (previous == null ? 0 : previous.offset()),
                 observation.scope().requestGeneration(), observation.capturedAt(), Evidence.Activity.ACTIVE,
@@ -534,12 +534,11 @@ public final class NativeStorageReader implements StorageReader {
     }
 
     private static Evidence.JsonObject envelope(Request request, Observation observation, List<Evidence.JsonValue> entries,
-                                                String next, int offset) {
+                                                String next) {
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
         values.put("target", new Evidence.JsonString(request.target().name().toLowerCase(java.util.Locale.ROOT)));
         values.put("capturedAt", new Evidence.JsonString(observation.capturedAt().toString()));
         values.put("entries", new Evidence.JsonArray(entries));
-        values.put("nextOffset", new Evidence.JsonString(Integer.toString(offset + entries.size())));
         values.put("hasMore", new Evidence.JsonBoolean(next != null));
         values.putAll(observation.details());
         return new Evidence.JsonObject(values);

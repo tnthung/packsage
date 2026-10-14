@@ -124,7 +124,13 @@ public final class ClientAssistant {
         optionalStatuses = Map.of(
                 "jei", optionalStatus("jei", JEI_VERSION),
                 "ftb_quests", optionalStatus("ftb_quests", "ftbquests", FTB_VERSION),
-                "patchouli", optionalStatus("patchouli", PATCHOULI_VERSION));
+                "patchouli", optionalStatus("patchouli", PATCHOULI_VERSION),
+                "modonomicon", optionalStatus("modonomicon", "[1.120.4]"),
+                "guideme", optionalStatus("guideme", "[21.1.19]"),
+                "immersiveengineering", optionalStatus("immersiveengineering", "[12.4.2-194]"),
+                "actuallyadditions", optionalStatus("actuallyadditions", "[1.3.26]"),
+                "relics", optionalStatus("relics", "[0.12.8]"),
+                "artifacts", optionalStatus("artifacts", "[13.2.3]"));
         settingsPath = client.gameDirectory.toPath().resolve("config").resolve("packsage.properties");
         settings = PackSageSettings.load(settingsPath);
         var backend = new ChatGptBackend(new ChatGptAuth(ChatGptAuth.defaultCredentialFile()));
@@ -407,6 +413,12 @@ public final class ClientAssistant {
         providers.add(optionalMinecraftProvider("ftb_quests", FTB_CLASS, "forMinecraft", scope));
         providers.add(ConfigProvider.production(configRoots(), clientExecutor, workerExecutor, client::isSameThread));
         providers.add(optionalMinecraftProvider("patchouli", PATCHOULI_CLASS, "forMinecraft", scope));
+        providers.add(optionalMinecraftProvider("modonomicon", "dev.packsage.knowledge.guide.ModonomiconGuideReader", "forMinecraft", scope));
+        providers.add(optionalMinecraftProvider("guideme", "dev.packsage.knowledge.guide.GuideMeGuideReader", "forMinecraft", scope));
+        providers.add(optionalMinecraftProvider("immersiveengineering", "dev.packsage.knowledge.guide.ImmersiveEngineeringGuideReader", "forMinecraft", scope));
+        providers.add(optionalMinecraftProvider("actuallyadditions", "dev.packsage.knowledge.guide.ActuallyAdditionsGuideReader", "forMinecraft", scope));
+        providers.add(optionalMinecraftProvider("relics", "dev.packsage.knowledge.guide.RelicsGuideReader", "forMinecraft", scope));
+        providers.add(optionalMinecraftProvider("artifacts", "dev.packsage.knowledge.guide.ArtifactsGuideReader", "forMinecraft", scope));
         return new KnowledgeService(providers, scope);
     }
 
@@ -628,7 +640,9 @@ public final class ClientAssistant {
         }
 
         @Override public Metadata metadata() {
-            return new Metadata(id, id.equals("ftb_quests") ? List.of("quest") : id.equals("patchouli") ? List.of("guide") : List.of(),
+            return new Metadata(id, id.equals("ftb_quests") ? List.of("quest")
+                    : List.of("patchouli", "modonomicon", "guideme", "immersiveengineering", "actuallyadditions", "relics", "artifacts")
+                    .contains(id) ? List.of("guide") : List.of(),
                     id.equals("jei"), List.of(), Map.of());
         }
 

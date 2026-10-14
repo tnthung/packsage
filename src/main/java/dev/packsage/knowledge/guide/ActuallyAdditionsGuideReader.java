@@ -136,8 +136,8 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
             var sourcePosition = positionType.getConstructor(int.class, int.class, int.class, int.class)
                     .newInstance(position[0], position[1], position[2], position[3]);
             Method read = java.util.Arrays.stream(reader.getMethods()).filter(method -> method.getName().equals("entry")
-                    && method.getParameterCount() == 8).findFirst().orElseThrow();
-            var result = read.invoke(null, book, current, sourcePosition, overlap, newChars, false, 1, budget);
+                    && method.getParameterCount() == 9).findFirst().orElseThrow();
+            var result = read.invoke(null, book, current, sourcePosition, overlap, newChars, false, 1, false, budget);
             var record = result.getClass().getMethod("record").invoke(result);
             var pages = (List<?>) record.getClass().getMethod("pages").invoke(record);
             var text = new StringBuilder();

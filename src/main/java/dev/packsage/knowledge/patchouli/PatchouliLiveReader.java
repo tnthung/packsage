@@ -49,6 +49,12 @@ public final class PatchouliLiveReader {
 
     public static Entry entry(Book book, BookEntry entry, Position position, int queryOverlap, int maxChars,
                               boolean includeMappings, int maxPages, Toolbox.DocumentBudget budget) {
+        return entry(book, entry, position, queryOverlap, maxChars, includeMappings, maxPages, true, budget);
+    }
+
+    public static Entry entry(Book book, BookEntry entry, Position position, int queryOverlap, int maxChars,
+                              boolean includeMappings, int maxPages, boolean includeSourceFields,
+                              Toolbox.DocumentBudget budget) {
         try {
             if (!budget.value() || !budget.bytes(2048)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                     "Patchouli entry metadata exceeds the remaining read budget");
@@ -79,7 +85,7 @@ public final class PatchouliLiveReader {
                 var fragment = page(page, displayPage, book.i18n,
                         position != null && pageIndex == position.page() ? position.node() : 0,
                         position != null && pageIndex == position.page() ? position.textOffset() : 0, queryOverlap,
-                        maxChars, budget);
+                        maxChars, includeSourceFields, budget);
                 pages.add(fragment.record());
                 maxChars -= fragment.copiedChars();
                 pagesRead++;
@@ -156,10 +162,15 @@ public final class PatchouliLiveReader {
 
     static Page page(BookPage page, int pageIndex, boolean translated, int startNode, int startOffset, int queryOverlap,
                      int maxChars, Toolbox.DocumentBudget budget) {
+        return page(page, pageIndex, translated, startNode, startOffset, queryOverlap, maxChars, true, budget);
+    }
+
+    static Page page(BookPage page, int pageIndex, boolean translated, int startNode, int startOffset, int queryOverlap,
+                     int maxChars, boolean includeSourceFields, Toolbox.DocumentBudget budget) {
         if (startNode < 0 || startOffset < 0) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid page position");
         var root = new JsonObject();
         var source = page.sourceObject == null ? new JsonObject() : page.sourceObject;
-        root.add("source", source);
+        if (includeSourceFields) root.add("source", source);
         if (page instanceof PageWithText && source.has("text") && source.get("text").isJsonPrimitive()) {
             var text = source.get("text").getAsString();
             // Language lookup returns the existing translated string; avoid I18n's unbounded formatting copy.

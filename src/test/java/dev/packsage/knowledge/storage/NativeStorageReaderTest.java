@@ -515,7 +515,7 @@ class NativeStorageReaderTest {
             var reader = new NativeStorageReader(fakeMinecraft, Runnable::run, () -> FIRST, (reference, scope) -> null);
             var all = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 32, null, FIRST))
                     .toCompletableFuture().join();
-            assertEquals(Evidence.Outcome.PARTIAL, all.outcome());
+            assertEquals(Evidence.Outcome.COMPLETE, all.outcome());
             var sections = ((Evidence.JsonArray) all.records().getFirst().payload().values().get("entries")).values().stream()
                     .map(value -> ((Evidence.JsonObject) ((Evidence.JsonObject) value).values().get("payload")).values().get("section"))
                     .map(Evidence.JsonString.class::cast).map(Evidence.JsonString::value).toList();

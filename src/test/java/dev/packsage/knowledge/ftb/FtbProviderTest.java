@@ -83,14 +83,14 @@ class FtbProviderTest {
             var cachedTitleField = QuestObjectBase.class.getDeclaredField("cachedTitle");
             cachedTitleField.setAccessible(true);
             var groupTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
-            groupTranslations.put(TranslationKey.TITLE, "");
+            groupTranslations.put(TranslationKey.TITLE, "Live group");
             translationsField.set(group, groupTranslations);
-            cachedTitleField.set(group, Component.literal(""));
+            cachedTitleField.set(group, Component.literal("Live group"));
             var chapter = new Chapter(0x100L, file, group);
             var chapterTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
-            chapterTranslations.put(TranslationKey.TITLE, "");
+            chapterTranslations.put(TranslationKey.TITLE, "Live chapter");
             translationsField.set(chapter, chapterTranslations);
-            cachedTitleField.set(chapter, Component.literal(""));
+            cachedTitleField.set(chapter, Component.literal("Live chapter"));
             chapter.onCreated();
             var firstQuestId = 0x1000L;
             for (var index = 0; index < 800; index++) {
@@ -190,14 +190,14 @@ class FtbProviderTest {
             var cachedTitleField = QuestObjectBase.class.getDeclaredField("cachedTitle");
             cachedTitleField.setAccessible(true);
             var groupTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
-            groupTranslations.put(TranslationKey.TITLE, "");
+            groupTranslations.put(TranslationKey.TITLE, "Large group");
             translationsField.set(group, groupTranslations);
-            cachedTitleField.set(group, Component.literal(""));
+            cachedTitleField.set(group, Component.literal("Large group"));
             var chapter = new Chapter(0x200L, file, group);
             var chapterTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
-            chapterTranslations.put(TranslationKey.TITLE, "");
+            chapterTranslations.put(TranslationKey.TITLE, "Large chapter");
             translationsField.set(chapter, chapterTranslations);
-            cachedTitleField.set(chapter, Component.literal(""));
+            cachedTitleField.set(chapter, Component.literal("Large chapter"));
             chapter.onCreated();
             var quest = new Quest(0x2000L, chapter);
             quest.onCreated();
@@ -294,14 +294,14 @@ class FtbProviderTest {
             var cachedTitleField = QuestObjectBase.class.getDeclaredField("cachedTitle");
             cachedTitleField.setAccessible(true);
             var groupTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
-            groupTranslations.put(TranslationKey.TITLE, "");
+            groupTranslations.put(TranslationKey.TITLE, "Dependency group");
             translationsField.set(group, groupTranslations);
-            cachedTitleField.set(group, Component.literal(""));
+            cachedTitleField.set(group, Component.literal("Dependency group"));
             var chapter = new Chapter(0x500L, file, group);
             var chapterTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
-            chapterTranslations.put(TranslationKey.TITLE, "");
+            chapterTranslations.put(TranslationKey.TITLE, "Dependencies");
             translationsField.set(chapter, chapterTranslations);
-            cachedTitleField.set(chapter, Component.literal(""));
+            cachedTitleField.set(chapter, Component.literal("Dependencies"));
             chapter.onCreated();
             var quest = new Quest(0x5000L, chapter);
             var questTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
@@ -332,9 +332,12 @@ class FtbProviderTest {
                     page = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
                             new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of())).toCompletableFuture().get();
                 } catch (java.util.concurrent.ExecutionException failure) {
-                    assertTrue(failure.getCause() instanceof Toolbox.Failure);
-                    assertEquals(Toolbox.Code.INVALID_CURSOR, ((Toolbox.Failure) failure.getCause()).code());
-                    assertTrue(dependencyOffset > 0);
+                    assertTrue(failure.getCause() instanceof Toolbox.Failure, "pageIndex=" + pageIndex
+                            + ", cursor=" + cursor + ", cause=" + failure.getCause());
+                    assertEquals(Toolbox.Code.INVALID_CURSOR, ((Toolbox.Failure) failure.getCause()).code(),
+                            "pageIndex=" + pageIndex + ", cursor=" + cursor);
+                    assertTrue(dependencyOffset > 0, "pageIndex=" + pageIndex + ", cursor=" + cursor
+                            + ", failure=" + failure.getCause().getMessage());
                     return;
                 }
                 cursor = page.nextCursor();

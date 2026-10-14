@@ -716,26 +716,36 @@ public final class FtbProvider implements KnowledgeProvider {
                 var groupTitle = "";
                 var chapterTitleComplete = false;
                 if (emitChapter) {
-                    var rawChapterTitle = chapter.getRawTitle();
-                    chapterTitle = rawChapterTitle.length() > 512 ? rawChapterTitle.substring(0, 512) : rawChapterTitle;
-                    chapterTitleComplete = rawChapterTitle.length() <= 512;
-                    if (rawChapterTitle.isEmpty()) {
-                        chapterTitle = chapter.getTitle().getString(513);
-                        if (chapterTitle.length() > 512) {
-                            chapterTitle = chapterTitle.substring(0, 512);
-                            chapterTitleComplete = false;
-                        }
-                    }
-                    if (group != null) {
-                        var rawGroupTitle = group.getRawTitle();
-                        groupTitle = rawGroupTitle.length() > 512 ? rawGroupTitle.substring(0, 512) : rawGroupTitle;
-                        chapterTitleComplete &= rawGroupTitle.length() <= 512;
-                        if (rawGroupTitle.isEmpty()) {
-                            groupTitle = group.getTitle().getString(513);
-                            if (groupTitle.length() > 512) {
-                                groupTitle = groupTitle.substring(0, 512);
+                    try {
+                        var rawChapterTitle = chapter.getRawTitle();
+                        chapterTitle = rawChapterTitle.length() > 512 ? rawChapterTitle.substring(0, 512) : rawChapterTitle;
+                        chapterTitleComplete = rawChapterTitle.length() <= 512;
+                        if (rawChapterTitle.isEmpty()) {
+                            chapterTitle = chapter.getTitle().getString(513);
+                            if (chapterTitle.length() > 512) {
+                                chapterTitle = chapterTitle.substring(0, 512);
                                 chapterTitleComplete = false;
                             }
+                        }
+                    } catch (RuntimeException failure) {
+                        chapterTitle = chapterId;
+                        chapterTitleComplete = false;
+                    }
+                    if (group != null) {
+                        try {
+                            var rawGroupTitle = group.getRawTitle();
+                            groupTitle = rawGroupTitle.length() > 512 ? rawGroupTitle.substring(0, 512) : rawGroupTitle;
+                            chapterTitleComplete &= rawGroupTitle.length() <= 512;
+                            if (rawGroupTitle.isEmpty()) {
+                                groupTitle = group.getTitle().getString(513);
+                                if (groupTitle.length() > 512) {
+                                    groupTitle = groupTitle.substring(0, 512);
+                                    chapterTitleComplete = false;
+                                }
+                            }
+                        } catch (RuntimeException failure) {
+                            groupTitle = groupId;
+                            chapterTitleComplete = false;
                         }
                     }
                 }

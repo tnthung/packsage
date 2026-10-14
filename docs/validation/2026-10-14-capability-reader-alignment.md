@@ -21,7 +21,7 @@ Copied `build/libs/packsage-0.1.0.jar` to `mods/packsage.jar` in all three close
 | Profile | Minecraft / NeoForge | Live status |
 | --- | --- | --- |
 | Packsage minimal fixture | 1.21.1 / 21.1.202 | Inventory/search/container and existing adapter probes passed; corrected paging probe passed. |
-| FTB Evolution 1.45.0 | 1.21.1 / 21.1.250 | Pending. |
+| FTB Evolution 1.45.0 | 1.21.1 / 21.1.250 | Shared inventory/search/item-target checks passed; existing retrieval limits recorded below. |
 | ATM10 8.2 | 1.21.1 / 21.1.251 | Pending. |
 
 ## Minimal fixture observations
@@ -39,7 +39,20 @@ Replay: profile-local `packsage/New_World-8a315c270917e038/5962c299-64c5-4e38-94
 - One unnecessary model call used storage payload `nextOffset=1` as cursor `1` despite `nextCursor=null`; the reader correctly rejected it as unknown. Committed the regression as `d9ff416`, then removed that misleading internal offset and clarified continuation instructions in `542430d`.
 - `ALIGN_MIN_C`, sent at 02:32:34 UTC on the corrected JAR, completed successfully. Two `read_inventory(limit=1)` calls enumerated coal and the shulker with the same capture timestamp, following the returned opaque cursor exactly once. Selected mainhand/offhand locations remained explicitly empty. A fresh main-slot reference returned complete shulker storage with seven diamonds, no `nextOffset` and `nextCursor=null`; no invalid continuation call followed. A name search independently found the shulker with complete coverage.
 
+## FTB Evolution observations
+
+World: existing survival `PackSage Evolution Trial`. The client loaded 566 mods; installed JEI 19.57.0.450, FTB Quests 2101.1.36 and Patchouli 93. Used GPT-6-Luna / medium, Search off, Screenshot off, and paused gameplay. No fixture content or inventory items were added.
+
+Replay: profile-local `packsage/PackSage_Evolution_Trial-2dc1b88ff37c5763/e62e8301-de8c-4c5e-8c43-974df56bbbd1-c30c303c364bc06f.jsonl`.
+
+- `ALIGN_EVO_A`, sent at 02:45:53 UTC, completed. `read_inventory(limit=2)` followed two opaque cursors and returned five occupied hotbar slots with complete coverage: Tall White Allium, Wheat Seeds, Old Root, Hag Taper and two Flax Seeds. Mainhand identified hotbar 0; offhand was explicitly empty.
+- Four `search_inventory` calls for `seed`, selecting name, ID, tag and tooltip independently, each returned Wheat Seeds (one) and Actually Additions Flax Seeds (two), with complete coverage. Tooltip capture included both display names and their mod names.
+- Item storage at a fresh selected-slot reference identified the Tall White Allium owner and returned unavailable/unknown contents, not an empty container. This checks slot dispatch in the pack; positive native component storage was established in the minimal fixture.
+- Existing reads retrieved the Getting Started chapter and current progress for Punch A Tree and Wooden Pickaxe (both zero/incomplete), a complete PneumaticCraft Getting Started entry, and a complete navigable JEI crafting record for four torches. Quest smart-filter/reward semantics and the wider recipe result remained partial; Create's parallel automatic-crafting record remained opaque. The unrelated Genetics Resequenced book reload failure still made guide search partial.
+- Ars Nouveau `general.sylphManaCost` explicitly returned saved and loaded values of 250. Config catalog coverage remained partial with the bounded-extraction diagnostic; this value does not establish complete catalog capture.
+- The combined question repeated some inventory/search reads and made two rejected recipe calls: `outputItem` with the native provider, then a JEI cursor reused with changed filters. These did not affect successful inventory/search/storage results. Efficient model call selection and full real-pack extraction are not established by this check. A Recipe click did not visibly change screens in this pass, so JEI page opening is not claimed.
+
 ## Remaining acceptance
 
-- Run real inventory/search/item-storage and existing-adapter probes in FTB Evolution and ATM10, recording actual results and limits.
+- Run real inventory/search/item-storage and existing-adapter probes in ATM10, recording actual results and limits.
 - No multiplayer/LAN, Curios, mod storage/network integration, or universal tooltip-provider compatibility is established by these checks.

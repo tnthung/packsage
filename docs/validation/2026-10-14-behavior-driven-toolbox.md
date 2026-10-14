@@ -1,6 +1,6 @@
 # Behavior-driven Toolbox validation
 
-Date: 2026-10-14. Status: initial implementation, independent source review, automated build and installed live tool checks completed. Prepared-fixture follow-ups also cover single/double chests, bundle/shulker contents, chest minecart and chest-bearing donkey. They found opened-menu coverage and server slot-metadata defects, plus one incorrect model summary. The correction checkpoint below distinguishes fixes from observed acceptance. This is not exhaustive live coverage of every checklist case.
+Date: 2026-10-14. Status: report finalized for the tested scope. Implementation, independent review and automated build passed; installed checks cover all twelve signatures and prepared inventory fixtures. Opened-menu coverage and server slot-metadata defects are corrected; the correction build passed a live mixed-chest comparison. Model-summary accuracy is mitigated, not guaranteed. The remaining coverage matrix below is explicit: not every checklist case has live proof.
 
 The [specification](../specs/2026-10-14-behavior-driven-tools.md) defines the contract. The [implementation plan](../plans/2026-10-14-behavior-driven-toolbox.md) and [live checklist](../testing/2026-10-14-behavior-driven-toolbox.md) track the requested work. Earlier validation documents describe older artifacts and do not establish acceptance of this migration.
 
@@ -75,7 +75,7 @@ Five completed requests contain eight actual tool calls, verified from saved rep
 
 Fresh contents, player/container separation, closed-menu invalidation, targeted access without a menu, evidence rereads and non-container target rejection passed. This supersedes the earlier absence of positive opened/targeted chest coverage. Switching between two distinct chests, replacing item identities, double chests, mounts and same-request mutation remain outside this follow-up's coverage.
 
-Unresolved finding: `NativeStorageReader.validOpened` unconditionally constructs runtime opened-menu observations with `completeness=partial` and `Coverage.PARTIAL`, even for this fully read two-stack vanilla chest. The raw result provides no explanation, so the model warns that unseen contents may exist. This is a coverage-reporting issue, not observed stale contents. Do not mark opened-chest coverage reporting fully accepted until it is corrected and retested.
+Finding at this checkpoint (corrected and retested below): `NativeStorageReader.validOpened` unconditionally constructs runtime opened-menu observations with `completeness=partial` and `Coverage.PARTIAL`, even for this fully read two-stack vanilla chest. The raw result provides no explanation, so the model warns that unseen contents may exist. This is a coverage-reporting issue, not observed stale contents.
 
 Restored the original 3 dirt and 7 cobblestone in their original chest slots, with the temporary player slot empty. Left Minecraft running in the trial world with PackSage displaying the final unavailable-target result; the camera points at grass. Health remained full and level 57. No other world was opened.
 
@@ -90,7 +90,7 @@ The player added the adjacent chest and authorized the next live check. Used the
 
 Both requests completed; all five actual calls/results were inspected in the saved replay. Counts, physical halves, page advancement, termination and absence of duplicates matched the visible inventory. The model issued the limit-32 comparison alongside the initial limit-1 request, before requesting the continuation; no contents changed during these reads. Only the half at (12, 2, -1026) was targeted, so this is not proof that aiming at either half produces identical ordering.
 
-Additional unresolved metadata finding: targeted cobblestone reports `menuSlot=1`, whereas the opened large-chest menu reports slot 28. Its right-half position and `componentSlot=1` are correct. `NativeServerStorageReader.readBlock` passes an occupied-entry ordinal (`outputSlot++`) into the menu-slot field instead of the combined chest slot. Contents are correct, but the field is misleading and should not be treated as a GUI slot index until corrected or explicitly renamed.
+Additional metadata finding at this checkpoint (corrected and retested below): targeted cobblestone reports `menuSlot=1`, whereas the opened large-chest menu reports slot 28. Its right-half position and `componentSlot=1` are correct. `NativeServerStorageReader.readBlock` passes an occupied-entry ordinal (`outputSlot++`) into the menu-slot field instead of the combined chest slot. Contents are correct, but this artifact's field is misleading.
 
 Restored dirt to its original menu slot 27; cobblestone remained at slot 28 throughout. Left the large chest menu open, with the original counts and player inventory unchanged. No code changes, build or automated test rerun were made for this validation-only step.
 
@@ -156,7 +156,7 @@ Across the original run and prepared-fixture follow-ups, 22 completed requests c
 | Area | Observed acceptance | Remaining live coverage |
 | --- | --- | --- |
 | Player and held storage | Player slots/equipment, reference discovery, mainhand/offhand bundle and shulker direct contents, unsupported item rejection and hand replacement. | Mutating internal bundle/shulker contents; same-request source mutation behind an existing reference. |
-| Opened containers | Single/double chest, minecart, Skyroot boat and donkey contents; player slots excluded; count changes and closure invalidate access. | Corrected COMPLETE/PARTIAL reporting requires the correction build. |
+| Opened containers | Single/double chest, minecart, Skyroot boat and donkey contents; player slots excluded; count changes and closure invalidate access. Corrected COMPLETE reporting passed the mixed-chest regression below. | The corrected build was not separately rerun against every previous menu fixture. |
 | Targeted containers | Single/double chest and minecart current stock, empty transitions, evidence rereads and non-container rejection. | Both double-chest aiming directions; lock/block/pending-loot and remote-server denials are not claimed as live-tested here. |
 | Mounts and boats | Donkey targeted/opened/ridden cargo and dismount invalidation. Skyroot boat opened cargo works. | Positive equipped saddle/body items and native chest-boat targeted/ridden reads. Skyroot ridden access is explicitly unsupported by the reviewed native contract. |
 | Filters and pagination | Separate duplicate stacks, exact IDs, logs tag, mixed-case literal names, OR within IDs, AND across fields, four-page termination without omissions/duplicates. | Tooltip/section filter combinations and mutations between live pages were not exhaustively exercised. |
@@ -179,3 +179,23 @@ Independent review found no behavioral defect in these corrections. It identifie
 At `9e63508`, full `test build --console=plain` passed in 29 seconds: 439 tests, 435 passed, zero failures/errors and the same four filesystem-link skips. Focused native storage tests had also passed (21 reader tests plus two server guard tests). `git diff --check` passed. No formatter was used.
 
 Saved and exited the trial normally, then copied the tested JAR to ATM10 and `dist/packsage.jar`. Build, distribution and installed SHA-256 values all matched `B54C31D8A37B2DAA8F739A2A347849858D09ABBDDCA029163E552075296AE67C`. Distribution metadata was refreshed. The separate minimal profile was not reinstalled. The live correction checks use this artifact; earlier calls above use the previous hash.
+
+### Installed correction regression
+
+Relaunched ATM10 using computer-use and opened only `OoO - PackSage Trial`. The same seven mixed-chest stacks remained visible in their original slots. Request `CORRECTION_A` / `47201461-1b64-4fa7-b830-e4c27a17a308` completed in the same prepared-fixture replay file with seven call-ID-paired `search_inventory` results:
+
+| Query | Observed result |
+| --- | --- |
+| Opened, unfiltered, limit 32 | COMPLETE, no cursor; all seven count-64 stacks at slots 7, 9, 25, 29, 31, 46 and 53. |
+| Opened, ids=[minecraft:cobblestone] | COMPLETE; separate stacks at slots 9 and 29. |
+| Opened, tags=[minecraft:logs] | COMPLETE; birch log at 46 and oak log at 53. |
+| Opened, names=[CoBbLe] | COMPLETE; both cobblestone stacks at 9 and 29. |
+| Opened, ids=[minecraft:cobblestone], names=[dirt] | COMPLETE, empty. No incorrect partial-absence warning. |
+| Opened, ids=[minecraft:dirt,minecraft:stick] | COMPLETE; dirt at 7 and stick at 31. |
+| Targeted, unfiltered, limit 32 | COMPLETE; all seven entries and GUI slots match the visible/opened chest. Left component slots are 7, 9, 25; right component slots are 2, 4, 19, 26 with GUI slots 29, 31, 46, 53. |
+
+The raw tools and the answer's per-query contents agree. The answer's introduction incorrectly says "six searches" although it lists all seven correctly. Thus the original false CoBbLe no-match claim did not recur, but a minor summary-count error remains; the grounding change cannot establish general model-answer reliability.
+
+Opened-menu completeness and sparse/double-chest GUI mapping are accepted on the corrected installed artifact. Horse GUI mapping is source-reviewed and compiled, with the opened-horse automated regression passing; the changed server horse indices and positive equipment were not rerun live after this rebuild. No generic modded-entity contract was added. No snapshots or retained content bodies were introduced.
+
+Total observed live evidence is now 23 completed requests and 103 tool calls across the two artifacts. This is coverage of the stated scenarios, not a claim that all possible tests passed. No inventory items were moved during the correction run. Left Minecraft running with the unchanged large-chest inventory visible; original `OoO` was never opened.

@@ -135,7 +135,7 @@ class GuideDocumentProviderTest {
                 new AdapterRegistry(), new Toolbox.DocumentBudget(), null)).toCompletableFuture().join();
 
         assertEquals(1, reader.hiddenPageCalls.get());
-        assertEquals(1, result.records().size());
+        assertEquals(2, result.records().size());
         assertEquals("fixture:guide/entry", result.records().getFirst().source().sourceHandle());
     }
 

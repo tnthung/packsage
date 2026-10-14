@@ -130,3 +130,21 @@ The player aimed at a tame native donkey with a chest, identity `bece15dc-5466-4
 All three requests completed; nine actual calls/results were inspected in the saved replay. Targeted access, opened/ridden positive cargo reads, evidence rereads, restored empty contents and dismount/menu-close invalidation passed. Positive saddle/equipment handling was not tested because none was equipped. The existing opened-menu partial-label issue persists. The opened/server `menuSlot` values also differ (2 versus 1 for the same cargo slot), extending the recorded slot-metadata ambiguity to mounts; counts and cargo classification were correct.
 
 The donkey's original empty cargo and player inventory were restored. Left the player dismounted, with PackSage displaying the final results and the donkey still targeted. No code, build or automated test changes were made.
+
+## Mixed-stack chest filters and pagination
+
+The player prepared an opened large chest with seven stacks, all count 64: dirt at menu slot 7, cobblestone at 9 and 29, chest at 25, stick at 31, birch log at 46 and oak log at 53. Verified these against the visible menu using computer-use; no items were moved. Continued with the same artifact and replay file.
+
+Request `MIXED_CHEST_A` / `3a9d9b1c-a3a7-4f20-88b4-c52d15c94009` completed with nine calls. Unfiltered limit-2 enumeration produced four pages with slot sequences [7,9], [25,29], [31,46], [53], then no continuation. No stack was omitted, merged or duplicated. Five additional queries returned:
+
+| Filter | Actual tool result |
+| --- | --- |
+| ids=[minecraft:cobblestone] | Both separate stacks, slots 9 and 29, count 64 each. |
+| tags=[minecraft:logs] | Birch log at 46 and oak log at 53, count 64 each. |
+| names=[CoBbLe] | Both cobblestone stacks, confirming case-insensitive literal matching. |
+| ids=[minecraft:cobblestone], names=[dirt] | Empty entries, confirming AND across fields for this fixture. |
+| ids=[minecraft:dirt,minecraft:stick] | Dirt at 7 and stick at 31, confirming OR within the ID field. |
+
+All opened results remained PARTIAL due to the existing coverage-label issue; an empty result must not be presented as complete absence. The first assistant answer incorrectly stated that names=[CoBbLe] returned no matches, despite its call-ID-matched tool result containing both stacks. This is an observed answer-grounding/reporting failure, not a failed filter. Isolated repeat `MIXED_CHEST_B` / `76996653-9108-477b-807b-edc7c4aa8ffe` made one fresh name-filter call and correctly reported both stacks in the final answer. The repeat does not erase the earlier reporting failure.
+
+Ten actual calls across two completed requests were inspected. Pagination and filter execution passed against the fixture; multi-query answer accuracy has the issue above. Left PackSage displaying the correct isolated result over the still-open chest. Inventory contents were untouched. No code changes or automated test rerun were made.

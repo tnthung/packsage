@@ -240,11 +240,21 @@ class FtbProviderTest {
                 if (pageIndex == 0) {
                     assertTrue(taskValues.size() > 0);
                     assertTrue(cursor.length() <= 1024);
+                    var changedArguments = new java.util.LinkedHashMap<>(arguments);
+                    changedArguments.put("query", new Evidence.JsonString("different query"));
+                    var invalidCursor = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                            new Evidence.JsonObject(changedArguments), SCOPE), context(registry, Map.of())).toCompletableFuture();
+                    try {
+                        invalidCursor.join();
+                        throw new AssertionError("cursor should be bound to its original query");
+                    } catch (java.util.concurrent.CompletionException failure) {
+                        assertEquals(Toolbox.Code.INVALID_CURSOR, ((Toolbox.Failure) failure.getCause()).code());
+                    }
                 }
                 if (cursor == null) break;
             }
             assertEquals(181, observedTaskIds.size());
-            assertEquals(180, new java.util.HashSet<>(observedTaskIds).size());
+            assertEquals(181, new java.util.HashSet<>(observedTaskIds).size());
         } finally {
             minecraftInstance.set(null, previousMinecraft);
         }

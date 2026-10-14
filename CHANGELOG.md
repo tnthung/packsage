@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Refined the system prompt for literal-phrase search recovery, unchanged-query pagination, cursor/reference separation, carried-container inspection and fresh recipe/inventory follow-ups. Added explicit per-slot ingredient counting and limits on behavior/accessory claims; ordinary-player live revalidation remains required.
 - Added live guide/manual text discovery and evidence reads for Modonomicon, GuideME, Immersive Engineering, Actually Additions, Relics and Artifacts, with provider-owned version checks, localized text, bounded fragments and metadata-only continuations.
 - Supported the verified Reliquified Artifacts replacement path while retaining Artifacts source identity. Ability documentation remains distinct from equipped item rolls and active effects.
 - Fixed guide continuation at extraction budgets, live membership/reload invalidation, Modonomicon text-holder handling and GuideME no-progress boundaries. IE requires normal manual initialization and reports bounded extraction explicitly.

@@ -169,7 +169,13 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 var categoryRegistered = false;
                 try (var categories = manager.createRecipeCategoryLookup().limitTypes(List.of(type))
                         .limitFocus(focuses).get()) {
-                    categoryRegistered = categories.anyMatch(value -> value == category);
+                    var iterator = categories.iterator();
+                    for (int scanned = 0; ; scanned++) {
+                        if (scanned >= MAX_CATEGORIES || !budget.document()) throw new Toolbox.Failure(
+                                Toolbox.Code.EXTRACTION_FAILED, "JEI category membership exceeded the read budget");
+                        if (!iterator.hasNext()) break;
+                        if (iterator.next() == category) { categoryRegistered = true; break; }
+                    }
                 }
                 if (!categoryRegistered) {
                     return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
@@ -183,7 +189,13 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 } else {
                     var recipeRegistered = false;
                     try (var recipes = manager.createRecipeLookup(type).limitFocus(focuses).get()) {
-                        recipeRegistered = recipes.anyMatch(value -> value == retained.recipe());
+                        var iterator = recipes.iterator();
+                        for (int scanned = 0; ; scanned++) {
+                            if (scanned >= MAX_SCANNED_RECIPES || !budget.value()) throw new Toolbox.Failure(
+                                    Toolbox.Code.EXTRACTION_FAILED, "JEI recipe membership exceeded the read budget");
+                            if (!iterator.hasNext()) break;
+                            if (iterator.next() == retained.recipe()) { recipeRegistered = true; break; }
+                        }
                     }
                     if (!recipeRegistered) {
                         return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },

@@ -124,6 +124,7 @@ public final class JeiProvider implements KnowledgeProvider {
         }
     }
 
+    private final Map<String, RecipeCursorState> recipeCursors = new LinkedHashMap<>();
     private final SnapshotSource snapshots;
     private final Supplier<Snapshot> refreshSnapshot;
     private final Executor clientExecutor;
@@ -225,16 +226,16 @@ public final class JeiProvider implements KnowledgeProvider {
     public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Toolbox.Context context) {
         var filter = request.arguments().values().get("filter");
         var values = filter instanceof Evidence.JsonObject selected ? selected.values() : Map.<String, Evidence.JsonValue>of();
-        if (values.containsKey("outputItem")) {
-            if (!(values.get("outputItem") instanceof Evidence.JsonString outputItem)) return CompletableFuture.failedFuture(
-                    new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "outputItem must be a valid item resource ID"));
-            var itemId = ResourceLocation.tryParse(outputItem.value());
-            if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) return CompletableFuture.failedFuture(
-                    new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "outputItem must name a registered item"));
-        }
         if (!(values.get("provider") instanceof Evidence.JsonString provider) || !ID.equals(provider.value())) {
             return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED,
                     "JEI only handles provider-qualified recipe searches"));
+        }
+        if (values.containsKey("outputItem") && !(values.get("outputItem") instanceof Evidence.JsonNull)) {
+            if (!(values.get("outputItem") instanceof Evidence.JsonString outputItem)) return CompletableFuture.failedFuture(
+                    new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "outputItem must be a valid item resource ID"));
+            var itemId = ResourceLocation.tryParse(outputItem.value());
+            if (itemId == null || !itemId.toString().equals(outputItem.value()) || !BuiltInRegistries.ITEM.containsKey(itemId)) return CompletableFuture.failedFuture(
+                    new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "outputItem must name a registered item"));
         }
         if (!request.scope().equals(context.currentScope().get())) return CompletableFuture.failedFuture(
                 new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "repeat the lookup in the current scope"));
@@ -246,6 +247,8 @@ public final class JeiProvider implements KnowledgeProvider {
         var cursor = request.arguments().values().get("cursor") instanceof Evidence.JsonString value ? value.value() : null;
         String sourceCursor;
         try {
+            if (cursor != null && !context.documentBudget().bytes(cursor.length() * 2))
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "JEI cursor exceeded the shared read budget");
             sourceCursor = decodeRecipeCursor(cursor, arguments, request.scope());
         } catch (Toolbox.Failure failure) {
             return CompletableFuture.failedFuture(failure);
@@ -282,55 +285,33 @@ public final class JeiProvider implements KnowledgeProvider {
                 .thenApply(result -> {
                     if (!request.scope().equals(context.currentScope().get())) throw new Toolbox.Failure(
                             Toolbox.Code.STALE_SCOPE, "scope changed while reading JEI");
+                    if (result.coverage() == Evidence.Coverage.ERROR) throw new Toolbox.Failure(
+                            Toolbox.Code.EXTRACTION_FAILED, result.detail() == null ? "current JEI extraction failed" : result.detail());
                     if (result.records().isEmpty()) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE,
                             "the observed JEI recipe is no longer registered");
-                    if (result.coverage() == Evidence.Coverage.ERROR) throw new Toolbox.Failure(
-                            Toolbox.Code.EXTRACTION_FAILED, "current JEI extraction failed");
                     return result;
                 });
     }
 
-    private static String encodeRecipeCursor(Map<String, Evidence.JsonValue> arguments, String position,
-                                             Evidence.Scope scope) {
-        var values = new LinkedHashMap<String, Evidence.JsonValue>();
-        values.put("text", arguments.getOrDefault("text", new Evidence.JsonString("")));
-        values.put("outputItem", arguments.getOrDefault("outputItem", new Evidence.JsonNull()));
-        values.put("world", new Evidence.JsonString(scope.worldSession()));
-        values.put("locale", new Evidence.JsonString(scope.resourcesLocale()));
-        values.put("team", new Evidence.JsonString(scope.playerTeam()));
-        values.put("runtime", new Evidence.JsonString(scope.providerRuntime()));
-        values.put("generation", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(scope.requestGeneration())));
-        values.put("position", new Evidence.JsonString(position));
-        return "jei:" + java.util.Base64.getUrlEncoder().withoutPadding()
-                .encodeToString(Evidence.serialize(new Evidence.JsonObject(values)).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    private record RecipeCursorState(Map<String, Evidence.JsonValue> arguments, String position, Evidence.Scope scope) { }
+
+    private synchronized String encodeRecipeCursor(Map<String, Evidence.JsonValue> arguments, String position,
+                                                    Evidence.Scope scope) {
+        var cursor = "jei:" + java.util.UUID.randomUUID();
+        recipeCursors.put(cursor, new RecipeCursorState(Map.copyOf(arguments), position, scope));
+        while (recipeCursors.size() > 128) recipeCursors.remove(recipeCursors.keySet().iterator().next());
+        return cursor;
     }
 
-    private static String decodeRecipeCursor(String cursor, Map<String, Evidence.JsonValue> arguments,
-                                             Evidence.Scope scope) {
+    private synchronized String decodeRecipeCursor(String cursor, Map<String, Evidence.JsonValue> arguments,
+                                                    Evidence.Scope scope) {
         if (cursor == null) return null;
-        try {
-            if (!cursor.startsWith("jei:")) throw new IllegalArgumentException();
-            var value = Evidence.deserializeObject(new String(java.util.Base64.getUrlDecoder().decode(cursor.substring(4)),
-                    java.nio.charset.StandardCharsets.UTF_8));
-            var savedOutput = value.values().get("outputItem");
-            var requestedOutput = arguments.getOrDefault("outputItem", new Evidence.JsonNull());
-            if (!(value.values().get("text") instanceof Evidence.JsonString text)
-                    || !text.value().equals(stringArgument(new Evidence.JsonObject(arguments), "text") == null
-                    ? "" : stringArgument(new Evidence.JsonObject(arguments), "text"))
-                    || !requestedOutput.equals(savedOutput)
-                    || !(value.values().get("world") instanceof Evidence.JsonString world) || !scope.worldSession().equals(world.value())
-                    || !(value.values().get("locale") instanceof Evidence.JsonString locale) || !scope.resourcesLocale().equals(locale.value())
-                    || !(value.values().get("team") instanceof Evidence.JsonString team) || !scope.playerTeam().equals(team.value())
-                    || !(value.values().get("runtime") instanceof Evidence.JsonString runtime) || !scope.providerRuntime().equals(runtime.value())
-                    || !(value.values().get("generation") instanceof Evidence.JsonNumber generation)
-                    || generation.value().longValueExact() != scope.requestGeneration()
-                    || !(value.values().get("position") instanceof Evidence.JsonString position) || parseCursor(position.value()) < 0) {
-                throw new IllegalArgumentException();
-            }
-            return position.value();
-        } catch (RuntimeException failure) {
+        var saved = cursor.length() <= 1024 && cursor.startsWith("jei:") ? recipeCursors.get(cursor) : null;
+        if (saved == null || !saved.arguments().equals(arguments) || !saved.scope().equals(scope)
+                || parseCursor(saved.position()) < 0) {
             throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "JEI cursor is invalid for this query or scope; restart the search");
         }
+        return saved.position();
     }
 
     public void refresh() {

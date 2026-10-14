@@ -54,35 +54,47 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
         }
         try {
             var entries = (Map<?, ?>) contents.getClass().getField("entries").get(contents);
+            var values = entries.values();
+            var indexedEntries = (List<?>) values.getClass().getMethod("asList").invoke(values);
             var candidates = new ArrayList<Candidate>();
-            boolean afterSeen = afterPosition == null;
+            int start = 0;
             String next = null;
-            var iterator = entries.values().iterator();
-            while (iterator.hasNext()) {
+            if (afterPosition != null) {
+                int separator = afterPosition.indexOf('|');
+                try {
+                    if (separator < 1) throw new NumberFormatException();
+                    int previous = Integer.parseInt(afterPosition.substring(0, separator));
+                    if (previous < 0 || previous >= indexedEntries.size()
+                            || !afterPosition.substring(separator + 1).equals(indexedEntries.get(previous).getClass()
+                            .getMethod("getId").invoke(indexedEntries.get(previous)).toString()))
+                        throw new NumberFormatException();
+                    if (!budget.value()) return new CandidatePage(candidates, null, false, Evidence.Coverage.PARTIAL,
+                            "booklet cursor seek reached the source-work bound");
+                    start = previous + 1;
+                } catch (NumberFormatException failure) {
+                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Actually Additions booklet entries changed; restart the lookup");
+                }
+            }
+            for (int index = start; index < indexedEntries.size(); index++) {
                 if (!budget.value()) return new CandidatePage(candidates, next, next != null, Evidence.Coverage.PARTIAL,
                         "booklet traversal reached the source-work bound");
-                var entry = iterator.next();
+                var entry = indexedEntries.get(index);
                 var id = entry.getClass().getMethod("getId").invoke(entry).toString();
-                if (!afterSeen) {
-                    if (id.equals(afterPosition)) afterSeen = true;
-                    next = id;
-                    continue;
-                }
+                next = index + "|" + id;
                 if ((boolean) entry.getClass().getMethod("shouldHide").invoke(entry)
-                        || (boolean) entry.getClass().getMethod("isLocked").invoke(entry)) { next = id; continue; }
+                        || (boolean) entry.getClass().getMethod("isLocked").invoke(entry)) continue;
                 if (!budget.bytes(id.length() * 6 + 128))
                     return new CandidatePage(candidates, next, false, Evidence.Coverage.PARTIAL,
                             "booklet metadata reached the output bound");
                 var helper = Class.forName("dev.packsage.knowledge.patchouli.PatchouliLiveReader");
-                var title = (String) helper.getMethod("title", book.getClass(), entry.getClass(), Toolbox.DocumentBudget.class)
-                        .invoke(null, book, entry, budget);
-                candidates.add(new Candidate(id, title, id, List.of("patchouli:book:" + BOOK_ID), Evidence.Coverage.COMPLETE));
-                next = id;
+                var titleMethod = java.util.Arrays.stream(helper.getMethods()).filter(method -> method.getName().equals("title")
+                        && method.getParameterCount() == 3).findFirst().orElseThrow();
+                var title = (String) titleMethod.invoke(null, book, entry, budget);
+                candidates.add(new Candidate(id, title, next, List.of("patchouli:book:" + BOOK_ID), Evidence.Coverage.COMPLETE));
                 if (candidates.size() == limit)
-                    return new CandidatePage(candidates, next, iterator.hasNext(), iterator.hasNext()
+                    return new CandidatePage(candidates, next, index + 1 < indexedEntries.size(), index + 1 < indexedEntries.size()
                             ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, null);
             }
-            if (!afterSeen) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Actually Additions booklet entry changed; restart the lookup");
             return new CandidatePage(candidates, next, false, Evidence.Coverage.COMPLETE, null);
         } catch (Toolbox.Failure failure) {
             throw failure;
@@ -144,6 +156,7 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
 
     @Override
     public ResolvedDocument resolve(String id, int maxChars, Toolbox.DocumentBudget budget) {
+        if (maxChars < 1) throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "fragment limit must be positive");
         var book = bookSource.get();
         if (book == null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Actually Additions booklet is not loaded");
         Candidate candidate;
@@ -151,13 +164,13 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
             var contents = book.getClass().getMethod("getContents").invoke(book);
             if (contents == null || (boolean) contents.getClass().getMethod("isErrored").invoke(contents))
                 throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Actually Additions booklet is not ready");
+            if (!budget.value() || !budget.bytes(id.length() * 6 + 128))
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "booklet entry exceeded the read budget");
             var current = ((Map<?, ?>) contents.getClass().getField("entries").get(contents)).get(ResourceLocation.parse(id));
             if (current == null || (boolean) current.getClass().getMethod("shouldHide").invoke(current)
                     || (boolean) current.getClass().getMethod("isLocked").invoke(current)) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
                     "Actually Additions booklet entry is no longer available");
             var entryId = current.getClass().getMethod("getId").invoke(current).toString();
-            if (!budget.value() || !budget.bytes(entryId.length() * 6 + 128))
-                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "booklet metadata reached the read bound");
             var helper = Class.forName("dev.packsage.knowledge.patchouli.PatchouliLiveReader");
             var titleMethod = java.util.Arrays.stream(helper.getMethods()).filter(method -> method.getName().equals("title")
                     && method.getParameterCount() == 3).findFirst().orElseThrow();

@@ -1,4 +1,4 @@
-package dev.packsage.knowledge.guide;
+﻿package dev.packsage.knowledge.guide;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -16,8 +16,8 @@ import vazkii.patchouli.common.base.PatchouliConfig;
 import vazkii.patchouli.common.book.Book;
 import vazkii.patchouli.xplat.XplatModContainer;
 
-import java.nio.file.Path;
 import java.lang.reflect.Field;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -49,56 +49,56 @@ class ActuallyAdditionsGuideReaderTest {
             @Override public int quickLookupTime() { return 0; }
         });
         try {
-        var bookJson = new JsonObject();
-        bookJson.addProperty("name", "Fixture");
-        bookJson.addProperty("use_resource_pack", true);
-        var book = new Book(bookJson, new XplatModContainer() {
-            @Override public String getId() { return "actuallyadditions"; }
-            @Override public String getName() { return "Actually Additions"; }
-            @Override public Path getPath(String ignored) { return Path.of("."); }
-            @Override public List<Path> getRootPaths() { return List.of(Path.of(".")); }
-        }, ResourceLocation.parse("actuallyadditions:booklet"), false);
-        var entryJson = new JsonObject();
-        entryJson.addProperty("category", "actuallyadditions:category");
-        entryJson.addProperty("name", "Fixture page");
-        entryJson.addProperty("icon", "fixture:textures/item/book.png");
-        entryJson.add("pages", new JsonArray());
-        var entryId = ResourceLocation.parse("actuallyadditions:booklet/fixture");
-        BookEntry entry;
-        try {
-            entry = (BookEntry) BookEntry.class.getConstructor(JsonObject.class, ResourceLocation.class,
-                    Book.class, String.class).newInstance(entryJson, entryId, book, null);
-        } catch (NoSuchMethodException newerConstructor) {
-            entry = (BookEntry) BookEntry.class.getConstructor(JsonObject.class, ResourceLocation.class,
-                    Book.class, String.class, HolderLookup.Provider.class).newInstance(entryJson, entryId, book, null,
-                    RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
-        }
-        entry.updateLockStatus();
-        var page = new PageText();
-        page.sourceObject = new JsonObject();
-        page.sourceObject.addProperty("type", "patchouli:text");
-        page.sourceObject.addProperty("text", "a".repeat(128));
-        Field realPages = BookEntry.class.getDeclaredField("realPages");
-        realPages.setAccessible(true);
-        realPages.set(entry, List.of(page));
-        var contents = new vazkii.patchouli.client.book.BookContents(book, com.google.common.collect.ImmutableMap.of(),
-                com.google.common.collect.ImmutableMap.of(entryId, entry), com.google.common.collect.ImmutableMap.of(), null);
-        Field bookContents = Book.class.getDeclaredField("contents");
-        bookContents.setAccessible(true);
-        bookContents.set(book, contents);
-        var reader = new ActuallyAdditionsGuideReader(() -> book);
-        var found = reader.candidates(null, 1, new Toolbox.DocumentBudget());
+            var bookJson = new JsonObject();
+            bookJson.addProperty("name", "Fixture");
+            bookJson.addProperty("use_resource_pack", true);
+            var book = new Book(bookJson, new XplatModContainer() {
+                @Override public String getId() { return "actuallyadditions"; }
+                @Override public String getName() { return "Actually Additions"; }
+                @Override public Path getPath(String ignored) { return Path.of("."); }
+                @Override public List<Path> getRootPaths() { return List.of(Path.of(".")); }
+            }, ResourceLocation.parse("actuallyadditions:booklet"), false);
+            var entryJson = new JsonObject();
+            entryJson.addProperty("category", "actuallyadditions:category");
+            entryJson.addProperty("name", "Fixture page");
+            entryJson.addProperty("icon", "fixture:textures/item/book.png");
+            entryJson.add("pages", new JsonArray());
+            var entryId = ResourceLocation.parse("actuallyadditions:booklet/fixture");
+            BookEntry entry;
+            try {
+                entry = (BookEntry) BookEntry.class.getConstructor(JsonObject.class, ResourceLocation.class,
+                        Book.class, String.class).newInstance(entryJson, entryId, book, null);
+            } catch (NoSuchMethodException newerConstructor) {
+                entry = (BookEntry) BookEntry.class.getConstructor(JsonObject.class, ResourceLocation.class,
+                        Book.class, String.class, HolderLookup.Provider.class).newInstance(entryJson, entryId, book, null,
+                        RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
+            }
+            entry.updateLockStatus();
+            var page = new PageText();
+            page.sourceObject = new JsonObject();
+            page.sourceObject.addProperty("type", "patchouli:text");
+            page.sourceObject.addProperty("text", "a".repeat(128));
+            Field realPages = BookEntry.class.getDeclaredField("realPages");
+            realPages.setAccessible(true);
+            realPages.set(entry, List.of(page));
+            var contents = new vazkii.patchouli.client.book.BookContents(book, com.google.common.collect.ImmutableMap.of(),
+                    com.google.common.collect.ImmutableMap.of(entryId, entry), com.google.common.collect.ImmutableMap.of(), null);
+            Field bookContents = Book.class.getDeclaredField("contents");
+            bookContents.setAccessible(true);
+            bookContents.set(book, contents);
+            var reader = new ActuallyAdditionsGuideReader(() -> book);
+            var found = reader.candidates(null, 1, new Toolbox.DocumentBudget());
 
-        assertEquals(List.of("actuallyadditions:booklet/fixture"), found.candidates().stream().map(GuideDocumentReader.Candidate::id).toList());
-        var first = reader.readFragment(entryId.toString(), null, 16, new Toolbox.DocumentBudget());
-        assertEquals(16, first.text().length());
-        assertTrue(first.nextPosition() != null);
-        page.sourceObject.addProperty("text", "a".repeat(16) + "Changed text" + "b".repeat(100));
-        var next = reader.readFragment(entryId.toString(), first.nextPosition(), 64, new Toolbox.DocumentBudget());
+            assertEquals(List.of("actuallyadditions:booklet/fixture"), found.candidates().stream().map(GuideDocumentReader.Candidate::id).toList());
+            var first = reader.readFragment(entryId.toString(), null, 16, new Toolbox.DocumentBudget());
+            assertEquals(16, first.text().length());
+            assertTrue(first.nextPosition() != null);
+            page.sourceObject.addProperty("text", "a".repeat(16) + "Changed text" + "b".repeat(100));
+            var next = reader.readFragment(entryId.toString(), first.nextPosition(), 64, new Toolbox.DocumentBudget());
 
-        assertTrue(next.text().length() <= 64);
-        assertTrue(next.overlapChars() > 0);
-        assertTrue(next.text().contains("Changed text"));
+            assertTrue(next.text().length() <= 64);
+            assertTrue(next.overlapChars() > 0);
+            assertTrue(next.text().contains("Changed text"));
         } finally {
             configField.set(null, originalConfig);
         }

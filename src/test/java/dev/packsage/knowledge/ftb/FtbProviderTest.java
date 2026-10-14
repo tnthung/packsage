@@ -70,6 +70,19 @@ class FtbProviderTest {
         minecraftInstance.setAccessible(true);
         var previousMinecraft = minecraftInstance.get(null);
         minecraftInstance.set(null, fakeMinecraft);
+        var optionsField = Minecraft.class.getDeclaredField("options");
+        optionsField.setAccessible(true);
+        var options = unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, optionsField.getType());
+        var languageCode = optionsField.getType().getDeclaredField("languageCode");
+        languageCode.setAccessible(true);
+        var languageOffset = unsafe.getClass().getMethod("objectFieldOffset", java.lang.reflect.Field.class)
+                .invoke(unsafe, languageCode);
+        unsafe.getClass().getMethod("putObject", Object.class, long.class, Object.class)
+                .invoke(unsafe, options, languageOffset, "en_us");
+        var optionsOffset = unsafe.getClass().getMethod("objectFieldOffset", java.lang.reflect.Field.class)
+                .invoke(unsafe, optionsField);
+        unsafe.getClass().getMethod("putObject", Object.class, long.class, Object.class)
+                .invoke(unsafe, fakeMinecraft, optionsOffset, options);
         try {
             var file = new ClientQuestFile();
             var group = file.getDefaultChapterGroup();
@@ -162,6 +175,19 @@ class FtbProviderTest {
         minecraftInstance.setAccessible(true);
         var previousMinecraft = minecraftInstance.get(null);
         minecraftInstance.set(null, fakeMinecraft);
+        var optionsField = Minecraft.class.getDeclaredField("options");
+        optionsField.setAccessible(true);
+        var options = unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, optionsField.getType());
+        var languageCode = optionsField.getType().getDeclaredField("languageCode");
+        languageCode.setAccessible(true);
+        var languageOffset = unsafe.getClass().getMethod("objectFieldOffset", java.lang.reflect.Field.class)
+                .invoke(unsafe, languageCode);
+        unsafe.getClass().getMethod("putObject", Object.class, long.class, Object.class)
+                .invoke(unsafe, options, languageOffset, "en_us");
+        var optionsOffset = unsafe.getClass().getMethod("objectFieldOffset", java.lang.reflect.Field.class)
+                .invoke(unsafe, optionsField);
+        unsafe.getClass().getMethod("putObject", Object.class, long.class, Object.class)
+                .invoke(unsafe, fakeMinecraft, optionsOffset, options);
         try {
             var file = new ClientQuestFile();
             var group = file.getDefaultChapterGroup();

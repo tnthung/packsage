@@ -186,6 +186,54 @@ class GuideDocumentProviderTest {
         assertEquals("fixture:guide/entry", continued.records().getFirst().source().sourceHandle());
     }
 
+    @Test
+    void exhaustedFragmentReadRetriesTheSameLiveFirstAndLaterFragments() {
+        var reader = new FixtureReader();
+        reader.exhaustFirstFragment.set(true);
+        var provider = new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run);
+        var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+        arguments.put("query", new Evidence.JsonString("needle"));
+        arguments.put("filter", new Evidence.JsonObject(Map.of(
+                "provider", new Evidence.JsonString("fixture_guide"),
+                "types", new Evidence.JsonArray(List.of(new Evidence.JsonString("guide"))))));
+        arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
+
+        var first = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(arguments), SCOPE), new Toolbox.Context(() -> SCOPE, Map.of(),
+                new AdapterRegistry(), new Toolbox.DocumentBudget(), null)).toCompletableFuture().join();
+
+        assertTrue(first.records().isEmpty());
+        assertNotNull(first.nextCursor());
+        reader.firstText.set("fresh first fragment needle");
+        var firstRetryArguments = new java.util.LinkedHashMap<>(arguments);
+        firstRetryArguments.put("cursor", new Evidence.JsonString(first.nextCursor()));
+        var firstRetry = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(firstRetryArguments), SCOPE), new Toolbox.Context(() -> SCOPE, Map.of(),
+                new AdapterRegistry(), new Toolbox.DocumentBudget(), null)).toCompletableFuture().join();
+
+        assertEquals(new Evidence.JsonString("fresh first fragment needle"),
+                firstRetry.records().getFirst().payload().values().get("text"));
+        assertNotNull(firstRetry.nextCursor());
+        reader.exhaustSecondFragment.set(true);
+        var secondFailureArguments = new java.util.LinkedHashMap<>(arguments);
+        secondFailureArguments.put("cursor", new Evidence.JsonString(firstRetry.nextCursor()));
+        var secondFailure = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(secondFailureArguments), SCOPE), new Toolbox.Context(() -> SCOPE, Map.of(),
+                new AdapterRegistry(), new Toolbox.DocumentBudget(), null)).toCompletableFuture().join();
+
+        assertTrue(secondFailure.records().isEmpty());
+        assertNotNull(secondFailure.nextCursor());
+        reader.secondText.set("fresh continuation fragment needle");
+        var secondRetryArguments = new java.util.LinkedHashMap<>(arguments);
+        secondRetryArguments.put("cursor", new Evidence.JsonString(secondFailure.nextCursor()));
+        var secondRetry = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(secondRetryArguments), SCOPE), new Toolbox.Context(() -> SCOPE, Map.of(),
+                new AdapterRegistry(), new Toolbox.DocumentBudget(), null)).toCompletableFuture().join();
+
+        assertEquals(new Evidence.JsonString("fresh continuation fragment needle"),
+                secondRetry.records().getFirst().payload().values().get("text"));
+    }
+
     private static final class FixtureReader implements GuideDocumentReader {
         private final String providerId;
         private final String candidateId;
@@ -196,6 +244,8 @@ class GuideDocumentProviderTest {
         private final AtomicInteger hiddenPageCalls = new AtomicInteger();
         private final AtomicBoolean boundaryMode = new AtomicBoolean();
         private final AtomicBoolean exhaustFirstCandidatePage = new AtomicBoolean();
+        private final AtomicBoolean exhaustFirstFragment = new AtomicBoolean();
+        private final AtomicBoolean exhaustSecondFragment = new AtomicBoolean();
 
         private FixtureReader() { this("fixture_guide", "fixture:guide/entry"); }
 
@@ -230,6 +280,11 @@ class GuideDocumentProviderTest {
 
         @Override
         public Fragment readFragment(String id, String fragmentPosition, int maxChars, Toolbox.DocumentBudget budget) {
+            if (fragmentPosition == null && exhaustFirstFragment.compareAndSet(true, false)
+                    || fragmentPosition != null && exhaustSecondFragment.compareAndSet(true, false)) {
+                while (budget.value()) { }
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "fixture fragment budget exhausted");
+            }
             if (!budget.value()) return new Fragment("", "page:budget", 0, null, Evidence.Coverage.PARTIAL, "budget exhausted");
             if (fragmentPosition == null) return new Fragment(boundaryMode.get() ? "intro live " : firstText.get(),
                     "page:first", 0, "page:second", Evidence.Coverage.COMPLETE, null);

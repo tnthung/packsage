@@ -3,8 +3,8 @@ package dev.packsage.knowledge.patchouli;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.packsage.knowledge.Evidence;
-import dev.packsage.knowledge.KnowledgeService;
-import dev.packsage.model.ModelBackend;
+import dev.packsage.knowledge.AdapterRegistry;
+import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
 import net.minecraft.core.HolderLookup;
@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,6 +34,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PatchouliProviderTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "zh_tw", "team", "patchouli-1", 1);
+
+    @Test
+    void documentAdapterMatchesGuideRequestsAndRebuildsCurrentSnapshot() {
+        var generation = new AtomicInteger();
+        var provider = new PatchouliProvider(() -> {
+            var title = generation.getAndIncrement() == 0 ? "Old guide" : "Current guide";
+            var entry = new PatchouliProvider.EntryRecord("fixture:book", "fixture:book/entry", title,
+                    List.of(), true, false, false, false, List.of());
+            return new PatchouliProvider.Snapshot(SCOPE, 1,
+                    List.of(new PatchouliProvider.BookRecord("fixture:book", "Fixture", List.of(entry), List.of())),
+                    ignored -> { });
+        }, Runnable::run);
+        var request = documentRequest("patchouli", "guide");
+        var registry = new AdapterRegistry();
+        registry.register(provider);
+
+        var first = provider.searchDocument(request, context(registry, Map.of())).toCompletableFuture().join();
+        var second = provider.searchDocument(request, context(registry, Map.of())).toCompletableFuture().join();
+
+        assertEquals("Old guide", first.records().getFirst().title());
+        assertEquals("Current guide", second.records().getFirst().title());
+        assertEquals("patchouli", provider.metadata().id());
+        assertEquals(List.of("guide"), provider.metadata().documentTypes());
+        assertEquals(Toolbox.Code.NOT_HANDLED, failureCode(provider.searchDocument(
+                documentRequest("ftb_quests", "guide"), context(registry, Map.of()))));
+        assertEquals(Toolbox.Code.NOT_HANDLED, failureCode(provider.searchDocument(
+                documentRequest("patchouli", "quest"), context(registry, Map.of()))));
+    }
 
     @Test
     void loadedEntryKeepsPageIdentityMappingsAndOpaqueCustomContent() throws Exception {
@@ -131,22 +160,14 @@ class PatchouliProviderTest {
                 opened::set);
         var provider = new PatchouliProvider(() -> snapshot, Runnable::run);
         provider.refresh();
-        var knowledge = new KnowledgeService(List.of(provider), () -> SCOPE,
-                ignored -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
-                        Evidence.Outcome.COMPLETE, null)),
-                inventoryRequest -> CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
-                        Evidence.Outcome.COMPLETE, null)));
-        var tools = new PackSageTools(knowledge::execute);
+        var result = provider.query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(Map.of(
+                "text", new Evidence.JsonString("later"))), 16, null, null), SCOPE).toCompletableFuture().join();
 
-        var response = tools.execute(new ModelBackend.ToolCall("guide", "search_pack",
-                "{\"text\":\"later\",\"kinds\":[\"GUIDE\"]}"), SCOPE).toCompletableFuture().join();
-
-        assertFalse(response.result().error());
-        assertEquals(1, response.records().size());
-        var record = response.records().getFirst();
+        assertEquals(1, result.records().size());
+        var record = result.records().getFirst();
         var target = record.targets().getFirst();
         assertEquals(record.source().sourceHandle(), target.sourceHandle());
-        assertEquals(Evidence.NavigationStatus.OPENED, knowledge.open(target, SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.OPENED, provider.open(target, SCOPE).status());
         assertEquals(1, opened.get().page());
     }
 
@@ -433,6 +454,26 @@ class PatchouliProviderTest {
             assertEquals("patchouli-client", opened.get());
         } finally {
             client.shutdownNow();
+        }
+    }
+
+    private static PackSageTools.ReadRequest documentRequest(String provider, String type) {
+        return new PackSageTools.ReadRequest("search_document", new Evidence.JsonObject(Map.of(
+                "query", new Evidence.JsonString(""), "filter", new Evidence.JsonObject(Map.of(
+                        "provider", new Evidence.JsonString(provider),
+                        "types", new Evidence.JsonArray(List.of(new Evidence.JsonString(type))))))), SCOPE);
+    }
+
+    private static Toolbox.Context context(AdapterRegistry registry, Map<String, Toolbox.Reference> references) {
+        return new Toolbox.Context(() -> SCOPE, references, registry, new Toolbox.DocumentBudget(), "test-call");
+    }
+
+    private static Toolbox.Code failureCode(java.util.concurrent.CompletionStage<Evidence.Result> stage) {
+        try {
+            stage.toCompletableFuture().join();
+            return null;
+        } catch (java.util.concurrent.CompletionException failure) {
+            return ((Toolbox.Failure) failure.getCause()).code();
         }
     }
 }

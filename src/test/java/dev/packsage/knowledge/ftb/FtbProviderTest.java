@@ -2,6 +2,9 @@ package dev.packsage.knowledge.ftb;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
+import dev.packsage.knowledge.AdapterRegistry;
+import dev.packsage.knowledge.Toolbox;
+import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -18,6 +21,33 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class FtbProviderTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "ftb-1", 1);
     private static final String LARGE_ID = "FFFFFFFFFFFFFFFF";
+
+    @Test
+    void documentAdapterMatchesItsQualifiedTypeAndReadsCurrentSnapshot() {
+        var generation = new AtomicInteger();
+        var provider = new FtbProvider(() -> {
+            var title = generation.incrementAndGet() == 1 ? "Old quest" : "Current quest";
+            var quest = new FtbProvider.QuestRecord("current-quest", title, "chapter", List.of(), List.of(), 0,
+                    List.of(), List.of());
+            return new FtbProvider.Snapshot(SCOPE, generation.get(), List.of(quest),
+                    List.of(progress(quest)), ignored -> { });
+        }, Runnable::run);
+        var request = documentRequest("ftb_quests", "quest");
+        var registry = new AdapterRegistry();
+        registry.register(provider);
+
+        var first = provider.searchDocument(request, context(registry, Map.of())).toCompletableFuture().join();
+        var second = provider.searchDocument(request, context(registry, Map.of())).toCompletableFuture().join();
+
+        assertEquals("Old quest", first.records().getFirst().title());
+        assertEquals("Current quest", second.records().getFirst().title());
+        assertEquals("ftb_quests", provider.metadata().id());
+        assertEquals(List.of("quest"), provider.metadata().documentTypes());
+        assertEquals(Toolbox.Code.NOT_HANDLED, failureCode(provider.searchDocument(
+                documentRequest("patchouli", "quest"), context(registry, Map.of()))));
+        assertEquals(Toolbox.Code.NOT_HANDLED, failureCode(provider.searchDocument(
+                documentRequest("ftb_quests", "guide"), context(registry, Map.of()))));
+    }
 
     @Test
     void preservesFullWidthQuestIdDependenciesAndSeparateProgressOverlay() throws Exception {
@@ -311,5 +341,25 @@ class FtbProviderTest {
         return new Evidence.Query(Evidence.Operation.SEARCH,
                 new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(text))), limit,
                 cursor == null ? null : SCOPE, cursor);
+    }
+
+    private static PackSageTools.ReadRequest documentRequest(String provider, String type) {
+        return new PackSageTools.ReadRequest("search_document", new Evidence.JsonObject(Map.of(
+                "query", new Evidence.JsonString(""), "filter", new Evidence.JsonObject(Map.of(
+                        "provider", new Evidence.JsonString(provider),
+                        "types", new Evidence.JsonArray(List.of(new Evidence.JsonString(type))))))), SCOPE);
+    }
+
+    private static Toolbox.Context context(AdapterRegistry registry, Map<String, Toolbox.Reference> references) {
+        return new Toolbox.Context(() -> SCOPE, references, registry, new Toolbox.DocumentBudget(), "test-call");
+    }
+
+    private static Toolbox.Code failureCode(java.util.concurrent.CompletionStage<Evidence.Result> stage) {
+        try {
+            stage.toCompletableFuture().join();
+            return null;
+        } catch (java.util.concurrent.CompletionException failure) {
+            return ((Toolbox.Failure) failure.getCause()).code();
+        }
     }
 }

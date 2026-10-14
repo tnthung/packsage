@@ -1,6 +1,9 @@
 package dev.packsage.knowledge.jei;
 
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.AdapterRegistry;
+import dev.packsage.knowledge.Toolbox;
+import dev.packsage.model.PackSageTools;
 import mezz.jei.api.recipe.IRecipeCategoriesLookup;
 import mezz.jei.api.recipe.IRecipeCatalystLookup;
 import mezz.jei.api.recipe.IRecipeLookup;
@@ -39,6 +42,38 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JeiProjectionTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "jei-1", 1);
+
+    @Test
+    void recipeAdapterUsesOutputFocusAndRebuildsCurrentProjection() {
+        var readCount = new AtomicInteger();
+        var seenOutput = new AtomicReference<String>();
+        var provider = new JeiProvider((scope, query) -> {
+            seenOutput.set(((Evidence.JsonString) query.arguments().values().get("outputItem")).value());
+            var title = readCount.incrementAndGet() == 1 ? "Old recipe" : "Current recipe";
+            var output = new JeiProvider.Ingredient("item", "minecraft:stone", new Evidence.JsonObject(Map.of()),
+                    1, Evidence.Consumption.CONSUMED);
+            var projection = new JeiProvider.Projection("minecraft:crafting", "jei:recipe", "fixture:recipe", title,
+                    List.of(new JeiProvider.Slot("output", List.of(output), JeiProvider.RecipeRole.OUTPUT)),
+                    List.of(), List.of(), true, true, Evidence.Coverage.COMPLETE,
+                    Evidence.DecodingStatus.VERIFIED, null);
+            return new JeiProvider.Snapshot(scope, 1, readCount.get(), List.of(projection), ignored -> { },
+                    Evidence.Coverage.COMPLETE, true, null);
+        }, Runnable::run, () -> true);
+        var request = recipeRequest("jei", "minecraft:stone");
+        var registry = new AdapterRegistry();
+        registry.register(provider);
+
+        var first = provider.searchRecipe(request, context(registry, Map.of())).toCompletableFuture().join();
+        var second = provider.searchRecipe(request, context(registry, Map.of())).toCompletableFuture().join();
+
+        assertEquals("minecraft:stone", seenOutput.get());
+        assertEquals("Old recipe", first.records().getFirst().title());
+        assertEquals("Current recipe", second.records().getFirst().title());
+        assertEquals("jei", provider.metadata().id());
+        assertTrue(provider.metadata().recipes());
+        assertEquals(Toolbox.Code.NOT_HANDLED, failureCode(provider.searchRecipe(
+                recipeRequest("native", "minecraft:stone"), context(registry, Map.of()))));
+    }
 
     @Test
     void projectionPreservesGroupedAlternativesQuantitiesComponentsCatalystsAndNullId() throws Exception {
@@ -118,6 +153,12 @@ class JeiProjectionTest {
                 "Third", List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
                 Evidence.DecodingStatus.VERIFIED, null);
         var provider = new JeiProvider((scope, query) -> {
+            if (query.operation() == Evidence.Operation.GET) {
+                var id = ((Evidence.JsonString) query.arguments().values().get("id")).value();
+                return id.equals(first.viewerHandle())
+                        ? new JeiProvider.Snapshot(scope, 7, 3, List.of(first), ignored -> { })
+                        : new JeiProvider.Snapshot(scope, 8, 1, List.of(replacement), ignored -> { });
+            }
             var text = ((Evidence.JsonString) query.arguments().values().get("text")).value();
             return text.contains("first") ? new JeiProvider.Snapshot(scope, 7, 1, List.of(first), ignored -> { })
                     : text.contains("second") ? new JeiProvider.Snapshot(scope, 7, 2, List.of(second), ignored -> { })
@@ -145,23 +186,31 @@ class JeiProjectionTest {
         var target = new JeiProvider.Projection("mod:category", "mod:category#target", "mod:target",
                 "Target", List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
                 Evidence.DecodingStatus.VERIFIED, null);
+        var present = new AtomicBoolean(true);
         var provider = new JeiProvider((scope, query) -> {
-            var text = ((Evidence.JsonString) query.arguments().values().get("text")).value();
-            if (text.equals("target")) return new JeiProvider.Snapshot(scope, 4, 1, List.of(target), ignored -> { });
-            return new JeiProvider.Snapshot(scope, 4, Long.parseLong(text.substring("empty-".length())), List.of(), ignored -> { });
+            if (query.operation() == Evidence.Operation.GET) return new JeiProvider.Snapshot(scope, 4, 2,
+                    present.get() ? List.of(target) : List.of(), ignored -> { });
+            return new JeiProvider.Snapshot(scope, 4, 1, List.of(target), ignored -> { });
         }, Runnable::run, () -> true);
 
         var targetResult = provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
                 new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("target"))), 1, null, null), SCOPE)
                 .toCompletableFuture().join();
         var targetHandle = targetResult.records().getFirst().targets().getFirst();
-        for (var index = 2; index <= 18; index++) {
-            provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
-                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("empty-" + index))), 1, null, null), SCOPE)
-                    .toCompletableFuture().join();
-        }
-
         assertEquals(Evidence.NavigationStatus.OPENED, provider.open(targetHandle, SCOPE).status());
+        present.set(false);
+        assertEquals(Evidence.NavigationStatus.STALE, provider.open(targetHandle, SCOPE).status());
+    }
+
+    @Test
+    void invalidOutputItemIsRejectedBeforeProviderDispatch() {
+        var registry = new AdapterRegistry();
+        registry.register(new JeiProvider(new JeiProvider.Snapshot(SCOPE, 1, List.of(), ignored -> { })));
+
+        assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failureCode(registry.dispatch(recipeRequest("jei",
+                "minecraft:this_item_does_not_exist"), context(registry, Map.of()))));
+        assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failureCode(registry.dispatch(recipeRequest("native",
+                "minecraft:this_item_does_not_exist"), context(registry, Map.of()))));
     }
 
     @Test
@@ -184,37 +233,36 @@ class JeiProjectionTest {
     }
 
     @Test
-    void consecutiveScanWindowsOfOneSearchRunOnDifferentClientTicks() {
+    void eachFreshRecipeContinuationReadsOnItsClientTick() {
         var tick = new long[1];
         var clientTasks = new java.util.ArrayDeque<Runnable>();
         var laterTick = new java.util.ArrayList<Runnable>();
         var captureTicks = new java.util.ArrayList<Long>();
         var provider = new JeiProvider((scope, query) -> {
             captureTicks.add(tick[0]);
+            assertEquals("nothing", ((Evidence.JsonString) query.arguments().values().get("text")).value());
             int next = query.cursor() == null ? 1 : Integer.parseInt(query.cursor()) + 1;
             return new JeiProvider.Snapshot(scope, 1, next, List.of(), ignored -> { }, Evidence.Coverage.COMPLETE, true,
                     Integer.toString(next));
         }, clientTasks::add, () -> true, () -> tick[0], laterTick::add);
-        var service = new dev.packsage.knowledge.KnowledgeService(List.of(provider), () -> SCOPE,
-                plan -> java.util.concurrent.CompletableFuture.completedFuture(new Evidence.Result(List.of(),
-                        Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)),
-                inventoryRequest -> java.util.concurrent.CompletableFuture.completedFuture(new Evidence.Result(List.of(),
-                        Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)));
+        var registry = new AdapterRegistry();
+        registry.register(provider);
+        var context = context(registry, Map.of());
+        var request = recipeSearchRequest(null);
+        var firstFuture = provider.searchRecipe(request, context).toCompletableFuture();
+        assertFalse(clientTasks.isEmpty());
+        clientTasks.remove().run();
+        var first = firstFuture.join();
+        assertNotNull(first.nextCursor());
 
-        var result = service.execute(new dev.packsage.model.PackSageTools.ReadRequest("search_pack",
-                new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("nothing"))), SCOPE)).toCompletableFuture();
-        while (!result.isDone() && tick[0] < 100) {
-            while (!clientTasks.isEmpty()) clientTasks.poll().run();
-            tick[0]++;
-            clientTasks.addAll(laterTick);
-            laterTick.clear();
-        }
+        tick[0]++;
+        var secondFuture = provider.searchRecipe(recipeSearchRequest(first.nextCursor()), context).toCompletableFuture();
+        clientTasks.remove().run();
+        var second = secondFuture.join();
 
-        assertTrue(result.isDone());
-        assertEquals(dev.packsage.knowledge.KnowledgeService.MAX_PROVIDER_PAGES_PER_CALL, captureTicks.size());
-        assertEquals(captureTicks.size(), new java.util.HashSet<>(captureTicks).size(),
-                "JEI scan windows ran in the same client tick: " + captureTicks);
-        assertNotNull(result.join().nextCursor());
+        assertEquals(List.of(0L, 1L), captureTicks);
+        assertTrue(laterTick.isEmpty());
+        assertNotNull(second.nextCursor());
     }
 
     @Test
@@ -707,6 +755,34 @@ class JeiProjectionTest {
             var fixture = Evidence.deserializeObject(new String(input.readAllBytes(), StandardCharsets.UTF_8));
             assertEquals(new Evidence.JsonNull(), fixture.values().get("canonicalRecipeId"));
             assertEquals("mod:category#0", ((Evidence.JsonString) fixture.values().get("viewerHandle")).value());
+        }
+    }
+
+    private static PackSageTools.ReadRequest recipeRequest(String provider, String outputItem) {
+        return new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of(
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString(provider),
+                        "outputItem", new Evidence.JsonString(outputItem))))), SCOPE);
+    }
+
+    private static PackSageTools.ReadRequest recipeSearchRequest(String cursor) {
+        var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+        arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"),
+                "text", new Evidence.JsonString("nothing"))));
+        arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
+        if (cursor != null) arguments.put("cursor", new Evidence.JsonString(cursor));
+        return new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(arguments), SCOPE);
+    }
+
+    private static Toolbox.Context context(AdapterRegistry registry, Map<String, Toolbox.Reference> references) {
+        return new Toolbox.Context(() -> SCOPE, references, registry, new Toolbox.DocumentBudget(), "test-call");
+    }
+
+    private static Toolbox.Code failureCode(java.util.concurrent.CompletionStage<Evidence.Result> stage) {
+        try {
+            stage.toCompletableFuture().join();
+            return null;
+        } catch (java.util.concurrent.CompletionException failure) {
+            return ((Toolbox.Failure) failure.getCause()).code();
         }
     }
 }

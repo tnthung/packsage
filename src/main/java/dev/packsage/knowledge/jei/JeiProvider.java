@@ -3,6 +3,10 @@ package dev.packsage.knowledge.jei;
 import dev.packsage.PackSageLog;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
+import dev.packsage.knowledge.Toolbox;
+import dev.packsage.model.PackSageTools;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -126,11 +130,12 @@ public final class JeiProvider implements KnowledgeProvider {
     private final BooleanSupplier owningThread;
     private final java.util.function.LongSupplier clientTick;
     private final Executor laterTick;
-    private static final int MAX_NAVIGATION_SNAPSHOTS = 16;
-    private final List<Snapshot> navigationSnapshots = new ArrayList<>();
     private long lastCaptureTick = Long.MIN_VALUE;
-    private volatile Snapshot current;
+    private volatile SnapshotStatus currentStatus;
     private volatile boolean runtimeAvailable;
+
+    private record SnapshotStatus(Evidence.Scope scope, long generation, long snapshotVersion,
+                                  Evidence.Coverage coverage) { }
 
     public JeiProvider(SnapshotSource snapshots, Executor clientExecutor, BooleanSupplier owningThread) {
         this(snapshots, clientExecutor, owningThread, new java.util.concurrent.atomic.AtomicLong()::getAndIncrement, clientExecutor);
@@ -201,43 +206,149 @@ public final class JeiProvider implements KnowledgeProvider {
 
     @Override
     public ProviderStatus status() {
-        var snapshot = current;
         if (!runtimeAvailable) return new ProviderStatus(Availability.UNAVAILABLE, VERSION, "JEI runtime unavailable");
-        if (snapshot == null) return new ProviderStatus(Availability.AVAILABLE, VERSION,
-                "JEI runtime available; no snapshot captured");
-        var availability = snapshot.coverage() == Evidence.Coverage.ERROR ? Availability.ERROR
-                : snapshot.coverage() == Evidence.Coverage.OPAQUE ? Availability.OPAQUE
-                : snapshot.coverage() != Evidence.Coverage.COMPLETE ? Availability.PARTIAL : Availability.AVAILABLE;
-        return new ProviderStatus(availability, VERSION, "JEI runtime generation " + snapshot.generation()
-                + " snapshot " + snapshot.snapshotVersion());
+        var status = currentStatus;
+        if (status == null) return new ProviderStatus(Availability.AVAILABLE, VERSION, "JEI runtime available");
+        var availability = status.coverage() == Evidence.Coverage.ERROR ? Availability.ERROR
+                : status.coverage() == Evidence.Coverage.OPAQUE ? Availability.OPAQUE
+                : status.coverage() != Evidence.Coverage.COMPLETE ? Availability.PARTIAL : Availability.AVAILABLE;
+        return new ProviderStatus(availability, VERSION, "JEI runtime generation " + status.generation()
+                + " snapshot " + status.snapshotVersion());
+    }
+
+    @Override
+    public Toolbox.Metadata metadata() {
+        return new Toolbox.Metadata(ID, List.of(), true, List.of(), Map.of());
+    }
+
+    @Override
+    public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Toolbox.Context context) {
+        var filter = request.arguments().values().get("filter");
+        var values = filter instanceof Evidence.JsonObject selected ? selected.values() : Map.<String, Evidence.JsonValue>of();
+        if (values.containsKey("outputItem")) {
+            if (!(values.get("outputItem") instanceof Evidence.JsonString outputItem)) return CompletableFuture.failedFuture(
+                    new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "outputItem must be a valid item resource ID"));
+            var itemId = ResourceLocation.tryParse(outputItem.value());
+            if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) return CompletableFuture.failedFuture(
+                    new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "outputItem must name a registered item"));
+        }
+        if (!(values.get("provider") instanceof Evidence.JsonString provider) || !ID.equals(provider.value())) {
+            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED,
+                    "JEI only handles provider-qualified recipe searches"));
+        }
+        if (!request.scope().equals(context.currentScope().get())) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "repeat the lookup in the current scope"));
+        var arguments = new LinkedHashMap<String, Evidence.JsonValue>();
+        if (values.get("text") instanceof Evidence.JsonString text) arguments.put("text", text);
+        if (values.get("outputItem") instanceof Evidence.JsonString outputItem) {
+            arguments.put("outputItem", outputItem);
+        }
+        var cursor = request.arguments().values().get("cursor") instanceof Evidence.JsonString value ? value.value() : null;
+        String sourceCursor;
+        try {
+            sourceCursor = decodeRecipeCursor(cursor, arguments, request.scope());
+        } catch (Toolbox.Failure failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+        var limit = request.arguments().values().get("limit") instanceof Evidence.JsonNumber value
+                ? value.value().intValue() : 16;
+        try {
+            return query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(arguments), limit,
+                    sourceCursor == null ? null : request.scope(), sourceCursor), request.scope()).thenApply(result -> {
+                if (!request.scope().equals(context.currentScope().get())) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE,
+                        "scope changed while reading JEI");
+                if (result.coverage() == Evidence.Coverage.ERROR) throw new Toolbox.Failure(
+                        result.detail() != null && result.detail().contains("cursor")
+                                ? Toolbox.Code.INVALID_CURSOR : Toolbox.Code.EXTRACTION_FAILED,
+                        result.detail() == null ? "JEI extraction failed" : result.detail());
+                return result.nextCursor() == null ? result : new Evidence.Result(result.records(), result.coverage(),
+                        result.outcome(), encodeRecipeCursor(arguments, result.nextCursor(), request.scope()), result.detail());
+            });
+        } catch (RuntimeException failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    @Override
+    public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Toolbox.Context context) {
+        var reference = context.reference(request);
+        if (!ID.equals(reference.providerId())) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "JEI does not own this reference"));
+        if (reference.kind() != Evidence.RecordKind.RECIPE) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "expected an observed JEI recipe reference"));
+        return query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of(
+                "id", new Evidence.JsonString(reference.sourceHandle()))), 1, null, null), request.scope())
+                .thenApply(result -> {
+                    if (!request.scope().equals(context.currentScope().get())) throw new Toolbox.Failure(
+                            Toolbox.Code.STALE_SCOPE, "scope changed while reading JEI");
+                    if (result.records().isEmpty()) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE,
+                            "the observed JEI recipe is no longer registered");
+                    if (result.coverage() == Evidence.Coverage.ERROR) throw new Toolbox.Failure(
+                            Toolbox.Code.EXTRACTION_FAILED, "current JEI extraction failed");
+                    return result;
+                });
+    }
+
+    private static String encodeRecipeCursor(Map<String, Evidence.JsonValue> arguments, String position,
+                                             Evidence.Scope scope) {
+        var values = new LinkedHashMap<String, Evidence.JsonValue>();
+        values.put("text", arguments.getOrDefault("text", new Evidence.JsonString("")));
+        values.put("outputItem", arguments.getOrDefault("outputItem", new Evidence.JsonNull()));
+        values.put("world", new Evidence.JsonString(scope.worldSession()));
+        values.put("locale", new Evidence.JsonString(scope.resourcesLocale()));
+        values.put("team", new Evidence.JsonString(scope.playerTeam()));
+        values.put("runtime", new Evidence.JsonString(scope.providerRuntime()));
+        values.put("generation", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(scope.requestGeneration())));
+        values.put("position", new Evidence.JsonString(position));
+        return "jei:" + java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(Evidence.serialize(new Evidence.JsonObject(values)).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static String decodeRecipeCursor(String cursor, Map<String, Evidence.JsonValue> arguments,
+                                             Evidence.Scope scope) {
+        if (cursor == null) return null;
+        try {
+            if (!cursor.startsWith("jei:")) throw new IllegalArgumentException();
+            var value = Evidence.deserializeObject(new String(java.util.Base64.getUrlDecoder().decode(cursor.substring(4)),
+                    java.nio.charset.StandardCharsets.UTF_8));
+            var savedOutput = value.values().get("outputItem");
+            var requestedOutput = arguments.getOrDefault("outputItem", new Evidence.JsonNull());
+            if (!(value.values().get("text") instanceof Evidence.JsonString text)
+                    || !text.value().equals(stringArgument(new Evidence.JsonObject(arguments), "text") == null
+                    ? "" : stringArgument(new Evidence.JsonObject(arguments), "text"))
+                    || !requestedOutput.equals(savedOutput)
+                    || !(value.values().get("world") instanceof Evidence.JsonString world) || !scope.worldSession().equals(world.value())
+                    || !(value.values().get("locale") instanceof Evidence.JsonString locale) || !scope.resourcesLocale().equals(locale.value())
+                    || !(value.values().get("team") instanceof Evidence.JsonString team) || !scope.playerTeam().equals(team.value())
+                    || !(value.values().get("runtime") instanceof Evidence.JsonString runtime) || !scope.providerRuntime().equals(runtime.value())
+                    || !(value.values().get("generation") instanceof Evidence.JsonNumber generation)
+                    || generation.value().longValueExact() != scope.requestGeneration()
+                    || !(value.values().get("position") instanceof Evidence.JsonString position) || parseCursor(position.value()) < 0) {
+                throw new IllegalArgumentException();
+            }
+            return position.value();
+        } catch (RuntimeException failure) {
+            throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "JEI cursor is invalid for this query or scope; restart the search");
+        }
     }
 
     public void refresh() {
         if (refreshSnapshot == null) return;
-        synchronized (navigationSnapshots) {
-            navigationSnapshots.clear();
-        }
         try {
             var snapshot = refreshSnapshot.get();
-            current = snapshot;
-            rememberSnapshot(snapshot, true);
+            currentStatus = snapshot == null ? null : new SnapshotStatus(snapshot.scope(), snapshot.generation(),
+                    snapshot.snapshotVersion(), snapshot.coverage());
             runtimeAvailable = true;
         } catch (RuntimeException failure) {
             PackSageLog.LOGGER.warn("PackSage JEI snapshot refresh failed", failure);
-            current = null;
-            synchronized (navigationSnapshots) {
-                navigationSnapshots.clear();
-            }
+            currentStatus = null;
             runtimeAvailable = false;
         }
     }
 
     public void unavailable() {
         runtimeAvailable = false;
-        current = null;
-        synchronized (navigationSnapshots) {
-            navigationSnapshots.clear();
-        }
+        currentStatus = null;
     }
 
     @Override
@@ -268,12 +379,12 @@ public final class JeiProvider implements KnowledgeProvider {
         return captured
                 .handle((snapshot, failure) -> {
                     if (failure != null || !runtimeAvailable || snapshot == null) {
-                        if (failure != null || snapshot == null) clearSnapshots();
+                        if (failure != null || snapshot == null) currentStatus = null;
                         return unavailableOrError(failure);
                     }
                     if (!sameScope(snapshot.scope(), scope) || query.cursor() != null && query.cursorScope() != null
                             && !sameScope(query.cursorScope(), scope)) {
-                        clearSnapshots();
+                        currentStatus = null;
                         return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null);
                     }
                     if (query.arguments().values().get("outputItem") instanceof Evidence.JsonString && !snapshot.queryScoped()) {
@@ -281,8 +392,8 @@ public final class JeiProvider implements KnowledgeProvider {
                     }
                     var result = snapshot.queryScoped() ? queryScopedResult(snapshot)
                             : querySnapshot(snapshot, query, cursor);
-                    rememberSnapshot(snapshot, result.records().stream().anyMatch(record -> !record.targets().isEmpty()));
-                    current = snapshot;
+                    currentStatus = new SnapshotStatus(snapshot.scope(), snapshot.generation(), snapshot.snapshotVersion(),
+                            snapshot.coverage());
                     return result;
                 });
     }
@@ -291,35 +402,51 @@ public final class JeiProvider implements KnowledgeProvider {
     public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
         Objects.requireNonNull(target);
         Objects.requireNonNull(scope);
-        var snapshot = current;
-        if (!runtimeAvailable || snapshot == null) {
+        if (!runtimeAvailable) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI runtime unavailable");
         }
-        snapshot = snapshotForTarget(target, scope);
-        if (snapshot == null) {
+        if (!ID.equals(target.providerId()) || !sameScope(target.scope(), scope)) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
-                    "JEI target is outside the active runtime snapshot");
+                    "JEI target is outside the active scope");
         }
-        var projection = matchingProjection(snapshot, target, scope);
-        if (projection.coverage() == Evidence.Coverage.ERROR) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,
-                    "JEI projection failed and cannot be opened");
-        }
-        if (owningThread.getAsBoolean()) {
-            return isRetained(snapshot, scope) ? navigate(snapshot, projection.viewerHandle())
-                    : new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
-                    "JEI runtime snapshot changed before navigation");
-        }
-        var selected = snapshot;
         var result = new CompletableFuture<Evidence.NavigationResult>();
-        clientExecutor.execute(() -> {
-            if (!runtimeAvailable || !isRetained(selected, scope)) {
-                result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
-                        "JEI runtime snapshot changed before navigation"));
+        Runnable action = () -> {
+            if (!runtimeAvailable) {
+                result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "JEI runtime unavailable"));
                 return;
             }
-            result.complete(navigate(selected, projection.viewerHandle()));
-        });
+            try {
+                var query = new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of(
+                        "id", new Evidence.JsonString(target.sourceHandle()))), 1, null, null);
+                var snapshot = snapshots.capture(scope, query);
+                if (snapshot == null || !sameScope(snapshot.scope(), scope)) {
+                    result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
+                            "JEI target is outside the active runtime"));
+                    return;
+                }
+                var projection = matchingProjection(snapshot, target, scope);
+                if (projection == null) {
+                    result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
+                            "JEI target is no longer registered"));
+                    return;
+                }
+                if (projection.coverage() == Evidence.Coverage.ERROR) {
+                    result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,
+                            "JEI projection failed and cannot be opened"));
+                    return;
+                }
+                if (!projection.visible() || !projection.visibilityKnown()) {
+                    result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE,
+                            "JEI recipe visibility is unavailable"));
+                    return;
+                }
+                result.complete(navigate(snapshot, projection.viewerHandle()));
+            } catch (RuntimeException failure) {
+                result.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, failure.toString()));
+            }
+        };
+        if (owningThread.getAsBoolean()) action.run();
+        else clientExecutor.execute(action);
         try {
             return result.get(5, TimeUnit.SECONDS);
         } catch (TimeoutException failure) {
@@ -422,47 +549,6 @@ public final class JeiProvider implements KnowledgeProvider {
 
     private static Evidence.Result errorResult(String detail) {
         return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, detail);
-    }
-
-    private void rememberSnapshot(Snapshot snapshot, boolean hasNavigationTargets) {
-        synchronized (navigationSnapshots) {
-            if (!navigationSnapshots.isEmpty()) {
-                var latest = navigationSnapshots.getLast();
-                if (!sameScope(latest.scope(), snapshot.scope()) || latest.generation() != snapshot.generation()) {
-                    navigationSnapshots.clear();
-                }
-            }
-            if (!hasNavigationTargets && !navigationSnapshots.contains(snapshot)) return;
-            navigationSnapshots.remove(snapshot);
-            navigationSnapshots.add(snapshot);
-            while (navigationSnapshots.size() > MAX_NAVIGATION_SNAPSHOTS) navigationSnapshots.removeFirst();
-        }
-    }
-
-    private void clearSnapshots() {
-        current = null;
-        synchronized (navigationSnapshots) {
-            navigationSnapshots.clear();
-        }
-    }
-
-    private Snapshot snapshotForTarget(Evidence.NavigationTarget target, Evidence.Scope scope) {
-        synchronized (navigationSnapshots) {
-            for (var index = navigationSnapshots.size() - 1; index >= 0; index--) {
-                var snapshot = navigationSnapshots.get(index);
-                if (matchingProjection(snapshot, target, scope) != null && isRetained(snapshot, scope)) return snapshot;
-            }
-        }
-        return null;
-    }
-
-    private boolean isRetained(Snapshot snapshot, Evidence.Scope scope) {
-        if (!runtimeAvailable || !sameScope(snapshot.scope(), scope)) return false;
-        var active = current;
-        if (active == null || !sameScope(active.scope(), scope) || active.generation() != snapshot.generation()) return false;
-        synchronized (navigationSnapshots) {
-            return navigationSnapshots.contains(snapshot);
-        }
     }
 
     private static Evidence.NavigationResult navigate(Snapshot snapshot, String handle) {

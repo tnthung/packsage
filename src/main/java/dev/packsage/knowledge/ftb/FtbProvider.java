@@ -12,6 +12,8 @@ import dev.ftb.mods.ftbquests.quest.task.ItemTask;
 import dev.ftb.mods.ftbquests.quest.task.Task;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
+import dev.packsage.knowledge.Toolbox;
+import dev.packsage.model.PackSageTools;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 
@@ -394,6 +396,377 @@ public final class FtbProvider implements KnowledgeProvider {
         if (incomplete(snapshot)) return new ProviderStatus(Availability.PARTIAL, VERSION,
                 "client quest file generation " + snapshot.generation() + " has partial records");
         return new ProviderStatus(Availability.AVAILABLE, VERSION, "client quest file generation " + snapshot.generation());
+    }
+
+    @Override
+    public Toolbox.Metadata metadata() {
+        return new Toolbox.Metadata(ID, List.of("quest"), false, List.of(), java.util.Map.of());
+    }
+
+    @Override
+    public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Toolbox.Context context) {
+        var filter = request.arguments().values().get("filter");
+        if (!(filter instanceof Evidence.JsonObject selected)
+                || !(selected.values().get("provider") instanceof Evidence.JsonString provider)
+                || !ID.equals(provider.value())) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "FTB Quests only handles provider-qualified document searches"));
+        if (selected.values().get("types") instanceof Evidence.JsonArray types && !types.values().isEmpty()
+                && types.values().stream().noneMatch(type -> type instanceof Evidence.JsonString string
+                && "quest".equals(string.value()))) {
+            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED,
+                    "FTB Quests does not contribute the requested document type"));
+        }
+        if (!(request.arguments().values().get("query") instanceof Evidence.JsonString query)) {
+            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS,
+                    "search_document requires a query"));
+        }
+        if (!request.scope().equals(context.currentScope().get())) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "repeat the lookup in the current scope"));
+        var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+        arguments.put("text", query);
+        var cursor = request.arguments().values().get("cursor") instanceof Evidence.JsonString value ? value.value() : null;
+        String sourceCursor;
+        try {
+            sourceCursor = decodeDocumentCursor(cursor, query.value(), request.scope());
+        } catch (Toolbox.Failure failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+        var limit = request.arguments().values().get("limit") instanceof Evidence.JsonNumber value
+                ? value.value().intValue() : 16;
+        if (liveFileNavigation) return searchLiveDocument(request, context, query.value(), sourceCursor, limit);
+        try {
+            return query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(arguments), limit,
+                    sourceCursor == null ? null : request.scope(), sourceCursor), request.scope()).thenApply(result -> {
+                if (!request.scope().equals(context.currentScope().get())) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE,
+                        "scope changed while reading FTB Quests");
+                if (result.coverage() == Evidence.Coverage.ERROR) throw new Toolbox.Failure(
+                        result.detail() != null && result.detail().contains("cursor")
+                                ? Toolbox.Code.INVALID_CURSOR : Toolbox.Code.EXTRACTION_FAILED,
+                        result.detail() == null ? "FTB Quests extraction failed" : result.detail());
+                return result.nextCursor() == null ? result : new Evidence.Result(result.records(), result.coverage(),
+                        result.outcome(), encodeDocumentCursor(query.value(), result.nextCursor(), request.scope()), result.detail());
+            });
+        } catch (RuntimeException failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    @Override
+    public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Toolbox.Context context) {
+        var reference = context.reference(request);
+        if (!ID.equals(reference.providerId())) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "FTB Quests does not own this reference"));
+        if (reference.kind() != Evidence.RecordKind.QUEST) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "expected an observed FTB quest or chapter reference"));
+        if (liveFileNavigation) {
+            var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+            arguments.put("query", new Evidence.JsonString(reference.sourceHandle()));
+            arguments.put("filter", new Evidence.JsonObject(java.util.Map.of("provider", new Evidence.JsonString(ID),
+                    "types", new Evidence.JsonArray(List.of(new Evidence.JsonString("quest"))))));
+            arguments.put("limit", number(256));
+            return searchLiveDocument(new PackSageTools.ReadRequest("search_document",
+                    new Evidence.JsonObject(arguments), request.scope()), context, reference.sourceHandle(), null, 256)
+                    .thenApply(result -> {
+                        var record = result.records().stream().filter(value -> value.source().sourceHandle()
+                                .equals(reference.sourceHandle())).findFirst().orElseThrow(() -> new Toolbox.Failure(
+                                Toolbox.Code.UNAVAILABLE, "the observed quest is no longer available"));
+                        return new Evidence.Result(List.of(record), record.source().coverage(), result.outcome(), null,
+                                result.detail());
+                    });
+        }
+        return query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(java.util.Map.of(
+                "id", new Evidence.JsonString(reference.sourceHandle()))), 1, null, null), request.scope())
+                .thenApply(result -> {
+                    if (!request.scope().equals(context.currentScope().get())) throw new Toolbox.Failure(
+                            Toolbox.Code.STALE_SCOPE, "scope changed while reading FTB Quests");
+                    if (result.records().isEmpty()) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE,
+                            "the observed quest or chapter is no longer available");
+                    if (result.coverage() == Evidence.Coverage.ERROR) throw new Toolbox.Failure(
+                            Toolbox.Code.EXTRACTION_FAILED, "current FTB Quests extraction failed");
+                    return result;
+                });
+    }
+
+    @Override
+    public CompletionStage<Evidence.Result> readProgress(PackSageTools.ReadRequest request, Toolbox.Context context) {
+        return readEvidence(request, context);
+    }
+
+    private CompletionStage<Evidence.Result> searchLiveDocument(PackSageTools.ReadRequest request, Toolbox.Context context,
+                                                                  String query, String cursor, int limit) {
+        var cursorParts = cursor == null ? new String[0] : cursor.split("\\|", -1);
+        var cursorFile = cursorParts.length == 5 ? cursorParts[0] : null;
+        var expectedOwner = cursorParts.length == 5 ? cursorParts[2] : "";
+        var start = cursor == null ? 0 : cursorParts.length == 5 ? parseCursor(cursorParts[1]) : -1;
+        var startPhase = -1;
+        var startIndex = 0;
+        try {
+            if (cursor != null && cursorParts.length != 5) throw new NumberFormatException();
+            if (cursor != null) {
+                startPhase = Integer.parseInt(cursorParts[3]);
+                startIndex = Integer.parseInt(cursorParts[4]);
+                if (startPhase < -1 || startPhase > 3 || startIndex < 0
+                        || startPhase == -1 && startIndex != 0) throw new NumberFormatException();
+            }
+        } catch (NumberFormatException failure) {
+            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                    "FTB nested source position is invalid; restart the search"));
+        }
+        if (start < 0) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB source position is invalid; restart the search"));
+        return CompletableFuture.supplyAsync(() -> {
+            var file = fileSource.get();
+            var scope = scopeSource.get();
+            if (disabled || file == null || ClientQuestFile.INSTANCE != file)
+                throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "FTB Quests client file is unavailable");
+            var fileIdentity = Integer.toString(System.identityHashCode(file));
+            if (cursorFile != null && !cursorFile.equals(fileIdentity))
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor belongs to a replaced quest file; restart the search");
+            if (!request.scope().equals(scope) || !request.scope().equals(context.currentScope().get()))
+                throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "repeat the lookup in the current scope");
+            var budget = context.documentBudget();
+            var player = Minecraft.getInstance().player;
+            var playerId = player == null ? null : player.getUUID();
+            var team = file.selfTeamData;
+            if (team != null && team.isLocked()) team = null;
+            var currentTeam = team;
+            var records = new ArrayList<Evidence.Record>();
+            var position = 0;
+            var next = (String) null;
+            var previousOwner = "";
+            var partial = false;
+            var chapters = file.getAllChapters();
+            var chapterIndex = 0;
+            outer: while (chapterIndex < chapters.size()) {
+                var candidate = position++;
+                if (!budget.document()) {
+                    next = fileIdentity + "|" + candidate + "|" + previousOwner + "|-1|0";
+                    partial = true;
+                    break;
+                }
+                var chapter = chapters.get(chapterIndex++);
+                if (candidate == start - 1 && startPhase == -1 && !expectedOwner.equals(chapter.getCodeString()))
+                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor owner changed; restart the search");
+                var chapterId = chapter.getCodeString();
+                if (candidate == start && startPhase >= 0 && (startPhase != 3 || !expectedOwner.equals(chapterId)))
+                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor no longer identifies the same source; restart the search");
+                previousOwner = chapterId;
+                var group = chapter.getGroup();
+                var groupId = group == null ? "" : group.getCodeString();
+                var chapterTitle = Snapshot.displayTitle(chapter);
+                var groupTitle = group == null ? "" : Snapshot.displayTitle(group);
+                var chapterQuests = chapter.getQuests();
+                if (candidate >= start && (startPhase == -1 || startPhase == 3)) {
+                    var questIds = new ArrayList<String>();
+                    var questIndex = 0;
+                    var initialQuestIndex = candidate == start && startPhase == 3 ? startIndex : 0;
+                    var chapterPartial = initialQuestIndex > 0;
+                    while (questIndex < chapterQuests.size()) {
+                        if (!budget.value()) {
+                            next = fileIdentity + "|" + candidate + "|" + chapterId + "|3|" + questIndex;
+                            partial = true;
+                            chapterPartial = true;
+                            break;
+                        }
+                        var quest = chapterQuests.get(questIndex);
+                        var questId = quest.getCodeString();
+                        if (questIndex++ >= initialQuestIndex) {
+                            if (!budget.bytes(questId.length() * 2)) {
+                                next = fileIdentity + "|" + candidate + "|" + chapterId + "|3|" + (questIndex - 1);
+                                partial = true;
+                                chapterPartial = true;
+                                break;
+                            }
+                            questIds.add(questId);
+                        }
+                    }
+                    var chapterVisible = currentTeam == null ? null : Snapshot.safeBoolean(
+                            () -> chapter.isVisible(currentTeam), new ArrayList<>(), "chapter " + chapterId);
+                    if (chapterPartial) chapterVisible = null;
+                    if (!budget.bytes((chapterId.length() + chapterTitle.length() + groupId.length() + groupTitle.length()) * 2)) {
+                        next = fileIdentity + "|" + candidate + "|" + chapterId + "|3|" + questIndex;
+                        partial = true;
+                    }
+                    var chapterRecord = new ChapterRecord(chapterId, chapterTitle, groupId, groupTitle, questIds, chapterVisible);
+                    var snapshot = new Snapshot(scope, scope.requestGeneration(), List.of(chapterRecord), List.of(), List.of(),
+                            ignored -> { }, new WeakReference<>(file), List.of());
+                    var text = query.toLowerCase(Locale.ROOT);
+                    if (query.isEmpty() || chapterId.toLowerCase(Locale.ROOT).contains(text)
+                            || chapterTitle.toLowerCase(Locale.ROOT).contains(text) || groupId.toLowerCase(Locale.ROOT).contains(text)
+                            || groupTitle.toLowerCase(Locale.ROOT).contains(text)
+                            || questIds.stream().anyMatch(value -> value.toLowerCase(Locale.ROOT).contains(text)))
+                        records.add(toRecord(chapterRecord, snapshot));
+                    if (next != null || records.size() >= limit) {
+                        if (next == null) next = fileIdentity + "|" + (candidate + 1) + "|" + chapterId + "|-1|0";
+                        break;
+                    }
+                }
+                var questIterator = chapterQuests.iterator();
+                var questIndex = 0;
+                while (questIterator.hasNext()) {
+                    var questCandidate = position++;
+                    if (!budget.document()) {
+                        next = fileIdentity + "|" + questCandidate + "|" + previousOwner + "|-1|0";
+                        partial = true;
+                        break outer;
+                    }
+                    var quest = questIterator.next();
+                    var id = quest.getCodeString();
+                    if (questCandidate == start - 1 && startPhase == -1 && !expectedOwner.equals(id))
+                        throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor owner changed; restart the search");
+                    if (questCandidate < start) {
+                        previousOwner = id;
+                        questIndex++;
+                        continue;
+                    }
+                    var phase = questCandidate == start ? startPhase : 0;
+                    if (phase >= 0 && !expectedOwner.equals(id))
+                        throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor no longer identifies the same source; restart the search");
+                    if (phase == 3) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                            "FTB cursor phase does not match its source; restart the search");
+                    if (!budget.bytes(id.length() * 2)) {
+                        next = fileIdentity + "|" + questCandidate + "|" + id + "|0|0";
+                        partial = true;
+                        break outer;
+                    }
+                    var nestedStart = questCandidate == start && phase >= 0 ? startIndex : 0;
+                    var dependencies = new ArrayList<String>();
+                    var tasks = new ArrayList<TaskRecord>();
+                    var rewards = new ArrayList<RewardRecord>();
+                    var progressTasks = new ArrayList<TaskRecord>();
+                    var progressRewards = new ArrayList<RewardRecord>();
+                    var dependencyIterator = quest.streamDependencies().iterator();
+                    var dependencyIndex = 0;
+                    if (phase <= 0) while (dependencyIterator.hasNext()) {
+                        if (!budget.value()) {
+                            next = fileIdentity + "|" + questCandidate + "|" + id + "|0|" + dependencyIndex;
+                            partial = true;
+                            break;
+                        }
+                        var dependency = dependencyIterator.next();
+                        var dependencyId = dependency.getCodeString();
+                        if (dependencyIndex++ >= (phase == 0 ? nestedStart : 0)) {
+                            if (!budget.bytes(dependencyId.length() * 2)) {
+                                next = fileIdentity + "|" + questCandidate + "|" + id + "|0|" + (dependencyIndex - 1);
+                                partial = true;
+                                break;
+                            }
+                            dependencies.add(dependencyId);
+                        }
+                    }
+                    var selectedPhase = phase < 0 ? 0 : phase;
+                    if (next == null && selectedPhase <= 0) selectedPhase = 1;
+                    var questTasks = quest.getTasks();
+                    var taskIndex = selectedPhase == 1 && phase == 1 ? nestedStart : 0;
+                    while (next == null && selectedPhase == 1 && taskIndex < questTasks.size()) {
+                        if (!budget.value()) {
+                            next = fileIdentity + "|" + questCandidate + "|" + id + "|1|" + taskIndex;
+                            partial = true;
+                            break;
+                        }
+                        var task = questTasks.get(taskIndex++);
+                        tasks.add(Snapshot.taskRecord(task, null, new ArrayList<>()));
+                        progressTasks.add(Snapshot.taskRecord(task, currentTeam, new ArrayList<>()));
+                    }
+                    if (next == null && selectedPhase == 1) selectedPhase = 2;
+                    var questRewards = quest.getRewards();
+                    var rewardIndex = selectedPhase == 2 && phase == 2 ? nestedStart : 0;
+                    while (next == null && selectedPhase == 2 && rewardIndex < questRewards.size()) {
+                        if (!budget.value()) {
+                            next = fileIdentity + "|" + questCandidate + "|" + id + "|2|" + rewardIndex;
+                            partial = true;
+                            break;
+                        }
+                        var reward = questRewards.get(rewardIndex++);
+                        rewards.add(Snapshot.rewardRecord(reward, null, null, new ArrayList<>()));
+                        progressRewards.add(Snapshot.rewardRecord(reward, currentTeam, playerId, new ArrayList<>()));
+                    }
+                    var completedQuest = next == null;
+                    previousOwner = id;
+                    var requirement = Snapshot.dependencyRequirement(quest);
+                    var oneDependency = "one_completed".equals(requirement) || "one_started".equals(requirement);
+                    var questTitle = Snapshot.displayTitle(quest);
+                    var questRecord = new QuestRecord(id, questTitle, chapter.getCodeString(), dependencies,
+                            oneDependency ? dependencies.stream().map(List::of).toList()
+                                    : dependencies.isEmpty() ? List.of() : List.of(List.copyOf(dependencies)),
+                            quest.getMinRequiredDependencies(), tasks, rewards, requirement,
+                            Snapshot.maximumCompletableDependencies(quest), quest.getRawTitle());
+                    var errors = new ArrayList<String>();
+                    var progress = new Progress(id,
+                            currentTeam == null ? null : Snapshot.safeBoolean(() -> quest.isVisible(currentTeam), errors, "quest " + id + " visibility"),
+                            currentTeam == null ? null : Snapshot.safeBoolean(() -> quest.areDependenciesVisible(currentTeam), errors, "quest " + id + " dependency visibility"),
+                            currentTeam == null ? null : Snapshot.safeBoolean(() -> quest.areDependenciesComplete(currentTeam), errors, "quest " + id + " dependency completion"),
+                            currentTeam == null ? null : Snapshot.safeBoolean(() -> quest.isCompletedRaw(currentTeam), errors, "quest " + id + " completion"),
+                            currentTeam == null || playerId == null ? null : Snapshot.safeBoolean(
+                                    () -> !quest.hasUnclaimedRewardsRaw(currentTeam, playerId), errors, "quest " + id + " rewards"),
+                            progressTasks, progressRewards);
+                    var snapshot = new Snapshot(scope, scope.requestGeneration(), List.of(), List.of(questRecord),
+                            List.of(progress), ignored -> { }, new WeakReference<>(file), errors);
+                    var text = query.toLowerCase(Locale.ROOT);
+                    if (query.isEmpty() || id.toLowerCase(Locale.ROOT).contains(text)
+                            || questTitle.toLowerCase(Locale.ROOT).contains(text)
+                            || questRecord.chapter().toLowerCase(Locale.ROOT).contains(text)
+                            || questRecord.dependencies().stream().anyMatch(value -> value.toLowerCase(Locale.ROOT).contains(text))
+                            || questRecord.tasks().stream().anyMatch(value -> value.id().toLowerCase(Locale.ROOT).contains(text)
+                            || value.type().toLowerCase(Locale.ROOT).contains(text)
+                            || value.itemId() != null && value.itemId().toLowerCase(Locale.ROOT).contains(text))
+                            || questRecord.rewards().stream().anyMatch(value -> value.id().toLowerCase(Locale.ROOT).contains(text)
+                            || value.type().toLowerCase(Locale.ROOT).contains(text)
+                            || value.itemId() != null && value.itemId().toLowerCase(Locale.ROOT).contains(text)))
+                        records.add(toRecord(questRecord, snapshot));
+                    questIndex++;
+                    if (records.size() >= limit || next != null) {
+                        if (records.size() >= limit && completedQuest && next == null)
+                            next = fileIdentity + "|" + position + "|" + id + "|-1|0";
+                        break outer;
+                    }
+                }
+            }
+            if (!request.scope().equals(context.currentScope().get()) || !request.scope().equals(scopeSource.get())
+                    || ClientQuestFile.INSTANCE != file)
+                throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "scope or FTB file changed while reading quests");
+            var coverage = partial || records.stream().anyMatch(record -> record.source().coverage() != Evidence.Coverage.COMPLETE)
+                    ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
+            return new Evidence.Result(records, coverage, coverage == Evidence.Coverage.COMPLETE
+                    ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL,
+                    next == null ? null : encodeDocumentCursor(query, next, request.scope()),
+                    budget.exhausted() ? "FTB live traversal reached the shared read budget" : null);
+        }, clientExecutor);
+    }
+
+    private static String encodeDocumentCursor(String query, String position, Evidence.Scope scope) {
+        var scopeValue = Evidence.serialize(new Evidence.JsonObject(java.util.Map.of(
+                "world", new Evidence.JsonString(scope.worldSession()),
+                "locale", new Evidence.JsonString(scope.resourcesLocale()),
+                "team", new Evidence.JsonString(scope.playerTeam()),
+                "runtime", new Evidence.JsonString(scope.providerRuntime()),
+                "generation", number(scope.requestGeneration()))));
+        var value = new Evidence.JsonObject(java.util.Map.of("query", new Evidence.JsonString(query),
+                "scope", new Evidence.JsonString(scopeValue), "position", new Evidence.JsonString(position)));
+        return "ftb:" + java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(Evidence.serialize(value).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static String decodeDocumentCursor(String cursor, String query, Evidence.Scope scope) {
+        if (cursor == null) return null;
+        try {
+            if (!cursor.startsWith("ftb:")) throw new IllegalArgumentException();
+            var value = Evidence.deserializeObject(new String(java.util.Base64.getUrlDecoder().decode(cursor.substring(4)),
+                    java.nio.charset.StandardCharsets.UTF_8));
+            var scopeValue = Evidence.serialize(new Evidence.JsonObject(java.util.Map.of(
+                    "world", new Evidence.JsonString(scope.worldSession()),
+                    "locale", new Evidence.JsonString(scope.resourcesLocale()),
+                    "team", new Evidence.JsonString(scope.playerTeam()),
+                    "runtime", new Evidence.JsonString(scope.providerRuntime()),
+                    "generation", number(scope.requestGeneration()))));
+            if (!(value.values().get("query") instanceof Evidence.JsonString savedQuery) || !query.equals(savedQuery.value())
+                    || !(value.values().get("scope") instanceof Evidence.JsonString savedScope) || !scopeValue.equals(savedScope.value())
+                    || !(value.values().get("position") instanceof Evidence.JsonString position)
+                    || position.value().isBlank()) throw new IllegalArgumentException();
+            return position.value();
+        } catch (RuntimeException failure) {
+            throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB Quests cursor is invalid for this query or scope; restart the search");
+        }
     }
 
     public void refresh() {

@@ -4,6 +4,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
+import dev.packsage.knowledge.Toolbox;
+import dev.packsage.model.PackSageTools;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import vazkii.patchouli.api.PatchouliAPI;
@@ -106,6 +108,15 @@ public final class PatchouliProvider implements KnowledgeProvider {
             if (page < 0) throw new IllegalArgumentException("page must not be negative");
         }
     }
+
+    private record LivePosition(int bookIndex, int entryIndex, int pageIndex, int mappingIndex, int phase,
+                                String bookId, String entryId) { }
+
+    private record BoundedJson(Evidence.JsonValue value, boolean complete) { }
+
+    private record BoundedPage(PageRecord page, boolean complete) { }
+
+    private record BoundedEntry(EntryRecord entry, int nextPage, int nextMapping, int nextPhase, boolean complete) { }
 
     public record Snapshot(Evidence.Scope scope, long generation, List<BookRecord> books,
                            Consumer<Navigation> navigator, Evidence.Coverage coverage, String failure) {
@@ -368,6 +379,257 @@ public final class PatchouliProvider implements KnowledgeProvider {
         var partial = snapshot.coverage() != Evidence.Coverage.COMPLETE || opaque;
         return new ProviderStatus(partial ? Availability.PARTIAL : Availability.AVAILABLE, VERSION,
                 snapshot.failure() == null ? "loaded Patchouli books generation " + snapshot.generation() : snapshot.failure());
+    }
+
+    @Override
+    public Toolbox.Metadata metadata() {
+        return new Toolbox.Metadata(ID, List.of("guide"), false, List.of(), Map.of());
+    }
+
+    @Override
+    public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Toolbox.Context context) {
+        var filter = request.arguments().values().get("filter");
+        if (!(filter instanceof Evidence.JsonObject selected)
+                || !(selected.values().get("provider") instanceof Evidence.JsonString provider)
+                || !ID.equals(provider.value())) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "Patchouli only handles provider-qualified document searches"));
+        if (selected.values().get("types") instanceof Evidence.JsonArray types && !types.values().isEmpty()
+                && types.values().stream().noneMatch(type -> type instanceof Evidence.JsonString string
+                && "guide".equals(string.value()))) {
+            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED,
+                    "Patchouli does not contribute the requested document type"));
+        }
+        if (!(request.arguments().values().get("query") instanceof Evidence.JsonString query)) {
+            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS,
+                    "search_document requires a query"));
+        }
+        if (!request.scope().equals(context.currentScope().get())) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "repeat the lookup in the current scope"));
+        var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+        arguments.put("text", query);
+        var cursor = request.arguments().values().get("cursor") instanceof Evidence.JsonString value ? value.value() : null;
+        String sourceCursor;
+        try {
+            sourceCursor = decodeDocumentCursor(cursor, query.value(), request.scope());
+        } catch (Toolbox.Failure failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+        var limit = request.arguments().values().get("limit") instanceof Evidence.JsonNumber value
+                ? value.value().intValue() : 16;
+        if (scopeSource != null) return searchLiveDocument(request, context, query.value(), sourceCursor, limit);
+        try {
+            return query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(arguments), limit,
+                    sourceCursor == null ? null : request.scope(), sourceCursor), request.scope()).thenApply(result -> {
+                if (!request.scope().equals(context.currentScope().get())) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE,
+                        "scope changed while reading Patchouli");
+                if (result.coverage() == Evidence.Coverage.ERROR) throw new Toolbox.Failure(
+                        result.detail() != null && result.detail().contains("cursor")
+                                ? Toolbox.Code.INVALID_CURSOR : Toolbox.Code.EXTRACTION_FAILED,
+                        result.detail() == null ? "Patchouli extraction failed" : result.detail());
+                return result.nextCursor() == null ? result : new Evidence.Result(result.records(), result.coverage(),
+                        result.outcome(), encodeDocumentCursor(query.value(), result.nextCursor(), request.scope()), result.detail());
+            });
+        } catch (RuntimeException failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    @Override
+    public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Toolbox.Context context) {
+        var reference = context.reference(request);
+        if (!ID.equals(reference.providerId())) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "Patchouli does not own this reference"));
+        if (reference.kind() != Evidence.RecordKind.GUIDE) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "expected an observed Patchouli guide reference"));
+        var id = reference.sourceHandle();
+        if (scopeSource != null) {
+            var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+            arguments.put("query", new Evidence.JsonString(id.substring(id.indexOf('#') + 1)));
+            arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString(ID),
+                    "types", new Evidence.JsonArray(List.of(new Evidence.JsonString("guide"))))));
+            arguments.put("limit", new Evidence.JsonNumber(BigDecimal.valueOf(256)));
+            return searchLiveDocument(new PackSageTools.ReadRequest("search_document",
+                    new Evidence.JsonObject(arguments), request.scope()), context,
+                    ((Evidence.JsonString) arguments.get("query")).value(), null, 256).thenApply(result -> {
+                var record = result.records().stream().filter(value -> value.source().sourceHandle().equals(id))
+                        .findFirst().orElseThrow(() -> new Toolbox.Failure(Toolbox.Code.UNAVAILABLE,
+                                "the observed guide entry is no longer available"));
+                return new Evidence.Result(List.of(record), record.source().coverage(), result.outcome(), null, result.detail());
+            });
+        }
+        var separator = id.indexOf('#');
+        var entryId = separator < 0 ? id : id.substring(separator + 1);
+        return query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of(
+                "id", new Evidence.JsonString(entryId))), 1, null, null), request.scope())
+                .thenApply(result -> {
+                    if (!request.scope().equals(context.currentScope().get())) throw new Toolbox.Failure(
+                            Toolbox.Code.STALE_SCOPE, "scope changed while reading Patchouli");
+                    if (result.records().isEmpty()) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE,
+                            "the observed guide entry is no longer available");
+                    if (result.coverage() == Evidence.Coverage.ERROR) throw new Toolbox.Failure(
+                            Toolbox.Code.EXTRACTION_FAILED, "current Patchouli extraction failed");
+                    return result;
+                });
+    }
+
+    private CompletionStage<Evidence.Result> searchLiveDocument(PackSageTools.ReadRequest request, Toolbox.Context context,
+                                                                 String query, String cursor, int limit) {
+        var start = 0;
+        var startPage = 0;
+        var cursorOwner = cursor != null && cursor.split(":", -1).length == 3
+                ? cursor.split(":", -1)[0] : null;
+        if (cursor != null) {
+            try {
+                var position = cursor.split(":", -1);
+                var ownerOffset = position.length == 3 ? 1 : 0;
+                start = Integer.parseInt(position[ownerOffset]);
+                startPage = position.length == ownerOffset + 2 ? Integer.parseInt(position[ownerOffset + 1]) : 0;
+                if (position.length > ownerOffset + 2 || startPage < 0) throw new NumberFormatException();
+            } catch (NumberFormatException failure) { return CompletableFuture.failedFuture(
+                    new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Patchouli source position is invalid; restart the search")); }
+            if (start < 0) return CompletableFuture.failedFuture(
+                    new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Patchouli source position is invalid; restart the search"));
+        }
+        var offset = start;
+        var initialPage = startPage;
+        return CompletableFuture.supplyAsync(() -> {
+            if (unavailable) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Patchouli runtime is unavailable");
+            if (!owningThread.getAsBoolean()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "Patchouli live traversal must run on the client thread");
+            var scope = scopeSource.get();
+            if (!request.scope().equals(scope) || !request.scope().equals(context.currentScope().get()))
+                throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "repeat the lookup in the current scope");
+            if (cursorOwner != null && !cursorOwner.equals(Integer.toString(System.identityHashCode(BookRegistry.INSTANCE))))
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                        "Patchouli cursor belongs to a replaced registry; restart the search");
+            var budget = context.documentBudget();
+            var records = new ArrayList<Evidence.Record>();
+            var liveBooks = new java.util.LinkedHashMap<String, BookRecord>();
+            var position = 0;
+            var next = (String) null;
+            var currentGeneration = lifecycleGeneration;
+            outer: for (var book : BookRegistry.INSTANCE.books.values()) {
+                var contents = book.getContents();
+                if (contents == null || contents.isErrored()) continue;
+                for (var entry : contents.entries.values()) {
+                    var candidate = position++;
+                    if (candidate < offset) {
+                        if (!budget.document()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                                "Patchouli source position exceeds the bounded seek; restart the search");
+                        continue;
+                    }
+                    if (!budget.document()) { next = candidate + ":0"; break outer; }
+                    if (entry.shouldHide() || entry.isLocked()) continue;
+                    var id = entry.getId().toString();
+                    var title = entry.getName().getString();
+                    var pages = new ArrayList<PageRecord>();
+                    var partial = false;
+                    var pageIndex = 0;
+                    for (var page : entry.getPages()) {
+                        if (pageIndex < (candidate == offset ? initialPage : 0)) {
+                            if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                                    "Patchouli page position exceeds the bounded seek; restart the search");
+                            pageIndex++;
+                            continue;
+                        }
+                        pageIndex++;
+                        if (!page.isPageUnlocked()) { partial = true; continue; }
+                        if (!budget.value()) { partial = true; next = candidate + ":" + (pageIndex - 1); break; }
+                        var source = page.sourceObject;
+                        var type = source != null && source.has("type") && source.get("type").isJsonPrimitive()
+                                ? source.get("type").getAsString() : page.getClass().getSimpleName();
+                        partial = true;
+                        var text = (String) null;
+                        if (page instanceof PageWithText && source != null && source.has("text")
+                                && source.get("text").isJsonPrimitive()) {
+                            var raw = source.get("text").getAsString();
+                            if (budget.bytes(raw.length() * 2)) {
+                                var translated = page.i18n(raw);
+                                if (budget.bytes(translated.length() * 2)) text = translated;
+                                else partial = true;
+                            }
+                            else partial = true;
+                        }
+                        if (!budget.bytes(type.length() * 2)) { partial = true; type = "unknown"; }
+                        var supported = page instanceof PageText || page instanceof PageSpotlight || page instanceof PageCrafting
+                                || page instanceof PageSmelting || page instanceof PageBlasting || page instanceof PageSmoking
+                                || page instanceof PageCampfireCooking || page instanceof PageSmithing || page instanceof PageStonecutting;
+                        pages.add(new PageRecord(pageIndex - 1, type, new Evidence.JsonObject(Map.of()), text,
+                                List.of(), List.of(), true, supported ? Evidence.DecodingStatus.VERIFIED
+                                : Evidence.DecodingStatus.OPAQUE));
+                    }
+                    if (candidate == offset && initialPage > 0) partial = true;
+                    var found = new EntryRecord(book.id.toString(), id, title, pages, true, false, entry.isSecret(),
+                            false, List.of(), List.of(), partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                            partial ? "bounded live guide fragment" : null);
+                    if (query.isEmpty() || id.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT))
+                            || book.id.toString().toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT))
+                            || title.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT))
+                            || pages.stream().anyMatch(value -> value.text() != null
+                            && value.text().toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))) {
+                        var prior = liveBooks.get(book.id.toString());
+                        var entries = new ArrayList<EntryRecord>(prior == null ? List.of() : prior.entries());
+                        entries.add(found);
+                        liveBooks.put(book.id.toString(), new BookRecord(book.id.toString(), book.name, entries,
+                                List.of(), Evidence.Coverage.PARTIAL, "bounded live guide fragments"));
+                        var snapshot = new Snapshot(scope, scope.requestGeneration(), new ArrayList<>(liveBooks.values()),
+                                navigation -> PatchouliAPI.get().openBookEntry(ResourceLocation.parse(navigation.bookId()),
+                                        ResourceLocation.parse(navigation.entryId()), navigation.page()));
+                        current = snapshot;
+                        currentLifecycleGeneration = currentGeneration;
+                        records.add(toRecord(found, snapshot, matchingPages(found, Evidence.Operation.SEARCH,
+                                query.toLowerCase(Locale.ROOT)), currentGeneration));
+                    }
+                    if (records.size() >= limit || next != null) {
+                        if (next == null) next = Integer.toString(position);
+                        break outer;
+                    }
+                }
+            }
+            if (!request.scope().equals(context.currentScope().get()) || !request.scope().equals(scopeSource.get()))
+                throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "scope changed while reading Patchouli");
+            var coverage = records.stream().anyMatch(record -> record.source().coverage() != Evidence.Coverage.COMPLETE)
+                    ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
+            var continuation = next == null ? null : next.contains(":") ? next : next + ":0";
+            return result(records, coverage, continuation == null ? null : encodeDocumentCursor(query,
+                            System.identityHashCode(BookRegistry.INSTANCE) + ":" + continuation, request.scope()),
+                    budget.exhausted() ? "Patchouli live traversal reached the shared read budget" : null);
+        }, clientExecutor);
+    }
+
+    private static String encodeDocumentCursor(String query, String position, Evidence.Scope scope) {
+        var scopeValue = Evidence.serialize(new Evidence.JsonObject(Map.of(
+                "world", new Evidence.JsonString(scope.worldSession()),
+                "locale", new Evidence.JsonString(scope.resourcesLocale()),
+                "team", new Evidence.JsonString(scope.playerTeam()),
+                "runtime", new Evidence.JsonString(scope.providerRuntime()),
+                "generation", new Evidence.JsonNumber(BigDecimal.valueOf(scope.requestGeneration())))));
+        var value = new Evidence.JsonObject(Map.of("query", new Evidence.JsonString(query),
+                "scope", new Evidence.JsonString(scopeValue), "position", new Evidence.JsonString(position)));
+        return "patchouli:" + java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(Evidence.serialize(value).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static String decodeDocumentCursor(String cursor, String query, Evidence.Scope scope) {
+        if (cursor == null) return null;
+        try {
+            if (!cursor.startsWith("patchouli:")) throw new IllegalArgumentException();
+            var value = Evidence.deserializeObject(new String(java.util.Base64.getUrlDecoder().decode(cursor.substring(10)),
+                    java.nio.charset.StandardCharsets.UTF_8));
+            var scopeValue = Evidence.serialize(new Evidence.JsonObject(Map.of(
+                    "world", new Evidence.JsonString(scope.worldSession()),
+                    "locale", new Evidence.JsonString(scope.resourcesLocale()),
+                    "team", new Evidence.JsonString(scope.playerTeam()),
+                    "runtime", new Evidence.JsonString(scope.providerRuntime()),
+                    "generation", new Evidence.JsonNumber(BigDecimal.valueOf(scope.requestGeneration())))));
+            if (!(value.values().get("query") instanceof Evidence.JsonString savedQuery) || !query.equals(savedQuery.value())
+                    || !(value.values().get("scope") instanceof Evidence.JsonString savedScope) || !scopeValue.equals(savedScope.value())
+                    || !(value.values().get("position") instanceof Evidence.JsonString position)
+                    || position.value().isBlank()) throw new IllegalArgumentException();
+            return position.value();
+        } catch (RuntimeException failure) {
+            throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Patchouli cursor is invalid for this query or scope; restart the search");
+        }
     }
 
     public void refresh() {

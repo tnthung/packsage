@@ -6,10 +6,35 @@ import dev.ftb.mods.ftbquests.quest.DependencyRequirement;
 import dev.ftb.mods.ftbquests.quest.Quest;
 import dev.ftb.mods.ftbquests.quest.QuestObjectBase;
 import dev.ftb.mods.ftbquests.quest.TeamData;
+import dev.ftb.mods.ftbquests.quest.reward.AdvancementReward;
+import dev.ftb.mods.ftbquests.quest.reward.AllTableReward;
+import dev.ftb.mods.ftbquests.quest.reward.ChoiceReward;
+import dev.ftb.mods.ftbquests.quest.reward.CommandReward;
+import dev.ftb.mods.ftbquests.quest.reward.CurrencyReward;
 import dev.ftb.mods.ftbquests.quest.reward.ItemReward;
+import dev.ftb.mods.ftbquests.quest.reward.LootReward;
+import dev.ftb.mods.ftbquests.quest.reward.RandomReward;
 import dev.ftb.mods.ftbquests.quest.reward.Reward;
+import dev.ftb.mods.ftbquests.quest.reward.StageReward;
+import dev.ftb.mods.ftbquests.quest.reward.ToastReward;
+import dev.ftb.mods.ftbquests.quest.reward.XPLevelsReward;
+import dev.ftb.mods.ftbquests.quest.reward.XPReward;
+import dev.ftb.mods.ftbquests.quest.task.AdvancementTask;
+import dev.ftb.mods.ftbquests.quest.task.BiomeTask;
+import dev.ftb.mods.ftbquests.quest.task.CheckmarkTask;
+import dev.ftb.mods.ftbquests.quest.task.DimensionTask;
+import dev.ftb.mods.ftbquests.quest.task.EnergyTask;
+import dev.ftb.mods.ftbquests.quest.task.FluidTask;
 import dev.ftb.mods.ftbquests.quest.task.ItemTask;
+import dev.ftb.mods.ftbquests.quest.task.KillTask;
+import dev.ftb.mods.ftbquests.quest.task.LocationTask;
+import dev.ftb.mods.ftbquests.quest.task.ObservationTask;
+import dev.ftb.mods.ftbquests.quest.task.StageTask;
+import dev.ftb.mods.ftbquests.quest.task.StatTask;
+import dev.ftb.mods.ftbquests.quest.task.StructureTask;
 import dev.ftb.mods.ftbquests.quest.task.Task;
+import dev.ftb.mods.ftbquests.quest.task.XPTask;
+import dev.ftb.mods.ftbquests.quest.task.neoforge.ForgeEnergyTask;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.Toolbox;
@@ -677,7 +702,7 @@ public final class FtbProvider implements KnowledgeProvider {
                         throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                 "FTB chapter child position no longer exists; restart the search");
                     while (questIndex < chapterQuests.size()) {
-                        if (!budget.value() || currentTeam != null && (!budget.value() || !budget.value())
+                        if (!budget.value() || currentTeam != null && !budget.value()
                                 || !budget.bytes(128)) {
                             next = fileIdentity + "|" + candidate + "|" + chapterId + "|3|" + questIndex;
                             partial = true;
@@ -687,17 +712,12 @@ public final class FtbProvider implements KnowledgeProvider {
                         var quest = chapterQuests.get(questIndex);
                         var questId = quest.getCodeString();
                         questIds.add(questId);
-                        questProgress.add(new ChapterChildProgress(questId, currentTeam == null ? null
-                                : Snapshot.safeBoolean(() -> quest.isVisible(currentTeam), new ArrayList<>(),
-                                "quest " + questId + " visibility"), currentTeam == null ? null
-                                : Snapshot.safeBoolean(() -> quest.isCompletedRaw(currentTeam), new ArrayList<>(),
-                                "quest " + questId + " completion")));
+                        questProgress.add(new ChapterChildProgress(questId, null,
+                                currentTeam == null ? null : currentTeam.isCompleted(quest)));
                         questIndex++;
                     }
-                    var chapterVisible = currentTeam == null || chapterPartial ? null : Snapshot.safeBoolean(
-                            () -> chapter.isVisible(currentTeam), new ArrayList<>(), "chapter " + chapterId);
                     var chapterRecord = new ChapterRecord(chapterId, chapterTitle, groupId, groupTitle, initialQuestIndex,
-                            questIds, questProgress, !chapterPartial, chapterVisible);
+                            questIds, questProgress, !chapterPartial, null);
                     var snapshot = new Snapshot(scope, scope.requestGeneration(), List.of(chapterRecord), List.of(), List.of(),
                             ignored -> { }, new WeakReference<>(file), List.of());
                     java.util.function.Predicate<String> matches = value -> {
@@ -757,28 +777,33 @@ public final class FtbProvider implements KnowledgeProvider {
                     var rewards = new ArrayList<RewardRecord>();
                     var progressTasks = new ArrayList<TaskRecord>();
                     var progressRewards = new ArrayList<RewardRecord>();
-                    if (phase <= 0 && !budget.value()) {
-                        next = fileIdentity + "|" + questCandidate + "|" + id + "|0|0";
+                    if (!budget.value() || !budget.value() || !budget.value() || !budget.value() || !budget.value()
+                            || currentTeam != null && (!budget.value() || !budget.value() || !budget.value()
+                            || !budget.value() || !budget.value()) || !budget.bytes(4096)) {
+                        next = fileIdentity + "|" + questCandidate + "|" + id + "|" + (phase < 0 ? 0 : phase)
+                                + "|" + nestedStart;
                         partial = true;
                         break outer;
                     }
-                    var dependencyIterator = quest.streamDependencies().iterator();
                     var dependencyIndex = 0;
-                    if (phase <= 0) while (dependencyIterator.hasNext()) {
-                        if (!budget.value()) {
-                            next = fileIdentity + "|" + questCandidate + "|" + id + "|0|" + dependencyIndex;
-                            partial = true;
-                            break;
-                        }
-                        if (!budget.bytes(128)) {
-                            next = fileIdentity + "|" + questCandidate + "|" + id + "|0|" + dependencyIndex;
-                            partial = true;
-                            break;
-                        }
-                        var dependency = dependencyIterator.next();
-                        var dependencyId = dependency.getCodeString();
-                        if (dependencyIndex++ >= (phase == 0 ? nestedStart : 0)) {
-                            dependencies.add(dependencyId);
+                    if (phase <= 0) {
+                        var dependencyIterator = quest.streamDependencies().iterator();
+                        while (dependencyIterator.hasNext()) {
+                            if (!budget.value()) {
+                                next = fileIdentity + "|" + questCandidate + "|" + id + "|0|" + dependencyIndex;
+                                partial = true;
+                                break;
+                            }
+                            if (!budget.bytes(128)) {
+                                next = fileIdentity + "|" + questCandidate + "|" + id + "|0|" + dependencyIndex;
+                                partial = true;
+                                break;
+                            }
+                            var dependency = dependencyIterator.next();
+                            var dependencyId = dependency.getCodeString();
+                            if (dependencyIndex++ >= (phase == 0 ? nestedStart : 0)) {
+                                dependencies.add(dependencyId);
+                            }
                         }
                     }
                     if (next == null && phase == 0 && nestedStart > dependencyIndex)
@@ -812,8 +837,33 @@ public final class FtbProvider implements KnowledgeProvider {
                         }
                         var task = taskIterator.next();
                         if (taskIndex++ < taskStart) continue;
-                        tasks.add(Snapshot.taskRecord(task, null, new ArrayList<>()));
-                        progressTasks.add(Snapshot.taskRecord(task, currentTeam, new ArrayList<>()));
+                        var nativeTask = task.getClass() == AdvancementTask.class || task.getClass() == BiomeTask.class
+                                || task.getClass() == CheckmarkTask.class || task.getClass() == DimensionTask.class
+                                || task.getClass() == EnergyTask.class || task.getClass() == FluidTask.class
+                                || task.getClass() == ItemTask.class || task.getClass() == KillTask.class
+                                || task.getClass() == LocationTask.class || task.getClass() == ObservationTask.class
+                                || task.getClass() == StageTask.class || task.getClass() == StatTask.class
+                                || task.getClass() == StructureTask.class || task.getClass() == XPTask.class
+                                || task.getClass() == ForgeEnergyTask.class;
+                        var taskId = task.getCodeString();
+                        var className = task.getClass().getName();
+                        var type = nativeTask ? task.getType().getTypeId().toString()
+                                : "unsupported:" + (className.length() > 128 ? className.substring(0, 128) : className);
+                        var maximum = nativeTask ? task.getMaxProgress() : -1;
+                        var progress = currentTeam == null ? null : currentTeam.getProgress(task);
+                        var completed = currentTeam == null ? null : currentTeam.isCompleted(task);
+                        String itemId = null;
+                        Long itemCount = null;
+                        if (task.getClass() == ItemTask.class) {
+                            var itemStack = ((ItemTask) task).getItemStack();
+                            if (itemStack != null && !itemStack.isEmpty())
+                                itemId = BuiltInRegistries.ITEM.getKey(itemStack.getItem()).toString();
+                            if (maximum >= 0) itemCount = maximum;
+                        }
+                        tasks.add(new TaskRecord(taskId, type, null, maximum < 0 ? null : maximum, null,
+                                itemId, itemCount, nativeTask && supportedType(type)));
+                        progressTasks.add(new TaskRecord(taskId, type, progress, maximum < 0 ? null : maximum,
+                                completed, itemId, itemCount, nativeTask && supportedType(type)));
                     }
                     if (next == null && selectedPhase == 1 && taskStart > taskIndex)
                         throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
@@ -844,23 +894,36 @@ public final class FtbProvider implements KnowledgeProvider {
                         }
                         var reward = rewardIterator.next();
                         if (rewardIndex++ < rewardStart) continue;
-                        rewards.add(Snapshot.rewardRecord(reward, null, null, new ArrayList<>()));
-                        progressRewards.add(Snapshot.rewardRecord(reward, currentTeam, playerId, new ArrayList<>()));
+                        var nativeReward = reward.getClass() == AdvancementReward.class
+                                || reward.getClass() == AllTableReward.class || reward.getClass() == ChoiceReward.class
+                                || reward.getClass() == CommandReward.class || reward.getClass() == CurrencyReward.class
+                                || reward.getClass() == ItemReward.class || reward.getClass() == LootReward.class
+                                || reward.getClass() == RandomReward.class || reward.getClass() == StageReward.class
+                                || reward.getClass() == ToastReward.class || reward.getClass() == XPLevelsReward.class
+                                || reward.getClass() == XPReward.class;
+                        var rewardId = reward.getCodeString();
+                        var className = reward.getClass().getName();
+                        var type = nativeReward ? reward.getType().getTypeId().toString()
+                                : "unsupported:" + (className.length() > 128 ? className.substring(0, 128) : className);
+                        var claimed = currentTeam == null || playerId == null ? null
+                                : currentTeam.isRewardClaimed(playerId, reward);
+                        String itemId = null;
+                        Long count = null;
+                        if (reward.getClass() == ItemReward.class) {
+                            var itemStack = ((ItemReward) reward).getItem();
+                            if (itemStack != null && !itemStack.isEmpty())
+                                itemId = BuiltInRegistries.ITEM.getKey(itemStack.getItem()).toString();
+                            count = (long) ((ItemReward) reward).getCount();
+                        }
+                        rewards.add(new RewardRecord(rewardId, type, null, itemId, count,
+                                nativeReward && supportedType(type)));
+                        progressRewards.add(new RewardRecord(rewardId, type, claimed, itemId, count,
+                                nativeReward && supportedType(type)));
                     }
                     if (next == null && selectedPhase == 2 && rewardStart > rewardIndex)
                         throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                 "FTB reward position no longer exists; restart the search");
                     var rewardRangeComplete = selectedPhase == 2 && next == null && rewardStart == 0;
-                    if (next == null && (!budget.value() || !budget.value() || !budget.value() || !budget.value()
-                            || !budget.value() || currentTeam != null && (!budget.value() || !budget.value()
-                            || !budget.value() || !budget.value() || !budget.value()) || !budget.bytes(4096))) {
-                        next = fileIdentity + "|" + questCandidate + "|" + id + "|4|0";
-                        partial = true;
-                    }
-                    if (next != null) {
-                        previousOwner = id;
-                        break outer;
-                    }
                     var completedQuest = next == null;
                     previousOwner = id;
                     var requirement = Snapshot.dependencyRequirement(quest);
@@ -874,17 +937,11 @@ public final class FtbProvider implements KnowledgeProvider {
                             Snapshot.maximumCompletableDependencies(quest), rawTitle,
                             phase == 0 ? nestedStart : 0, dependencyRangeComplete,
                             taskStart, taskRangeComplete, rewardStart, rewardRangeComplete);
-                    var errors = new ArrayList<String>();
                     var progress = new Progress(id,
-                            currentTeam == null ? null : Snapshot.safeBoolean(() -> quest.isVisible(currentTeam), errors, "quest " + id + " visibility"),
-                            currentTeam == null ? null : Snapshot.safeBoolean(() -> quest.areDependenciesVisible(currentTeam), errors, "quest " + id + " dependency visibility"),
-                            currentTeam == null ? null : Snapshot.safeBoolean(() -> quest.areDependenciesComplete(currentTeam), errors, "quest " + id + " dependency completion"),
-                            currentTeam == null ? null : Snapshot.safeBoolean(() -> quest.isCompletedRaw(currentTeam), errors, "quest " + id + " completion"),
-                            currentTeam == null || playerId == null ? null : Snapshot.safeBoolean(
-                                    () -> !quest.hasUnclaimedRewardsRaw(currentTeam, playerId), errors, "quest " + id + " rewards"),
+                            null, null, null, currentTeam == null ? null : currentTeam.isCompleted(quest), null,
                             progressTasks, progressRewards);
                     var snapshot = new Snapshot(scope, scope.requestGeneration(), List.of(), List.of(questRecord),
-                            List.of(progress), ignored -> { }, new WeakReference<>(file), errors);
+                            List.of(progress), ignored -> { }, new WeakReference<>(file), List.of());
                     java.util.function.Predicate<String> matches = value -> {
                         if (query.isEmpty()) return true;
                         for (var index = 0; index <= value.length() - query.length(); index++)

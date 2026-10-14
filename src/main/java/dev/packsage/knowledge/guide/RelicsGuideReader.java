@@ -4,7 +4,10 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.locale.Language;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 
 import java.util.ArrayList;
@@ -16,6 +19,7 @@ import java.util.function.Supplier;
 /** Bounded live reader for registry-reachable Relics ability documentation. */
 public final class RelicsGuideReader implements GuideDocumentReader {
     private static final String RELIC_ITEM = "it.hurts.sskirillss.relics.api.relics.IRelicItem";
+    private static final TagKey<Item> RELIC_TAG = TagKey.create(Registries.ITEM, ResourceLocation.parse("relics:relic"));
 
     private RelicsGuideReader() { }
 
@@ -27,8 +31,9 @@ public final class RelicsGuideReader implements GuideDocumentReader {
     @Override public String version() { return "0.12.8"; }
     @Override public String sourceIdentity(Evidence.Scope scope) {
         var client = Minecraft.getInstance();
-        return "relics:registry=" + BuiltInRegistries.ITEM.size() + ":player="
-                + (client.player == null ? "none" : client.player.getUUID()) + ":locale=" + scope.resourcesLocale();
+        var tag = client.level == null ? null : client.level.registryAccess().registryOrThrow(Registries.ITEM).getTag(RELIC_TAG).orElse(null);
+        return "relics:tag=" + (tag == null ? "none" : System.identityHashCode(tag) + ":" + tag.size())
+                + ":player=" + (client.player == null ? "none" : client.player.getUUID()) + ":locale=" + scope.resourcesLocale();
     }
 
     @Override
@@ -50,55 +55,65 @@ public final class RelicsGuideReader implements GuideDocumentReader {
             } catch (NumberFormatException failure) {
                 throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid Relics registry cursor");
             }
-            if (afterItem < 0 || afterItem >= BuiltInRegistries.ITEM.size() || afterAbility < -1)
+            if (afterItem < 0 || afterAbility < -1)
                 throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Relics registry cursor is out of range");
         }
         try {
             var relicType = Class.forName(RELIC_ITEM, false, RelicsGuideReader.class.getClassLoader());
             var client = Minecraft.getInstance();
-            if (client.player == null) return new CandidatePage(List.of(), afterPosition, false,
-                    Evidence.Coverage.PARTIAL, "Relics requires the current player to enumerate ability definitions");
-            for (int currentItemPosition = Math.max(0, afterItem); currentItemPosition < BuiltInRegistries.ITEM.size(); currentItemPosition++) {
+            if (client.player == null || client.level == null) return new CandidatePage(List.of(), afterPosition, false,
+                    Evidence.Coverage.PARTIAL, "Relics requires the current player and loaded item tags to enumerate ability definitions");
+            var itemRegistry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
+            var relicTag = itemRegistry.getTag(RELIC_TAG).orElse(null);
+            if (relicTag == null) return new CandidatePage(List.of(), afterPosition, false,
+                    Evidence.Coverage.PARTIAL, "the loaded item registry has no relics:relic tag");
+            if (afterItem >= relicTag.size()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                    "Relics registry cursor is out of range");
+            var relicItems = relicTag.iterator();
+            int currentItemPosition = 0;
+            while (relicItems.hasNext()) {
                 if (!budget.value()) { more = next != null && !next.equals(afterPosition); partial = true; break; }
-                Item item = BuiltInRegistries.ITEM.byId(currentItemPosition);
+                Item item = relicItems.next().value();
+                int itemPosition = currentItemPosition++;
+                if (itemPosition < afterItem) continue;
                 String itemId = BuiltInRegistries.ITEM.getKey(item).toString();
                 if (!relicType.isInstance(item)) {
-                    if (currentItemPosition == afterItem && afterAbility != -1)
-                        throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Relics cursor does not match the current registry item");
-                    next = currentItemPosition + ":-1";
+                    if (itemPosition == afterItem && afterAbility != -1)
+                        throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Relics cursor does not match its current tag item");
+                    next = itemPosition + ":-1";
                     continue;
                 }
                 Object relicData = relicType.getMethod("getRelicData", net.minecraft.world.entity.LivingEntity.class,
                         net.minecraft.world.item.ItemStack.class).invoke(item, client.player, item.getDefaultInstance());
                 if (relicData == null) {
-                    if (currentItemPosition == afterItem && afterAbility != -1)
+                    if (itemPosition == afterItem && afterAbility != -1)
                         throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Relics cursor item definition changed");
                     partial = true;
-                    next = currentItemPosition + ":-1";
+                    next = itemPosition + ":-1";
                     continue;
                 }
                 Object abilities = relicData.getClass().getMethod("getAbilitiesData").invoke(relicData);
                 Object ids = abilities.getClass().getMethod("getAbilityIDs").invoke(abilities);
-                if (!(ids instanceof Set<?> abilityIds)) { partial = true; next = currentItemPosition + ":-1"; continue; }
-                if (currentItemPosition == afterItem && afterAbility >= abilityIds.size())
+                if (!(ids instanceof Set<?> abilityIds)) { partial = true; next = itemPosition + ":-1"; continue; }
+                if (itemPosition == afterItem && afterAbility >= abilityIds.size())
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Relics ability cursor is out of range");
                 int abilityPosition = 0;
                 for (Object abilityId : abilityIds) {
                     int currentAbilityPosition = abilityPosition++;
                     if (!budget.value()) { more = next != null && !next.equals(afterPosition); partial = true; break; }
-                    if (currentItemPosition == afterItem && currentAbilityPosition <= afterAbility) continue;
+                    if (itemPosition == afterItem && currentAbilityPosition <= afterAbility) continue;
                     String id = String.valueOf(abilityId);
                     if (id.length() > 256 || !budget.bytes(id.length() * 6 + itemId.length() * 6 + 128)) {
                         more = next != null && !next.equals(afterPosition); partial = true; break;
                     }
                     String documentId = itemId + "#" + id;
-                    candidates.add(new Candidate(documentId, id, currentItemPosition + ":" + currentAbilityPosition,
+                    candidates.add(new Candidate(documentId, id, itemPosition + ":" + currentAbilityPosition,
                             List.of("relics:item:" + itemId, "relics:ability:" + id), Evidence.Coverage.COMPLETE));
-                    next = currentItemPosition + ":" + currentAbilityPosition;
+                    next = itemPosition + ":" + currentAbilityPosition;
                     if (candidates.size() >= limit) { more = true; break; }
                 }
                 if (more) break;
-                if (abilityPosition == 0) next = currentItemPosition + ":-1";
+                if (abilityPosition == 0) next = itemPosition + ":-1";
             }
         } catch (Toolbox.Failure failure) {
             throw failure;

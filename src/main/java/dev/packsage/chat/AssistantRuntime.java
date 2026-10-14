@@ -39,7 +39,6 @@ public final class AssistantRuntime implements ChatActions {
     private final Consumer<String> externalNavigation;
     private final Function<Supplier<Evidence.Scope>, KnowledgeService> knowledgeFactory;
     private KnowledgeService knowledge;
-    private PackSageTools tools;
     private final Object stateLock = new Object();
     private final Object sendLock = new Object();
     private final List<String> runtimeErrors = new ArrayList<>();
@@ -81,7 +80,6 @@ public final class AssistantRuntime implements ChatActions {
         this.externalNavigation = Objects.requireNonNull(externalNavigation);
         this.knowledgeFactory = Objects.requireNonNull(knowledgeFactory);
         this.knowledge = Objects.requireNonNull(this.knowledgeFactory.apply(this::currentScope));
-        this.tools = new PackSageTools(this.knowledge::execute, this.knowledge.metadata());
         this.capture = Objects.requireNonNull(Objects.requireNonNull(captureFactory).apply(this::currentScope));
         this.controller = new RequestController(store, backend, controllerExecutor,
                 capture::capture, capture::cancel, ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
@@ -104,6 +102,7 @@ public final class AssistantRuntime implements ChatActions {
                 this.world = world;
                 this.scope = scope;
                 historyAdapter = null;
+                knowledge = new KnowledgeService(List.of(), this::currentScope);
                 readOnlyConversation = null;
                 sessionLoading = false;
                 sessionGeneration++;
@@ -128,11 +127,9 @@ public final class AssistantRuntime implements ChatActions {
         }
         var nextHistory = new HistoryAdapter(store, world, this::currentScope);
         nextKnowledge.register(nextHistory);
-        PackSageTools nextTools = new PackSageTools(nextKnowledge::execute, nextKnowledge.metadata());
         synchronized (stateLock) {
             if (epoch != worldEpoch || !world.equals(this.world) || !scope.equals(this.scope)) return;
             knowledge = nextKnowledge;
-            tools = nextTools;
             historyAdapter = nextHistory;
         }
         publishCurrentView(epoch);
@@ -161,6 +158,7 @@ public final class AssistantRuntime implements ChatActions {
                 publicationEpoch++;
                 world = null;
                 historyAdapter = null;
+                knowledge = new KnowledgeService(List.of(), this::currentScope);
                 scope = EMPTY_SCOPE;
                 requestedPaused = false;
                 newChatPending = false;

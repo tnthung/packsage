@@ -1,11 +1,16 @@
 package dev.packsage.knowledge.ftb;
 
+import dev.ftb.mods.ftbquests.client.ClientQuestFile;
+import dev.ftb.mods.ftbquests.quest.Chapter;
+import dev.ftb.mods.ftbquests.quest.Quest;
+import dev.ftb.mods.ftbquests.quest.TeamData;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.AdapterRegistry;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
+import net.minecraft.client.Minecraft;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -47,6 +52,98 @@ class FtbProviderTest {
                 documentRequest("patchouli", "quest"), context(registry, Map.of()))));
         assertEquals(Toolbox.Code.NOT_HANDLED, failureCode(provider.searchDocument(
                 documentRequest("ftb_quests", "guide"), context(registry, Map.of()))));
+    }
+
+    @Test
+    void liveWalkerReadsCurrentTeamProgressAndResumesWithinTheSameChapterOwner() throws Exception {
+        var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var fakeMinecraft = (Minecraft) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, Minecraft.class);
+        var minecraftInstance = Minecraft.class.getDeclaredField("instance");
+        minecraftInstance.setAccessible(true);
+        var previousMinecraft = minecraftInstance.get(null);
+        minecraftInstance.set(null, fakeMinecraft);
+        try {
+            var file = new ClientQuestFile();
+            var group = file.getDefaultChapterGroup();
+            var chapter = new Chapter(0x100L, file, group);
+            chapter.setRawTitle("Large chapter");
+            group.addChapter(chapter);
+            chapter.onCreated();
+            var firstQuestId = 0x1000L;
+            for (var index = 0; index < 800; index++) {
+                var quest = new Quest(firstQuestId + index, chapter);
+                quest.setRawTitle("Live quest " + index);
+                quest.onCreated();
+                chapter.addQuest(quest);
+            }
+            var team = new TeamData(java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"), file);
+            file.selfTeamData = team;
+            team.setCompleted(firstQuestId, new java.util.Date(1));
+            var provider = new FtbProvider(() -> { throw new AssertionError("production query captured a full snapshot"); },
+                    Runnable::run, () -> SCOPE, () -> file, () -> true, true);
+            var registry = new AdapterRegistry();
+            registry.register(provider);
+            var filter = new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString(FtbProvider.ID),
+                    "types", new Evidence.JsonArray(List.of(new Evidence.JsonString("quest")))));
+            var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+            arguments.put("query", new Evidence.JsonString(""));
+            arguments.put("filter", filter);
+            arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
+            var request = new PackSageTools.ReadRequest("search_document", new Evidence.JsonObject(arguments), SCOPE);
+
+            var first = provider.searchDocument(request, context(registry, Map.of())).toCompletableFuture().get();
+            assertEquals(1, first.records().size());
+            assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
+            assertTrue(first.nextCursor().startsWith("ftb:"));
+            var firstChapter = first.records().getFirst();
+            assertEquals(Evidence.Coverage.PARTIAL, firstChapter.source().coverage());
+            assertEquals(0, ((Evidence.JsonNumber) firstChapter.payload().values().get("questOffset")).value().intValue());
+            var firstQuestRange = ((Evidence.JsonArray) firstChapter.payload().values().get("quests")).values();
+            assertTrue(firstQuestRange.size() < chapter.getQuests().size());
+            var firstQuestHandle = chapter.getQuests().getFirst().getCodeString();
+            var progress = provider.query(new Evidence.Query(Evidence.Operation.GET,
+                    new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(firstQuestHandle))),
+                    1, null, null), SCOPE).toCompletableFuture().get();
+            assertEquals(true, ((Evidence.JsonBoolean) progress.records().getFirst().payload().values().get("completed")).value());
+            var progressReference = new Toolbox.Reference(FtbProvider.ID, firstQuestHandle,
+                    Evidence.RecordKind.QUEST, SCOPE);
+            var progressRequest = new PackSageTools.ReadRequest("read_progress", new Evidence.JsonObject(Map.of(
+                    "handles", new Evidence.JsonArray(List.of(new Evidence.JsonString(firstQuestHandle))))), SCOPE);
+            var freshProgress = provider.readProgress(progressRequest, context(registry,
+                    Map.of(firstQuestHandle, progressReference))).toCompletableFuture().get();
+            assertEquals(true, ((Evidence.JsonBoolean) freshProgress.records().getFirst().payload().values().get("completed")).value());
+
+            arguments.put("cursor", new Evidence.JsonString(first.nextCursor()));
+            var second = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                    new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of())).toCompletableFuture().get();
+            assertEquals(1, second.records().size());
+            var secondChapter = second.records().getFirst();
+            var secondOffset = ((Evidence.JsonNumber) secondChapter.payload().values().get("questOffset")).value().intValue();
+            var secondQuestRange = ((Evidence.JsonArray) secondChapter.payload().values().get("quests")).values();
+            assertEquals(firstQuestRange.size(), secondOffset);
+            assertTrue(secondQuestRange.size() < chapter.getQuests().size() - secondOffset);
+            assertFalse(((Evidence.JsonString) firstQuestRange.getLast()).value().equals(
+                    ((Evidence.JsonString) secondQuestRange.getFirst()).value()));
+
+            group.removeChapter(chapter);
+            var replacement = new Chapter(0x101L, file, group);
+            replacement.setRawTitle("Replacement chapter");
+            group.addChapter(replacement);
+            replacement.onCreated();
+            var changedOwner = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                    new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of())).toCompletableFuture();
+            try {
+                changedOwner.join();
+                throw new AssertionError("changed chapter owner should invalidate the continuation");
+            } catch (java.util.concurrent.CompletionException failure) {
+                assertEquals(Toolbox.Code.INVALID_CURSOR, ((Toolbox.Failure) failure.getCause()).code());
+            }
+        } finally {
+            minecraftInstance.set(null, previousMinecraft);
+        }
     }
 
     @Test

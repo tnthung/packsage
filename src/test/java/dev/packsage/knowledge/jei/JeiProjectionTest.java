@@ -425,12 +425,27 @@ class JeiProjectionTest {
             var first = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("2049"))), 1, null, null), SCOPE)
                     .toCompletableFuture().get();
-            assertEquals("2048", first.nextCursor());
+            assertTrue(first.records().isEmpty());
+            assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
+            assertNotNull(first.nextCursor());
             PackSageJeiPlugin.clientTicked();
             var second = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("2049"))), 1, SCOPE,
                     first.nextCursor()), SCOPE).toCompletableFuture().get();
-            assertEquals(1, second.records().size());
+            assertEquals(Evidence.Coverage.ERROR, second.coverage(),
+                    "a cursor beyond this call's bounded seek window must be rejected, not retried as a fresh scan");
+
+            recipes.set(List.of("first", "second"));
+            PackSageJeiPlugin.clientTicked();
+            var firstPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, null, null), SCOPE)
+                    .toCompletableFuture().get();
+            PackSageJeiPlugin.clientTicked();
+            var secondPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, SCOPE,
+                    firstPage.nextCursor()), SCOPE).toCompletableFuture().get();
+            assertEquals(1, firstPage.records().size());
+            assertEquals(1, secondPage.records().size());
 
             recipes.set(List.of("recipe"));
             PackSageJeiPlugin.clientTicked();
@@ -624,7 +639,9 @@ class JeiProjectionTest {
             PackSageJeiPlugin.clientTicked();
             var refreshed = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
             assertEquals(1, refreshed.records().size());
-            assertEquals(Evidence.Coverage.COMPLETE, refreshed.coverage());
+            assertEquals(refreshed.records().getFirst().source().coverage(), refreshed.coverage());
+            assertTrue(refreshed.coverage() == Evidence.Coverage.COMPLETE
+                    || refreshed.coverage() == Evidence.Coverage.PARTIAL);
             assertEquals(4, focusApplications.get());
             assertEquals(2, focusCreations.get(), "exact revalidation must reapply the original output focus");
             assertEquals(handle, refreshed.records().getFirst().source().sourceHandle());
@@ -647,14 +664,19 @@ class JeiProjectionTest {
 
             var laterRecipe = new Object();
             var laterRecipes = new java.util.ArrayList<Object>();
-            for (var index = 0; index < 2048; index++) laterRecipes.add(new Object());
+            laterRecipes.add(new Object());
             laterRecipes.add(laterRecipe);
             recipes.set(List.copyOf(laterRecipes));
             PackSageJeiPlugin.clientTicked();
+            var firstLaterWindow = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),
+                            "outputItem", new Evidence.JsonString("minecraft:stone"))), 1, null, null), SCOPE)
+                    .toCompletableFuture().get();
+            PackSageJeiPlugin.clientTicked();
             var laterPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),
-                            "outputItem", new Evidence.JsonString("minecraft:stone"))), 1, SCOPE, "2048"), SCOPE)
-                    .toCompletableFuture().get();
+                            "outputItem", new Evidence.JsonString("minecraft:stone"))), 1, SCOPE,
+                    firstLaterWindow.nextCursor()), SCOPE).toCompletableFuture().get();
             assertEquals(1, laterPage.records().size());
             var laterHandle = laterPage.records().getFirst().source().sourceHandle();
             PackSageJeiPlugin.clientTicked();

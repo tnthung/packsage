@@ -207,6 +207,12 @@ public final class PackSageJeiPlugin implements IModPlugin {
             }
             var projections = new ArrayList<JeiProvider.Projection>();
             var navigation = new LinkedHashMap<String, RegisteredRecipe>();
+            if (query.cursor() != null && !budget.bytes(query.cursor().length() * 2)) {
+                return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(
+                        JeiProvider.Projection.error("unknown:category", "jei/" + generation + "/cursor", null,
+                                "JEI cursor", "JEI cursor exceeded the shared read budget")), ignored -> { },
+                        Evidence.Coverage.ERROR, true, null);
+            }
             var cursorParts = query.cursor() == null ? new String[0] : query.cursor().split("\\|", -1);
             var cursor = 0;
             try {
@@ -332,8 +338,9 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 nextRecipe = recipeOrdinal;
                                 break;
                             }
-                            if (!budget.document() || !budget.value()) {
-                                if (seekingRecipe) cursorInvalid = true;
+                            if (!budget.value()) {
+                                if (seekingRecipe || categoryCursor > 0 && recipeOrdinal == categoryCursor && scanned == 0)
+                                    cursorInvalid = true;
                                 else {
                                     partial = true;
                                     hasMore = true;

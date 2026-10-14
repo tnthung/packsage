@@ -413,7 +413,7 @@ class NativeStorageReaderTest {
         var location = new NativeInventoryReader.LocatedItem("main", 0, null, false, owner);
         var reader = new NativeStorageReader(Runnable::run, () -> FIRST, () -> 0,
                 (reference, scope) -> location, () -> RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
-        var result = reader.read(new StorageReader.Request(StorageReader.Target.ITEM, "slot", 
+        var result = reader.read(new StorageReader.Request(StorageReader.Target.ITEM, "slot",
                 new dev.packsage.knowledge.inventory.InventoryReader.Filter(List.of("needle"), List.of(), List.of(), List.of(), List.of()),
                 32, null, FIRST)).toCompletableFuture().join();
         assertEquals(Evidence.Coverage.PARTIAL, result.coverage());

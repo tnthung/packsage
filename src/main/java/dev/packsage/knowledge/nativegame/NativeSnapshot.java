@@ -152,7 +152,7 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         return new Evidence.Record(source, Evidence.RecordKind.ITEM, identity, new Evidence.JsonObject(payload), List.of());
     }
 
-    private static Evidence.Record copyRecipe(RecipeHolder<?> holder, net.minecraft.core.HolderLookup.Provider registries,
+    static Evidence.Record copyRecipe(RecipeHolder<?> holder, net.minecraft.core.HolderLookup.Provider registries,
                                                Registry<Item> itemRegistry, ResourceManager resourceManager, Evidence.Scope scope) {
         Recipe<?> recipe = holder.value();
         var decoding = Evidence.DecodingStatus.VERIFIED;

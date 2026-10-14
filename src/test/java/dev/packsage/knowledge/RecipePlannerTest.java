@@ -56,6 +56,24 @@ class RecipePlannerTest {
 
         var unknown = new RecipePlanner(index).plan("mod:unknown", 1, SCOPE, 4);
         assertEquals(Evidence.Outcome.PARTIAL, unknown.outcome());
+        assertEquals(1, unknown.records().size());
+        assertTrue(unknown.records().getFirst().payload().values().get("batches") instanceof Evidence.JsonNull);
+    }
+
+    @Test
+    void usesKnownInputsFromPartialRecipeWithoutClaimingCompletePlan() {
+        var partial = partialRecipe("mod:partial-output", "mod:known-input");
+        var index = new KnowledgeIndex();
+        index.replace(new dev.packsage.knowledge.nativegame.NativeSnapshot(SCOPE, List.of(partial, rawRecipe("mod:known-input"))));
+
+        var result = new RecipePlanner(index).plan("mod:partial-output", 2, SCOPE, 4);
+
+        assertEquals(Evidence.Outcome.PARTIAL, result.outcome());
+        assertTrue(result.records().stream().anyMatch(record -> record.source().sourceHandle().equals("mod:partial-output")));
+        assertTrue(result.records().stream().anyMatch(record -> record.source().sourceHandle().equals("mod:known-input")));
+        var root = result.records().stream().filter(record -> record.source().sourceHandle().equals("mod:partial-output"))
+                .findFirst().orElseThrow();
+        assertEquals(new java.math.BigDecimal("2"), ((Evidence.JsonNumber) root.payload().values().get("batches")).value());
     }
 
     @Test
@@ -117,6 +135,19 @@ class RecipePlannerTest {
     private static Evidence.Record unknownRecipe() {
         return record("mod:unknown", new Evidence.RecipePayload("mod:unknown", List.of(), List.of(
                 new Evidence.RecipeOutput("item", "mod:unknown", new Evidence.JsonObject(Map.of()), null)), List.of(), List.of(), List.of(), Evidence.DecodingStatus.UNKNOWN));
+    }
+
+    private static Evidence.Record partialRecipe(String id, String input) {
+        var record = record(id, new Evidence.RecipePayload(id, List.of(new Evidence.RecipeSlot("input",
+                List.of(new Evidence.RecipeAlternative("item", input, new Evidence.JsonObject(Map.of()), 1,
+                        Evidence.Consumption.CONSUMED)))), List.of(new Evidence.RecipeOutput("item", id,
+                new Evidence.JsonObject(Map.of()), 1)), List.of(), List.of(), List.of("custom behavior unknown"),
+                Evidence.DecodingStatus.PARTIAL));
+        var source = record.source();
+        return new Evidence.Record(new Evidence.Source(source.scope(), source.providerId(), source.providerVersion(),
+                source.sourceHandle(), source.observedGeneration(), source.observedAt(), source.activity(),
+                Evidence.Coverage.PARTIAL, source.authority(), source.provenance()), record.kind(), record.title(),
+                record.payload(), record.targets(), record.recipePayload());
     }
 
     private static Evidence.Record record(String id, Evidence.RecipePayload payload) {

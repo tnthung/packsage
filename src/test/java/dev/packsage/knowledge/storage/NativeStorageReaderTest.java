@@ -147,7 +147,7 @@ class NativeStorageReaderTest {
     }
 
     @Test
-    void openedCursorKeepsItsSnapshotAfterANewerCapture() {
+    void openedCursorRereadsCurrentContentsAfterANewerCapture() {
         var now = new AtomicLong(100);
         var reader = new NativeStorageReader(Runnable::run, () -> FIRST, now::get);
         reader.storeOpened(List.of(record(FIRST, "minecraft:stone", "Stone"), record(FIRST, "minecraft:dirt", "Dirt")),
@@ -157,15 +157,15 @@ class NativeStorageReaderTest {
         var oldCursor = first.nextCursor();
         assertNotNull(oldCursor);
 
-        reader.storeOpened(List.of(record(FIRST, "minecraft:diamond", "Diamond")), FIRST, Instant.ofEpochSecond(1),
+        reader.storeOpened(List.of(record(FIRST, "minecraft:diamond", "Diamond"), record(FIRST, "minecraft:emerald", "Emerald")), FIRST, Instant.ofEpochSecond(1),
                 now.get(), "New chest", Map.of("completeness", new Evidence.JsonString("partial")), Evidence.Coverage.PARTIAL);
         var second = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 1, oldCursor, FIRST))
                 .toCompletableFuture().join();
         var secondEntry = ((Evidence.JsonObject) (((Evidence.JsonArray) (second.records().getFirst().payload().values().get("entries"))).values().getFirst()));
         var secondPayload = ((Evidence.JsonObject) (secondEntry.values().get("payload")));
 
-        assertEquals("minecraft:dirt", ((Evidence.JsonString) ((secondPayload).values().get("id"))).value());
-        assertEquals(Instant.EPOCH, second.records().getFirst().source().observedAt());
+        assertEquals("minecraft:emerald", ((Evidence.JsonString) ((secondPayload).values().get("id"))).value());
+        assertEquals(Instant.ofEpochSecond(1), second.records().getFirst().source().observedAt());
         var firstSourceHandle = first.records().getFirst().source().sourceHandle();
         assertEquals(firstSourceHandle.substring(0, firstSourceHandle.lastIndexOf(':')) + ":1",
                 second.records().getFirst().source().sourceHandle());

@@ -61,7 +61,8 @@ public final class RecipePlanner {
             var output = candidate.recipePayload().outputs().stream().filter(value -> itemIdentity.equals(value.comparisonIdentity())
                     && (components.values().isEmpty() || components.equals(value.components()))).findFirst().orElse(null);
             var batches = output == null || output.quantity() == null ? null : batches(quantity, output.quantity());
-            boolean candidateComplete = output != null && batches != null;
+            boolean candidateComplete = output != null && batches != null
+                    && candidate.source().coverage() == Evidence.Coverage.COMPLETE;
             Evidence.Record planned = planned(candidate, quantity, output == null ? null : output.quantity(), batches, depth <= 0 ? "bounded-depth" : null);
             state.routes.add(planned);
             if (depth <= 0) {
@@ -69,7 +70,7 @@ public final class RecipePlanner {
                 state.partial = true;
                 continue;
             }
-            if (output == null || batches == null || candidate.recipePayload().decodingStatus() != Evidence.DecodingStatus.VERIFIED
+            if (output == null || batches == null
                     || candidate.recipePayload().constraints().stream().anyMatch(value -> value.toLowerCase().contains("unknown"))) {
                 candidateComplete = false;
             }

@@ -2,9 +2,9 @@ package dev.packsage.knowledge.storage;
 
 import com.mojang.serialization.JsonOps;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.inventory.InventoryReader;
 import dev.packsage.knowledge.nativegame.NativeInventoryReader;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -49,6 +49,8 @@ public final class NativeStorageReader implements StorageReader {
     private final BiFunction<String, Evidence.Scope, NativeInventoryReader.LocatedItem> itemResolver;
     private final Supplier<HolderLookup.Provider> registries;
     private final LinkedHashMap<String, Cursor> cursors = new LinkedHashMap<>();
+    private final LinkedHashMap<String, Reference> references = new LinkedHashMap<>();
+    // This retained observation is used only by constructor-less fixture readers; runtime reads always use client state.
     private Observation opened;
 
     public NativeStorageReader(Minecraft client, Executor executor, Supplier<Evidence.Scope> currentScope,
@@ -79,42 +81,19 @@ public final class NativeStorageReader implements StorageReader {
         this.registries = Objects.requireNonNull(registries);
     }
 
-    /** Must be called on Minecraft's client thread, before the container screen closes. */
-    public void captureOpened(AbstractContainerScreen<?> screen, Evidence.Scope scope) {
-        if (!client.isSameThread()) throw new IllegalStateException("opened storage must be captured on the client thread");
-        Objects.requireNonNull(screen);
-        Objects.requireNonNull(scope);
-        if (client.player == null || client.level == null || screen.getMenu() == client.player.inventoryMenu) return;
-
-        var capturedAt = Instant.now();
-        var capturedNanos = monotonicClock.getAsLong();
-        var menu = screen.getMenu();
-        var capturedEntries = openedEntries(menu, client.player.getInventory(), scope, capturedAt,
-                client.level.registryAccess());
-        var menuTypeId = "unknown:menu";
-        try {
-            var menuType = BuiltInRegistries.MENU.getKey(menu.getType());
-            if (menuType != null) menuTypeId = menuType.toString();
-        } catch (RuntimeException ignored) {
-        }
-        var details = new LinkedHashMap<String, Evidence.JsonValue>();
-        details.put("observation", new Evidence.JsonString("last_opened_menu"));
-        details.put("completeness", new Evidence.JsonString("partial"));
-        details.put("menuType", new Evidence.JsonString(menuTypeId));
-        details.put("containerId", new Evidence.JsonNumber(BigDecimal.valueOf(menu.containerId)));
-        if (capturedEntries.truncated()) details.put("truncated", new Evidence.JsonBoolean(true));
-        var title = screen.getTitle().getString();
-        storeOpened(capturedEntries.entries(), scope, capturedAt, capturedNanos, title, details,
-                Evidence.Coverage.PARTIAL);
-    }
-
     static OpenedEntries openedEntries(AbstractContainerMenu menu, Container playerInventory, Evidence.Scope scope,
                                        Instant capturedAt, HolderLookup.Provider registries) {
+        return openedEntries(menu, playerInventory, scope, capturedAt, registries, InventoryReader.Filter.empty(), null);
+    }
+
+    private static OpenedEntries openedEntries(AbstractContainerMenu menu, Container playerInventory, Evidence.Scope scope,
+                                                Instant capturedAt, HolderLookup.Provider registries,
+                                                InventoryReader.Filter filter, net.minecraft.world.entity.player.Player player) {
         var entries = new ArrayList<Evidence.Record>();
         var truncated = false;
         for (int index = 0; index < menu.slots.size(); index++) {
             Slot slot = menu.slots.get(index);
-            if (slot.container == playerInventory) continue;
+            if (slot.getClass() != Slot.class || slot.container == playerInventory) continue;
             ItemStack stack = slot.getItem().copy();
             if (stack.isEmpty()) continue;
             if (entries.size() == MAX_ENTRIES) {
@@ -142,7 +121,29 @@ public final class NativeStorageReader implements StorageReader {
                     ? stack.getHoverName().getString() : stack.getHoverName().getString().substring(0, 256)));
             payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
             payload.put("menuSlot", new Evidence.JsonNumber(BigDecimal.valueOf(index)));
-            payload.put("observation", new Evidence.JsonString("last_opened_menu"));
+            payload.put("observation", new Evidence.JsonString("live_opened_menu"));
+            payload.put("section", new Evidence.JsonString("menu"));
+            if (!filter.tags().isEmpty()) {
+                try {
+                    payload.put("tags", new Evidence.JsonArray(stack.getTags().limit(129)
+                            .map(tag -> new Evidence.JsonString(tag.location().toString()))
+                            .map(value -> (Evidence.JsonValue) value).toList()));
+                } catch (RuntimeException failure) {
+                    payload.put("tags", new Evidence.JsonArray(List.of()));
+                }
+            }
+            if (!filter.tooltip().isEmpty()) {
+                try {
+                    var lines = player == null ? List.<net.minecraft.network.chat.Component>of() : stack.getTooltipLines(
+                            net.minecraft.world.item.Item.TooltipContext.of(player.level()), player,
+                            net.minecraft.world.item.TooltipFlag.NORMAL);
+                    payload.put("tooltip", new Evidence.JsonArray(lines.stream().limit(33).map(net.minecraft.network.chat.Component::getString)
+                            .map(value -> new Evidence.JsonString(value.length() <= 256 ? value : value.substring(0, 256)))
+                            .map(value -> (Evidence.JsonValue) value).toList()));
+                } catch (RuntimeException failure) {
+                    payload.put("tooltip", new Evidence.JsonArray(List.of()));
+                }
+            }
             if (stack.has(DataComponents.CONTAINER) || stack.has(DataComponents.BUNDLE_CONTENTS)) {
                 payload.put("nestedStorageContentsOmitted", new Evidence.JsonBoolean(true));
             }
@@ -177,6 +178,33 @@ public final class NativeStorageReader implements StorageReader {
     public synchronized void clear() {
         opened = null;
         cursors.clear();
+        references.clear();
+    }
+
+    public CompletionStage<Evidence.Result> readEvidence(String sourceHandle, Evidence.Scope scope) {
+        Reference reference;
+        synchronized (this) {
+            reference = references.get(sourceHandle);
+            if (reference == null || monotonicClock.getAsLong() - reference.createdNanos() >= TTL_NANOS) {
+                references.remove(sourceHandle);
+                return CompletableFuture.failedFuture(new IllegalArgumentException("storage evidence reference is unknown or expired"));
+            }
+        }
+        if (!reference.scope().equals(scope) || !scope.equals(currentScope.get())) return CompletableFuture.failedFuture(
+                new IllegalArgumentException("storage evidence scope changed"));
+        return CompletableFuture.supplyAsync(() -> client == null || client.isSameThread()
+                ? readEvidenceOnClient(reference, scope) : client.submit(() -> readEvidenceOnClient(reference, scope)).join(), executor);
+    }
+
+    private Evidence.Result readEvidenceOnClient(Reference reference, Evidence.Scope scope) {
+        if (!scope.equals(currentScope.get())) return error(reference.request(), "storage evidence scope changed");
+        var request = reference.request();
+        var observation = request.target() == Target.OPENED ? validOpened(scope, request.filter()) : request.target() == Target.ITEM
+                ? captureItem(request, scope) : client == null ? unknown(request, scope, "native client unavailable") : captureTargeted(request, scope);
+        if (observation == null || !reference.ownerId().equals(ownerId(observation))) return error(request,
+                "storage target changed or is no longer available");
+        return makePage(filter(observation.entries(), request), request, reference.offset(), reference.observationId(), observation,
+                new Cursor(reference.offset(), reference.observationId(), reference.ownerId(), request, reference.createdNanos()));
     }
 
     @Override
@@ -203,7 +231,7 @@ public final class NativeStorageReader implements StorageReader {
         if (request.cursor() != null) return readCursor(request, scope);
         Observation observation;
         if (request.target() == Target.OPENED) {
-            observation = validOpened(scope);
+            observation = validOpened(scope, request.filter());
         } else if (request.target() == Target.ITEM) {
             observation = captureItem(request, scope);
         } else if (client == null) {
@@ -211,11 +239,31 @@ public final class NativeStorageReader implements StorageReader {
         } else {
             observation = captureTargeted(request, scope);
         }
-        if (observation == null) return error(request, "no recent opened-container observation is available");
+        if (observation == null) return error(request, "selected inventory source is unavailable");
         return firstPage(observation, request);
     }
 
-    private synchronized Observation validOpened(Evidence.Scope scope) {
+    private synchronized Observation validOpened(Evidence.Scope scope, InventoryReader.Filter filter) {
+        if (client != null) {
+            if (!client.isSameThread()) throw new IllegalStateException("opened inventory must be read on the client thread");
+            if (client.player == null || client.level == null || client.player.containerMenu == client.player.inventoryMenu) return null;
+            var menu = client.player.containerMenu;
+            var type = BuiltInRegistries.MENU.getKey(menu.getType());
+            if (type == null || !type.getNamespace().equals("minecraft")
+                    || !menu.getClass().getName().startsWith("net.minecraft.world.inventory.")
+                    || !menu.stillValid(client.player)) return unknown(new Request(Target.OPENED, null, null, List.of(), 1, null, scope),
+                    scope, "opened menu is unsupported or no longer valid");
+            var capturedAt = Instant.now();
+            var capturedNanos = monotonicClock.getAsLong();
+            var captured = openedEntries(menu, client.player.getInventory(), scope, capturedAt, client.level.registryAccess(),
+                    filter, client.player);
+            var identity = type + ":" + menu.containerId;
+            return new Observation(captured.entries(), scope, capturedAt, capturedNanos, "Opened inventory",
+                    Map.of("observation", new Evidence.JsonString("live_opened_menu"), "completeness", new Evidence.JsonString("partial"),
+                            "menuType", new Evidence.JsonString(type.toString()),
+                            "ownerIdentity", new Evidence.JsonString(identity)), Evidence.Coverage.PARTIAL,
+                    List.of("current-client-menu-slots"));
+        }
         if (opened == null) return null;
         if (monotonicClock.getAsLong() - opened.createdNanos() >= TTL_NANOS
                 || !scope.worldSession().equals(opened.scope().worldSession())
@@ -229,36 +277,15 @@ public final class NativeStorageReader implements StorageReader {
     }
 
     private Observation captureTargeted(Request request, Evidence.Scope scope) {
-        if (!(client.hitResult instanceof BlockHitResult hit) || hit.getType() != HitResult.Type.BLOCK || client.level == null) {
-            return unknown(request, scope, "no block target");
-        }
-        var pos = hit.getBlockPos();
-        var state = client.level.getBlockState(pos);
-        var id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
-        var identity = id == null ? "unknown:block" : id.toString();
-        var capturedAt = Instant.now();
-        var payload = new LinkedHashMap<String, Evidence.JsonValue>();
-        payload.put("id", new Evidence.JsonString(identity));
-        payload.put("contentsStatus", new Evidence.JsonString("unavailable"));
-        payload.put("position", new Evidence.JsonObject(Map.of("x", new Evidence.JsonNumber(BigDecimal.valueOf(pos.getX())),
-                "y", new Evidence.JsonNumber(BigDecimal.valueOf(pos.getY())),
-                "z", new Evidence.JsonNumber(BigDecimal.valueOf(pos.getZ())))));
-        var entrySource = new Evidence.Source(scope, "native", "1.21.1", "storage-entry:targeted:" + pos,
-                scope.requestGeneration(), capturedAt, Evidence.Activity.ACTIVE, Evidence.Coverage.UNAVAILABLE,
-                Evidence.Authority.VIEWER, List.of("client-hit-result"));
-        var entry = new Evidence.Record(entrySource, Evidence.RecordKind.BLOCK, identity,
-                new Evidence.JsonObject(payload), List.of());
-        return new Observation(List.of(entry), scope, capturedAt, monotonicClock.getAsLong(), "Targeted storage",
-                Map.of("contentsStatus", new Evidence.JsonString("unavailable"),
-                        "completeness", new Evidence.JsonString("unknown")),
-                Evidence.Coverage.UNAVAILABLE, List.of("client-hit-result"));
+        return NativeServerStorageReader.read(client, request, scope, monotonicClock, currentScope);
     }
 
     private Observation captureItem(Request request, Evidence.Scope scope) {
         if (itemResolver == null || registries.get() == null) return unknown(request, scope, "native inventory reader unavailable");
         try {
             return itemObservation(itemResolver.apply(request.slotReference(), scope), request.slotReference(), scope,
-                    registries.get(), Instant.now(), monotonicClock.getAsLong());
+                    registries.get(), Instant.now(), monotonicClock.getAsLong(), request.filter(), client == null ? null : client.player,
+                    client == null ? null : client.level);
         } catch (IllegalArgumentException failure) {
             return unknown(request, scope, failure.getMessage());
         }
@@ -267,6 +294,13 @@ public final class NativeStorageReader implements StorageReader {
     static Observation itemObservation(NativeInventoryReader.LocatedItem location, String slotReference, Evidence.Scope scope,
                                        net.minecraft.core.HolderLookup.Provider registries, Instant capturedAt,
                                        long capturedNanos) {
+        return itemObservation(location, slotReference, scope, registries, capturedAt, capturedNanos, InventoryReader.Filter.empty(), null, null);
+    }
+
+    private static Observation itemObservation(NativeInventoryReader.LocatedItem location, String slotReference, Evidence.Scope scope,
+                                               net.minecraft.core.HolderLookup.Provider registries, Instant capturedAt,
+                                               long capturedNanos, InventoryReader.Filter filter,
+                                               net.minecraft.world.entity.player.Player player, net.minecraft.world.level.Level level) {
         var entries = new ArrayList<Evidence.Record>();
         var owners = new ArrayList<Evidence.JsonValue>();
         var supported = false;
@@ -294,12 +328,12 @@ public final class NativeStorageReader implements StorageReader {
         if (container != null) {
             supported = true;
             truncated |= addItemComponent(entries, owners, stack, ownerIdentity, ownerName, location, slotReference, "container",
-                    container, null, scope, registries, capturedAt);
+                    container, null, scope, registries, capturedAt, filter, player, level);
         }
         if (bundle != null) {
             supported = true;
             truncated |= addItemComponent(entries, owners, stack, ownerIdentity, ownerName, location, slotReference, "bundle",
-                    null, bundle, scope, registries, capturedAt);
+                    null, bundle, scope, registries, capturedAt, filter, player, level);
         }
         var coverage = supported ? truncated ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE
                 : Evidence.Coverage.UNAVAILABLE;
@@ -320,7 +354,8 @@ public final class NativeStorageReader implements StorageReader {
                                             String slotReference,
                                             String storageType, ItemContainerContents container, BundleContents bundle,
                                             Evidence.Scope scope, net.minecraft.core.HolderLookup.Provider registries,
-                                            Instant capturedAt) {
+                                            Instant capturedAt, InventoryReader.Filter filter,
+                                            net.minecraft.world.entity.player.Player player, net.minecraft.world.level.Level level) {
         Evidence.JsonObject ownerComponents;
         try {
             ownerComponents = net.minecraft.core.component.DataComponentMap.CODEC.encodeStart(
@@ -366,7 +401,7 @@ public final class NativeStorageReader implements StorageReader {
                     return true;
                 }
                 var child = storageItemRecord(stack, scope, slotReference, storageType, slot, ownerId, ownerName,
-                        ownerStack.getCount(), registries, capturedAt);
+                        ownerStack.getCount(), registries, capturedAt, filter, player, level);
                 partial |= child.source().coverage() == Evidence.Coverage.PARTIAL;
                 entries.add(child);
             }
@@ -383,7 +418,7 @@ public final class NativeStorageReader implements StorageReader {
                     return true;
                 }
                 var child = storageItemRecord(stack, scope, slotReference, storageType, slot, ownerId, ownerName,
-                        ownerStack.getCount(), registries, capturedAt);
+                        ownerStack.getCount(), registries, capturedAt, filter, player, level);
                 partial |= child.source().coverage() == Evidence.Coverage.PARTIAL;
                 entries.add(child);
                 slot++;
@@ -396,7 +431,8 @@ public final class NativeStorageReader implements StorageReader {
     private static Evidence.Record storageItemRecord(ItemStack stack, Evidence.Scope scope, String slotReference,
                                                  String storageType, int slot, String ownerId, String ownerName,
                                                  int ownerCount, net.minecraft.core.HolderLookup.Provider registries,
-                                                 Instant capturedAt) {
+                                                 Instant capturedAt, InventoryReader.Filter filter,
+                                                 net.minecraft.world.entity.player.Player player, net.minecraft.world.level.Level level) {
         var id = BuiltInRegistries.ITEM.getKey(stack.getItem());
         var identity = id == null ? "unknown:item" : id.toString();
         Evidence.JsonObject components;
@@ -420,6 +456,34 @@ public final class NativeStorageReader implements StorageReader {
         payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
         payload.put("components", metadataTruncated
                 ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))) : components);
+        var partial = metadataTruncated;
+        if (!filter.tags().isEmpty()) {
+            try {
+                var tags = stack.getTags().limit(129).map(tag -> tag.location().toString()).toList();
+                payload.put("tags", new Evidence.JsonArray(tags.stream().limit(128).map(Evidence.JsonString::new)
+                        .map(value -> (Evidence.JsonValue) value).toList()));
+                partial |= tags.size() > 128;
+            } catch (RuntimeException failure) {
+                payload.put("tags", new Evidence.JsonArray(List.of()));
+                partial = true;
+            }
+        }
+        if (!filter.tooltip().isEmpty()) {
+            try {
+                var lines = level == null || player == null ? List.<net.minecraft.network.chat.Component>of()
+                        : stack.getTooltipLines(net.minecraft.world.item.Item.TooltipContext.of(level), player,
+                        net.minecraft.world.item.TooltipFlag.NORMAL);
+                payload.put("tooltip", new Evidence.JsonArray(lines.stream().limit(32)
+                        .map(net.minecraft.network.chat.Component::getString)
+                        .map(value -> new Evidence.JsonString(value.length() <= 256 ? value : value.substring(0, 256)))
+                        .map(value -> (Evidence.JsonValue) value).toList()));
+                partial |= lines.size() > 32 || lines.stream().map(net.minecraft.network.chat.Component::getString)
+                        .anyMatch(value -> value.length() > 256);
+            } catch (RuntimeException failure) {
+                payload.put("tooltip", new Evidence.JsonArray(List.of()));
+                partial = true;
+            }
+        }
         payload.put("slotReference", new Evidence.JsonString(slotReference));
         payload.put("storageType", new Evidence.JsonString(storageType));
         payload.put("componentSlot", new Evidence.JsonNumber(BigDecimal.valueOf(slot)));
@@ -438,7 +502,7 @@ public final class NativeStorageReader implements StorageReader {
         var source = new Evidence.Source(scope, "native", "1.21.1",
                 "storage-entry:item:" + slotReference + ":" + storageType + ":" + slot,
                 scope.requestGeneration(), capturedAt, Evidence.Activity.ACTIVE,
-                metadataTruncated ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
                 Evidence.Authority.VIEWER, List.of("synchronized-item-component"));
         return new Evidence.Record(source, Evidence.RecordKind.ITEM, identity, new Evidence.JsonObject(payload), List.of());
     }
@@ -463,12 +527,17 @@ public final class NativeStorageReader implements StorageReader {
             if (!cursor.request().target().equals(request.target()) || !Objects.equals(cursor.request().text(), request.text())
                     || !Objects.equals(cursor.request().slotReference(), request.slotReference())
                     || !cursor.request().identities().equals(request.identities())
-                    || !cursor.request().scope().equals(request.scope()) || !scope.equals(request.scope())) {
+                    || !cursor.request().filter().equals(request.filter()) || !cursor.request().scope().equals(request.scope())
+                    || !scope.equals(request.scope())) {
                 return error(request, "storage cursor does not match this query or scope");
             }
             cursors.remove(request.cursor());
         }
-        return makePage(cursor.entries(), request, cursor.offset(), cursor.snapshotId(), cursor.observation(), cursor);
+        Observation observation = request.target() == Target.OPENED ? validOpened(scope, request.filter()) : request.target() == Target.ITEM
+                ? captureItem(request, scope) : client == null ? unknown(request, scope, "native client unavailable") : captureTargeted(request, scope);
+        if (observation == null) return error(request, "inventory target is no longer available; repeat the lookup");
+        if (!cursor.ownerId().equals(ownerId(observation))) return error(request, "inventory target changed; repeat the lookup");
+        return makePage(filter(observation.entries(), request), request, cursor.offset(), cursor.snapshotId(), observation, cursor);
     }
 
     private Evidence.Result makePage(List<Evidence.Record> entries, Request request, int offset, String snapshotId,
@@ -504,15 +573,21 @@ public final class NativeStorageReader implements StorageReader {
         if (end < entries.size()) {
             next = UUID.randomUUID().toString();
             synchronized (this) {
-                cursors.put(next, new Cursor(entries, end, snapshotId, observation, request, observation.createdNanos()));
+                cursors.put(next, new Cursor(end, snapshotId, ownerId(observation), request, observation.createdNanos()));
                 while (cursors.size() > MAX_RETAINED) cursors.remove(cursors.keySet().iterator().next());
             }
         }
         var payload = envelope(request, observation, pageEntries, next);
+        var sourceHandle = "storage:" + snapshotId + ":" + (previous == null ? 0 : previous.offset());
+        synchronized (this) {
+            references.put(sourceHandle, new Reference(snapshotId, previous == null ? 0 : previous.offset(),
+                    ownerId(observation), request, observation.scope(), observation.createdNanos()));
+            while (references.size() > MAX_ENTRIES) references.remove(references.keySet().iterator().next());
+        }
         var source = new Evidence.Source(request.scope(), "native", "1.21.1",
-                "storage:" + snapshotId + ":" + (previous == null ? 0 : previous.offset()),
+                sourceHandle,
                 observation.scope().requestGeneration(), observation.capturedAt(), Evidence.Activity.ACTIVE,
-                observation.coverage(), Evidence.Authority.VIEWER, observation.provenance());
+                observation.coverage(), authority(observation), observation.provenance());
         var record = new Evidence.Record(source, Evidence.RecordKind.OTHER, observation.title(), payload, List.of());
         var outcome = switch (observation.coverage()) {
             case COMPLETE -> Evidence.Outcome.COMPLETE;
@@ -545,16 +620,38 @@ public final class NativeStorageReader implements StorageReader {
     }
 
     private static List<Evidence.Record> filter(List<Evidence.Record> entries, Request request) {
-        var text = request.text() == null ? null : request.text().toLowerCase(java.util.Locale.ROOT);
-        return entries.stream().filter(record -> request.identities().isEmpty()
-                || request.identities().contains(String.valueOf(record.payload().values().get("id") instanceof Evidence.JsonString id ? id.value() : "")))
-                .filter(record -> {
-                    if (text == null) return true;
-                    var id = record.payload().values().get("id") instanceof Evidence.JsonString value ? value.value() : "";
-                    var name = record.payload().values().get("name") instanceof Evidence.JsonString value ? value.value() : "";
-                    return (record.title() + " " + name + " " + id).toLowerCase(java.util.Locale.ROOT).contains(text);
-                })
-                .limit(MAX_ENTRIES).toList();
+        var filter = request.filter();
+        return entries.stream().filter(record -> {
+            var payload = record.payload().values();
+            var id = payload.get("id") instanceof Evidence.JsonString value ? value.value() : "";
+            var name = payload.get("name") instanceof Evidence.JsonString value ? value.value() : record.title();
+            var tags = payload.get("tags") instanceof Evidence.JsonArray values ? values.values().stream().filter(Evidence.JsonString.class::isInstance)
+                    .map(Evidence.JsonString.class::cast).map(Evidence.JsonString::value).toList() : List.<String>of();
+            var tooltip = payload.get("tooltip") instanceof Evidence.JsonArray values ? values.values().stream().filter(Evidence.JsonString.class::isInstance)
+                    .map(Evidence.JsonString.class::cast).map(Evidence.JsonString::value).toList() : List.<String>of();
+            var section = payload.get("section") instanceof Evidence.JsonString value ? value.value()
+                    : payload.get("storageType") instanceof Evidence.JsonString value ? value.value()
+                    : payload.get("componentSlot") == null ? "menu" : "item";
+            return (request.identities().isEmpty() || request.identities().contains(id))
+                    && (filter.ids().isEmpty() || filter.ids().contains(id))
+                    && (filter.names().isEmpty() || filter.names().stream().anyMatch(value -> name.toLowerCase(java.util.Locale.ROOT).contains(value.toLowerCase(java.util.Locale.ROOT))))
+                    && (filter.tags().isEmpty() || filter.tags().stream().anyMatch(tags::contains))
+                    && (filter.tooltip().isEmpty() || filter.tooltip().stream().anyMatch(needle -> tooltip.stream()
+                    .anyMatch(value -> value.toLowerCase(java.util.Locale.ROOT).contains(needle.toLowerCase(java.util.Locale.ROOT)))))
+                    && (filter.sections().isEmpty() || filter.sections().contains(section));
+        }).limit(MAX_ENTRIES).toList();
+    }
+
+    private static String ownerId(Observation observation) {
+        return observation.details().get("ownerIdentity") instanceof Evidence.JsonString value ? value.value() : observation.title();
+    }
+
+    private static Evidence.Authority authority(Observation observation) {
+        if (observation.coverage() == Evidence.Coverage.UNAVAILABLE) return Evidence.Authority.UNKNOWN;
+        if (observation.provenance().contains("private_integrated_owner")) return Evidence.Authority.SERVER_READ;
+        if (observation.provenance().contains("synchronized-item-components")) return Evidence.Authority.LOADED;
+        if (observation.coverage() == Evidence.Coverage.UNAVAILABLE) return Evidence.Authority.UNKNOWN;
+        return Evidence.Authority.VIEWER;
     }
 
     private synchronized void expireCursors() {
@@ -590,10 +687,7 @@ public final class NativeStorageReader implements StorageReader {
         }
     }
 
-    private record Cursor(List<Evidence.Record> entries, int offset, String snapshotId, Observation observation,
-                          Request request, long createdNanos) {
-        private Cursor {
-            entries = List.copyOf(entries);
-        }
-    }
+    private record Cursor(int offset, String snapshotId, String ownerId, Request request, long createdNanos) { }
+    private record Reference(String observationId, int offset, String ownerId, Request request, Evidence.Scope scope,
+                            long createdNanos) { }
 }

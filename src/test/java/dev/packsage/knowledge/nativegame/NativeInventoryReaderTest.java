@@ -34,7 +34,7 @@ class NativeInventoryReaderTest {
     }
 
     @Test
-    void searchPagesReuseTheCapturedRecordsAndSelectedFields() {
+    void searchPagesRecaptureSelectedFieldsAndContinueByOffset() {
         var captures = new AtomicInteger();
         var now = new AtomicLong(1_000);
         var firstRecord = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "ref-1", 1,
@@ -64,12 +64,12 @@ class NativeInventoryReaderTest {
                 List.of("id"), 1, firstPage.nextCursor(), SCOPE)).toCompletableFuture().join();
 
         assertEquals("Second Apple", nextPage.records().getFirst().title());
-        assertEquals(1, captures.get());
+        assertEquals(2, captures.get());
         assertTrue(nextPage.detail().contains("vanilla-player-inventory-and-equipment"));
     }
 
     @Test
-    void referenceResolutionRejectsSameIdWithChangedContentsOrCountAndReturnsCopies() {
+    void referenceResolutionReadsCurrentStackAtObservedLocationAndReturnsCopies() {
         var now = new AtomicLong(1_000);
         var stack = new ItemStack(Items.SHULKER_BOX);
         stack.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.DIAMOND))));
@@ -98,11 +98,13 @@ class NativeInventoryReaderTest {
         var changedContents = new ItemStack(Items.SHULKER_BOX);
         changedContents.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.EMERALD))));
         live.set(new NativeInventoryReader.LocatedItem("hotbar", 2, null, false, changedContents));
-        assertThrows(IllegalArgumentException.class, () -> reader.resolve(reference, SCOPE));
+        assertEquals(Items.SHULKER_BOX, reader.resolve(reference, SCOPE).stack().getItem());
+        assertEquals(changedContents.get(DataComponents.CONTAINER),
+                reader.resolve(reference, SCOPE).stack().get(DataComponents.CONTAINER));
 
         changedContents.setCount(2);
         live.set(new NativeInventoryReader.LocatedItem("hotbar", 2, null, false, changedContents));
-        assertThrows(IllegalArgumentException.class, () -> reader.resolve(reference, SCOPE));
+        assertEquals(2, reader.resolve(reference, SCOPE).stack().getCount());
     }
 
     @Test

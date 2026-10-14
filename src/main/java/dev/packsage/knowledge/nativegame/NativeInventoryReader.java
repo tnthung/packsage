@@ -71,7 +71,7 @@ public final class NativeInventoryReader implements InventoryReader {
         if (!request.scope().equals(currentScope.get())) return CompletableFuture.completedFuture(
                 new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null,
                         "inventory request scope is no longer current"));
-        if (request.cursor() != null) return CompletableFuture.supplyAsync(() -> readCursor(request), executor);
+        if (request.cursor() != null) return continueRead(request);
         CompletionStage<Capture> captured;
         try {
             captured = client == null ? CompletableFuture.supplyAsync(() -> captureSource.apply(request), executor)
@@ -86,11 +86,10 @@ public final class NativeInventoryReader implements InventoryReader {
             if (!request.scope().equals(currentScope.get())) return new Evidence.Result(List.of(),
                     Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null, "inventory request scope changed during capture");
             synchronized (this) {
-                var cursorCapture = new CursorCapture(request, result.capture());
                 if (result.capture().coverage() == Evidence.Coverage.UNAVAILABLE) return new Evidence.Result(
                         List.of(result.capture().summary()), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
                         "vanilla player inventory is unavailable");
-                return page(cursorCapture, 0);
+                return page(request, result.capture(), 0);
             }
         }, executor);
     }
@@ -118,48 +117,94 @@ public final class NativeInventoryReader implements InventoryReader {
             throw new IllegalArgumentException("inventory slot reference scope changed");
         }
         var current = lookupSource.apply(reference.address());
-        if (current == null || !current.section().equals(reference.address().section())
-                || current.slot() != reference.address().slot() || !ItemStack.matches(reference.stack(), current.stack())) {
-            throw new IllegalArgumentException("inventory slot contents changed");
+        if (current == null || !current.section().equals(reference.address().section()) || current.slot() != reference.address().slot()) {
+            throw new IllegalArgumentException("inventory slot location is no longer available");
         }
         return current;
     }
 
-    private Evidence.Result readCursor(Request request) {
-        synchronized (this) {
-            var state = cursors.get(request.cursor());
-            if (state == null || state.capture().capture().capturedAtMillis() + OBSERVATION_TTL_MILLIS <= clock.getAsLong()) {
-                cursors.remove(request.cursor());
-                return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null,
-                        "inventory cursor is unknown or expired");
-            }
-            var original = state.capture().request();
-            if (!original.equals(new Request(request.operation(), request.identities(), request.text(), request.fields(),
-                    request.limit(), null, request.scope())) || !request.scope().equals(currentScope.get())) {
-                return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null,
-                        "inventory cursor filters or scope changed");
-            }
-            return page(state.capture(), state.offset());
+    public Evidence.Record readEvidence(String sourceHandle, Evidence.Scope scope) {
+        Objects.requireNonNull(sourceHandle);
+        Objects.requireNonNull(scope);
+        if (client != null && !client.isSameThread()) throw new IllegalStateException("inventory evidence must be read on the client thread");
+        if (!scope.equals(currentScope.get())) throw new IllegalArgumentException("inventory evidence scope changed");
+        if (sourceHandle.startsWith("inventory-summary:")) {
+            var capture = captureSource.apply(new Request(Operation.SEARCH, Filter.empty(), 32, null, scope));
+            if (capture == null || capture.summary() == null) return null;
+            var source = capture.summary().source();
+            var current = new Evidence.Source(scope, source.providerId(), source.providerVersion(), sourceHandle,
+                    scope.requestGeneration(), Instant.now(), source.activity(), source.coverage(), source.authority(), source.provenance());
+            return new Evidence.Record(current, capture.summary().kind(), capture.summary().title(), capture.summary().payload(),
+                    capture.summary().targets());
         }
+        var location = resolve("native:" + sourceHandle, scope);
+        if (location.stack().isEmpty()) return null;
+        if (client == null || client.level == null) return null;
+        var itemRegistry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
+        var current = NativeSnapshot.inventoryRecord(scope, location.stack(), itemRegistry, client.level.registryAccess(),
+                location.section(), location.slot(), location.equipmentSlot(), location.selectedHotbar());
+        var payload = new LinkedHashMap<>(current.payload().values());
+        payload.put("slotReference", new Evidence.JsonString("native:" + sourceHandle));
+        var source = current.source();
+        return new Evidence.Record(new Evidence.Source(scope, source.providerId(), source.providerVersion(), sourceHandle,
+                scope.requestGeneration(), Instant.now(), source.activity(), source.coverage(), source.authority(),
+                source.provenance()), current.kind(), current.title(), new Evidence.JsonObject(payload), current.targets());
     }
 
-    private Evidence.Result page(CursorCapture capture, int offset) {
-        var request = capture.request();
+    public String selectedReference(String hand, Evidence.Scope scope) {
+        if (client != null && !client.isSameThread()) throw new IllegalStateException("selected inventory slot must be resolved on the client thread");
+        if (!scope.equals(currentScope.get())) throw new IllegalArgumentException("inventory scope is no longer current");
+        if (client == null || client.player == null) throw new IllegalArgumentException("player inventory unavailable");
+        var inventory = client.player.getInventory();
+        var address = switch (hand) {
+            case "mainhand" -> new SlotAddress("hotbar", inventory.selected);
+            case "offhand" -> new SlotAddress("offhand", 0);
+            default -> throw new IllegalArgumentException("item slot must be mainhand or offhand");
+        };
+        var reference = "native:inventory:slot:" + UUID.randomUUID();
+        synchronized (this) { references.put(reference, new Reference(scope, address, clock.getAsLong() + OBSERVATION_TTL_MILLIS)); }
+        return reference;
+    }
+
+    private CompletionStage<Evidence.Result> continueRead(Request request) {
+        CursorState state;
+        synchronized (this) {
+            state = cursors.get(request.cursor());
+            if (state == null || state.createdAt() + OBSERVATION_TTL_MILLIS <= clock.getAsLong()) {
+                cursors.remove(request.cursor());
+                return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null,
+                        "inventory cursor is unknown or expired"));
+            }
+            if (!state.request().equals(new Request(request.operation(), request.filter(), request.limit(), null, request.scope()))
+                    || !request.scope().equals(currentScope.get())) {
+                return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null,
+                        "inventory cursor filters or scope changed"));
+            }
+            cursors.remove(request.cursor());
+        }
+        CompletionStage<Capture> captured = client == null ? CompletableFuture.supplyAsync(() -> captureSource.apply(
+                new Request(request.operation(), request.filter(), request.limit(), null, request.scope())), executor)
+                : client.submit(() -> captureSource.apply(new Request(request.operation(), request.filter(), request.limit(), null, request.scope())));
+        return captured.handle((value, failure) -> new CaptureResult(value, failure)).thenApplyAsync(result -> {
+            if (result.failure() != null || result.capture() == null) return new Evidence.Result(List.of(), Evidence.Coverage.ERROR,
+                    Evidence.Outcome.ERROR, null, "inventory continuation capture failed");
+            if (!request.scope().equals(currentScope.get())) return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL,
+                    Evidence.Outcome.UNKNOWN, null, "inventory scope changed during continuation");
+            return page(request, result.capture(), state.offset());
+        }, executor);
+    }
+
+    private Evidence.Result page(Request request, Capture capture, int offset) {
         var all = new ArrayList<Evidence.Record>();
-        for (var slot : capture.capture().slots()) {
+        for (var slot : capture.slots()) {
             if (slot.record() == null) continue;
-            if (request.operation() == Operation.READ && !request.identities().isEmpty()
-                    && !request.identities().contains(slot.identity())) continue;
-            if (request.operation() == Operation.SEARCH && !matches(slot, request)) continue;
+            if (!matches(slot, request)) continue;
             all.add(slot.record());
         }
         var records = new ArrayList<Evidence.Record>();
         var end = Math.min(offset, all.size());
         var outputBytes = 0;
-        if (request.operation() == Operation.READ && offset == 0) {
-            records.add(capture.capture().summary());
-            outputBytes = Evidence.serialize(capture.capture().summary().payload()).getBytes(StandardCharsets.UTF_8).length + 256;
-        }
+        if (offset == 0) { records.add(capture.summary()); outputBytes = Evidence.serialize(capture.summary().payload()).getBytes(StandardCharsets.UTF_8).length + 256; }
         while (end < all.size() && end - offset < request.limit()) {
             var record = all.get(end);
             var recordBytes = Evidence.serialize(record.payload()).getBytes(StandardCharsets.UTF_8).length
@@ -172,41 +217,39 @@ public final class NativeInventoryReader implements InventoryReader {
             outputBytes += recordBytes;
             end++;
         }
-        for (var slot : capture.capture().slots()) {
-            if (records.contains(slot.record()) || records.contains(capture.capture().summary())
+        for (var slot : capture.slots()) {
+            if (records.contains(slot.record()) || records.contains(capture.summary())
                     && (slot.selectedHotbar() || "offhand".equals(slot.equipmentSlot()))) {
                 references.put(slot.slotReference(), new Reference(request.scope(), new SlotAddress(slot.section(), slot.slot()),
-                        slot.stack(), capture.capture().capturedAtMillis() + OBSERVATION_TTL_MILLIS));
+                        capture.capturedAtMillis() + OBSERVATION_TTL_MILLIS));
             }
         }
         while (references.size() > MAX_REFERENCES) references.remove(references.keySet().iterator().next());
         String next = null;
         if (end < all.size()) {
             next = UUID.randomUUID().toString();
-            cursors.put(next, new CursorState(capture, end));
+            cursors.put(next, new CursorState(new Request(request.operation(), request.filter(), request.limit(), null, request.scope()), end,
+                    capture.capturedAtMillis()));
             while (cursors.size() > MAX_CURSORS) cursors.remove(cursors.keySet().iterator().next());
         }
-        var coverage = capture.capture().coverage();
+        var coverage = capture.coverage();
         var outcome = coverage == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL;
-        var detail = request.operation() == Operation.SEARCH
-                ? "source=vanilla-player-inventory-and-equipment; capturedAt=" + capture.capture().capturedAt()
-                : null;
+        var detail = "source=vanilla-player-inventory-and-equipment; capturedAt=" + capture.capturedAt();
         return new Evidence.Result(records, coverage, outcome, next, detail);
     }
 
     private static boolean matches(CapturedSlot slot, Request request) {
-        var needle = request.text().toLowerCase(java.util.Locale.ROOT);
-        for (var field : request.fields()) {
-            var values = switch (field) {
-                case "name" -> List.of(slot.name());
-                case "id" -> List.of(slot.identity());
-                case "tag" -> slot.tags();
-                case "tooltip" -> slot.tooltip();
-                default -> List.<String>of();
-            };
-            if (values.stream().anyMatch(value -> value.toLowerCase(java.util.Locale.ROOT).contains(needle))) return true;
-        }
-        return false;
+        var filter = request.filter();
+        return (filter.ids().isEmpty() || filter.ids().contains(slot.identity()))
+                && (filter.sections().isEmpty() || filter.sections().contains(slot.section()))
+                && matchesText(filter.names(), List.of(slot.name()))
+                && (filter.tags().isEmpty() || filter.tags().stream().anyMatch(slot.tags()::contains))
+                && matchesText(filter.tooltip(), slot.tooltip());
+    }
+
+    private static boolean matchesText(List<String> requested, List<String> values) {
+        return requested.isEmpty() || requested.stream().anyMatch(needle -> values.stream()
+                .anyMatch(value -> value.toLowerCase(java.util.Locale.ROOT).contains(needle.toLowerCase(java.util.Locale.ROOT))));
     }
 
     private static Capture capture(Minecraft client, Request request, LongSupplier clock) {
@@ -265,8 +308,8 @@ public final class NativeInventoryReader implements InventoryReader {
             var tooltip = new ArrayList<String>();
             var selectedExtractionFailed = false;
             try {
-                if (request.operation() == Operation.SEARCH && request.fields().contains("tag")) {
-                    tags.addAll(stack.getTags().map(tag -> "#" + tag.location()).limit(MAX_TAGS + 1L).toList());
+                if (!request.filter().tags().isEmpty()) {
+                    tags.addAll(stack.getTags().map(tag -> tag.location().toString()).limit(MAX_TAGS + 1L).toList());
                     if (tags.size() > MAX_TAGS) {
                         tags.subList(MAX_TAGS, tags.size()).clear();
                         coverage = Evidence.Coverage.PARTIAL;
@@ -278,7 +321,7 @@ public final class NativeInventoryReader implements InventoryReader {
                 selectedExtractionFailed = true;
             }
             try {
-                if (request.operation() == Operation.SEARCH && request.fields().contains("tooltip")) {
+                if (!request.filter().tooltip().isEmpty()) {
                     var lines = stack.getTooltipLines(net.minecraft.world.item.Item.TooltipContext.of(level), client.player,
                             TooltipFlag.NORMAL).stream().map(net.minecraft.network.chat.Component::getString).toList();
                     tooltip.addAll(lines.stream()
@@ -294,11 +337,11 @@ public final class NativeInventoryReader implements InventoryReader {
                 coverage = Evidence.Coverage.PARTIAL;
                 selectedExtractionFailed = true;
             }
-            if (request.operation() == Operation.SEARCH && request.fields().contains("tag")) {
+            if (!request.filter().tags().isEmpty()) {
                 payload.put("tags", new Evidence.JsonArray(tags.stream().map(Evidence.JsonString::new)
                         .map(value -> (Evidence.JsonValue) value).toList()));
             }
-            if (request.operation() == Operation.SEARCH && request.fields().contains("tooltip")) {
+            if (!request.filter().tooltip().isEmpty()) {
                 payload.put("tooltip", new Evidence.JsonArray(tooltip.stream().map(Evidence.JsonString::new)
                         .map(value -> (Evidence.JsonValue) value).toList()));
             }
@@ -311,8 +354,7 @@ public final class NativeInventoryReader implements InventoryReader {
                     source.authority(), source.provenance()),
                     record.kind(), record.title(), new Evidence.JsonObject(payload), record.targets());
             slots.add(new CapturedSlot(input.section(), input.slot(), input.equipmentSlot(), input.selectedHotbar(),
-                    itemRegistry.getKey(stack.getItem()).toString(), stack.getHoverName().getString(), ref, record, tags, tooltip,
-                    stack.copy()));
+                    itemRegistry.getKey(stack.getItem()).toString(), stack.getHoverName().getString(), ref, record, tags, tooltip, stack.copy()));
         }
         var summaryPayload = new LinkedHashMap<String, Evidence.JsonValue>();
         summaryPayload.put("sourceScope", new Evidence.JsonString("vanilla-player-inventory-and-equipment"));
@@ -391,11 +433,7 @@ public final class NativeInventoryReader implements InventoryReader {
         @Override public ItemStack stack() { return stack.copy(); }
     }
 
-    private record Reference(Evidence.Scope scope, SlotAddress address, ItemStack stack, long expiresAt) {
-        private Reference { stack = stack.copy(); }
-        @Override public ItemStack stack() { return stack.copy(); }
-    }
-    private record CursorCapture(Request request, Capture capture) { }
-    private record CursorState(CursorCapture capture, int offset) { }
+    private record Reference(Evidence.Scope scope, SlotAddress address, long expiresAt) { }
+    private record CursorState(Request request, int offset, long createdAt) { }
     private record CaptureResult(Capture capture, Throwable failure) { }
 }

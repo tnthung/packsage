@@ -93,3 +93,16 @@ Both requests completed; all five actual calls/results were inspected in the sav
 Additional unresolved metadata finding: targeted cobblestone reports `menuSlot=1`, whereas the opened large-chest menu reports slot 28. Its right-half position and `componentSlot=1` are correct. `NativeServerStorageReader.readBlock` passes an occupied-entry ordinal (`outputSlot++`) into the menu-slot field instead of the combined chest slot. Contents are correct, but the field is misleading and should not be treated as a GUI slot index until corrected or explicitly renamed.
 
 Restored dirt to its original menu slot 27; cobblestone remained at slot 28 throughout. Left the large chest menu open, with the original counts and player inventory unchanged. No code changes, build or automated test rerun were made for this validation-only step.
+
+## Bundle, shulker and chest minecart follow-up
+
+The player prepared a bundle, shulker box, chest boat and chest minecart. Continued through `computer-use:computer-use` in the same running trial world and replay file. Directly observed bundle tooltip contents of 2 sticks and 5 cobblestone (7/64), and shulker tooltip contents of 5 cobblestone and 2 sticks. The minecart menu was empty; temporarily moved the player's 3 dirt from main inventory slot 1 into cargo slot 0.
+
+| Request / ID | Observed result |
+| --- | --- |
+| `FIXTURE_A` / `c7d6bda7-8e20-4ab7-968c-95d6f7280dd4` | Five calls: opened and targeted minecart searches both returned dirt x3 at slot 0; opened was VIEWER/PARTIAL and targeted SERVER_READ/COMPLETE. Player name discovery found the bundle in hotbar 4 and shulker in hotbar 5; item searches using each fresh slot reference returned their correct contents with LOADED/COMPLETE coverage. |
+| `FIXTURE_B` / `462f3aab-57f1-4899-98ce-24cf73afb155` | After returning dirt to its original player slot, closing the minecart menu, moving the bundle to offhand and selecting the shulker: four calls returned correct mainhand shulker and offhand bundle contents, targeted minecart COMPLETE empty storage, and opened UNAVAILABLE. No removed dirt was replayed. |
+
+Both requests completed; all nine calls/results were inspected in the saved replay. Targeted minecart identity was `3310651a-c151-42b0-b8e8-40eca16c0780`. Item-reference resolution, hand selection, minecart cargo reads, changed-to-empty freshness and closed-menu invalidation passed. The known opened-menu partial-label issue also affects the minecart. Bundle/shulker internal contents were not mutated during this follow-up, so their content-mutation freshness is not established by these calls.
+
+Restored dirt to main inventory slot 1, bundle to hotbar 4, shulker to hotbar 5, offhand empty and selected hotbar 7. Minecart was empty again. Camera control through mouse dragging proved unreliable while trying to aim at the boat, so stopped input and asked the player to open the boat inventory. Boat checks remain pending at this checkpoint. No code, build or automated test changes were made.

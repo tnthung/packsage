@@ -1,6 +1,6 @@
 # Behavior-driven Toolbox validation
 
-Date: 2026-10-14. Status: implementation, independent source review, automated build and installed live tool checks completed. Positive chest/mount fixtures remain outside observed live coverage, as detailed below.
+Date: 2026-10-14. Status: implementation, independent source review, automated build and installed live tool checks completed. The follow-up below verifies positive opened/targeted chest reads and records an unresolved opened-menu coverage-label issue. Mount fixtures remain outside observed live coverage.
 
 The [specification](../specs/2026-10-14-behavior-driven-tools.md) defines the contract. The [implementation plan](../plans/2026-10-14-behavior-driven-toolbox.md) and [live checklist](../testing/2026-10-14-behavior-driven-toolbox.md) track the requested work. Earlier validation documents describe older artifacts and do not establish acceptance of this migration.
 
@@ -58,3 +58,23 @@ Call counts: search_inventory 14; read_evidence 6; search_registry 9; search_doc
 - No suitable chest, chest boat/minecart or mount fixture was available in the compact-machine scene. Positive opened-container synchronization, targeted chest contents and ridden/opened mount cargo remain automated/source-reviewed coverage, not installed live proof. The live server-path targeted call completed with an unsupported entity result while PackSage was open.
 - Large-pack work limits are visible: the two named document queries did not reach their matches in two pages; unqualified torch discovery did not reach JEI within its first work window; native torch planning found no route within its bound. These outcomes remained partial with no complete-absence claim. The native stripped-hyphae plan did return a useful partial route. No claim of exhaustive recipe/document coverage is made.
 - No new implementation failure surfaced during these calls. Expected stale-reference and unsupported-filter errors were preserved. No code fixes or fresh artifact were needed after the live run.
+
+## Prepared chest follow-up
+
+The player prepared a vanilla chest in the trial world and authorized computer control for manual tests 1 and 2. Used `computer-use:computer-use` to observe the menu, change contents, close it, query the targeted chest and aim at a non-container. The installed JAR still matched SHA-256 `659226FD0C92647E016C9C554674DA86631A46F28938E639CE9710A90F6F7ABC`. No code or artifact changed; automated tests were not rerun for this validation-only step.
+
+Five completed requests contain eight actual tool calls, verified from saved replay `packsage/OoO_-_PackSage_Trial-814a1737fe55fba5/122084a3-d2dd-4f5f-b244-82ec6a7486b0-5fade726211bb80c.jsonl`, relative to the ATM10 instance. Prompts requested tool evidence without screenshot inference or web search.
+
+| Request / ID | Observed result |
+| --- | --- |
+| `CHEST_LIVE_A` / `b8337888-a7b1-4a6a-b259-679e6882bba8` | Opened chest search and `read_evidence` both returned 3 dirt in menu slot 0 and 7 cobblestone in menu slot 1, matching the visible chest. Both reported VIEWER/PARTIAL, no continuation and no reason for partial coverage. |
+| `CHEST_LIVE_B` / `9bf6566f-abe4-4872-ac2e-fe6bb85d414a` | Moved 4 cobblestone into an empty player slot. Fresh opened search returned 3 dirt and 3 cobblestone; it excluded the player's removed stack. |
+| `CHEST_LIVE_C` / `5841455a-d810-4cb0-831c-5865f35bfa9b` | Closed the chest normally. Opened search became UNAVAILABLE. Targeted search returned 3 dirt and 3 cobblestone with COMPLETE coverage, SERVER_READ authority and private_integrated_owner provenance, without opening a menu. Chest position was (13, 2, -1026) in compactmachines:compact_world. |
+| `CHEST_LIVE_D` / `31426deb-3d01-40d0-8f67-bc80307576d5` | Restored the 4 cobblestone to the original chest slot and closed the chest. Targeted search and its evidence reread both returned the restored 3 dirt and 7 cobblestone with COMPLETE/SERVER_READ. |
+| `CHEST_LIVE_E` / `9ef0378e-deff-4cba-b622-ad203e8d7509` | Aimed at a grass block. Targeted search returned UNAVAILABLE with empty entries and detail `target block inventory is unsupported`; no previous chest contents were replayed. |
+
+Fresh contents, player/container separation, closed-menu invalidation, targeted access without a menu, evidence rereads and non-container target rejection passed. This supersedes the earlier absence of positive opened/targeted chest coverage. Switching between two distinct chests, replacing item identities, double chests, mounts and same-request mutation remain outside this follow-up's coverage.
+
+Unresolved finding: `NativeStorageReader.validOpened` unconditionally constructs runtime opened-menu observations with `completeness=partial` and `Coverage.PARTIAL`, even for this fully read two-stack vanilla chest. The raw result provides no explanation, so the model warns that unseen contents may exist. This is a coverage-reporting issue, not observed stale contents. Do not mark opened-chest coverage reporting fully accepted until it is corrected and retested.
+
+Restored the original 3 dirt and 7 cobblestone in their original chest slots, with the temporary player slot empty. Left Minecraft running in the trial world with PackSage displaying the final unavailable-target result; the camera points at grass. Health remained full and level 57. No other world was opened.

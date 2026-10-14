@@ -34,8 +34,14 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
     @Override
     public String sourceIdentity(Evidence.Scope scope) {
         var book = bookSource.get();
+        Object contents = null;
+        if (book != null) {
+            try { contents = book.getClass().getMethod("getContents").invoke(book); }
+            catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) { }
+        }
         return scope.worldSession() + "|" + scope.resourcesLocale() + "|" + scope.providerRuntime()
-                + "|" + (book == null ? "unloaded" : System.identityHashCode(book));
+                + "|" + (book == null ? "unloaded" : System.identityHashCode(book))
+                + "|" + (contents == null ? "unloaded" : System.identityHashCode(contents));
     }
 
     @Override
@@ -55,7 +61,8 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
         try {
             var entries = (Map<?, ?>) contents.getClass().getField("entries").get(contents);
             var values = entries.values();
-            var indexedEntries = (List<?>) values.getClass().getMethod("asList").invoke(values);
+            var indexedEntries = (List<?>) Class.forName("com.google.common.collect.ImmutableCollection")
+                    .getMethod("asList").invoke(values);
             var candidates = new ArrayList<Candidate>();
             int start = 0;
             String next = null;
@@ -64,12 +71,12 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
                 try {
                     if (separator < 1) throw new NumberFormatException();
                     int previous = Integer.parseInt(afterPosition.substring(0, separator));
+                    if (!budget.value()) return new CandidatePage(candidates, null, false, Evidence.Coverage.PARTIAL,
+                            "booklet cursor seek reached the source-work bound");
                     if (previous < 0 || previous >= indexedEntries.size()
                             || !afterPosition.substring(separator + 1).equals(indexedEntries.get(previous).getClass()
                             .getMethod("getId").invoke(indexedEntries.get(previous)).toString()))
                         throw new NumberFormatException();
-                    if (!budget.value()) return new CandidatePage(candidates, null, false, Evidence.Coverage.PARTIAL,
-                            "booklet cursor seek reached the source-work bound");
                     start = previous + 1;
                 } catch (NumberFormatException failure) {
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Actually Additions booklet entries changed; restart the lookup");

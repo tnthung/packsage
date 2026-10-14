@@ -1,4 +1,4 @@
-﻿package dev.packsage.knowledge.guide;
+package dev.packsage.knowledge.guide;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;

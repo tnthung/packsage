@@ -79,6 +79,9 @@ class GroundingInstructionsTest {
         assertTrue(request.instructions().contains("one case-insensitive literal phrase, not a keyword list"));
         assertTrue(request.instructions().contains("search distinct topics separately"));
         assertTrue(request.instructions().contains("try an empty query with a provider filter when appropriate"));
+        assertTrue(request.instructions().contains("After a complete no-match"));
+        assertTrue(request.instructions().contains("For a partial no-match with a cursor, continue that search before changing its query"));
+        assertTrue(request.instructions().contains("For each relevant carried container the player asks about"));
         assertTrue(request.instructions().contains("omit text unless it is an additional intended filter"));
         assertTrue(request.instructions().contains("unchanged query, filters and limit"));
         assertTrue(request.instructions().contains("Cursors continue searches; returned record references identify evidence to read."));

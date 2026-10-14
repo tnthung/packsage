@@ -19,6 +19,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ClientAssistantTest {
     @Test
+    void unavailableGuideAdaptersKeepTheirDiscoveryMetadata() {
+        for (String id : List.of("modonomicon", "guideme", "immersiveengineering", "actuallyadditions", "relics", "artifacts")) {
+            var wrapper = new ClientAssistant.ReflectiveProvider(new ClientAssistant.OptionalStatus(id, id,
+                    "[1]", "unloaded", false, false, "not installed"), () -> null);
+            assertEquals(List.of("guide"), wrapper.metadata().documentTypes(), id);
+            assertEquals(id, wrapper.metadata().id());
+            assertFalse(wrapper.enabled());
+        }
+    }
+
+    @Test
     void optionalVersionRangesAcceptValidatedAdapterReleasesAndRejectOtherLines() {
         assertTrue(ClientAssistant.versionMatches("[19.27.0.340,20)", "19.27.0.340"));
         assertTrue(ClientAssistant.versionMatches("[19.27.0.340,20)", "19.57.0.450"));

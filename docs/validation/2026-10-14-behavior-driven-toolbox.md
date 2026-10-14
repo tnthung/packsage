@@ -167,3 +167,15 @@ Across the original run and prepared-fixture follow-ups, 22 completed requests c
 Independent trace matched `call_UY7jK740kvvf0L8nXpHZ0k6Z` to names=[CoBbLe] and its two cobblestone records. `RequestController.toolReady` validates IDs, `ChatGptBackend.Exchange.submit` rejects unknown/duplicate IDs, and continuation construction looks each result up by its call ID. Parallel completion order does not swap these responses. No deterministic filter or delivery defect was established; exact outgoing HTTP bytes were not captured.
 
 Commit `2f1f569` adds a focused grounding instruction to reconcile each reported filter outcome, count and no-match claim with its returned records. This is a model-behavior mitigation, not a guarantee of correct future summaries. The earlier incorrect answer remains a recorded failure even if a subsequent repeat passes.
+
+## Correction build
+
+- `7cc9581` changes the public opened-horse regression to require complete coverage for its fully inspected native inventory. The test failed against the old unconditional PARTIAL result.
+- `d2da14a` derives opened coverage from inspected slots and fields. Unknown non-player slot contracts, bounds and unavailable/truncated metadata or requested filter fields keep coverage partial; a fully read supported menu is complete.
+- `9e63508` replaces occupied-entry numbering with real block GUI slots, adds the right double-chest half's 27-slot offset, and maps horse body/saddle/cargo to GUI indices 1/0/source+1. `componentSlot` retains its source meaning. These are metadata corrections; the live-source read and access policy are unchanged.
+
+Independent review found no behavioral defect in these corrections. It identified two low-priority automated coverage gaps: server GUI-slot mapping has no dedicated assertions, and selected-field extraction failures/truncation lack focused opened-menu regressions. Existing opened tests cover complete native slots, unknown slots and the entry bound; the server tests cover owner and lock/loot guards. GUI mapping therefore also requires the explicit live comparison below, and positive horse equipment mapping is not claimed as live-proven.
+
+At `9e63508`, full `test build --console=plain` passed in 29 seconds: 439 tests, 435 passed, zero failures/errors and the same four filesystem-link skips. Focused native storage tests had also passed (21 reader tests plus two server guard tests). `git diff --check` passed. No formatter was used.
+
+Saved and exited the trial normally, then copied the tested JAR to ATM10 and `dist/packsage.jar`. Build, distribution and installed SHA-256 values all matched `B54C31D8A37B2DAA8F739A2A347849858D09ABBDDCA029163E552075296AE67C`. Distribution metadata was refreshed. The separate minimal profile was not reinstalled. The live correction checks use this artifact; earlier calls above use the previous hash.

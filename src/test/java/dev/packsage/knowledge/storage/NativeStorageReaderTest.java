@@ -11,7 +11,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.animal.horse.Horse;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -497,11 +497,15 @@ class NativeStorageReaderTest {
         containerMenuField.setAccessible(true);
 
         try {
-            var horse = new Horse(EntityType.HORSE, null);
+            var horse = (Horse) allocateInstance.invoke(unsafe, Horse.class);
+            var bodyArmor = new SimpleContainer(1);
+            bodyArmor.setItem(0, new ItemStack(Items.DIAMOND_HORSE_ARMOR));
+            var bodyArmorAccessField = AbstractHorse.class.getDeclaredField("bodyArmorAccess");
+            bodyArmorAccessField.setAccessible(true);
+            bodyArmorAccessField.set(horse, bodyArmor);
             var horseInventory = new SimpleContainer(4);
             horseInventory.setItem(0, new ItemStack(Items.SADDLE));
             horseInventory.setItem(1, new ItemStack(Items.DIAMOND));
-            horse.getBodyArmorAccess().setItem(0, new ItemStack(Items.DIAMOND_HORSE_ARMOR));
             var menu = new HorseInventoryMenu(7, inventory, horseInventory, horse, 1);
             containerMenuField.set(fakePlayer, menu);
             minecraftInstance.set(null, fakeMinecraft);
@@ -525,7 +529,7 @@ class NativeStorageReaderTest {
             var first = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 1, null, FIRST))
                     .toCompletableFuture().join();
             assertNotNull(first.nextCursor());
-            horse.getBodyArmorAccess().setItem(0, new ItemStack(Items.IRON_HORSE_ARMOR));
+            bodyArmor.setItem(0, new ItemStack(Items.IRON_HORSE_ARMOR));
             var next = reader.read(new StorageReader.Request(StorageReader.Target.OPENED, null, null, List.of(), 1, first.nextCursor(), FIRST))
                     .toCompletableFuture().join();
             var nextPayload = (Evidence.JsonObject) ((Evidence.JsonObject) ((Evidence.JsonArray)

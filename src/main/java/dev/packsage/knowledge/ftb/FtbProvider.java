@@ -800,11 +800,59 @@ public final class FtbProvider implements KnowledgeProvider {
                     var progressRewards = new ArrayList<RewardRecord>();
                     if (!budget.value() || !budget.value() || !budget.value() || !budget.value() || !budget.value()
                             || currentTeam != null && (!budget.value() || !budget.value() || !budget.value()
-                            || !budget.value() || !budget.value()) || !budget.bytes(4096)) {
+                            || !budget.value() || !budget.value()) || !budget.value() || !budget.value()
+                            || !budget.value() || !budget.bytes(4096)) {
                         next = fileIdentity + "|" + questCandidate + "|" + id + "|" + (phase < 0 ? 0 : phase)
                                 + "|" + nestedStart;
                         partial = true;
                         break outer;
+                    }
+                    var questTasks = quest.getTasksAsList();
+                    var rawTitle = quest.getRawTitle();
+                    var titleTruncated = rawTitle.length() > 512;
+                    if (titleTruncated) rawTitle = rawTitle.substring(0, 512);
+                    var titleComplete = !titleTruncated;
+                    String questTitle;
+                    if (titleTruncated) {
+                        questTitle = rawTitle;
+                    } else {
+                        try {
+                            if (!rawTitle.isEmpty()) {
+                                questTitle = quest.getTitle().getString(513);
+                            } else {
+                                var firstTask = questTasks.isEmpty() ? null : questTasks.getFirst();
+                                var firstTaskHasKnownTitle = firstTask == null
+                                        || firstTask.getClass() == AdvancementTask.class || firstTask.getClass() == BiomeTask.class
+                                        || firstTask.getClass() == CheckmarkTask.class || firstTask.getClass() == DimensionTask.class
+                                        || firstTask.getClass() == EnergyTask.class || firstTask.getClass() == FluidTask.class
+                                        || firstTask.getClass() == ItemTask.class || firstTask.getClass() == KillTask.class
+                                        || firstTask.getClass() == LocationTask.class || firstTask.getClass() == ObservationTask.class
+                                        || firstTask.getClass() == StageTask.class || firstTask.getClass() == StatTask.class
+                                        || firstTask.getClass() == StructureTask.class || firstTask.getClass() == XPTask.class
+                                        || firstTask.getClass() == ForgeEnergyTask.class;
+                                if (!firstTaskHasKnownTitle) {
+                                    questTitle = id;
+                                    titleComplete = false;
+                                } else if (firstTask != null && firstTask.getRawTitle().length() > 512) {
+                                    questTitle = firstTask.getRawTitle().substring(0, 512);
+                                    titleComplete = false;
+                                } else {
+                                    questTitle = quest.getTitle().getString(513);
+                                }
+                            }
+                        } catch (RuntimeException failure) {
+                            questTitle = rawTitle.isEmpty() ? id : rawTitle;
+                            titleComplete = false;
+                            partial = true;
+                        }
+                    }
+                    if (questTitle.length() > 512) {
+                        questTitle = questTitle.substring(0, 512);
+                        titleComplete = false;
+                    }
+                    if (questTitle.isEmpty()) {
+                        questTitle = id;
+                        titleComplete = false;
                     }
                     var dependencyIndex = 0;
                     if (phase <= 0) {
@@ -843,7 +891,6 @@ public final class FtbProvider implements KnowledgeProvider {
                         next = fileIdentity + "|" + questCandidate + "|" + id + "|1|0";
                         partial = true;
                     }
-                    var questTasks = quest.getTasksAsList();
                     var taskStart = selectedPhase == 1 && phase == 1 ? nestedStart : 0;
                     var taskIndex = taskStart;
                     if (taskStart > 0 && taskStart >= questTasks.size()) throw new Toolbox.Failure(
@@ -948,33 +995,6 @@ public final class FtbProvider implements KnowledgeProvider {
                     previousOwner = id;
                     var requirement = Snapshot.dependencyRequirement(quest);
                     var oneDependency = "one_completed".equals(requirement) || "one_started".equals(requirement);
-                    var rawTitle = quest.getRawTitle();
-                    var titleTruncated = rawTitle.length() > 512;
-                    if (titleTruncated) rawTitle = rawTitle.substring(0, 512);
-                    var titleComplete = !titleTruncated;
-                    var questTitle = rawTitle;
-                    if (titleTruncated) {
-                        questTitle = rawTitle;
-                    } else if (!rawTitle.isEmpty()) {
-                        questTitle = Snapshot.displayTitle(quest);
-                    } else if (!budget.value()) {
-                        partial = true;
-                        titleComplete = false;
-                        questTitle = id;
-                    } else {
-                        var firstTask = questTasks.isEmpty() ? null : questTasks.getFirst();
-                        var firstTaskHasKnownTitle = firstTask == null
-                                || firstTask.getClass() == AdvancementTask.class || firstTask.getClass() == BiomeTask.class
-                                || firstTask.getClass() == CheckmarkTask.class || firstTask.getClass() == DimensionTask.class
-                                || firstTask.getClass() == EnergyTask.class || firstTask.getClass() == FluidTask.class
-                                || firstTask.getClass() == ItemTask.class || firstTask.getClass() == KillTask.class
-                                || firstTask.getClass() == LocationTask.class || firstTask.getClass() == ObservationTask.class
-                                || firstTask.getClass() == StageTask.class || firstTask.getClass() == StatTask.class
-                                || firstTask.getClass() == StructureTask.class || firstTask.getClass() == XPTask.class
-                                || firstTask.getClass() == ForgeEnergyTask.class;
-                        titleComplete = firstTaskHasKnownTitle;
-                        questTitle = titleComplete ? Snapshot.displayTitle(quest) : id;
-                    }
                     var questRecord = new QuestRecord(id, questTitle, chapterId, dependencies,
                             oneDependency ? dependencies.stream().map(List::of).toList()
                                     : dependencies.isEmpty() ? List.of() : List.of(List.copyOf(dependencies)),

@@ -377,6 +377,7 @@ class FtbProviderTest {
                 @Override public TaskType getType() { throw new AssertionError("unknown task title callback"); }
                 @Override public long getMaxProgress() { throw new AssertionError("unknown task progress callback"); }
             });
+            cachedTitleField.set(quest, null);
             var provider = new FtbProvider(() -> { throw new AssertionError("production GET captured a full snapshot"); },
                     Runnable::run, () -> SCOPE, () -> file, () -> true, true);
             var id = quest.getCodeString();

@@ -75,7 +75,12 @@ public final class PatchouliLiveReader {
             int displayIndex = 0;
             int pagesRead = 0;
             while (pageIndex < loadedPages.size()) {
-                if (!budget.value() || budget.remainingBytes() < 2048) { next = new Position(pageIndex, 0, 0, 0); break; }
+                if (!budget.value()) { next = new Position(pageIndex, 0, 0, 0); break; }
+                if (budget.remainingBytes() < 2048) {
+                    budget.bytes(2048);
+                    next = new Position(pageIndex, 0, 0, 0);
+                    break;
+                }
                 var page = (BookPage) loadedPages.get(pageIndex);
                 boolean visible = !book.advancementsEnabled() || page.isPageUnlocked();
                 int displayPage = displayIndex;

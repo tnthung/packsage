@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Fixed Patchouli page-reserve exhaustion signaling and preserved AA reader failures across reflection, allowing bounded booklet searches to resume rather than terminate when the shared byte budget runs low.
 - Added booklet regressions for textless-page continuation and a depleted shared byte budget; the latter checks that exhaustion is resumable and the underlying read failure survives reflection.
 - Refined the system prompt for literal-phrase search recovery, unchanged-query pagination, cursor/reference separation, carried-container inspection and fresh recipe/inventory follow-ups. Added explicit per-slot ingredient counting and limits on behavior/accessory claims; ordinary-player live revalidation remains required.
 - Added live guide/manual text discovery and evidence reads for Modonomicon, GuideME, Immersive Engineering, Actually Additions, Relics and Artifacts, with provider-owned version checks, localized text, bounded fragments and metadata-only continuations.

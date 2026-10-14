@@ -169,6 +169,9 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
                     overlap, next, recordCoverage, detail);
         } catch (Toolbox.Failure failure) {
             throw failure;
+        } catch (java.lang.reflect.InvocationTargetException failure) {
+            if (failure.getCause() instanceof Toolbox.Failure sourceFailure) throw sourceFailure;
+            throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "Actually Additions booklet page could not be read");
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
             throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "Actually Additions booklet page could not be read");
         }

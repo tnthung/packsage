@@ -345,6 +345,47 @@ class PatchouliProviderTest {
             assertTrue(captured.visible());
             assertEquals(List.of(), captured.provenance());
             assertEquals(Evidence.Coverage.COMPLETE, captured.coverage(), captured.failure());
+
+            var secondId = ResourceLocation.parse("fixture:book/second");
+            BookEntry second;
+            try {
+                second = (BookEntry) BookEntry.class.getConstructor(JsonObject.class, ResourceLocation.class,
+                        Book.class, String.class).newInstance(entryJson, secondId, book, null);
+            } catch (NoSuchMethodException newerConstructor) {
+                second = (BookEntry) BookEntry.class.getConstructor(JsonObject.class, ResourceLocation.class,
+                        Book.class, String.class, HolderLookup.Provider.class).newInstance(entryJson, secondId,
+                        book, null, RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
+            }
+            second.updateLockStatus();
+            var contentsField = Book.class.getDeclaredField("contents");
+            contentsField.setAccessible(true);
+            contentsField.set(book, new vazkii.patchouli.client.book.BookContents(book, com.google.common.collect.ImmutableMap.of(),
+                    com.google.common.collect.ImmutableMap.of(entryId, entry, secondId, second), com.google.common.collect.ImmutableMap.of(), null));
+            var live = new PatchouliProvider(() -> { throw new AssertionError("production snapshot capture"); }, Runnable::run,
+                    () -> SCOPE, () -> true, () -> Map.of(book.id, book));
+            var registry = new AdapterRegistry();
+            registry.register(live);
+            var arguments = new java.util.LinkedHashMap<>(documentRequest("patchouli", "guide").arguments().values());
+            arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
+            var first = live.searchDocument(new PackSageTools.ReadRequest("search_document", new Evidence.JsonObject(arguments), SCOPE),
+                    context(registry, Map.of())).toCompletableFuture().join();
+            assertEquals("fixture:book#fixture:book/aura", first.records().getFirst().source().sourceHandle());
+            assertTrue(first.nextCursor() != null);
+            arguments.put("cursor", new Evidence.JsonString(first.nextCursor()));
+            var continued = live.searchDocument(new PackSageTools.ReadRequest("search_document", new Evidence.JsonObject(arguments), SCOPE),
+                    context(registry, Map.of())).toCompletableFuture().join();
+            assertEquals(List.of("fixture:book#fixture:book/second"), continued.records().stream().map(record -> record.source().sourceHandle()).toList());
+
+            var nameField = BookEntry.class.getDeclaredField("name");
+            nameField.setAccessible(true);
+            nameField.set(entry, "Changed current title");
+            var fresh = live.query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of(
+                    "id", new Evidence.JsonString("fixture:book#fixture:book/aura"))), 1, null, null), SCOPE).toCompletableFuture().join();
+            assertEquals("Changed current title", fresh.records().getFirst().title());
+            contentsField.set(book, new vazkii.patchouli.client.book.BookContents(book, com.google.common.collect.ImmutableMap.of(),
+                    com.google.common.collect.ImmutableMap.of(secondId, second), com.google.common.collect.ImmutableMap.of(), null));
+            assertEquals(Toolbox.Code.INVALID_CURSOR, failureCode(live.searchDocument(new PackSageTools.ReadRequest("search_document",
+                    new Evidence.JsonObject(arguments), SCOPE), context(registry, Map.of()))));
         } finally {
             configField.set(null, originalConfig);
         }

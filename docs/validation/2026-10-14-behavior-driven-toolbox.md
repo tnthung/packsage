@@ -11,7 +11,7 @@ Portable Java 21.0.12.1 and Gradle 8.11.1 are used locally. No formatter is used
 | Check | Observed result | Status |
 | --- | --- | --- |
 | Bootstrap `-PpacksageBootstrapOnly=true test build --console=plain` at `d5b6fa6` | 72 tests, zero failures/errors/skips; build successful. Missing settings and grounding dependency includes were corrected before the successful run. | Passed |
-| Final full mod `test build` | Pending after optional-adapter review fixes. | Pending |
+| Full mod `test build --console=plain` at `ecd13b9` | 438 tests, zero failures/errors, four skips; build successful in 22 seconds. Opened-horse follow-up still needs its own check. | Passed checkpoint |
 | Final artifact identity and installation | Pending. The build script installs the minimal Packsage profile; ATM10 needs an explicit copy of the same full artifact while Minecraft is closed. | Pending |
 
 Focused regressions exercise ordered adapter fallback, current reference reads, UTF-8 output bounds, inventory location/owner changes, all six registry selectors, guide-page fragments, and large quest continuations. Intermediate failing runs are development evidence; they are not reported as final acceptance.
@@ -20,7 +20,7 @@ Focused regressions exercise ordered adapter fallback, current reference reads, 
 
 The independent reviewer inspected source and runtime paths from `c8a8a8e` onward. It did not run Gradle, install an artifact or operate Minecraft.
 
-Resolved findings include discovery provider/kind ownership, missing-field absence claims, short guide cursors, current item-location contracts, guide text spanning fragment boundaries, retained quest fragments, and unknown task/reward mechanics callbacks. The final optional-adapter checkpoint still needs review and automated confirmation, including indirect quest-title callbacks, advancing nested positions, JEI nullable filters and bounded current recipe membership checks.
+Resolved findings include discovery provider/kind ownership, missing-field absence claims, short guide cursors, current item-location contracts, guide text spanning fragment boundaries, retained quest fragments, unknown task/reward mechanics callbacks, bounded quest titles, advancing nested positions, JEI nullable filters and bounded current recipe membership checks. The reviewer cleared the optional-adapter changes through `aeef3d3`, subject to the native API cost boundary below. A late opened-horse menu finding remains in progress: its null menu type and client-incompatible validity check require explicit native handling.
 
 The reviewed native server policy explicitly authorizes private integrated-world owner reads. It does not reproduce protection-mod GUI hooks. Same-ID item swaps at an unchanged location and container contract remain location-based; an ID or container-contract change invalidates continuation. A pre-existing recursive planner cap concern was declined as a migration blocker because current native recipes report unknown consumption and do not enter that recursion.
 

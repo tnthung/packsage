@@ -11,6 +11,7 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.Toolbox;
 import net.minecraft.client.Minecraft;
+import net.minecraft.locale.Language;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
@@ -34,7 +35,7 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
 
     @Override public String sourceIdentity(Evidence.Scope scope) {
         var manager = BookDataManager.get();
-        return scope.providerRuntime() + ":" + scope.resourcesLocale() + ":" + manager.isLoaded() + ":"
+        return scope + ":" + manager.isLoaded() + ":"
                 + manager.areBooksBuilt() + ":" + manager.getBooks().size();
     }
 
@@ -52,18 +53,43 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
         String nextPosition = afterPosition;
         var coverage = Evidence.Coverage.COMPLETE;
         for (Book book : manager.getBooks().values()) {
+            if (!budget.value()) {
+                if (!afterFound || nextPosition == null || nextPosition.equals(afterPosition)) throw new Toolbox.Failure(
+                        Toolbox.Code.EXTRACTION_FAILED, "Modonomicon book traversal cannot advance within its value budget");
+                return new CandidatePage(candidates, nextPosition, true, Evidence.Coverage.PARTIAL,
+                        "Modonomicon book traversal reached its live source budget");
+            }
+            var bookPosition = "@book|" + book.getId();
+            if (!afterFound) {
+                nextPosition = bookPosition;
+                if (bookPosition.equals(afterPosition)) afterFound = true;
+            }
+            nextPosition = bookPosition;
             for (BookCategory category : book.getCategories().values()) {
+                if (!budget.value()) {
+                    if (!afterFound || nextPosition.equals(afterPosition)) throw new Toolbox.Failure(
+                            Toolbox.Code.EXTRACTION_FAILED, "Modonomicon category traversal cannot advance within its value budget");
+                    return new CandidatePage(candidates, nextPosition, true, Evidence.Coverage.PARTIAL,
+                            "Modonomicon category traversal reached its live source budget");
+                }
+                var categoryPosition = "@category|" + book.getId() + "|" + category.getId();
+                if (!afterFound) {
+                    nextPosition = categoryPosition;
+                    if (categoryPosition.equals(afterPosition)) afterFound = true;
+                    else continue;
+                }
+                nextPosition = categoryPosition;
                 for (BookEntry entry : category.getEntries().values()) {
                     if (!budget.value()) {
-                        if (nextPosition == null || nextPosition.equals(afterPosition)) throw new Toolbox.Failure(
-                                Toolbox.Code.EXTRACTION_FAILED, "Modonomicon traversal cannot advance within its value budget");
+                        if (!afterFound || nextPosition.equals(afterPosition)) throw new Toolbox.Failure(
+                                Toolbox.Code.EXTRACTION_FAILED, "Modonomicon entry traversal cannot advance within its value budget");
                         return new CandidatePage(candidates, nextPosition, true, Evidence.Coverage.PARTIAL,
-                                "Modonomicon traversal reached its live source budget");
+                                "Modonomicon entry traversal reached its live source budget");
                     }
                     var id = book.getId() + SEPARATOR + category.getId() + SEPARATOR + entry.getId();
                     if (!afterFound) {
-                        if (id.equals(afterPosition)) afterFound = true;
                         nextPosition = id;
+                        if (id.equals(afterPosition)) afterFound = true;
                         continue;
                     }
                     nextPosition = id;
@@ -136,10 +162,12 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
             throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "Modonomicon entry is missing or currently locked");
         }
         var pages = entry.getPages();
+        if (fragmentPosition != null && pageIndex >= pages.size()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                "Modonomicon page no longer exists; restart the lookup");
         var partial = false;
         for (; pageIndex < pages.size(); pageIndex++, fieldIndex = 0, textOffset = 0) {
-            if (!budget.value()) return new Fragment("", pageIndex + ":" + fieldIndex + ":" + textOffset, 0, null,
-                    Evidence.Coverage.PARTIAL, "Modonomicon page traversal reached its value budget");
+            if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "Modonomicon page traversal reached its value budget");
             BookPage page = pages.get(pageIndex);
             if (!unlocks.isUnlockedFor(player, page)) continue;
             if (!(page instanceof BookTextPage textPage)) {
@@ -149,36 +177,17 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
             for (; fieldIndex < 2; fieldIndex++, textOffset = 0) {
                 var holder = fieldIndex == 0 ? textPage.getTitle() : textPage.getText();
                 if (holder == null || holder.isEmpty()) continue;
-                if (!budget.value() || !budget.bytes(64)) return new Fragment("", pageIndex + ":" + fieldIndex + ":" + textOffset, 0,
-                        null, Evidence.Coverage.PARTIAL, "Modonomicon text extraction reached its read budget");
-                var text = holder.getString();
-                if (textOffset > text.length()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
-                        "Modonomicon text changed; restart the lookup");
-                var requestedOverlap = textOffset == 0 ? 0 : Math.min(GuideDocumentReader.FRAGMENT_OVERLAP_CHARS, textOffset);
-                var overlap = Math.min(requestedOverlap, maxChars - 1);
-                var start = textOffset - overlap;
-                var overlapPartial = overlap < requestedOverlap;
-                if (start > 0 && Character.isLowSurrogate(text.charAt(start))) {
-                    start++;
-                    overlap--;
-                    overlapPartial = true;
+                if (!budget.value() || !budget.bytes(64)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                        "Modonomicon text extraction reached its read budget");
+                if (holder.hasComponent()) {
+                    partial = true;
+                    continue;
                 }
-                var count = Math.min(text.length() - textOffset, Math.min(maxChars - overlap,
-                        Math.max(0, budget.remainingBytes() / 12)));
-                if (count == 0 && textOffset < text.length()) return new Fragment("", pageIndex + ":" + fieldIndex + ":" + textOffset, 0,
-                        null, Evidence.Coverage.PARTIAL, "Modonomicon text cannot advance within the remaining byte budget");
-                var end = textOffset + count;
-                if (end < text.length() && end > textOffset && Character.isHighSurrogate(text.charAt(end - 1))) end--;
-                if (!budget.bytes((end - start) * 12 + 32)) return new Fragment("", pageIndex + ":" + fieldIndex + ":" + textOffset, 0,
-                        null, Evidence.Coverage.PARTIAL, "Modonomicon text reached its byte budget");
-                var value = text.substring(start, end);
-                var nextPosition = end < text.length() ? pageIndex + ":" + fieldIndex + ":" + end
-                        : fieldIndex == 0 ? pageIndex + ":1:0" : pageIndex + 1 + ":0:0";
-                return new Fragment(value, pageIndex + ":" + fieldIndex + ":" + start, overlap,
-                        end < text.length() || fieldIndex == 0 || pageIndex + 1 < pages.size() ? nextPosition : null,
-                        partial || overlapPartial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                        partial ? "non-text Modonomicon pages remain unread"
-                                : overlapPartial ? "fragment overlap was shortened to preserve a text boundary" : null);
+                var language = Language.getInstance();
+                var key = holder.getKey();
+                var text = language.getOrDefault(key);
+                return textFragment(text, pageIndex, fieldIndex, textOffset, pages.size(), maxChars, budget,
+                        partial || !language.has(key));
             }
         }
         if (pageIndex == 0 && pages.isEmpty()) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
@@ -221,5 +230,41 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
         var candidate = new Candidate(id, title, id, List.of("modonomicon:book:" + bookId,
                 "modonomicon:category:" + categoryId), candidateCoverage);
         return new ResolvedDocument(candidate, readFragment(id, null, maxChars, budget));
+    }
+
+    static Fragment textFragment(String text, int pageIndex, int fieldIndex, int textOffset, int pageCount,
+                                 int maxChars, Toolbox.DocumentBudget budget, boolean sourcePartial) {
+        if (maxChars < 1 || pageIndex < 0 || fieldIndex < 0 || fieldIndex > 1 || textOffset < 0
+                || pageCount < 0) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid Modonomicon text position");
+        if (textOffset > text.length()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                "Modonomicon text changed; restart the lookup");
+        var requestedOverlap = textOffset == 0 ? 0 : Math.min(GuideDocumentReader.FRAGMENT_OVERLAP_CHARS, textOffset);
+        var overlap = Math.min(requestedOverlap, maxChars - 1);
+        var start = textOffset - overlap;
+        var overlapPartial = overlap < requestedOverlap;
+        if (start > 0 && Character.isLowSurrogate(text.charAt(start))) {
+            start++;
+            overlap--;
+            overlapPartial = true;
+        }
+        var count = Math.min(text.length() - textOffset, Math.min(maxChars - overlap,
+                Math.max(0, (budget.remainingBytes() - 32) / 12)));
+        if (count == 0 && textOffset < text.length()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                "Modonomicon text cannot advance within the remaining byte budget");
+        var end = textOffset + count;
+        if (end < text.length() && end > textOffset && Character.isHighSurrogate(text.charAt(end - 1))) end--;
+        if (end == textOffset && textOffset < text.length()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                "Modonomicon text cannot advance at the requested fragment size");
+        if (!budget.bytes((end - start) * 12 + 32)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                "Modonomicon text reached its byte budget");
+        var value = text.substring(start, end);
+        var nextPosition = end < text.length() ? pageIndex + ":" + fieldIndex + ":" + end
+                : fieldIndex == 0 ? pageIndex + ":1:0" : pageIndex + 1 + ":0:0";
+        var hasNext = end < text.length() || fieldIndex == 0 || pageIndex + 1 < pageCount;
+        var partial = sourcePartial || overlapPartial;
+        return new Fragment(value, pageIndex + ":" + fieldIndex + ":" + start, overlap,
+                hasNext ? nextPosition : null, partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                sourcePartial ? "component-backed Modonomicon fields remain unread" : overlapPartial
+                        ? "fragment overlap was shortened to preserve a text boundary" : null);
     }
 }

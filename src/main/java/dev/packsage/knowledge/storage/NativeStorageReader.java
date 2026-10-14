@@ -8,6 +8,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.BlastFurnaceMenu;
@@ -15,6 +16,7 @@ import net.minecraft.world.inventory.BrewingStandMenu;
 import net.minecraft.world.inventory.FurnaceMenu;
 import net.minecraft.world.inventory.FurnaceFuelSlot;
 import net.minecraft.world.inventory.FurnaceResultSlot;
+import net.minecraft.world.inventory.HorseInventoryMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.inventory.SmokerMenu;
 import net.minecraft.world.item.ItemStack;
@@ -23,6 +25,7 @@ import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 
+import java.lang.ref.WeakReference;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -56,6 +59,8 @@ public final class NativeStorageReader implements StorageReader {
     private final Supplier<HolderLookup.Provider> registries;
     private final LinkedHashMap<String, Cursor> cursors = new LinkedHashMap<>();
     private final LinkedHashMap<String, Reference> references = new LinkedHashMap<>();
+    private WeakReference<AbstractContainerMenu> openedMenuIdentityMenu;
+    private String openedMenuIdentity;
     private Observation fixtureOpened;
 
     public NativeStorageReader(Minecraft client, Executor executor, Supplier<Evidence.Scope> currentScope,
@@ -129,7 +134,9 @@ public final class NativeStorageReader implements StorageReader {
             payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
             payload.put("menuSlot", new Evidence.JsonNumber(BigDecimal.valueOf(index)));
             payload.put("observation", new Evidence.JsonString("live_opened_menu"));
-            payload.put("section", new Evidence.JsonString("menu"));
+            payload.put("section", new Evidence.JsonString(menu.getClass() != HorseInventoryMenu.class ? "menu"
+                    : index == 0 ? "saddle" : index == 1
+                    ? stack.is(ItemTags.WOOL_CARPETS) ? "body_carpet" : "body_armor" : "cargo"));
             if (!filter.tags().isEmpty()) {
                 try {
                     payload.put("tags", new Evidence.JsonArray(stack.getTags().limit(129)
@@ -181,7 +188,9 @@ public final class NativeStorageReader implements StorageReader {
                 && (menuType == FurnaceMenu.class || menuType == BlastFurnaceMenu.class || menuType == SmokerMenu.class)
                 || menuType == BrewingStandMenu.class && (slotName.equals("net.minecraft.world.inventory.BrewingStandMenu$PotionSlot")
                 || slotName.equals("net.minecraft.world.inventory.BrewingStandMenu$IngredientsSlot")
-                || slotName.equals("net.minecraft.world.inventory.BrewingStandMenu$FuelSlot"));
+                || slotName.equals("net.minecraft.world.inventory.BrewingStandMenu$FuelSlot"))
+                || menuType == HorseInventoryMenu.class && (slotName.equals("net.minecraft.world.inventory.HorseInventoryMenu$1")
+                || slotName.equals("net.minecraft.world.inventory.HorseInventoryMenu$2"));
     }
 
     synchronized void storeOpenedFixture(List<Evidence.Record> entries, Evidence.Scope scope, Instant capturedAt,
@@ -199,6 +208,8 @@ public final class NativeStorageReader implements StorageReader {
         fixtureOpened = null;
         cursors.clear();
         references.clear();
+        openedMenuIdentityMenu = null;
+        openedMenuIdentity = null;
     }
 
     public CompletionStage<Evidence.Result> readEvidence(String sourceHandle, Evidence.Scope scope) {
@@ -276,19 +287,36 @@ public final class NativeStorageReader implements StorageReader {
             if (!client.isSameThread()) throw new IllegalStateException("opened inventory must be read on the client thread");
             if (client.player == null || client.level == null || client.player.containerMenu == client.player.inventoryMenu) return null;
             var menu = client.player.containerMenu;
-            var type = BuiltInRegistries.MENU.getKey(menu.getType());
-            if (type == null || !type.getNamespace().equals("minecraft")
-                    || !menu.getClass().getName().startsWith("net.minecraft.world.inventory.")
-                    || !menu.stillValid(client.player)) return unknown(new Request(Target.OPENED, null, null, List.of(), 1, null, scope),
-                    scope, "opened menu is unsupported or no longer valid");
+            var horseMenu = menu.getClass() == HorseInventoryMenu.class;
+            var menuType = horseMenu ? "HorseInventoryMenu" : null;
+            if (!horseMenu) {
+                net.minecraft.world.inventory.MenuType<?> nativeMenuType;
+                try {
+                    nativeMenuType = menu.getType();
+                } catch (UnsupportedOperationException failure) {
+                    return unknown(new Request(Target.OPENED, null, null, List.of(), 1, null, scope), scope,
+                            "opened menu is unsupported or no longer valid");
+                }
+                var type = nativeMenuType == null ? null : BuiltInRegistries.MENU.getKey(nativeMenuType);
+                if (type == null || !type.getNamespace().equals("minecraft")
+                        || !menu.getClass().getName().startsWith("net.minecraft.world.inventory.")
+                        || !menu.stillValid(client.player)) return unknown(new Request(Target.OPENED, null, null, List.of(), 1, null, scope),
+                        scope, "opened menu is unsupported or no longer valid");
+                menuType = type.toString();
+            }
             var capturedAt = Instant.now();
             var capturedNanos = monotonicClock.getAsLong();
             var captured = openedEntries(menu, client.player.getInventory(), scope, capturedAt, client.level.registryAccess(),
                     filter, client.player);
-            var identity = client.level.dimension().location() + ":" + client.player.getUUID() + ":" + type + ":" + menu.containerId;
+            if (openedMenuIdentityMenu == null || openedMenuIdentityMenu.get() != menu) {
+                openedMenuIdentityMenu = new WeakReference<>(menu);
+                openedMenuIdentity = UUID.randomUUID().toString();
+            }
+            var identity = client.level.dimension().location() + ":" + client.player.getUUID() + ":" + menuType + ":"
+                    + menu.containerId + ":" + openedMenuIdentity;
             return new Observation(captured.entries(), scope, capturedAt, capturedNanos, "Opened inventory",
                     Map.of("observation", new Evidence.JsonString("live_opened_menu"), "completeness", new Evidence.JsonString("partial"),
-                            "menuType", new Evidence.JsonString(type.toString()),
+                            "menuType", new Evidence.JsonString(menuType),
                             "ownerIdentity", new Evidence.JsonString(identity)), Evidence.Coverage.PARTIAL,
                     List.of("current-client-menu-slots"));
         }

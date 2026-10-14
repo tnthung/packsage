@@ -43,16 +43,28 @@ final class NativeRegistryReader {
             if (!tags.isEmpty()) throw new UnsupportedOperationException("item_tag does not support an entry-membership tags filter");
             return searchItemTags(client, text, ids, offset, limit, scope);
         }
-        var registry = switch (selectedRegistry) {
-            case "item" -> client.level.registryAccess().registryOrThrow(Registries.ITEM);
-            case "block" -> client.level.registryAccess().registryOrThrow(Registries.BLOCK);
-            case "enchantment" -> client.level.registryAccess().registryOrThrow(Registries.ENCHANTMENT);
-            case "mob_effect" -> BuiltInRegistries.MOB_EFFECT;
-            case "potion" -> BuiltInRegistries.POTION;
+        return switch (selectedRegistry) {
+            case "item" -> {
+                var registry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
+                yield searchEntries(registry, selectedRegistry, text, ids, tags, offset, limit, scope,
+                        value -> entry(selectedRegistry, value, registry, client, scope));
+            }
+            case "block" -> {
+                var registry = client.level.registryAccess().registryOrThrow(Registries.BLOCK);
+                yield searchEntries(registry, selectedRegistry, text, ids, tags, offset, limit, scope,
+                        value -> entry(selectedRegistry, value, registry, client, scope));
+            }
+            case "enchantment" -> {
+                var registry = client.level.registryAccess().registryOrThrow(Registries.ENCHANTMENT);
+                yield searchEntries(registry, selectedRegistry, text, ids, tags, offset, limit, scope,
+                        value -> entry(selectedRegistry, value, registry, client, scope));
+            }
+            case "mob_effect" -> searchEntries(BuiltInRegistries.MOB_EFFECT, selectedRegistry, text, ids, tags, offset, limit,
+                    scope, value -> entry(selectedRegistry, value, BuiltInRegistries.MOB_EFFECT, client, scope));
+            case "potion" -> searchEntries(BuiltInRegistries.POTION, selectedRegistry, text, ids, tags, offset, limit,
+                    scope, value -> entry(selectedRegistry, value, BuiltInRegistries.POTION, client, scope));
             default -> throw new IllegalArgumentException("unsupported native registry: " + selectedRegistry);
         };
-        return searchEntries(registry, selectedRegistry, text, ids, tags, offset, limit, scope,
-                value -> entry(selectedRegistry, value, registry, client, scope));
     }
 
     static Evidence.Record read(Minecraft client, String selectedRegistry, String identity, Evidence.Scope scope) {
@@ -64,17 +76,32 @@ final class NativeRegistryReader {
             var items = client.level.registryAccess().registryOrThrow(Registries.ITEM);
             return items.getTag(TagKey.create(Registries.ITEM, key)).map(value -> itemTag(key, value, items, scope)).orElse(null);
         }
-        var registry = switch (selectedRegistry) {
-            case "item" -> client.level.registryAccess().registryOrThrow(Registries.ITEM);
-            case "block" -> client.level.registryAccess().registryOrThrow(Registries.BLOCK);
-            case "enchantment" -> client.level.registryAccess().registryOrThrow(Registries.ENCHANTMENT);
-            case "mob_effect" -> BuiltInRegistries.MOB_EFFECT;
-            case "potion" -> BuiltInRegistries.POTION;
+        return switch (selectedRegistry) {
+            case "item" -> {
+                var registry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
+                var value = registry.get(key);
+                yield value == null ? null : entry(selectedRegistry, value, registry, client, scope);
+            }
+            case "block" -> {
+                var registry = client.level.registryAccess().registryOrThrow(Registries.BLOCK);
+                var value = registry.get(key);
+                yield value == null ? null : entry(selectedRegistry, value, registry, client, scope);
+            }
+            case "enchantment" -> {
+                var registry = client.level.registryAccess().registryOrThrow(Registries.ENCHANTMENT);
+                var value = registry.get(key);
+                yield value == null ? null : entry(selectedRegistry, value, registry, client, scope);
+            }
+            case "mob_effect" -> {
+                var value = BuiltInRegistries.MOB_EFFECT.get(key);
+                yield value == null ? null : entry(selectedRegistry, value, BuiltInRegistries.MOB_EFFECT, client, scope);
+            }
+            case "potion" -> {
+                var value = BuiltInRegistries.POTION.get(key);
+                yield value == null ? null : entry(selectedRegistry, value, BuiltInRegistries.POTION, client, scope);
+            }
             default -> null;
         };
-        if (registry == null) return null;
-        var value = registry.get(key);
-        return value == null ? null : entry(selectedRegistry, value, registry, client, scope);
     }
 
     private static <T> Page searchEntries(Registry<T> registry, String selectedRegistry, String text,
@@ -205,10 +232,12 @@ final class NativeRegistryReader {
     private static Evidence.Record enchantment(Enchantment value, String identity,
                                                 net.minecraft.core.HolderLookup.Provider access, Evidence.Scope scope) {
         var definition = value.definition();
-        var itemRegistry = access.lookupOrThrow(Registries.ITEM);
-        var supported = itemIds(definition.supportedItems(), itemRegistry);
-        var primary = definition.primaryItems().map(items -> itemIds(items, itemRegistry)).orElse(List.of());
-        var exclusive = itemIds(value.exclusiveSet(), itemRegistry);
+        var supported = definition.supportedItems().stream().limit(MAX_MEMBERS + 1L)
+                .map(holder -> holder.unwrapKey().map(key -> key.location().toString()).orElse("unknown:item")).toList();
+        var primary = definition.primaryItems().map(items -> items.stream().limit(MAX_MEMBERS + 1L)
+                .map(holder -> holder.unwrapKey().map(key -> key.location().toString()).orElse("unknown:item")).toList()).orElse(List.of());
+        var exclusive = value.exclusiveSet().stream().limit(MAX_MEMBERS + 1L)
+                .map(holder -> holder.unwrapKey().map(key -> key.location().toString()).orElse("unknown:enchantment")).toList();
         var slots = definition.slots().stream().map(Enum::name).map(Evidence.JsonString::new)
                 .map(item -> (Evidence.JsonValue) item).toList();
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
@@ -231,11 +260,6 @@ final class NativeRegistryReader {
         boolean partial = supported.size() > MAX_MEMBERS || primary.size() > MAX_MEMBERS || exclusive.size() > MAX_MEMBERS;
         return record("enchantment", identity, Evidence.RecordKind.OTHER, value.description().getString(), payload,
                 partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, List.of("client-registry:enchantment"), scope);
-    }
-
-    private static List<String> itemIds(HolderSet<Item> values, Registry<Item> itemRegistry) {
-        return values.stream().limit(MAX_MEMBERS + 1L).map(Holder::value).map(itemRegistry::getKey)
-                .filter(Objects::nonNull).map(ResourceLocation::toString).toList();
     }
 
     private static Evidence.Record effect(MobEffect value, String identity, Evidence.Scope scope) {

@@ -388,6 +388,12 @@ public final class FtbProvider implements KnowledgeProvider {
 
     @Override
     public ProviderStatus status() {
+        if (liveFileNavigation) {
+            if (failure != null) return new ProviderStatus(Availability.ERROR, VERSION, failure);
+            if (disabled || ClientQuestFile.INSTANCE == null) return new ProviderStatus(Availability.UNAVAILABLE, VERSION,
+                    "FTB Quests client data unavailable");
+            return new ProviderStatus(Availability.AVAILABLE, VERSION, "FTB Quests live client file is available");
+        }
         var snapshot = current;
         if (failure != null) return new ProviderStatus(Availability.ERROR, VERSION, failure);
         if (snapshot == null) return new ProviderStatus(Availability.UNAVAILABLE, VERSION, "FTB Quests client data unavailable");
@@ -433,7 +439,7 @@ public final class FtbProvider implements KnowledgeProvider {
         }
         var limit = request.arguments().values().get("limit") instanceof Evidence.JsonNumber value
                 ? value.value().intValue() : 16;
-        if (liveFileNavigation) return searchLiveDocument(request, context, query.value(), sourceCursor, limit);
+        if (liveFileNavigation) return searchLiveDocument(request, context, query.value(), sourceCursor, limit, null);
         try {
             return query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(arguments), limit,
                     sourceCursor == null ? null : request.scope(), sourceCursor), request.scope()).thenApply(result -> {
@@ -465,12 +471,13 @@ public final class FtbProvider implements KnowledgeProvider {
                     "types", new Evidence.JsonArray(List.of(new Evidence.JsonString("quest"))))));
             arguments.put("limit", number(256));
             return searchLiveDocument(new PackSageTools.ReadRequest("search_document",
-                    new Evidence.JsonObject(arguments), request.scope()), context, reference.sourceHandle(), null, 256)
+                    new Evidence.JsonObject(arguments), request.scope()), context, reference.sourceHandle(), null, 1,
+                    reference.sourceHandle())
                     .thenApply(result -> {
                         var record = result.records().stream().filter(value -> value.source().sourceHandle()
                                 .equals(reference.sourceHandle())).findFirst().orElseThrow(() -> new Toolbox.Failure(
                                 Toolbox.Code.UNAVAILABLE, "the observed quest is no longer available"));
-                        return new Evidence.Result(List.of(record), record.source().coverage(), result.outcome(), null,
+                        return new Evidence.Result(List.of(record), record.source().coverage(), result.outcome(), result.nextCursor(),
                                 result.detail());
                     });
         }
@@ -493,7 +500,7 @@ public final class FtbProvider implements KnowledgeProvider {
     }
 
     private CompletionStage<Evidence.Result> searchLiveDocument(PackSageTools.ReadRequest request, Toolbox.Context context,
-                                                                  String query, String cursor, int limit) {
+                                                                  String query, String cursor, int limit, String exactSourceId) {
         var cursorParts = cursor == null ? new String[0] : cursor.split("\\|", -1);
         var cursorFile = cursorParts.length == 5 ? cursorParts[0] : null;
         var expectedOwner = cursorParts.length == 5 ? cursorParts[2] : "";
@@ -514,6 +521,8 @@ public final class FtbProvider implements KnowledgeProvider {
         }
         if (start < 0) return CompletableFuture.failedFuture(
                 new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB source position is invalid; restart the search"));
+        int initialPhase = startPhase;
+        int initialIndex = startIndex;
         return CompletableFuture.supplyAsync(() -> {
             var file = fileSource.get();
             var scope = scopeSource.get();
@@ -524,6 +533,24 @@ public final class FtbProvider implements KnowledgeProvider {
                 throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor belongs to a replaced quest file; restart the search");
             if (!request.scope().equals(scope) || !request.scope().equals(context.currentScope().get()))
                 throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "repeat the lookup in the current scope");
+            Chapter exactChapter = null;
+            Quest exactQuest = null;
+            if (exactSourceId != null) {
+                var parsedId = parseQuestId(exactSourceId);
+                if (parsedId.isEmpty()) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE,
+                        "the observed quest or chapter is no longer available");
+                exactQuest = file.getQuest(parsedId.getAsLong());
+                if (exactQuest != null && !exactSourceId.equals(exactQuest.getCodeString())) exactQuest = null;
+                exactChapter = file.getChapter(parsedId.getAsLong());
+                if (exactChapter != null && !exactSourceId.equals(exactChapter.getCodeString())) exactChapter = null;
+                if (exactQuest == null && exactChapter == null) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE,
+                        "the observed quest or chapter is no longer available");
+                if (exactQuest != null) exactChapter = exactQuest.getQuestChapter();
+            }
+            var traversalStart = exactQuest == null ? start : 1;
+            var traversalPhase = exactQuest == null ? initialPhase : -1;
+            var traversalIndex = exactQuest == null ? initialIndex : 0;
+            var traversalExpectedOwner = exactQuest == null ? expectedOwner : exactChapter.getCodeString();
             var budget = context.documentBudget();
             var player = Minecraft.getInstance().player;
             var playerId = player == null ? null : player.getUUID();
@@ -535,7 +562,7 @@ public final class FtbProvider implements KnowledgeProvider {
             var next = (String) null;
             var previousOwner = "";
             var partial = false;
-            var chapters = file.getAllChapters();
+            var chapters = exactChapter == null ? file.getAllChapters() : List.of(exactChapter);
             var chapterIndex = 0;
             outer: while (chapterIndex < chapters.size()) {
                 var candidate = position++;
@@ -545,10 +572,10 @@ public final class FtbProvider implements KnowledgeProvider {
                     break;
                 }
                 var chapter = chapters.get(chapterIndex++);
-                if (candidate == start - 1 && startPhase == -1 && !expectedOwner.equals(chapter.getCodeString()))
+                if (candidate == traversalStart - 1 && traversalPhase == -1 && !traversalExpectedOwner.equals(chapter.getCodeString()))
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor owner changed; restart the search");
                 var chapterId = chapter.getCodeString();
-                if (candidate == start && startPhase >= 0 && (startPhase != 3 || !expectedOwner.equals(chapterId)))
+                if (candidate == traversalStart && traversalPhase >= 0 && (traversalPhase != 3 || !expectedOwner.equals(chapterId)))
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor no longer identifies the same source; restart the search");
                 previousOwner = chapterId;
                 var group = chapter.getGroup();
@@ -556,10 +583,10 @@ public final class FtbProvider implements KnowledgeProvider {
                 var chapterTitle = Snapshot.displayTitle(chapter);
                 var groupTitle = group == null ? "" : Snapshot.displayTitle(group);
                 var chapterQuests = chapter.getQuests();
-                if (candidate >= start && (startPhase == -1 || startPhase == 3)) {
+                if (candidate >= traversalStart && (traversalPhase == -1 || traversalPhase == 3)) {
                     var questIds = new ArrayList<String>();
                     var questIndex = 0;
-                    var initialQuestIndex = candidate == start && startPhase == 3 ? startIndex : 0;
+                    var initialQuestIndex = candidate == traversalStart && traversalPhase == 3 ? traversalIndex : 0;
                     var chapterPartial = initialQuestIndex > 0;
                     while (questIndex < chapterQuests.size()) {
                         if (!budget.value()) {
@@ -601,7 +628,7 @@ public final class FtbProvider implements KnowledgeProvider {
                         break;
                     }
                 }
-                var questIterator = chapterQuests.iterator();
+                var questIterator = (exactQuest != null ? List.of(exactQuest) : chapterQuests).iterator();
                 var questIndex = 0;
                 while (questIterator.hasNext()) {
                     var questCandidate = position++;
@@ -612,15 +639,15 @@ public final class FtbProvider implements KnowledgeProvider {
                     }
                     var quest = questIterator.next();
                     var id = quest.getCodeString();
-                    if (questCandidate == start - 1 && startPhase == -1 && !expectedOwner.equals(id))
+                    if (questCandidate == traversalStart - 1 && traversalPhase == -1 && !traversalExpectedOwner.equals(id))
                         throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor owner changed; restart the search");
-                    if (questCandidate < start) {
+                    if (questCandidate < traversalStart) {
                         previousOwner = id;
                         questIndex++;
                         continue;
                     }
-                    var phase = questCandidate == start ? startPhase : 0;
-                    if (phase >= 0 && !expectedOwner.equals(id))
+                    var phase = questCandidate == traversalStart ? traversalPhase : 0;
+                    if (phase >= 0 && !traversalExpectedOwner.equals(id))
                         throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor no longer identifies the same source; restart the search");
                     if (phase == 3) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                             "FTB cursor phase does not match its source; restart the search");
@@ -629,7 +656,7 @@ public final class FtbProvider implements KnowledgeProvider {
                         partial = true;
                         break outer;
                     }
-                    var nestedStart = questCandidate == start && phase >= 0 ? startIndex : 0;
+                    var nestedStart = questCandidate == traversalStart && phase >= 0 ? traversalIndex : 0;
                     var dependencies = new ArrayList<String>();
                     var tasks = new ArrayList<TaskRecord>();
                     var rewards = new ArrayList<RewardRecord>();
@@ -657,27 +684,43 @@ public final class FtbProvider implements KnowledgeProvider {
                     var selectedPhase = phase < 0 ? 0 : phase;
                     if (next == null && selectedPhase <= 0) selectedPhase = 1;
                     var questTasks = quest.getTasks();
-                    var taskIndex = selectedPhase == 1 && phase == 1 ? nestedStart : 0;
-                    while (next == null && selectedPhase == 1 && taskIndex < questTasks.size()) {
+                    var taskStart = selectedPhase == 1 && phase == 1 ? nestedStart : 0;
+                    var taskIndex = 0;
+                    var taskIterator = questTasks.iterator();
+                    while (next == null && selectedPhase == 1 && taskIterator.hasNext()) {
                         if (!budget.value()) {
                             next = fileIdentity + "|" + questCandidate + "|" + id + "|1|" + taskIndex;
                             partial = true;
                             break;
                         }
-                        var task = questTasks.get(taskIndex++);
+                        if (taskIndex >= taskStart && !budget.bytes(1024)) {
+                            next = fileIdentity + "|" + questCandidate + "|" + id + "|1|" + taskIndex;
+                            partial = true;
+                            break;
+                        }
+                        var task = taskIterator.next();
+                        if (taskIndex++ < taskStart) continue;
                         tasks.add(Snapshot.taskRecord(task, null, new ArrayList<>()));
                         progressTasks.add(Snapshot.taskRecord(task, currentTeam, new ArrayList<>()));
                     }
                     if (next == null && selectedPhase == 1) selectedPhase = 2;
                     var questRewards = quest.getRewards();
-                    var rewardIndex = selectedPhase == 2 && phase == 2 ? nestedStart : 0;
-                    while (next == null && selectedPhase == 2 && rewardIndex < questRewards.size()) {
+                    var rewardStart = selectedPhase == 2 && phase == 2 ? nestedStart : 0;
+                    var rewardIndex = 0;
+                    var rewardIterator = questRewards.iterator();
+                    while (next == null && selectedPhase == 2 && rewardIterator.hasNext()) {
                         if (!budget.value()) {
                             next = fileIdentity + "|" + questCandidate + "|" + id + "|2|" + rewardIndex;
                             partial = true;
                             break;
                         }
-                        var reward = questRewards.get(rewardIndex++);
+                        if (rewardIndex >= rewardStart && !budget.bytes(1024)) {
+                            next = fileIdentity + "|" + questCandidate + "|" + id + "|2|" + rewardIndex;
+                            partial = true;
+                            break;
+                        }
+                        var reward = rewardIterator.next();
+                        if (rewardIndex++ < rewardStart) continue;
                         rewards.add(Snapshot.rewardRecord(reward, null, null, new ArrayList<>()));
                         progressRewards.add(Snapshot.rewardRecord(reward, currentTeam, playerId, new ArrayList<>()));
                     }
@@ -773,6 +816,10 @@ public final class FtbProvider implements KnowledgeProvider {
         disabled = false;
         failure = null;
         var generation = ++lifecycleGeneration;
+        if (liveFileNavigation) {
+            current = null;
+            return;
+        }
         try {
             clientExecutor.execute(() -> {
                 if (generation != lifecycleGeneration || disabled) return;
@@ -836,7 +883,7 @@ public final class FtbProvider implements KnowledgeProvider {
                         && !sameScope(query.cursorScope(), scope)) {
                     return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null);
                 }
-                current = snapshot;
+                if (!liveFileNavigation) current = snapshot;
                 return querySnapshot(query, scope, snapshot);
             }, clientExecutor);
         } catch (RuntimeException schedulingFailure) {
@@ -847,6 +894,33 @@ public final class FtbProvider implements KnowledgeProvider {
 
     @Override
     public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (liveFileNavigation) {
+            if (disabled) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE,
+                    "FTB Quests client data unavailable");
+            if (!ID.equals(target.providerId()) || !target.scope().equals(scope) || !scopeIsCurrent(scope))
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
+                        "quest target is outside the active scope");
+            if (!target.sourceHandle().equals(target.targetId()))
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
+                        "quest target identity does not match its source");
+            if (!clientThread.getAsBoolean()) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,
+                    "FTB Quests navigation must run on the client thread");
+            try {
+                var file = fileSource.get();
+                if (file == null || ClientQuestFile.INSTANCE != file) return new Evidence.NavigationResult(
+                        Evidence.NavigationStatus.UNAVAILABLE, "FTB Quests client data unavailable");
+                var parsedId = parseQuestId(target.targetId());
+                if (parsedId.isEmpty()) return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR,
+                        "malformed quest id");
+                var quest = file.getQuest(parsedId.getAsLong());
+                if (quest == null || !quest.getCodeString().equals(target.targetId())) return new Evidence.NavigationResult(
+                        Evidence.NavigationStatus.STALE, "quest target is absent from the current quest file");
+                ClientQuestFile.openGui(quest, true);
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "quest screen opened");
+            } catch (RuntimeException navigationFailure) {
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, navigationFailure.toString());
+            }
+        }
         var snapshot = current;
         if (snapshot == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE,
                 "FTB Quests client data unavailable");
@@ -862,25 +936,7 @@ public final class FtbProvider implements KnowledgeProvider {
             if (!clientThread.getAsBoolean())
                 return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,
                         "FTB Quests navigation must run on the client thread");
-            if (liveFileNavigation) {
-                var file = fileSource.get();
-                var capturedFile = snapshot.fileReference() == null ? null : snapshot.fileReference().get();
-                if (file == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE,
-                        "FTB Quests client data unavailable");
-                if (capturedFile == null || capturedFile != file || ClientQuestFile.INSTANCE != file)
-                    return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
-                            "quest target belongs to a replaced quest file");
-                var parsedId = parseQuestId(target.targetId());
-                if (parsedId.isEmpty()) return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR,
-                        "malformed quest id");
-                var quest = file.getQuest(parsedId.getAsLong());
-                if (quest == null || !quest.getCodeString().equals(target.targetId()))
-                    return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
-                            "quest target is absent from the current quest file");
-                ClientQuestFile.openGui(quest, true);
-            } else {
-                snapshot.navigator().accept(target.targetId());
-            }
+            snapshot.navigator().accept(target.targetId());
             return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "quest screen opened");
         } catch (RuntimeException navigationFailure) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, navigationFailure.toString());

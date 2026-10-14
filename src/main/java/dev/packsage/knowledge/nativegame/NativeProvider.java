@@ -428,9 +428,9 @@ public final class NativeProvider implements KnowledgeProvider {
         return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, detail));
     }
 
-    private static Evidence.Result unavailable(Evidence.Scope scope, String detail) {
-        return new Evidence.Result(List.of(statusRecord(scope, detail, Evidence.Coverage.UNAVAILABLE)), Evidence.Coverage.UNAVAILABLE,
-                Evidence.Outcome.UNKNOWN, null, detail);
+    private static CompletionStage<Evidence.Result> unavailable(Evidence.Scope scope, String detail) {
+        return CompletableFuture.completedFuture(new Evidence.Result(List.of(statusRecord(scope, detail, Evidence.Coverage.UNAVAILABLE)),
+                Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null, detail));
     }
 
     private static Evidence.Result unknownReference(Evidence.Scope scope) {

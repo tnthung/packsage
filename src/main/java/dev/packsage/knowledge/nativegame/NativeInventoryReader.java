@@ -161,8 +161,12 @@ public final class NativeInventoryReader implements InventoryReader {
             case "offhand" -> new SlotAddress("offhand", 0);
             default -> throw new IllegalArgumentException("item slot must be mainhand or offhand");
         };
-        var reference = "native:inventory:slot:" + UUID.randomUUID();
-        synchronized (this) { references.put(reference, new Reference(scope, address, clock.getAsLong() + OBSERVATION_TTL_MILLIS)); }
+        var reference = "native:inventory:slot:" + UUID.nameUUIDFromBytes((scope + "|" + address.section() + "|" + address.slot())
+                .getBytes(StandardCharsets.UTF_8));
+        synchronized (this) {
+            references.put(reference, new Reference(scope, address, clock.getAsLong() + OBSERVATION_TTL_MILLIS));
+            while (references.size() > MAX_REFERENCES) references.remove(references.keySet().iterator().next());
+        }
         return reference;
     }
 
@@ -190,7 +194,7 @@ public final class NativeInventoryReader implements InventoryReader {
                     Evidence.Outcome.ERROR, null, "inventory continuation capture failed");
             if (!request.scope().equals(currentScope.get())) return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL,
                     Evidence.Outcome.UNKNOWN, null, "inventory scope changed during continuation");
-            return page(request, result.capture(), state.offset());
+            synchronized (this) { return page(request, result.capture(), state.offset()); }
         }, executor);
     }
 

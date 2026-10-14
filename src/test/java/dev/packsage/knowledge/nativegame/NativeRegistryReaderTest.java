@@ -14,6 +14,7 @@ import java.util.stream.IntStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class NativeRegistryReaderTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "native", 1);
@@ -75,6 +76,12 @@ class NativeRegistryReaderTest {
         assertEquals(544, second.nextOffset());
         assertEquals(16, second.scanned());
         assertFalse(second.exhausted());
+        var visited = new java.util.concurrent.atomic.AtomicInteger();
+        var failure = assertThrows(dev.packsage.knowledge.Toolbox.Failure.class, () -> NativeRegistryReader.page(
+                IntStream.range(0, 5000).peek(value -> visited.incrementAndGet()).iterator(), 2049, 16,
+                value -> true, NativeRegistryReaderTest::record));
+        assertEquals(dev.packsage.knowledge.Toolbox.Code.INVALID_CURSOR, failure.code());
+        assertEquals(0, visited.get());
     }
 
     private static Evidence.Record record(int identity) {

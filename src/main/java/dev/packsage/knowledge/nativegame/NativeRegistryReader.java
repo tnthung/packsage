@@ -182,6 +182,8 @@ final class NativeRegistryReader {
 
     static <T> Page page(java.util.Iterator<T> iterator, int offset, int limit, Predicate<T> matches,
                          Function<T, Evidence.Record> recordFactory) {
+        if (offset < 0 || offset > 2048) throw new dev.packsage.knowledge.Toolbox.Failure(
+                dev.packsage.knowledge.Toolbox.Code.INVALID_CURSOR, "item-tag continuation exceeds the bounded seek; use an exact tag ID");
         int index = 0;
         while (index < offset && iterator.hasNext()) {
             iterator.next();

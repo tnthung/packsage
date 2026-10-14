@@ -34,8 +34,9 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
     @Override
     public String sourceIdentity(Evidence.Scope scope) {
         try {
-            var manual = manual();
-            var entries = entries(manual);
+            var helper = Class.forName(MANUAL_HELPER, false, ImmersiveEngineeringGuideReader.class.getClassLoader());
+            var manual = helper.getMethod("getManual").invoke(null);
+            var entries = (Map<?, ?>) manual.getClass().getField("contentsByName").get(manual);
             return VERSION + ":" + scope.resourcesLocale() + ":" + System.identityHashCode(manual) + ":"
                     + System.identityHashCode(entries) + ":" + entries.size();
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
@@ -46,39 +47,43 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
     @Override
     public CandidatePage candidates(String afterPosition, int limit, Toolbox.DocumentBudget budget) {
         try {
-            var manual = manual();
-            var entries = entries(manual);
+            var helper = Class.forName(MANUAL_HELPER, false, ImmersiveEngineeringGuideReader.class.getClassLoader());
+            var manual = helper.getMethod("getManual").invoke(null);
+            var entries = (Map<?, ?>) manual.getClass().getField("contentsByName").get(manual);
             if (entries.isEmpty()) return new CandidatePage(List.of(), null, false, Evidence.Coverage.PARTIAL,
                     "Immersive Engineering manual entries have not been loaded");
             var candidates = new ArrayList<Candidate>();
             String lastPosition = afterPosition;
             boolean passedCursor = afterPosition == null;
             boolean partial = false;
+            boolean seekBudgetEnded = false;
             var iterator = entries.entrySet().iterator();
             while (iterator.hasNext()) {
                 if (!budget.value()) {
                     partial = true;
+                    seekBudgetEnded = true;
                     break;
                 }
                 var sourceEntry = iterator.next();
                 if (!(sourceEntry.getKey() instanceof ResourceLocation location)) {
-                    partial = true;
-                    continue;
+                    throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                            "Immersive Engineering manual entry keys changed unexpectedly");
                 }
                 Object entry = sourceEntry.getValue();
                 String id = location.toString();
                 if (id.length() > MAX_ENTRY_ID_LENGTH) {
-                    partial = true;
-                    lastPosition = id;
-                    continue;
+                    throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                            "Immersive Engineering entry ID exceeds the bounded cursor limit");
                 }
-                lastPosition = id;
                 if (!passedCursor) {
-                    lastPosition = id;
                     if (id.equals(afterPosition)) passedCursor = true;
+                    lastPosition = id;
                     continue;
                 }
-                if (!visible(manual, entry)) {
+                var node = entry.getClass().getMethod("getTreeNode").invoke(entry);
+                var abstractNode = Class.forName("blusunrize.lib.manual.Tree$AbstractNode", false,
+                        ImmersiveEngineeringGuideReader.class.getClassLoader());
+                if (node == null || !(boolean) manual.getClass().getMethod("showNodeInList", abstractNode).invoke(manual, node)) {
                     lastPosition = id;
                     continue;
                 }
@@ -86,7 +91,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     partial = true;
                     break;
                 }
-                String title = string(entry, "getTitle");
+                Object rawTitle = entry.getClass().getMethod("getTitle").invoke(entry);
+                String title = rawTitle instanceof String value ? value : null;
                 if (title == null || title.isBlank()) title = id;
                 if (title.length() > MAX_TITLE_LENGTH) {
                     title = title.substring(0, MAX_TITLE_LENGTH);
@@ -97,8 +103,9 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                 lastPosition = id;
                 if (candidates.size() >= Math.max(1, limit)) break;
             }
-            if (!passedCursor) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
-                    "Immersive Engineering manual changed; restart the lookup");
+            if (!passedCursor) throw new Toolbox.Failure(seekBudgetEnded ? Toolbox.Code.EXTRACTION_FAILED : Toolbox.Code.INVALID_CURSOR,
+                    seekBudgetEnded ? "Immersive Engineering manual cursor seek exceeds the read budget; restart the lookup"
+                            : "Immersive Engineering manual changed; restart the lookup");
             boolean more = iterator.hasNext();
             if (more && lastPosition == null) more = false;
             return new CandidatePage(candidates, more ? lastPosition : null, more,
@@ -117,10 +124,19 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
         try {
             if (!budget.value() || !budget.bytes(id.length() * 6 + 512)) throw new Toolbox.Failure(
                     Toolbox.Code.EXTRACTION_FAILED, "Immersive Engineering entry exceeds the remaining read budget");
-            var manual = manual();
-            var entry = findEntry(manual, id);
-            if (entry == null || !visible(manual, entry)) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
+            var helper = Class.forName(MANUAL_HELPER, false, ImmersiveEngineeringGuideReader.class.getClassLoader());
+            var manual = helper.getMethod("getManual").invoke(null);
+            var entryMap = (Map<?, ?>) manual.getClass().getField("contentsByName").get(manual);
+            var entry = entryMap.get(ResourceLocation.parse(id));
+            if (entry == null) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
                     "Immersive Engineering manual entry is no longer visible");
+            var node = entry.getClass().getMethod("getTreeNode").invoke(entry);
+            var abstractNode = Class.forName("blusunrize.lib.manual.Tree$AbstractNode", false,
+                    ImmersiveEngineeringGuideReader.class.getClassLoader());
+            if (node == null || !(boolean) manual.getClass().getMethod("showNodeInList", abstractNode).invoke(manual, node)) {
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
+                        "Immersive Engineering manual entry is no longer visible");
+            }
             int offset = 0;
             if (fragmentPosition != null) {
                 try {
@@ -133,10 +149,12 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     "Immersive Engineering text changed; restart the lookup");
             var resourceManager = Minecraft.getInstance().getResourceManager();
             String locale = Minecraft.getInstance().getLanguageManager().getSelected();
+            Object location = entry.getClass().getMethod("getLocation").invoke(entry);
+            String entryPath = (String) location.getClass().getMethod("getPath").invoke(location);
             var resource = resourceManager.getResource(ResourceLocation.fromNamespaceAndPath("immersiveengineering",
-                    "manual/" + locale + "/" + path(entry) + ".txt"));
+                    "manual/" + locale + "/" + entryPath + ".txt"));
             if (resource.isEmpty()) resource = resourceManager.getResource(ResourceLocation.fromNamespaceAndPath(
-                    "immersiveengineering", "manual/en_us/" + path(entry) + ".txt"));
+                    "immersiveengineering", "manual/en_us/" + entryPath + ".txt"));
             if (resource.isEmpty()) return new Fragment("", id + "@" + offset, 0, null,
                     Evidence.Coverage.PARTIAL, "localized manual text is missing");
             try (var stream = resource.get().open(); Reader text = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
@@ -153,15 +171,25 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
     @Override
     public ResolvedDocument resolve(String id, int maxChars, Toolbox.DocumentBudget budget) {
         try {
-            var manual = manual();
-            var entry = findEntry(manual, id);
-            if (entry == null || !visible(manual, entry)) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
+            var helper = Class.forName(MANUAL_HELPER, false, ImmersiveEngineeringGuideReader.class.getClassLoader());
+            var manual = helper.getMethod("getManual").invoke(null);
+            var entryMap = (Map<?, ?>) manual.getClass().getField("contentsByName").get(manual);
+            var entry = entryMap.get(ResourceLocation.parse(id));
+            if (entry == null) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
                     "Immersive Engineering manual entry is no longer visible");
+            var node = entry.getClass().getMethod("getTreeNode").invoke(entry);
+            var abstractNode = Class.forName("blusunrize.lib.manual.Tree$AbstractNode", false,
+                    ImmersiveEngineeringGuideReader.class.getClassLoader());
+            if (node == null || !(boolean) manual.getClass().getMethod("showNodeInList", abstractNode).invoke(manual, node)) {
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
+                        "Immersive Engineering manual entry is no longer visible");
+            }
             if (!budget.document() || !budget.value() || !budget.bytes(id.length() * 6 + 1024)) {
                 throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                         "Immersive Engineering entry exceeds the remaining read budget");
             }
-            String title = string(entry, "getTitle");
+            Object rawTitle = entry.getClass().getMethod("getTitle").invoke(entry);
+            String title = rawTitle instanceof String value ? value : null;
             if (title == null || title.isBlank()) title = id;
             boolean truncated = title.length() > MAX_TITLE_LENGTH;
             if (truncated) title = title.substring(0, MAX_TITLE_LENGTH);
@@ -177,10 +205,14 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
 
     static Fragment readText(Reader source, String id, int offset, int maxChars, int overlapLimit,
                              Toolbox.DocumentBudget budget) {
-        if (offset < 0 || offset > MAX_SEEK_CHARS || maxChars < 1) throw new Toolbox.Failure(
+        if (offset < 0 || offset > MAX_SEEK_CHARS) throw new Toolbox.Failure(
                 Toolbox.Code.INVALID_CURSOR, "invalid Immersive Engineering text position");
         try {
-            int overlap = Math.min(Math.max(0, overlapLimit), offset);
+            if (maxChars < 1) throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS,
+                    "Immersive Engineering fragment limit must be positive");
+            int requestedOverlap = Math.min(Math.max(0, overlapLimit), offset);
+            int overlap = Math.min(requestedOverlap, maxChars - 1);
+            boolean overlapShortened = overlap < requestedOverlap;
             int seek = offset - overlap;
             char[] buffer = new char[Math.min(1024, Math.max(1, seek))];
             int skipped = 0;
@@ -194,9 +226,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                 skipped += count;
             }
             int maxNewChars = maxChars - overlap;
-            if (maxNewChars < 1) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
-                    "Immersive Engineering text overlap exceeds the fragment budget");
-            int boundedNewChars = Math.min(maxNewChars, Math.max(0, budget.remainingBytes() / 6 - overlap));
+            int boundedNewChars = Math.min(Math.min(maxNewChars, MAX_SEEK_CHARS - offset),
+                    Math.max(0, budget.remainingBytes() / 6 - overlap));
             if (boundedNewChars == 0 && budget.remainingBytes() < (overlap + 1) * 6) throw new Toolbox.Failure(
                     Toolbox.Code.EXTRACTION_FAILED, "Immersive Engineering text exceeds the remaining read budget");
             if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
@@ -215,50 +246,33 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
             if (count < overlap) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                     "Immersive Engineering text changed; restart the lookup");
             int newChars = Math.max(0, count - overlap);
-            boolean truncated = count == requested && source.read() >= 0;
+            boolean hasMoreText = false;
+            if (count == requested) {
+                if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                        "Immersive Engineering text exceeds the read budget");
+                hasMoreText = source.read() >= 0;
+            }
+            boolean seekLimitReached = offset + newChars >= MAX_SEEK_CHARS && hasMoreText;
+            boolean truncated = hasMoreText;
             String text = new String(part, 0, count);
             if (newChars > 0 && Character.isHighSurrogate(text.charAt(text.length() - 1))) {
                 text = text.substring(0, text.length() - 1);
                 newChars--;
             }
             int nextOffset = offset + newChars;
-            String next = truncated ? Integer.toString(nextOffset) : null;
+            String next = truncated && !seekLimitReached ? Integer.toString(nextOffset) : null;
+            boolean formattingPartial = text.contains("<") || text.contains(">") || text.contains("\\\n");
+            boolean partial = truncated || overlapShortened || seekLimitReached || formattingPartial;
             return new Fragment(text, id + "@" + offset, overlap, next,
-                    truncated ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                    truncated ? "bounded localized manual text fragment" : null);
+                    partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                    formattingPartial ? "manual formatting tokens are preserved without expansion"
+                            : seekLimitReached ? "manual text exceeded the bounded seek limit"
+                            : overlapShortened ? "query overlap was shortened to the fragment budget"
+                            : truncated ? "bounded localized manual text fragment" : null);
         } catch (IOException failure) {
             throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                     "Immersive Engineering manual text could not be read");
         }
     }
 
-    private static Object manual() throws ReflectiveOperationException {
-        var helper = Class.forName(MANUAL_HELPER, false, ImmersiveEngineeringGuideReader.class.getClassLoader());
-        return helper.getMethod("getManual").invoke(null);
-    }
-
-    private static Map<?, ?> entries(Object manual) throws ReflectiveOperationException {
-        return (Map<?, ?>) manual.getClass().getField("contentsByName").get(manual);
-    }
-
-    private static Object findEntry(Object manual, String id) throws ReflectiveOperationException {
-        var location = ResourceLocation.parse(id);
-        return entries(manual).get(location);
-    }
-
-    private static boolean visible(Object manual, Object entry) throws ReflectiveOperationException {
-        var node = entry.getClass().getMethod("getTreeNode").invoke(entry);
-        return node != null && (boolean) manual.getClass().getMethod("showNodeInList", node.getClass().getSuperclass())
-                .invoke(manual, node);
-    }
-
-    private static String string(Object target, String method) throws ReflectiveOperationException {
-        Object value = target.getClass().getMethod(method).invoke(target);
-        return value instanceof String text ? text : null;
-    }
-
-    private static String path(Object entry) throws ReflectiveOperationException {
-        Object location = entry.getClass().getMethod("getLocation").invoke(entry);
-        return (String) location.getClass().getMethod("getPath").invoke(location);
-    }
 }

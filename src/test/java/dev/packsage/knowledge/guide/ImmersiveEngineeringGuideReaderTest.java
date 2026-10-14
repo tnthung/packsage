@@ -39,4 +39,38 @@ class ImmersiveEngineeringGuideReaderTest {
         assertEquals("2", fragment.nextPosition());
         assertEquals(Evidence.Coverage.PARTIAL, fragment.coverage());
     }
+
+    @Test
+    void continuationShortensOverlapWhenTheFragmentLimitRequiresIt() {
+        var fragment = ImmersiveEngineeringGuideReader.readText(new StringReader("0123456789"), "manual/test", 5,
+                2, 2, new Toolbox.DocumentBudget());
+
+        assertEquals("45", fragment.text());
+        assertEquals(1, fragment.overlapChars());
+        assertEquals("6", fragment.nextPosition());
+        assertEquals(Evidence.Coverage.PARTIAL, fragment.coverage());
+    }
+
+    @Test
+    void seekBoundReturnsTerminalPartialEvidenceWhenTextContinuesPastIt() {
+        var text = "a".repeat(16 * 1024 + 1);
+        var fragment = ImmersiveEngineeringGuideReader.readText(new StringReader(text), "manual/test",
+                16 * 1024 - 2, 4, 1, new Toolbox.DocumentBudget());
+
+        assertEquals(3, fragment.text().length());
+        assertEquals(1, fragment.overlapChars());
+        assertNull(fragment.nextPosition());
+        assertEquals(Evidence.Coverage.PARTIAL, fragment.coverage());
+        assertEquals("manual text exceeded the bounded seek limit", fragment.detail());
+    }
+
+    @Test
+    void unsupportedManualFormattingIsReportedAsPartial() {
+        var fragment = ImmersiveEngineeringGuideReader.readText(new StringReader("<br>line"), "manual/test",
+                0, 16, 2, new Toolbox.DocumentBudget());
+
+        assertEquals("<br>line", fragment.text());
+        assertEquals(Evidence.Coverage.PARTIAL, fragment.coverage());
+        assertEquals("manual formatting tokens are preserved without expansion", fragment.detail());
+    }
 }

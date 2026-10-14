@@ -89,7 +89,8 @@ struct RecipeFilter { text?, output_item?, provider? }
 struct RegistryFilter { text?, ids?, tags?, provider? }
 // Selectors are adapter-contributed strings. The native adapter's shorthand:
 // Item="item", Block="block", ItemTag="item_tag",
-// Enchantment="enchantment", MobEffect="mob_effect", Potion="potion".
+// Enchantment="enchantment", MobEffect="mob_effect", Potion="potion",
+// Dimension="dimension", DimensionType="dimension_type".
 struct RegistrySelector { id }
 
 // Page coverage, authority and read time belong to current observations.
@@ -151,7 +152,7 @@ These are the public contracts that adapter implementations must preserve. The a
 | `search_inventory` | Required `target` selects one inventory. Optional `filter` narrows names, exact IDs/tags, tooltip text and sections; OR within one field and AND across populated fields. Omitted filter enumerates. `cursor` continues the same target/query against current data; `limit` bounds the page. | Current owner/access, sections, item variants/counts, resolvable locations, read time and coverage. Empty inventory, no matches, empty selector and inaccessible contents remain distinct. Default/max page size 32. |
 | `search_document` | Required `query` is literal case-insensitive text. Optional `filter.types` selects `quest` (including chapters) and/or `guide`; absent/empty means unrestricted. Optional `filter.provider` selects one source; absent combines document sources. | Current FTB quest/chapter and Patchouli guide records with observed handles, coverage and continuation. Default limit16, max64. Config is excluded. |
 | `search_recipe` | Optional `filter.text` is literal case-insensitive text; `filter.output_item` is an exact item ID; `filter.provider` selects one recipe source. Absent filter enumerates. No input-item filter is promised. | Current Minecraft and JEI recipe records with handles, coverage and continuation. Default limit16, max64. Minecraft matches decoded output identities; JEI uses its output focus. |
-| `search_registry` | Required `registry` selects `item`, `block`, `item_tag`, `enchantment`, `mob_effect` or `potion`. Optional `filter.text`, exact `filter.ids`, `filter.tags`, and `filter.provider`; absent filters enumerate. ID/tag matching follows selected source identity. Tag membership filters apply wherever the selected registry exposes holder membership; `item_tag` accepts IDs/text, while `filter.tags` on `item_tag` is an explicit `UnsupportedFilter`. | Current registered definitions and observed references. Default limit16, max64. Catalog completeness does not establish complete custom mechanic interpretation. |
+| `search_registry` | Required `registry` selects `item`, `block`, `item_tag`, `enchantment`, `mob_effect`, `potion`, `dimension` or `dimension_type`. Optional `filter.text`, exact `filter.ids`, `filter.tags`, and `filter.provider`; absent filters enumerate. ID/tag matching follows selected source identity. Tag membership filters apply wherever the selected registry exposes holder membership; `item_tag` and `dimension` accept IDs/text, while their `filter.tags` is an explicit `UnsupportedFilter`. Dimension discovery reads current existing worlds; client-only IDs remain partial. | Current registered definitions and observed references. Default limit16, max64. Catalog completeness does not establish complete custom mechanic interpretation. |
 | `read_evidence` | Required `handles` contains previously observed source references, possibly from different adapters. Resolve their scoped locators and read each current source again. | Current detailed records for up to16 handles, no pagination. Removed/inaccessible sources or unresolvable derived records yield explicit failure/unavailability; no earlier record replay. |
 | `read_progress` | Required observed `handles` identify quest/chapter subjects. Locators retain document kind and object ID; read the live file/player/team overlay. | Current progress/visibility/dependency/task/reward evidence, up to16 handles. Per-handle refresh failures become status records and partial batch coverage rather than old progress. No quest completion or reward claiming action. |
 | `plan_recipe` | Required item `identity` and desired `quantity`; optional `depth` defaults to4. Read current native recipe evidence and explore bounded alternatives. | Routes, inputs/outputs, quantity/batch calculations and uncertainty. Quantity1..1,000,000; depth0..8; cap256 nodes/64 branches. This computes evidence; it does not craft or move items. |
@@ -499,16 +500,34 @@ impl Toolbox for MinecraftAdapter {
     fn search_registry(&self, registry, filter?, cursor?, limit?, ctx) -> ToolResult {
         if filter.provider.is_some_and(|value| value != "native") { return Err(NotHandled); }
         if !matches!(registry,
-            Item | Block | ItemTag | Enchantment | MobEffect | Potion
+            Item | Block | ItemTag | Enchantment | MobEffect | Potion | Dimension | DimensionType
         ) { return Err(NotHandled); }
         require_live_world_and_connection()?;
         let text = filter.text.unwrap_or("").to_lowercase(Locale::ROOT);
         let ids = filter.ids.unwrap_or_default();
         let tags = filter.tags.unwrap_or_default();
+        if registry == Dimension {
+            if !tags.is_empty() { return Err(UnsupportedFilter("dimension has no tag membership")); }
+            // Resolve current client/session identity on its thread, then submit
+            // asynchronously to the private integrated server. Recheck sole-owner,
+            // unpublished-session access and scope there; never block the client.
+            // Enumerate current level keys and resolve existing worlds only.
+            // Emit ID/type identity, SERVER_READ authority and fresh handles.
+            // Otherwise read current connection-known IDs with PARTIAL coverage,
+            // including empty results. Do not create/load worlds or scan saves.
+            return search_current_runtime_dimensions(ids, text, cursor, limit, ctx);
+        }
         let current = ctx.client_thread(|| match registry {
             Item => capture_current_item_registry_and_item_tags(),
             Block => capture_current_block_registry_and_exposed_tags(),
             ItemTag => capture_current_item_tag_registry_and_membership(),
+            DimensionType => {
+                // Current synchronized registry, including modded types. Project
+                // bounded environmental fields; multiple worlds may share a type.
+                // Use current holder tags and NativeDefinition(DimensionType, id).
+                current_level.registry_access().registry(Registries.DIMENSION_TYPE)?
+                    .entries().map(current_dimension_type_record)
+            }
             Enchantment => {
                 // Use the active world's synchronized datapack
                 // registry, not BuiltInRegistries or JAR JSON definitions.
@@ -1466,7 +1485,7 @@ The main sections specify the final contract. These notes map the source baselin
 | --- | --- |
 | `PackSageTools`, `KnowledgeService.execute/search/eligible/PROVIDER_KINDS` | Expose twelve signatures; replace `search_pack` with `search_document`, `search_recipe`, `search_registry`; move matching into adapters and metadata-driven fan-out into `DiscoverySearchAdapter`. |
 | `KnowledgeService.observed` | Replace retained evidence payloads with scope-bound locators whose owners reread live sources. Dispatch `read_evidence` and `read_progress` one validated handle at a time. |
-| Native inventory/storage readers and menu shortcut | Provide live opened-menu and target/entity/ridden access; add entity equipment/cargo and item/block/enchantment/mob_effect/potion registry branches; replace captured-page cursors with current positional continuations. |
+| Native inventory/storage readers and menu shortcut | Provide live opened-menu and target/entity/ridden access; add entity equipment/cargo and item/block/enchantment/mob_effect/potion/dimension/dimension_type registry branches; replace captured-page cursors with current positional continuations. |
 | Native registry tag matching | Generalize tag membership to registries whose holder APIs expose it; keep `filter.tags` invalid for `item_tag` definitions. |
 | `JeiProvider`, `FtbProvider`, `PatchouliProvider` | Move provider matching into `search_recipe`/`search_document`, preserve native JEI focus, live FTB team progress and current Patchouli page visibility/decoding. Reread evidence instead of returning observed record bodies. |
 | `ConfigProvider` and `AssistantRuntime.executeTool` | Keep config-specific operations and saved-file bounds out of general discovery; register history in the adapter chain and remove separate history routing. |

@@ -81,8 +81,19 @@ class ActuallyAdditionsGuideReaderTest {
             Field realPages = BookEntry.class.getDeclaredField("realPages");
             realPages.setAccessible(true);
             realPages.set(entry, List.of(page));
+            var secondEntryId = ResourceLocation.parse("actuallyadditions:booklet/second");
+            BookEntry secondEntry;
+            try {
+                secondEntry = (BookEntry) BookEntry.class.getConstructor(JsonObject.class, ResourceLocation.class,
+                        Book.class, String.class).newInstance(entryJson.deepCopy(), secondEntryId, book, null);
+            } catch (NoSuchMethodException newerConstructor) {
+                secondEntry = (BookEntry) BookEntry.class.getConstructor(JsonObject.class, ResourceLocation.class,
+                        Book.class, String.class, HolderLookup.Provider.class).newInstance(entryJson.deepCopy(), secondEntryId,
+                        book, null, RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
+            }
+            secondEntry.updateLockStatus();
             var contents = new vazkii.patchouli.client.book.BookContents(book, com.google.common.collect.ImmutableMap.of(),
-                    com.google.common.collect.ImmutableMap.of(entryId, entry), com.google.common.collect.ImmutableMap.of(), null);
+                    com.google.common.collect.ImmutableMap.of(entryId, entry, secondEntryId, secondEntry), com.google.common.collect.ImmutableMap.of(), null);
             Field bookContents = Book.class.getDeclaredField("contents");
             bookContents.setAccessible(true);
             bookContents.set(book, contents);
@@ -99,6 +110,16 @@ class ActuallyAdditionsGuideReaderTest {
             assertTrue(next.text().length() <= 64);
             assertTrue(next.overlapChars() > 0);
             assertTrue(next.text().contains("Changed text"));
+
+            var exhausted = new Toolbox.DocumentBudget();
+            assertTrue(exhausted.bytes(96 * 1024 - 128));
+            var deferred = reader.candidates(null, 1, exhausted);
+            assertTrue(deferred.candidates().isEmpty());
+            assertTrue(deferred.more());
+            var firstPage = reader.candidates(deferred.nextPosition(), 1, new Toolbox.DocumentBudget());
+            var secondPage = reader.candidates(firstPage.nextPosition(), 1, new Toolbox.DocumentBudget());
+            assertEquals(List.of(entryId.toString()), firstPage.candidates().stream().map(GuideDocumentReader.Candidate::id).toList());
+            assertEquals(List.of(secondEntryId.toString()), secondPage.candidates().stream().map(GuideDocumentReader.Candidate::id).toList());
         } finally {
             configField.set(null, originalConfig);
         }

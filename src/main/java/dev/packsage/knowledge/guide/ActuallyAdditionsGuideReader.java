@@ -65,7 +65,7 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
                     .getMethod("asList").invoke(values);
             var candidates = new ArrayList<Candidate>();
             int start = 0;
-            String next = null;
+            String next = afterPosition;
             if (afterPosition != null) {
                 int separator = afterPosition.indexOf('|');
                 try {
@@ -83,21 +83,34 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
                 }
             }
             for (int index = start; index < indexedEntries.size(); index++) {
-                if (!budget.value()) return new CandidatePage(candidates, next, next != null, Evidence.Coverage.PARTIAL,
+                if (!budget.value()) return new CandidatePage(candidates, next, true, Evidence.Coverage.PARTIAL,
                         "booklet traversal reached the source-work bound");
                 var entry = indexedEntries.get(index);
                 var id = entry.getClass().getMethod("getId").invoke(entry).toString();
-                next = index + "|" + id;
+                var entryPosition = index + "|" + id;
                 if ((boolean) entry.getClass().getMethod("shouldHide").invoke(entry)
-                        || (boolean) entry.getClass().getMethod("isLocked").invoke(entry)) continue;
+                        || (boolean) entry.getClass().getMethod("isLocked").invoke(entry)) {
+                    next = entryPosition;
+                    continue;
+                }
                 if (!budget.bytes(id.length() * 6 + 128))
-                    return new CandidatePage(candidates, next, false, Evidence.Coverage.PARTIAL,
+                    return new CandidatePage(candidates, next, true, Evidence.Coverage.PARTIAL,
                             "booklet metadata reached the output bound");
                 var helper = Class.forName("dev.packsage.knowledge.patchouli.PatchouliLiveReader");
                 var titleMethod = java.util.Arrays.stream(helper.getMethods()).filter(method -> method.getName().equals("title")
                         && method.getParameterCount() == 3).findFirst().orElseThrow();
-                var title = (String) titleMethod.invoke(null, book, entry, budget);
-                candidates.add(new Candidate(id, title, next, List.of("patchouli:book:" + BOOK_ID), Evidence.Coverage.COMPLETE));
+                String title;
+                try {
+                    title = (String) titleMethod.invoke(null, book, entry, budget);
+                } catch (java.lang.reflect.InvocationTargetException failure) {
+                    if (failure.getCause() instanceof Toolbox.Failure budgetFailure
+                            && budgetFailure.code() == Toolbox.Code.EXTRACTION_FAILED)
+                        return new CandidatePage(candidates, next, true, Evidence.Coverage.PARTIAL,
+                                "booklet metadata reached the source-work or output bound");
+                    throw failure;
+                }
+                candidates.add(new Candidate(id, title, entryPosition, List.of("patchouli:book:" + BOOK_ID), Evidence.Coverage.COMPLETE));
+                next = entryPosition;
                 if (candidates.size() == limit)
                     return new CandidatePage(candidates, next, index + 1 < indexedEntries.size(), index + 1 < indexedEntries.size()
                             ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, null);

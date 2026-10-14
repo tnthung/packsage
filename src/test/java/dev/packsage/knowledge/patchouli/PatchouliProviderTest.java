@@ -382,6 +382,37 @@ class PatchouliProviderTest {
             var fresh = live.query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of(
                     "id", new Evidence.JsonString("fixture:book#fixture:book/aura"))), 1, null, null), SCOPE).toCompletableFuture().join();
             assertEquals("Changed current title", fresh.records().getFirst().title());
+            var manyEntries = com.google.common.collect.ImmutableMap.<ResourceLocation, BookEntry>builder();
+            manyEntries.put(entryId, entry);
+            manyEntries.put(secondId, second);
+            for (int index = 0; index < 300; index++) {
+                var manyId = ResourceLocation.parse("fixture:book/many_" + index);
+                BookEntry many;
+                try {
+                    many = (BookEntry) BookEntry.class.getConstructor(JsonObject.class, ResourceLocation.class,
+                            Book.class, String.class).newInstance(entryJson, manyId, book, null);
+                } catch (NoSuchMethodException newerConstructor) {
+                    many = (BookEntry) BookEntry.class.getConstructor(JsonObject.class, ResourceLocation.class,
+                            Book.class, String.class, HolderLookup.Provider.class).newInstance(entryJson, manyId,
+                            book, null, RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
+                }
+                many.updateLockStatus();
+                manyEntries.put(manyId, many);
+            }
+            contentsField.set(book, new vazkii.patchouli.client.book.BookContents(book, com.google.common.collect.ImmutableMap.of(),
+                    manyEntries.build(), com.google.common.collect.ImmutableMap.of(), null));
+            var traversal = new java.util.LinkedHashMap<>(arguments);
+            traversal.remove("cursor");
+            traversal.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(64)));
+            int observed = 0;
+            for (int calls = 0; calls < 16; calls++) {
+                var result = live.searchDocument(new PackSageTools.ReadRequest("search_document", new Evidence.JsonObject(traversal), SCOPE),
+                        context(registry, Map.of())).toCompletableFuture().join();
+                observed += result.records().size();
+                if (result.nextCursor() == null) break;
+                traversal.put("cursor", new Evidence.JsonString(result.nextCursor()));
+            }
+            assertEquals(302, observed);
             contentsField.set(book, new vazkii.patchouli.client.book.BookContents(book, com.google.common.collect.ImmutableMap.of(),
                     com.google.common.collect.ImmutableMap.of(secondId, second), com.google.common.collect.ImmutableMap.of(), null));
             assertEquals(Toolbox.Code.INVALID_CURSOR, failureCode(live.searchDocument(new PackSageTools.ReadRequest("search_document",

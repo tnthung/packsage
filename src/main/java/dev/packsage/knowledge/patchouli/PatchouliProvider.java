@@ -500,7 +500,9 @@ public final class PatchouliProvider implements KnowledgeProvider {
                 bookIterator = List.of(book).iterator();
             }
             outer: while (bookIterator.hasNext()) {
-                if (!context.documentBudget().document()) {
+                if (!context.documentBudget().value()) {
+                    if (selected != null && (lastVisited == null || lastVisited.offset() <= selected.offset()))
+                        throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Patchouli book seek exceeds the bounded continuation range");
                     if (lastVisited != null) { next = lastVisited; partial = true; break; }
                     throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "Patchouli book seek exceeds the shared read budget");
                 }
@@ -515,7 +517,9 @@ public final class PatchouliProvider implements KnowledgeProvider {
                     iterator = List.of(entry).iterator();
                 }
                 while (iterator.hasNext()) {
-                    if (!context.documentBudget().document()) {
+                    boolean seeking = selected != null && (index < selected.offset() || index == selected.offset() && selected.after());
+                    if (!context.documentBudget().value() || !seeking && !context.documentBudget().document()) {
+                        if (seeking) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Patchouli entry seek exceeds the bounded continuation range");
                         if (lastVisited != null) { next = lastVisited; partial = true; break outer; }
                         throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "Patchouli entry seek exceeds the shared read budget");
                     }
@@ -725,9 +729,9 @@ public final class PatchouliProvider implements KnowledgeProvider {
                 }
                 if (scopeSource == null) {
                     lastScope = snapshot.scope();
-                        latestCoverage = snapshot.coverage();
-                        opaque = snapshot.books().stream().flatMap(book -> book.entries().stream()).flatMap(entry -> entry.pages().stream())
-                                .anyMatch(page -> page.decoding() == Evidence.DecodingStatus.OPAQUE);
+                    latestCoverage = snapshot.coverage();
+                    opaque = snapshot.books().stream().flatMap(book -> book.entries().stream()).flatMap(entry -> entry.pages().stream())
+                            .anyMatch(page -> page.decoding() == Evidence.DecodingStatus.OPAQUE);
                     currentLifecycleGeneration = generation;
                 }
                 failure = snapshot.coverage() == Evidence.Coverage.ERROR ? snapshot.failure() : null;

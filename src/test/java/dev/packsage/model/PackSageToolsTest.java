@@ -19,6 +19,43 @@ class PackSageToolsTest {
     private static final List<String> NAMES = List.of("search_document", "search_recipe", "search_registry", "search_inventory", "read_evidence", "read_progress", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history");
 
     @Test
+    void continuationCallPreservesQueryAndExecutesAnotherLiveRead() throws Exception {
+        var calls = new java.util.ArrayList<PackSageTools.ReadRequest>();
+        var tools = new PackSageTools(request -> {
+            calls.add(request);
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                    calls.size() == 1 ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                    calls.size() == 1 ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE,
+                    calls.size() == 1 ? "next-live-position" : null));
+        });
+        var response = tools.execute(new ModelBackend.ToolCall("first", "search_document",
+                "{\"query\":\"fall damage\",\"filter\":{\"types\":[\"guide\"]},\"limit\":10}"), SCOPE).toCompletableFuture().get();
+        var next = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject().getAsJsonObject("nextCall");
+        assertNotNull(next);
+        var continued = tools.execute(new ModelBackend.ToolCall("second", next.get("name").getAsString(),
+                next.get("arguments").toString()), SCOPE).toCompletableFuture().get();
+        assertEquals(2, calls.size());
+        assertEquals(Evidence.deserializeObject("{\"query\":\"fall damage\",\"filter\":{\"types\":[\"guide\"]},\"limit\":10,\"cursor\":\"next-live-position\"}"), calls.get(1).arguments());
+        assertFalse(JsonParser.parseString(continued.result().serializedResult()).getAsJsonObject().has("nextCall"));
+    }
+
+    @Test
+    void invalidCursorOffersExplicitFreshRestartWithoutRetryingSilently() throws Exception {
+        var calls = new AtomicInteger();
+        var tools = new PackSageTools(request -> {
+            calls.incrementAndGet();
+            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "query changed"));
+        });
+        var response = tools.execute(new ModelBackend.ToolCall("bad", "search_recipe",
+                "{\"filter\":{\"text\":\"backpack\"},\"limit\":20,\"cursor\":\"old\"}"), SCOPE).toCompletableFuture().get();
+        var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertTrue(response.result().error());
+        assertEquals(1, calls.get());
+        assertNotNull(json.getAsJsonObject("restartCall"));
+        assertEquals(JsonParser.parseString("{\"name\":\"search_recipe\",\"arguments\":{\"filter\":{\"text\":\"backpack\"},\"limit\":20,\"cursor\":null}}"), json.get("restartCall"));
+    }
+
+    @Test
     void exposesExactlyTwelveToolsAndKeepsOptionalArgumentsOptional() {
         var definitions = PackSageTools.definitions();
         assertEquals(NAMES, definitions.stream().map(ModelBackend.ToolDefinition::name).toList());

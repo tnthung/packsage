@@ -21,11 +21,12 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.math.BigDecimal;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -644,21 +645,80 @@ public final class PackSageJeiPlugin implements IModPlugin {
 
         private static CapturedIngredient ingredient(IJeiRuntime runtime, ITypedIngredient<?> typed,
                                                      RecipeIngredientRole role, Toolbox.DocumentBudget budget) {
-            if (!budget.value() || !budget.bytes(1024)) return new CapturedIngredient(
+            var unreadIngredient = new CapturedIngredient(
                     new JeiProvider.Ingredient("unknown", "budget:unread", new Evidence.JsonObject(Map.of()),
                             null, Evidence.Consumption.UNKNOWN), true, false, false);
+            if (!budget.value()) return unreadIngredient;
             var type = typed.getType();
             var value = typed.getIngredient();
             var partial = false;
             var typeId = type.getUid();
-            var identity = "unknown:" + typeId + ":" + value.getClass().getName();
+            var valueClass = value.getClass().getName();
+            if (typeId.length() > budget.remainingBytes() || valueClass.length() > budget.remainingBytes()) {
+                budget.bytes(budget.remainingBytes() + 1);
+                return unreadIngredient;
+            }
+            var typeIdBytes = typeId.getBytes(StandardCharsets.UTF_8);
+            var valueClassBytes = valueClass.getBytes(StandardCharsets.UTF_8);
+            String identity;
+            int identityBytes;
+            var componentBytes = valueClassBytes.length;
+            var descriptionId = valueClass;
+            var componentHash = 0;
             if (value instanceof ItemStack stack) {
-                typeId = type.getUid();
-                identity = BuiltInRegistries.ITEM.getKey(stack.getItem()) + "|componentsHash="
-                        + stack.getComponents().hashCode();
+                var itemKey = BuiltInRegistries.ITEM.getKey(stack.getItem());
+                var itemNamespace = itemKey.getNamespace();
+                var itemPath = itemKey.getPath();
+                descriptionId = stack.getDescriptionId();
+                componentHash = stack.getComponents().hashCode();
+                var componentHashText = Integer.toString(componentHash);
+                if (itemNamespace.length() + 1L + itemPath.length() > budget.remainingBytes()
+                        || descriptionId.length() > budget.remainingBytes()) {
+                    budget.bytes(budget.remainingBytes() + 1);
+                    return unreadIngredient;
+                }
+                var itemNamespaceBytes = itemNamespace.getBytes(StandardCharsets.UTF_8);
+                var itemPathBytes = itemPath.getBytes(StandardCharsets.UTF_8);
+                var descriptionIdBytes = descriptionId.getBytes(StandardCharsets.UTF_8);
+                identityBytes = itemNamespaceBytes.length + 1 + itemPathBytes.length
+                        + "|componentsHash=".length() + componentHashText.length();
+                componentBytes = descriptionIdBytes.length;
+                var escapedBytes = 0;
+                for (var text : new String[] { typeId, itemNamespace, itemPath, itemNamespace, itemPath, descriptionId }) {
+                    for (var index = 0; index < text.length(); index++) {
+                        var character = text.charAt(index);
+                        if (character == '"' || character == '\\' || character == '\b' || character == '\t'
+                                || character == '\n' || character == '\f' || character == '\r') escapedBytes++;
+                        else if (character < 0x20 || character == '<' || character == '>' || character == '&'
+                                || character == '=' || character == '\'' || character == '\u2028' || character == '\u2029') {
+                            escapedBytes += 5;
+                        }
+                    }
+                }
+                if (!budget.bytes(256 + typeIdBytes.length + identityBytes + componentBytes + escapedBytes)) {
+                    return unreadIngredient;
+                }
+                var itemId = itemKey.toString();
+                identity = itemId + "|componentsHash=" + componentHashText;
                 partial = !stack.getComponents().isEmpty();
             } else {
-                identity = typeId + ":" + value.getClass().getName();
+                identityBytes = typeIdBytes.length + 1 + valueClassBytes.length;
+                var escapedBytes = 0;
+                for (var text : new String[] { typeId, typeId, valueClass, valueClass }) {
+                    for (var index = 0; index < text.length(); index++) {
+                        var character = text.charAt(index);
+                        if (character == '"' || character == '\\' || character == '\b' || character == '\t'
+                                || character == '\n' || character == '\f' || character == '\r') escapedBytes++;
+                        else if (character < 0x20 || character == '<' || character == '>' || character == '&'
+                                || character == '=' || character == '\'' || character == '\u2028' || character == '\u2029') {
+                            escapedBytes += 5;
+                        }
+                    }
+                }
+                if (!budget.bytes(256 + typeIdBytes.length + identityBytes + componentBytes + escapedBytes)) {
+                    return unreadIngredient;
+                }
+                identity = typeId + ":" + valueClass;
                 partial = true;
             }
             Integer quantity = null;
@@ -671,9 +731,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
             if (value instanceof ItemStack stack) {
                 componentValues.put("componentCount", new Evidence.JsonNumber(BigDecimal.valueOf(
                         stack.getComponents().size())));
-                componentValues.put("componentHash", new Evidence.JsonNumber(BigDecimal.valueOf(
-                        stack.getComponents().hashCode())));
-                componentValues.put("descriptionId", new Evidence.JsonString(stack.getDescriptionId()));
+                componentValues.put("componentHash", new Evidence.JsonNumber(BigDecimal.valueOf(componentHash)));
+                componentValues.put("descriptionId", new Evidence.JsonString(descriptionId));
             } else {
                 componentValues.put("valueClass", new Evidence.JsonString(value.getClass().getName()));
                 partial = true;

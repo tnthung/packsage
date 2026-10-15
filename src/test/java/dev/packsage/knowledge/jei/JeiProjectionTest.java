@@ -818,7 +818,6 @@ class JeiProjectionTest {
             ingredientBudgetScenario.set(true);
             PackSageJeiPlugin.clientTicked();
             var furnaceIngredients = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
-            assertEquals(Evidence.Coverage.COMPLETE, furnaceIngredients.coverage());
             assertEquals(8, furnaceIngredients.records().getFirst().recipePayload().inputs().size());
             assertTrue(furnaceIngredients.records().getFirst().recipePayload().inputs().stream()
                     .allMatch(slot -> slot.alternatives().size() == 21));

@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Added a serialization regression for exact repeated input totals after a natural answer miscounted the correctly returned crafting slots.
 - Fixed later-page booklet seeks that mistook exhausted shared budgets for stale cursors; resumable extraction failures retain the current fragment, while genuinely out-of-range pages still reject the cursor.
 - Added a regression distinguishing budget exhaustion while seeking a later booklet page from a genuinely stale page position.
 - Replaced generic descriptions on document, recipe, inventory and evidence/progress tools with concise operation-specific guidance, keeping public schemas unchanged and reinforcing live reads, valid handles and continuation rules at tool selection time.

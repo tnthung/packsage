@@ -59,6 +59,38 @@ class PackSageToolsTest {
     }
 
     @Test
+    void serializesDeterministicTotalsForSingletonConsumedRecipeInputs() throws Exception {
+        var iron = new Evidence.RecipeAlternative("item", "minecraft:iron_ingot", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
+        var redstone = new Evidence.RecipeAlternative("item", "minecraft:redstone", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
+        var casing = new Evidence.RecipeAlternative("item", "actuallyadditions:iron_casing", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
+        var recipe = new Evidence.RecipePayload("actuallyadditions:atomic_reconstructor", List.of(
+                new Evidence.RecipeSlot("iron-1", List.of(iron)), new Evidence.RecipeSlot("redstone-1", List.of(redstone)),
+                new Evidence.RecipeSlot("iron-2", List.of(iron)), new Evidence.RecipeSlot("redstone-2", List.of(redstone)),
+                new Evidence.RecipeSlot("casing", List.of(casing)), new Evidence.RecipeSlot("iron-3", List.of(iron)),
+                new Evidence.RecipeSlot("redstone-3", List.of(redstone)), new Evidence.RecipeSlot("iron-4", List.of(iron)),
+                new Evidence.RecipeSlot("redstone-4", List.of(redstone))), List.of(), List.of(), List.of(), List.of(), Evidence.DecodingStatus.VERIFIED);
+        var record = new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "recipe:atomic_reconstructor", 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.RECIPE, "Atomic Reconstructor", new Evidence.JsonObject(Map.of()), List.of(), recipe);
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(record),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+
+        var json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("recipe", "search_recipe", "{}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        var encoded = json.getAsJsonArray("records").get(0).getAsJsonObject();
+
+        assertEquals(9, encoded.getAsJsonObject("recipe").getAsJsonArray("inputs").size());
+        var totals = encoded.getAsJsonObject("recipe").getAsJsonArray("requiredInputTotals");
+        assertEquals(3, totals.size());
+        assertEquals(4, totals.get(0).getAsJsonObject().get("quantity").getAsInt());
+        assertEquals("minecraft:iron_ingot", totals.get(0).getAsJsonObject().get("comparisonIdentity").getAsString());
+        assertEquals(4, totals.get(1).getAsJsonObject().get("quantity").getAsInt());
+        assertEquals("minecraft:redstone", totals.get(1).getAsJsonObject().get("comparisonIdentity").getAsString());
+        assertEquals(1, totals.get(2).getAsJsonObject().get("quantity").getAsInt());
+        assertEquals("actuallyadditions:iron_casing", totals.get(2).getAsJsonObject().get("comparisonIdentity").getAsString());
+    }
+
+    @Test
     void dimensionSelectorsAreAdvertisedAndReachDispatch() throws Exception {
         var requests = new java.util.ArrayList<PackSageTools.ReadRequest>();
         var tools = new PackSageTools(request -> {

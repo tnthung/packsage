@@ -343,12 +343,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         var recipeIterator = recipes.iterator();
                         var recipeCount = 0;
                         var recipeOrdinal = 0;
-                        while (recipeIterator.hasNext()) {
+                        while (recipeOrdinal < MAX_CURSOR_SEEK && recipeIterator.hasNext()) {
                             var seekingRecipe = recipeOrdinal < categoryCursor;
-                            if (recipeOrdinal >= MAX_CURSOR_SEEK) {
-                                partial = true;
-                                break;
-                            }
                             if (projections.size() >= pageLimit || scanned >= MAX_SCANNED_RECIPES) {
                                 partial |= scanned >= MAX_SCANNED_RECIPES;
                                 hasMore = true;
@@ -426,6 +422,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 break;
                             }
                         }
+                        if (recipeOrdinal >= MAX_CURSOR_SEEK) partial = true;
                         if (categoryIndex == cursorCategory && categoryCursor > recipeOrdinal && !hasMore) cursorInvalid = true;
                         if (hasMore) break;
                         if (recipeCount == 0 && !categoryKnown && categoryCursor == 0 && matches(categoryId, title, null,

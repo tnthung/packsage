@@ -250,7 +250,8 @@ public final class NativeInventoryReader implements InventoryReader {
         var coverage = unsupportedSections.isEmpty() || capture.coverage() != Evidence.Coverage.COMPLETE
                 ? capture.coverage() : Evidence.Coverage.PARTIAL;
         var outcome = coverage == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL;
-        var detail = "source=vanilla-player-inventory-and-equipment; capturedAt=" + capture.capturedAt()
+        var detail = "scope=direct vanilla player slots and equipment; nested storage contents are not inspected"
+                + "; source=vanilla-player-inventory-and-equipment; capturedAt=" + capture.capturedAt()
                 + (unsupportedSections.isEmpty() ? "" : "; unsupported native inventory sections were not inspected: "
                 + String.join(", ", unsupportedSections) + "; native sections covered: " + String.join(", ", SUPPORTED_SECTIONS));
         return new Evidence.Result(records, coverage, outcome, next, detail);

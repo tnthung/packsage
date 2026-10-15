@@ -102,6 +102,42 @@ class NativeInventoryReaderTest {
     }
 
     @Test
+    void filteredMissReportsDirectPlayerSlotScopeWhileUnfilteredReadExposesNestedReference() {
+        var payload = new Evidence.JsonObject(Map.of(
+                "id", new Evidence.JsonString("minecraft:bundle"),
+                "slotReference", new Evidence.JsonString("native:inventory:observation:hotbar:2"),
+                "nestedStorageContentsOmitted", new Evidence.JsonBoolean(true)));
+        var bundle = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "inventory:hotbar:2", 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Bundle", payload, List.of());
+        var slot = new NativeInventoryReader.CapturedSlot("hotbar", 2, null, false, "minecraft:bundle", "Bundle",
+                "native:inventory:observation:hotbar:2", bundle, List.of(), List.of(), new ItemStack(Items.BUNDLE));
+        var summary = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "summary", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.OTHER, "Inventory", new Evidence.JsonObject(Map.of()), List.of());
+        var reader = new NativeInventoryReader(Runnable::run, () -> SCOPE,
+                request -> new NativeInventoryReader.Capture(List.of(slot), summary, Evidence.Coverage.COMPLETE,
+                        Instant.EPOCH, 1), address -> null, () -> 1);
+
+        var filteredMiss = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
+                new InventoryReader.Filter(List.of(), List.of("minecraft:redstone"), List.of(), List.of(), List.of()),
+                32, null, SCOPE)).toCompletableFuture().join();
+
+        assertEquals(Evidence.Coverage.COMPLETE, filteredMiss.coverage());
+        assertTrue(filteredMiss.records().isEmpty());
+        assertTrue(filteredMiss.detail().contains("direct vanilla player slots and equipment"));
+        assertTrue(filteredMiss.detail().contains("nested storage contents are not inspected"));
+
+        var unfiltered = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
+                InventoryReader.Filter.empty(), 32, null, SCOPE)).toCompletableFuture().join();
+
+        assertEquals("native:inventory:observation:hotbar:2",
+                ((Evidence.JsonString) unfiltered.records().getFirst().payload().values().get("slotReference")).value());
+        assertTrue(((Evidence.JsonBoolean) unfiltered.records().getFirst().payload().values()
+                .get("nestedStorageContentsOmitted")).value());
+    }
+
+    @Test
     void unsupportedSectionsAreReportedAndMixedCoverageIsPartial() {
         var apple = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "apple", 1, Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),

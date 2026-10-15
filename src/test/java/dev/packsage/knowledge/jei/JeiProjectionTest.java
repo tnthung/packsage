@@ -569,6 +569,7 @@ class JeiProjectionTest {
                     "a cursor within the category seek bound must remain resumable");
             assertEquals(1, lateCategory.records().size());
             assertEquals("fixture:recipe", lateCategory.records().getFirst().recipePayload().canonicalRecipeId());
+            assertNotNull(lateCategory.nextCursor());
             assertTrue(lateCategory.nextCursor().endsWith("|201000000"));
             PackSageJeiPlugin.clientTicked();
             var nextCategory = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
@@ -580,7 +581,7 @@ class JeiProjectionTest {
             assertNull(nextCategory.nextCursor());
 
             recipes.set(List.of("a".repeat(50_000)));
-            categories.set(List.of(category));
+            categories.set(java.util.Collections.nCopies(202, category));
             PackSageJeiPlugin.clientTicked();
             var oversizedCanonical = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("missing"))), 1,
@@ -591,6 +592,7 @@ class JeiProjectionTest {
                     "a canonical ID too large for a fresh page must not emit an unusable cursor");
 
             recipes.set(List.of("first", "second"));
+            categories.set(List.of(category));
             type.set(new RecipeType<>(ResourceLocation.fromNamespaceAndPath("fixture", "uncoded"), Object.class));
             PackSageJeiPlugin.clientTicked();
             var firstPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,

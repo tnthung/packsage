@@ -267,6 +267,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var categoryLookupFailed = false;
             var cursorInvalid = false;
             var cursorCategoryFound = false;
+            var terminalPartial = false;
             try (var categories = manager.createRecipeCategoryLookup().includeHidden().limitFocus(focuses).get()) {
                 var categoryIterator = categories.iterator();
                 while (categoryIterator.hasNext()) {
@@ -388,6 +389,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                         if (canonicalBytes > budget.remainingBytes()) {
                                             if (canonicalBytes > freshCategoryBytes) {
                                                 partial = true;
+                                                terminalPartial = true;
                                                 break;
                                             }
                                             partial = true;
@@ -397,8 +399,10 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                             break;
                                         }
                                         if (!budget.bytes((int) canonicalBytes)) {
-                                            if (canonicalBytes > freshCategoryBytes) partial = true;
-                                            else {
+                                            if (canonicalBytes > freshCategoryBytes) {
+                                                partial = true;
+                                                terminalPartial = true;
+                                            } else {
                                                 partial = true;
                                                 hasMore = true;
                                                 nextCategory = categoryIndex;
@@ -446,7 +450,10 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 break;
                             }
                         }
-                        if (recipeOrdinal >= MAX_CURSOR_SEEK) partial = true;
+                        if (recipeOrdinal >= MAX_CURSOR_SEEK) {
+                            partial = true;
+                            terminalPartial = true;
+                        }
                         if (categoryIndex == cursorCategory && categoryCursor > recipeOrdinal && !hasMore) cursorInvalid = true;
                         if (hasMore) break;
                         if (recipeCount == 0 && !categoryKnown && categoryCursor == 0 && matches(categoryId, title, null,
@@ -480,6 +487,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         }
                         error = true;
                     }
+                    if (terminalPartial) break;
                     if (!hasMore && (projections.size() >= pageLimit || scanned >= MAX_SCANNED_RECIPES)
                             && categoryIterator.hasNext()) {
                         partial |= scanned >= MAX_SCANNED_RECIPES;

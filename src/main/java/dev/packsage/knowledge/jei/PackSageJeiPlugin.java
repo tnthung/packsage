@@ -554,6 +554,36 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         Evidence.Coverage.PARTIAL, Evidence.DecodingStatus.PARTIAL,
                         "JEI shared read budget ended at a recipe slot");
                 var slotView = slots.next();
+                var groupId = slotView.getSlotName().orElse("slot-" + slotIndex++);
+                if (groupId.length() > budget.remainingBytes()) {
+                    budget.bytes(budget.remainingBytes() + 1);
+                    return new JeiProvider.Projection(categoryId, handle, canonical, title, capturedSlots,
+                            catalystCapture.ingredients(), List.of(), false, false, Evidence.Coverage.PARTIAL,
+                            Evidence.DecodingStatus.PARTIAL, "JEI shared read budget ended at an oversized slot name");
+                }
+                var groupIdBytes = groupId.getBytes(StandardCharsets.UTF_8).length;
+                var escapedGroupIdBytes = 0;
+                for (var index = 0; index < groupId.length(); index++) {
+                    var character = groupId.charAt(index);
+                    if (character == '"' || character == '\\' || character == '\b' || character == '\t'
+                            || character == '\n' || character == '\f' || character == '\r') escapedGroupIdBytes++;
+                    else if (character < 0x20 || character == '<' || character == '>' || character == '&'
+                            || character == '=' || character == '\'' || character == '\u2028' || character == '\u2029') {
+                        escapedGroupIdBytes += 5;
+                    }
+                }
+                var groupIdEvidenceBytes = 2L * (groupIdBytes + escapedGroupIdBytes);
+                if (groupIdEvidenceBytes > budget.remainingBytes()) {
+                    budget.bytes(budget.remainingBytes() + 1);
+                    return new JeiProvider.Projection(categoryId, handle, canonical, title, capturedSlots,
+                            catalystCapture.ingredients(), List.of(), false, false, Evidence.Coverage.PARTIAL,
+                            Evidence.DecodingStatus.PARTIAL, "JEI shared read budget ended at an oversized slot name");
+                }
+                if (!budget.bytes((int) groupIdEvidenceBytes)) {
+                    return new JeiProvider.Projection(categoryId, handle, canonical, title, capturedSlots,
+                            catalystCapture.ingredients(), List.of(), false, false, Evidence.Coverage.PARTIAL,
+                            Evidence.DecodingStatus.PARTIAL, "JEI shared read budget ended at an oversized slot name");
+                }
                 var ingredients = new ArrayList<JeiProvider.Ingredient>();
                 var ingredientValues = slotView.getAllIngredientsList().iterator();
                 while (ingredientValues.hasNext()) {
@@ -571,7 +601,6 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             Evidence.Coverage.PARTIAL, Evidence.DecodingStatus.PARTIAL,
                             "JEI shared read budget ended at a slot ingredient");
                 }
-                var groupId = slotView.getSlotName().orElse("slot-" + slotIndex++);
                 capturedSlots.add(new JeiProvider.Slot(groupId, ingredients, role(slotView.getRole())));
             }
             if (capturedSlots.isEmpty()) {

@@ -2,7 +2,7 @@
 
 Implementation follows the [specification](../specs/2026-10-15-developer-prompt-settings.md) and [plan](../plans/2026-10-15-developer-prompt-settings.md). Source through `853389a` passed Java 21 `./gradlew.bat test build`: 503 tests, 499 passed, four existing skips, no failures or errors. No formatter was used.
 
-The build and distribution JAR have SHA-256 `6F9BB52C020F864BF74C75B06D426C77ECE2B43B828A9ECC1433D9A613EE3787`. This feature build has not been installed or exercised in Minecraft. Desktop automation stopped when the user said they were working; installation and live acceptance await availability.
+The build, distribution and installed ATM10 JAR have SHA-256 `6F9BB52C020F864BF74C75B06D426C77ECE2B43B828A9ECC1433D9A613EE3787`. At the user's request, the distribution JAR was copied to `C:/Users/hung1/curseforge/minecraft/Instances/All the Mods 10 - ATM10/mods/packsage.jar` after checking that ATM10 was not running; the installed hash matched. Minecraft was not launched. Desktop automation stopped when the user said they were working; live acceptance awaits availability.
 
 ## Automated and source checks
 

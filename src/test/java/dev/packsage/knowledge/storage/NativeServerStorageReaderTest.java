@@ -3,6 +3,7 @@ package dev.packsage.knowledge.storage;
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponentMap;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.LockCode;
@@ -53,7 +54,7 @@ class NativeServerStorageReaderTest {
     void targetedBlockEmptySlotsUsePhysicalContainerCapacity() {
         var furnace = new FurnaceBlockEntity(BlockPos.ZERO, Blocks.FURNACE.defaultBlockState());
         furnace.applyComponents(DataComponentMap.builder().set(DataComponents.CONTAINER,
-                ItemContainerContents.fromItems(List.of(new ItemStack(Items.SAND, 64)))).build());
+                ItemContainerContents.fromItems(List.of(new ItemStack(Items.SAND, 64)))).build(), DataComponentPatch.EMPTY);
 
         assertEquals(64, furnace.getItem(0).getCount());
         assertEquals(List.of(1, 2), NativeServerStorageReader.blockEmptySlots(furnace, "container").stream()

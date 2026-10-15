@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Expanded the bounded live registry ID/name scan to 4,096 candidates per call while projecting only matching records. Direct registry indexing avoids replaying prior pages; item-tag iterator bounds remain separate.
 - Updated answer guidance for casual goal clarification, concrete crafting/improvement steps, carried-container material checks and exact continuation recovery. Machine activity, intrinsic abilities and relative durability require evidence beyond a lit block, missing enchantments or raw damage values; live conversation revalidation remains pending.
 - Player inventory results explicitly identify direct slots and equipment as their scope, including filtered misses; carried storage contents require their own live read.
 - Paginated tool results now supply the exact next call with unchanged query arguments, and rejected cursors supply an explicit fresh restart without silently retrying. Output truncation removes unsafe continuation hints.

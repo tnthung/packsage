@@ -33,6 +33,7 @@ import java.util.function.Predicate;
 
 final class NativeRegistryReader {
     static final int MAX_CANDIDATES = 512;
+    private static final int MAX_ENTRY_CANDIDATES = 4096;
     private static final int MAX_MEMBERS = 128;
 
     private NativeRegistryReader() { }
@@ -152,7 +153,7 @@ final class NativeRegistryReader {
         int scanned = 0;
         var records = new ArrayList<Evidence.Record>();
         var partial = false;
-        while (index < size && scanned < MAX_CANDIDATES) {
+        while (index < size && scanned < MAX_ENTRY_CANDIDATES) {
             int candidateIndex = index++;
             scanned++;
             T value = registry.byId(candidateIndex);

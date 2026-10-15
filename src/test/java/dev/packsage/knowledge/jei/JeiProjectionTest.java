@@ -14,6 +14,7 @@ import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IJeiRuntime;
 import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.ingredients.IIngredientType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -638,6 +639,8 @@ class JeiProjectionTest {
             var hiddenRecipe = new AtomicBoolean();
             var hiddenCategory = new AtomicBoolean();
             var hiddenIngredient = new AtomicBoolean();
+            var ingredientBudgetScenario = new AtomicBoolean();
+            var oversizedIngredientScenario = new AtomicBoolean();
             var recipeVisits = new AtomicInteger();
             var categoryVisits = new AtomicInteger();
             var categoryPrefix = new AtomicInteger();
@@ -677,9 +680,14 @@ class JeiProjectionTest {
             var managerCategory = new AtomicReference<IRecipeCategory<?>>(category);
             var item = BuiltInRegistries.ITEM.get(ResourceLocation.fromNamespaceAndPath("minecraft", "stone"));
             var outputStack = new ItemStack(item);
+            var typedIngredientType = Proxy.newProxyInstance(IIngredientType.class.getClassLoader(),
+                    new Class<?>[] { IIngredientType.class },
+                    (proxy, method, arguments) -> method.getName().equals("getUid") && oversizedIngredientScenario.get()
+                            ? "x".repeat(100_000) : method.invoke(VanillaTypes.ITEM_STACK, arguments));
             var typedIngredient = Proxy.newProxyInstance(ITypedIngredient.class.getClassLoader(),
                     new Class<?>[] { ITypedIngredient.class }, (proxy, method, arguments) -> switch (method.getName()) {
-                        case "getType" -> VanillaTypes.ITEM_STACK;
+                        case "getType" -> ingredientBudgetScenario.get() || oversizedIngredientScenario.get()
+                                ? typedIngredientType : VanillaTypes.ITEM_STACK;
                         case "getIngredient" -> outputStack;
                         default -> null;
                     });
@@ -705,16 +713,25 @@ class JeiProjectionTest {
                                     .getGenericReturnType()).getActualTypeArguments()[0];
                             var slotViewType = slotViewArgument instanceof Class<?> typeClass ? typeClass
                                     : (Class<?>) ((ParameterizedType) slotViewArgument).getRawType();
-                            var slotView = Proxy.newProxyInstance(slotViewType.getClassLoader(), new Class<?>[] { slotViewType },
-                                    (slotProxy, slotMethod, slotArgs) -> switch (slotMethod.getName()) {
-                                        case "getRole" -> RecipeIngredientRole.OUTPUT;
-                                        case "getAllIngredientsList" -> List.of(typedIngredient);
-                                        case "getSlotName" -> java.util.Optional.of("result");
-                                        default -> null;
-                                    });
+                            var slotViews = ingredientBudgetScenario.get() || oversizedIngredientScenario.get()
+                                    ? java.util.stream.IntStream.range(0, 8).mapToObj(index -> Proxy.newProxyInstance(
+                                            slotViewType.getClassLoader(), new Class<?>[] { slotViewType },
+                                            (slotProxy, slotMethod, slotArgs) -> switch (slotMethod.getName()) {
+                                                case "getRole" -> RecipeIngredientRole.INPUT;
+                                                case "getAllIngredientsList" -> java.util.Collections.nCopies(21, typedIngredient);
+                                                case "getSlotName" -> java.util.Optional.of("input-" + index);
+                                                default -> null;
+                                            })).toList()
+                                    : List.of(Proxy.newProxyInstance(slotViewType.getClassLoader(), new Class<?>[] { slotViewType },
+                                            (slotProxy, slotMethod, slotArgs) -> switch (slotMethod.getName()) {
+                                                case "getRole" -> RecipeIngredientRole.OUTPUT;
+                                                case "getAllIngredientsList" -> List.of(typedIngredient);
+                                                case "getSlotName" -> java.util.Optional.of("result");
+                                                default -> null;
+                                            }));
                             var slots = Proxy.newProxyInstance(slotsType.getClassLoader(), new Class<?>[] { slotsType },
                                     (slotsProxy, slotsMethod, slotsArgs) -> slotsMethod.getName().equals("getSlotViews")
-                                            ? List.of(slotView) : null);
+                                            ? slotViews : null);
                             var layout = Proxy.newProxyInstance(layoutType.getClassLoader(), new Class<?>[] { layoutType },
                                     (layoutProxy, layoutMethod, layoutArgs) -> layoutMethod.getName().equals("getRecipeSlotsView")
                                             ? slots : null);
@@ -797,6 +814,25 @@ class JeiProjectionTest {
             var nextScope = new Evidence.Scope("world", "en_us", "team", "jei-1", 2);
             var exactGet = new Evidence.Query(Evidence.Operation.GET,
                     new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(handle))), 4, null, null);
+
+            ingredientBudgetScenario.set(true);
+            PackSageJeiPlugin.clientTicked();
+            var furnaceIngredients = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.COMPLETE, furnaceIngredients.coverage());
+            assertEquals(8, furnaceIngredients.records().getFirst().recipePayload().inputs().size());
+            assertTrue(furnaceIngredients.records().getFirst().recipePayload().inputs().stream()
+                    .allMatch(slot -> slot.alternatives().size() == 21));
+
+            ingredientBudgetScenario.set(false);
+            oversizedIngredientScenario.set(true);
+            PackSageJeiPlugin.clientTicked();
+            var oversizedIngredient = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.PARTIAL, oversizedIngredient.coverage());
+            assertTrue(Evidence.serialize(oversizedIngredient.records().getFirst().payload())
+                    .getBytes(StandardCharsets.UTF_8).length <= 96 * 1024);
+            oversizedIngredientScenario.set(false);
+            focusApplications.set(0);
+            focusCreations.set(0);
 
             outputStack.setCount(2);
             PackSageJeiPlugin.clientTicked();

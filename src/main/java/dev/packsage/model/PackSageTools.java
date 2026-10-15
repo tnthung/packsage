@@ -241,7 +241,17 @@ public final class PackSageTools {
                     error.addProperty("coverage", "ERROR");
                     error.addProperty("outcome", "ERROR");
                     error.addProperty("detail", failure == null ? "evidence extraction returned no result" : failure.getMessage());
-                    if (failure instanceof Toolbox.Failure typed) error.addProperty("code", typed.code().name());
+                    if (failure instanceof Toolbox.Failure typed) {
+                        error.addProperty("code", typed.code().name());
+                        if (typed.code() == Toolbox.Code.INVALID_CURSOR && properties.has("cursor")) {
+                            var restart = new JsonObject();
+                            restart.addProperty("name", call.name());
+                            var restartArguments = JsonParser.parseString(call.serializedArguments()).getAsJsonObject();
+                            restartArguments.add("cursor", com.google.gson.JsonNull.INSTANCE);
+                            restart.add("arguments", restartArguments);
+                            error.add("restartCall", restart);
+                        }
+                    }
                     error.add("records", new JsonArray());
                     return new ToolResponse(new ModelBackend.ToolResult(call.callId(), error.toString(), true), List.of());
                 }
@@ -255,6 +265,14 @@ public final class PackSageTools {
                 json.addProperty("coverage", result.coverage().name());
                 json.addProperty("outcome", result.outcome().name());
                 json.addProperty("nextCursor", result.nextCursor());
+                if (result.nextCursor() != null && properties.has("cursor")) {
+                    var next = new JsonObject();
+                    next.addProperty("name", call.name());
+                    var nextArguments = JsonParser.parseString(call.serializedArguments()).getAsJsonObject();
+                    nextArguments.addProperty("cursor", result.nextCursor());
+                    next.add("arguments", nextArguments);
+                    json.add("nextCall", next);
+                }
                 if (result.detail() != null) json.addProperty("detail", result.detail());
                 var records = new JsonArray();
                 json.add("records", records);
@@ -307,6 +325,8 @@ public final class PackSageTools {
                         json.addProperty("coverage", "PARTIAL");
                         json.addProperty("outcome", "PARTIAL");
                         json.addProperty("detail", "tool output limit reached; narrow the lookup");
+                        json.addProperty("nextCursor", (String) null);
+                        json.remove("nextCall");
                         break;
                     }
                     records.add(encoded);
@@ -317,6 +337,7 @@ public final class PackSageTools {
                     json.addProperty("coverage", "PARTIAL");
                     json.addProperty("outcome", "PARTIAL");
                     json.addProperty("nextCursor", (String) null);
+                    json.remove("nextCall");
                     json.addProperty("detail", "tool output limit reached; narrow the lookup");
                     json.add("records", new JsonArray());
                     accepted.clear();

@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Paginated tool results now supply the exact next call with unchanged query arguments, and rejected cursors supply an explicit fresh restart without silently retrying. Output truncation removes unsafe continuation hints.
 - Expanded live testing with independent player-role agents and natural follow-ups. Six scenarios and 17 turns exposed unresolved speed comparisons, empty partial recipe scans, a rejected unchanged JEI continuation, missed carried-bundle materials and repeated model cursor misuse. Diagnosis and fall advice improved after player clarification; progression remained incomplete; [the conversation report](docs/validation/2026-10-15-natural-player-conversations.md) records exact turns and separates useful advice from failed goals.
 
 - Final correction build passed 488 automated tests with four skips. A fresh live accessory question correctly left unobserved accessory slots unknown; unsupported-only and mixed-section coverage have dedicated regressions.

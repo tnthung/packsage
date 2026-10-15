@@ -102,6 +102,40 @@ class NativeInventoryReaderTest {
     }
 
     @Test
+    void unsupportedSectionsAreReportedAndMixedCoverageIsPartial() {
+        var apple = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "apple", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Apple", new Evidence.JsonObject(Map.of()), List.of());
+        var summary = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "summary", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.OTHER, "Inventory", new Evidence.JsonObject(Map.of()), List.of());
+        var slot = new NativeInventoryReader.CapturedSlot("main", 0, null, false, "minecraft:apple", "Apple",
+                "apple", apple, List.of(), List.of(), new ItemStack(Items.APPLE));
+        var reader = new NativeInventoryReader(Runnable::run, () -> SCOPE,
+                request -> new NativeInventoryReader.Capture(List.of(slot), summary, Evidence.Coverage.COMPLETE,
+                        Instant.EPOCH, 1), address -> null, () -> 1);
+
+        var unsupported = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
+                new InventoryReader.Filter(List.of(), List.of(), List.of(), List.of(), List.of("accessories")),
+                32, null, SCOPE)).toCompletableFuture().join();
+        assertEquals(Evidence.Coverage.UNAVAILABLE, unsupported.coverage());
+        assertEquals(Evidence.Outcome.UNKNOWN, unsupported.outcome());
+        assertTrue(unsupported.records().isEmpty());
+        assertTrue(unsupported.detail().contains("accessories"));
+        assertTrue(unsupported.detail().contains("not inspected"));
+        assertTrue(unsupported.detail().contains("hotbar"));
+        assertTrue(unsupported.detail().contains("main"));
+        assertTrue(unsupported.detail().contains("armor"));
+        assertTrue(unsupported.detail().contains("offhand"));
+
+        var mixed = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
+                new InventoryReader.Filter(List.of(), List.of(), List.of(), List.of(), List.of("main", "accessories")),
+                32, null, SCOPE)).toCompletableFuture().join();
+        assertEquals(Evidence.Coverage.PARTIAL, mixed.coverage());
+        assertEquals(List.of("Apple"), mixed.records().stream().map(Evidence.Record::title).toList());
+    }
+
+    @Test
     void referenceResolutionReadsCurrentStackAtObservedLocationAndReturnsCopies() {
         var now = new AtomicLong(1_000);
         var stack = new ItemStack(Items.SHULKER_BOX);

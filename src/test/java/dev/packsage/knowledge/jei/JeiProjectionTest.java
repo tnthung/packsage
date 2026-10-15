@@ -828,6 +828,7 @@ class JeiProjectionTest {
             PackSageJeiPlugin.clientTicked();
             var oversizedExactGet = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
             assertEquals(Evidence.Coverage.UNAVAILABLE, oversizedExactGet.coverage());
+            PackSageJeiPlugin.clientTicked();
             var oversizedIngredient = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),
                             "outputItem", new Evidence.JsonString("minecraft:stone"))), 4, null, null), nextScope)

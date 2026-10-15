@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Made Relics and verified Reliquified Artifacts ability documents searchable by their current localized item names, retaining bounded titles and stable document references on search and reread.
 - Clarified prompt recovery order: continue partial searches before changing their query, simplify complete misses, and inspect each relevant carried container requested by the player.
 - Fixed Patchouli page-reserve exhaustion signaling and preserved AA reader failures across reflection, allowing bounded booklet searches to resume rather than terminate when the shared byte budget runs low.
 - Added booklet regressions for textless-page continuation and a depleted shared byte budget; the latter checks that exhaustion is resumable and the underlying read failure survives reflection.

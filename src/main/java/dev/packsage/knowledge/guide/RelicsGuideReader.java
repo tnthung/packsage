@@ -132,12 +132,17 @@ public final class RelicsGuideReader implements GuideDocumentReader {
                     if (!budget.value()) { more = next != null && !next.equals(afterPosition); partial = true; break; }
                     if (itemPosition == afterItem && currentAbilityPosition <= afterAbility) continue;
                     String id = String.valueOf(abilityId);
-                    if (id.length() > 256 || !budget.bytes(id.length() * 6 + itemId.length() * 6 + 128)) {
+                    String itemName = Language.getInstance().getOrDefault(item.getDescriptionId());
+                    boolean titleTruncated = itemName.length() > 256;
+                    if (titleTruncated) itemName = itemName.substring(0, 256);
+                    if (id.length() > 256 || itemId.length() > 256
+                            || !budget.bytes(id.length() * 6 + itemId.length() * 6 + itemName.length() * 6 + 128)) {
                         more = next != null && !next.equals(afterPosition); partial = true; break;
                     }
                     String documentId = itemId + "#" + id;
-                    candidates.add(new Candidate(documentId, id, itemPosition + ":" + currentAbilityPosition,
+                    candidates.add(new Candidate(documentId, itemName + " — " + id, itemPosition + ":" + currentAbilityPosition,
                             List.of("relics:item:" + itemId, "relics:ability:" + id), Evidence.Coverage.COMPLETE));
+                    partial |= titleTruncated;
                     next = itemPosition + ":" + currentAbilityPosition;
                     if (candidates.size() >= limit) { more = true; break; }
                 }
@@ -221,8 +226,23 @@ public final class RelicsGuideReader implements GuideDocumentReader {
     @Override
     public ResolvedDocument resolve(String id, int maxChars, Toolbox.DocumentBudget budget) {
         var split = id.indexOf('#');
-        var candidate = new Candidate(id, split < 0 ? id : id.substring(split + 1), id,
-                List.of("relics ability documentation"), Evidence.Coverage.COMPLETE);
+        String title = split < 0 ? id : id.substring(split + 1);
+        Evidence.Coverage coverage = Evidence.Coverage.COMPLETE;
+        if (split > 0) {
+            var itemKey = ResourceLocation.parse(id.substring(0, split));
+            var item = BuiltInRegistries.ITEM.getOptional(itemKey).orElse(null);
+            if (item != null && (itemNamespace == null || itemNamespace.equals(itemKey.getNamespace()))) {
+                String itemName = Language.getInstance().getOrDefault(item.getDescriptionId());
+                if (itemName.length() > 256) {
+                    itemName = itemName.substring(0, 256);
+                    coverage = Evidence.Coverage.PARTIAL;
+                }
+                if (!budget.bytes(itemName.length() * 6 + 128)) coverage = Evidence.Coverage.PARTIAL;
+                title = itemName + " — " + title;
+            }
+        }
+        var candidate = new Candidate(id, title, id,
+                List.of("relics ability documentation"), coverage);
         return new ResolvedDocument(candidate, readFragment(id, null, maxChars, budget));
     }
 

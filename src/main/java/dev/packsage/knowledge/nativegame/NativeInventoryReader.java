@@ -33,6 +33,7 @@ public final class NativeInventoryReader implements InventoryReader {
     private static final int MAX_TAGS = 128;
     private static final int MAX_TOOLTIP_LINES = 32;
     private static final int MAX_TOOLTIP_LINE_LENGTH = 256;
+    private static final List<String> SUPPORTED_SECTIONS = List.of("hotbar", "main", "armor", "offhand");
 
     private final Minecraft client;
     private final Executor executor;
@@ -71,6 +72,12 @@ public final class NativeInventoryReader implements InventoryReader {
         if (!request.scope().equals(currentScope.get())) return CompletableFuture.completedFuture(
                 new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null,
                         "inventory request scope is no longer current"));
+        var unsupportedSections = request.filter().sections().stream().filter(section -> !SUPPORTED_SECTIONS.contains(section)).toList();
+        if (!unsupportedSections.isEmpty() && request.filter().sections().stream().noneMatch(SUPPORTED_SECTIONS::contains)) {
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
+                    Evidence.Outcome.UNKNOWN, null, "unsupported native inventory sections were not inspected: "
+                    + String.join(", ", unsupportedSections) + "; native sections covered: " + String.join(", ", SUPPORTED_SECTIONS)));
+        }
         if (request.cursor() != null) return continueRead(request);
         CompletionStage<Capture> captured;
         try {
@@ -239,9 +246,13 @@ public final class NativeInventoryReader implements InventoryReader {
                     capture.capturedAtMillis()));
             while (cursors.size() > MAX_CURSORS) cursors.remove(cursors.keySet().iterator().next());
         }
-        var coverage = capture.coverage();
+        var unsupportedSections = request.filter().sections().stream().filter(section -> !SUPPORTED_SECTIONS.contains(section)).toList();
+        var coverage = unsupportedSections.isEmpty() || capture.coverage() != Evidence.Coverage.COMPLETE
+                ? capture.coverage() : Evidence.Coverage.PARTIAL;
         var outcome = coverage == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL;
-        var detail = "source=vanilla-player-inventory-and-equipment; capturedAt=" + capture.capturedAt();
+        var detail = "source=vanilla-player-inventory-and-equipment; capturedAt=" + capture.capturedAt()
+                + (unsupportedSections.isEmpty() ? "" : "; unsupported native inventory sections were not inspected: "
+                + String.join(", ", unsupportedSections) + "; native sections covered: " + String.join(", ", SUPPORTED_SECTIONS));
         return new Evidence.Result(records, coverage, outcome, next, detail);
     }
 

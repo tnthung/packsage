@@ -146,6 +146,8 @@ public final class PackSageTools {
                 case "search_document" -> "Find quests, chapters or guides with one case-insensitive literal phrase. For partial results, continue with the returned cursor and the same query, filters and limit.";
                 case "search_recipe" -> "Find loaded recipes or viewer entries. For an exact output, use outputItem without text unless text is an additional intended filter. requiredInputTotals, when present, totals only unambiguous returned inputs and inherits record coverage. Keep native and JEI evidence distinct; use JEI when native lookup is partial or unavailable.";
                 case "search_inventory" -> "Read current contents of one target. Player summaries do not include nested containers; inspect each relevant carried container, including multiple matching items, with its returned slotReference. Vanilla inventory coverage does not include accessory slots.";
+                case "search_config" -> "Find accessible config keys and comments, including machine speed, energy and upgrade settings. Use returned config references with read_config; preserve scope and effective-value authority.";
+                case "read_config" -> "Read a discovered config key or section at call time. A file value is not necessarily the effective server setting; preserve returned authority and scope.";
                 case "read_evidence", "read_progress" -> "Read current evidence for returned record references only. Do not pass search cursors, labels or guessed references.";
                 default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
             }, schema.toString()));

@@ -680,10 +680,11 @@ class JeiProjectionTest {
             var managerCategory = new AtomicReference<IRecipeCategory<?>>(category);
             var item = BuiltInRegistries.ITEM.get(ResourceLocation.fromNamespaceAndPath("minecraft", "stone"));
             var outputStack = new ItemStack(item);
+            var oversizedTypeUid = "x".repeat(100_000);
             var typedIngredientType = Proxy.newProxyInstance(IIngredientType.class.getClassLoader(),
                     new Class<?>[] { IIngredientType.class },
                     (proxy, method, arguments) -> method.getName().equals("getUid") && oversizedIngredientScenario.get()
-                            ? "x".repeat(100_000) : method.invoke(VanillaTypes.ITEM_STACK, arguments));
+                            ? oversizedTypeUid : method.invoke(VanillaTypes.ITEM_STACK, arguments));
             var typedIngredient = Proxy.newProxyInstance(ITypedIngredient.class.getClassLoader(),
                     new Class<?>[] { ITypedIngredient.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "getType" -> ingredientBudgetScenario.get() || oversizedIngredientScenario.get()
@@ -825,10 +826,16 @@ class JeiProjectionTest {
             ingredientBudgetScenario.set(false);
             oversizedIngredientScenario.set(true);
             PackSageJeiPlugin.clientTicked();
-            var oversizedIngredient = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            var oversizedExactGet = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.UNAVAILABLE, oversizedExactGet.coverage());
+            var oversizedIngredient = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),
+                            "outputItem", new Evidence.JsonString("minecraft:stone"))), 4, null, null), nextScope)
+                    .toCompletableFuture().get();
             assertEquals(Evidence.Coverage.PARTIAL, oversizedIngredient.coverage());
-            assertTrue(Evidence.serialize(oversizedIngredient.records().getFirst().payload())
-                    .getBytes(StandardCharsets.UTF_8).length <= 96 * 1024);
+            var oversizedPayload = Evidence.serialize(oversizedIngredient.records().getFirst().payload());
+            assertTrue(oversizedPayload.getBytes(StandardCharsets.UTF_8).length <= 96 * 1024);
+            assertFalse(oversizedPayload.contains(oversizedTypeUid));
             oversizedIngredientScenario.set(false);
             focusApplications.set(0);
             focusCreations.set(0);

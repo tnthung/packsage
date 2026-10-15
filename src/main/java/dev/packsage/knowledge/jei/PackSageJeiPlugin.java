@@ -94,6 +94,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
     private static final class RuntimeState {
         private static final int MAX_CATEGORIES = 256;
         private static final int MAX_SCANNED_RECIPES = 2048;
+        private static final int MAX_CURSOR_SEEK = 65_536;
         private static final int MAX_PAGE = 64;
         private static final int MAX_NAVIGATION_REGISTRATIONS = 512;
         private static final int CURSOR_RADIX = 1_000_000;
@@ -242,7 +243,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
             }
             var cursorCategory = cursor / CURSOR_RADIX;
             var cursorRecipe = cursor % CURSOR_RADIX;
-            if (query.cursor() != null && (cursorCategory >= MAX_CATEGORIES || cursorRecipe >= MAX_SCANNED_RECIPES)) {
+            if (query.cursor() != null && (cursorCategory >= MAX_CATEGORIES || cursorRecipe >= MAX_CURSOR_SEEK)) {
                 return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(
                         JeiProvider.Projection.error("unknown:category", "jei/" + generation + "/cursor", null,
                                 "JEI cursor", "JEI cursor cannot be resumed within the current source bounds")),
@@ -337,12 +338,17 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         nextRecipe = categoryCursor;
                         break;
                     }
+                    var categoryRemainingBytes = budget.remainingBytes();
                     try (var recipes = manager.createRecipeLookup(type).includeHidden().limitFocus(focuses).get()) {
                         var recipeIterator = recipes.iterator();
                         var recipeCount = 0;
                         var recipeOrdinal = 0;
                         while (recipeIterator.hasNext()) {
                             var seekingRecipe = recipeOrdinal < categoryCursor;
+                            if (recipeOrdinal >= MAX_CURSOR_SEEK) {
+                                partial = true;
+                                break;
+                            }
                             if (projections.size() >= pageLimit || scanned >= MAX_SCANNED_RECIPES) {
                                 partial |= scanned >= MAX_SCANNED_RECIPES;
                                 hasMore = true;
@@ -350,15 +356,11 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 nextRecipe = recipeOrdinal;
                                 break;
                             }
-                            if (!budget.value()) {
-                                if (seekingRecipe || categoryCursor > 0 && recipeOrdinal == categoryCursor && scanned == 0)
-                                    cursorInvalid = true;
-                                else {
-                                    partial = true;
-                                    hasMore = true;
-                                    nextCategory = categoryIndex;
-                                    nextRecipe = recipeOrdinal;
-                                }
+                            if (!seekingRecipe && !budget.value()) {
+                                partial = true;
+                                hasMore = true;
+                                nextCategory = categoryIndex;
+                                nextRecipe = recipeOrdinal;
                                 break;
                             }
                             var recipe = recipeIterator.next();
@@ -366,8 +368,30 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             recipeCount++;
                             if (seekingRecipe) continue;
                             scanned++;
-                            var canonicalCapture = categoryKnown && budget.value() && budget.bytes(512)
-                                    ? canonical(category, recipe) : new Canonical(null, true);
+                            var canonicalCapture = new Canonical(null, true);
+                            if (categoryKnown) {
+                                if (!budget.value()) {
+                                    partial = true;
+                                    hasMore = true;
+                                    nextCategory = categoryIndex;
+                                    nextRecipe = recipeOrdinal - 1;
+                                    break;
+                                }
+                                canonicalCapture = canonical(category, recipe);
+                                if (!canonicalCapture.failed() && canonicalCapture.value() != null) {
+                                    if (canonicalCapture.value().length() > categoryRemainingBytes / 2) {
+                                        partial = true;
+                                        break;
+                                    }
+                                    if (!budget.bytes(canonicalCapture.value().length() * 2)) {
+                                        partial = true;
+                                        hasMore = true;
+                                        nextCategory = categoryIndex;
+                                        nextRecipe = recipeOrdinal - 1;
+                                        break;
+                                    }
+                                }
+                            }
                             if (categoryKnown && canonicalCapture.failed()) partial = true;
                             var handle = sourceHandle(generation, snapshotVersion, categoryId, canonicalCapture.value(), recipe, recipeOrdinal);
                             var candidate = matches(categoryId, title, canonicalCapture.value(), handle, query.operation(), id, text);
@@ -451,6 +475,10 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 projections.add(JeiProvider.Projection.error("unknown:category", handle, null,
                         "JEI category lookup", failure.toString()));
                 error = true;
+            }
+            if (hasMore && (nextCategory >= MAX_CATEGORIES || nextRecipe >= MAX_CURSOR_SEEK)) {
+                hasMore = false;
+                partial = true;
             }
             if (cursorInvalid) return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(
                     JeiProvider.Projection.error("unknown:category", "jei/" + generation + "/cursor", null,

@@ -526,6 +526,19 @@ class JeiProjectionTest {
             assertTrue(recipeVisits.get() <= 6143,
                     "a later live cursor must not trigger an unbounded recipe scan");
 
+            recipes.set(java.util.stream.IntStream.range(0, 70000)
+                    .mapToObj(value -> (Object) ("recipe-" + value)).toList());
+            recipeVisits.set(0);
+            PackSageJeiPlugin.clientTicked();
+            var terminal = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("fixture:missing"))), 1, SCOPE,
+                    matchPage.nextCursor().substring(0, matchPage.nextCursor().indexOf('|')) + "|65535"), SCOPE)
+                    .toCompletableFuture().get();
+            assertTrue(terminal.records().isEmpty());
+            assertEquals(Evidence.Coverage.PARTIAL, terminal.coverage());
+            assertNull(terminal.nextCursor(), "the scan ceiling must end with a terminal partial page");
+            assertTrue(recipeVisits.get() <= 65536, "the cursor seek must stop at its explicit ceiling");
+
             plugin.onRuntimeAvailable(runtime);
             recipeVisits.set(0);
             PackSageJeiPlugin.clientTicked();

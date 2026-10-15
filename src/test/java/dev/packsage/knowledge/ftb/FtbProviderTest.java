@@ -93,7 +93,7 @@ class FtbProviderTest {
             cachedTitleField.set(chapter, Component.literal("Live chapter"));
             chapter.onCreated();
             var firstQuestId = 0x1000L;
-            for (var index = 0; index < 800; index++) {
+            for (var index = 0; index < 2300; index++) {
                 var quest = new Quest(firstQuestId + index, chapter);
                 var questTitle = "Live quest " + index;
                 var questTranslations = new EnumMap<TranslationKey, String>(TranslationKey.class);
@@ -150,6 +150,27 @@ class FtbProviderTest {
             assertTrue(secondQuestRange.size() > 0);
             assertFalse(((Evidence.JsonString) firstQuestRange.getLast()).value().equals(
                     ((Evidence.JsonString) secondQuestRange.getFirst()).value()));
+
+            var lateArguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+            lateArguments.put("query", new Evidence.JsonString("Live quest 2299"));
+            lateArguments.put("filter", filter);
+            lateArguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
+            var lateCursor = (String) null;
+            var foundLateQuest = false;
+            for (var pageIndex = 0; pageIndex < 32; pageIndex++) {
+                if (lateCursor != null) lateArguments.put("cursor", new Evidence.JsonString(lateCursor));
+                var latePage = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                        new Evidence.JsonObject(lateArguments), SCOPE), context(registry, Map.of()))
+                        .toCompletableFuture().get();
+                if (!latePage.records().isEmpty()) {
+                    assertEquals("Live quest 2299", latePage.records().getFirst().title());
+                    foundLateQuest = true;
+                    break;
+                }
+                assertNotNull(latePage.nextCursor(), "late quest search ended before reaching the chapter's final quest");
+                lateCursor = latePage.nextCursor();
+            }
+            assertTrue(foundLateQuest, "late quest continuation exceeded its bounded page count");
 
             group.removeChapter(chapter);
             var replacement = new Chapter(0x101L, file, group);

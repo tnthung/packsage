@@ -49,6 +49,24 @@ class NativeRegistryReaderTest {
     }
 
     @Test
+    void nameSearchFindsLateRegistryEntryWithoutProjectingUnrelatedItems() {
+        var registry = BuiltInRegistries.ITEM;
+        assertTrue(registry.size() > 512);
+        var identity = registry.getKey(registry.byId(registry.size() - 1)).toString();
+        var projected = new java.util.ArrayList<String>();
+
+        var page = NativeRegistryReader.searchEntries(registry, "item", identity, List.of(), List.of(), 0, 16, SCOPE,
+                item -> {
+                    projected.add(registry.getKey(item).toString());
+                    return record(registry.getKey(item).toString());
+                });
+
+        assertEquals(List.of(identity), page.records().stream().map(Evidence.Record::title).toList());
+        assertEquals(List.of(identity), projected);
+        assertTrue(page.exhausted());
+    }
+
+    @Test
     void unknownExactIdDoesNotResolveToDefaultedRegistryEntry() {
         var page = NativeRegistryReader.searchEntries(BuiltInRegistries.ITEM, "item", null,
                 List.of("packsage:missing_item_regression"), List.of(), 0, 1, SCOPE,

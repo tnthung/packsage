@@ -4,6 +4,8 @@
 
 ### 2026-10-15
 
+- Rewrote assistant instructions around goal clarification, claim-specific evidence, feasibility, focused investigation and actionable answers. Search coverage and recipe completeness are separate; verified sufficient materials allow an early conclusion, while shortage claims require relevant carried-storage checks. Bounded comparisons and incomplete-read recovery replace accumulated scenario warnings. Model behavior remains subject to live revalidation.
+
 - Final installed-build checks passed furnace diagnosis with explicit empty slots and complete eight-input furnace crafting. Hopper automation still exposed an unsupported affordability claim from a partial alternative recipe, followed by an incomplete plan; the [report](docs/validation/2026-10-15-natural-player-workflow-fixes.md) keeps this acceptance failure open.
 - Follow-up reader corrections passed 492 automated tests with four existing skips. Independent review closed an oversized JEI slot-name bypass; the corrected JAR is installed for affected-workflow retests.
 - JEI ingredient projections reserve bounded string bytes instead of a fixed 1 KiB for every alternative, retaining all alternatives while allowing common multi-slot recipes to fit the existing read budget. Oversized identities remain bounded and explicitly incomplete.

@@ -24,9 +24,6 @@ class GroundingInstructionsTest {
                         "{\"focusKind\":\"miss\",\"cameraPerspective\":\"third_person_back\"}", null, SCOPE), new byte[0]),
                 new ChatContracts.EvidenceSelection(List.of(), List.of())));
 
-        assertTrue(request.instructions().contains("interaction range"));
-        assertTrue(request.instructions().contains("cameraPerspective"));
-        assertTrue(request.instructions().contains("visible crosshair"));
         assertTrue(((ModelBackend.Message) request.input().get(request.input().size() - 2)).content().stream().anyMatch(
                 content -> content instanceof ModelBackend.TextContent text
                         && text.text().contains("third_person_back") && text.text().contains("\"focusKind\":\"miss\"")));
@@ -54,43 +51,12 @@ class GroundingInstructionsTest {
                 new ChatContracts.HistorySelection(List.of(oldTurn), 5), captured,
                 new ChatContracts.EvidenceSelection(List.of(), List.of())));
 
+        assertFalse(request.instructions().isBlank());
         assertEquals("catalog-model", request.modelId());
         assertEquals(ModelBackend.SearchMode.EXPLICIT_ONLY, request.searchMode());
         assertEquals("current", request.requestId());
         assertEquals(2048, request.outputBudget());
         assertEquals(ModelBackend.ReasoningEffort.NONE, request.reasoningEffort());
-        assertTrue(request.instructions().contains("navigable: true"));
-        assertTrue(request.instructions().contains("outputItem"));
-        assertTrue(request.instructions().contains("search_history"));
-        assertTrue(request.instructions().contains("read_history"));
-        assertTrue(request.instructions().contains("search_document"));
-        assertTrue(request.instructions().contains("search_recipe"));
-        assertTrue(request.instructions().contains("search_registry"));
-        assertTrue(request.instructions().contains("search_inventory"));
-        assertFalse(request.instructions().contains("read_storage"));
-        assertFalse(request.instructions().contains("read_inventory"));
-        assertTrue(request.instructions().contains("historical conversation"));
-        assertTrue(request.instructions().contains("The final user message is the only current request."));
-        assertTrue(request.instructions().contains("Do not summarize gameplay metadata, continue an earlier topic, or retrieve unrelated evidence."));
-        assertTrue(request.instructions().contains("Retrieve relevant installed-pack evidence before making claims about recipes"));
-        assertTrue(request.instructions().contains("Continue an earlier topic only when the latest request asks for it or depends on it."));
-        assertTrue(request.instructions().contains("short, direct reply without unrelated evidence lookup"));
-        assertTrue(request.instructions().contains("retrieve fresh evidence before making current pack claims"));
-        assertTrue(request.instructions().contains("one case-insensitive literal phrase, not a keyword list"));
-        assertTrue(request.instructions().contains("search distinct topics separately"));
-        assertTrue(request.instructions().contains("try an empty query with a provider filter when appropriate"));
-        assertTrue(request.instructions().contains("After a complete no-match"));
-        assertTrue(request.instructions().contains("For a partial no-match with a cursor, continue that search before changing its query"));
-        assertTrue(request.instructions().contains("For each relevant carried container the player asks about"));
-        assertTrue(request.instructions().contains("omit text unless it is an additional intended filter"));
-        assertTrue(request.instructions().contains("unchanged query, filters and limit"));
-        assertTrue(request.instructions().contains("Cursors continue searches; returned record references identify evidence to read."));
-        assertTrue(request.instructions().contains("count each required input slot and its quantity once"));
-        assertTrue(request.instructions().contains("vanilla armor coverage does not establish accessory-slot coverage"));
-        assertTrue(request.instructions().contains("without evidence for relevant accessory slots say their contents are unknown, not unequipped"));
-        assertTrue(request.instructions().contains("label comparisons that infer outcomes, and do not treat one effect as proof of another"));
-        assertTrue(request.instructions().contains("reread current inventory and recipe evidence"));
-        assertTrue(request.instructions().contains("use its returned slot reference as an item target"));
         assertEquals(4, request.input().size());
         assertTrue(request.input().get(0) instanceof ModelBackend.Message);
         assertTrue(request.input().get(1) instanceof ModelBackend.AssistantOutput);

@@ -641,6 +641,7 @@ class JeiProjectionTest {
             var hiddenIngredient = new AtomicBoolean();
             var ingredientBudgetScenario = new AtomicBoolean();
             var oversizedIngredientScenario = new AtomicBoolean();
+            var oversizedSlotNameScenario = new AtomicBoolean();
             var recipeVisits = new AtomicInteger();
             var categoryVisits = new AtomicInteger();
             var categoryPrefix = new AtomicInteger();
@@ -681,6 +682,7 @@ class JeiProjectionTest {
             var item = BuiltInRegistries.ITEM.get(ResourceLocation.fromNamespaceAndPath("minecraft", "stone"));
             var outputStack = new ItemStack(item);
             var oversizedTypeUid = "x".repeat(100_000);
+            var oversizedSlotName = "s".repeat(100_000);
             var typedIngredientType = Proxy.newProxyInstance(IIngredientType.class.getClassLoader(),
                     new Class<?>[] { IIngredientType.class },
                     (proxy, method, arguments) -> method.getName().equals("getUid") && oversizedIngredientScenario.get()
@@ -715,12 +717,18 @@ class JeiProjectionTest {
                             var slotViewType = slotViewArgument instanceof Class<?> typeClass ? typeClass
                                     : (Class<?>) ((ParameterizedType) slotViewArgument).getRawType();
                             var slotViews = ingredientBudgetScenario.get() || oversizedIngredientScenario.get()
-                                    ? java.util.stream.IntStream.range(0, 8).mapToObj(index -> Proxy.newProxyInstance(
+                                    || oversizedSlotNameScenario.get()
+                                    ? java.util.stream.IntStream.range(0, oversizedSlotNameScenario.get() ? 2 : 8)
+                                    .mapToObj(index -> Proxy.newProxyInstance(
                                             slotViewType.getClassLoader(), new Class<?>[] { slotViewType },
                                             (slotProxy, slotMethod, slotArgs) -> switch (slotMethod.getName()) {
                                                 case "getRole" -> RecipeIngredientRole.INPUT;
-                                                case "getAllIngredientsList" -> java.util.Collections.nCopies(21, typedIngredient);
-                                                case "getSlotName" -> java.util.Optional.of("input-" + index);
+                                                case "getAllIngredientsList" -> oversizedSlotNameScenario.get()
+                                                        ? List.of(typedIngredient)
+                                                        : java.util.Collections.nCopies(21, typedIngredient);
+                                                case "getSlotName" -> oversizedSlotNameScenario.get() && index == 1
+                                                        ? java.util.Optional.of(oversizedSlotName)
+                                                        : java.util.Optional.of("input-" + index);
                                                 default -> null;
                                             })).toList()
                                     : List.of(Proxy.newProxyInstance(slotViewType.getClassLoader(), new Class<?>[] { slotViewType },
@@ -838,6 +846,19 @@ class JeiProjectionTest {
             assertTrue(oversizedPayload.getBytes(StandardCharsets.UTF_8).length <= 96 * 1024);
             assertFalse(oversizedPayload.contains(oversizedTypeUid));
             oversizedIngredientScenario.set(false);
+            oversizedSlotNameScenario.set(true);
+            PackSageJeiPlugin.clientTicked();
+            var oversizedSlotResult = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),
+                            "outputItem", new Evidence.JsonString("minecraft:stone"))), 4, null, null), nextScope)
+                    .toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.PARTIAL, oversizedSlotResult.coverage());
+            var oversizedSlotPayload = Evidence.serialize(oversizedSlotResult.records().getFirst().payload());
+            assertTrue(oversizedSlotPayload.getBytes(StandardCharsets.UTF_8).length <= 96 * 1024);
+            assertFalse(oversizedSlotPayload.contains(oversizedSlotName));
+            assertEquals(1, oversizedSlotResult.records().getFirst().recipePayload().inputs().size());
+            assertEquals("input-0", oversizedSlotResult.records().getFirst().recipePayload().inputs().getFirst().groupId());
+            oversizedSlotNameScenario.set(false);
             focusApplications.set(0);
             focusCreations.set(0);
 

@@ -4,6 +4,8 @@
 
 ### 2026-10-15
 
+- JEI ingredient projections reserve bounded string bytes instead of a fixed 1 KiB for every alternative, retaining all alternatives while allowing common multi-slot recipes to fit the existing read budget. Oversized identities remain bounded and explicitly incomplete.
+- Complete targeted block inventories now report known-empty physical slots separately from filtered item entries. Trailing empty slots are no longer lost through Minecraft's trimmed container component; private-owner, lock and pending-loot restrictions remain in place.
 - Live retests recovered carried redstone and a craftable backpack recipe, but exposed truncated JEI ingredient groups and ambiguous omitted empty slots. Guidance now preserves exact slot references and requests a fresh evidence read for incomplete recipe details instead of treating a search continuation as the rest of that recipe.
 - Natural-player correction build passed 490 automated tests with four existing skips. Independent review findings were fixed and rechecked; the matching JAR is installed for live retesting. [The correction report](docs/validation/2026-10-15-natural-player-workflow-fixes.md) separates source guarantees from pending conversation acceptance.
 - Closed two JEI review findings: late category continuations no longer spend extraction bytes on skipped categories, and canonical ID strings reserve their bytes before copying. Oversized IDs stop with terminal partial coverage instead of a non-progressing cursor.

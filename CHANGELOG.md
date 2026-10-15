@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Verified natural-player crafting across both carried bundles, a shulker and JEI, including a changed-bundle follow-up with fresh reads. Guide citations render correctly. The broader Powah/AA/quest workflow still exposes model continuation errors; [the correction report](docs/validation/2026-10-15-cross-mod-workflow-fixes.md) separates passing source checks from incomplete answers.
 - Native inventory searches now report unsupported-only sections as unavailable and mixed supported/unsupported sections as partial, explicitly stating which sections were not inspected instead of returning a misleading complete empty result.
 - Added a regression for unsupported vanilla inventory sections: unknown accessory slots must not appear as an inspected, completely empty inventory.
 - Added deterministic totals for returned recipe inputs only when every slot is one known consumed item, preserving exact component identity, raw slots and coverage. Ambiguous or unsupported inputs omit the tally; inventory guidance now explicitly includes multiple matching carried containers.

@@ -2,10 +2,13 @@ package dev.packsage.knowledge.storage;
 
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponentMap;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.LockCode;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.FurnaceBlockEntity;
 import org.junit.jupiter.api.BeforeAll;
@@ -49,8 +52,10 @@ class NativeServerStorageReaderTest {
     @Test
     void targetedBlockEmptySlotsUsePhysicalContainerCapacity() {
         var furnace = new FurnaceBlockEntity(BlockPos.ZERO, Blocks.FURNACE.defaultBlockState());
-        furnace.setItem(0, new ItemStack(Items.SAND, 64));
+        furnace.applyComponents(DataComponentMap.builder().set(DataComponents.CONTAINER,
+                ItemContainerContents.fromItems(List.of(new ItemStack(Items.SAND, 64)))).build());
 
+        assertEquals(64, furnace.getItem(0).getCount());
         assertEquals(List.of(1, 2), NativeServerStorageReader.blockEmptySlots(furnace, "container").stream()
                 .map(value -> ((Evidence.JsonNumber) ((Evidence.JsonObject) value).values().get("componentSlot")).value().intValueExact())
                 .toList());

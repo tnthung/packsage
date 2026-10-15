@@ -142,8 +142,13 @@ public final class PackSageTools {
             schema.addProperty("additionalProperties", false);
             schema.add("properties", properties);
             schema.add("required", required);
-            definitions.add(new ModelBackend.ToolDefinition(name, "Read current evidence for " + name
-                    + ". Preserve source authority, partial coverage and observed references.", schema.toString()));
+            definitions.add(new ModelBackend.ToolDefinition(name, switch (name) {
+                case "search_document" -> "Find quests, chapters or guides with one case-insensitive literal phrase. For partial results, continue with the returned cursor and the same query, filters and limit.";
+                case "search_recipe" -> "Find loaded recipes or viewer entries. For an exact output, use outputItem without text unless text is an additional intended filter. Keep native and JEI evidence distinct; use JEI when native lookup is partial or unavailable.";
+                case "search_inventory" -> "Read current contents of one target. Player summaries do not include nested containers; inspect a carried item with its returned slotReference. Vanilla inventory coverage does not include accessory slots.";
+                case "read_evidence", "read_progress" -> "Read current evidence for returned record references only. Do not pass search cursors, labels or guessed references.";
+                default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
+            }, schema.toString()));
         }
         return List.copyOf(definitions);
     }

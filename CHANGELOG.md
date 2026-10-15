@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Replaced generic descriptions on document, recipe, inventory and evidence/progress tools with concise operation-specific guidance, keeping public schemas unchanged and reinforcing live reads, valid handles and continuation rules at tool selection time.
 - Rendered citations from all six new guide/manual providers as compact source tags, including grouped markers; unknown providers stay literal and non-navigable records do not gain invented links.
 - Added a regression for raw grouped citation markup from the six guide/manual adapters, including unknown-provider fallback and non-navigable evidence.
 - Tightened equipment and behavior wording after a natural-player retest: unobserved accessory slots remain unknown, and comparisons must label inferred outcomes rather than treating one documented effect as proof of another.

@@ -38,6 +38,27 @@ class PackSageToolsTest {
     }
 
     @Test
+    void descriptionsGuideCommonSearchAndEvidenceReferences() {
+        var definitions = PackSageTools.definitions();
+        var document = definitions.stream().filter(value -> value.name().equals("search_document")).findFirst().orElseThrow().description();
+        assertTrue(document.contains("one case-insensitive literal phrase"));
+        assertTrue(document.contains("same query, filters and limit"));
+        var recipe = definitions.stream().filter(value -> value.name().equals("search_recipe")).findFirst().orElseThrow().description();
+        assertTrue(recipe.contains("outputItem without text"));
+        assertTrue(recipe.contains("native and JEI evidence distinct"));
+        assertTrue(recipe.contains("native lookup is partial or unavailable"));
+        var inventory = definitions.stream().filter(value -> value.name().equals("search_inventory")).findFirst().orElseThrow().description();
+        assertTrue(inventory.contains("Player summaries do not include nested containers"));
+        assertTrue(inventory.contains("returned slotReference"));
+        assertTrue(inventory.contains("does not include accessory slots"));
+        for (var name : List.of("read_evidence", "read_progress")) {
+            var description = definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow().description();
+            assertTrue(description.contains("returned record references only"));
+            assertTrue(description.contains("Do not pass search cursors"));
+        }
+    }
+
+    @Test
     void dimensionSelectorsAreAdvertisedAndReachDispatch() throws Exception {
         var requests = new java.util.ArrayList<PackSageTools.ReadRequest>();
         var tools = new PackSageTools(request -> {

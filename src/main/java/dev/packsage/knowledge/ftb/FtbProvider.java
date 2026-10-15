@@ -705,7 +705,7 @@ public final class FtbProvider implements KnowledgeProvider {
                         && (traversalPhase == -1 || traversalPhase == 3 || traversalPhase == 4);
                 if (emitChapter && (!budget.bytes(64)
                         || !budget.value() || !budget.value() || !budget.value() || !budget.value() || !budget.value()
-                        || !budget.value() || currentTeam != null && !budget.value() || !budget.bytes(4096))) {
+                        || !budget.value() || currentTeam != null && !budget.value())) {
                     next = fileIdentity + "|" + candidate + "|" + chapterId + "|4|0";
                     partial = true;
                     break;
@@ -718,9 +718,19 @@ public final class FtbProvider implements KnowledgeProvider {
                 if (emitChapter) {
                     try {
                         var rawChapterTitle = chapter.getRawTitle();
+                        if (!budget.bytes(Math.min(rawChapterTitle.length(), 512) * 2)) {
+                            next = fileIdentity + "|" + candidate + "|" + chapterId + "|4|0";
+                            partial = true;
+                            break outer;
+                        }
                         chapterTitle = rawChapterTitle.length() > 512 ? rawChapterTitle.substring(0, 512) : rawChapterTitle;
                         chapterTitleComplete = rawChapterTitle.length() <= 512;
                         if (rawChapterTitle.isEmpty()) {
+                            if (!budget.bytes(513 * 2)) {
+                                next = fileIdentity + "|" + candidate + "|" + chapterId + "|4|0";
+                                partial = true;
+                                break outer;
+                            }
                             chapterTitle = chapter.getTitle().getString(513);
                             if (chapterTitle.length() > 512) {
                                 chapterTitle = chapterTitle.substring(0, 512);
@@ -734,9 +744,19 @@ public final class FtbProvider implements KnowledgeProvider {
                     if (group != null) {
                         try {
                             var rawGroupTitle = group.getRawTitle();
+                            if (!budget.bytes(Math.min(rawGroupTitle.length(), 512) * 2)) {
+                                next = fileIdentity + "|" + candidate + "|" + chapterId + "|4|0";
+                                partial = true;
+                                break outer;
+                            }
                             groupTitle = rawGroupTitle.length() > 512 ? rawGroupTitle.substring(0, 512) : rawGroupTitle;
                             chapterTitleComplete &= rawGroupTitle.length() <= 512;
                             if (rawGroupTitle.isEmpty()) {
+                                if (!budget.bytes(513 * 2)) {
+                                    next = fileIdentity + "|" + candidate + "|" + chapterId + "|4|0";
+                                    partial = true;
+                                    break outer;
+                                }
                                 groupTitle = group.getTitle().getString(513);
                                 if (groupTitle.length() > 512) {
                                     groupTitle = groupTitle.substring(0, 512);
@@ -794,8 +814,28 @@ public final class FtbProvider implements KnowledgeProvider {
                         break;
                     }
                 }
-                var questIterator = (exactQuest != null ? List.of(exactQuest) : chapterQuests).iterator();
-                var questIndex = 0;
+                var questList = exactQuest != null ? List.of(exactQuest) : chapterQuests;
+                var skippedQuests = 0;
+                if (candidate < traversalStart && exactQuest == null) {
+                    if (!budget.value() || !budget.bytes(16)) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                            "FTB cursor cannot read the chapter quest count within the read budget; restart the search");
+                    skippedQuests = Math.min(questList.size(), traversalStart - position);
+                    if (skippedQuests > 0) {
+                        if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                                "FTB cursor cannot read the preceding quest within the read budget; restart the search");
+                        previousOwner = questList.get(skippedQuests - 1).getCodeString();
+                        if (!budget.bytes(previousOwner.length() * 2)) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                                "FTB cursor cannot read the preceding quest identity within the read budget; restart the search");
+                        position += skippedQuests;
+                        if (position == traversalStart && traversalPhase == -1 && !expectedOwner.equals(previousOwner))
+                            throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor owner changed; restart the search");
+                    }
+                }
+                if (position == traversalStart && traversalPhase == -1 && skippedQuests == 0
+                        && !expectedOwner.equals(chapterId))
+                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor owner changed; restart the search");
+                var questIterator = questList.listIterator(skippedQuests);
+                var questIndex = skippedQuests;
                 while (questIterator.hasNext()) {
                     var questCandidate = position++;
                     var seekingQuest = questCandidate < traversalStart;
@@ -840,7 +880,7 @@ public final class FtbProvider implements KnowledgeProvider {
                     if (!budget.value() || !budget.value() || !budget.value() || !budget.value() || !budget.value()
                             || currentTeam != null && (!budget.value() || !budget.value() || !budget.value()
                             || !budget.value() || !budget.value()) || !budget.value() || !budget.value()
-                            || !budget.value() || !budget.bytes(4096)) {
+                            || !budget.value()) {
                         next = fileIdentity + "|" + questCandidate + "|" + id + "|" + (phase < 0 ? 0 : phase)
                                 + "|" + nestedStart;
                         partial = true;
@@ -848,6 +888,12 @@ public final class FtbProvider implements KnowledgeProvider {
                     }
                     var questTasks = quest.getTasksAsList();
                     var rawTitle = quest.getRawTitle();
+                    if (!budget.bytes(Math.min(rawTitle.length(), 512) * 2)) {
+                        next = fileIdentity + "|" + questCandidate + "|" + id + "|" + (phase < 0 ? 0 : phase)
+                                + "|" + nestedStart;
+                        partial = true;
+                        break outer;
+                    }
                     var titleTruncated = rawTitle.length() > 512;
                     if (titleTruncated) rawTitle = rawTitle.substring(0, 512);
                     var titleComplete = !titleTruncated;
@@ -857,6 +903,12 @@ public final class FtbProvider implements KnowledgeProvider {
                     } else {
                         try {
                             if (!rawTitle.isEmpty()) {
+                                if (!budget.bytes(513 * 2)) {
+                                    next = fileIdentity + "|" + questCandidate + "|" + id + "|" + (phase < 0 ? 0 : phase)
+                                            + "|" + nestedStart;
+                                    partial = true;
+                                    break outer;
+                                }
                                 questTitle = quest.getTitle().getString(513);
                             } else {
                                 var firstTask = questTasks.isEmpty() ? null : questTasks.getFirst();
@@ -873,9 +925,21 @@ public final class FtbProvider implements KnowledgeProvider {
                                     questTitle = id;
                                     titleComplete = false;
                                 } else if (firstTask != null && firstTask.getRawTitle().length() > 512) {
+                                    if (!budget.bytes(512 * 2)) {
+                                        next = fileIdentity + "|" + questCandidate + "|" + id + "|" + (phase < 0 ? 0 : phase)
+                                                + "|" + nestedStart;
+                                        partial = true;
+                                        break outer;
+                                    }
                                     questTitle = firstTask.getRawTitle().substring(0, 512);
                                     titleComplete = false;
                                 } else {
+                                    if (!budget.bytes(513 * 2)) {
+                                        next = fileIdentity + "|" + questCandidate + "|" + id + "|" + (phase < 0 ? 0 : phase)
+                                                + "|" + nestedStart;
+                                        partial = true;
+                                        break outer;
+                                    }
                                     questTitle = quest.getTitle().getString(513);
                                 }
                             }

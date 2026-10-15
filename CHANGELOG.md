@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Closed two JEI review findings: late category continuations no longer spend extraction bytes on skipped categories, and canonical ID strings reserve their bytes before copying. Oversized IDs stop with terminal partial coverage instead of a non-progressing cursor.
 - Machine comparison guidance now includes config key/comment discovery and current values, preserving file-versus-effective and client/server authority rather than treating recipe costs as speed evidence.
 - JEI continuation distinguishes absolute source position from the per-call candidate limit and seeks live recipes under a separate 65,536-position ceiling. Canonical IDs consume their actual byte allowance; an exhausted seek boundary ends as partial instead of emitting an unusable cursor.
 - FTB quest continuations now skip earlier quests through the current indexed chapter list and validate the preceding owner, avoiding repeated prefix extraction. Title reads reserve bounded field sizes instead of a blanket 4 KiB per candidate; matching fields and nested fragments remain unchanged.

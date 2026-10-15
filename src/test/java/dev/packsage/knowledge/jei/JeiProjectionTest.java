@@ -431,10 +431,12 @@ class JeiProjectionTest {
             var recipes = new AtomicReference<List<Object>>(java.util.stream.IntStream.range(0, 20000)
                     .mapToObj(value -> (Object) ("recipe-" + value)).toList());
             var recipeVisits = new AtomicInteger();
-            var type = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), Object.class);
+            var type = new AtomicReference<>(new RecipeType<>(
+                    ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), Object.class));
+            var categories = new AtomicReference<List<IRecipeCategory<?>>>(List.of());
             var category = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
                     new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
-                        case "getRecipeType" -> type;
+                        case "getRecipeType" -> type.get();
                         case "getTitle" -> Component.literal("Opaque");
                         case "getRegistryName" -> ResourceLocation.fromNamespaceAndPath("fixture", (String) arguments[0]);
                         default -> null;
@@ -456,7 +458,7 @@ class JeiProjectionTest {
                     IRecipeCategoriesLookup.class.getClassLoader(), new Class<?>[] { IRecipeCategoriesLookup.class },
                     (proxy, method, arguments) -> switch (method.getName()) {
                         case "includeHidden", "limitTypes", "limitFocus" -> proxy;
-                        case "get" -> Stream.of(category);
+                        case "get" -> categories.get().stream();
                         default -> null;
                     });
             var manager = (IRecipeManager) Proxy.newProxyInstance(IRecipeManager.class.getClassLoader(),
@@ -483,6 +485,7 @@ class JeiProjectionTest {
                     new Class<?>[] { IJeiRuntime.class }, (proxy, method, arguments) ->
                     method.getName().equals("getRecipeManager") ? manager : null);
             var plugin = new PackSageJeiPlugin();
+            categories.set(List.of(category));
             plugin.onRuntimeAvailable(runtime);
 
             var first = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
@@ -548,7 +551,47 @@ class JeiProjectionTest {
             assertEquals(Evidence.Coverage.ERROR, stale.coverage(), "a cursor from the previous runtime must be rejected");
             assertEquals(0, recipeVisits.get(), "stale cursors must be rejected before scanning live recipes");
 
+            recipes.set(List.of("recipe"));
+            categories.set(java.util.Collections.nCopies(202, category));
+            PackSageJeiPlugin.clientTicked();
+            var categorySeed = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("fixture:recipe"))), 1,
+                    null, null), SCOPE).toCompletableFuture().get();
+            assertEquals(1, categorySeed.records().size());
+            assertNotNull(categorySeed.nextCursor());
+            var categoryCursor = categorySeed.nextCursor().substring(0, categorySeed.nextCursor().indexOf('|'))
+                    + "|200000000";
+            PackSageJeiPlugin.clientTicked();
+            var lateCategory = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("fixture:recipe"))), 1,
+                    SCOPE, categoryCursor), SCOPE).toCompletableFuture().get();
+            assertNotEquals(Evidence.Coverage.ERROR, lateCategory.coverage(),
+                    "a cursor within the category seek bound must remain resumable");
+            assertEquals(1, lateCategory.records().size());
+            assertEquals("fixture:recipe", lateCategory.records().getFirst().recipePayload().canonicalRecipeId());
+            assertTrue(lateCategory.nextCursor().endsWith("|201000000"));
+            PackSageJeiPlugin.clientTicked();
+            var nextCategory = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("fixture:recipe"))), 1,
+                    SCOPE, lateCategory.nextCursor()), SCOPE).toCompletableFuture().get();
+            assertNotEquals(Evidence.Coverage.ERROR, nextCategory.coverage(),
+                    "a returned category continuation must remain resumable");
+            assertEquals(1, nextCategory.records().size());
+            assertNull(nextCategory.nextCursor());
+
+            recipes.set(List.of("a".repeat(50_000)));
+            categories.set(List.of(category));
+            PackSageJeiPlugin.clientTicked();
+            var oversizedCanonical = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("missing"))), 1,
+                    null, null), SCOPE).toCompletableFuture().get();
+            assertTrue(oversizedCanonical.records().isEmpty());
+            assertEquals(Evidence.Coverage.PARTIAL, oversizedCanonical.coverage());
+            assertNull(oversizedCanonical.nextCursor(),
+                    "a canonical ID too large for a fresh page must not emit an unusable cursor");
+
             recipes.set(List.of("first", "second"));
+            type.set(new RecipeType<>(ResourceLocation.fromNamespaceAndPath("fixture", "uncoded"), Object.class));
             PackSageJeiPlugin.clientTicked();
             var firstPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, null, null), SCOPE)

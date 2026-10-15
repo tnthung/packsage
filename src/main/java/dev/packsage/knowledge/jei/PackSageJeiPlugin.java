@@ -220,12 +220,15 @@ public final class PackSageJeiPlugin implements IModPlugin {
             }
             var projections = new ArrayList<JeiProvider.Projection>();
             var navigation = new LinkedHashMap<String, RegisteredRecipe>();
-            if (query.cursor() != null && !budget.bytes(query.cursor().length() * 2)) {
+            var queryCursorBytes = query.cursor() == null ? 0L : (long) query.cursor().length() * 2;
+            if (queryCursorBytes > budget.remainingBytes()
+                    || query.cursor() != null && !budget.bytes((int) queryCursorBytes)) {
                 return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(
                         JeiProvider.Projection.error("unknown:category", "jei/" + generation + "/cursor", null,
                                 "JEI cursor", "JEI cursor exceeded the shared read budget")), ignored -> { },
                         Evidence.Coverage.ERROR, true, null);
             }
+            var queryRemainingBytes = budget.remainingBytes();
             var cursorParts = query.cursor() == null ? new String[0] : query.cursor().split("\\|", -1);
             var cursor = 0;
             try {
@@ -269,6 +272,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 while (categoryIterator.hasNext()) {
                     var categoryIndex = categoryCount;
                     var seekingCategory = categoryIndex < cursorCategory;
+                    var categoryStartRemainingBytes = budget.remainingBytes();
                     if (categoriesVisited >= MAX_CATEGORIES) {
                         partial = true;
                         hasMore = true;
@@ -276,14 +280,11 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         nextRecipe = 0;
                         break;
                     }
-                    if (!budget.value() || !budget.bytes(512)) {
-                        if (seekingCategory) cursorInvalid = true;
-                        else {
-                            partial = true;
-                            hasMore = true;
-                            nextCategory = categoryIndex;
-                            nextRecipe = 0;
-                        }
+                    if (!seekingCategory && (!budget.value() || !budget.bytes(512))) {
+                        partial = true;
+                        hasMore = true;
+                        nextCategory = categoryIndex;
+                        nextRecipe = 0;
                         break;
                     }
                     var category = categoryIterator.next();
@@ -338,7 +339,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         nextRecipe = categoryCursor;
                         break;
                     }
-                    var categoryRemainingBytes = budget.remainingBytes();
+                    var categoryPreludeBytes = categoryStartRemainingBytes - budget.remainingBytes();
                     try (var recipes = manager.createRecipeLookup(type).includeHidden().limitFocus(focuses).get()) {
                         var recipeIterator = recipes.iterator();
                         var recipeCount = 0;
@@ -373,19 +374,42 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                     nextRecipe = recipeOrdinal - 1;
                                     break;
                                 }
-                                canonicalCapture = canonical(category, recipe);
-                                if (!canonicalCapture.failed() && canonicalCapture.value() != null) {
-                                    if (canonicalCapture.value().length() > categoryRemainingBytes / 2) {
-                                        partial = true;
-                                        break;
+                                try {
+                                    var name = ((IRecipeCategory<Object>) category).getRegistryName(recipe);
+                                    if (name == null) canonicalCapture = new Canonical(null, false);
+                                    else {
+                                        var canonicalBytes = ((long) name.getNamespace().length()
+                                                + name.getPath().length() + 1) * 2;
+                                        var retryCursorBytes = (Long.toString(generation).length() + 1L
+                                                + Integer.toString(categoryIndex * CURSOR_RADIX
+                                                + recipeOrdinal - 1).length()) * 2;
+                                        var freshCategoryBytes = queryRemainingBytes + queryCursorBytes
+                                                - retryCursorBytes - categoryPreludeBytes;
+                                        if (canonicalBytes > budget.remainingBytes()) {
+                                            if (canonicalBytes > freshCategoryBytes) {
+                                                partial = true;
+                                                break;
+                                            }
+                                            partial = true;
+                                            hasMore = true;
+                                            nextCategory = categoryIndex;
+                                            nextRecipe = recipeOrdinal - 1;
+                                            break;
+                                        }
+                                        if (!budget.bytes((int) canonicalBytes)) {
+                                            if (canonicalBytes > freshCategoryBytes) partial = true;
+                                            else {
+                                                partial = true;
+                                                hasMore = true;
+                                                nextCategory = categoryIndex;
+                                                nextRecipe = recipeOrdinal - 1;
+                                            }
+                                            break;
+                                        }
+                                        canonicalCapture = new Canonical(name.toString(), false);
                                     }
-                                    if (!budget.bytes(canonicalCapture.value().length() * 2)) {
-                                        partial = true;
-                                        hasMore = true;
-                                        nextCategory = categoryIndex;
-                                        nextRecipe = recipeOrdinal - 1;
-                                        break;
-                                    }
+                                } catch (Throwable ignored) {
+                                    canonicalCapture = new Canonical(null, true);
                                 }
                             }
                             if (categoryKnown && canonicalCapture.failed()) partial = true;

@@ -143,6 +143,17 @@ class ActuallyAdditionsGuideReaderTest {
                     () -> reader.readFragment(entryId.toString(), "0,0,0,0", 64, boundedBudget));
             assertTrue(boundedBudget.exhausted());
             assertTrue(failure.getMessage().contains("Patchouli continuation cannot advance within the read budget"));
+
+            var seekBudget = new Toolbox.DocumentBudget();
+            assertTrue(seekBudget.bytes(96 * 1024 - entryId.toString().length() * 6 - 128 - 2048));
+            var seekFailure = assertThrows(Toolbox.Failure.class,
+                    () -> reader.readFragment(entryId.toString(), "1,0,0,0", 64, seekBudget));
+            assertEquals(Toolbox.Code.EXTRACTION_FAILED, seekFailure.code());
+            assertTrue(seekBudget.exhausted());
+
+            var outOfRangeFailure = assertThrows(Toolbox.Failure.class,
+                    () -> reader.readFragment(entryId.toString(), "4,0,0,0", 64, new Toolbox.DocumentBudget()));
+            assertEquals(Toolbox.Code.INVALID_CURSOR, outOfRangeFailure.code());
         } finally {
             configField.set(null, originalConfig);
         }

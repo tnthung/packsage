@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Live retests recovered carried redstone and a craftable backpack recipe, but exposed truncated JEI ingredient groups and ambiguous omitted empty slots. Guidance now preserves exact slot references and requests a fresh evidence read for incomplete recipe details instead of treating a search continuation as the rest of that recipe.
 - Natural-player correction build passed 490 automated tests with four existing skips. Independent review findings were fixed and rechecked; the matching JAR is installed for live retesting. [The correction report](docs/validation/2026-10-15-natural-player-workflow-fixes.md) separates source guarantees from pending conversation acceptance.
 - Closed two JEI review findings: late category continuations no longer spend extraction bytes on skipped categories, and canonical ID strings reserve their bytes before copying. Oversized IDs stop with terminal partial coverage instead of a non-progressing cursor.
 - Machine comparison guidance now includes config key/comment discovery and current values, preserving file-versus-effective and client/server authority rather than treating recipe costs as speed evidence.

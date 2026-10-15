@@ -104,8 +104,12 @@ public final class PatchouliLiveReader {
                     break;
                 }
             }
-            if (position != null && pageIndex < position.page()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
-                    "Patchouli page seek exceeded its budget or the entry changed");
+            if (position != null && pageIndex < position.page()) {
+                boolean budgetLimited = budget.exhausted();
+                throw new Toolbox.Failure(budgetLimited ? Toolbox.Code.EXTRACTION_FAILED : Toolbox.Code.INVALID_CURSOR,
+                        budgetLimited ? "Patchouli page seek reached the read budget"
+                                : "Patchouli page seek exceeded the entry or its current page range");
+            }
             var mappings = new ArrayList<String>();
             if (next == null && includeMappings) {
                 var mappingsField = BookEntry.class.getDeclaredField("extraRecipeMappings");

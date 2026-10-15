@@ -42,7 +42,7 @@ The installed Reliquified Artifacts 1.0.8 replaces Artifacts registrations with 
 
 ### Final acceptance
 
-This section records individual source-read acceptance. Subsequent [cross-mod player workflow checks](2026-10-15-cross-mod-workflows.md) exposed an AA textless-page traversal failure and model retrieval/grounding errors; complete player-facing workflows are not yet accepted.
+This section records individual source-read acceptance. Subsequent [cross-mod player workflow checks](2026-10-15-cross-mod-workflows.md) exposed an AA budget-exhaustion signaling failure and model retrieval/grounding errors; complete player-facing workflows are tracked separately.
 
 Request `9a038626-cbbc-4bd2-a2e8-41fbd0317160` on the final artifact discovered `artifacts:artifacts:umbrella#glider`, reread it, continued to `artifacts:artifacts:umbrella#shield`, and successfully searched the first passage's distinctive phrase. Glider observation timestamps advanced from `23:32:39.527716300Z` to `23:32:43.940393Z`; the later phrase search and reread produced new observations again. The same request rediscovered and reread Relics' Leafy Mantle camouflage description. Evidence rereads completed successfully; search pages remained partial because more documents existed.
 

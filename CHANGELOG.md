@@ -13,7 +13,7 @@
 - Supported the verified Reliquified Artifacts replacement path while retaining Artifacts source identity. Ability documentation remains distinct from equipped item rolls and active effects.
 - Fixed guide continuation at extraction budgets, live membership/reload invalidation, Modonomicon text-holder handling and GuideME no-progress boundaries. IE requires normal manual initialization and reports bounded extraction explicitly.
 - Verified dimension discovery after a real dimension transition, including stale-handle rejection and fresh dimension-type reads. Reconciled inventory roadmap completion against recorded live checks.
-- Recorded [cross-mod player workflows](docs/validation/2026-10-15-cross-mod-workflows.md): held-bundle ingredients and current inventory can be combined with JEI recipes, but ordinary questions exposed guide retrieval, recipe-counting and AA textless-page failures. Individual source acceptance does not establish complete player-facing workflow acceptance.
+- Recorded [cross-mod player workflows](docs/validation/2026-10-15-cross-mod-workflows.md): held-bundle ingredients and current inventory can be combined with JEI recipes, but ordinary questions exposed guide retrieval, recipe-counting and AA traversal failures. A regression isolated the latter to byte-reserve exhaustion, not textless pages. Individual source acceptance does not establish complete player-facing workflow acceptance.
 
 The [six-source guide validation](docs/validation/2026-10-15-guide-manual-adapters.md) records 482 automated tests with four skips and installed source checks. Cross-mod failures remain tracked separately; physical power transfer, crafting and fall damage were not tested by those assistant workflows.
 

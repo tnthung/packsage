@@ -18,4 +18,21 @@ Final built/distributed/installed SHA-256: `6C63F9BBDBAD4037A47A726E0B4F4C22E3BF
 
 ## Live acceptance
 
-Pending natural-player retests in `OoO - PackSage Trial`, with fresh chats, GPT-6-Luna medium and existing search/screenshot settings. Do not prescribe tool names, arguments, providers, cursors or references in acceptance questions. Inspect actual saved call/result pairs and answer claims. Record pass, partial and failed results separately.
+Retests use `OoO - PackSage Trial`, fresh chats, GPT-6-Luna medium, screenshots enabled and explicit-only web search. Questions prescribe no tool names, arguments, providers, cursors or references. Saved call/result pairs were checked against answer claims.
+
+### First revised build: `6C63F9BB...`
+
+- Fall comparison, request `0586a7b3-22db-4eab-b259-31e6dee7514a`, conversation `171950b7-dcc3-491e-8027-ae7f4af099d4`: **partial**. Both item-name guide searches returned complete documentation, and the answer correctly distinguished the umbrella's held fall-speed limit from the mantle's leaf-landing protection. It still overstated absence of an equipped mantle from vanilla slots, which do not cover Curios. Grouped guide citations appeared as raw private-use markup. These findings led to explicit unknown-accessory wording and the citation parser fix.
+- Cross-mod construction, request `933bd0c9-3134-4835-91c4-6031a1d0325f`, conversation `7a851b80-4539-4211-a38a-0a97ab466a65`: **incomplete**. AA crystal documentation was retrieved, but some AA searches failed while seeking later internal fragments after their shared byte budget ran low. Regression isolated this second path: an exhausted seek incorrectly reported `INVALID_CURSOR`. The model also changed queries/limits while reusing cursors and guessed a progress handle. It did not establish the requested recipe, inventory gap or quest progress. Method-specific tool descriptions were added; they do not guarantee model compliance.
+- Carried-container crafting, request `23eaf384-d766-48c3-af81-4cbaa83f4e60`, conversation `a8269dd8-ab32-4cf3-9cb0-7d0e6ee6e826`: **failed**. It read the original bundle and shulker by slot reference and recovered from a mistyped reference, but omitted the second bundle in the hotbar. The JEI input slots specify four iron, four redstone and one casing; the answer incorrectly said five iron and therefore overstated missing materials. Current source reads worked; answer completeness and arithmetic did not.
+
+All three are natural-player tests, not tool-coached diagnostics. No physical crafting, power transfer or fall-damage experiment was performed.
+
+### Follow-up fixes
+
+- `67de832`: require explicit uncertainty for unobserved accessory slots and distinguish documented effects from inferred outcomes.
+- `5e6bfef`, `dc66eae`: citation regression reproduced the raw grouped markup, then all six guide/manual providers gained compact tags without invented navigation targets.
+- `208eabc`: operation-specific tool descriptions reinforce literal searches, valid continuations, exact-output recipe lookup, nested-container access and observed reference requirements.
+- `2306c96`, `2aa4476`: later-page regression reproduced `INVALID_CURSOR` under byte exhaustion; exhausted seeks now preserve resumability while an ample-budget out-of-range page remains invalid.
+
+The full automated suite/build passed after these follow-up fixes. Final installed-build acceptance is recorded separately below when run.

@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Added a regression for raw grouped citation markup from the six guide/manual adapters, including unknown-provider fallback and non-navigable evidence.
 - Tightened equipment and behavior wording after a natural-player retest: unobserved accessory slots remain unknown, and comparisons must label inferred outcomes rather than treating one documented effect as proof of another.
 - Made Relics and verified Reliquified Artifacts ability documents searchable by their current localized item names, retaining bounded titles and stable document references on search and reread.
 - Clarified prompt recovery order: continue partial searches before changing their query, simplify complete misses, and inspect each relevant carried container requested by the player.

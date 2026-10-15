@@ -209,6 +209,22 @@ class ScreenTextTest {
     }
 
     @Test
+    void groupedGuideCitationsUseShortTagsWithoutInventingNavigationTargets() {
+        String grouped = "\uE200cite\uE202artifacts:artifacts:umbrella#glider\uE202relics:relics:leafy_mantle#camouflage"
+                + "\uE202modonomicon:fixture:book#entry\uE202guideme:fixture:guide#page"
+                + "\uE202immersiveengineering:manual/fluid_pipes\uE202actuallyadditions:actuallyadditions:crystals\uE201";
+        var spans = ScreenText.inlineLines(grouped + " [unknown:source]", List.of()).getFirst().spans();
+
+        assertEquals("[guide][guide][guide][guide][manual][guide] [unknown:source]",
+                spans.stream().map(ScreenText.InlineSpan::text).reduce("", String::concat));
+        assertTrue(spans.stream().filter(span -> span.text().startsWith("[") && span.text().endsWith("]"))
+                .allMatch(span -> span.target() == null));
+        assertEquals(List.of("[guide]", "[guide]", "[guide]", "[guide]", "[manual]", "[guide]"),
+                spans.stream().filter(span -> span.text().startsWith("[") && span.text().endsWith("]")
+                        && !span.text().equals("[unknown:source]")).map(ScreenText.InlineSpan::text).toList());
+    }
+
+    @Test
     void bracketedTextThatIsNotAPackSageProviderMarkerIsPreservedVerbatim() {
         String text = "Use [minecraft:torch] or [todo:fix] or [other:abc] or [Native:x]";
 

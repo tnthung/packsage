@@ -464,7 +464,19 @@ class JeiProjectionTest {
                         case "createRecipeCategoryLookup" -> categoryLookup;
                         case "createRecipeLookup" -> recipeLookup;
                         case "createRecipeCatalystLookup" -> catalystLookup;
-                        case "createRecipeLayoutDrawable" -> Optional.empty();
+                        case "createRecipeLayoutDrawable" -> {
+                            var layoutArgument = ((ParameterizedType) method.getGenericReturnType()).getActualTypeArguments()[0];
+                            var layoutType = layoutArgument instanceof Class<?> typeClass ? typeClass
+                                    : (Class<?>) ((ParameterizedType) layoutArgument).getRawType();
+                            var slotsType = layoutType.getMethod("getRecipeSlotsView").getReturnType();
+                            var slots = Proxy.newProxyInstance(slotsType.getClassLoader(), new Class<?>[] { slotsType },
+                                    (slotsProxy, slotsMethod, slotsArgs) -> slotsMethod.getName().equals("getSlotViews")
+                                            ? List.of() : null);
+                            var layout = Proxy.newProxyInstance(layoutType.getClassLoader(), new Class<?>[] { layoutType },
+                                    (layoutProxy, layoutMethod, layoutArgs) -> layoutMethod.getName().equals("getRecipeSlotsView")
+                                            ? slots : null);
+                            yield Optional.of(layout);
+                        }
                         default -> null;
                     });
             var runtime = (IJeiRuntime) Proxy.newProxyInstance(IJeiRuntime.class.getClassLoader(),
@@ -490,6 +502,8 @@ class JeiProjectionTest {
                 matchPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                         new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("fixture:recipe-4095"))), 1,
                         SCOPE, cursor), SCOPE).toCompletableFuture().get();
+                assertNotEquals(Evidence.Coverage.ERROR, matchPage.coverage(),
+                        "an emitted cursor for an unchanged search must remain resumable");
                 assertTrue(recipeVisits.get() <= 6143,
                         "the live recipe walk must bound cursor seeking and candidate reads");
                 if (matchPage.records().isEmpty()) {

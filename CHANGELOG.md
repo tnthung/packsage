@@ -5,6 +5,8 @@
 ### 2026-10-15
 
 - Added developer prompt settings behind Ctrl-click on the assistant's settings button, with a multiline prompt draft, Save, Cancel and Restore default. Saved overrides apply to new requests without restarting Minecraft; in-flight requests retain their original instructions.
+- Fixed developer-editor newline input, pause-state preservation, narrow-window buttons and Unicode overflow rejection. The build passed 499 tests with four existing skips; [installed editor checks](docs/validation/2026-10-15-developer-prompt-settings.md) await PC availability.
+- Recorded the [interrupted prompt-rewrite retests](docs/validation/2026-10-15-prompt-rewrite-retests.md): hopper recipe interpretation and backpack ingredient accounting still failed, while stalled-furnace diagnosis and the requested carried-redstone lookup passed their conversational checks. Remaining scenarios and physical gameplay validation are incomplete.
 
 - Rewrote assistant instructions around goal clarification, claim-specific evidence, feasibility, focused investigation and actionable answers. Search coverage and recipe completeness are separate; verified sufficient materials allow an early conclusion, while shortage claims require relevant carried-storage checks. Bounded comparisons and incomplete-read recovery replace accumulated scenario warnings. Recipe planning supports route discovery while inventory and route completeness remain separate checks. Model behavior remains subject to live revalidation.
 

@@ -14,7 +14,7 @@ Follow-up to [the initial workflow report](2026-10-15-cross-mod-workflows.md) an
 
 Independent review found no release blocker in the reserve fix, prompt recovery order or localized titles. One bounded limitation remains: a Relics evidence read whose title byte reservation fails can still return its capped title and attempt one fragment lookup; the text remains empty and explicitly partial. This is not complete content evidence.
 
-Final built/distributed/installed SHA-256: `6C63F9BBDBAD4037A47A726E0B4F4C22E3BFA235AA07FF4C69CEB7E6DCCFC406`. All three hashes matched after copying with Minecraft closed. The interim `DA4F2043...` artifact was superseded before entering the trial world and has no acceptance claim.
+First revised built/distributed/installed SHA-256: `6C63F9BBDBAD4037A47A726E0B4F4C22E3BFA235AA07FF4C69CEB7E6DCCFC406`. All three hashes matched after copying with Minecraft closed. The interim `DA4F2043...` artifact was superseded before entering the trial world and has no acceptance claim.
 
 ## Live acceptance
 
@@ -35,4 +35,10 @@ All three are natural-player tests, not tool-coached diagnostics. No physical cr
 - `208eabc`: operation-specific tool descriptions reinforce literal searches, valid continuations, exact-output recipe lookup, nested-container access and observed reference requirements.
 - `2306c96`, `2aa4476`: later-page regression reproduced `INVALID_CURSOR` under byte exhaustion; exhausted seeks now preserve resumability while an ample-budget out-of-range page remains invalid.
 
-The full automated suite/build passed after these follow-up fixes. Final installed-build acceptance is recorded separately below when run.
+- `27fc747`, `2affdc4`: a regression reproduced missing arithmetic support, then serialization gained deterministic totals for unambiguous consumed input slots. Choices, unknown quantities and unsupported consumption/types omit the tally; component variants remain separate. Totals preserve partial source/decoding status and do not establish full recipe coverage.
+
+The final automated suite/build passed: **487 tests, zero failures/errors, four skips**. Build, distribution and installed SHA-256 all match `27BF53DED7601529CF3D7033D89E07754B1016C3CF59586EC26AACF83D7C807F`; installation occurred with Minecraft closed.
+
+Independent review accepted the observed seek fix and conservative tally semantics. It also identified an untested extreme-source limit: a booklet position beyond the per-call page/value traversal capacity can repeatedly return a partial cursor at the same position, because each call must seek from the beginning. The observed short AA entry does not reach that condition; do not claim all arbitrarily long booklet continuations advance. This remains a separate bounded-reader limitation.
+
+Final installed-build acceptance is recorded below when run.

@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Added deterministic totals for returned recipe inputs only when every slot is one known consumed item, preserving exact component identity, raw slots and coverage. Ambiguous or unsupported inputs omit the tally; inventory guidance now explicitly includes multiple matching carried containers.
 - Added a serialization regression for exact repeated input totals after a natural answer miscounted the correctly returned crafting slots.
 - Fixed later-page booklet seeks that mistook exhausted shared budgets for stale cursors; resumable extraction failures retain the current fragment, while genuinely out-of-range pages still reject the cursor.
 - Added a regression distinguishing budget exhaustion while seeking a later booklet page from a genuinely stale page position.

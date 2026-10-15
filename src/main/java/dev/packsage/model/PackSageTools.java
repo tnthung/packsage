@@ -144,8 +144,8 @@ public final class PackSageTools {
             schema.add("required", required);
             definitions.add(new ModelBackend.ToolDefinition(name, switch (name) {
                 case "search_document" -> "Find quests, chapters or guides with one case-insensitive literal phrase. For partial results, continue with the returned cursor and the same query, filters and limit.";
-                case "search_recipe" -> "Find loaded recipes or viewer entries. For an exact output, use outputItem without text unless text is an additional intended filter. Keep native and JEI evidence distinct; use JEI when native lookup is partial or unavailable.";
-                case "search_inventory" -> "Read current contents of one target. Player summaries do not include nested containers; inspect a carried item with its returned slotReference. Vanilla inventory coverage does not include accessory slots.";
+                case "search_recipe" -> "Find loaded recipes or viewer entries. For an exact output, use outputItem without text unless text is an additional intended filter. requiredInputTotals, when present, totals only unambiguous returned inputs and inherits record coverage. Keep native and JEI evidence distinct; use JEI when native lookup is partial or unavailable.";
+                case "search_inventory" -> "Read current contents of one target. Player summaries do not include nested containers; inspect each relevant carried container, including multiple matching items, with its returned slotReference. Vanilla inventory coverage does not include accessory slots.";
                 case "read_evidence", "read_progress" -> "Read current evidence for returned record references only. Do not pass search cursors, labels or guessed references.";
                 default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
             }, schema.toString()));
@@ -268,7 +268,38 @@ public final class PackSageTools {
                     encoded.addProperty("navigable", !record.targets().isEmpty());
                     encoded.addProperty("title", record.title());
                     encoded.add("payload", JsonParser.parseString(Evidence.serialize(record.payload())));
-                    encoded.add("recipe", JSON.toJsonTree(record.recipePayload()));
+                    var recipe = JSON.toJsonTree(record.recipePayload());
+                    if (record.recipePayload() != null && !record.recipePayload().inputs().isEmpty()) {
+                        record RecipeTotalKey(String type, String comparisonIdentity, Evidence.JsonObject components) { }
+                        var totals = new java.util.LinkedHashMap<RecipeTotalKey, Long>();
+                        boolean canTotal = true;
+                        for (var slot : record.recipePayload().inputs()) {
+                            if (slot.alternatives().size() != 1) { canTotal = false; break; }
+                            var input = slot.alternatives().getFirst();
+                            if (!List.of("item", "item_stack").contains(input.type()) || input.quantity() == null
+                                    || input.quantity() < 1 || input.consumption() != Evidence.Consumption.CONSUMED) {
+                                canTotal = false;
+                                break;
+                            }
+                            var key = new RecipeTotalKey(input.type(), input.comparisonIdentity(), input.components());
+                            var previous = totals.getOrDefault(key, 0L);
+                            if (Long.MAX_VALUE - previous < input.quantity()) { canTotal = false; break; }
+                            totals.put(key, previous + input.quantity());
+                        }
+                        if (canTotal) {
+                            var requiredInputTotals = new JsonArray();
+                            totals.forEach((key, quantity) -> {
+                                var total = new JsonObject();
+                                total.addProperty("type", key.type());
+                                total.addProperty("comparisonIdentity", key.comparisonIdentity());
+                                total.add("components", JSON.toJsonTree(key.components()));
+                                total.addProperty("quantity", quantity);
+                                requiredInputTotals.add(total);
+                            });
+                            recipe.getAsJsonObject().add("requiredInputTotals", requiredInputTotals);
+                        }
+                    }
+                    encoded.add("recipe", recipe);
                     int recordBytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + (records.isEmpty() ? 0 : 1);
                     if (!record.source().sourceHandle().startsWith("status:")
                             && accepted.stream().filter(value -> !value.source().sourceHandle().startsWith("status:")).count() == 64

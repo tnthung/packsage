@@ -60,9 +60,9 @@ class PackSageToolsTest {
 
     @Test
     void serializesDeterministicTotalsForSingletonConsumedRecipeInputs() throws Exception {
-        var iron = new Evidence.RecipeAlternative("item", "minecraft:iron_ingot", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
-        var redstone = new Evidence.RecipeAlternative("item", "minecraft:redstone", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
-        var casing = new Evidence.RecipeAlternative("item", "actuallyadditions:iron_casing", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
+        var iron = new Evidence.RecipeAlternative("item_stack", "minecraft:iron_ingot", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
+        var redstone = new Evidence.RecipeAlternative("item_stack", "minecraft:redstone", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
+        var casing = new Evidence.RecipeAlternative("item_stack", "actuallyadditions:iron_casing", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
         var recipe = new Evidence.RecipePayload("actuallyadditions:atomic_reconstructor", List.of(
                 new Evidence.RecipeSlot("iron-1", List.of(iron)), new Evidence.RecipeSlot("redstone-1", List.of(redstone)),
                 new Evidence.RecipeSlot("iron-2", List.of(iron)), new Evidence.RecipeSlot("redstone-2", List.of(redstone)),
@@ -88,6 +88,58 @@ class PackSageToolsTest {
         assertEquals("minecraft:redstone", totals.get(1).getAsJsonObject().get("comparisonIdentity").getAsString());
         assertEquals(1, totals.get(2).getAsJsonObject().get("quantity").getAsInt());
         assertEquals("actuallyadditions:iron_casing", totals.get(2).getAsJsonObject().get("comparisonIdentity").getAsString());
+        assertEquals("COMPLETE", json.get("coverage").getAsString());
+        assertEquals(9, encoded.getAsJsonObject("recipe").getAsJsonArray("inputs").size());
+    }
+
+    @Test
+    void omitsRecipeTotalsWhenAnyInputIsAmbiguousOrUnsupported() throws Exception {
+        var iron = new Evidence.RecipeAlternative("item", "minecraft:iron_ingot", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
+        var alternateIron = new Evidence.RecipeAlternative("item", "forge:ingots/iron", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
+        var unknownQuantity = new Evidence.RecipeAlternative("item", "minecraft:iron_ingot", new Evidence.JsonObject(Map.of()), null, Evidence.Consumption.CONSUMED);
+        var reusable = new Evidence.RecipeAlternative("item", "minecraft:iron_ingot", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.REUSED);
+        var custom = new Evidence.RecipeAlternative("fluid", "minecraft:iron_ingot", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
+        for (var alternatives : List.of(List.of(iron, alternateIron), List.of(unknownQuantity), List.of(reusable), List.of(custom))) {
+            var recipe = new Evidence.RecipePayload("fixture:recipe", List.of(new Evidence.RecipeSlot("input", alternatives)),
+                    List.of(), List.of(), List.of(), List.of("machine constraints retained"), Evidence.DecodingStatus.PARTIAL);
+            var record = new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "recipe:ambiguous", 1,
+                    Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.LOADED, List.of()),
+                    Evidence.RecordKind.RECIPE, "Recipe", new Evidence.JsonObject(Map.of()), List.of(), recipe);
+            var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(record),
+                    Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, null)));
+            var json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("recipe", "search_recipe", "{}"), SCOPE)
+                    .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+            var encodedRecipe = json.getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("recipe");
+
+            assertFalse(encodedRecipe.has("requiredInputTotals"));
+            assertEquals(1, encodedRecipe.getAsJsonArray("inputs").size());
+            assertEquals("machine constraints retained", encodedRecipe.getAsJsonArray("constraints").get(0).getAsString());
+            assertEquals("PARTIAL", encodedRecipe.get("decodingStatus").getAsString());
+            assertEquals("PARTIAL", json.get("coverage").getAsString());
+        }
+    }
+
+    @Test
+    void recipeTotalsKeepComponentVariantsSeparate() throws Exception {
+        var plain = new Evidence.RecipeAlternative("item", "minecraft:iron_ingot", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
+        var damaged = new Evidence.RecipeAlternative("item", "minecraft:iron_ingot", new Evidence.JsonObject(Map.of("minecraft:damage",
+                new Evidence.JsonNumber(java.math.BigDecimal.ONE))), 2, Evidence.Consumption.CONSUMED);
+        var recipe = new Evidence.RecipePayload("fixture:recipe", List.of(new Evidence.RecipeSlot("plain", List.of(plain)),
+                new Evidence.RecipeSlot("damaged", List.of(damaged))), List.of(), List.of(), List.of(), List.of(), Evidence.DecodingStatus.VERIFIED);
+        var record = new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "recipe:components", 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.RECIPE, "Recipe", new Evidence.JsonObject(Map.of()), List.of(), recipe);
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(record),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+
+        var json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("recipe", "search_recipe", "{}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        var totals = json.getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("recipe").getAsJsonArray("requiredInputTotals");
+
+        assertEquals(2, totals.size());
+        assertEquals(1, totals.get(0).getAsJsonObject().get("quantity").getAsInt());
+        assertEquals(2, totals.get(1).getAsJsonObject().get("quantity").getAsInt());
+        assertNotEquals(totals.get(0).getAsJsonObject().get("components"), totals.get(1).getAsJsonObject().get("components"));
     }
 
     @Test

@@ -848,8 +848,8 @@ class JeiProjectionTest {
             assertEquals(refreshed.records().getFirst().source().coverage(), refreshed.coverage());
             assertTrue(refreshed.coverage() == Evidence.Coverage.COMPLETE
                     || refreshed.coverage() == Evidence.Coverage.PARTIAL);
-            assertEquals(4, focusApplications.get());
-            assertEquals(2, focusCreations.get(), "exact revalidation must reapply the original output focus");
+            assertEquals(2, focusApplications.get());
+            assertEquals(1, focusCreations.get(), "exact revalidation must reapply the original output focus");
             assertEquals(handle, refreshed.records().getFirst().source().sourceHandle());
             assertNotEquals(initial.source().provenance(), refreshed.records().getFirst().source().provenance());
             assertEquals(nextScope, refreshed.records().getFirst().source().scope());

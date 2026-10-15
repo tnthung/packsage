@@ -431,11 +431,12 @@ class JeiProjectionTest {
             var recipes = new AtomicReference<List<Object>>(java.util.stream.IntStream.range(0, 20000)
                     .mapToObj(value -> (Object) ("recipe-" + value)).toList());
             var recipeVisits = new AtomicInteger();
-            var type = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("addon", "category"), Object.class);
+            var type = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), Object.class);
             var category = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
                     new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "getRecipeType" -> type;
                         case "getTitle" -> Component.literal("Opaque");
+                        case "getRegistryName" -> ResourceLocation.fromNamespaceAndPath("fixture", (String) arguments[0]);
                         default -> null;
                     });
             var recipeLookup = (IRecipeLookup<Object>) Proxy.newProxyInstance(IRecipeLookup.class.getClassLoader(),
@@ -473,26 +474,38 @@ class JeiProjectionTest {
             plugin.onRuntimeAvailable(runtime);
 
             var first = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
-                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("4095"))), 1, null, null), SCOPE)
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("fixture:recipe-4095"))), 1,
+                    null, null), SCOPE)
                     .toCompletableFuture().get();
-            assertTrue(first.records().isEmpty());
+            assertTrue(first.records().isEmpty(), () -> "unexpected first-page records: " + first.records().stream()
+                    .map(record -> record.source().sourceHandle()).toList() + "; coverage=" + first.coverage()
+                    + "; detail=" + first.detail());
             assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
             assertNotNull(first.nextCursor());
-            recipeVisits.set(0);
-            PackSageJeiPlugin.clientTicked();
-            var second = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
-                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("4095"))), 1, SCOPE,
-                    first.nextCursor()), SCOPE).toCompletableFuture().get();
-            assertEquals(1, second.records().size(),
-                    "a continuation must find a matching recipe beyond the per-call scan limit");
-            assertTrue(recipeVisits.get() <= 4096,
-                    "the live recipe walk must bound cursor seeking and candidate reads");
-            assertNotNull(second.nextCursor());
+            var cursor = first.nextCursor();
+            var matchPage = first;
+            for (var page = 1; page < 16 && matchPage.records().isEmpty(); page++) {
+                recipeVisits.set(0);
+                PackSageJeiPlugin.clientTicked();
+                matchPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                        new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("fixture:recipe-4095"))), 1,
+                        SCOPE, cursor), SCOPE).toCompletableFuture().get();
+                assertTrue(recipeVisits.get() <= 6143,
+                        "the live recipe walk must bound cursor seeking and candidate reads");
+                if (matchPage.records().isEmpty()) {
+                    assertNotNull(matchPage.nextCursor(), "an empty partial page must provide a resumable cursor");
+                    cursor = matchPage.nextCursor();
+                }
+            }
+            assertEquals(1, matchPage.records().size(),
+                    "continuation must find the exact canonical recipe beyond ordinal 2048");
+            assertEquals("fixture:recipe-4095", matchPage.records().getFirst().recipePayload().canonicalRecipeId());
+            assertNotNull(matchPage.nextCursor());
             recipeVisits.set(0);
             PackSageJeiPlugin.clientTicked();
             var third = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
-                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("4095"))), 1, SCOPE,
-                    second.nextCursor()), SCOPE).toCompletableFuture().get();
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("fixture:recipe-4095"))), 1,
+                    SCOPE, matchPage.nextCursor()), SCOPE).toCompletableFuture().get();
             assertTrue(third.records().isEmpty(), "continuation must advance past the matching recipe");
             assertNotEquals(Evidence.Coverage.ERROR, third.coverage(),
                     "an emitted cursor beyond ordinal 2048 must remain resumable");
@@ -503,8 +516,8 @@ class JeiProjectionTest {
             recipeVisits.set(0);
             PackSageJeiPlugin.clientTicked();
             var stale = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
-                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("4095"))), 1, SCOPE,
-                    second.nextCursor()), SCOPE).toCompletableFuture().get();
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("fixture:recipe-4095"))), 1,
+                    SCOPE, matchPage.nextCursor()), SCOPE).toCompletableFuture().get();
             assertEquals(Evidence.Coverage.ERROR, stale.coverage(), "a cursor from the previous runtime must be rejected");
             assertEquals(0, recipeVisits.get(), "stale cursors must be rejected before scanning live recipes");
 

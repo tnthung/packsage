@@ -2,11 +2,13 @@ package dev.packsage.knowledge.storage;
 
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.Bootstrap;
 import net.minecraft.world.LockCode;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.FurnaceBlockEntity;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -17,6 +19,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NativeServerStorageReaderTest {
+    @BeforeAll
+    static void bootstrapMinecraft() {
+        Bootstrap.bootStrap();
+    }
+
     @Test
     void privateOwnerReadRequiresTheSameSingleConnectedPlayerAndAnUnpublishedServer() {
         var owner = UUID.randomUUID();

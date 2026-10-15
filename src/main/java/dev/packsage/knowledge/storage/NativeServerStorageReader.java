@@ -30,7 +30,6 @@ import net.minecraft.world.entity.vehicle.ChestBoat;
 import net.minecraft.world.entity.vehicle.ContainerEntity;
 import net.minecraft.world.entity.vehicle.MinecartChest;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BarrelBlock;
 import net.minecraft.world.level.block.BlastFurnaceBlock;
@@ -216,20 +215,23 @@ final class NativeServerStorageReader {
             var lock = half.container().collectComponents().getOrDefault(DataComponents.LOCK, LockCode.NO_LOCK);
             if (!mayReadContainerContents(lock, false)) return unavailable(request, scope, monotonicClock, "locked containers are unavailable");
         }
+        if (halves.stream().mapToInt(half -> half.container().getContainerSize()).sum() > 256) {
+            return unavailable(request, scope, monotonicClock, "container contents exceed the read bound");
+        }
         var entries = new ArrayList<Evidence.Record>();
         var positions = new ArrayList<Evidence.JsonValue>();
+        var emptySlots = new ArrayList<Evidence.JsonValue>();
         var capturedAt = Instant.now();
         for (BlockHalf half : halves) {
-            var component = half.container().collectComponents().getOrDefault(DataComponents.CONTAINER, ItemContainerContents.EMPTY);
             positions.add(position(half.position(), half.section()));
-            for (int slot = 0; slot < component.getSlots(); slot++) {
-                ItemStack stack = component.getStackInSlot(slot);
+            emptySlots.addAll(blockEmptySlots(half.container(), half.section()));
+            for (int slot = 0; slot < half.container().getContainerSize(); slot++) {
+                ItemStack stack = half.container().getItem(slot).copy();
                 if (stack.isEmpty()) continue;
                 entries.add(storageEntry(stack, scope, capturedAt, "container", slot + (half.section().equals("right") ? 27 : 0), slot,
                         blockId + ":" + level.dimension().location() + ":" + pos.asLong() + ":" + selection.blockState(),
                         half.position(),
                         half.section(), level.registryAccess(), request.filter(), player, level));
-                if (entries.size() == 256) return unavailable(request, scope, monotonicClock, "container contents exceed the read bound");
             }
         }
         var stateValues = new LinkedHashMap<String, Evidence.JsonValue>();
@@ -242,6 +244,7 @@ final class NativeServerStorageReader {
         stateValues.put("contentsStatus", new Evidence.JsonString("complete"));
         var coverage = entries.stream().anyMatch(entry -> entry.source().coverage() != Evidence.Coverage.COMPLETE)
                 ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
+        if (coverage == Evidence.Coverage.COMPLETE) stateValues.put("emptySlots", new Evidence.JsonArray(emptySlots));
         return new NativeStorageReader.Observation(entries, scope, capturedAt, monotonicClock.getAsLong(), blockId.toString(),
                 stateValues, coverage, List.of("private_integrated_owner", "server-read:block:" + blockId,
                 "dimension:" + level.dimension().location(), "position:" + pos, "player:" + player.getUUID()));
@@ -394,6 +397,16 @@ final class NativeServerStorageReader {
 
     static boolean mayReadContainerContents(LockCode lock, boolean hasPendingLoot) {
         return !hasPendingLoot && lock.key().isEmpty();
+    }
+
+    static List<Evidence.JsonValue> blockEmptySlots(BaseContainerBlockEntity container, String section) {
+        var emptySlots = new ArrayList<Evidence.JsonValue>();
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            if (container.getItem(slot).isEmpty()) emptySlots.add(new Evidence.JsonObject(Map.of(
+                    "section", new Evidence.JsonString(section),
+                    "componentSlot", new Evidence.JsonNumber(BigDecimal.valueOf(slot)))));
+        }
+        return emptySlots;
     }
 
     private static boolean supportedHorse(AbstractHorse horse) {

@@ -85,7 +85,12 @@ public final class AssistantRuntime implements ChatActions {
                 capture::capture, capture::cancel, ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
                 this::executeTool, historyCounter, prepared -> {
                     var request = requestBuilder.apply(prepared);
-                    return new ModelBackend.Request(request.modelId(), request.instructions(), request.input(),
+                    String instructions;
+                    synchronized (stateLock) {
+                        String developerPrompt = settings.developerPrompt();
+                        instructions = developerPrompt == null ? request.instructions() : developerPrompt;
+                    }
+                    return new ModelBackend.Request(request.modelId(), instructions, request.input(),
                             PackSageTools.definitions(knowledge.metadata()), request.searchMode(), request.requestId(),
                             request.outputBudget(), request.reasoningEffort());
                 }, this::publishControllerView);

@@ -56,6 +56,8 @@ public final class GroundingInstructions {
 
     private GroundingInstructions() { }
 
+    public static String defaultInstructions() { return INSTRUCTIONS; }
+
     public static ModelBackend.Request build(ChatContracts.PreparedRequest prepared) {
         var input = new ArrayList<ModelBackend.InputItem>();
         for (var turn : prepared.history().turns()) input.addAll(historyInput(turn));

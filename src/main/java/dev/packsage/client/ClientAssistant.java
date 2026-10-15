@@ -504,6 +504,13 @@ public final class ClientAssistant {
 
     private void openSettings() {
         settingsOpen = true;
+        if (net.minecraft.client.gui.screens.Screen.hasControlDown()) {
+            client.setScreen(new DeveloperSettingsScreen(settings, settingsPath, () -> {
+                settingsOpen = false;
+                if (assistantScreen != null) client.setScreen(assistantScreen);
+            }));
+            return;
+        }
         client.setScreen(new AssistantSettingsScreen(settings, settingsPath, net.minecraft.network.chat.Component.literal("PackSage Settings"),
                 runtime, () -> {
                     settingsOpen = false;

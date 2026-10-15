@@ -4,6 +4,8 @@
 
 ### 2026-10-15
 
+- Added developer prompt settings behind Ctrl-click on the assistant's settings button, with a multiline prompt draft, Save, Cancel and Restore default. Saved overrides apply to new requests without restarting Minecraft; in-flight requests retain their original instructions.
+
 - Rewrote assistant instructions around goal clarification, claim-specific evidence, feasibility, focused investigation and actionable answers. Search coverage and recipe completeness are separate; verified sufficient materials allow an early conclusion, while shortage claims require relevant carried-storage checks. Bounded comparisons and incomplete-read recovery replace accumulated scenario warnings. Recipe planning supports route discovery while inventory and route completeness remain separate checks. Model behavior remains subject to live revalidation.
 
 - Final installed-build checks passed furnace diagnosis with explicit empty slots and complete eight-input furnace crafting. Hopper automation still exposed an unsupported affordability claim from a partial alternative recipe, followed by an incomplete plan; the [report](docs/validation/2026-10-15-natural-player-workflow-fixes.md) keeps this acceptance failure open.

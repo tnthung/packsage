@@ -18,6 +18,7 @@ public final class PackSageSettings {
     public static final int MAX_HISTORY_TURNS = 100;
     public static final int MAX_HISTORICAL_TOKENS = 1_000_000;
     public static final int MAX_SESSIONS_BEFORE_COLLAPSE = 1_000;
+    public static final int MAX_DEVELOPER_PROMPT_LENGTH = 65_536;
 
     private boolean openPaused;
     private boolean automaticWebSearch;
@@ -27,6 +28,7 @@ public final class PackSageSettings {
     private int sessionsBeforeCollapse;
     private String modelId;
     private ModelBackend.ReasoningEffort reasoningEffort;
+    private volatile String developerPrompt;
 
     public PackSageSettings(boolean openPaused, boolean automaticWebSearch, int historyTurns, int historicalTokens) {
         this.openPaused = openPaused;
@@ -62,6 +64,10 @@ public final class PackSageSettings {
             } catch (NumberFormatException ignored) { }
             String configuredModelId = properties.getProperty("modelId", "");
             settings.modelId = configuredModelId.isBlank() ? null : configuredModelId;
+            String configuredPrompt = properties.getProperty("developerPrompt");
+            if (configuredPrompt != null && !configuredPrompt.isBlank() && configuredPrompt.length() <= MAX_DEVELOPER_PROMPT_LENGTH) {
+                settings.developerPrompt = configuredPrompt;
+            }
             try {
                 settings.reasoningEffort = ModelBackend.ReasoningEffort.valueOf(properties.getProperty("reasoningEffort", "DEFAULT").toUpperCase(java.util.Locale.ROOT));
             } catch (IllegalArgumentException ignored) { }
@@ -88,6 +94,7 @@ public final class PackSageSettings {
         properties.setProperty("historicalTokens", Integer.toString(historicalTokens));
         properties.setProperty("sessionsBeforeCollapse", Integer.toString(sessionsBeforeCollapse));
         if (modelId != null) properties.setProperty("modelId", modelId);
+        if (developerPrompt != null) properties.setProperty("developerPrompt", developerPrompt);
         properties.setProperty("reasoningEffort", reasoningEffort.name().toLowerCase(java.util.Locale.ROOT));
         try {
             if (path.getParent() != null) Files.createDirectories(path.getParent());
@@ -107,12 +114,29 @@ public final class PackSageSettings {
     public int sessionsBeforeCollapse() { return sessionsBeforeCollapse; }
     public String modelId() { return modelId; }
     public ModelBackend.ReasoningEffort reasoningEffort() { return reasoningEffort; }
+    public String developerPrompt() { return developerPrompt; }
 
     public void setOpenPaused(boolean value) { openPaused = value; }
     public void setAutomaticWebSearch(boolean value) { automaticWebSearch = value; }
     public void setSendShortcut(SendShortcut value) { sendShortcut = value == null ? SendShortcut.ENTER : value; }
     public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; }
     public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; }
+
+    public boolean setDeveloperPrompt(String value) {
+        if (value != null && (value.isBlank() || value.length() > MAX_DEVELOPER_PROMPT_LENGTH)) return false;
+        developerPrompt = value;
+        return true;
+    }
+
+    public PackSageSettings withDeveloperPrompt(String value) {
+        PackSageSettings copy = new PackSageSettings(openPaused, automaticWebSearch, historyTurns, historicalTokens);
+        copy.sendShortcut = sendShortcut;
+        copy.sessionsBeforeCollapse = sessionsBeforeCollapse;
+        copy.modelId = modelId;
+        copy.reasoningEffort = reasoningEffort;
+        copy.developerPrompt = value;
+        return copy;
+    }
 
     public boolean setHistoryTurns(int value) {
         if (value < 1 || value > MAX_HISTORY_TURNS) return false;

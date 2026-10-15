@@ -94,4 +94,26 @@ class PackSageSettingsTest {
         assertEquals(PackSageSettings.SendShortcut.ENTER, loaded.sendShortcut());
         assertEquals(PackSageSettings.DEFAULT_SESSIONS_BEFORE_COLLAPSE, loaded.sessionsBeforeCollapse());
     }
+
+    @Test
+    void developerPromptRoundTripsUnicodeAndCanBeClearedBySavingDefault() {
+        Path path = temporaryDirectory.resolve("developer.properties");
+        PackSageSettings settings = PackSageSettings.defaults();
+        String prompt = "Line one\n世界 🌍";
+        assertTrue(settings.setDeveloperPrompt(prompt));
+        settings.save(path);
+        assertEquals(prompt, PackSageSettings.load(path).developerPrompt());
+
+        PackSageSettings.defaults().withDeveloperPrompt(null).save(path);
+        assertEquals(null, PackSageSettings.load(path).developerPrompt());
+    }
+
+    @Test
+    void blankAndOversizedDeveloperPromptsAreRejectedWithoutChangingValue() {
+        PackSageSettings settings = PackSageSettings.defaults();
+        assertTrue(settings.setDeveloperPrompt("kept"));
+        assertFalse(settings.setDeveloperPrompt(" \n"));
+        assertFalse(settings.setDeveloperPrompt("x".repeat(PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH + 1)));
+        assertEquals("kept", settings.developerPrompt());
+    }
 }

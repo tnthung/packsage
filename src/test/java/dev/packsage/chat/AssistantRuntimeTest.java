@@ -69,6 +69,31 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void developerPromptAppliesToEachNewRequestAndLeavesStartedRequestUnchanged() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        PackSageSettings settings = PackSageSettings.defaults();
+        settings.setDeveloperPrompt("prompt one");
+        AtomicReference<ModelBackend.Request> request = new AtomicReference<>();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), request, settings, model -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+
+        runtime.send("first", false, false);
+        ModelBackend.Request started = backend.requests.getFirst();
+        settings.setDeveloperPrompt("prompt two");
+        assertEquals("prompt one", started.instructions());
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), null));
+        runtime.send("second", false, false);
+
+        assertEquals("prompt one", started.instructions());
+        assertEquals("prompt two", backend.requests.getLast().instructions());
+        runtime.stop();
+    }
+
+    @Test
     void deletingSelectedSessionStartsAnEmptyCurrentWorldChat() throws Exception {
         FakeBackend backend = new FakeBackend();
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),

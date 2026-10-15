@@ -235,3 +235,84 @@ Tool calls:
 - `search_inventory {"target":{"type":"player"},"filter":null,"limit":32,"cursor":null}`
 
 Assessment: Three turns. Player was mostly satisfied after the model distinguished edge prevention from damage reduction and explained timed water placement. No fall was performed; the complaint is roleplay, not evidence of actual armor behavior. Empty enchantment data supports absence of Feather Falling, not a full conclusion about intrinsic armor or accessories. Calling 301 damage quite damaged lacked a maximum-durability comparison. Turn two reused a sneak-query cursor with feather falling and received INVALID_CURSOR. Guide/recipe searches were partial; no source-backed cheap enchantment route was produced.
+
+## Progression: partial, manageable idea without build instructions
+
+Player agent: `/root/luna_high_player_progression` (Luna High).
+
+### Request `305c7025-51ba-4a7f-ac6d-537a8b88bae6`
+
+Player: I’m not sure what to work toward next in ATM10. The pack feels huge, and I’m getting a bit lost.
+
+PackSage: It’s understandable—ATM10 is easy to approach as one enormous checklist. Try shrinking it to **one short-term goal**: choose a quest or chapter that sounds interesting, and follow just its next few steps. You don’t have to commit to a whole mod path.
+
+From what’s visible, you’ve got a working furnace and a Tier 3 Pocket Storage Unit, so a practical next goal could be improving your storage or making your basic setup more convenient—unless another quest has caught your eye.
+
+I couldn’t retrieve your current quest list, so I can’t tell which chapter is the best fit for your actual progress. If you share a screenshot of your quest book, I can help pick a manageable next step.
+
+Tool calls:
+
+- `search_document {"query":"getting started","filter":{"types":["quest"],"provider":"ftb_quests"},"limit":10,"cursor":null}`
+- `search_document {"query":"ATM Star","filter":{"types":["quest"],"provider":"ftb_quests"},"limit":10,"cursor":null}`
+- `search_document {"query":"getting started","filter":{"types":["quest"],"provider":"ftb_quests"},"limit":10,"cursor":"ftb:3ca21580-1a72-43a6-b0bd-6aaf6ab432ba"}`
+
+### Request `96d4bb66-5fb7-44fd-b6d6-68b55201e761`
+
+Player: Machines sound more appealing than storage. I’d like to spend less time crafting every little thing by hand. Is there a beginner-friendly direction for that?
+
+PackSage: A beginner-friendly way to start is to automate **one repetitive task**, rather than trying to build a full factory right away. Since you’re already using a furnace, a small first project could be feeding it automatically—then you can expand to moving finished items out once that feels comfortable.
+
+I couldn’t retrieve the pack’s quest or guide entries, so I can’t confirm which specific ATM10 machine path is easiest or what parts it requires. If you tell me what you most often find yourself crafting or smelting, I can help narrow down a good first automation target.
+
+Tool calls:
+
+- `search_document {"query":"automation","filter":{"types":["quest","guide"],"provider":"ftb_quests"},"limit":8,"cursor":null}`
+- `search_document {"query":"machine","filter":{"types":["quest","guide"],"provider":"ftb_quests"},"limit":8,"cursor":null}`
+
+### Request `69fc709d-2030-4760-bf7e-4190a4d011cc`
+
+Player: I haven’t settled into a routine yet, so I’m not sure what I repeat most. Automating the furnace sounds manageable, though. What would I need to get started?
+
+PackSage: A small first project is a **single-furnace hopper loop**: put a chest above the furnace for input, another below it for finished items, and a side hopper feeding fuel. Start with just input and output if you want to keep it simple; load fuel by hand.
+
+You already have a chest and 3 iron ingots in your inventory, but I couldn’t verify the installed hopper recipe or whether you have the other ingredients—it may take more materials to build the full setup. [native:minecraft:chest] [native:minecraft:iron_ingot]
+
+The pack’s recipe and guide searches were still partial, so I can’t confirm ATM10-specific recipe details. Check “Hopper” in JEI for the exact recipe, then place the hoppers so they point into or out of the furnace as intended.
+
+Tool calls:
+
+- `search_document {"query":"furnace","filter":{"types":["guide","quest"],"provider":null},"limit":10,"cursor":null}`
+- `search_recipe {"filter":{"text":"furnace","outputItem":null,"provider":null},"limit":20,"cursor":null}`
+- `search_document {"query":"furnace","filter":{"types":["guide","quest"],"provider":null},"limit":10,"cursor":"002b2cf7-a752-4938-90f0-d903503bdc7d"}`
+- `search_recipe {"filter":{"text":"furnace","outputItem":null,"provider":null},"limit":20,"cursor":"c9aa3a9a-e075-4b89-8e17-96f232365afd"}`
+- `search_document {"query":"furnace","filter":{"types":["guide","quest"],"provider":null},"limit":10,"cursor":"fa28c5ad-c261-4e25-bf80-340a75174898"}`
+- `search_recipe {"filter":{"text":"furnace","outputItem":null,"provider":null},"limit":20,"cursor":"20c7c594-5d41-4b99-912e-9397875f1cda"}`
+- `search_recipe {"filter":{"text":null,"outputItem":"minecraft:hopper","provider":"native"},"limit":10,"cursor":null}`
+- `search_inventory {"target":{"type":"player"},"filter":null,"limit":32,"cursor":null}`
+
+Assessment: three turns narrowed an overwhelmed player toward furnace automation. Turn two finally asked about repetitive work, and no completed quests were invented. All quest/document lookups remained partial; no progress reads occurred. Final exact native hopper lookup also returned an empty partial page with a continuation that was not followed. The answer deferred the recipe to the player and omitted a concrete hopper count/layout; chests directly above/below a furnace alone do not transfer items. Three loose iron were noted without the extra bundle iron. Player verdict: moderately helpful, still needs the hopper recipe. The first-turn working-furnace claim was based on appearance, not demonstrated progress.
+
+## Batch result and follow-up priorities
+
+Six independent player roles completed 17 live turns in fresh chats. No player message named a tool, provider, adapter, query syntax or prescribed evidence-gathering sequence. Some opening questions were already clear; ambiguous intent and corrections were exercised through the subsequent player-driven turns, especially progression and fall protection. This is one installed-build sample per scenario, not a statistical reliability claim.
+
+| Scenario | Turns | Outcome |
+| --- | --- | --- |
+| Faster glass | 3 | Partial: workaround, no verified cheap upgrade |
+| Basic backpack | 3 | Failed: no craftable recipe or materials plan |
+| Stalled furnace | 2 | Useful recovery after player clarification; fixture limits prevent physical-repair acceptance |
+| Carried redstone | 3 | Failed: missed supported nested storage |
+| Fall protection | 3 | Useful clarification, incomplete grounding and cursor misuse |
+| Next progression goal | 3 | Partial: approachable project, no concrete recipe/layout |
+
+Prioritize the following observed problems for subsequent implementation and retesting:
+
+1. Ordinary name searches can consume many calls returning empty partial pages. The backpack JEI continuation eventually failed with unchanged arguments; investigate source/runtime cursor handling separately from model misuse.
+2. Inventory answers overgeneralize top-level absence and ignore supported carried containers even after hints about packed materials. The model had both bundle references and explicit omitted-contents flags.
+3. The model still changes queries while retaining cursors, abandons useful continuations and hands simple recipe work back to the player.
+4. Advice must distinguish observed item data, unknown intrinsic/accessory effects, and generic gameplay advice. A lit block does not establish active processing; raw durability damage does not establish relative wear.
+5. Vague goals should produce an early focused clarification and then a concrete next action, rather than repeated partial-search disclaimers.
+
+Post-run verification used the in-game read-only command `data get entity @s Inventory[{Slot:5b}].components."minecraft:bundle_contents"`. Its visible output confirmed one iron ingot, four redstone and one Actually Additions iron casing. No carried items were changed during this batch. The new furnace remains at (9, 3, 12), with 64 sand, empty fuel/output and zero burn time; its exterior lit property remains a fixture artifact. The trial world was paused after testing. No crafting, transfer network, armor/fall benchmark or physical machine repair was claimed.
+
+Only test documentation and changelog changed. No formatter or automated source tests were run for this documentation-only expansion; the earlier 488-test correction-build result is baseline evidence, not a new run. Recorded transcripts were compared with persisted request replays and visible replies. Final checks cover request counts, relative document links and `git diff --check`.

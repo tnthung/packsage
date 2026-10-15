@@ -37,7 +37,7 @@ All three are natural-player tests, not tool-coached diagnostics. No physical cr
 
 - `27fc747`, `2affdc4`: a regression reproduced missing arithmetic support, then serialization gained deterministic totals for unambiguous consumed input slots. Choices, unknown quantities and unsupported consumption/types omit the tally; component variants remain separate. Totals preserve partial source/decoding status and do not establish full recipe coverage.
 
-The final automated suite/build passed: **487 tests, zero failures/errors, four skips**. Build, distribution and installed SHA-256 all match `27BF53DED7601529CF3D7033D89E07754B1016C3CF59586EC26AACF83D7C807F`; installation occurred with Minecraft closed.
+The totals/citation build passed **487 tests, zero failures/errors, four skips**. Build, distribution and installed SHA-256 all matched `27BF53DED7601529CF3D7033D89E07754B1016C3CF59586EC26AACF83D7C807F`; installation occurred with Minecraft closed.
 
 Independent review accepted the observed seek fix and conservative tally semantics. It also identified an untested extreme-source limit: a booklet position beyond the per-call page/value traversal capacity can repeatedly return a partial cursor at the same position, because each call must seek from the beginning. The observed short AA entry does not reach that condition; do not claim all arbitrarily long booklet continuations advance. This remains a separate bounded-reader limitation.
 
@@ -49,3 +49,11 @@ Independent review accepted the observed seek fix and conservative tally semanti
 - **Broad cross-mod setup remains incomplete**: request `bc547b7b-40af-4f56-95c4-942ff187faf5`, conversation `33162148-42de-4095-b261-968c51483635`. AA returned partial text and a continuation correctly. The model changed queries while reusing cursors, guessed an unknown crystal ID and an inventory cursor, and did not obtain the requested Powah setup or quest progress. The answer acknowledged its gaps. This is not complete workflow acceptance despite the narrower crafting passes.
 
 `28fa582` reproduced the unsupported-section false completeness. `6c970b4` fixes it within the native reader: unsupported-only sections return UNAVAILABLE/UNKNOWN, mixed requests retain known native matches as PARTIAL, and detail explicitly says unsupported sections were not inspected. The schema remains extensible for other adapters.
+
+### Final coverage build: `8D703953...`
+
+`gradlew test build` passed **488 tests, zero failures/errors, four skips**. Built, distributed and installed JARs matched SHA-256 `8D703953E38D957C7E5D101CD494D1D62AF87CB40A820AA1D18E2A0892C1718D`. Restarted Minecraft after installation with the game closed.
+
+Natural question: “What accessories am I wearing? Does any of my equipped gear protect me from falling?” Request `da96f1a3-2276-48f4-99af-5bac417dc5c1`, conversation `667a4145-da0f-4f58-9a64-9e985f3a82f9`: **coverage wording passed**. The model made a fresh vanilla inventory read, identified the Unobtainium armor, and explicitly said it could not see accessory slots or confirm their protection. It did not claim those slots were empty. This run did not call the unsupported-section branch; that branch and mixed coverage are proven by the automated regression, not this live answer.
+
+Final state: trial world paused, slot 9 selected, fixture bundle retains the one added iron. Git worktree clean after documentation commit; no formatter used. Remaining limits are the broad model workflow/cursor mistakes, inferred effect claims observed in the earlier comparison, and the explicitly documented extreme-booklet continuation case. These are not covered by a blanket “all workflows passed” claim.

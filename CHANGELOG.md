@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Final correction build passed 488 automated tests with four skips. A fresh live accessory question correctly left unobserved accessory slots unknown; unsupported-only and mixed-section coverage have dedicated regressions.
 - Verified natural-player crafting across both carried bundles, a shulker and JEI, including a changed-bundle follow-up with fresh reads. Guide citations render correctly. The broader Powah/AA/quest workflow still exposes model continuation errors; [the correction report](docs/validation/2026-10-15-cross-mod-workflow-fixes.md) separates passing source checks from incomplete answers.
 - Native inventory searches now report unsupported-only sections as unavailable and mixed supported/unsupported sections as partial, explicitly stating which sections were not inspected instead of returning a misleading complete empty result.
 - Added a regression for unsupported vanilla inventory sections: unknown accessory slots must not appear as an inspected, completely empty inventory.

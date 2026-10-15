@@ -3,9 +3,11 @@ package dev.packsage.knowledge.nativegame;
 import com.google.common.collect.ImmutableCollection;
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.crafting.RecipeHolder;
 
@@ -24,7 +26,13 @@ final class NativeRecipeReader {
         Registry<Item> itemRegistry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
         var recipes = client.level.getRecipeManager().getRecipes();
         if (!(recipes instanceof ImmutableCollection<?> immutableRecipes)) return new Page(List.of(), offset, false, 0);
-        var orderedRecipes = immutableRecipes.asList();
+        return searchCandidates(immutableRecipes.asList(), client.level.registryAccess(), itemRegistry,
+                client.getResourceManager(), outputItem, text, offset, limit, scope);
+    }
+
+    static Page searchCandidates(List<?> orderedRecipes, HolderLookup.Provider registries,
+                                 Registry<Item> itemRegistry, ResourceManager resourceManager,
+                                 String outputItem, String text, int offset, int limit, Evidence.Scope scope) {
         var records = new ArrayList<Evidence.Record>();
         int index = Math.min(offset, orderedRecipes.size());
         int scanned = 0;
@@ -32,8 +40,7 @@ final class NativeRecipeReader {
             RecipeHolder<?> holder = (RecipeHolder<?>) orderedRecipes.get(index);
             index++;
             scanned++;
-            var record = NativeSnapshot.copyRecipe(holder, client.level.registryAccess(), itemRegistry,
-                    client.getResourceManager(), scope);
+            var record = NativeSnapshot.copyRecipe(holder, registries, itemRegistry, resourceManager, scope);
             var recipe = record.recipePayload();
             if (outputItem != null && recipe.outputs().stream().noneMatch(output -> output.type().equals("item")
                     && outputItem.equals(output.comparisonIdentity()))) continue;

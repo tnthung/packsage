@@ -28,11 +28,13 @@ class DeveloperSettingsScreenTest {
         ScreenTestHost.initialize(screen);
         var editor = (MultilineEditor) screen.children().getFirst();
         editor.setValue("line one\n世界 🌍");
+        editor.setFocused(true);
+        screen.setFocused(editor);
         assertTrue(editor.keyPressed(GLFW.GLFW_KEY_ENTER, 0, 0));
-        assertEquals("line one\n世界 🌍", editor.value());
+        assertEquals("line one\n世界 🌍\n", editor.value());
         screen.width = 320;
         ScreenTestHost.initialize(screen);
-        assertEquals("line one\n世界 🌍", ((MultilineEditor) screen.children().getFirst()).value());
+        assertEquals("line one\n世界 🌍\n", ((MultilineEditor) screen.children().getFirst()).value());
     }
 
     @Test
@@ -92,6 +94,26 @@ class DeveloperSettingsScreenTest {
         cancelled.mouseClicked(208, 215, 0);
         assertEquals("saved prompt", settings.developerPrompt());
         assertEquals(1, cancelledReturned.get());
+    }
+
+    @Test
+    void oversizedUnicodeInsertedIntoEditorIsRejectedOnSave() {
+        PackSageSettings settings = PackSageSettings.defaults();
+        settings.setDeveloperPrompt("saved prompt");
+        AtomicInteger returned = new AtomicInteger();
+        var screen = new DeveloperSettingsScreen(settings, temporaryDirectory.resolve("oversized.properties"), actions(), returned::incrementAndGet);
+        screen.width = 320;
+        screen.height = 240;
+        ScreenTestHost.initialize(screen);
+        var editor = (MultilineEditor) screen.children().getFirst();
+        editor.setValue("");
+        editor.insert("x".repeat(PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH) + "🌍");
+        assertTrue(editor.value().length() > PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH);
+
+        screen.mouseClicked(278, 215, 0);
+
+        assertEquals("saved prompt", settings.developerPrompt());
+        assertEquals(0, returned.get());
     }
 
     private static ChatActions actions() {

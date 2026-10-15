@@ -10,6 +10,7 @@ import java.io.InputStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PackSageSettingsTest {
@@ -114,6 +115,8 @@ class PackSageSettingsTest {
         assertTrue(settings.setDeveloperPrompt("kept"));
         assertFalse(settings.setDeveloperPrompt(" \n"));
         assertFalse(settings.setDeveloperPrompt("x".repeat(PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH + 1)));
+        assertThrows(IllegalArgumentException.class,
+                () -> settings.withDeveloperPrompt("x".repeat(PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH + 1)));
         assertEquals("kept", settings.developerPrompt());
     }
 }

@@ -121,3 +121,117 @@ Tool calls:
 Assessment: all three turns failed to produce a backpack recipe or crafting path. First-turn JEI pagination returned eleven empty partial pages, then rejected the returned continuation with INVALID_CURSOR despite unchanged query and limit; runtime-position invalidation needs investigation. Native registry/document searches also remained partial. The final answer counted only three loose iron and said no redstone was visible, without inspecting either carried bundle; the established test bundle contains one more iron and four redstone. Player verdict: "Not really - I still do not know how to make a backpack."
 
 Fixture caveat: later furnace inspection showed the original command-created input still at 64 sand, with empty output despite consumed coal. Burning was observed, successful smelting was not. The speed conversation is evidence about recommendations, not a physical speed benchmark. For the stalled scenario, BurnTime and CookTime were set to zero and CookTimeTotal to 200; the menu showed no active flame and empty fuel/output. The exterior lit property remained true, so visual state alone is deliberately not accepted as proof of progress.
+
+## Stalled furnace: useful recovery after clarification
+
+Player agent: `/root/luna_high_player_stalled` (Luna High).
+
+### Request `6a328c1b-bdac-4d2a-9bf3-f0dc8de01881`
+
+Player: My glass setup has stopped making glass. It was working earlier, but now nothing’s coming out. What should I check?
+
+PackSage: Your furnace is **lit**, and it has **64 sand in its input slot**—so it looks like it’s smelting. The screenshot shows no glass in its output, though; check the **fuel slot** and whether the output slot is blocked or full. If the furnace is still lit but the sand count isn’t dropping, the output may be full. [native:storage:768bd3cd-d5c7-4100-a784-64f349aa78cf:0]
+
+The current view only exposes the furnace’s input contents, so I can’t confirm its fuel or output slots.
+
+Tool calls:
+
+- `search_inventory {"target":{"type":"targeted"}}`
+- `search_recipe {"filter":{"text":"glass","outputItem":null,"provider":"native"},"limit":10,"cursor":null}`
+
+### Request `cfdb11d6-6198-42bd-956a-d71a46edee8f`
+
+Player: I opened it—there’s sand in there, but the fuel slot is empty. Would that stop it?
+
+PackSage: Yes. A furnace needs fuel to smelt sand into glass. With the fuel slot empty, it’ll stop once any existing burn time runs out. Add fuel, and check whether the glass appears in the output slot; the current contents read only confirms 64 sand in the input, not what’s in the other slots. [native:storage:3e80c86c-6869-4294-80b1-9873c6b04d9e:0]
+
+Tool calls:
+
+- `search_inventory {"target":{"type":"targeted"},"filter":null,"limit":8}`
+
+Assessment: Two turns. Player was satisfied after supplying the empty-fuel observation. The first answer treated lit exterior as apparent smelting, despite the stalled complaint, and said only input was exposed. Actual targeted storage result was COMPLETE with contentsStatus=complete and only the nonempty input entry; empty slots were omitted. The second answer correctly explained remaining burn time and refuelling. The fixture caveat above prevents claiming a physical repair or clean visual diagnosis pass.
+
+## Finding carried redstone: failed
+
+Player agent: `/root/luna_high_player_materials` (Luna High).
+
+### Request `708ebef2-f792-4c6d-ad3b-1c0eaafdea4d`
+
+Player: Hey, can you help me find some redstone? I think I might already have some on me, but I can’t remember.
+
+PackSage: I checked your inventory, and you don’t appear to have any redstone on you.
+
+Tool calls:
+
+- `search_inventory {"target":{"type":"player"},"filter":{"names":["redstone"],"ids":["minecraft:redstone"],"tags":null,"tooltip":null,"sections":null},"limit":32}`
+
+### Request `77dfd761-c1f4-4980-a6e4-cc64f5106295`
+
+Player: Huh, I was pretty sure I had some packed away. Could you take another look?
+
+PackSage: I checked again: there’s no redstone in your visible inventory. You do have a Pocket Storage Unit, but I couldn’t read its contents, so I can’t confirm whether the redstone is packed away in there.
+
+Tool calls:
+
+- `search_inventory {"target":{"type":"player"},"filter":{"ids":["minecraft:redstone"]},"limit":32}`
+- `search_inventory {"target":{"type":"player"},"limit":32}`
+- `search_inventory {"target":{"type":"item","slotReference":"native:inventory:bed562ca-74a6-49f0-9e31-5f7ad818b079:hotbar:8"},"limit":32}`
+
+### Request `42eb6751-c231-480c-b821-81c3a62244d4`
+
+Player: Could you help me get to whatever’s packed away? I only need a few for crafting.
+
+PackSage: I couldn’t read the Pocket Storage Unit’s contents—the storage lookup is unavailable—so I can’t confirm whether your redstone is inside. You’re holding the unit now; open it in-game to check. I can’t open it or take items out for you.
+
+Tool calls:
+
+- `search_inventory {"target":{"type":"player"},"filter":null,"limit":32}`
+- `search_inventory {"target":{"type":"item","slot":"mainhand"},"filter":null,"limit":32}`
+- `search_inventory {"target":{"type":"item","slotReference":"native:inventory:slot:c9b32e9c-ed46-392b-8046-54d9e8d2fb6a"},"filter":{"names":["Redstone"],"ids":["minecraft:redstone"]},"limit":32}`
+
+Assessment: Three turns. Initial no-redstone answer overgeneralized a filtered top-level inventory read. Subsequent unfiltered reads exposed two Bundle records with nestedStorageContentsOmitted=true and valid slot references, but the model tried only the Pocket Storage Unit. Its unavailable result was described honestly; supported bundles and shulker were never queried. The player remained unsatisfied. This reproduces the backpack follow-up omission independently.
+
+## Fall protection: useful clarification, incomplete grounding
+
+Player agent: `/root/luna_high_player_falls` (Luna High).
+
+### Request `a0a4a534-9e98-4433-9f6a-a552efd7e330`
+
+Player: I keep taking damage when I fall off the platforms I’m building. Is there some cheap way to stop that, or should my armor already be handling it?
+
+PackSage: Your **Unobtainium armor isn’t stopping fall damage**: the equipped pieces have no enchantments, so they don’t provide **Feather Falling**. The boots are also quite damaged (301 damage), though that isn’t why you’re taking fall damage. [native:inventory:d32fa7de-ed8f-4f2a-9ab3-1d182cd480fc:armor:0] [native:inventory:d32fa7de-ed8f-4f2a-9ab3-1d182cd480fc:armor:1] [native:inventory:d32fa7de-ed8f-4f2a-9ab3-1d182cd480fc:armor:2] [native:inventory:d32fa7de-ed8f-4f2a-9ab3-1d182cd480fc:armor:3]
+
+The cheap fix is to **sneak while building near platform edges**; for extra insurance, put **Feather Falling** on your boots if you can. I couldn’t confirm a pack-specific cheap recipe or guide from the available lookup, so I can’t say what the easiest enchantment route is in this pack.
+
+Tool calls:
+
+- `search_inventory {"target":{"type":"player"},"filter":null,"limit":32}`
+- `search_recipe {"filter":{"text":"feather falling","outputItem":null,"provider":"jei"},"limit":10,"cursor":null}`
+- `search_document {"query":"fall damage","filter":{"types":["guide","quest"],"provider":null},"limit":10,"cursor":null}`
+
+### Request `71f67dde-5e9b-4951-b0d7-31872af4ad15`
+
+Player: Does sneaking stop the fall damage too, or just make it harder to walk off the edge? I mean when I actually drop down a long way.
+
+PackSage: Sneaking **doesn’t prevent fall damage** from a long drop—it mainly helps keep you from walking off an edge. Sorry, my earlier suggestion was misleading as protection against the damage itself. For long falls, you’d need something that actually reduces or prevents fall damage, such as **Feather Falling** on your boots.
+
+Tool calls:
+
+- `search_document {"query":"sneak","filter":{"types":["guide","quest"],"provider":null},"limit":20,"cursor":null}`
+- `search_document {"query":"feather falling","filter":{"types":["guide","quest"],"provider":null},"limit":20,"cursor":"1340b4d9-8a53-4291-ad14-7f9eb550b894"}`
+
+### Request `4ecd7092-4f51-4f26-8c86-bc759cbdefa1`
+
+Player: Would carrying a water bucket work for the long drops? I’m looking for something cheap I can use while building.
+
+PackSage: Yes—**a water bucket can save you from a long fall** if you place the water so you land in it. It takes timing and a clear spot to place water, so practice over a safe area first; don’t count on it if the platform or dimension prevents water placement.
+
+For a simple building safety net, **Feather Falling on your boots** is more forgiving. Your equipped Unobtainium boots currently have no enchantments.
+
+Tool calls:
+
+- `search_recipe {"filter":{"text":"water bucket","outputItem":null,"provider":null},"limit":10,"cursor":null}`
+- `search_registry {"registry":"item","filter":{"text":"water bucket","ids":null,"tags":null,"provider":"native"},"limit":10,"cursor":null}`
+- `search_inventory {"target":{"type":"player"},"filter":null,"limit":32,"cursor":null}`
+
+Assessment: Three turns. Player was mostly satisfied after the model distinguished edge prevention from damage reduction and explained timed water placement. No fall was performed; the complaint is roleplay, not evidence of actual armor behavior. Empty enchantment data supports absence of Feather Falling, not a full conclusion about intrinsic armor or accessories. Calling 301 damage quite damaged lacked a maximum-durability comparison. Turn two reused a sneak-query cursor with feather falling and received INVALID_CURSOR. Guide/recipe searches were partial; no source-backed cheap enchantment route was produced.

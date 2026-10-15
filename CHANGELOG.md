@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Natural-player correction build passed 490 automated tests with four existing skips. Independent review findings were fixed and rechecked; the matching JAR is installed for live retesting. [The correction report](docs/validation/2026-10-15-natural-player-workflow-fixes.md) separates source guarantees from pending conversation acceptance.
 - Closed two JEI review findings: late category continuations no longer spend extraction bytes on skipped categories, and canonical ID strings reserve their bytes before copying. Oversized IDs stop with terminal partial coverage instead of a non-progressing cursor.
 - Machine comparison guidance now includes config key/comment discovery and current values, preserving file-versus-effective and client/server authority rather than treating recipe costs as speed evidence.
 - JEI continuation distinguishes absolute source position from the per-call candidate limit and seeks live recipes under a separate 65,536-position ceiling. Canonical IDs consume their actual byte allowance; an exhausted seek boundary ends as partial instead of emitting an unusable cursor.

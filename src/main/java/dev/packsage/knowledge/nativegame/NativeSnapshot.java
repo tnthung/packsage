@@ -80,7 +80,7 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         for (var entry : tagMembers.entrySet()) records.add(registryTag(entry.getKey(), entry.getValue(), scope));
         ResourceManager resourceManager = client.getResourceManager();
         for (RecipeHolder<?> holder : level.getRecipeManager().getRecipes()) {
-            records.add(copyRecipe(holder, registries, itemRegistry, resourceManager, scope));
+            records.add(copyRecipe(holder, registries, itemRegistry, resourceManager, scope, null));
         }
         return records.isEmpty() ? unavailable(scope, "client native evidence empty") : new NativeSnapshot(scope, records);
     }
@@ -153,9 +153,19 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
     }
 
     static Evidence.Record copyRecipe(RecipeHolder<?> holder, net.minecraft.core.HolderLookup.Provider registries,
-                                               Registry<Item> itemRegistry, ResourceManager resourceManager, Evidence.Scope scope) {
+                                               Registry<Item> itemRegistry, ResourceManager resourceManager, Evidence.Scope scope,
+                                               String exactOutputItem) {
         Recipe<?> recipe = holder.value();
         var decoding = Evidence.DecodingStatus.VERIFIED;
+        ItemStack output;
+        try {
+            output = recipe.getResultItem(registries);
+        } catch (RuntimeException failure) {
+            if (exactOutputItem != null) return null;
+            output = ItemStack.EMPTY;
+            decoding = Evidence.DecodingStatus.PARTIAL;
+        }
+        if (exactOutputItem != null && (output.isEmpty() || !exactOutputItem.equals(itemIdentity(output, itemRegistry)))) return null;
         var slots = new ArrayList<Evidence.RecipeSlot>();
         var tags = new LinkedHashSet<String>();
         int slotIndex = 0;
@@ -192,13 +202,6 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                         new Evidence.JsonObject(Map.of()), null, Evidence.Consumption.UNKNOWN));
             }
             slots.add(new Evidence.RecipeSlot("slot-" + slotIndex++, alternatives));
-        }
-        ItemStack output;
-        try {
-            output = recipe.getResultItem(registries);
-        } catch (RuntimeException failure) {
-            output = ItemStack.EMPTY;
-            decoding = Evidence.DecodingStatus.PARTIAL;
         }
         var outputs = output.isEmpty() ? List.of(new Evidence.RecipeOutput("unknown", "unknown:output:" + holder.id(),
                 new Evidence.JsonObject(Map.of()), null)) : List.of(new Evidence.RecipeOutput("item", itemIdentity(output, itemRegistry),

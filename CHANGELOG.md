@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Exact native recipe searches now resolve each output once before decoding unrelated ingredients, scanning up to 4,096 live candidates per page. Text remains an additional literal filter, and text-only scans retain their smaller projection budget.
 - Expanded the bounded live registry ID/name scan to 4,096 candidates per call while projecting only matching records. Direct registry indexing avoids replaying prior pages; item-tag iterator bounds remain separate.
 - Updated answer guidance for casual goal clarification, concrete crafting/improvement steps, carried-container material checks and exact continuation recovery. Machine activity, intrinsic abilities and relative durability require evidence beyond a lit block, missing enchantments or raw damage values; live conversation revalidation remains pending.
 - Player inventory results explicitly identify direct slots and equipment as their scope, including filtered misses; carried storage contents require their own live read.

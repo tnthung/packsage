@@ -17,6 +17,7 @@ import java.util.Locale;
 
 final class NativeRecipeReader {
     static final int MAX_CANDIDATES = 512;
+    static final int MAX_OUTPUT_CANDIDATES = 4096;
 
     private NativeRecipeReader() { }
 
@@ -36,14 +37,12 @@ final class NativeRecipeReader {
         var records = new ArrayList<Evidence.Record>();
         int index = Math.min(offset, orderedRecipes.size());
         int scanned = 0;
-        while (index < orderedRecipes.size() && scanned < MAX_CANDIDATES) {
+        while (index < orderedRecipes.size() && scanned < (outputItem == null ? MAX_CANDIDATES : MAX_OUTPUT_CANDIDATES)) {
             RecipeHolder<?> holder = (RecipeHolder<?>) orderedRecipes.get(index);
             index++;
             scanned++;
-            var record = NativeSnapshot.copyRecipe(holder, registries, itemRegistry, resourceManager, scope);
-            var recipe = record.recipePayload();
-            if (outputItem != null && recipe.outputs().stream().noneMatch(output -> output.type().equals("item")
-                    && outputItem.equals(output.comparisonIdentity()))) continue;
+            var record = NativeSnapshot.copyRecipe(holder, registries, itemRegistry, resourceManager, scope, outputItem);
+            if (record == null) continue;
             if (text != null && !(record.title() + " " + record.source().sourceHandle() + " "
                     + Evidence.serialize(record.payload())).toLowerCase(Locale.ROOT).contains(text.toLowerCase(Locale.ROOT))) continue;
             records.add(record);
@@ -60,7 +59,7 @@ final class NativeRecipeReader {
         var holder = client.level.getRecipeManager().byKey(id).orElse(null);
         if (holder == null) return null;
         var items = client.level.registryAccess().registryOrThrow(Registries.ITEM);
-        return NativeSnapshot.copyRecipe(holder, client.level.registryAccess(), items, client.getResourceManager(), scope);
+        return NativeSnapshot.copyRecipe(holder, client.level.registryAccess(), items, client.getResourceManager(), scope, null);
     }
 
     static List<Evidence.Record> planCandidates(Minecraft client, Evidence.Scope scope) {
@@ -73,7 +72,7 @@ final class NativeRecipeReader {
         for (RecipeHolder<?> holder : recipes) {
             if (scanned++ == MAX_CANDIDATES) break;
             result.add(NativeSnapshot.copyRecipe(holder, client.level.registryAccess(), itemRegistry,
-                    client.getResourceManager(), scope));
+                    client.getResourceManager(), scope, null));
         }
         return List.copyOf(result);
     }

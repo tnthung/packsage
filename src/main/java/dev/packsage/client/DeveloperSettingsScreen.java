@@ -1,6 +1,7 @@
 package dev.packsage.client;
 
 import dev.packsage.chat.PackSageSettings;
+import dev.packsage.chat.ChatActions;
 import dev.packsage.model.GroundingInstructions;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -13,15 +14,17 @@ import java.util.Objects;
 public final class DeveloperSettingsScreen extends Screen {
     private final PackSageSettings settings;
     private final Path path;
+    private final ChatActions actions;
     private final Runnable returnToAssistant;
     private MultilineEditor editor;
     private String draft;
     private String error;
 
-    public DeveloperSettingsScreen(PackSageSettings settings, Path path, Runnable returnToAssistant) {
+    public DeveloperSettingsScreen(PackSageSettings settings, Path path, ChatActions actions, Runnable returnToAssistant) {
         super(Component.literal("Developer Settings"));
         this.settings = Objects.requireNonNull(settings);
         this.path = Objects.requireNonNull(path);
+        this.actions = Objects.requireNonNull(actions);
         this.returnToAssistant = Objects.requireNonNull(returnToAssistant);
         draft = settings.developerPrompt() == null ? GroundingInstructions.defaultInstructions() : settings.developerPrompt();
     }
@@ -32,8 +35,9 @@ public final class DeveloperSettingsScreen extends Screen {
         int panelWidth = Math.max(1, Math.min(720, width - 32));
         int left = (width - panelWidth) / 2;
         editor = addRenderableWidget(new MultilineEditor(font, left + 12, 58, panelWidth - 24, Math.max(40, height - 112),
-                PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH + 1, true, () -> true));
+                PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH + 2, true, () -> true));
         editor.setMessage(Component.literal("System prompt"));
+        editor.controlEnter = () -> true;
         editor.setValue(draft);
     }
 
@@ -51,12 +55,15 @@ public final class DeveloperSettingsScreen extends Screen {
         super.render(graphics, mouseX, mouseY, partialTick);
         int buttonsY = height - 36;
         String[] labels = {"Restore default", "Cancel", "Save"};
+        int available = panelWidth - 24;
+        int[] buttonWidths = {available * 46 / 100, available * 27 / 100, available - available * 46 / 100 - available * 27 / 100 - 16};
+        int x = left + 12;
         for (int i = 0; i < labels.length; i++) {
-            int x = left + 12 + i * 112;
-            ModernUi.surface(graphics, x, buttonsY, x + 104, buttonsY + 22,
-                    mouseX >= x && mouseX < x + 104 && mouseY >= buttonsY && mouseY < buttonsY + 22
+            ModernUi.surface(graphics, x, buttonsY, x + buttonWidths[i], buttonsY + 22,
+                    mouseX >= x && mouseX < x + buttonWidths[i] && mouseY >= buttonsY && mouseY < buttonsY + 22
                             ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
             graphics.drawString(font, Component.literal(labels[i]).withStyle(style -> style.withFont(ModernUi.FONT)), x + 8, buttonsY + 7, ModernUi.TEXT, false);
+            x += buttonWidths[i] + 8;
         }
         if (error != null) graphics.drawString(font, Component.literal(error).withStyle(style -> style.withFont(ModernUi.FONT)), left + 12, height - 50, ModernUi.DANGER, false);
     }
@@ -67,16 +74,21 @@ public final class DeveloperSettingsScreen extends Screen {
             int panelWidth = Math.max(1, Math.min(720, width - 32));
             int left = (width - panelWidth) / 2;
             int buttonsY = height - 36;
+            int available = panelWidth - 24;
+            int[] buttonWidths = {available * 46 / 100, available * 27 / 100, available - available * 46 / 100 - available * 27 / 100 - 16};
+            int firstButton = left + 12;
+            int secondButton = firstButton + buttonWidths[0] + 8;
+            int thirdButton = secondButton + buttonWidths[1] + 8;
             if (mouseX >= left && mouseX < left + 52 && mouseY >= 12 && mouseY < 32) { finish(); return true; }
             if (mouseY >= buttonsY && mouseY < buttonsY + 22) {
-                if (mouseX >= left + 12 && mouseX < left + 116) {
+                if (mouseX >= firstButton && mouseX < firstButton + buttonWidths[0]) {
                     draft = GroundingInstructions.defaultInstructions();
                     editor.setValue(draft);
                     error = null;
                     return true;
                 }
-                if (mouseX >= left + 124 && mouseX < left + 228) { finish(); return true; }
-                if (mouseX >= left + 236 && mouseX < left + 340) {
+                if (mouseX >= secondButton && mouseX < secondButton + buttonWidths[1]) { finish(); return true; }
+                if (mouseX >= thirdButton && mouseX < thirdButton + buttonWidths[2]) {
                     draft = editor.value();
                     if (draft.isBlank()) { error = "Prompt cannot be blank"; return true; }
                     if (draft.length() > PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH) { error = "Prompt is too long"; return true; }
@@ -97,6 +109,13 @@ public final class DeveloperSettingsScreen extends Screen {
     public void resize(Minecraft minecraft, int width, int height) {
         if (editor != null) draft = editor.value();
         super.resize(minecraft, width, height);
+    }
+
+    @Override
+    public boolean isPauseScreen() {
+        if (minecraft == null) return false;
+        var server = minecraft.getSingleplayerServer();
+        return actions.view().paused() && minecraft.isSingleplayer() && server != null && !server.isPublished();
     }
 
     @Override public void onClose() { finish(); }

@@ -134,7 +134,7 @@ public final class PackSageSettings {
         copy.sessionsBeforeCollapse = sessionsBeforeCollapse;
         copy.modelId = modelId;
         copy.reasoningEffort = reasoningEffort;
-        copy.developerPrompt = value;
+        if (!copy.setDeveloperPrompt(value)) throw new IllegalArgumentException("developerPrompt is out of bounds");
         return copy;
     }
 

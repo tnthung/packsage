@@ -505,7 +505,7 @@ public final class ClientAssistant {
     private void openSettings() {
         settingsOpen = true;
         if (net.minecraft.client.gui.screens.Screen.hasControlDown()) {
-            client.setScreen(new DeveloperSettingsScreen(settings, settingsPath, () -> {
+            client.setScreen(new DeveloperSettingsScreen(settings, settingsPath, runtime, () -> {
                 settingsOpen = false;
                 if (assistantScreen != null) client.setScreen(assistantScreen);
             }));

@@ -414,7 +414,7 @@ class JeiProjectionTest {
     }
 
     @Test
-    void pinnedRuntimeScannerAdvancesPastCapAndKeepsOpaqueNoMatchCoverage() throws Exception {
+    void pinnedRuntimeScannerContinuesPastPerCallLimitAndRejectsStaleCursors() throws Exception {
         var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
         unsafeField.setAccessible(true);
         var unsafe = unsafeField.get(null);
@@ -428,8 +428,9 @@ class JeiProjectionTest {
         gameThread.set(fakeMinecraft, Thread.currentThread());
         minecraftInstance.set(null, fakeMinecraft);
         try {
-            var recipes = new AtomicReference<List<Object>>(java.util.stream.IntStream.range(0, 2050)
+            var recipes = new AtomicReference<List<Object>>(java.util.stream.IntStream.range(0, 20000)
                     .mapToObj(value -> (Object) ("recipe-" + value)).toList());
+            var recipeVisits = new AtomicInteger();
             var type = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("addon", "category"), Object.class);
             var category = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
                     new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
@@ -440,7 +441,7 @@ class JeiProjectionTest {
             var recipeLookup = (IRecipeLookup<Object>) Proxy.newProxyInstance(IRecipeLookup.class.getClassLoader(),
                     new Class<?>[] { IRecipeLookup.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "includeHidden", "limitFocus" -> proxy;
-                        case "get" -> recipes.get().stream();
+                        case "get" -> recipes.get().stream().peek(ignored -> recipeVisits.incrementAndGet());
                         default -> null;
                     });
             var catalystLookup = (IRecipeCatalystLookup) Proxy.newProxyInstance(
@@ -472,17 +473,40 @@ class JeiProjectionTest {
             plugin.onRuntimeAvailable(runtime);
 
             var first = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
-                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("2049"))), 1, null, null), SCOPE)
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("4095"))), 1, null, null), SCOPE)
                     .toCompletableFuture().get();
             assertTrue(first.records().isEmpty());
             assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
             assertNotNull(first.nextCursor());
+            recipeVisits.set(0);
             PackSageJeiPlugin.clientTicked();
             var second = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
-                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("2049"))), 1, SCOPE,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("4095"))), 1, SCOPE,
                     first.nextCursor()), SCOPE).toCompletableFuture().get();
-            assertEquals(Evidence.Coverage.ERROR, second.coverage(),
-                    "a cursor beyond this call's bounded seek window must be rejected, not retried as a fresh scan");
+            assertEquals(1, second.records().size(),
+                    "a continuation must find a matching recipe beyond the per-call scan limit");
+            assertTrue(recipeVisits.get() <= 4096,
+                    "the live recipe walk must bound cursor seeking and candidate reads");
+            assertNotNull(second.nextCursor());
+            recipeVisits.set(0);
+            PackSageJeiPlugin.clientTicked();
+            var third = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("4095"))), 1, SCOPE,
+                    second.nextCursor()), SCOPE).toCompletableFuture().get();
+            assertTrue(third.records().isEmpty(), "continuation must advance past the matching recipe");
+            assertNotEquals(Evidence.Coverage.ERROR, third.coverage(),
+                    "an emitted cursor beyond ordinal 2048 must remain resumable");
+            assertTrue(recipeVisits.get() <= 6143,
+                    "a later live cursor must not trigger an unbounded recipe scan");
+
+            plugin.onRuntimeAvailable(runtime);
+            recipeVisits.set(0);
+            PackSageJeiPlugin.clientTicked();
+            var stale = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("4095"))), 1, SCOPE,
+                    second.nextCursor()), SCOPE).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.ERROR, stale.coverage(), "a cursor from the previous runtime must be rejected");
+            assertEquals(0, recipeVisits.get(), "stale cursors must be rejected before scanning live recipes");
 
             recipes.set(List.of("first", "second"));
             PackSageJeiPlugin.clientTicked();

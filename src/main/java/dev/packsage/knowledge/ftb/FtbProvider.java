@@ -827,12 +827,12 @@ public final class FtbProvider implements KnowledgeProvider {
                         if (!budget.bytes(previousOwner.length() * 2)) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                 "FTB cursor cannot read the preceding quest identity within the read budget; restart the search");
                         position += skippedQuests;
-                        if (position == traversalStart && traversalPhase == -1 && !expectedOwner.equals(previousOwner))
+                        if (position == traversalStart && traversalPhase == -1 && !traversalExpectedOwner.equals(previousOwner))
                             throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor owner changed; restart the search");
                     }
                 }
                 if (position == traversalStart && traversalPhase == -1 && skippedQuests == 0
-                        && !expectedOwner.equals(chapterId))
+                        && !traversalExpectedOwner.equals(chapterId))
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "FTB cursor owner changed; restart the search");
                 var questIterator = questList.listIterator(skippedQuests);
                 var questIndex = skippedQuests;

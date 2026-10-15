@@ -346,10 +346,13 @@ class PackSageToolsTest {
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
                 Evidence.RecordKind.ITEM, "Large", new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("\u754C".repeat(50000)))), List.of());
         var response = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(record),
-                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))).execute(
+                Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, "after-hidden-record"))).execute(
                 new ModelBackend.ToolCall("large", "search_registry", "{\"registry\":\"item\"}"), SCOPE).toCompletableFuture().get();
         assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131072);
         assertTrue(response.result().serializedResult().contains("PARTIAL"));
+        var truncated = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertTrue(truncated.get("nextCursor").isJsonNull());
+        assertFalse(truncated.has("nextCall"));
         var error = new PackSageTools(request -> CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "repeat lookup")))
                 .execute(new ModelBackend.ToolCall("bad", "search_recipe", "{}"), SCOPE).toCompletableFuture().get();
         assertTrue(error.result().error());

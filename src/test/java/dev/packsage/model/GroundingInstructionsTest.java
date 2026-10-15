@@ -87,6 +87,8 @@ class GroundingInstructionsTest {
         assertTrue(request.instructions().contains("Cursors continue searches; returned record references identify evidence to read."));
         assertTrue(request.instructions().contains("count each required input slot and its quantity once"));
         assertTrue(request.instructions().contains("vanilla armor coverage does not establish accessory-slot coverage"));
+        assertTrue(request.instructions().contains("without evidence for relevant accessory slots say their contents are unknown, not unequipped"));
+        assertTrue(request.instructions().contains("label comparisons that infer outcomes, and do not treat one effect as proof of another"));
         assertTrue(request.instructions().contains("reread current inventory and recipe evidence"));
         assertTrue(request.instructions().contains("use its returned slot reference as an item target"));
         assertEquals(4, request.input().size());

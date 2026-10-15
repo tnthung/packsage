@@ -4,6 +4,7 @@
 
 ### 2026-10-15
 
+- Tightened equipment and behavior wording after a natural-player retest: unobserved accessory slots remain unknown, and comparisons must label inferred outcomes rather than treating one documented effect as proof of another.
 - Made Relics and verified Reliquified Artifacts ability documents searchable by their current localized item names, retaining bounded titles and stable document references on search and reread.
 - Clarified prompt recovery order: continue partial searches before changing their query, simplify complete misses, and inspect each relevant carried container requested by the player.
 - Fixed Patchouli page-reserve exhaustion signaling and preserved AA reader failures across reflection, allowing bounded booklet searches to resume rather than terminate when the shared byte budget runs low.

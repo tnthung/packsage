@@ -37,6 +37,47 @@ class AssistantRuntimeTest {
             null, null, 16_000, 2_048);
 
     @Test
+    void completionNoticeQueuesOnceWithoutAnOpenScreenAndDropsAfterNewChat() throws Exception {
+        java.util.ArrayDeque<Runnable> clientTasks = new java.util.ArrayDeque<>();
+        List<ChatContracts.Turn> notices = new ArrayList<>();
+        FakeBackend backend = new FakeBackend();
+        var runtime = new AssistantRuntime(new ConversationStore(Files.createTempDirectory("packsage-completion-runtime"), DIRECT),
+                backend, captureFactory(), DIRECT, clientTasks::addLast,
+                current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()),
+                ignored -> 512, ignored -> { }, ignored -> { }, notices::add);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        while (backend.catalogLoads == 0) clientTasks.removeFirst().run();
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+        while (runtime.modelCatalog().isEmpty()) clientTasks.removeFirst().run();
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+
+        runtime.send("first", false, false);
+        ModelBackend.Event completed = new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null,
+                List.of(), List.of(), null);
+        backend.emit(completed);
+        backend.emit(completed);
+
+        assertTrue(notices.isEmpty());
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        assertEquals(1, notices.size());
+        assertEquals("first", notices.getFirst().question());
+
+        runtime.send("stale", false, false);
+        backend.emit(completed);
+        runtime.newChat();
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+
+        assertEquals(1, notices.size());
+    }
+
+    @Test
     void sendInstallsNextScopeAndSnapshotsCatalogSettingsBeforeCapture() throws Exception {
         AtomicReference<Evidence.Scope> currentScope = new AtomicReference<>();
         AtomicReference<ModelBackend.Request> request = new AtomicReference<>();

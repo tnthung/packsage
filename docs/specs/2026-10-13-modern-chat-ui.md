@@ -16,7 +16,7 @@ For local citations bound to recorded evidence, preserve descriptive Markdown li
 
 ## Composer
 
-The bottom composer accepts multiline text and grows upward to a bounded height, then scrolls within the input. Search and Screenshot controls float immediately above it and move as it grows. The icon Send control becomes Stop immediately when a request is accepted, stays Stop during capture, model calls and tool work, and returns to Send after completion, failure or cancellation. Enter sends; Shift+Enter inserts a newline. Preserve the 1,000-character limit and draft across resize and temporary screenshot capture. Keep request activity and failures readable without dumping internal data.
+The bottom composer accepts multiline text and grows upward to a bounded height, then scrolls within the input. Search and Screenshot controls float immediately above it and move as it grows. Keep Send available for text [steering during an active response](2026-10-17-chat-steering.md), with a separate Stop control during capture, model calls and tool work. Enter sends; Shift+Enter inserts a newline. Preserve the 1,000-character limit and draft across resize and temporary screenshot capture. Keep request activity and failures readable without dumping internal data.
 
 ## Sessions
 

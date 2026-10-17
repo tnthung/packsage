@@ -1,6 +1,9 @@
 package dev.packsage.client;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.knowledge.Evidence;
@@ -24,22 +27,22 @@ final class SourceDetailsScreen extends Screen {
     private int contentHeight;
 
     SourceDetailsScreen(Evidence.Source source, ChatContracts.Turn turn, Runnable returnToChat, BooleanSupplier pauseState) {
-        super(Component.literal("Config source"));
+        super(Component.literal(source.providerId().equals("native") ? "Minecraft source"
+                : source.providerId().equals("config") ? "Config source" : "Recorded source"));
         details = details(source, turn);
         this.returnToChat = Objects.requireNonNull(returnToChat);
         this.pauseState = Objects.requireNonNull(pauseState);
     }
 
     static List<String> details(Evidence.Source source, ChatContracts.Turn turn) {
-        if (!source.providerId().equals("config") || !turn.sources().contains(source)) {
-            throw new IllegalArgumentException("config source must belong to this answer");
+        if (!turn.sources().contains(source)) {
+            throw new IllegalArgumentException("source must belong to this answer");
         }
         List<String> lines = new ArrayList<>();
         lines.add("Recorded with this answer; current values may differ.");
-        lines.add("Observed: " + source.observedAt());
-        lines.add("Authority: " + source.authority() + " · Coverage: " + source.coverage());
-        lines.add("Source: " + source.sourceHandle());
-        source.provenance().forEach(value -> lines.add("Provenance: " + value));
+        if (source.coverage() == Evidence.Coverage.PARTIAL) lines.add("Coverage is partial; this snapshot may omit information.");
+        else if (source.coverage() == Evidence.Coverage.OPAQUE || source.coverage() == Evidence.Coverage.UNAVAILABLE
+                || source.coverage() == Evidence.Coverage.ERROR) lines.add("A readable value snapshot is not available for this source.");
         for (ModelBackend.InputItem item : turn.replayItems()) {
             if (!(item instanceof ModelBackend.ToolResult result) || result.error()) continue;
             try {
@@ -54,8 +57,53 @@ final class SourceDetailsScreen extends Screen {
                             || source.observedGeneration() != observed.get("observedGeneration").getAsLong()
                             || !new Gson().toJsonTree(source.scope()).equals(observed.get("scope"))) continue;
                     var payload = record.getAsJsonObject("payload");
-                    if (payload == null) continue;
-                    lines.add("");
+                    List<String> facts = new ArrayList<>();
+                    if (!source.providerId().equals("config") && !source.providerId().equals("native")) {
+                        if (record.has("title")) facts.add(record.get("title").getAsString());
+                    } else if (payload == null) continue;
+                    else if (source.providerId().equals("native")) {
+                        if (source.sourceHandle().startsWith("inventory:")) {
+                            String itemName = payload.has("name") ? payload.get("name").getAsString()
+                                    : payload.has("id") ? ScreenText.displayName(payload.get("id").getAsString()) : null;
+                            if (itemName != null) facts.add("Item: " + itemName);
+                            if (payload.has("count")) facts.add("Count: " + payload.get("count").getAsString());
+                            String section = payload.has("section") ? payload.get("section").getAsString() : null;
+                            String slot = payload.has("slot") ? payload.get("slot").getAsString() : null;
+                            if (section != null || slot != null) facts.add("Location: "
+                                    + (section == null ? "inventory" : ScreenText.displayName(section))
+                                    + (slot == null ? "" : " slot " + ("hotbar".equals(section)
+                                    ? Integer.parseInt(slot) + 1 + " (recorded index " + slot + ")" : slot)));
+                        } else {
+                            for (String key : List.of("outputs", "inputs")) {
+                                JsonElement entries = payload.get(key);
+                                if ((entries == null || !entries.isJsonArray()) && record.has("recipe")
+                                        && record.get("recipe").isJsonObject()) entries = record.getAsJsonObject("recipe").get(key);
+                                if (entries == null || !entries.isJsonArray()) continue;
+                                facts.add(key.equals("outputs") ? "Outputs:" : "Inputs:");
+                                int shown = 0;
+                                for (JsonElement entryValue : entries.getAsJsonArray()) {
+                                    if (shown++ == 8) { facts.add("… more ingredients"); break; }
+                                    JsonObject entry = entryValue.getAsJsonObject();
+                                    if (key.equals("inputs") && entry.has("alternatives") && entry.get("alternatives").isJsonArray()) {
+                                        JsonArray alternatives = entry.getAsJsonArray("alternatives");
+                                        List<String> names = new ArrayList<>();
+                                        for (int alternative = 0; alternative < alternatives.size() && alternative < 3; alternative++) {
+                                            JsonObject option = alternatives.get(alternative).getAsJsonObject();
+                                            if (option.has("comparisonIdentity")) names.add(ScreenText.displayName(option.get("comparisonIdentity").getAsString())
+                                                    + " ×" + (option.has("quantity") ? option.get("quantity").getAsString() : "?"));
+                                        }
+                                        if (!names.isEmpty()) facts.add("  " + String.join(" / ", names)
+                                                + (alternatives.size() > 3 ? " +" + (alternatives.size() - 3) + " more alternatives" : ""));
+                                    } else {
+                                        String identity = entry.has("comparisonIdentity") ? entry.get("comparisonIdentity").getAsString()
+                                                : entry.has("type") ? entry.get("type").getAsString() : null;
+                                        if (identity != null) facts.add("  " + ScreenText.displayName(identity) + " ×"
+                                                + (entry.has("quantity") ? entry.get("quantity").getAsString() : "?"));
+                                    }
+                                }
+                            }
+                        }
+                    } else {
                     for (String key : List.of("fileName", "key", "savedValue", "savedState", "loadedValue", "loadedState",
                             "comment", "default", "restart", "synchronizedServer", "filePath", "savedError")) {
                         var field = payload.get(key);
@@ -71,8 +119,14 @@ final class SourceDetailsScreen extends Screen {
                             case "savedError" -> "Saved read error";
                             default -> Character.toUpperCase(key.charAt(0)) + key.substring(1);
                         };
-                        lines.add(label + ": " + (field.isJsonPrimitive() ? field.getAsString() : field.toString()));
+                        facts.add(label + ": " + (field.isJsonPrimitive() ? field.getAsString() : field.toString()));
                     }
+                    }
+                    lines.addAll(facts);
+                    lines.add("Observed: " + source.observedAt());
+                    lines.add("Authority: " + source.authority() + " · Coverage: " + source.coverage());
+                    lines.add("Source: " + source.sourceHandle());
+                    source.provenance().forEach(value -> lines.add("Provenance: " + value));
                     return List.copyOf(lines);
                 }
             } catch (RuntimeException ignored) {
@@ -80,6 +134,10 @@ final class SourceDetailsScreen extends Screen {
             }
         }
         lines.add("Value snapshot unavailable in this session.");
+        lines.add("Observed: " + source.observedAt());
+        lines.add("Authority: " + source.authority() + " · Coverage: " + source.coverage());
+        lines.add("Source: " + source.sourceHandle());
+        source.provenance().forEach(value -> lines.add("Provenance: " + value));
         return List.copyOf(lines);
     }
 

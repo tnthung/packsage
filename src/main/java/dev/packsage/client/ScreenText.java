@@ -315,6 +315,10 @@ final class ScreenText {
                                     candidate.providerId().equals(reference.group(1))
                                             && candidate.sourceHandle().equals(reference.group(2)))
                                     .findFirst().orElse(null);
+                            Evidence.Source source = sources.stream().filter(candidate ->
+                                    candidate.providerId().equals(reference.group(1))
+                                            && candidate.sourceHandle().equals(reference.group(2)))
+                                    .reduce((first, latest) -> latest).orElse(null);
                             if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
                                 case "ftb_quests" -> "Quest";
                                 case "patchouli", "modonomicon", "guideme", "actuallyadditions", "relics", "artifacts" -> "Guide";
@@ -322,12 +326,12 @@ final class ScreenText {
                                 case "jei" -> "Recipe";
                                 case "config" -> "Config";
                                 default -> "Source";
-                            }, target, ModernUi.TEXT, false, false));
+                            }, target, ModernUi.TEXT, false, false, source));
                             else {
-                                Evidence.Source source = reference.group(1).equals("config") ? sources.stream().filter(candidate ->
-                                        candidate.providerId().equals("config") && candidate.sourceHandle().equals(reference.group(2)))
-                                        .reduce((first, latest) -> latest).orElse(null) : null;
-                                spans.add(new InlineSpan(source == null ? markerTag(reference.group(1), reference.group(2)) : "Config",
+                                spans.add(new InlineSpan(source == null ? reference.group(1).equals("native")
+                                        ? displayName(reference.group(2)) : markerTag(reference.group(1), reference.group(2))
+                                        : reference.group(1).equals("config") ? "Config"
+                                        : source.sourceHandle().startsWith("inventory:") ? "Inventory" : displayName(reference.group(2)),
                                         null, source == null ? DIM_COLOR : ModernUi.TEXT, false, false, source));
                             }
                         }
@@ -343,6 +347,8 @@ final class ScreenText {
                     Evidence.NavigationTarget target = targets.stream().filter(value ->
                             value.providerId().equals(marker.group(1)) && value.sourceHandle().equals(marker.group(2)))
                             .findFirst().orElse(null);
+                    Evidence.Source source = sources.stream().filter(value -> value.providerId().equals(marker.group(1))
+                            && value.sourceHandle().equals(marker.group(2))).reduce((first, latest) -> latest).orElse(null);
                     if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
                         case "ftb_quests" -> "Quest";
                         case "patchouli", "modonomicon", "guideme", "actuallyadditions", "relics", "artifacts" -> "Guide";
@@ -350,14 +356,13 @@ final class ScreenText {
                         case "jei" -> "Recipe";
                         case "config" -> "Config";
                         default -> "Source";
-                    }, target, ModernUi.TEXT, false, false));
-                    else if (marker.group(1).equals("config")) {
-                        Evidence.Source source = sources.stream().filter(value ->
-                                value.providerId().equals("config") && value.sourceHandle().equals(marker.group(2)))
-                                .reduce((first, latest) -> latest).orElse(null);
-                        spans.add(new InlineSpan(source == null ? markerTag(marker.group(1), marker.group(2)) : "Config",
-                                null, source == null ? DIM_COLOR : ModernUi.TEXT, false, false, source));
-                    } else spans.add(new InlineSpan(markerTag(marker.group(1), marker.group(2)), null, DIM_COLOR, false, false));
+                    }, target, ModernUi.TEXT, false, false, source));
+                    else if (source != null) {
+                        spans.add(new InlineSpan(source.providerId().equals("config") ? "Config"
+                                : source.sourceHandle().startsWith("inventory:") ? "Inventory" : displayName(marker.group(2)),
+                                null, ModernUi.TEXT, false, false, source));
+                    } else spans.add(new InlineSpan(marker.group(1).equals("native") ? displayName(marker.group(2))
+                            : markerTag(marker.group(1), marker.group(2)), null, DIM_COLOR, false, false));
                     index = marker.end();
                     continue;
                 }
@@ -373,21 +378,12 @@ final class ScreenText {
                                 value.providerId().equals(localReference.group(1))
                                         && value.sourceHandle().equals(localReference.group(2)))
                                 .findFirst().orElse(null);
-                        if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
-                            case "ftb_quests" -> "Quest";
-                            case "patchouli", "modonomicon", "guideme", "actuallyadditions", "relics", "artifacts" -> "Guide";
-                            case "immersiveengineering" -> "Manual";
-                            case "jei" -> "Recipe";
-                            case "config" -> "Config";
-                            default -> "Source";
-                        }, target, ModernUi.TEXT, false, false));
-                        else {
-                            Evidence.Source source = localReference.group(1).equals("config") ? sources.stream().filter(value ->
-                                    value.providerId().equals("config") && value.sourceHandle().equals(localReference.group(2)))
-                                    .reduce((first, latest) -> latest).orElse(null) : null;
-                            spans.add(new InlineSpan(source == null ? markerTag(localReference.group(1), localReference.group(2)) : "Config",
-                                    null, source == null ? DIM_COLOR : ModernUi.TEXT, false, false, source));
-                        }
+                        Evidence.Source source = sources.stream().filter(value -> value.providerId().equals(localReference.group(1))
+                                && value.sourceHandle().equals(localReference.group(2)))
+                                .reduce((first, latest) -> latest).orElse(null);
+                        if (target != null) spans.add(new InlineSpan(text.substring(index + 1, close), target, ModernUi.TEXT, false, false, source));
+                        else if (source != null) spans.add(new InlineSpan(text.substring(index + 1, close), null, ModernUi.TEXT, false, false, source));
+                        else spans.add(new InlineSpan(text.substring(index + 1, close), null, DIM_COLOR, false, false));
                         index = end;
                         continue;
                     }
@@ -586,7 +582,7 @@ final class ScreenText {
         return "Open " + target.providerId() + ": " + readable;
     }
 
-    private static String displayName(String resourceId) {
+    static String displayName(String resourceId) {
         String path = withoutNamespace(resourceId);
         path = path.substring(path.lastIndexOf('/') + 1);
         StringBuilder name = new StringBuilder();

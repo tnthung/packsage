@@ -40,6 +40,34 @@ class ScreenTextTest {
     }
 
     @Test
+    void recordedSourcesBindGroupedAndBareCitationsWithoutCreatingUnvalidatedNavigation() {
+        var inventory = new Evidence.Source(SCOPE, "native", "native", "inventory:observation:hotbar:0", 1,
+                java.time.Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of("player-inventory"));
+        var recipe = new Evidence.Source(SCOPE, "native", "native", "minecraft:stick", 1,
+                java.time.Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL,
+                Evidence.Authority.LOADED, List.of("client-recipe-manager"));
+        String grouped = "\uE200cite\uE202native:inventory:observation:hotbar:0\uE202native:minecraft:stick\uE201";
+        var spans = ScreenText.inlineLines(grouped + " [native:minecraft:stick] [native:missing]",
+                List.of(), List.of(), List.of(inventory, recipe)).getFirst().spans();
+        assertEquals(List.of("Inventory", "Stick", "Stick"), spans.stream().filter(span -> span.source() != null)
+                .map(ScreenText.InlineSpan::text).toList());
+        assertEquals(List.of(inventory, recipe, recipe), spans.stream().map(ScreenText.InlineSpan::source)
+                .filter(java.util.Objects::nonNull).toList());
+        assertTrue(spans.stream().noneMatch(span -> span.text().equals("[game]") || span.target() != null));
+        var target = new Evidence.NavigationTarget(SCOPE, "native", "minecraft:stick", "exact-target");
+        var navigable = ScreenText.inlineLines("[Sticks recipe](native:minecraft:stick)", List.of(target), List.of(),
+                List.of(recipe)).getFirst().spans().getFirst();
+        assertEquals(target, navigable.target());
+        assertEquals(recipe, navigable.source());
+        var unboundLink = ScreenText.inlineLines("[Useful recipe](native:minecraft:missing)", List.of(), List.of(),
+                List.of(recipe)).getFirst().spans().getFirst();
+        assertEquals("Useful recipe", unboundLink.text());
+        assertEquals(null, unboundLink.target());
+        assertEquals(null, unboundLink.source());
+    }
+
+    @Test
     void registeredLocalControlsAppearAtTheirMarkersWithoutOpaqueIdsOrASeparateCollection() {
         var target = new Evidence.NavigationTarget(SCOPE, "patchouli", "book#entry", "entry#1@lifecycle");
         var spans = ScreenText.inlineLines("Before [patchouli:book#entry] after.", List.of(target)).getFirst().spans();

@@ -78,4 +78,105 @@ class SourceDetailsScreenTest {
         screen.onClose();
         assertEquals(1, returned.get());
     }
+
+    @Test
+    void nativeDetailsUseOnlyTheExactRecordedInventoryAndRecipePayloads() {
+        Evidence.Source inventory = new Evidence.Source(SCOPE, "native", "native", "inventory:observation:hotbar:0", 4,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED,
+                List.of("player-inventory", "hotbar:0"));
+        Evidence.Source recipe = new Evidence.Source(SCOPE, "native", "native", "minecraft:stick", 4,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.LOADED,
+                List.of("client-recipe-manager"));
+        JsonObject inventoryPayload = new JsonObject();
+        inventoryPayload.addProperty("id", "minecraft:coal");
+        inventoryPayload.addProperty("name", "Coal");
+        inventoryPayload.addProperty("count", 64);
+        inventoryPayload.addProperty("section", "hotbar");
+        inventoryPayload.addProperty("slot", 0);
+        JsonObject recipePayload = new JsonObject();
+        recipePayload.addProperty("canonicalRecipeId", "minecraft:stick");
+        JsonArray outputs = new JsonArray();
+        JsonObject output = new JsonObject();
+        output.addProperty("comparisonIdentity", "minecraft:stick");
+        output.addProperty("quantity", 4);
+        outputs.add(output);
+        recipePayload.add("outputs", outputs);
+        JsonArray inputs = new JsonArray();
+        JsonObject input = new JsonObject();
+        input.addProperty("groupId", "slot-0");
+        JsonArray alternatives = new JsonArray();
+        JsonObject alternative = new JsonObject();
+        alternative.addProperty("comparisonIdentity", "minecraft:oak_planks");
+        alternative.addProperty("type", "item");
+        alternative.addProperty("quantity", 1);
+        alternatives.add(alternative);
+        JsonObject secondAlternative = new JsonObject();
+        secondAlternative.addProperty("comparisonIdentity", "minecraft:birch_planks");
+        secondAlternative.addProperty("type", "item");
+        secondAlternative.addProperty("quantity", 1);
+        alternatives.add(secondAlternative);
+        input.add("alternatives", alternatives);
+        inputs.add(input);
+        recipePayload.add("inputs", inputs);
+        var turn = new ChatContracts.Turn(new ChatContracts.RequestId("request"), "question", "answer",
+                List.of(new ModelBackend.ToolResult("inventory", nativeResult(inventory, inventoryPayload), false),
+                        new ModelBackend.ToolResult("recipe", nativeResult(recipe, recipePayload), false)),
+                new ChatContracts.Context("{}", null, SCOPE), List.of(inventory, recipe),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+
+        List<String> inventoryDetails = SourceDetailsScreen.details(inventory, turn);
+        assertTrue(inventoryDetails.contains("Item: Coal"));
+        assertTrue(inventoryDetails.contains("Count: 64"));
+        assertTrue(inventoryDetails.contains("Location: Hotbar slot 1 (recorded index 0)"));
+        List<String> recipeDetails = SourceDetailsScreen.details(recipe, turn);
+        assertTrue(recipeDetails.contains("Outputs:"));
+        assertTrue(recipeDetails.contains("  Stick ×4"));
+        assertTrue(recipeDetails.contains("Inputs:"));
+        assertTrue(recipeDetails.contains("  Oak Planks ×1 / Birch Planks ×1"));
+        assertFalse(String.join(" ", recipeDetails).contains("comparisonIdentity"));
+        assertTrue(recipeDetails.contains("Coverage is partial; this snapshot may omit information."));
+
+        Evidence.Source wrongGeneration = new Evidence.Source(SCOPE, "native", "native", recipe.sourceHandle(), 5,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.LOADED,
+                recipe.provenance());
+        var mismatched = new ChatContracts.Turn(turn.requestId(), turn.question(), turn.answer(), turn.replayItems(),
+                turn.context(), List.of(wrongGeneration), turn.outcome(), 1);
+        assertTrue(SourceDetailsScreen.details(wrongGeneration, mismatched)
+                .contains("Value snapshot unavailable in this session."));
+        Evidence.Source wrongTime = new Evidence.Source(SCOPE, "native", "native", recipe.sourceHandle(), 4,
+                Instant.EPOCH.plusSeconds(1), Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL,
+                Evidence.Authority.LOADED, recipe.provenance());
+        assertTrue(SourceDetailsScreen.details(wrongTime, new ChatContracts.Turn(turn.requestId(), turn.question(),
+                turn.answer(), turn.replayItems(), turn.context(), List.of(wrongTime), turn.outcome(), 1))
+                .contains("Value snapshot unavailable in this session."));
+        JsonObject malformed = new JsonObject();
+        malformed.addProperty("name", "Coal");
+        malformed.add("count", new JsonObject());
+        var malformedTurn = new ChatContracts.Turn(turn.requestId(), turn.question(), turn.answer(),
+                List.of(new ModelBackend.ToolResult("malformed", nativeResult(inventory, malformed), false)),
+                turn.context(), List.of(inventory), turn.outcome(), 1);
+        List<String> malformedDetails = SourceDetailsScreen.details(inventory, malformedTurn);
+        assertTrue(malformedDetails.contains("Value snapshot unavailable in this session."));
+        assertFalse(malformedDetails.contains("Item: Coal"));
+        assertThrows(IllegalArgumentException.class, () -> SourceDetailsScreen.details(recipe,
+                new ChatContracts.Turn(turn.requestId(), turn.question(), turn.answer(), turn.replayItems(),
+                        turn.context(), List.of(), turn.outcome(), 1)));
+    }
+
+    private static String nativeResult(Evidence.Source source, JsonObject payload) {
+        JsonObject observed = new JsonObject();
+        observed.addProperty("providerId", source.providerId());
+        observed.addProperty("sourceHandle", source.sourceHandle());
+        observed.addProperty("observedAt", source.observedAt().toString());
+        observed.addProperty("observedGeneration", source.observedGeneration());
+        observed.add("scope", new Gson().toJsonTree(source.scope()));
+        JsonObject record = new JsonObject();
+        record.add("source", observed);
+        record.add("payload", payload);
+        JsonArray records = new JsonArray();
+        records.add(record);
+        JsonObject result = new JsonObject();
+        result.add("records", records);
+        return result.toString();
+    }
 }

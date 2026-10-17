@@ -52,6 +52,9 @@ public final class AssistantScreen extends Screen {
     private List<ChatContracts.SessionSummary> sessions = List.of();
     private final List<ChipHit> chipHits = new ArrayList<>();
     private final List<SourceHit> sourceHits = new ArrayList<>();
+    private Evidence.Source tooltipSource;
+    private ChatContracts.Turn tooltipTurn;
+    private List<String> sourceTooltip = List.of();
     private final List<ActivityHit> activityHits = new ArrayList<>();
     private final Map<String, ActivityExpansion> activityExpansion = new LinkedHashMap<>();
     private final Set<String> expandedWorlds = new HashSet<>();
@@ -151,6 +154,7 @@ public final class AssistantScreen extends Screen {
         drawSendIcon(graphics);
         drawPicker(graphics, mouseX, mouseY);
         drawToolbarTooltip(graphics, mouseX, mouseY);
+        drawSourceTooltip(graphics, mouseX, mouseY);
     }
 
     void layout() {
@@ -926,6 +930,38 @@ public final class AssistantScreen extends Screen {
             graphics.disableScissor();
             graphics.pose().popPose();
         }
+    }
+
+    private void drawSourceTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (picker != null || mouseY < 40 || mouseY >= toggleY - 8 || mouseX < readableLeft
+                || mouseX >= readableLeft + readableWidth) return;
+        SourceHit hovered = sourceHits.stream().filter(hit -> mouseX >= hit.left() && mouseX < hit.right()
+                && mouseY >= hit.top() && mouseY < hit.bottom()).findFirst().orElse(null);
+        if (hovered == null) return;
+        if (!hovered.source().equals(tooltipSource) || hovered.turn() != tooltipTurn) {
+            tooltipSource = hovered.source();
+            tooltipTurn = hovered.turn();
+            sourceTooltip = SourceDetailsScreen.details(tooltipSource, tooltipTurn);
+        }
+        List<net.minecraft.util.FormattedCharSequence> lines = new ArrayList<>();
+        List<String> preview = sourceTooltip.stream().filter(detail -> !detail.isBlank()
+                && !detail.startsWith("Observed:") && !detail.startsWith("Authority:")
+                && !detail.startsWith("Source:") && !detail.startsWith("Provenance:"))
+                .limit(8).toList();
+        for (String detail : preview) lines.addAll(font.split(Component.literal(detail)
+                .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, Math.min(280, width - 24) - 20)));
+        int tooltipWidth = Math.max(1, Math.min(300, width - 16));
+        int tooltipHeight = Math.min(height - 8, 12 + lines.size() * 14);
+        int left = Math.max(4, Math.min(mouseX + 10, width - tooltipWidth - 4));
+        int top = Math.max(4, Math.min(hovered.top() - tooltipHeight - 4, height - tooltipHeight - 4));
+        graphics.pose().pushPose();
+        graphics.pose().translate(0, 0, 400);
+        ModernUi.surface(graphics, left, top, left + tooltipWidth, top + tooltipHeight, 0xff20252a);
+        graphics.enableScissor(left + 6, top + 5, left + tooltipWidth - 6, top + tooltipHeight - 5);
+        for (int index = 0; index < lines.size() && top + 6 + index * 14 < height - 4; index++)
+            graphics.drawString(font, lines.get(index), left + 10, top + 6 + index * 14, ModernUi.TEXT, false);
+        graphics.disableScissor();
+        graphics.pose().popPose();
     }
 
     private void drawSendIcon(GuiGraphics graphics) {

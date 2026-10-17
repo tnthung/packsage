@@ -173,7 +173,9 @@ public final class AssistantScreen extends Screen {
             sessionSearchEditor.setPosition(12, 32);
         }
         if (inputEditor != null) {
-            int meterWidth = Math.max(2, Math.min(86, readableWidth)) / 2;
+            int meterWidth = view.active() || awaitingRequestView
+                    ? Math.max(1, Math.min(43, (readableWidth - 84) / 2))
+                    : Math.max(2, Math.min(86, readableWidth)) / 2;
             int editorWidth = Math.max(1, readableWidth - (view.active() || awaitingRequestView ? 84 : 58) - meterWidth);
             inputEditor.setSize(editorWidth, 20);
             composerHeight = Math.min(Math.min(MultilineEditor.MAX_HEIGHT,
@@ -812,7 +814,8 @@ public final class AssistantScreen extends Screen {
             items.add(new ToolbarItem(kind, x, y, itemWidth));
             x += itemWidth + 6;
         }
-        items.add(new ToolbarItem("context", readableLeft + 26, sendY, buttonWidth / 2));
+        items.add(new ToolbarItem("context", readableLeft + 26, sendY, view.active() || awaitingRequestView
+                ? Math.max(1, Math.min(43, (readableWidth - 84) / 2)) : buttonWidth / 2));
         return items;
     }
 

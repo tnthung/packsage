@@ -516,14 +516,18 @@ class AssistantScreenStateTest {
         ScreenTestHost.initialize(screen);
         screen.setInput("question");
         var editor = (MultilineEditor) screen.children().getLast();
-        int x = editor.getX() + editor.getWidth() + 12;
         int y = editor.getY() + editor.getHeight() - 10;
-        screen.mouseClicked(x, y, 0);
-        screen.mouseClicked(x, y, 0);
+        screen.mouseClicked(editor.getX() + editor.getWidth() + 12, y, 0);
+        ScreenTestHost.initialize(screen);
+        editor = (MultilineEditor) screen.children().getLast();
+        y = editor.getY() + editor.getHeight() - 10;
+        screen.mouseClicked(editor.getX() + editor.getWidth() + 12, y, 0);
         assertEquals(List.of("send", "stop"), actions.calls);
         screen.refresh(actions.view);
+        editor = (MultilineEditor) screen.children().getLast();
         screen.setInput("next question");
-        screen.mouseClicked(x, y, 0);
+        screen.mouseClicked(editor.getX() + editor.getWidth() + 12,
+                editor.getY() + editor.getHeight() - 10, 0);
         assertEquals(List.of("send", "stop", "send"), actions.calls);
     }
 

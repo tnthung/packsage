@@ -96,8 +96,27 @@ public final class GroundingInstructions {
                 outputPhase = output.phase();
             }
         }
-        input.add(new ModelBackend.AssistantOutput(outputId, ModelBackend.OutputStatus.COMPLETED, outputPhase,
-                List.of(new ModelBackend.OutputText(turn.answer(), List.of()))));
+        if (turn.steeringMessages().isEmpty()) {
+            input.add(new ModelBackend.AssistantOutput(outputId, ModelBackend.OutputStatus.COMPLETED, outputPhase,
+                    List.of(new ModelBackend.OutputText(turn.answer(), List.of()))));
+        } else {
+            int answerOffset = 0;
+            int segment = 0;
+            for (ChatContracts.SteeringMessage message : turn.steeringMessages()) {
+                if (message.answerOffset() > answerOffset) {
+                    input.add(new ModelBackend.AssistantOutput(outputId + "_segment_" + segment++,
+                            ModelBackend.OutputStatus.COMPLETED, outputPhase, List.of(new ModelBackend.OutputText(
+                            turn.answer().substring(answerOffset, message.answerOffset()), List.of()))));
+                }
+                input.add(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(message.text()))));
+                answerOffset = message.answerOffset();
+            }
+            if (answerOffset < turn.answer().length()) {
+                input.add(new ModelBackend.AssistantOutput(outputId + "_segment_" + segment,
+                        ModelBackend.OutputStatus.COMPLETED, outputPhase, List.of(new ModelBackend.OutputText(
+                        turn.answer().substring(answerOffset), List.of()))));
+            }
+        }
         return input;
     }
 
@@ -106,11 +125,19 @@ public final class GroundingInstructions {
      * token count. Saved sources and other local-only fields are not counted.
      */
     public static int historyTextBudget(ChatContracts.Turn turn) {
-        return Tokenizer.ENCODING.countTokensOrdinary(turn.question()) + Tokenizer.ENCODING.countTokensOrdinary(turn.answer());
+        int tokens = Tokenizer.ENCODING.countTokensOrdinary(turn.question()) + Tokenizer.ENCODING.countTokensOrdinary(turn.answer());
+        for (ChatContracts.SteeringMessage message : turn.steeringMessages()) {
+            tokens += Tokenizer.ENCODING.countTokensOrdinary(message.text());
+        }
+        return tokens;
     }
 
     public static ChatContracts.TokenCounts historyTokenCounts(ChatContracts.Turn turn) {
-        return new ChatContracts.TokenCounts(Tokenizer.ENCODING.countTokensOrdinary(turn.question()),
+        int userTokens = Tokenizer.ENCODING.countTokensOrdinary(turn.question());
+        for (ChatContracts.SteeringMessage message : turn.steeringMessages()) {
+            userTokens += Tokenizer.ENCODING.countTokensOrdinary(message.text());
+        }
+        return new ChatContracts.TokenCounts(userTokens,
                 Tokenizer.ENCODING.countTokensOrdinary(turn.answer()));
     }
 }

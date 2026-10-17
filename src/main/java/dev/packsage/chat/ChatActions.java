@@ -55,6 +55,8 @@ public interface ChatActions {
 
     void send(String question, boolean includeScreenshot, boolean explicitWebSearch);
 
+    default boolean steer(String text) { return false; }
+
     void stop();
 
     void newChat();

@@ -67,6 +67,7 @@ public final class AssistantScreen extends Screen {
     private int composerTop;
     private int composerHeight;
     private int sendX;
+    private int stopX;
     private int sendY;
     private int toggleY;
     private ChatContracts.RequestId editingRequest;
@@ -152,6 +153,7 @@ public final class AssistantScreen extends Screen {
         drawComposer(graphics, mouseX, mouseY);
         super.render(graphics, mouseX, mouseY, partialTick);
         drawSendIcon(graphics);
+        if (view.active() || awaitingRequestView) drawStopIcon(graphics);
         drawPicker(graphics, mouseX, mouseY);
         drawToolbarTooltip(graphics, mouseX, mouseY);
         drawSourceTooltip(graphics, mouseX, mouseY);
@@ -170,7 +172,7 @@ public final class AssistantScreen extends Screen {
         }
         if (inputEditor != null) {
             int meterWidth = Math.max(2, Math.min(86, readableWidth)) / 2;
-            int editorWidth = Math.max(1, readableWidth - 58 - meterWidth);
+            int editorWidth = Math.max(1, readableWidth - (view.active() || awaitingRequestView ? 84 : 58) - meterWidth);
             inputEditor.setSize(editorWidth, 20);
             composerHeight = Math.min(Math.min(MultilineEditor.MAX_HEIGHT,
                     Math.min(Math.max(20, height / 3), Math.max(20, height - toolbarHeight - 68))), inputEditor.preferredHeight());
@@ -184,6 +186,7 @@ public final class AssistantScreen extends Screen {
         }
         toggleY = Math.max(0, composerTop - toolbarHeight);
         sendX = readableLeft + readableWidth - 20;
+        stopX = sendX - 26;
         sendY = composerTop + composerHeight - 20;
     }
 
@@ -347,7 +350,7 @@ public final class AssistantScreen extends Screen {
                 case CANCELLED -> ChatContracts.ActivityStatus.CANCELLED;
                 case FAILED -> ChatContracts.ActivityStatus.FAILED;
             }, y);
-            y = drawAssistantMessage(graphics, turn.answer(), turn, y, included);
+            y = drawAnswerSequence(graphics, turn.answer(), turn.steeringMessages(), turn, y, included);
             y = drawMessageActions(graphics, turn, false, tokens.assistant(), y, mouseX, mouseY);
             String outcome = ScreenText.outcomeLine(turn.outcome());
             if (outcome != null) {
@@ -361,7 +364,8 @@ public final class AssistantScreen extends Screen {
         ChatContracts.Turn liveTurn = new ChatContracts.Turn(new ChatContracts.RequestId("active-preview"),
                 liveQuestion, view.streamingAnswer(), List.of(), view.context(), List.of(), List.of(),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null), 0,
-                view.activeSentAt() == null ? pendingSentAt : view.activeSentAt());
+                view.activeSentAt() == null ? pendingSentAt : view.activeSentAt(), List.of(),
+                view.active() ? view.activeSteeringMessages() : List.of());
         if (!liveQuestion.isEmpty()) {
             y = drawUserMessage(graphics, liveQuestion, y, false);
             y = drawMessageActions(graphics, liveTurn, true, GroundingInstructions.historyTokenCounts(liveTurn).user(), y, mouseX, mouseY) + 7;
@@ -372,8 +376,7 @@ public final class AssistantScreen extends Screen {
             y = drawActivityRows(graphics, view.activities(), "request:" + (view.activeRequestId() == null
                     ? view.activeQuestion() + ":" + view.activeSentAt() : view.activeRequestId()),
                     ChatContracts.ActivityStatus.RUNNING, y);
-            if (!view.streamingAnswer().isEmpty()) y = drawInlineLines(graphics, ScreenText.inlineLines(view.streamingAnswer(), List.of()), y,
-                    readableLeft + 26, readableWidth - 26, null);
+            y = drawAnswerSequence(graphics, view.streamingAnswer(), view.activeSteeringMessages(), liveTurn, y, false);
             graphics.drawString(font, Component.literal(view.activity().isEmpty() ? "Working..." : view.activity())
                     .withStyle(style -> style.withFont(ModernUi.FONT)), readableLeft + 26, y + 2, ModernUi.ACCENT, false);
             y = Math.max(responseTop + 18, y + ModernUi.MESSAGE_LINE_HEIGHT);
@@ -517,13 +520,42 @@ public final class AssistantScreen extends Screen {
         return y + bubbleHeight;
     }
 
-    private int drawAssistantMessage(GuiGraphics graphics, String answer, ChatContracts.Turn turn, int y, boolean included) {
-        drawAssistantAvatar(graphics, y);
-        graphics.fill(readableLeft + 15, y + 15, readableLeft + 18, y + 18,
-                included ? 0xff74bf8c : ModernUi.DANGER);
+    private int drawAnswerSequence(GuiGraphics graphics, String answer, List<ChatContracts.SteeringMessage> steeringMessages,
+                                   ChatContracts.Turn turn, int y, boolean included) {
+        for (MessageSegment segment : answerSegments(answer, steeringMessages)) {
+            if (segment.player()) y = drawUserMessage(graphics, segment.text(), y, false);
+            else {
+                drawAssistantAvatar(graphics, y);
+                graphics.fill(readableLeft + 15, y + 15, readableLeft + 18, y + 18,
+                        included ? 0xff74bf8c : ModernUi.DANGER);
+                y = drawAssistantSegment(graphics, answer, segment, turn, y);
+            }
+        }
+        return y;
+    }
+
+    record MessageSegment(String text, boolean player, int answerOffset) { }
+
+    static List<MessageSegment> answerSegments(String answer, List<ChatContracts.SteeringMessage> steeringMessages) {
+        List<MessageSegment> segments = new ArrayList<>();
+        int answerOffset = 0;
+        for (ChatContracts.SteeringMessage message : steeringMessages) {
+            if (message.answerOffset() > answerOffset) {
+                segments.add(new MessageSegment(answer.substring(answerOffset, message.answerOffset()), false, answerOffset));
+            }
+            segments.add(new MessageSegment(message.text(), true, message.answerOffset()));
+            answerOffset = message.answerOffset();
+        }
+        if (answerOffset < answer.length()) segments.add(new MessageSegment(answer.substring(answerOffset), false, answerOffset));
+        return List.copyOf(segments);
+    }
+
+    private int drawAssistantSegment(GuiGraphics graphics, String answer, MessageSegment segment,
+                                     ChatContracts.Turn turn, int y) {
         List<Evidence.NavigationTarget> targets = turnTargets(turn);
         List<ModelBackend.UrlCitation> citations = new ArrayList<>();
         int searchFrom = 0;
+        int segmentEnd = segment.answerOffset() + segment.text().length();
         for (ModelBackend.InputItem item : turn.replayItems()) {
             if (item instanceof ModelBackend.AssistantOutput output && output.status() == ModelBackend.OutputStatus.COMPLETED) {
                 for (ModelBackend.OutputContent content : output.content()) {
@@ -532,7 +564,10 @@ public final class AssistantScreen extends Screen {
                         if (offset < 0) continue;
                         for (ModelBackend.UrlCitation citation : text.citations()) {
                             if (citation.startIndex() >= 0 && citation.endIndex() <= text.text().length()) {
-                                citations.add(new ModelBackend.UrlCitation(offset + citation.startIndex(), offset + citation.endIndex(),
+                                int citationStart = Math.max(segment.answerOffset(), offset + citation.startIndex());
+                                int citationEnd = Math.min(segmentEnd, offset + citation.endIndex());
+                                if (citationStart < citationEnd) citations.add(new ModelBackend.UrlCitation(
+                                        citationStart - segment.answerOffset(), citationEnd - segment.answerOffset(),
                                         citation.title(), citation.url()));
                             }
                         }
@@ -541,7 +576,8 @@ public final class AssistantScreen extends Screen {
                 }
             }
         }
-        return Math.max(y + 18, drawInlineLines(graphics, ScreenText.inlineLines(answer, targets, citations, turn.sources()), y,
+        return Math.max(y + 18, drawInlineLines(graphics,
+                ScreenText.inlineLines(segment.text(), targets, citations, turn.sources()), y,
                 readableLeft + 26, readableWidth - 26, turn));
     }
 
@@ -743,7 +779,11 @@ public final class AssistantScreen extends Screen {
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/info.png"),
                 readableLeft + 4, sendY + 4, 12, 12, 0f, 0f, 64, 64, 64, 64);
         ModernUi.surface(graphics, sendX, sendY, sendX + 20, sendY + 20,
-                awaitingRequestView || view.active() ? ModernUi.ACCENT_DARK : view.readOnly() ? ModernUi.SURFACE : ModernUi.SURFACE_HOVER);
+                view.readOnly() ? ModernUi.SURFACE : mouseX >= sendX && mouseX < sendX + 20
+                        && mouseY >= sendY && mouseY < sendY + 20 ? ModernUi.SURFACE_HOVER : ModernUi.ACCENT_DARK);
+        if (view.active() || awaitingRequestView) ModernUi.surface(graphics, stopX, sendY, stopX + 20, sendY + 20,
+                mouseX >= stopX && mouseX < stopX + 20 && mouseY >= sendY && mouseY < sendY + 20
+                        ? ModernUi.SURFACE_HOVER : ModernUi.DANGER);
         if (view.readOnly()) {
             graphics.drawString(font, Component.literal("Read-only history").withStyle(style ->
                     style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), readableLeft, composerTop + composerHeight + 5, ModernUi.MUTED, false);
@@ -965,8 +1005,13 @@ public final class AssistantScreen extends Screen {
 
     private void drawSendIcon(GuiGraphics graphics) {
         graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/"
-                        + (awaitingRequestView || view.active() ? "stop" : "paper-plane-right") + ".png"),
+                        + "paper-plane-right.png"),
                 sendX + 4, sendY + 4, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
+    }
+
+    private void drawStopIcon(GuiGraphics graphics) {
+        graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/stop.png"),
+                stopX + 4, sendY + 4, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
     }
 
     void updateContentMetrics(int contentHeight, int viewportHeight) {
@@ -1104,9 +1149,13 @@ public final class AssistantScreen extends Screen {
                 return true;
             }
         }
+        if ((view.active() || awaitingRequestView) && mouseX >= stopX && mouseX < stopX + 20
+                && mouseY >= sendY && mouseY < sendY + 20) {
+            stop();
+            return true;
+        }
         if (mouseX >= sendX && mouseX < sendX + 20 && mouseY >= sendY && mouseY < sendY + 20) {
-            if (awaitingRequestView || view.active()) stop();
-            else submit();
+            submit();
             return true;
         }
         for (MessageAction action : messageActions) {
@@ -1230,8 +1279,13 @@ public final class AssistantScreen extends Screen {
 
     public void submit() {
         input = input();
-        if (input.isBlank() || view.readOnly() || view.active() || awaitingRequestView) return;
+        if (input.isBlank() || view.readOnly()) return;
         String question = input;
+        if (view.active()) {
+            if (actions.steer(question)) setInput("");
+            return;
+        }
+        if (awaitingRequestView) return;
         pendingQuestion = question;
         pendingSentAt = Instant.now();
         setInput("");

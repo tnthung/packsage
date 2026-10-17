@@ -621,6 +621,7 @@ public final class ChatGptBackend implements ModelBackend {
             final long nextGeneration;
             final ChatGptStream nextStream;
             final RoundTiming nextTiming;
+            final CompletableFuture<HttpResponse<InputStream>> nextResponseFuture;
             synchronized (lock) {
                 if (cancelled || terminal) return;
                 generation++;
@@ -639,8 +640,12 @@ public final class ChatGptBackend implements ModelBackend {
                         item -> captureOutput(nextGeneration, item));
                 stream = nextStream;
                 responseFuture = send(request, currentInput, nextTiming, this, nextGeneration);
+                nextResponseFuture = responseFuture;
             }
-            responseFuture.whenCompleteAsync((response, failure) -> {
+            if ("tool_continuation".equals(reason)) {
+                events.accept(new Event(EventKind.ROUND_STARTED, null, null, List.of(), List.of(), null));
+            }
+            nextResponseFuture.whenCompleteAsync((response, failure) -> {
                 if (failure != null) {
                     Throwable cause = failure instanceof CompletionException && failure.getCause() != null ? failure.getCause() : failure;
                     transportFailure(nextGeneration, "request failed: " + cause.getMessage(), nextTiming, 0);

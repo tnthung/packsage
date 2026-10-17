@@ -215,6 +215,20 @@ public final class RequestController {
         cancelActive("stopped");
     }
 
+    public boolean steer(String text) {
+        if (text == null || text.isBlank()) return false;
+        ChatContracts.View snapshot;
+        synchronized (stateLock) {
+            ActiveRequest request = active;
+            if (request == null || request.exchange == null || !request.exchange.steer(new ModelBackend.Message(
+                    ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(text))))) return false;
+            request.steeringMessages.add(new ChatContracts.SteeringMessage(text, request.answer.length()));
+            snapshot = currentView();
+        }
+        publisher.accept(snapshot);
+        return true;
+    }
+
     /**
      * Starts a new chat for the caller's current world and evidence scope, so the published views pass the caller's
      * scope filter even after an invalidation. An already empty loaded conversation, or a New chat that is still
@@ -557,9 +571,23 @@ public final class RequestController {
                 }
                 request.answer.append(event.text());
                 request.activity = ActivityLabels.WRITING;
+            } else if (event.kind() == ModelBackend.EventKind.ROUND_STARTED) {
+                request.completedAnswerOffset = request.answer.length();
             } else if (event.kind() == ModelBackend.EventKind.RETRYING) {
                 boolean providerRetry = event.detail() != null && event.detail().startsWith("temporary provider failure");
-                if (!providerRetry) request.answer.setLength(0);
+                if (!providerRetry) {
+                    if (request.steeringMessages.isEmpty()) request.answer.setLength(0);
+                    else {
+                        request.answer.setLength(request.completedAnswerOffset);
+                        for (int index = 0; index < request.steeringMessages.size(); index++) {
+                            ChatContracts.SteeringMessage steering = request.steeringMessages.get(index);
+                            if (steering.answerOffset() > request.completedAnswerOffset) {
+                                request.steeringMessages.set(index, new ChatContracts.SteeringMessage(steering.text(),
+                                        request.completedAnswerOffset));
+                            }
+                        }
+                    }
+                }
                 request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
                         : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED));
                 request.activity = providerRetry ? "Retrying provider request…" : ActivityLabels.RETRYING_WITHOUT_WEB_SEARCH;
@@ -686,7 +714,7 @@ public final class RequestController {
             if (!isCurrent(request)) return;
             if (status == ChatContracts.OutcomeStatus.COMPLETED) {
                 try {
-                    replay = validateReplay(event.replayItems(), request.toolResults);
+                    replay = validateReplay(event.replayItems(), request.toolResults, request.steeringMessages);
                 } catch (RuntimeException exception) {
                     replay = completePairs(request);
                     status = ChatContracts.OutcomeStatus.FAILED;
@@ -716,18 +744,19 @@ public final class RequestController {
         ChatContracts.Turn untokened = new ChatContracts.Turn(request.submission.requestId(), request.submission.question(),
                 request.answer.toString(), replay, captured.context(), request.evidence.sources(),
                 request.evidence.navigationTargets(),
-                new ChatContracts.Outcome(status, detail), 0, request.sentAt, List.copyOf(request.activities.values()));
+                new ChatContracts.Outcome(status, detail), 0, request.sentAt, List.copyOf(request.activities.values()),
+                List.copyOf(request.steeringMessages));
         ChatContracts.Turn turn;
         try {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
                     untokened.context(), untokened.sources(), untokened.navigationTargets(), untokened.outcome(),
-                    tokenCounter.apply(untokened), untokened.sentAt(), untokened.activities());
+                    tokenCounter.apply(untokened), untokened.sentAt(), untokened.activities(), untokened.steeringMessages());
         } catch (RuntimeException exception) {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
                     untokened.context(), untokened.sources(),
                     untokened.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, failureMessage(exception)), 0,
-                    untokened.sentAt(), untokened.activities());
+                    untokened.sentAt(), untokened.activities(), untokened.steeringMessages());
         }
         if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
         else publish();
@@ -776,7 +805,7 @@ public final class RequestController {
                     request.answer.toString(), List.copyOf(request.partialReplay), persisted.context(), request.evidence.sources(),
                     request.evidence.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.CANCELLED, detail), 0, request.sentAt,
-                    List.copyOf(request.activities.values()));
+                    List.copyOf(request.activities.values()), List.copyOf(request.steeringMessages));
             if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
             persist(request, target, turn, persisted.screenshotBytes());
         }, executor);
@@ -832,7 +861,8 @@ public final class RequestController {
                 persistedTurn = new ChatContracts.Turn(turn.requestId(), turn.question(), turn.answer(), turn.replayItems(),
                         new ChatContracts.Context(turn.context().serializedGameplayContext(), null, turn.context().scope()),
                         turn.sources(), turn.navigationTargets(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED,
-                        "media persistence failed: " + failureMessage(mediaFailure)), turn.tokenCount(), turn.sentAt(), turn.activities());
+                        "media persistence failed: " + failureMessage(mediaFailure)), turn.tokenCount(), turn.sentAt(), turn.activities(),
+                        turn.steeringMessages());
                 if (request.submission.replacing() == null) updateVisibleTurn(request, target, persistedTurn);
                 publishPersistenceFailure(request, target, mediaFailure);
             }
@@ -944,7 +974,8 @@ public final class RequestController {
                 visible == null ? "" : active == null ? "Saving exchange…" : visible.activity, conversation.world(), false,
                 visible == null ? "" : visible.submission.question(), visible == null ? null : visible.sentAt,
                 visible == null ? List.of() : List.copyOf(visible.activities.values()),
-                visible == null ? null : visible.submission.requestId().value());
+                visible == null ? null : visible.submission.requestId().value(),
+                visible == null ? List.of() : List.copyOf(visible.steeringMessages));
     }
 
     /** The request's tool calls that received a result, each followed by its results, in their original order. */
@@ -957,17 +988,21 @@ public final class RequestController {
     }
 
     private static List<ModelBackend.InputItem> validateReplay(List<ModelBackend.InputItem> providerReplay,
-                                                                Map<String, ModelBackend.ToolResult> submittedResults) {
+                                                                Map<String, ModelBackend.ToolResult> submittedResults,
+                                                                List<ChatContracts.SteeringMessage> steeringMessages) {
         Set<String> calls = new LinkedHashSet<>();
         Set<String> results = new LinkedHashSet<>();
+        List<ModelBackend.Message> replayedSteering = new ArrayList<>();
         for (ModelBackend.InputItem item : providerReplay) {
             if (!(item instanceof ModelBackend.EncryptedReasoning
                     || item instanceof ModelBackend.ToolCall
                     || item instanceof ModelBackend.ToolResult
                     || item instanceof ModelBackend.AssistantOutput
-                    || item instanceof ModelBackend.WebSearchCall)) {
+                    || item instanceof ModelBackend.WebSearchCall
+                    || item instanceof ModelBackend.Message message && message.role() == ModelBackend.Role.USER)) {
                 throw new IllegalArgumentException("backend replay contains a non-durable item");
             }
+            if (item instanceof ModelBackend.Message message) replayedSteering.add(message);
             if (item instanceof ModelBackend.ToolCall call) {
                 if (!calls.add(call.callId())) throw new IllegalArgumentException("duplicate tool call: " + call.callId());
             }
@@ -982,6 +1017,10 @@ public final class RequestController {
         }
         if (!calls.equals(results) || !results.equals(submittedResults.keySet())) {
             throw new IllegalArgumentException("incomplete tool replay");
+        }
+        if (!replayedSteering.equals(steeringMessages.stream().map(message -> new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent(message.text())))).toList())) {
+            throw new IllegalArgumentException("backend replay changed accepted steering messages");
         }
         return List.copyOf(providerReplay);
     }
@@ -1004,6 +1043,7 @@ public final class RequestController {
         private final Set<String> toolCalls = new LinkedHashSet<>();
         private final Map<String, ModelBackend.ToolResult> toolResults = new LinkedHashMap<>();
         private final Map<String, ChatContracts.ActivityStep> activities = new LinkedHashMap<>();
+        private final List<ChatContracts.SteeringMessage> steeringMessages = new ArrayList<>();
         private final Set<String> submittedResults = new LinkedHashSet<>();
         private CompletableFuture<ChatContracts.Conversation> target;
         private CompletableFuture<ChatContracts.CapturedContext> capture;
@@ -1016,6 +1056,7 @@ public final class RequestController {
         private long backendStartedAtNanos;
         private long persistenceStartedAtNanos;
         private boolean firstTextLogged;
+        private int completedAnswerOffset;
 
         private ActiveRequest(ChatContracts.Submission submission, long generation, Instant sentAt, long acceptedAtNanos) {
             this.submission = submission;

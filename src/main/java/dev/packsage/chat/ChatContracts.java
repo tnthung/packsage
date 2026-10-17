@@ -25,6 +25,13 @@ public final class ChatContracts {
         }
     }
 
+    public record SteeringMessage(String text, int answerOffset) {
+        public SteeringMessage {
+            Objects.requireNonNull(text);
+            if (text.isBlank() || answerOffset < 0) throw new IllegalArgumentException("steering text and answer offset are required");
+        }
+    }
+
     public record WorldIdentity(String worldOrServer, String readableLabel) {
         public WorldIdentity {
             Objects.requireNonNull(worldOrServer);
@@ -170,7 +177,8 @@ public final class ChatContracts {
 
     public record Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
                        Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
-                       Outcome outcome, int tokenCount, Instant sentAt, List<ActivityStep> activities) {
+                       Outcome outcome, int tokenCount, Instant sentAt, List<ActivityStep> activities,
+                       List<SteeringMessage> steeringMessages) {
         public Turn {
             Objects.requireNonNull(requestId);
             Objects.requireNonNull(question);
@@ -180,6 +188,14 @@ public final class ChatContracts {
             sources = List.copyOf(sources);
             navigationTargets = List.copyOf(navigationTargets);
             activities = List.copyOf(activities);
+            steeringMessages = List.copyOf(steeringMessages);
+            int previousOffset = -1;
+            for (SteeringMessage message : steeringMessages) {
+                if (message.answerOffset() < previousOffset || message.answerOffset() > answer.length()) {
+                    throw new IllegalArgumentException("steering offsets must be ordered within the answer");
+                }
+                previousOffset = message.answerOffset();
+            }
             for (Evidence.NavigationTarget target : navigationTargets) {
                 if (!context.scope().equals(target.scope()) || sources.stream().noneMatch(source ->
                         source.scope().equals(target.scope()) && source.providerId().equals(target.providerId())
@@ -189,6 +205,13 @@ public final class ChatContracts {
             }
             Objects.requireNonNull(outcome);
             if (tokenCount < 0) throw new IllegalArgumentException("tokenCount cannot be negative");
+        }
+
+        public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    Outcome outcome, int tokenCount, Instant sentAt, List<ActivityStep> activities) {
+            this(requestId, question, answer, replayItems, context, sources, navigationTargets, outcome, tokenCount,
+                    sentAt, activities, List.of());
         }
 
         public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
@@ -282,7 +305,8 @@ public final class ChatContracts {
     public record View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
                        Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
                        List<String> errors, String streamingAnswer, String activity, WorldIdentity activeWorld, boolean readOnly,
-                       String activeQuestion, Instant activeSentAt, List<ActivityStep> activities, String activeRequestId) {
+                       String activeQuestion, Instant activeSentAt, List<ActivityStep> activities, String activeRequestId,
+                       List<SteeringMessage> activeSteeringMessages) {
         public View {
             Objects.requireNonNull(signIn);
             Objects.requireNonNull(conversation);
@@ -295,7 +319,16 @@ public final class ChatContracts {
             Objects.requireNonNull(activeWorld);
             Objects.requireNonNull(activeQuestion);
             activities = List.copyOf(activities);
+            activeSteeringMessages = List.copyOf(activeSteeringMessages);
             if (readOnly && active) throw new IllegalArgumentException("a read-only history view cannot have an active request");
+        }
+
+        public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    List<String> errors, String streamingAnswer, String activity, WorldIdentity activeWorld, boolean readOnly,
+                    String activeQuestion, Instant activeSentAt, List<ActivityStep> activities, String activeRequestId) {
+            this(active, signIn, paused, conversation, context, sources, navigationTargets, errors, streamingAnswer,
+                    activity, activeWorld, readOnly, activeQuestion, activeSentAt, activities, activeRequestId, List.of());
         }
 
         public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,

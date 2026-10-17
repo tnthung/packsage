@@ -819,6 +819,14 @@ public final class ConversationStore {
             activities.add(item);
         });
         value.add("activities", activities);
+        JsonArray steeringMessages = new JsonArray();
+        turn.steeringMessages().forEach(message -> {
+            JsonObject item = new JsonObject();
+            item.addProperty("text", message.text());
+            item.addProperty("answerOffset", message.answerOffset());
+            steeringMessages.add(item);
+        });
+        value.add("steeringMessages", steeringMessages);
         return value.toString();
     }
 
@@ -992,6 +1000,12 @@ public final class ConversationStore {
                     item.has("detail") ? item.get("detail").getAsString() : "",
                     ChatContracts.ActivityStatus.valueOf(item.get("status").getAsString())));
         });
+        List<ChatContracts.SteeringMessage> steeringMessages = new ArrayList<>();
+        if (value.has("steeringMessages")) value.getAsJsonArray("steeringMessages").forEach(message -> {
+            JsonObject item = message.getAsJsonObject();
+            steeringMessages.add(new ChatContracts.SteeringMessage(item.get("text").getAsString(),
+                    item.get("answerOffset").getAsInt()));
+        });
         for (int i = 0; i < activities.size(); i++) {
             ChatContracts.ActivityStep activity = activities.get(i);
             if (activity.status() != ChatContracts.ActivityStatus.FAILED
@@ -1013,7 +1027,7 @@ public final class ConversationStore {
                 new ChatContracts.Context(contextValue.get("serializedGameplayContext").getAsString(), screenshot, scope),
                 sources, targets, new ChatContracts.Outcome(ChatContracts.OutcomeStatus.valueOf(value.get("outcome").getAsString()), detail),
                 value.get("tokenCount").getAsInt(), value.has("sentAt") && !value.get("sentAt").isJsonNull()
-                ? Instant.parse(value.get("sentAt").getAsString()) : null, activities);
+                ? Instant.parse(value.get("sentAt").getAsString()) : null, activities, steeringMessages);
     }
 
     private static dev.packsage.model.ModelBackend.InputItem replayFromJson(JsonObject value) {

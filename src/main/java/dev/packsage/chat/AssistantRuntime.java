@@ -502,6 +502,10 @@ public final class AssistantRuntime implements ChatActions {
         Objects.requireNonNull(question);
         long sendStartedAtNanos = System.nanoTime();
         synchronized (sendLock) {
+            if (controller.view().active()) {
+                steer(question);
+                return;
+            }
             ChatContracts.Submission submission;
             long epoch;
             Evidence.Scope previousScope;
@@ -518,11 +522,6 @@ public final class AssistantRuntime implements ChatActions {
                 }
                 if (signIn != ChatContracts.SignInState.SIGNED_IN) {
                     runtimeErrors.add("Sign in before sending a question");
-                    publishCurrentView(worldEpoch);
-                    return;
-                }
-                if (controller.view().active()) {
-                    runtimeErrors.add("A request is already active");
                     publishCurrentView(worldEpoch);
                     return;
                 }
@@ -621,6 +620,17 @@ public final class AssistantRuntime implements ChatActions {
             }
             publishCurrentView(epoch);
         }
+    }
+
+    @Override
+    public boolean steer(String text) {
+        if (controller.steer(text)) return true;
+        synchronized (stateLock) {
+            runtimeErrors.add(text == null || text.isBlank() ? "Message cannot be blank"
+                    : "Follow-up could not be accepted while the response is preparing or has finished");
+        }
+        publishCurrentView(worldEpoch);
+        return false;
     }
 
     @Override
@@ -956,7 +966,7 @@ public final class AssistantRuntime implements ChatActions {
         }
         return new ChatContracts.View(view.active(), currentSignIn, paused, view.conversation(), view.context(),
                 sources, targets, errors, view.streamingAnswer(), view.activity(), activeWorld, false, view.activeQuestion(),
-                view.activeSentAt(), view.activities(), view.activeRequestId());
+                view.activeSentAt(), view.activities(), view.activeRequestId(), view.activeSteeringMessages());
     }
 
     private Evidence.Scope currentScope() {

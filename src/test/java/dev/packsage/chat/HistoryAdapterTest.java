@@ -87,6 +87,29 @@ class HistoryAdapterTest {
     }
 
     @Test
+    void clippedWhitespaceSteeringReturnsPartialHistoryInsteadOfFailing() {
+        var store = new ConversationStore(directory, Runnable::run);
+        var session = store.newConversation(WORLD).toCompletableFuture().join();
+        store.appendTurn(WORLD, SCOPE, session.id(), new ChatContracts.Turn(new ChatContracts.RequestId("clipped-steering"),
+                "q".repeat(250), "", List.of(), new ChatContracts.Context("{}", null, SCOPE), List.of(), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1, Instant.EPOCH, List.of(),
+                List.of(new ChatContracts.SteeringMessage("          x", 0)))).toCompletableFuture().join();
+        var adapter = new HistoryAdapter(store, WORLD, () -> SCOPE);
+        var search = adapter.execute(new PackSageTools.ReadRequest("search_history", new Evidence.JsonObject(Map.of(
+                "text", new Evidence.JsonString("q"))), SCOPE), null).toCompletableFuture().join();
+        String handle = search.records().getFirst().source().sourceHandle();
+
+        var read = adapter.execute(new PackSageTools.ReadRequest("read_history", new Evidence.JsonObject(Map.of(
+                "handles", new Evidence.JsonArray(List.of(new Evidence.JsonString("history:" + handle))),
+                "maxChars", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(256)))), SCOPE), null)
+                .toCompletableFuture().join();
+
+        assertEquals(Evidence.Outcome.PARTIAL, read.outcome());
+        assertEquals(new Evidence.JsonBoolean(true), read.records().getFirst().payload().values().get("truncated"));
+        assertEquals(new Evidence.JsonArray(List.of()), read.records().getFirst().payload().values().get("steeringMessages"));
+    }
+
+    @Test
     void cursorsBindQueryAndReadsRejectUndiscoveredAndPreviousScopeHandles() {
         var store = new ConversationStore(directory, Runnable::run);
         var session = store.newConversation(WORLD).toCompletableFuture().join();

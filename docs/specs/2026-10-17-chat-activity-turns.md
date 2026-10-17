@@ -1,0 +1,16 @@
+# Thinking and tool turns in chat
+
+Date: 2026-10-17
+
+Extend the [modern chat](2026-10-13-modern-chat-ui.md) with visible thinking and tool steps above each answer. Use the existing custom surfaces, typography, wrapping and scroll viewport.
+
+- Keep steps in occurrence order, with a stable identity, readable header, details and running/completed/failed/cancelled state. Show local tool calls and hosted web search, alongside provider thinking summaries.
+- Expand each running step by default and collapse it when it finishes. Clicking the header toggles it while running or after completion. Streaming refreshes must preserve a manual toggle; the first transition to a terminal state collapses it once, and later refreshes preserve manual reopening.
+- Display only provider reasoning summary text, never encrypted reasoning or raw reasoning events. Request summaries using `reasoning.summary = auto`; retain the selected reasoning effort. When a provider sends no summary, show a readable thinking status.
+- Tool details use the existing player-facing labels and allowlisted argument summaries, with readable outcome text. Do not dump raw tool result JSON, credentials or provider replay data into chat.
+- Persist activity with its exchange, including failures and cancellation. Old conversation files without activity remain readable. Activity presentation does not alter model replay/history selection, tool execution, world guards or request cancellation.
+- Keep the existing answer, source/navigation controls, composer and activity status behavior. Use matching header draw/click geometry, reject clicks outside the message viewport, and preserve scrolling and narrow-window layout.
+
+The summary request and delta fields follow the official [reasoning summaries](https://developers.openai.com/api/docs/guides/reasoning#reasoning-summaries) and [summary streaming event](https://developers.openai.com/api/reference/resources/responses/streaming-events#response.reasoning_summary_text.delta) documentation. The ChatGPT account route still requires live Minecraft confirmation.
+
+Automated checks cover summary event handling, step lifecycle and tool outcomes, stored and legacy conversations, auto expansion/collapse and manual toggles, and clipped/narrow layouts. Actual Minecraft rendering remains a player check.

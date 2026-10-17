@@ -723,6 +723,46 @@ class ChatGptBackendTest {
         ), completed.replayItems());
     }
 
+    @Test
+    void steeringDuringResponseSchedulesTextOnlyFollowup() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(ANSWER_RESPONSE, ANSWER_RESPONSE));
+        ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        List<ModelBackend.Event> events = new ArrayList<>();
+        ModelBackend.Exchange exchange = new ChatGptBackend(signedInAuth(), client, tasks::add)
+                .start(searchRequest("steer-no-tools", ModelBackend.SearchMode.DISABLED), events::add);
+
+        assertTrue(exchange.steer(new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent("please clarify")))));
+        while (!tasks.isEmpty()) tasks.removeFirst().run();
+
+        assertEquals(2, client.requests.size());
+        JsonArray followup = JsonParser.parseString(requestBody(client.requests.get(1))).getAsJsonObject().getAsJsonArray("input");
+        assertEquals("assistant", followup.get(1).getAsJsonObject().get("role").getAsString());
+        assertEquals("please clarify", followup.get(2).getAsJsonObject().getAsJsonArray("content")
+                .get(0).getAsJsonObject().get("text").getAsString());
+        assertEquals(1, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+        assertTrue(events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).findFirst().orElseThrow()
+                .replayItems().contains(new ModelBackend.Message(ModelBackend.Role.USER,
+                        List.of(new ModelBackend.TextContent("please clarify")))));
+    }
+
+    @Test
+    void steeringFollowsEveryPublishedToolResultInContinuation() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(TWO_TOOL_CALL_RESPONSE, ANSWER_RESPONSE));
+        ModelBackend.Exchange exchange = new ChatGptBackend(signedInAuth(), client, Runnable::run)
+                .start(searchRequest("steer-tool-boundary", ModelBackend.SearchMode.DISABLED), ignored -> { });
+        exchange.submit(new ModelBackend.ToolResult("call_b", "{\"value\":\"b\"}", false));
+        assertTrue(exchange.steer(new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent("use the results")))));
+        exchange.submit(new ModelBackend.ToolResult("call_a", "{\"value\":\"a\"}", false));
+
+        JsonArray continuation = JsonParser.parseString(requestBody(client.requests.get(1))).getAsJsonObject().getAsJsonArray("input");
+        assertEquals("call_a", continuation.get(4).getAsJsonObject().get("call_id").getAsString());
+        assertEquals("call_b", continuation.get(5).getAsJsonObject().get("call_id").getAsString());
+        assertEquals("use the results", continuation.get(6).getAsJsonObject().getAsJsonArray("content")
+                .get(0).getAsJsonObject().get("text").getAsString());
+    }
+
     private static final String TOOL_CALL_RESPONSE =
             "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":1,\"item\":{\"id\":\"fc_a\",\"type\":\"function_call\",\"call_id\":\"call_a\",\"namespace\":\"packsage\",\"name\":\"search_pack\",\"arguments\":\"{}\",\"status\":\"completed\"}}\n\n"
                     + "data: {\"type\":\"response.completed\",\"sequence_number\":2,\"response\":{\"status\":\"completed\"}}\n\n";

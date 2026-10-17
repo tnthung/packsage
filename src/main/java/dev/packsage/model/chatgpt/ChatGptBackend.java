@@ -15,6 +15,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -236,7 +237,8 @@ public final class ChatGptBackend implements ModelBackend {
         return exchange;
     }
 
-    private CompletableFuture<HttpResponse<InputStream>> send(Request request, List<InputItem> input, RoundTiming timing) {
+    private CompletableFuture<HttpResponse<InputStream>> send(Request request, List<InputItem> input, RoundTiming timing,
+                                                               ExchangeImpl exchange, long generation) {
         long authStartedAtNanos = System.nanoTime();
         CompletionStage<String> tokenStage = auth.accessToken();
         return tokenStage.whenComplete((token, failure) -> {
@@ -244,25 +246,7 @@ public final class ChatGptBackend implements ModelBackend {
             PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=auth_ready event_ns={} authMs={} outcome={}",
                     request.requestId(), timing.round, timing.reason, authReadyAtNanos,
                     (authReadyAtNanos - authStartedAtNanos) / 1_000_000, failure == null ? "success" : "failure");
-        }).thenCompose(token -> {
-            long serializationStartedAtNanos = System.nanoTime();
-            String body = requestBody(request, input);
-            HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8);
-            long serializedAtNanos = System.nanoTime();
-            PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=body_ready event_ns={} serializationMs={} bodyBytes={} bodyChars={} inputItems={} tools={} model={} effort={}",
-                    request.requestId(), timing.round, timing.reason, serializedAtNanos,
-                    (serializedAtNanos - serializationStartedAtNanos) / 1_000_000,
-                    bodyPublisher.contentLength(), body.length(), input.size(), request.tools().size(),
-                    request.modelId(), request.reasoningEffort());
-            HttpRequest httpRequest = HttpRequest.newBuilder(RESPONSES_URI).timeout(Duration.ofSeconds(60))
-                    .header("Authorization", "Bearer " + token).header("Content-Type", "application/json")
-                    .POST(bodyPublisher).build();
-            timing.dispatchedAtNanos = System.nanoTime();
-            PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=http_dispatch event_ns={} requestToDispatchMs={}",
-                    request.requestId(), timing.round, timing.reason, timing.dispatchedAtNanos,
-                    (timing.dispatchedAtNanos - timing.startedAtNanos) / 1_000_000);
-            return client.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofInputStream());
-        }).thenApply(response -> {
+        }).thenCompose(token -> exchange.dispatch(request, input, token, generation, timing)).thenApply(response -> {
             timing.headersAtNanos = System.nanoTime();
             return response;
         }).toCompletableFuture();
@@ -605,6 +589,7 @@ public final class ChatGptBackend implements ModelBackend {
         private final long requestAccountEpoch;
         private final boolean usesImage;
         private final Set<String> staleCallIds = new LinkedHashSet<>();
+        private final ArrayDeque<Message> pendingSteering = new ArrayDeque<>();
         private long generation;
         private boolean cancelled;
         private boolean terminal;
@@ -653,7 +638,7 @@ public final class ChatGptBackend implements ModelBackend {
                 nextStream = new ChatGptStream(event -> handleEvent(nextGeneration, nextTiming, event),
                         item -> captureOutput(nextGeneration, item));
                 stream = nextStream;
-                responseFuture = send(request, currentInput, nextTiming);
+                responseFuture = send(request, currentInput, nextTiming, this, nextGeneration);
             }
             responseFuture.whenCompleteAsync((response, failure) -> {
                 if (failure != null) {
@@ -663,6 +648,51 @@ public final class ChatGptBackend implements ModelBackend {
                     read(response, this, nextGeneration, nextStream, nextTiming);
                 }
             }, executor);
+        }
+
+        private CompletableFuture<HttpResponse<InputStream>> dispatch(Request request, List<InputItem> input,
+                                                                       String token, long eventGeneration,
+                                                                       RoundTiming timing) {
+            synchronized (lock) {
+                if (!isCurrentLocked(eventGeneration)) {
+                    return CompletableFuture.failedFuture(new java.util.concurrent.CancellationException());
+                }
+                List<InputItem> dispatchedInput = new ArrayList<>(input);
+                while (!pendingSteering.isEmpty()) {
+                    Message message = pendingSteering.removeFirst();
+                    dispatchedInput.add(message);
+                    durableReplay.add(message);
+                }
+                currentInput = List.copyOf(dispatchedInput);
+                long serializationStartedAtNanos = System.nanoTime();
+                String body = requestBody(request, currentInput);
+                HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8);
+                long serializedAtNanos = System.nanoTime();
+                PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=body_ready event_ns={} serializationMs={} bodyBytes={} bodyChars={} inputItems={} tools={} model={} effort={}",
+                        request.requestId(), timing.round, timing.reason, serializedAtNanos,
+                        (serializedAtNanos - serializationStartedAtNanos) / 1_000_000,
+                        bodyPublisher.contentLength(), body.length(), currentInput.size(), request.tools().size(),
+                        request.modelId(), request.reasoningEffort());
+                HttpRequest httpRequest = HttpRequest.newBuilder(RESPONSES_URI).timeout(Duration.ofSeconds(60))
+                        .header("Authorization", "Bearer " + token).header("Content-Type", "application/json")
+                        .POST(bodyPublisher).build();
+                timing.dispatchedAtNanos = System.nanoTime();
+                PackSageLog.LOGGER.info("PackSage timing request={} round={} reason={} phase=http_dispatch event_ns={} requestToDispatchMs={}",
+                        request.requestId(), timing.round, timing.reason, timing.dispatchedAtNanos,
+                        (timing.dispatchedAtNanos - timing.startedAtNanos) / 1_000_000);
+                return client.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofInputStream());
+            }
+        }
+
+        @Override
+        public boolean steer(Message message) {
+            if (message == null || message.role() != Role.USER || message.content().size() != 1
+                    || !(message.content().getFirst() instanceof TextContent text) || text.text().isBlank()) return false;
+            synchronized (lock) {
+                if (cancelled || terminal) return false;
+                pendingSteering.addLast(message);
+                return true;
+            }
         }
 
         private void captureOutput(long eventGeneration, JsonObject item) {
@@ -703,9 +733,15 @@ public final class ChatGptBackend implements ModelBackend {
                         if (stepReplay.stream().anyMatch(item -> item instanceof WebSearchCall)) searchCapability = true;
                         bufferedCalls = new ArrayList<>(calls.values());
                         if (calls.isEmpty()) {
-                            terminal = true;
-                            publish = true;
-                            publishedEvent = new Event(EventKind.COMPLETED, null, null, List.of(), durableReplay, null);
+                            if (!pendingSteering.isEmpty()) {
+                                continuationStarted = true;
+                                continuation = new ArrayList<>(currentInput);
+                                continuation.addAll(stepReplay);
+                            } else {
+                                terminal = true;
+                                publish = true;
+                                publishedEvent = new Event(EventKind.COMPLETED, null, null, List.of(), durableReplay, null);
+                            }
                         } else if (results.size() == calls.size()) {
                             continuation = continuationInputLocked(stepReplay);
                         }

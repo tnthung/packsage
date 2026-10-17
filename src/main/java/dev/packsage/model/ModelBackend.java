@@ -268,6 +268,8 @@ public interface ModelBackend {
     interface Exchange {
         void submit(ToolResult result);
 
+        default boolean steer(Message message) { return false; }
+
         void cancel();
     }
 }

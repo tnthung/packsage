@@ -763,6 +763,83 @@ class ChatGptBackendTest {
                 .get(0).getAsJsonObject().get("text").getAsString());
     }
 
+    @Test
+    void steeringDuringDelayedAuthenticationIsSentOnceInOrderAndRejectedAfterCompletion() {
+        CompletableFuture<ChatGptAuth.Credential> refresh = new CompletableFuture<>();
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), new ChatGptAuth.SignInFlow() {
+            @Override public CompletionStage<ModelBackend.AuthState> start(ChatGptAuth ignored, CompletableFuture<ModelBackend.AuthState> cancellation) {
+                return CompletableFuture.completedFuture(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_OUT, null, null));
+            }
+            @Override public CompletionStage<ChatGptAuth.Credential> refresh(ChatGptAuth.Credential current) {
+                return refresh;
+            }
+        });
+        auth.saveCredential(credential("access-1", "refresh-1", 0));
+        CapturingHttpClient client = new CapturingHttpClient(List.of(ANSWER_RESPONSE));
+        ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        List<ModelBackend.Event> events = new ArrayList<>();
+        ModelBackend.Exchange exchange = new ChatGptBackend(auth, client, tasks::add)
+                .start(searchRequest("steer-delayed-auth", ModelBackend.SearchMode.DISABLED), events::add);
+        ModelBackend.Message first = new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent("first steering message")));
+        ModelBackend.Message second = new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent("second steering message")));
+
+        assertTrue(exchange.steer(first));
+        assertTrue(exchange.steer(second));
+        assertTrue(client.requests.isEmpty());
+
+        refresh.complete(credential("access-2", "refresh-2", Long.MAX_VALUE));
+        while (!tasks.isEmpty()) tasks.removeFirst().run();
+
+        assertEquals(1, client.requests.size());
+        JsonArray input = JsonParser.parseString(requestBody(client.requests.getFirst())).getAsJsonObject().getAsJsonArray("input");
+        List<String> userTexts = new ArrayList<>();
+        input.forEach(item -> {
+            JsonObject message = item.getAsJsonObject();
+            if ("message".equals(message.get("type").getAsString()) && "user".equals(message.get("role").getAsString())) {
+                userTexts.add(message.getAsJsonArray("content").get(0).getAsJsonObject().get("text").getAsString());
+            }
+        });
+        assertEquals(List.of("question", "first steering message", "second steering message"), userTexts);
+        ModelBackend.Event completed = events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED)
+                .findFirst().orElseThrow();
+        assertEquals(List.of(first, second), completed.replayItems().stream()
+                .filter(item -> item.equals(first) || item.equals(second)).toList());
+        assertFalse(exchange.steer(new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent("too late")))));
+    }
+
+    @Test
+    void cancellingDuringDelayedAuthenticationPreventsDispatchAfterRefresh() {
+        CompletableFuture<ChatGptAuth.Credential> refresh = new CompletableFuture<>();
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("credentials.json"), new ChatGptAuth.SignInFlow() {
+            @Override public CompletionStage<ModelBackend.AuthState> start(ChatGptAuth ignored, CompletableFuture<ModelBackend.AuthState> cancellation) {
+                return CompletableFuture.completedFuture(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_OUT, null, null));
+            }
+            @Override public CompletionStage<ChatGptAuth.Credential> refresh(ChatGptAuth.Credential current) {
+                return refresh;
+            }
+        });
+        auth.saveCredential(credential("access-1", "refresh-1", 0));
+        CapturingHttpClient client = new CapturingHttpClient(List.of(ANSWER_RESPONSE));
+        ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        List<ModelBackend.Event> events = new ArrayList<>();
+        ModelBackend.Exchange exchange = new ChatGptBackend(auth, client, tasks::add)
+                .start(searchRequest("cancel-delayed-auth", ModelBackend.SearchMode.DISABLED), events::add);
+
+        assertTrue(exchange.steer(new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent("queued before cancel")))));
+        exchange.cancel();
+        refresh.complete(credential("access-2", "refresh-2", Long.MAX_VALUE));
+        while (!tasks.isEmpty()) tasks.removeFirst().run();
+
+        assertTrue(client.requests.isEmpty());
+        assertEquals(0, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+        assertFalse(exchange.steer(new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent("too late")))));
+    }
+
     private static final String TOOL_CALL_RESPONSE =
             "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"sequence_number\":1,\"item\":{\"id\":\"fc_a\",\"type\":\"function_call\",\"call_id\":\"call_a\",\"namespace\":\"packsage\",\"name\":\"search_pack\",\"arguments\":\"{}\",\"status\":\"completed\"}}\n\n"
                     + "data: {\"type\":\"response.completed\",\"sequence_number\":2,\"response\":{\"status\":\"completed\"}}\n\n";

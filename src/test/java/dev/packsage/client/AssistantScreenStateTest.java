@@ -236,6 +236,111 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void completedStepsRenderAsOneCollapsedGroupHeader() {
+        AssistantScreen screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        String key = "request:request";
+        List<ChatContracts.ActivityStep> steps = List.of(
+                new ChatContracts.ActivityStep("tool:one", "First tool", "Completed", ChatContracts.ActivityStatus.COMPLETED),
+                new ChatContracts.ActivityStep("tool:two", "Second tool", "Completed", ChatContracts.ActivityStatus.COMPLETED),
+                new ChatContracts.ActivityStep("tool:three", "Third tool", "Completed", ChatContracts.ActivityStatus.COMPLETED),
+                new ChatContracts.ActivityStep("tool:four", "Fourth tool", "Completed", ChatContracts.ActivityStatus.COMPLETED));
+
+        AssistantScreen.MessageLayout header = screen.activityGroupHeader(key, steps.size(),
+                ChatContracts.ActivityStatus.COMPLETED, 100);
+
+        assertFalse(screen.activityExpanded(key));
+        assertTrue(header.height() <= ModernUi.MESSAGE_LINE_HEIGHT);
+        assertTrue(header.runs().stream().map(run -> run.span().text()).collect(java.util.stream.Collectors.joining())
+                .contains("4 steps"));
+    }
+
+    @Test
+    void responseGroupStaysOpenBetweenCompletedStepsThenCollapsesAndCanBeReopened() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        String key = "request:request";
+        List<ChatContracts.ActivityStep> steps = List.of(
+                new ChatContracts.ActivityStep("tool:one", "First tool", "Completed", ChatContracts.ActivityStatus.COMPLETED),
+                new ChatContracts.ActivityStep("tool:two", "Second tool", "Completed", ChatContracts.ActivityStatus.COMPLETED),
+                new ChatContracts.ActivityStep("tool:three", "Third tool", "Completed", ChatContracts.ActivityStatus.COMPLETED),
+                new ChatContracts.ActivityStep("tool:four", "Fourth tool", "Completed", ChatContracts.ActivityStatus.COMPLETED));
+        ChatContracts.View running = new ChatContracts.View(true, actions.view.signIn(), false,
+                actions.view.conversation(), actions.view.context(), actions.view.sources(), actions.view.navigationTargets(),
+                actions.view.errors(), "partial", "Working...", actions.view.activeWorld(), false,
+                "question", Instant.EPOCH, steps, "request");
+        ChatContracts.Turn priorTurn = actions.view.conversation().turns().getLast();
+        ChatContracts.Turn savedTurn = new ChatContracts.Turn(priorTurn.requestId(), priorTurn.question(), priorTurn.answer(),
+                priorTurn.replayItems(), priorTurn.context(), priorTurn.sources(), priorTurn.navigationTargets(),
+                priorTurn.outcome(), priorTurn.tokenCount(), priorTurn.sentAt(), steps);
+        ChatContracts.Conversation savedConversation = new ChatContracts.Conversation(actions.view.conversation().id(),
+                actions.view.conversation().world(), List.of(savedTurn), actions.view.conversation().outcome());
+        ChatContracts.View saved = new ChatContracts.View(false, actions.view.signIn(), false, savedConversation,
+                actions.view.context(), actions.view.sources(), actions.view.navigationTargets(), actions.view.errors(), "", "",
+                actions.view.activeWorld(), true, "", null, List.of());
+
+        screen.refresh(running);
+        screen.activityGroupHeader("request:" + screen.view().activeRequestId(), screen.view().activities().size(),
+                ChatContracts.ActivityStatus.RUNNING, 100);
+        assertTrue(screen.activityExpanded(key));
+
+        screen.refresh(saved);
+        AssistantScreen.MessageLayout completed = screen.activityGroupHeader(
+                "request:" + screen.view().conversation().turns().getLast().requestId().value(), steps.size(),
+                ChatContracts.ActivityStatus.COMPLETED, 100);
+        assertEquals(key, "request:" + screen.view().conversation().turns().getLast().requestId().value());
+        assertFalse(screen.activityExpanded(key));
+        assertTrue(screen.mouseClicked(260, 110, 0));
+        screen.activityGroupHeader(key, steps.size(), ChatContracts.ActivityStatus.COMPLETED, 100);
+        assertTrue(screen.activityExpanded(key));
+        assertTrue(completed.height() <= ModernUi.MESSAGE_LINE_HEIGHT);
+    }
+
+    @Test
+    void groupManualToggleSurvivesStepCountUpdatesAndTerminalRefreshes() {
+        AssistantScreen screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        String key = "request:request";
+
+        screen.activityGroupHeader(key, 4, ChatContracts.ActivityStatus.RUNNING, 100);
+        assertTrue(screen.mouseClicked(260, 110, 0));
+        screen.activityGroupHeader(key, 5, ChatContracts.ActivityStatus.RUNNING, 100);
+        assertFalse(screen.activityExpanded(key));
+
+        screen.activityGroupHeader(key, 5, ChatContracts.ActivityStatus.COMPLETED, 100);
+        assertTrue(screen.mouseClicked(260, 110, 0));
+        screen.activityGroupHeader(key, 5, ChatContracts.ActivityStatus.COMPLETED, 100);
+        assertTrue(screen.activityExpanded(key));
+        screen.activityGroupHeader(key, 5, ChatContracts.ActivityStatus.COMPLETED, 100);
+        assertTrue(screen.activityExpanded(key));
+    }
+
+    @Test
+    void failedAndCancelledResponsesAlsoCollapseTheGroup() {
+        AssistantScreen screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+
+        for (ChatContracts.ActivityStatus status : List.of(ChatContracts.ActivityStatus.FAILED,
+                ChatContracts.ActivityStatus.CANCELLED)) {
+            String key = "request:" + status.name().toLowerCase(java.util.Locale.ROOT);
+            screen.activityGroupHeader(key, 4, ChatContracts.ActivityStatus.RUNNING, 100);
+            assertTrue(screen.activityExpanded(key));
+            AssistantScreen.MessageLayout header = screen.activityGroupHeader(key, 4, status, 100);
+            assertFalse(screen.activityExpanded(key));
+            assertTrue(header.height() <= ModernUi.MESSAGE_LINE_HEIGHT);
+        }
+    }
+
+    @Test
     void activityHeadersWrapWithinNarrowContentWidth() {
         AssistantScreen screen = new AssistantScreen(new FakeActions());
         screen.width = 320;

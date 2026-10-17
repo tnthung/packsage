@@ -52,6 +52,8 @@ public final class AssistantScreen extends Screen {
     private List<ChatContracts.SessionSummary> sessions = List.of();
     private final List<ChipHit> chipHits = new ArrayList<>();
     private final List<SourceHit> sourceHits = new ArrayList<>();
+    private final List<ActivityHit> activityHits = new ArrayList<>();
+    private final Map<String, ActivityExpansion> activityExpansion = new LinkedHashMap<>();
     private final Set<String> expandedWorlds = new HashSet<>();
     private int sidebarScroll;
     private int sidebarContentHeight;
@@ -324,6 +326,7 @@ public final class AssistantScreen extends Screen {
         }
         chipHits.clear();
         sourceHits.clear();
+        activityHits.clear();
         messageActions.clear();
         if (history == null) history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
         for (ChatContracts.Turn turn : view.conversation().turns()) {
@@ -334,6 +337,7 @@ public final class AssistantScreen extends Screen {
             y = drawUserMessage(graphics, turn.question(), y, included);
             y = drawMessageActions(graphics, turn, true, tokens.user(), y, mouseX, mouseY);
             y += 7;
+            y = drawActivityRows(graphics, turn.activities(), "request:" + turn.requestId().value(), y, mouseX, mouseY);
             y = drawAssistantMessage(graphics, turn.answer(), turn, y, included);
             y = drawMessageActions(graphics, turn, false, tokens.assistant(), y, mouseX, mouseY);
             String outcome = ScreenText.outcomeLine(turn.outcome());
@@ -356,6 +360,9 @@ public final class AssistantScreen extends Screen {
         if (view.active() || awaitingRequestView) {
             drawAssistantAvatar(graphics, y);
             int responseTop = y;
+            y = drawActivityRows(graphics, view.activities(), "request:" + (view.activeRequestId() == null
+                    ? view.activeQuestion() + ":" + view.activeSentAt() : view.activeRequestId()), y,
+                    mouseX, mouseY);
             if (!view.streamingAnswer().isEmpty()) y = drawInlineLines(graphics, ScreenText.inlineLines(view.streamingAnswer(), List.of()), y,
                     readableLeft + 26, readableWidth - 26, null);
             graphics.drawString(font, Component.literal(view.activity().isEmpty() ? "Working..." : view.activity())
@@ -373,6 +380,81 @@ public final class AssistantScreen extends Screen {
             }
         }
         return Math.max(y, contentBottom - scrollOffset);
+    }
+
+    private int drawActivityRows(GuiGraphics graphics, List<ChatContracts.ActivityStep> steps, String prefix, int y,
+                                 int mouseX, int mouseY) {
+        for (ChatContracts.ActivityStep step : steps) {
+            String key = prefix + ":" + step.id();
+            updateActivityExpansion(key, step.status());
+            boolean expanded = activityExpanded(key);
+            int left = readableLeft + 26;
+            int right = readableLeft + readableWidth;
+            String label = switch (step.status()) {
+                case COMPLETED -> "done";
+                case FAILED -> "failed";
+                case CANCELLED -> "cancelled";
+                case RUNNING -> "";
+            };
+            int statusWidth = label.isEmpty() ? 0 : font.width(label) + 4;
+            var titleLines = activityTitleLines(step, Math.max(1, right - left - 10 - statusWidth));
+            int headerTop = y;
+            int headerHeight = Math.max(ModernUi.MESSAGE_LINE_HEIGHT, titleLines.size() * ModernUi.MESSAGE_LINE_HEIGHT);
+            registerActivityHit(key, left, headerTop, right, headerTop + headerHeight);
+            graphics.drawString(font, expanded ? "▾" : "▸", left, y, ModernUi.MUTED, false);
+            for (var line : titleLines) {
+                graphics.drawString(font, line, left + 10, y,
+                        step.status() == ChatContracts.ActivityStatus.FAILED ? ModernUi.DANGER : ModernUi.TEXT, false);
+                y += ModernUi.MESSAGE_LINE_HEIGHT;
+            }
+            if (!label.isEmpty()) {
+                graphics.drawString(font, Component.literal(label).withStyle(style -> style.withFont(ModernUi.FONT)),
+                        right - font.width(label), headerTop, ModernUi.MUTED, false);
+            }
+            String detail = activityDetail(step);
+            if (expanded && !detail.isBlank()) {
+                for (var line : font.split(Component.literal(detail).withStyle(style ->
+                        style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), Math.max(1, readableWidth - 38))) {
+                    graphics.drawString(font, line, left + 10, y, ModernUi.MUTED, false);
+                    y += ModernUi.MESSAGE_LINE_HEIGHT;
+                }
+            }
+        }
+        return y;
+    }
+
+    void toggleActivity(String key) {
+        ActivityExpansion state = activityExpansion.get(key);
+        if (state != null) activityExpansion.put(key, new ActivityExpansion(state.status(), !state.expanded()));
+    }
+
+    void updateActivityExpansion(String key, ChatContracts.ActivityStatus status) {
+        ActivityExpansion previous = activityExpansion.get(key);
+        boolean terminal = status != ChatContracts.ActivityStatus.RUNNING;
+        boolean expanded = previous == null ? !terminal : previous.status() == ChatContracts.ActivityStatus.RUNNING
+                && terminal ? false : previous.expanded();
+        activityExpansion.put(key, new ActivityExpansion(status, expanded));
+    }
+
+    List<net.minecraft.util.FormattedCharSequence> activityTitleLines(ChatContracts.ActivityStep step, int width) {
+        return font.split(Component.literal(step.title()).withStyle(style -> style.withFont(ModernUi.FONT)
+                .withColor(step.status() == ChatContracts.ActivityStatus.FAILED ? ModernUi.DANGER : ModernUi.TEXT)),
+                Math.max(1, width));
+    }
+
+    String activityDetail(ChatContracts.ActivityStep step) {
+        if (!step.detail().isBlank() || step.status() != ChatContracts.ActivityStatus.RUNNING) return step.detail();
+        return step.id().startsWith("tool:") ? "Running tool…"
+                : step.id().startsWith("search:") ? "Searching the web…" : "Waiting for a public summary…";
+    }
+
+    void registerActivityHit(String key, int left, int top, int right, int bottom) {
+        activityHits.add(new ActivityHit(key, left, top, right, bottom));
+    }
+
+    boolean activityExpanded(String key) {
+        ActivityExpansion state = activityExpansion.get(key);
+        return state != null && state.expanded();
     }
 
     private int drawUserMessage(GuiGraphics graphics, String text, int y, boolean included) {
@@ -987,6 +1069,14 @@ public final class AssistantScreen extends Screen {
                 return true;
             }
         }
+        for (ActivityHit hit : activityHits) {
+            if (mouseY >= 48 && mouseY < toggleY - 8 && mouseX >= readableLeft
+                    && mouseX < readableLeft + readableWidth && mouseX >= hit.left() && mouseX < hit.right()
+                    && mouseY >= hit.top() && mouseY < hit.bottom()) {
+                toggleActivity(hit.key());
+                return true;
+            }
+        }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
@@ -1157,5 +1247,7 @@ public final class AssistantScreen extends Screen {
 
     private record ChipHit(Evidence.NavigationTarget target, int left, int top, int right, int bottom) { }
     private record SourceHit(Evidence.Source source, ChatContracts.Turn turn, int left, int top, int right, int bottom) { }
+    private record ActivityHit(String key, int left, int top, int right, int bottom) { }
+    private record ActivityExpansion(ChatContracts.ActivityStatus status, boolean expanded) { }
     private record MessageAction(ChatContracts.Turn turn, boolean user, boolean edit, int x, int y, int width) { }
 }

@@ -149,23 +149,46 @@ class ChatGptStreamTest {
     }
 
     @Test
-    void reasoningAndHostedSearchItemsEmitSecretFreeProgressEvents() {
+    void streamsOnlyPublicReasoningSummariesAndNeverRawReasoningContent() {
         List<ModelBackend.Event> events = new ArrayList<>();
         ChatGptStream stream = new ChatGptStream(events::add);
 
         String stream1 = "data: {\"type\":\"response.output_item.added\",\"output_index\":0,\"item\":{\"id\":\"rs_1\",\"type\":\"reasoning\","
                 + "\"encrypted_content\":\"SECRET-BLOB\",\"summary\":[]}}\n\n"
-                + "data: {\"type\":\"response.reasoning_summary_text.delta\",\"delta\":\"private thoughts\"}\n\n"
+                + "data: {\"type\":\"response.reasoning.delta\",\"item_id\":\"rs_1\",\"delta\":\"RAW-REASONING\"}\n\n"
+                + "data: {\"type\":\"response.reasoning_summary_text.delta\",\"item_id\":\"rs_1\",\"output_index\":0,\"summary_index\":0,\"delta\":\"Public summary\"}\n\n"
+                + "data: {\"type\":\"response.output_item.done\",\"output_index\":0,\"item\":{\"id\":\"rs_1\",\"type\":\"reasoning\","
+                + "\"encrypted_content\":\"SECRET-BLOB\",\"summary\":[{\"type\":\"summary_text\",\"text\":\"Public summary\"}]}}\n\n"
                 + "data: {\"type\":\"response.output_item.added\",\"output_index\":1,\"item\":{\"id\":\"ws_1\",\"type\":\"web_search_call\","
                 + "\"status\":\"in_progress\"}}\n\n"
                 + "data: {\"type\":\"response.output_item.added\",\"output_index\":2,\"item\":{\"id\":\"msg_1\",\"type\":\"message\"}}\n\n";
         stream.accept(stream1.getBytes(StandardCharsets.UTF_8));
 
         assertEquals(List.of(
-                new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), null),
-                new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), null),
-                new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH, null, null, List.of(), null)
+                new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), List.of(), null, "rs_1"),
+                new ModelBackend.Event(ModelBackend.EventKind.REASONING_SUMMARY_DELTA, "Public summary", null,
+                        List.of(), List.of(), null, "rs_1"),
+                new ModelBackend.Event(ModelBackend.EventKind.REASONING_SUMMARY_COMPLETED, "Public summary", null,
+                        List.of(), List.of(), null, "rs_1"),
+                new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH, null, null, List.of(), List.of(), null, "ws_1")
         ), events);
+        assertTrue(events.stream().noneMatch(event -> event.text() != null && event.text().contains("RAW-REASONING")));
+        assertTrue(events.stream().noneMatch(event -> event.detail() != null && event.detail().contains("SECRET-BLOB")));
+    }
+
+    @Test
+    void reasoningWithoutPublicSummaryEmitsNoReasoningPayload() {
+        List<ModelBackend.Event> events = new ArrayList<>();
+        ChatGptStream stream = new ChatGptStream(events::add);
+        stream.accept(("data: {\"type\":\"response.output_item.added\",\"item\":{\"id\":\"rs_empty\",\"type\":\"reasoning\","
+                + "\"encrypted_content\":\"SECRET-BLOB\"}}\n\n"
+                + "data: {\"type\":\"response.reasoning.encrypted_content.delta\",\"delta\":\"SECRET-DELTA\"}\n\n"
+                + "data: {\"type\":\"response.output_item.done\",\"item\":{\"id\":\"rs_empty\",\"type\":\"reasoning\","
+                + "\"encrypted_content\":\"SECRET-BLOB\"}}\n\n").getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(List.of(ModelBackend.EventKind.REASONING, ModelBackend.EventKind.REASONING_SUMMARY_COMPLETED),
+                events.stream().map(ModelBackend.Event::kind).toList());
+        assertTrue(events.stream().allMatch(event -> event.text() == null || event.text().isEmpty()));
     }
 
     private static final class ChatGptStreamTestFixtures {

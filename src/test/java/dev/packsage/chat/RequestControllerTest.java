@@ -995,6 +995,76 @@ class RequestControllerTest {
         assertEquals(controller.view().activity(), "Thinking…");
     }
 
+    @Test
+    void publicSummaryIsKeptInTheFinalTurnWithoutChangingProviderReplay() {
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.View> published = new ArrayList<>();
+        RequestController controller = activityController(backend, published, "activity-summary");
+        backend.emit("activity-summary", new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null,
+                List.of(), List.of(), null, "summary-item"));
+        backend.emit("activity-summary", new ModelBackend.Event(ModelBackend.EventKind.REASONING_SUMMARY_DELTA,
+                "Public only", null, List.of(), List.of(), null, "summary-item"));
+        backend.emit("activity-summary", new ModelBackend.Event(ModelBackend.EventKind.REASONING_SUMMARY_COMPLETED,
+                "Public only", null, List.of(), List.of(), null, "summary-item"));
+        backend.emit("activity-summary", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null,
+                List.of(), List.of(), null));
+
+        ChatContracts.Turn turn = controller.view().conversation().turns().getFirst();
+        assertEquals("Public only", turn.activities().getFirst().detail());
+        assertEquals(ChatContracts.ActivityStatus.COMPLETED, turn.activities().getFirst().status());
+        assertTrue(turn.replayItems().isEmpty());
+    }
+
+    @Test
+    void concurrentToolActivitiesFinishOnlyWhenTheirOwnResultsReturnAndTerminalFailureClosesPendingWork() {
+        FakeBackend backend = new FakeBackend();
+        List<CompletableFuture<ChatContracts.ToolResponse>> responses = new ArrayList<>();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { }, request -> {
+                    CompletableFuture<ChatContracts.ToolResponse> response = new CompletableFuture<>();
+                    responses.add(response);
+                    return response;
+                }, ignored -> { });
+        controller.begin(submission("activity-parallel", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+        backend.emit("activity-parallel", toolEvent("one", "read_evidence", "{}"));
+        backend.emit("activity-parallel", toolEvent("two", "read_history", "{}"));
+
+        assertEquals(List.of(ChatContracts.ActivityStatus.RUNNING, ChatContracts.ActivityStatus.RUNNING),
+                controller.view().activities().stream().map(ChatContracts.ActivityStep::status).toList());
+        responses.getFirst().complete(new ChatContracts.ToolResponse(new ModelBackend.ToolResult("one", "{raw-result}", true),
+                new ChatContracts.EvidenceSelection(List.of(), List.of())));
+        assertEquals(ChatContracts.ActivityStatus.FAILED, controller.view().activities().getFirst().status());
+        assertEquals(ChatContracts.ActivityStatus.RUNNING, controller.view().activities().get(1).status());
+        assertFalse(controller.view().activities().getFirst().detail().contains("raw-result"));
+
+        backend.emit("activity-parallel", new ModelBackend.Event(ModelBackend.EventKind.FAILED, null, null,
+                List.of(), "failure"));
+
+        List<ChatContracts.ActivityStep> saved = controller.view().conversation().turns().getFirst().activities();
+        assertEquals(ChatContracts.ActivityStatus.FAILED, saved.getFirst().status());
+        assertEquals(ChatContracts.ActivityStatus.FAILED, saved.get(1).status());
+    }
+
+    @Test
+    void cancellationClosesUnfinishedToolActivityAndPersistsIt() {
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> new CompletableFuture<>(), ignored -> { });
+        controller.begin(submission("activity-cancel", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+        backend.emit("activity-cancel", toolEvent("pending", "read_history", "{}"));
+
+        controller.stop();
+
+        ChatContracts.Turn saved = controller.view().conversation().turns().getFirst();
+        assertEquals(ChatContracts.OutcomeStatus.CANCELLED, saved.outcome().status());
+        assertEquals(ChatContracts.ActivityStatus.CANCELLED, saved.activities().getFirst().status());
+    }
+
     private static RequestController controller(ConversationStore store, FakeBackend backend,
                                                 RequestController.ContextCapture capture,
                                                 Consumer<ChatContracts.RequestId> cancelCapture,

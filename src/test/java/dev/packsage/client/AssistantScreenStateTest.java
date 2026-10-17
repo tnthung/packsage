@@ -214,6 +214,55 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void activityExpansionDefaultsOpenCollapsesOnceAndPreservesManualChoiceAcrossTurnTransfer() {
+        AssistantScreen screen = new AssistantScreen(new FakeActions());
+        String key = "request:request:tool:call-1";
+
+        screen.updateActivityExpansion(key, ChatContracts.ActivityStatus.RUNNING);
+        assertTrue(screen.activityExpanded(key));
+        screen.toggleActivity(key);
+        assertFalse(screen.activityExpanded(key));
+        screen.updateActivityExpansion(key, ChatContracts.ActivityStatus.RUNNING);
+        assertFalse(screen.activityExpanded(key));
+
+        screen.updateActivityExpansion(key, ChatContracts.ActivityStatus.COMPLETED);
+        assertFalse(screen.activityExpanded(key));
+        screen.toggleActivity(key);
+        screen.updateActivityExpansion(key, ChatContracts.ActivityStatus.COMPLETED);
+        assertTrue(screen.activityExpanded(key));
+
+        screen.updateActivityExpansion(key, ChatContracts.ActivityStatus.COMPLETED);
+        assertTrue(screen.activityExpanded(key));
+    }
+
+    @Test
+    void activityHeadersWrapWithinNarrowContentWidth() {
+        AssistantScreen screen = new AssistantScreen(new FakeActions());
+        ScreenTestHost.initialize(screen);
+        ChatContracts.ActivityStep step = new ChatContracts.ActivityStep("tool:one",
+                "Searching pack: " + "long_identifier_".repeat(5), "", ChatContracts.ActivityStatus.RUNNING);
+
+        assertTrue(screen.activityTitleLines(step, 28).size() > 1);
+        assertEquals("Running tool…", screen.activityDetail(step));
+    }
+
+    @Test
+    void activityHeaderClickTogglesAndViewportClippingRejectsOutsideClick() {
+        AssistantScreen screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        String key = "request:request:tool:call-1";
+        screen.updateActivityExpansion(key, ChatContracts.ActivityStatus.RUNNING);
+        screen.registerActivityHit(key, 250, 100, 500, 120);
+
+        assertTrue(screen.mouseClicked(260, 110, 0));
+        assertFalse(screen.activityExpanded(key));
+        assertFalse(screen.mouseClicked(260, 20, 0));
+        assertFalse(screen.activityExpanded(key));
+    }
+
+    @Test
     void navigationRequiresTheRegisteredTargetTuple() {
         FakeActions actions = new FakeActions();
         AssistantScreen screen = new AssistantScreen(actions);

@@ -13,6 +13,17 @@ public final class ChatContracts {
 
     public enum SignInState { UNKNOWN, SIGNED_OUT, SIGNING_IN, SIGNED_IN, FAILED }
     public enum OutcomeStatus { ACTIVE, COMPLETED, CANCELLED, FAILED }
+    public enum ActivityStatus { RUNNING, COMPLETED, FAILED, CANCELLED }
+
+    public record ActivityStep(String id, String title, String detail, ActivityStatus status) {
+        public ActivityStep {
+            Objects.requireNonNull(id);
+            Objects.requireNonNull(title);
+            detail = detail == null ? "" : detail;
+            Objects.requireNonNull(status);
+            if (id.isBlank() || title.isBlank()) throw new IllegalArgumentException("activity identity and title are required");
+        }
+    }
 
     public record WorldIdentity(String worldOrServer, String readableLabel) {
         public WorldIdentity {
@@ -159,7 +170,7 @@ public final class ChatContracts {
 
     public record Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
                        Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
-                       Outcome outcome, int tokenCount, Instant sentAt) {
+                       Outcome outcome, int tokenCount, Instant sentAt, List<ActivityStep> activities) {
         public Turn {
             Objects.requireNonNull(requestId);
             Objects.requireNonNull(question);
@@ -168,6 +179,7 @@ public final class ChatContracts {
             Objects.requireNonNull(context);
             sources = List.copyOf(sources);
             navigationTargets = List.copyOf(navigationTargets);
+            activities = List.copyOf(activities);
             for (Evidence.NavigationTarget target : navigationTargets) {
                 if (!context.scope().equals(target.scope()) || sources.stream().noneMatch(source ->
                         source.scope().equals(target.scope()) && source.providerId().equals(target.providerId())
@@ -177,6 +189,12 @@ public final class ChatContracts {
             }
             Objects.requireNonNull(outcome);
             if (tokenCount < 0) throw new IllegalArgumentException("tokenCount cannot be negative");
+        }
+
+        public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    Outcome outcome, int tokenCount, Instant sentAt) {
+            this(requestId, question, answer, replayItems, context, sources, navigationTargets, outcome, tokenCount, sentAt, List.of());
         }
 
         public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
@@ -264,7 +282,7 @@ public final class ChatContracts {
     public record View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
                        Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
                        List<String> errors, String streamingAnswer, String activity, WorldIdentity activeWorld, boolean readOnly,
-                       String activeQuestion, Instant activeSentAt) {
+                       String activeQuestion, Instant activeSentAt, List<ActivityStep> activities, String activeRequestId) {
         public View {
             Objects.requireNonNull(signIn);
             Objects.requireNonNull(conversation);
@@ -276,7 +294,24 @@ public final class ChatContracts {
             Objects.requireNonNull(activity);
             Objects.requireNonNull(activeWorld);
             Objects.requireNonNull(activeQuestion);
+            activities = List.copyOf(activities);
             if (readOnly && active) throw new IllegalArgumentException("a read-only history view cannot have an active request");
+        }
+
+        public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    List<String> errors, String streamingAnswer, String activity, WorldIdentity activeWorld, boolean readOnly,
+                    String activeQuestion, Instant activeSentAt, List<ActivityStep> activities) {
+            this(active, signIn, paused, conversation, context, sources, navigationTargets, errors, streamingAnswer,
+                    activity, activeWorld, readOnly, activeQuestion, activeSentAt, activities, null);
+        }
+
+        public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    List<String> errors, String streamingAnswer, String activity, WorldIdentity activeWorld, boolean readOnly,
+                    String activeQuestion, Instant activeSentAt) {
+            this(active, signIn, paused, conversation, context, sources, navigationTargets, errors, streamingAnswer,
+                    activity, activeWorld, readOnly, activeQuestion, activeSentAt, List.of(), null);
         }
 
         public View(boolean active, SignInState signIn, boolean paused, Conversation conversation,

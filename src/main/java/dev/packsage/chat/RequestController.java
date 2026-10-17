@@ -560,14 +560,46 @@ public final class RequestController {
             } else if (event.kind() == ModelBackend.EventKind.RETRYING) {
                 boolean providerRetry = event.detail() != null && event.detail().startsWith("temporary provider failure");
                 if (!providerRetry) request.answer.setLength(0);
+                request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
+                        : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED));
                 request.activity = providerRetry ? "Retrying provider request…" : ActivityLabels.RETRYING_WITHOUT_WEB_SEARCH;
             } else if (event.kind() == ModelBackend.EventKind.REASONING) {
-                if (request.activity.equals(ActivityLabels.THINKING)) return;
                 request.activity = ActivityLabels.THINKING;
+                String id = event.activityId() == null ? "reasoning" : "reasoning:" + event.activityId();
+                request.activities.putIfAbsent(id, new ChatContracts.ActivityStep(id, ActivityLabels.THINKING, "",
+                        ChatContracts.ActivityStatus.RUNNING));
+            } else if (event.kind() == ModelBackend.EventKind.REASONING_SUMMARY_DELTA) {
+                request.activity = ActivityLabels.THINKING;
+                String id = event.activityId() == null ? "reasoning" : "reasoning:" + event.activityId();
+                ChatContracts.ActivityStep previous = request.activities.get(id);
+                String detail = (previous == null ? "" : previous.detail()) + (event.text() == null ? "" : event.text());
+                request.activities.put(id, new ChatContracts.ActivityStep(id, ActivityLabels.THINKING, detail,
+                        ChatContracts.ActivityStatus.RUNNING));
+            } else if (event.kind() == ModelBackend.EventKind.REASONING_SUMMARY_COMPLETED) {
+                if (request.answer.isEmpty()) request.activity = ActivityLabels.THINKING;
+                String id = event.activityId() == null ? "reasoning" : "reasoning:" + event.activityId();
+                ChatContracts.ActivityStep previous = request.activities.get(id);
+                String detail = event.text() == null || event.text().isBlank()
+                        ? previous == null ? "" : previous.detail() : event.text();
+                request.activities.put(id, new ChatContracts.ActivityStep(id, ActivityLabels.THINKING, detail,
+                        ChatContracts.ActivityStatus.COMPLETED));
             } else if (event.kind() == ModelBackend.EventKind.HOSTED_SEARCH
                     && event.blocks().isEmpty()) {
-                if (request.activity.equals(ActivityLabels.SEARCHING_WEB)) return;
-                request.activity = ActivityLabels.SEARCHING_WEB;
+                String searchStatus = event.text() == null ? "" : event.text();
+                if (!searchStatus.equals("completed") && !searchStatus.equals("failed") && !searchStatus.equals("incomplete")) {
+                    request.activity = ActivityLabels.SEARCHING_WEB;
+                }
+                if (event.activityId() != null) {
+                    String id = "search:" + event.activityId();
+                    ChatContracts.ActivityStep previous = request.activities.get(id);
+                    ChatContracts.ActivityStatus status = switch (searchStatus) {
+                        case "completed" -> ChatContracts.ActivityStatus.COMPLETED;
+                        case "failed", "incomplete" -> ChatContracts.ActivityStatus.FAILED;
+                        default -> ChatContracts.ActivityStatus.RUNNING;
+                    };
+                    request.activities.put(id, new ChatContracts.ActivityStep(id, ActivityLabels.SEARCHING_WEB,
+                            previous == null ? "" : previous.detail(), status));
+                }
             }
             snapshot = currentView();
         }
@@ -582,6 +614,9 @@ public final class RequestController {
             request.partialReplay.add(call);
             toolRequest = new ChatContracts.ToolRequest(request.submission, call);
             request.activity = ActivityLabels.tool(call, request.toolCalls.size());
+            String id = "tool:" + call.callId();
+            request.activities.put(id, new ChatContracts.ActivityStep(id, ActivityLabels.tool(call, request.toolCalls.size()),
+                    "", ChatContracts.ActivityStatus.RUNNING));
             started = currentView();
         }
         publisher.accept(started);
@@ -609,6 +644,11 @@ public final class RequestController {
                     .anyMatch(target -> !request.submission.scope().equals(target.scope()))) return;
             request.toolResults.put(call.callId(), response.result());
             request.partialReplay.add(response.result());
+            String activityId = "tool:" + call.callId();
+            ChatContracts.ActivityStep toolActivity = request.activities.get(activityId);
+            if (toolActivity != null) request.activities.put(activityId, new ChatContracts.ActivityStep(activityId,
+                    toolActivity.title(), response.result().error() ? "Could not complete" : "Completed",
+                    response.result().error() ? ChatContracts.ActivityStatus.FAILED : ChatContracts.ActivityStatus.COMPLETED));
             List<Evidence.Source> mergedSources = new ArrayList<>(request.evidence.sources());
             response.evidence().sources().forEach(source -> {
                 if (!mergedSources.contains(source)) mergedSources.add(source);
@@ -654,6 +694,12 @@ public final class RequestController {
             } else {
                 replay = completePairs(request);
             }
+            ChatContracts.ActivityStatus terminalActivity = status == ChatContracts.OutcomeStatus.FAILED
+                    ? ChatContracts.ActivityStatus.FAILED : ChatContracts.ActivityStatus.COMPLETED;
+            request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
+                    : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(),
+                    terminalActivity == ChatContracts.ActivityStatus.COMPLETED && id.startsWith("tool:")
+                            ? ChatContracts.ActivityStatus.CANCELLED : terminalActivity));
             markPersistencePending(request);
             active = null;
             if (request.submission.replacing() != null) pendingReplacement = request;
@@ -669,16 +715,18 @@ public final class RequestController {
         ChatContracts.Turn untokened = new ChatContracts.Turn(request.submission.requestId(), request.submission.question(),
                 request.answer.toString(), replay, captured.context(), request.evidence.sources(),
                 request.evidence.navigationTargets(),
-                new ChatContracts.Outcome(status, detail), 0, request.sentAt);
+                new ChatContracts.Outcome(status, detail), 0, request.sentAt, List.copyOf(request.activities.values()));
         ChatContracts.Turn turn;
         try {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
-                    untokened.context(), untokened.sources(), untokened.navigationTargets(), untokened.outcome(), tokenCounter.apply(untokened), untokened.sentAt());
+                    untokened.context(), untokened.sources(), untokened.navigationTargets(), untokened.outcome(),
+                    tokenCounter.apply(untokened), untokened.sentAt(), untokened.activities());
         } catch (RuntimeException exception) {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
                     untokened.context(), untokened.sources(),
                     untokened.navigationTargets(),
-                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, failureMessage(exception)), 0, untokened.sentAt());
+                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, failureMessage(exception)), 0,
+                    untokened.sentAt(), untokened.activities());
         }
         if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
         else publish();
@@ -703,6 +751,8 @@ public final class RequestController {
             if (visibleRequest != null && visibleRequest.equals(request.submission.requestId())) {
                 context = captured.context();
             }
+            request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
+                    : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED));
         }
         long cancelledAtNanos = System.nanoTime();
         PackSageLog.LOGGER.info("PackSage timing request={} phase=cancel event_ns={} elapsed_ms={} backendMs={}",
@@ -724,7 +774,8 @@ public final class RequestController {
             ChatContracts.Turn turn = new ChatContracts.Turn(request.submission.requestId(), request.submission.question(),
                     request.answer.toString(), List.copyOf(request.partialReplay), persisted.context(), request.evidence.sources(),
                     request.evidence.navigationTargets(),
-                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.CANCELLED, detail), 0, request.sentAt);
+                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.CANCELLED, detail), 0, request.sentAt,
+                    List.copyOf(request.activities.values()));
             if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
             persist(request, target, turn, persisted.screenshotBytes());
         }, executor);
@@ -780,7 +831,7 @@ public final class RequestController {
                 persistedTurn = new ChatContracts.Turn(turn.requestId(), turn.question(), turn.answer(), turn.replayItems(),
                         new ChatContracts.Context(turn.context().serializedGameplayContext(), null, turn.context().scope()),
                         turn.sources(), turn.navigationTargets(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED,
-                        "media persistence failed: " + failureMessage(mediaFailure)), turn.tokenCount(), turn.sentAt());
+                        "media persistence failed: " + failureMessage(mediaFailure)), turn.tokenCount(), turn.sentAt(), turn.activities());
                 if (request.submission.replacing() == null) updateVisibleTurn(request, target, persistedTurn);
                 publishPersistenceFailure(request, target, mediaFailure);
             }
@@ -890,7 +941,9 @@ public final class RequestController {
         return new ChatContracts.View(visible != null, ChatContracts.SignInState.SIGNED_OUT, false, conversation, context,
                 sources, navigationTargets, List.copyOf(errors), visible == null ? "" : visible.answer.toString(),
                 visible == null ? "" : active == null ? "Saving exchange…" : visible.activity, conversation.world(), false,
-                visible == null ? "" : visible.submission.question(), visible == null ? null : visible.sentAt);
+                visible == null ? "" : visible.submission.question(), visible == null ? null : visible.sentAt,
+                visible == null ? List.of() : List.copyOf(visible.activities.values()),
+                visible == null ? null : visible.submission.requestId().value());
     }
 
     /** The request's tool calls that received a result, each followed by its results, in their original order. */
@@ -949,6 +1002,7 @@ public final class RequestController {
         private final List<ModelBackend.InputItem> partialReplay = new ArrayList<>();
         private final Set<String> toolCalls = new LinkedHashSet<>();
         private final Map<String, ModelBackend.ToolResult> toolResults = new LinkedHashMap<>();
+        private final Map<String, ChatContracts.ActivityStep> activities = new LinkedHashMap<>();
         private final Set<String> submittedResults = new LinkedHashSet<>();
         private CompletableFuture<ChatContracts.Conversation> target;
         private CompletableFuture<ChatContracts.CapturedContext> capture;

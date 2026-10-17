@@ -360,9 +360,12 @@ public final class ChatGptBackend implements ModelBackend {
         body.addProperty("store", false);
         body.addProperty("stream", true);
         body.addProperty("parallel_tool_calls", true);
+        JsonObject reasoning = new JsonObject();
+        if (request.reasoningEffort() != ReasoningEffort.NONE) reasoning.addProperty("summary", "auto");
         if (request.reasoningEffort() != ReasoningEffort.DEFAULT) {
-            JsonObject reasoning = new JsonObject();
             reasoning.addProperty("effort", request.reasoningEffort().name().toLowerCase(java.util.Locale.ROOT));
+        }
+        if (reasoning.size() > 0) {
             body.add("reasoning", reasoning);
         }
         JsonArray tools = new JsonArray();

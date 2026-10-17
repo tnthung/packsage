@@ -24,7 +24,8 @@ public interface ModelBackend {
      * RETRYING signals that the backend discarded an unfinished response and is issuing its single retry; text streamed by the
      * discarded response is void.
      */
-    enum EventKind { TEXT_DELTA, CLIENT_TOOL_CALL, HOSTED_SEARCH, REASONING, RETRYING, COMPLETED, FAILED }
+    enum EventKind { TEXT_DELTA, CLIENT_TOOL_CALL, HOSTED_SEARCH, REASONING, REASONING_SUMMARY_DELTA,
+        REASONING_SUMMARY_COMPLETED, RETRYING, COMPLETED, FAILED }
     enum ResponseKind { TEXT, CITATION, IMAGE, SPOILER_RESERVED }
     enum Role { USER, ASSISTANT, SYSTEM }
     enum OutputStatus { IN_PROGRESS, COMPLETED, INCOMPLETE }
@@ -233,7 +234,7 @@ public interface ModelBackend {
     }
 
     record Event(EventKind kind, String text, ToolCall toolCall, List<ResponseBlock> blocks,
-                 List<InputItem> replayItems, String detail) {
+                 List<InputItem> replayItems, String detail, String activityId) {
         public Event {
             Objects.requireNonNull(kind);
             blocks = List.copyOf(blocks);
@@ -241,7 +242,12 @@ public interface ModelBackend {
         }
 
         public Event(EventKind kind, String text, ToolCall toolCall, List<ResponseBlock> blocks, String detail) {
-            this(kind, text, toolCall, blocks, List.of(), detail);
+            this(kind, text, toolCall, blocks, List.of(), detail, null);
+        }
+
+        public Event(EventKind kind, String text, ToolCall toolCall, List<ResponseBlock> blocks,
+                     List<InputItem> replayItems, String detail) {
+            this(kind, text, toolCall, blocks, replayItems, detail, null);
         }
     }
 

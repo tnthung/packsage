@@ -103,10 +103,17 @@ class ChatGptBackendTest {
                 ModelBackend.SearchMode.DISABLED, "reasoning-default", 512);
         ModelBackend.Request highRequest = new ModelBackend.Request("gpt-5-mini", "Answer.", List.of(), List.of(),
                 ModelBackend.SearchMode.DISABLED, "reasoning-high", 512, ModelBackend.ReasoningEffort.HIGH);
+        ModelBackend.Request noneRequest = new ModelBackend.Request("gpt-5-mini", "Answer.", List.of(), List.of(),
+                ModelBackend.SearchMode.DISABLED, "reasoning-none", 512, ModelBackend.ReasoningEffort.NONE);
         JsonObject defaultBody = JsonParser.parseString(ChatGptBackend.requestBody(defaultRequest)).getAsJsonObject();
         JsonObject highBody = JsonParser.parseString(ChatGptBackend.requestBody(highRequest)).getAsJsonObject();
-        assertFalse(defaultBody.has("reasoning"));
+        JsonObject noneBody = JsonParser.parseString(ChatGptBackend.requestBody(noneRequest)).getAsJsonObject();
+        assertEquals("auto", defaultBody.getAsJsonObject("reasoning").get("summary").getAsString());
+        assertFalse(defaultBody.getAsJsonObject("reasoning").has("effort"));
+        assertEquals("auto", highBody.getAsJsonObject("reasoning").get("summary").getAsString());
         assertEquals("high", highBody.getAsJsonObject("reasoning").get("effort").getAsString());
+        assertEquals("none", noneBody.getAsJsonObject("reasoning").get("effort").getAsString());
+        assertFalse(noneBody.getAsJsonObject("reasoning").has("summary"));
     }
 
     @Test

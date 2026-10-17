@@ -809,6 +809,16 @@ public final class ConversationStore {
         JsonArray targets = new JsonArray();
         turn.navigationTargets().forEach(target -> targets.add(navigationTargetJson(target)));
         value.add("navigationTargets", targets);
+        JsonArray activities = new JsonArray();
+        turn.activities().forEach(step -> {
+            JsonObject item = new JsonObject();
+            item.addProperty("id", step.id());
+            item.addProperty("title", step.title());
+            item.addProperty("detail", step.detail());
+            item.addProperty("status", step.status().name());
+            activities.add(item);
+        });
+        value.add("activities", activities);
         return value.toString();
     }
 
@@ -975,13 +985,20 @@ public final class ConversationStore {
             targets.add(new Evidence.NavigationTarget(scopeFromJson(item.getAsJsonObject("scope")),
                     item.get("providerId").getAsString(), item.get("sourceHandle").getAsString(), item.get("targetId").getAsString()));
         });
+        List<ChatContracts.ActivityStep> activities = new ArrayList<>();
+        if (value.has("activities")) value.getAsJsonArray("activities").forEach(activity -> {
+            JsonObject item = activity.getAsJsonObject();
+            activities.add(new ChatContracts.ActivityStep(item.get("id").getAsString(), item.get("title").getAsString(),
+                    item.has("detail") ? item.get("detail").getAsString() : "",
+                    ChatContracts.ActivityStatus.valueOf(item.get("status").getAsString())));
+        });
         String detail = value.has("outcomeDetail") ? value.get("outcomeDetail").getAsString() : null;
         return new ChatContracts.Turn(new ChatContracts.RequestId(value.get("requestId").getAsString()),
                 value.get("question").getAsString(), value.get("answer").getAsString(), replay,
                 new ChatContracts.Context(contextValue.get("serializedGameplayContext").getAsString(), screenshot, scope),
                 sources, targets, new ChatContracts.Outcome(ChatContracts.OutcomeStatus.valueOf(value.get("outcome").getAsString()), detail),
                 value.get("tokenCount").getAsInt(), value.has("sentAt") && !value.get("sentAt").isJsonNull()
-                ? Instant.parse(value.get("sentAt").getAsString()) : null);
+                ? Instant.parse(value.get("sentAt").getAsString()) : null, activities);
     }
 
     private static dev.packsage.model.ModelBackend.InputItem replayFromJson(JsonObject value) {

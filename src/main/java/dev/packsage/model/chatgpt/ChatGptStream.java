@@ -118,12 +118,24 @@ public final class ChatGptStream {
                     && event.getAsJsonObject("item").has("type") && event.getAsJsonObject("item").get("type").isJsonPrimitive()
                     ? event.getAsJsonObject("item").get("type").getAsString() : "";
             if ("reasoning".equals(itemType)) {
-                events.accept(new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), null));
+                JsonObject item = event.getAsJsonObject("item");
+                events.accept(new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), List.of(), null,
+                        item.has("id") ? item.get("id").getAsString() : null));
             } else if ("web_search_call".equals(itemType)) {
-                events.accept(new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH, null, null, List.of(), null));
+                JsonObject item = event.getAsJsonObject("item");
+                events.accept(new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH, null, null, List.of(), List.of(), null,
+                        item.has("id") ? item.get("id").getAsString() : null));
             }
-        } else if (type.startsWith("response.reasoning") && type.endsWith(".delta")) {
-            events.accept(new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), null));
+        } else if ("response.reasoning_summary_text.delta".equals(type)) {
+            if (!event.has("item_id") || !event.get("item_id").isJsonPrimitive()
+                    || !event.getAsJsonPrimitive("item_id").isString() || !event.has("delta")
+                    || !event.get("delta").isJsonPrimitive() || !event.getAsJsonPrimitive("delta").isString()) {
+                fail("reasoning summary delta is incomplete");
+                return;
+            }
+            events.accept(new ModelBackend.Event(ModelBackend.EventKind.REASONING_SUMMARY_DELTA,
+                    event.get("delta").getAsString(), null, List.of(), List.of(), null,
+                    event.get("item_id").getAsString()));
         } else if ("response.function_call_arguments.done".equals(type)) {
             if (!event.has("item_id") || !event.has("arguments")) {
                 fail("function arguments event is incomplete");
@@ -137,7 +149,24 @@ public final class ChatGptStream {
             }
             JsonObject item = event.getAsJsonObject("item").deepCopy();
             outputItems.accept(item);
-            if (item.has("type") && "function_call".equals(item.get("type").getAsString())) {
+            if (item.has("type") && "reasoning".equals(item.get("type").getAsString())) {
+                StringBuilder summary = new StringBuilder();
+                if (item.has("summary") && item.get("summary").isJsonArray()) {
+                    for (JsonElement block : item.getAsJsonArray("summary")) {
+                        if (block.isJsonObject() && block.getAsJsonObject().has("type")
+                                && "summary_text".equals(block.getAsJsonObject().get("type").getAsString())
+                                && block.getAsJsonObject().has("text")
+                                && block.getAsJsonObject().get("text").isJsonPrimitive()
+                                && block.getAsJsonObject().getAsJsonPrimitive("text").isString()) {
+                            if (!summary.isEmpty()) summary.append('\n');
+                            summary.append(block.getAsJsonObject().get("text").getAsString());
+                        }
+                    }
+                }
+                events.accept(new ModelBackend.Event(ModelBackend.EventKind.REASONING_SUMMARY_COMPLETED,
+                        summary.toString(), null, List.of(), List.of(), null,
+                        item.has("id") ? item.get("id").getAsString() : null));
+            } else if (item.has("type") && "function_call".equals(item.get("type").getAsString())) {
                 if (!item.has("id") || !item.has("call_id") || !item.has("name") || !item.has("arguments")) {
                     fail("completed function call is incomplete");
                     return;
@@ -153,8 +182,9 @@ public final class ChatGptStream {
                                 item.get("name").getAsString(),
                                 item.get("arguments").getAsString()), List.of(), null));
             } else if (item.has("type") && "web_search_call".equals(item.get("type").getAsString())) {
-                events.accept(new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH, null, null,
-                        List.of(new ModelBackend.ResponseBlock(ModelBackend.ResponseKind.TEXT, item.toString(), null)), null));
+                events.accept(new ModelBackend.Event(ModelBackend.EventKind.HOSTED_SEARCH,
+                        item.has("status") ? item.get("status").getAsString() : "completed", null, List.of(), List.of(), null,
+                        item.has("id") ? item.get("id").getAsString() : null));
             }
         } else if ("response.output_text.annotation.added".equals(type)) {
             if (event.has("annotation") && event.get("annotation").isJsonObject()) {

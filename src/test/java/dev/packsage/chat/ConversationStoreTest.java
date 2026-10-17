@@ -49,7 +49,8 @@ class ConversationStoreTest {
                         ModelBackend.OutputPhase.FINAL_ANSWER,
                         List.of(new ModelBackend.OutputText("Here.", List.of())))), context, List.of(source),
                 List.of(target), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, "ok"), 9,
-                Instant.parse("2026-10-13T01:02:03Z"));
+                Instant.parse("2026-10-13T01:02:03Z"), List.of(new ChatContracts.ActivityStep("tool:call-1",
+                "Reading evidence", "Completed", ChatContracts.ActivityStatus.COMPLETED)));
 
         store.appendMedia(world, conversation.id(), screenshot, new byte[]{1, 2, 3}).toCompletableFuture().join();
         store.appendTurn(world, SCOPE, conversation.id(), turn).toCompletableFuture().join();
@@ -58,6 +59,7 @@ class ConversationStoreTest {
         assertTrue(reopened.turns().contains(turn));
         assertEquals(List.of(target), reopened.turns().getFirst().navigationTargets());
         assertEquals(turn.sentAt(), reopened.turns().getFirst().sentAt());
+        assertEquals(turn.activities(), reopened.turns().getFirst().activities());
         assertArrayEquals(new byte[]{1, 2, 3}, store.readMedia(world, conversation.id(), screenshot)
                 .toCompletableFuture().join());
         assertTrue(Files.exists(store.conversationPath(world, conversation.id())));
@@ -486,6 +488,7 @@ class ConversationStoreTest {
         com.google.gson.JsonObject turn = com.google.gson.JsonParser.parseString(lines.get(1)).getAsJsonObject();
         turn.remove("navigationTargets");
         turn.remove("sentAt");
+        turn.remove("activities");
         Files.writeString(file, lines.getFirst() + "\n" + turn + "\n", StandardCharsets.UTF_8);
 
         ChatContracts.Conversation loaded = store.openConversation(world, conversation.id()).toCompletableFuture().join();

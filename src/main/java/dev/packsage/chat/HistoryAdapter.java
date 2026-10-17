@@ -91,8 +91,10 @@ final class HistoryAdapter implements Toolbox {
                             for (var message : entry.steeringMessages()) {
                                 if (steeringCharacters == 0) break;
                                 int textLength = Math.min(message.text().length(), steeringCharacters);
-                                steeringMessages.add(new ChatContracts.SteeringMessage(message.text().substring(0, textLength),
-                                        message.answerOffset()));
+                                if (!message.text().substring(0, textLength).isBlank()) {
+                                    steeringMessages.add(new ChatContracts.SteeringMessage(message.text().substring(0, textLength),
+                                            message.answerOffset()));
+                                }
                                 steeringCharacters -= textLength;
                             }
                             boolean steeringTruncated = steeringMessages.size() < entry.steeringMessages().size()
@@ -156,8 +158,10 @@ final class HistoryAdapter implements Toolbox {
                             for (var message : entry.steeringMessages()) {
                                 if (steeringCharacters == 0) break;
                                 int textLength = Math.min(message.text().length(), steeringCharacters);
-                                steeringMessages.add(new ChatContracts.SteeringMessage(message.text().substring(0, textLength),
-                                        Math.min(message.answerOffset(), answerChars)));
+                                if (!message.text().substring(0, textLength).isBlank()) {
+                                    steeringMessages.add(new ChatContracts.SteeringMessage(message.text().substring(0, textLength),
+                                            Math.min(message.answerOffset(), answerChars)));
+                                }
                                 steeringCharacters -= textLength;
                             }
                             boolean truncated = questionChars < entry.question().length() || answerChars < entry.answer().length()

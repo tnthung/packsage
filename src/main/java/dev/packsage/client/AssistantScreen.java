@@ -944,11 +944,10 @@ public final class AssistantScreen extends Screen {
             sourceTooltip = SourceDetailsScreen.details(tooltipSource, tooltipTurn);
         }
         List<net.minecraft.util.FormattedCharSequence> lines = new ArrayList<>();
-        List<String> preview = sourceTooltip.stream().filter(detail -> !detail.isBlank()
+        for (String detail : sourceTooltip.stream().filter(detail -> !detail.isBlank()
                 && !detail.startsWith("Observed:") && !detail.startsWith("Authority:")
                 && !detail.startsWith("Source:") && !detail.startsWith("Provenance:"))
-                .limit(8).toList();
-        for (String detail : preview) lines.addAll(font.split(Component.literal(detail)
+                .limit(8).toList()) lines.addAll(font.split(Component.literal(detail)
                 .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, Math.min(280, width - 24) - 20)));
         int tooltipWidth = Math.max(1, Math.min(300, width - 16));
         int tooltipHeight = Math.min(height - 8, 12 + lines.size() * 14);

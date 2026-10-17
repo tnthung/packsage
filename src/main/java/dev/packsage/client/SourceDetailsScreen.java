@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
-/** Read-only evidence recorded with an answer; opening it never reads or changes live config. */
+/** Read-only evidence recorded with an answer; opening it never reads or changes live game state. */
 final class SourceDetailsScreen extends Screen {
     private final List<String> details;
     private final Runnable returnToChat;
@@ -72,7 +72,7 @@ final class SourceDetailsScreen extends Screen {
                             if (section != null || slot != null) facts.add("Location: "
                                     + (section == null ? "inventory" : ScreenText.displayName(section))
                                     + (slot == null ? "" : " slot " + ("hotbar".equals(section)
-                                    ? Integer.parseInt(slot) + 1 + " (recorded index " + slot + ")" : slot)));
+                                    ? Integer.parseInt(slot) + 1 : slot)));
                         } else {
                             for (String key : List.of("outputs", "inputs")) {
                                 JsonElement entries = payload.get(key);
@@ -104,29 +104,29 @@ final class SourceDetailsScreen extends Screen {
                             }
                         }
                     } else {
-                    for (String key : List.of("fileName", "key", "savedValue", "savedState", "loadedValue", "loadedState",
-                            "comment", "default", "restart", "synchronizedServer", "filePath", "savedError")) {
-                        var field = payload.get(key);
-                        if (field == null) continue;
-                        String label = switch (key) {
-                            case "fileName" -> "File";
-                            case "savedValue" -> "Saved value";
-                            case "savedState" -> "Saved state";
-                            case "loadedValue" -> "Loaded value";
-                            case "loadedState" -> "Loaded state";
-                            case "synchronizedServer" -> "Synchronized server";
-                            case "filePath" -> "File path";
-                            case "savedError" -> "Saved read error";
-                            default -> Character.toUpperCase(key.charAt(0)) + key.substring(1);
-                        };
-                        facts.add(label + ": " + (field.isJsonPrimitive() ? field.getAsString() : field.toString()));
-                    }
+                        for (String key : List.of("fileName", "key", "savedValue", "savedState", "loadedValue", "loadedState",
+                                "comment", "default", "restart", "synchronizedServer", "filePath", "savedError")) {
+                            var field = payload.get(key);
+                            if (field == null) continue;
+                            String label = switch (key) {
+                                case "fileName" -> "File";
+                                case "savedValue" -> "Saved value";
+                                case "savedState" -> "Saved state";
+                                case "loadedValue" -> "Loaded value";
+                                case "loadedState" -> "Loaded state";
+                                case "synchronizedServer" -> "Synchronized server";
+                                case "filePath" -> "File path";
+                                case "savedError" -> "Saved read error";
+                                default -> Character.toUpperCase(key.charAt(0)) + key.substring(1);
+                            };
+                            facts.add(label + ": " + (field.isJsonPrimitive() ? field.getAsString() : field.toString()));
+                        }
                     }
                     lines.addAll(facts);
                     lines.add("Observed: " + source.observedAt());
                     lines.add("Authority: " + source.authority() + " · Coverage: " + source.coverage());
                     lines.add("Source: " + source.sourceHandle());
-                    source.provenance().forEach(value -> lines.add("Provenance: " + value));
+                    source.provenance().forEach(provenance -> lines.add("Provenance: " + provenance));
                     return List.copyOf(lines);
                 }
             } catch (RuntimeException ignored) {

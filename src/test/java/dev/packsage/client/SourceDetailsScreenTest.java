@@ -127,7 +127,7 @@ class SourceDetailsScreenTest {
         List<String> inventoryDetails = SourceDetailsScreen.details(inventory, turn);
         assertTrue(inventoryDetails.contains("Item: Coal"));
         assertTrue(inventoryDetails.contains("Count: 64"));
-        assertTrue(inventoryDetails.contains("Location: Hotbar slot 1 (recorded index 0)"));
+        assertTrue(inventoryDetails.contains("Location: Hotbar slot 1"));
         List<String> recipeDetails = SourceDetailsScreen.details(recipe, turn);
         assertTrue(recipeDetails.contains("Outputs:"));
         assertTrue(recipeDetails.contains("  Stick ×4"));

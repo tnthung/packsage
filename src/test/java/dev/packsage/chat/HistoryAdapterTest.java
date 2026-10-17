@@ -58,6 +58,35 @@ class HistoryAdapterTest {
     }
 
     @Test
+    void searchAndReadIncludeOrderedSteeringEvenWhenItIsAbsentFromAnswer() {
+        var store = new ConversationStore(directory, Runnable::run);
+        var session = store.newConversation(WORLD).toCompletableFuture().join();
+        store.appendTurn(WORLD, SCOPE, session.id(), new ChatContracts.Turn(new ChatContracts.RequestId("steered"),
+                "help me plan", "", List.of(), new ChatContracts.Context("private-context", null, SCOPE), List.of(),
+                List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1, Instant.EPOCH, List.of(),
+                List.of(new ChatContracts.SteeringMessage("avoid uranium", 0),
+                        new ChatContracts.SteeringMessage("prefer renewable power", 0)))).toCompletableFuture().join();
+        var adapter = new HistoryAdapter(store, WORLD, () -> SCOPE);
+        var search = adapter.execute(new PackSageTools.ReadRequest("search_history", new Evidence.JsonObject(Map.of(
+                "text", new Evidence.JsonString("avoid uranium"))), SCOPE), null).toCompletableFuture().join();
+
+        assertEquals(1, search.records().size(), search.detail());
+        var handle = search.records().getFirst().source().sourceHandle();
+        var read = adapter.execute(new PackSageTools.ReadRequest("read_history", new Evidence.JsonObject(Map.of(
+                "handles", new Evidence.JsonArray(List.of(new Evidence.JsonString("history:" + handle))),
+                "maxChars", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(256)))), SCOPE), null)
+                .toCompletableFuture().join();
+
+        assertEquals(1, read.records().size(), read.detail());
+        assertEquals(new Evidence.JsonArray(List.of(
+                        new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("avoid uranium"),
+                                "answerOffset", new Evidence.JsonNumber(java.math.BigDecimal.ZERO))),
+                        new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("prefer renewable power"),
+                                "answerOffset", new Evidence.JsonNumber(java.math.BigDecimal.ZERO))))),
+                read.records().getFirst().payload().values().get("steeringMessages"));
+    }
+
+    @Test
     void cursorsBindQueryAndReadsRejectUndiscoveredAndPreviousScopeHandles() {
         var store = new ConversationStore(directory, Runnable::run);
         var session = store.newConversation(WORLD).toCompletableFuture().join();

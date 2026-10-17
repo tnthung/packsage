@@ -156,6 +156,62 @@ class AssistantScreenStateTest {
         assertTrue(screen.followingBottom());
     }
 
+    @Test
+    void activeComposerKeepsRejectedDraftAndSeparatesSendFromStop() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        screen.refresh(active(actions, "partial", "Writing answer…"));
+        screen.setInput("please clarify");
+        actions.steeringAccepted = false;
+        screen.submit();
+
+        assertEquals("please clarify", screen.input());
+        assertEquals(List.of("steer"), actions.calls);
+        actions.steeringAccepted = true;
+        screen.submit();
+        assertEquals("", screen.input());
+        assertEquals("please clarify", actions.sentQuestion);
+        assertEquals(List.of("steer", "steer"), actions.calls);
+
+        screen.setInput("one more thing");
+        var editor = (MultilineEditor) screen.children().getLast();
+        int buttonY = editor.getY() + editor.getHeight() - 10;
+        screen.mouseClicked(editor.getX() + editor.getWidth() + 8, buttonY, 0);
+        assertEquals("stop", actions.calls.getLast());
+        screen.mouseClicked(editor.getX() + editor.getWidth() + 34, buttonY, 0);
+        assertEquals("steer", actions.calls.getLast());
+    }
+
+    @Test
+    void answerSegmentsPlaceSteeringBetweenAssistantText() {
+        assertEquals(List.of(new AssistantScreen.MessageSegment("AB", false, 0),
+                        new AssistantScreen.MessageSegment("clarify", true, 2),
+                        new AssistantScreen.MessageSegment("CD", false, 2)),
+                AssistantScreen.answerSegments("ABCD", List.of(new ChatContracts.SteeringMessage("clarify", 2))));
+    }
+
+    @Test
+    void activeStopControlDoesNotOverlapComposerAtNarrowWidths() {
+        for (int width : List.of(240, 320)) {
+            AssistantScreen screen = new AssistantScreen(new FakeActions());
+            screen.width = width;
+            screen.height = 480;
+            ScreenTestHost.initialize(screen);
+            screen.refresh(active(new FakeActions(), "partial", "Writing answer…"));
+            var editor = (MultilineEditor) screen.children().getLast();
+            int sidebarWidth = Math.min(ModernUi.SIDEBAR_WIDTH, Math.max(100, width / 3));
+            int mainWidth = Math.max(1, width - sidebarWidth);
+            int readableWidth = Math.max(1, Math.min(ModernUi.MAX_CONTENT_WIDTH, mainWidth - 32));
+            int readableLeft = sidebarWidth + (mainWidth - readableWidth) / 2;
+            int stopX = readableLeft + readableWidth - 46;
+
+            assertTrue(editor.getX() + editor.getWidth() <= stopX, "composer overlaps Stop at width " + width);
+        }
+    }
+
     private static ChatContracts.View withTargets(ChatContracts.View base, boolean active, String streaming,
                                                   List<Evidence.NavigationTarget> targets) {
         return new ChatContracts.View(active, ChatContracts.SignInState.SIGNED_OUT, false, base.conversation(),
@@ -750,6 +806,7 @@ class AssistantScreenStateTest {
         private final PackSageSettings settings = PackSageSettings.defaults();
         private final List<String> calls = new ArrayList<>();
         private String sentQuestion;
+        private boolean steeringAccepted = true;
         private CompletionStage<List<ChatContracts.SessionSummary>> sessions = CompletableFuture.completedFuture(List.of());
         private ChatContracts.View view = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT,
                 true, new ChatContracts.Conversation("conversation", new ChatContracts.WorldIdentity("world", "World"),
@@ -777,6 +834,7 @@ class AssistantScreenStateTest {
         @Override public void cancelSignIn() { calls.add("cancelSignIn"); }
         @Override public void signOut() { calls.add("signOut"); }
         @Override public void send(String question, boolean includeScreenshot, boolean explicitWebSearch) { calls.add("send"); sentQuestion = question; }
+        @Override public boolean steer(String text) { calls.add("steer"); sentQuestion = text; return steeringAccepted; }
         @Override public void stop() { calls.add("stop"); }
         @Override public void newChat() { calls.add("newChat"); }
         @Override public void setPaused(boolean paused) {

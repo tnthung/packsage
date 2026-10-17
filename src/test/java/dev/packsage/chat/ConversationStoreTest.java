@@ -50,7 +50,8 @@ class ConversationStoreTest {
                         List.of(new ModelBackend.OutputText("Here.", List.of())))), context, List.of(source),
                 List.of(target), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, "ok"), 9,
                 Instant.parse("2026-10-13T01:02:03Z"), List.of(new ChatContracts.ActivityStep("tool:call-1",
-                "Reading evidence", "Completed", ChatContracts.ActivityStatus.COMPLETED)));
+                "Reading evidence", "Completed", ChatContracts.ActivityStatus.COMPLETED)),
+                List.of(new ChatContracts.SteeringMessage("Actually, here.", 5)));
 
         store.appendMedia(world, conversation.id(), screenshot, new byte[]{1, 2, 3}).toCompletableFuture().join();
         store.appendTurn(world, SCOPE, conversation.id(), turn).toCompletableFuture().join();
@@ -60,6 +61,7 @@ class ConversationStoreTest {
         assertEquals(List.of(target), reopened.turns().getFirst().navigationTargets());
         assertEquals(turn.sentAt(), reopened.turns().getFirst().sentAt());
         assertEquals(turn.activities(), reopened.turns().getFirst().activities());
+        assertEquals(turn.steeringMessages(), reopened.turns().getFirst().steeringMessages());
         assertArrayEquals(new byte[]{1, 2, 3}, store.readMedia(world, conversation.id(), screenshot)
                 .toCompletableFuture().join());
         assertTrue(Files.exists(store.conversationPath(world, conversation.id())));
@@ -515,6 +517,7 @@ class ConversationStoreTest {
         turn.remove("navigationTargets");
         turn.remove("sentAt");
         turn.remove("activities");
+        turn.remove("steeringMessages");
         Files.writeString(file, lines.getFirst() + "\n" + turn + "\n", StandardCharsets.UTF_8);
 
         ChatContracts.Conversation loaded = store.openConversation(world, conversation.id()).toCompletableFuture().join();
@@ -522,6 +525,7 @@ class ConversationStoreTest {
         assertEquals(List.of(simpleTurn("legacy")), loaded.turns());
         assertTrue(loaded.turns().getFirst().navigationTargets().isEmpty());
         assertEquals(null, loaded.turns().getFirst().sentAt());
+        assertTrue(loaded.turns().getFirst().steeringMessages().isEmpty());
     }
 
     private static ChatContracts.Turn simpleTurn(String question) {

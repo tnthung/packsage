@@ -432,6 +432,8 @@ class AssistantRuntimeTest {
         runtime.send("second", false, false);
 
         assertEquals(1, backend.starts);
+        assertEquals(List.of(new ModelBackend.Message(ModelBackend.Role.USER,
+                List.of(new ModelBackend.TextContent("second")))), backend.steered);
         assertTrue(runtime.view().active());
         assertEquals(1, runtime.view().context().scope().requestGeneration());
         assertTrue(runtime.view().errors().isEmpty());
@@ -984,6 +986,7 @@ class AssistantRuntimeTest {
         private final CompletableFuture<Capabilities> catalog = new CompletableFuture<>();
         private final List<Request> requests = new ArrayList<>();
         private final List<ToolResult> results = new ArrayList<>();
+        private final List<Message> steered = new ArrayList<>();
         private java.util.function.Consumer<Event> events;
         private int starts;
         private int submissions;
@@ -1021,6 +1024,7 @@ class AssistantRuntimeTest {
             this.events = events;
             return new Exchange() {
                 @Override public void submit(ToolResult result) { submissions++; results.add(result); }
+                @Override public boolean steer(Message message) { steered.add(message); return true; }
                 @Override public void cancel() { }
             };
         }

@@ -209,4 +209,39 @@ class GroundingInstructionsTest {
         assertTrue(request.input().stream().noneMatch(ModelBackend.ToolResult.class::isInstance));
         assertTrue(GroundingInstructions.historyTextBudget(turn) < 12_000);
     }
+
+    @Test
+    void historicalSteeringSplitsAssistantTextAndCountsUserTextOnce() {
+        var turn = new ChatContracts.Turn(new ChatContracts.RequestId("steered-history"), "question", "ABCD",
+                List.of(new ModelBackend.EncryptedReasoning("secret-reasoning", "encrypted", "[]"),
+                        new ModelBackend.ToolCall("secret-call", "lookup", "{}"),
+                        new ModelBackend.ToolResult("secret-call", "SECRET-RESULT", false)),
+                new ChatContracts.Context("SECRET-CONTEXT", null, SCOPE), List.of(), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0, Instant.EPOCH, List.of(),
+                List.of(new ChatContracts.SteeringMessage("first hint", 2),
+                        new ChatContracts.SteeringMessage("second hint", 2)));
+        var request = GroundingInstructions.build(new ChatContracts.PreparedRequest(new ChatContracts.Submission(
+                new ChatContracts.RequestId("current"), new ChatContracts.WorldIdentity("world", "World"), SCOPE,
+                "current", false, new ChatContracts.HistoryLimits(10, 12_000),
+                new ModelBackend.ModelInfo("model", null, null, null, null), ModelBackend.SearchMode.DISABLED, 512),
+                new ChatContracts.HistorySelection(List.of(turn), GroundingInstructions.historyTextBudget(turn)),
+                new ChatContracts.CapturedContext(new ChatContracts.Context("{}", null, SCOPE), new byte[0]),
+                new ChatContracts.EvidenceSelection(List.of(), List.of())));
+
+        assertEquals(7, request.input().size());
+        assertEquals("question", ((ModelBackend.TextContent) ((ModelBackend.Message) request.input().get(0))
+                .content().getFirst()).text());
+        assertEquals("AB", ((ModelBackend.OutputText) ((ModelBackend.AssistantOutput) request.input().get(1))
+                .content().getFirst()).text());
+        assertEquals("first hint", ((ModelBackend.TextContent) ((ModelBackend.Message) request.input().get(2))
+                .content().getFirst()).text());
+        assertEquals("second hint", ((ModelBackend.TextContent) ((ModelBackend.Message) request.input().get(3))
+                .content().getFirst()).text());
+        assertEquals("CD", ((ModelBackend.OutputText) ((ModelBackend.AssistantOutput) request.input().get(4))
+                .content().getFirst()).text());
+        assertTrue(request.input().stream().noneMatch(item -> item instanceof ModelBackend.ToolCall
+                || item instanceof ModelBackend.ToolResult || item instanceof ModelBackend.EncryptedReasoning));
+        assertEquals(GroundingInstructions.historyTextBudget(turn), GroundingInstructions.historyTokenCounts(turn).total());
+        assertTrue(GroundingInstructions.historyTokenCounts(turn).user() > 1);
+    }
 }

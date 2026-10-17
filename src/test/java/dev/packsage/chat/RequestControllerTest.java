@@ -351,6 +351,128 @@ class RequestControllerTest {
     }
 
     @Test
+    void acceptedSteeringIsOrderedPersistedAndRejectedAfterCompletion() {
+        FakeBackend backend = new FakeBackend();
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+        controller.begin(submission("steering-order", WORLD_A, SCOPE_A, false, new ChatContracts.HistoryLimits(10, 12_000),
+                ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("steering-order", new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "A", null, List.of(), null));
+
+        assertTrue(controller.steer("first"));
+        backend.emit("steering-order", new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "B", null, List.of(), null));
+        assertTrue(controller.steer("second"));
+
+        List<ChatContracts.SteeringMessage> accepted = List.of(new ChatContracts.SteeringMessage("first", 1),
+                new ChatContracts.SteeringMessage("second", 2));
+        assertEquals(accepted, controller.view().activeSteeringMessages());
+        List<ModelBackend.InputItem> replay = List.of(
+                new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("first"))),
+                new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("second"))));
+        backend.emit("steering-order", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null,
+                List.of(), replay, null));
+
+        assertFalse(controller.steer("after finish"));
+        ChatContracts.Turn saved = store.openLatest(WORLD_A).toCompletableFuture().join().turns().getFirst();
+        assertEquals("steering-order", saved.question());
+        assertEquals("AB", saved.answer());
+        assertEquals(accepted, saved.steeringMessages());
+        assertEquals(ChatContracts.OutcomeStatus.COMPLETED, saved.outcome().status());
+    }
+
+    @Test
+    void steeringReplayMustContainTheExactMessagesInOrder() {
+        List<List<ModelBackend.InputItem>> invalidReplay = List.of(List.of(),
+                List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("changed"))),
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("second")))),
+                List.of(new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("second"))),
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("first")))));
+        for (int index = 0; index < invalidReplay.size(); index++) {
+            FakeBackend backend = new FakeBackend();
+            ConversationStore store = new ConversationStore(temporaryDirectory.resolve("invalid-replay-" + index), DIRECT);
+            RequestController controller = controller(store, backend,
+                    (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                            new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                    ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+            String requestId = "invalid-replay-" + index;
+            controller.begin(submission(requestId, WORLD_A, SCOPE_A, false, new ChatContracts.HistoryLimits(10, 12_000),
+                    ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+            assertTrue(controller.steer("first"));
+            assertTrue(controller.steer("second"));
+            backend.emit(requestId, new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null,
+                    List.of(), invalidReplay.get(index), null));
+
+            ChatContracts.Turn saved = store.openLatest(WORLD_A).toCompletableFuture().join().turns().getFirst();
+            assertEquals(ChatContracts.OutcomeStatus.FAILED, saved.outcome().status());
+            assertEquals(List.of("first", "second"), saved.steeringMessages().stream()
+                    .map(ChatContracts.SteeringMessage::text).toList());
+        }
+    }
+
+    @Test
+    void retryKeepsCompletedRoundAndRebasesLaterSteeringOffsets() {
+        FakeBackend backend = new FakeBackend();
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+        controller.begin(submission("steering-retry", WORLD_A, SCOPE_A, false, new ChatContracts.HistoryLimits(10, 12_000),
+                ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        backend.emit("steering-retry", new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "A", null, List.of(), null));
+        assertTrue(controller.steer("first"));
+        backend.emit("steering-retry", new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "B", null, List.of(), null));
+        backend.emit("steering-retry", new ModelBackend.Event(ModelBackend.EventKind.ROUND_STARTED, null, null, List.of(), null));
+        backend.emit("steering-retry", new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "C", null, List.of(), null));
+        assertTrue(controller.steer("second"));
+        backend.emit("steering-retry", new ModelBackend.Event(ModelBackend.EventKind.RETRYING, null, null, List.of(), null));
+
+        assertEquals("AB", controller.view().streamingAnswer());
+        assertEquals(List.of(new ChatContracts.SteeringMessage("first", 1),
+                new ChatContracts.SteeringMessage("second", 2)), controller.view().activeSteeringMessages());
+        List<ModelBackend.InputItem> replay = List.of(
+                new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("first"))),
+                new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("second"))));
+        backend.emit("steering-retry", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null,
+                List.of(), replay, null));
+
+        ChatContracts.Turn saved = store.openLatest(WORLD_A).toCompletableFuture().join().turns().getFirst();
+        assertEquals("AB", saved.answer());
+        assertEquals(List.of(new ChatContracts.SteeringMessage("first", 1),
+                new ChatContracts.SteeringMessage("second", 2)), saved.steeringMessages());
+    }
+
+    @Test
+    void steeringRequiresInstalledExchangeAndStopOrWorldChangeDoesNotRestartIt() {
+        FakeBackend backend = new FakeBackend();
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        Map<String, CompletableFuture<ChatContracts.CapturedContext>> captures = new LinkedHashMap<>();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> captures.computeIfAbsent(capture.requestId().value(), key -> new CompletableFuture<>()),
+                ignored -> { }, ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> { });
+        CompletionStage<ChatContracts.RequestId> starting = controller.begin(submission("steering-stop", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096));
+
+        assertFalse(controller.steer("too early"));
+        captures.get("steering-stop").complete(new ChatContracts.CapturedContext(
+                new ChatContracts.Context("fresh", null, SCOPE_A), new byte[0]));
+        starting.toCompletableFuture().join();
+        assertEquals(1, backend.requests.size());
+        assertTrue(controller.steer("keep on stop"));
+        controller.stop();
+        backend.emit("steering-stop", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        controller.worldChanged();
+
+        assertEquals(1, backend.requests.size());
+        ChatContracts.Turn saved = store.openLatest(WORLD_A).toCompletableFuture().join().turns().getFirst();
+        assertEquals(ChatContracts.OutcomeStatus.CANCELLED, saved.outcome().status());
+        assertEquals(List.of(new ChatContracts.SteeringMessage("keep on stop", 0)), saved.steeringMessages());
+    }
+
+    @Test
     void replacementWaitsForPersistenceBeforeInstallingOrAcceptingNextRequest() {
         ManualExecutor storeExecutor = new ManualExecutor();
         ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
@@ -1200,6 +1322,7 @@ class RequestControllerTest {
         private final Map<String, Consumer<Event>> events = new LinkedHashMap<>();
         private final Map<String, Boolean> cancelled = new LinkedHashMap<>();
         private final Map<String, List<ToolResult>> submittedByRequest = new LinkedHashMap<>();
+        private final Map<String, List<Message>> steeredByRequest = new LinkedHashMap<>();
         private boolean completeSynchronouslyOnce;
 
         @Override
@@ -1226,6 +1349,7 @@ class RequestControllerTest {
             events.put(request.requestId(), listener);
             cancelled.put(request.requestId(), false);
             submittedByRequest.put(request.requestId(), new ArrayList<>());
+            steeredByRequest.put(request.requestId(), new ArrayList<>());
             if (completeSynchronouslyOnce) {
                 completeSynchronouslyOnce = false;
                 listener.accept(new Event(EventKind.TEXT_DELTA, "answer", null, List.of(), List.of(), null));
@@ -1238,6 +1362,13 @@ class RequestControllerTest {
                 public void submit(ToolResult result) {
                     submitted.add(result);
                     submittedByRequest.get(request.requestId()).add(result);
+                }
+
+                @Override
+                public boolean steer(Message message) {
+                    if (cancelled.get(request.requestId())) return false;
+                    steeredByRequest.get(request.requestId()).add(message);
+                    return true;
                 }
 
                 @Override

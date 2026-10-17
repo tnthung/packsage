@@ -418,7 +418,7 @@ class AssistantRuntimeTest {
     }
 
     @Test
-    void secondSendIsRejectedBeforeScopeAdvances() throws Exception {
+    void activeFollowupDoesNotFailOrAdvanceScope() throws Exception {
         FakeBackend backend = new FakeBackend();
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
                 PackSageSettings.defaults(), model -> 512);
@@ -434,7 +434,7 @@ class AssistantRuntimeTest {
         assertEquals(1, backend.starts);
         assertTrue(runtime.view().active());
         assertEquals(1, runtime.view().context().scope().requestGeneration());
-        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("already active")));
+        assertTrue(runtime.view().errors().isEmpty());
     }
 
     @Test

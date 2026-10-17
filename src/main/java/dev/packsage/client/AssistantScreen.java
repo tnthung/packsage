@@ -385,7 +385,6 @@ public final class AssistantScreen extends Screen {
         for (ChatContracts.ActivityStep step : steps) {
             String key = prefix + ":" + step.id();
             MessageLayout header = activityHeader(key, step, y);
-            boolean expanded = activityExpanded(key);
             int left = readableLeft + 26;
             for (MessageRun run : header.runs()) {
                 ScreenText.InlineSpan span = run.span();
@@ -402,7 +401,7 @@ public final class AssistantScreen extends Screen {
                 case FAILED -> "Step failed.";
                 case CANCELLED -> "Step cancelled.";
             } : step.detail();
-            if (expanded && !detail.isBlank()) {
+            if (activityExpanded(key) && !detail.isBlank()) {
                 for (var line : font.split(Component.literal(detail).withStyle(style ->
                         style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), Math.max(1, readableWidth - 38))) {
                     graphics.drawString(font, line, left + 10, y, ModernUi.MUTED, false);
@@ -1063,7 +1062,7 @@ public final class AssistantScreen extends Screen {
             }
         }
         for (ActivityHit hit : activityHits) {
-            if (mouseY >= 48 && mouseY < toggleY - 8 && mouseX >= readableLeft
+            if (mouseY >= 40 && mouseY < toggleY - 8 && mouseX >= readableLeft
                     && mouseX < readableLeft + readableWidth && mouseX >= hit.left() && mouseX < hit.right()
                     && mouseY >= hit.top() && mouseY < hit.bottom()) {
                 toggleActivity(hit.key());

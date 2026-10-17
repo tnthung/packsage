@@ -269,8 +269,12 @@ class AssistantScreenStateTest {
         screen.activityHeader(key, new ChatContracts.ActivityStep("tool:call-1", "Reading history", "Completed",
                 ChatContracts.ActivityStatus.COMPLETED), 100);
         assertTrue(screen.activityExpanded(key));
-        assertFalse(screen.mouseClicked(260, 20, 0));
+        screen.activityHeader(key, running, 20);
+        assertFalse(screen.mouseClicked(260, 25, 0));
         assertTrue(screen.activityExpanded(key));
+        screen.activityHeader(key, running, 36);
+        assertTrue(screen.mouseClicked(260, 44, 0));
+        assertFalse(screen.activityExpanded(key));
     }
 
     @Test

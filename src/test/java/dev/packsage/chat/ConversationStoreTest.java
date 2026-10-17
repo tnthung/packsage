@@ -69,6 +69,32 @@ class ConversationStoreTest {
     }
 
     @Test
+    void loadingFailedToolActivityEnrichesOnlyGenericDetailsFromSavedReplayResults() {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "Readable World");
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        ChatContracts.Turn turn = new ChatContracts.Turn(new ChatContracts.RequestId("saved-failure"), "Why?", "Could not complete.",
+                List.of(new ModelBackend.ToolCall("call-1", "packsage", "read_evidence", "{}"),
+                        new ModelBackend.ToolResult("call-1", "{\"detail\":\"Missing evidence\",\"code\":\"NOT_FOUND\"}", true),
+                        new ModelBackend.ToolCall("call-2", "packsage", "read_history", "{}"),
+                        new ModelBackend.ToolResult("call-2", "{\"detail\":\"Different failure\",\"code\":\"PRIVATE\"}", true)),
+                new ChatContracts.Context("context", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1,
+                Instant.parse("2026-10-17T00:00:00Z"), List.of(
+                        new ChatContracts.ActivityStep("tool:call-1", "Reading evidence", "Could not complete",
+                                ChatContracts.ActivityStatus.FAILED),
+                        new ChatContracts.ActivityStep("tool:call-2", "Reading history", "Existing specific reason",
+                                ChatContracts.ActivityStatus.FAILED)));
+        store.appendTurn(world, SCOPE, conversation.id(), turn).toCompletableFuture().join();
+
+        ChatContracts.Turn loaded = store.openConversation(world, conversation.id()).toCompletableFuture().join().turns().getFirst();
+
+        assertTrue(loaded.activities().getFirst().detail().contains("Missing evidence"), loaded.activities().getFirst().detail());
+        assertTrue(loaded.activities().getFirst().detail().contains("NOT_FOUND"), loaded.activities().getFirst().detail());
+        assertEquals("Existing specific reason", loaded.activities().get(1).detail());
+    }
+
+    @Test
     void historySearchIsWorldScopedFindsFullTextAndPaginatesWithoutChangingLatest() throws Exception {
         ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
         ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");

@@ -1048,6 +1048,97 @@ class RequestControllerTest {
     }
 
     @Test
+    void failedToolActivityShowsStructuredDetailAndCodeAndPersistsIt() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(store, backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> CompletableFuture.completedFuture(new ChatContracts.ToolResponse(
+                        new ModelBackend.ToolResult(request.call().callId(),
+                                "{\"detail\":\"  Missing   recipe\\n entry  \",\"code\":\"NOT_FOUND\",\"records\":[\"PRIVATE\"]}", true),
+                        new ChatContracts.EvidenceSelection(List.of(), List.of()))), ignored -> { });
+        controller.begin(submission("activity-tool-error", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+
+        backend.emit("activity-tool-error", toolEvent("call-1", "read_evidence", "{}"));
+
+        String detail = controller.view().activities().getFirst().detail();
+        assertTrue(detail.contains("Missing recipe entry"), detail);
+        assertTrue(detail.contains("NOT_FOUND"), detail);
+        assertFalse(detail.contains("PRIVATE"));
+        assertFalse(detail.startsWith("{"));
+
+        backend.emit("activity-tool-error", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null,
+                List.of(), List.of(), null));
+        ChatContracts.Turn saved = store.openLatest(WORLD_A).toCompletableFuture().join().turns().getFirst();
+        assertEquals(detail, saved.activities().getFirst().detail());
+        assertEquals(ChatContracts.ActivityStatus.FAILED, saved.activities().getFirst().status());
+    }
+
+    @Test
+    void failedToolActivityShowsExecutionFailureTextAndNormalizesWhitespace() {
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> CompletableFuture.failedFuture(new IllegalStateException("  registry\n closed ")), ignored -> { });
+        controller.begin(submission("activity-tool-exception", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+
+        backend.emit("activity-tool-exception", toolEvent("call-1", "read_history", "{}"));
+
+        String detail = controller.view().activities().getFirst().detail();
+        assertTrue(detail.contains("registry closed"), detail);
+        assertFalse(detail.contains("tool failed:"), detail);
+        assertFalse(detail.contains("\n"), detail);
+    }
+
+    @Test
+    void malformedOrUnstructuredToolErrorsUseGenericDetailWithoutDumpingRawJson() {
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> CompletableFuture.completedFuture(new ChatContracts.ToolResponse(
+                        new ModelBackend.ToolResult(request.call().callId(), request.call().callId().equals("malformed")
+                                ? "{broken SECRET" : "{\"outcome\":\"ERROR\",\"records\":[],\"secret\":\"PRIVATE\"}", true),
+                        new ChatContracts.EvidenceSelection(List.of(), List.of()))), ignored -> { });
+        controller.begin(submission("activity-tool-fallback", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+
+        backend.emit("activity-tool-fallback", toolEvent("malformed", "read_evidence", "{}"));
+        assertEquals("Could not complete", controller.view().activities().getFirst().detail());
+        backend.emit("activity-tool-fallback", toolEvent("unstructured", "read_history", "{}"));
+        assertEquals("Could not complete", controller.view().activities().get(1).detail());
+        assertFalse(controller.view().activities().toString().contains("SECRET"));
+        assertFalse(controller.view().activities().toString().contains("PRIVATE"));
+    }
+
+    @Test
+    void failedToolActivityBoundsAndNormalizesLongStructuredDetailsWhileSuccessStaysCompleted() {
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> CompletableFuture.completedFuture(new ChatContracts.ToolResponse(
+                        new ModelBackend.ToolResult(request.call().callId(), request.call().callId().equals("long-error")
+                                ? "{\"detail\":\"" + "word  ".repeat(100) + "\",\"code\":\"LIMIT\"}"
+                                : "{}", request.call().callId().equals("long-error")),
+                        new ChatContracts.EvidenceSelection(List.of(), List.of()))), ignored -> { });
+        controller.begin(submission("activity-tool-bounds", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+
+        backend.emit("activity-tool-bounds", toolEvent("long-error", "read_evidence", "{}"));
+        String detail = controller.view().activities().getFirst().detail();
+        assertFalse(detail.contains("\n"), detail);
+        assertFalse(detail.contains("  "), detail);
+        assertTrue(detail.length() <= 200, Integer.toString(detail.length()));
+        backend.emit("activity-tool-bounds", toolEvent("success", "read_history", "{}"));
+        assertEquals("Completed", controller.view().activities().get(1).detail());
+    }
+
+    @Test
     void cancellationClosesUnfinishedToolActivityAndPersistsIt() {
         FakeBackend backend = new FakeBackend();
         RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,

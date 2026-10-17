@@ -757,9 +757,9 @@ class ChatGptBackendTest {
         exchange.submit(new ModelBackend.ToolResult("call_a", "{\"value\":\"a\"}", false));
 
         JsonArray continuation = JsonParser.parseString(requestBody(client.requests.get(1))).getAsJsonObject().getAsJsonArray("input");
-        assertEquals("call_a", continuation.get(4).getAsJsonObject().get("call_id").getAsString());
-        assertEquals("call_b", continuation.get(5).getAsJsonObject().get("call_id").getAsString());
-        assertEquals("use the results", continuation.get(6).getAsJsonObject().getAsJsonArray("content")
+        assertEquals("call_a", continuation.get(3).getAsJsonObject().get("call_id").getAsString());
+        assertEquals("call_b", continuation.get(4).getAsJsonObject().get("call_id").getAsString());
+        assertEquals("use the results", continuation.get(5).getAsJsonObject().getAsJsonArray("content")
                 .get(0).getAsJsonObject().get("text").getAsString());
     }
 

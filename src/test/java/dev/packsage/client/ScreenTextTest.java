@@ -17,6 +17,29 @@ class ScreenTextTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
 
     @Test
+    void nativeMarkdownCitationsKeepTheirDescriptionsAndRecordedSources() {
+        List<Evidence.Source> sources = List.of(
+                new Evidence.Source(SCOPE, "native", "1", "inventory:observation:hotbar:0", 1,
+                        java.time.Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                        Evidence.Authority.LOADED, List.of("player-inventory", "hotbar:0")),
+                new Evidence.Source(SCOPE, "native", "1", "minecraft:oak_planks", 1,
+                        java.time.Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL,
+                        Evidence.Authority.LOADED, List.of("client-recipe-manager")),
+                new Evidence.Source(SCOPE, "native", "1", "minecraft:stick", 1,
+                        java.time.Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL,
+                        Evidence.Authority.LOADED, List.of("client-recipe-manager")));
+
+        var spans = ScreenText.inlineLines("[Coal and wood in your inventory](native:inventory:observation:hotbar:0)"
+                + " · [Planks recipe](native:minecraft:oak_planks) · [Sticks recipe](native:minecraft:stick)",
+                List.of(), List.of(), sources).getFirst().spans();
+
+        assertEquals(List.of("Coal and wood in your inventory", "Planks recipe", "Sticks recipe"),
+                spans.stream().filter(span -> span.source() != null).map(ScreenText.InlineSpan::text).toList());
+        assertEquals(sources, spans.stream().map(ScreenText.InlineSpan::source).filter(java.util.Objects::nonNull).toList());
+        assertFalse(spans.stream().anyMatch(span -> span.text().equals("[game]")));
+    }
+
+    @Test
     void registeredLocalControlsAppearAtTheirMarkersWithoutOpaqueIdsOrASeparateCollection() {
         var target = new Evidence.NavigationTarget(SCOPE, "patchouli", "book#entry", "entry#1@lifecycle");
         var spans = ScreenText.inlineLines("Before [patchouli:book#entry] after.", List.of(target)).getFirst().spans();

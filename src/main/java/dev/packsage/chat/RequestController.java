@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -63,6 +64,16 @@ public final class RequestController {
                              ToolExecutor toolExecutor, Function<ChatContracts.Turn, Integer> tokenCounter,
                              Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder,
                              Consumer<ChatContracts.View> publisher) {
+        this(store, backend, executor, contextCapture, captureCancellation, evidenceCapture, toolExecutor,
+                tokenCounter, requestBuilder, publisher, ignored -> { });
+    }
+
+    public RequestController(ConversationStore store, ModelBackend backend, Executor executor,
+                             ContextCapture contextCapture, Consumer<ChatContracts.RequestId> captureCancellation,
+                             Function<ChatContracts.RequestCapture, ChatContracts.EvidenceSelection> evidenceCapture,
+                             ToolExecutor toolExecutor, Function<ChatContracts.Turn, Integer> tokenCounter,
+                             Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder,
+                             Consumer<ChatContracts.View> publisher, Consumer<ChatContracts.Turn> completionListener) {
         this.store = store;
         this.backend = backend;
         this.executor = executor;
@@ -73,6 +84,7 @@ public final class RequestController {
         this.tokenCounter = tokenCounter;
         this.requestBuilder = requestBuilder;
         this.publisher = publisher;
+        Objects.requireNonNull(completionListener);
         this.conversation = new ChatContracts.Conversation("pending", new ChatContracts.WorldIdentity("none", "No world"),
                 List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null));
         this.context = new ChatContracts.Context("", null,

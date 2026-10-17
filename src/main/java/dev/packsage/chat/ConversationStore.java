@@ -37,7 +37,10 @@ import com.google.gson.stream.JsonToken;
 
 public final class ConversationStore {
     record HistoryEntry(String sessionId, ChatContracts.RequestId requestId, Instant sentAt, String question,
-                        String answer, HistoryLocator locator) {
+                        String answer, List<ChatContracts.SteeringMessage> steeringMessages, HistoryLocator locator) {
+        HistoryEntry {
+            steeringMessages = List.copyOf(steeringMessages);
+        }
     }
 
     record HistoryLocator(Path file, long byteOffset, int byteLength, String textFingerprint) {
@@ -258,10 +261,12 @@ public final class ConversationStore {
                                     || value.question() == null || value.answer() == null
                                     || excluded != null && excluded.value().equals(value.requestId())) continue;
                             if (!value.question().toLowerCase(Locale.ROOT).contains(query)
-                                    && !value.answer().toLowerCase(Locale.ROOT).contains(query)) continue;
-                            if (!value.question().isEmpty() || !value.answer().isEmpty()) {
+                                    && !value.answer().toLowerCase(Locale.ROOT).contains(query)
+                                    && value.steeringMessages().stream().noneMatch(message ->
+                                    message.text().toLowerCase(Locale.ROOT).contains(query))) continue;
+                            if (!value.question().isEmpty() || !value.answer().isEmpty() || !value.steeringMessages().isEmpty()) {
                                 entries.add(new HistoryEntry(sessionId, new ChatContracts.RequestId(value.requestId()), value.sentAt(),
-                                        value.question(), value.answer(), new HistoryLocator(stamp.file(), recordStart,
+                                        value.question(), value.answer(), value.steeringMessages(), new HistoryLocator(stamp.file(), recordStart,
                                         record.bytes().length, sha256(record.bytes()))));
                             }
                             if (entries.size() >= limit) {
@@ -327,7 +332,7 @@ public final class ConversationStore {
                         throw new IOException("history record is no longer a completed exchange");
                     }
                     return new HistoryEntry(sessionId, new ChatContracts.RequestId(record.requestId()), record.sentAt(),
-                            record.question(), record.answer(), locator);
+                            record.question(), record.answer(), record.steeringMessages(), locator);
                 }
             } catch (IOException | RuntimeException exception) {
                 throw new IllegalArgumentException("history record is stale or unavailable", exception);
@@ -339,7 +344,11 @@ public final class ConversationStore {
     }
 
     private record HistoryRecord(String type, String world, String requestId, String question,
-                                 String answer, ChatContracts.OutcomeStatus status, Instant sentAt) {
+                                 String answer, ChatContracts.OutcomeStatus status, Instant sentAt,
+                                 List<ChatContracts.SteeringMessage> steeringMessages) {
+        private HistoryRecord {
+            steeringMessages = List.copyOf(steeringMessages);
+        }
     }
 
     private static PhysicalRecord readPhysicalRecord(FileChannel channel, long startOffset, int byteBudget,
@@ -381,6 +390,7 @@ public final class ConversationStore {
         String answer = null;
         ChatContracts.OutcomeStatus status = null;
         Instant sentAt = null;
+        List<ChatContracts.SteeringMessage> steeringMessages = new ArrayList<>();
         JsonReader reader = new JsonReader(new StringReader(new String(bytes, StandardCharsets.UTF_8).stripTrailing()));
         try {
             reader.beginObject();
@@ -396,12 +406,37 @@ public final class ConversationStore {
                         if (reader.peek() == JsonToken.NULL) reader.nextNull();
                         else sentAt = Instant.parse(reader.nextString());
                     }
+                    case "steeringMessages" -> {
+                        reader.beginArray();
+                        while (reader.hasNext()) {
+                            String steeringText = null;
+                            int answerOffset = -1;
+                            reader.beginObject();
+                            while (reader.hasNext()) {
+                                switch (reader.nextName()) {
+                                    case "text" -> steeringText = reader.nextString();
+                                    case "answerOffset" -> answerOffset = reader.nextInt();
+                                    default -> reader.skipValue();
+                                }
+                            }
+                            reader.endObject();
+                            steeringMessages.add(new ChatContracts.SteeringMessage(steeringText, answerOffset));
+                        }
+                        reader.endArray();
+                    }
                     default -> reader.skipValue();
                 }
             }
             reader.endObject();
             if (reader.peek() != JsonToken.END_DOCUMENT) throw new IllegalArgumentException("trailing JSON data");
-            return new HistoryRecord(type, world, requestId, question, answer, status, sentAt);
+            int previousOffset = -1;
+            for (ChatContracts.SteeringMessage message : steeringMessages) {
+                if (message.answerOffset() < previousOffset || answer == null || message.answerOffset() > answer.length()) {
+                    throw new IllegalArgumentException("history steering offsets are invalid");
+                }
+                previousOffset = message.answerOffset();
+            }
+            return new HistoryRecord(type, world, requestId, question, answer, status, sentAt, steeringMessages);
         } catch (IOException exception) {
             throw new IllegalArgumentException("invalid history record", exception);
         }

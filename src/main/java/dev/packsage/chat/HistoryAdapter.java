@@ -85,9 +85,21 @@ final class HistoryAdapter implements Toolbox {
                             String handle = UUID.randomUUID().toString();
                             handles.put(handle, new Handle(entry.locator(), entry.requestId()));
                             while (handles.size() > 128) handles.remove(handles.keySet().iterator().next());
+                            var steeringMessages = new ArrayList<ChatContracts.SteeringMessage>();
+                            int steeringCharacters = 4096;
+                            for (var message : entry.steeringMessages()) {
+                                if (steeringCharacters == 0) break;
+                                int textLength = Math.min(message.text().length(), steeringCharacters);
+                                steeringMessages.add(new ChatContracts.SteeringMessage(message.text().substring(0, textLength),
+                                        message.answerOffset()));
+                                steeringCharacters -= textLength;
+                            }
+                            boolean steeringTruncated = steeringMessages.size() < entry.steeringMessages().size()
+                                    || !steeringMessages.isEmpty() && steeringMessages.getLast().text().length()
+                                    < entry.steeringMessages().get(steeringMessages.size() - 1).text().length();
                             records.add(record(request.scope(), handle, entry, excerpt(entry.question(), text, 256),
-                                    excerpt(entry.answer(), text, 512), true,
-                                    entry.question().length() > 256 || entry.answer().length() > 512));
+                                    excerpt(entry.answer(), text, 512), steeringMessages, true,
+                                    entry.question().length() > 256 || entry.answer().length() > 512 || steeringTruncated));
                         }
                         String next = null;
                         if (page.nextCursor() != null) {
@@ -138,10 +150,23 @@ final class HistoryAdapter implements Toolbox {
                             var entry = reads.get(index).join();
                             int questionChars = Math.min(entry.question().length(), maxChars);
                             int answerChars = Math.min(entry.answer().length(), maxChars - questionChars);
-                            boolean truncated = questionChars < entry.question().length() || answerChars < entry.answer().length();
+                            int steeringCharacters = maxChars - questionChars - answerChars;
+                            var steeringMessages = new ArrayList<ChatContracts.SteeringMessage>();
+                            for (var message : entry.steeringMessages()) {
+                                if (steeringCharacters == 0) break;
+                                int textLength = Math.min(message.text().length(), steeringCharacters);
+                                steeringMessages.add(new ChatContracts.SteeringMessage(message.text().substring(0, textLength),
+                                        Math.min(message.answerOffset(), answerChars)));
+                                steeringCharacters -= textLength;
+                            }
+                            boolean truncated = questionChars < entry.question().length() || answerChars < entry.answer().length()
+                                    || steeringMessages.size() < entry.steeringMessages().size()
+                                    || !steeringMessages.isEmpty() && steeringMessages.getLast().text().length()
+                                    < entry.steeringMessages().get(steeringMessages.size() - 1).text().length();
                             partial |= truncated;
                             records.add(record(request.scope(), selected.get(index), entry,
-                                    entry.question().substring(0, questionChars), entry.answer().substring(0, answerChars), false, truncated));
+                                    entry.question().substring(0, questionChars), entry.answer().substring(0, answerChars),
+                                    steeringMessages, false, truncated));
                         }
                         return new Evidence.Result(records, partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
                                 partial ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE, null,
@@ -157,7 +182,8 @@ final class HistoryAdapter implements Toolbox {
     }
 
     private Evidence.Record record(Evidence.Scope scope, String handle, ConversationStore.HistoryEntry entry,
-                                   String question, String answer, boolean excerpt, boolean truncated) {
+                                   String question, String answer, List<ChatContracts.SteeringMessage> steeringMessages,
+                                   boolean excerpt, boolean truncated) {
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("world", new Evidence.JsonString(world.worldOrServer()));
         payload.put("sessionId", new Evidence.JsonString(entry.sessionId()));
@@ -165,6 +191,9 @@ final class HistoryAdapter implements Toolbox {
         payload.put("sentAt", entry.sentAt() == null ? new Evidence.JsonNull() : new Evidence.JsonString(entry.sentAt().toString()));
         payload.put("question", new Evidence.JsonString(question));
         payload.put("answer", new Evidence.JsonString(answer));
+        payload.put("steeringMessages", new Evidence.JsonArray(steeringMessages.stream().map(message ->
+                (Evidence.JsonValue) new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(message.text()),
+                        "answerOffset", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(message.answerOffset()))))).toList()));
         payload.put("historical", new Evidence.JsonBoolean(true));
         payload.put("excerpt", new Evidence.JsonBoolean(excerpt));
         payload.put("truncated", new Evidence.JsonBoolean(truncated));

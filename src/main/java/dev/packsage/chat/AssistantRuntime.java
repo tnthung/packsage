@@ -37,6 +37,7 @@ public final class AssistantRuntime implements ChatActions {
     private final ToIntFunction<ModelBackend.ModelInfo> outputBudget;
     private final Consumer<Boolean> pauseGame;
     private final Consumer<String> externalNavigation;
+    private final Consumer<ChatContracts.Turn> completionNotice;
     private final Function<Supplier<Evidence.Scope>, KnowledgeService> knowledgeFactory;
     private KnowledgeService knowledge;
     private final Object stateLock = new Object();
@@ -68,6 +69,18 @@ public final class AssistantRuntime implements ChatActions {
                             Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder,
                             ToIntFunction<ModelBackend.ModelInfo> outputBudget, Consumer<Boolean> pauseGame,
                             Consumer<String> externalNavigation) {
+        this(store, backend, captureFactory, controllerExecutor, clientExecutor, knowledgeFactory, historyCounter,
+                requestBuilder, outputBudget, pauseGame, externalNavigation, ignored -> { });
+    }
+
+    public AssistantRuntime(ConversationStore store, ModelBackend backend,
+                            Function<Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory,
+                            Executor controllerExecutor, Executor clientExecutor,
+                            Function<Supplier<Evidence.Scope>, KnowledgeService> knowledgeFactory,
+                            Function<ChatContracts.Turn, Integer> historyCounter,
+                            Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder,
+                            ToIntFunction<ModelBackend.ModelInfo> outputBudget, Consumer<Boolean> pauseGame,
+                            Consumer<String> externalNavigation, Consumer<ChatContracts.Turn> completionNotice) {
         this.store = Objects.requireNonNull(store);
         this.backend = Objects.requireNonNull(backend);
         this.controllerExecutor = Objects.requireNonNull(controllerExecutor);
@@ -78,6 +91,7 @@ public final class AssistantRuntime implements ChatActions {
         this.outputBudget = Objects.requireNonNull(outputBudget);
         this.pauseGame = Objects.requireNonNull(pauseGame);
         this.externalNavigation = Objects.requireNonNull(externalNavigation);
+        this.completionNotice = Objects.requireNonNull(completionNotice);
         this.knowledgeFactory = Objects.requireNonNull(knowledgeFactory);
         this.knowledge = Objects.requireNonNull(this.knowledgeFactory.apply(this::currentScope));
         this.capture = Objects.requireNonNull(Objects.requireNonNull(captureFactory).apply(this::currentScope));
@@ -93,7 +107,7 @@ public final class AssistantRuntime implements ChatActions {
                     return new ModelBackend.Request(request.modelId(), instructions, request.input(),
                             PackSageTools.definitions(knowledge.metadata()), request.searchMode(), request.requestId(),
                             request.outputBudget(), request.reasoningEffort());
-                }, this::publishControllerView);
+                }, this::publishControllerView, this::publishCompletionNotice);
     }
 
     public void enterWorld(ChatContracts.WorldIdentity world, Evidence.Scope scope) {
@@ -847,6 +861,26 @@ public final class AssistantRuntime implements ChatActions {
                         || !expectedScope.equals(scope) || !expectedScope.equals(latest.context().scope())) return;
             }
             screen.refresh(latest);
+        });
+    }
+
+    private void publishCompletionNotice(ChatContracts.Turn turn) {
+        ChatContracts.WorldIdentity expectedWorld;
+        Evidence.Scope expectedScope = turn.context().scope();
+        long epoch;
+        long publication;
+        synchronized (stateLock) {
+            if (world == null || !scope.equals(expectedScope) || sessionLoading || sessionDeletion) return;
+            expectedWorld = world;
+            epoch = worldEpoch;
+            publication = publicationEpoch;
+        }
+        clientExecutor.execute(() -> {
+            synchronized (stateLock) {
+                if (epoch != worldEpoch || publication != publicationEpoch || world == null
+                        || !world.equals(expectedWorld) || !scope.equals(expectedScope) || sessionLoading || sessionDeletion) return;
+            }
+            completionNotice.accept(turn);
         });
     }
 

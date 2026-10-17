@@ -18,6 +18,7 @@ import dev.packsage.model.chatgpt.ChatGptBackend;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.multiplayer.ServerData;
@@ -33,6 +34,9 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.network.chat.Component;
+import net.minecraft.sounds.SoundEvents;
 import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.apache.maven.artifact.versioning.VersionRange;
 
@@ -139,7 +143,13 @@ public final class ClientAssistant {
                 scope -> GameplayContextCapture.forMinecraft(clientExecutor, scope), workerExecutor, clientExecutor,
                 this::knowledge, GroundingInstructions::historyTextBudget, GroundingInstructions::build,
                 model -> model.outputTokens() == null ? 4096 : Math.min(4096, model.outputTokens()),
-                ignored -> { }, this::openExternal);
+                ignored -> { }, this::openExternal, ignored -> {
+                    if (client.level == null || client.player == null || client.screen instanceof AssistantScreen) return;
+                    client.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.0f));
+                    SystemToast.add(client.getToasts(), new SystemToast.SystemToastId(5000L), Component.literal("PackSage"),
+                            Component.literal("Answer ready. Press " + openAssistant.getTranslatedKeyMessage().getString()
+                                    + " to open chat."));
+                });
         runtime.setSettings(settings);
         runtime.restoreSession();
 

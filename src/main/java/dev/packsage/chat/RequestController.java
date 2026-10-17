@@ -41,6 +41,7 @@ public final class RequestController {
     private final Function<ChatContracts.Turn, Integer> tokenCounter;
     private final Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder;
     private final Consumer<ChatContracts.View> publisher;
+    private final Consumer<ChatContracts.Turn> completionListener;
     private final Object stateLock = new Object();
     private final List<String> errors = new ArrayList<>();
     private ChatContracts.Conversation conversation;
@@ -84,7 +85,7 @@ public final class RequestController {
         this.tokenCounter = tokenCounter;
         this.requestBuilder = requestBuilder;
         this.publisher = publisher;
-        Objects.requireNonNull(completionListener);
+        this.completionListener = Objects.requireNonNull(completionListener);
         this.conversation = new ChatContracts.Conversation("pending", new ChatContracts.WorldIdentity("none", "No world"),
                 List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null));
         this.context = new ChatContracts.Context("", null,
@@ -773,6 +774,7 @@ public final class RequestController {
         if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
         else publish();
         persist(request, target, turn, captured.screenshotBytes());
+        if (turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED) completionListener.accept(turn);
     }
 
     private void cancelActive(String detail) {

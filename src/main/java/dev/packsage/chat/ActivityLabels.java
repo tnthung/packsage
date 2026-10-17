@@ -4,7 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import dev.packsage.model.ModelBackend;
 
-/** Player-facing activity text; built from tool names and allowlisted arguments only, never from results or credentials. */
+/** Player-facing activity text; tool arguments are allowlisted and result JSON is never shown. */
 final class ActivityLabels {
     static final String PREPARING = "Preparing context…";
     static final String WAITING = "Waiting for the model…";
@@ -14,6 +14,8 @@ final class ActivityLabels {
     static final String RETRYING_WITHOUT_WEB_SEARCH = "Retrying without web search…";
     private static final int ARGUMENT_LIMIT = 60;
     private static final int NAME_LIMIT = 40;
+    private static final int ERROR_DETAIL_LIMIT = 120;
+    private static final int ERROR_CODE_LIMIT = 40;
 
     private ActivityLabels() {
     }
@@ -33,6 +35,39 @@ final class ActivityLabels {
             default -> "Using tool: " + safeName(call.name());
         };
         return label + " (step " + step + ")";
+    }
+
+    static String toolError(String serializedResult) {
+        String detail = null;
+        String code = null;
+        if (serializedResult != null && serializedResult.startsWith("tool failed:")) {
+            detail = serializedResult.substring("tool failed:".length());
+        } else if (serializedResult != null) {
+            try {
+                JsonElement parsed = JsonParser.parseString(serializedResult);
+                if (parsed.isJsonObject()) {
+                    JsonElement detailValue = parsed.getAsJsonObject().get("detail");
+                    if (detailValue != null && detailValue.isJsonPrimitive() && detailValue.getAsJsonPrimitive().isString()) {
+                        detail = detailValue.getAsString();
+                    }
+                    JsonElement codeValue = parsed.getAsJsonObject().get("code");
+                    if (codeValue != null && codeValue.isJsonPrimitive() && codeValue.getAsJsonPrimitive().isString()) {
+                        code = codeValue.getAsString();
+                    }
+                }
+            } catch (RuntimeException ignored) {
+                return "Could not complete";
+            }
+        }
+        if (detail == null) return "Could not complete";
+        detail = detail.replaceAll("\\p{Cntrl}", " ").replaceAll("\\s+", " ").trim();
+        if (detail.length() > ERROR_DETAIL_LIMIT) detail = detail.substring(0, ERROR_DETAIL_LIMIT).trim() + "...";
+        if (code != null) {
+            code = code.replaceAll("\\p{Cntrl}", " ").replaceAll("\\s+", " ").trim();
+            if (code.length() > ERROR_CODE_LIMIT) code = code.substring(0, ERROR_CODE_LIMIT).trim() + "...";
+        }
+        if (detail.isEmpty()) return "Could not complete";
+        return code == null || code.isEmpty() ? detail : detail + " (" + code + ")";
     }
 
     private static String withArgument(String verb, ModelBackend.ToolCall call, String key) {

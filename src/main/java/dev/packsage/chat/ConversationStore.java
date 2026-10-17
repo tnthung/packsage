@@ -992,6 +992,21 @@ public final class ConversationStore {
                     item.has("detail") ? item.get("detail").getAsString() : "",
                     ChatContracts.ActivityStatus.valueOf(item.get("status").getAsString())));
         });
+        for (int i = 0; i < activities.size(); i++) {
+            ChatContracts.ActivityStep activity = activities.get(i);
+            if (activity.status() != ChatContracts.ActivityStatus.FAILED
+                    || !(activity.detail().isBlank() || activity.detail().equals("Could not complete"))
+                    || !activity.id().startsWith("tool:")) continue;
+            String callId = activity.id().substring("tool:".length());
+            for (dev.packsage.model.ModelBackend.InputItem replayItem : replay) {
+                if (replayItem instanceof dev.packsage.model.ModelBackend.ToolResult result
+                        && result.error() && result.callId().equals(callId)) {
+                    activities.set(i, new ChatContracts.ActivityStep(activity.id(), activity.title(),
+                            ActivityLabels.toolError(result.serializedResult()), activity.status()));
+                    break;
+                }
+            }
+        }
         String detail = value.has("outcomeDetail") ? value.get("outcomeDetail").getAsString() : null;
         return new ChatContracts.Turn(new ChatContracts.RequestId(value.get("requestId").getAsString()),
                 value.get("question").getAsString(), value.get("answer").getAsString(), replay,

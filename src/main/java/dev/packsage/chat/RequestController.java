@@ -647,7 +647,8 @@ public final class RequestController {
             String activityId = "tool:" + call.callId();
             ChatContracts.ActivityStep toolActivity = request.activities.get(activityId);
             if (toolActivity != null) request.activities.put(activityId, new ChatContracts.ActivityStep(activityId,
-                    toolActivity.title(), response.result().error() ? "Could not complete" : "Completed",
+                    toolActivity.title(), response.result().error()
+                    ? ActivityLabels.toolError(response.result().serializedResult()) : "Completed",
                     response.result().error() ? ChatContracts.ActivityStatus.FAILED : ChatContracts.ActivityStatus.COMPLETED));
             List<Evidence.Source> mergedSources = new ArrayList<>(request.evidence.sources());
             response.evidence().sources().forEach(source -> {

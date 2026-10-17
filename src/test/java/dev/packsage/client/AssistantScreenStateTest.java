@@ -238,12 +238,15 @@ class AssistantScreenStateTest {
     @Test
     void activityHeadersWrapWithinNarrowContentWidth() {
         AssistantScreen screen = new AssistantScreen(new FakeActions());
+        screen.width = 320;
+        screen.height = 480;
         ScreenTestHost.initialize(screen);
         ChatContracts.ActivityStep step = new ChatContracts.ActivityStep("tool:one",
                 "Searching pack: " + "long_identifier_".repeat(5), "", ChatContracts.ActivityStatus.RUNNING);
+        AssistantScreen.MessageLayout layout = screen.activityHeader("request:request:tool:one", step, 100);
 
-        assertTrue(screen.activityTitleLines(step, 28).size() > 1);
-        assertEquals("Running tool…", screen.activityDetail(step));
+        assertTrue(layout.height() >= ModernUi.MESSAGE_LINE_HEIGHT * 2);
+        assertTrue(layout.runs().stream().allMatch(run -> run.x() + run.width() <= 156));
     }
 
     @Test
@@ -253,13 +256,21 @@ class AssistantScreenStateTest {
         screen.height = 480;
         ScreenTestHost.initialize(screen);
         String key = "request:request:tool:call-1";
-        screen.updateActivityExpansion(key, ChatContracts.ActivityStatus.RUNNING);
-        screen.registerActivityHit(key, 250, 100, 500, 120);
+        ChatContracts.ActivityStep running = new ChatContracts.ActivityStep("tool:call-1", "Reading history", "Running tool…",
+                ChatContracts.ActivityStatus.RUNNING);
+        screen.activityHeader(key, running, 100);
 
         assertTrue(screen.mouseClicked(260, 110, 0));
         assertFalse(screen.activityExpanded(key));
-        assertFalse(screen.mouseClicked(260, 20, 0));
+        screen.activityHeader(key, new ChatContracts.ActivityStep("tool:call-1", "Reading history", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED), 100);
         assertFalse(screen.activityExpanded(key));
+        assertTrue(screen.mouseClicked(260, 110, 0));
+        screen.activityHeader(key, new ChatContracts.ActivityStep("tool:call-1", "Reading history", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED), 100);
+        assertTrue(screen.activityExpanded(key));
+        assertFalse(screen.mouseClicked(260, 20, 0));
+        assertTrue(screen.activityExpanded(key));
     }
 
     @Test

@@ -124,7 +124,8 @@ class ScreenTextTest {
                 .findFirst().orElseThrow().target());
         assertEquals(guide, spans.stream().filter(span -> span.text().equals("Guide") && span.target() != null)
                 .findFirst().orElseThrow().target());
-        assertEquals(2, spans.stream().filter(span -> span.text().equals("Quest") && span.target() == quest).count());
+        assertEquals(2, spans.stream().filter(span -> span.target() == quest).count());
+        assertTrue(spans.stream().anyMatch(span -> span.target() == quest && span.text().contains("Punch A Tree")));
         assertTrue(spans.stream().anyMatch(span -> span.text().equals("[quest]") && span.target() == null));
         assertTrue(spans.stream().anyMatch(span -> span.text().contains("search0") && span.target() == null));
         assertTrue(spans.stream().anyMatch(span -> span.code() && span.text().contains("[Fake](ftb_quests:")));

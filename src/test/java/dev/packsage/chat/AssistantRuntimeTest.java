@@ -15,8 +15,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -75,6 +77,69 @@ class AssistantRuntimeTest {
         while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
 
         assertEquals(1, notices.size());
+    }
+
+    @Test
+    void completionNoticeIsSuppressedWhenNewChatPrecedesListenerEnqueue() throws Exception {
+        java.util.ArrayDeque<Runnable> clientTasks = new java.util.ArrayDeque<>();
+        List<ChatContracts.Turn> notices = new ArrayList<>();
+        CountDownLatch tokenCounterEntered = new CountDownLatch(1);
+        CountDownLatch releaseTokenCounter = new CountDownLatch(1);
+        AtomicBoolean blockTokenCounter = new AtomicBoolean();
+        FakeBackend backend = new FakeBackend();
+        var runtime = new AssistantRuntime(new ConversationStore(Files.createTempDirectory("packsage-completion-race"), DIRECT),
+                backend, captureFactory(), DIRECT, clientTasks::addLast,
+                current -> new KnowledgeService(List.of(), current), turn -> {
+                    if (blockTokenCounter.get()) {
+                        tokenCounterEntered.countDown();
+                        try {
+                            if (!releaseTokenCounter.await(5, TimeUnit.SECONDS)) {
+                                throw new IllegalStateException("token counter release timed out");
+                            }
+                        } catch (InterruptedException exception) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(exception);
+                        }
+                    }
+                    return turn.tokenCount();
+                },
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()),
+                ignored -> 512, ignored -> { }, ignored -> { }, notices::add);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        while (backend.catalogLoads == 0) clientTasks.removeFirst().run();
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+        while (runtime.modelCatalog().isEmpty()) clientTasks.removeFirst().run();
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        runtime.send("racing completion", false, false);
+        blockTokenCounter.set(true);
+        AtomicReference<Throwable> completionFailure = new AtomicReference<>();
+        Thread completionThread = new Thread(() -> {
+            try {
+                backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+            } catch (Throwable failure) {
+                completionFailure.set(failure);
+            }
+        }, "packsage-completion-race-test");
+        completionThread.start();
+        try {
+            assertTrue(tokenCounterEntered.await(5, TimeUnit.SECONDS));
+            assertFalse(runtime.view().active());
+            runtime.newChat();
+        } finally {
+            releaseTokenCounter.countDown();
+            completionThread.join(5_000);
+        }
+
+        assertFalse(completionThread.isAlive());
+        assertNull(completionFailure.get());
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        assertTrue(notices.isEmpty());
     }
 
     @Test

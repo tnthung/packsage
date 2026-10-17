@@ -78,7 +78,7 @@ class ConversationStoreTest {
                         new ModelBackend.ToolResult("call-1", "{\"detail\":\"Missing evidence\",\"code\":\"NOT_FOUND\"}", true),
                         new ModelBackend.ToolCall("call-2", "packsage", "read_history", "{}"),
                         new ModelBackend.ToolResult("call-2", "{\"detail\":\"Different failure\",\"code\":\"PRIVATE\"}", true)),
-                new ChatContracts.Context("context", null, SCOPE), List.of(),
+                new ChatContracts.Context("context", null, SCOPE), List.of(), List.of(),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1,
                 Instant.parse("2026-10-17T00:00:00Z"), List.of(
                         new ChatContracts.ActivityStep("tool:call-1", "Reading evidence", "Could not complete",

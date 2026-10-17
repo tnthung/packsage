@@ -41,6 +41,110 @@ class RequestControllerTest {
     Path temporaryDirectory;
 
     @Test
+    void completionListenerRunsOnceForAValidatedSuccessfulTurn() {
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.Turn> completed = new ArrayList<>();
+        RequestController controller = new RequestController(new ConversationStore(temporaryDirectory, DIRECT), backend, DIRECT,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")),
+                ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()), ignored -> { }, completed::add);
+        controller.begin(submission("completion-once", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        ModelBackend.Event terminal = new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null);
+
+        backend.emit("completion-once", terminal);
+        backend.emit("completion-once", terminal);
+
+        assertEquals(1, completed.size());
+        assertEquals("completion-once", completed.getFirst().requestId().value());
+        assertEquals(ChatContracts.OutcomeStatus.COMPLETED, completed.getFirst().outcome().status());
+    }
+
+    @Test
+    void completionListenerIgnoresFailedReplayAndTokenCountingOutcomes() {
+        List<ChatContracts.Turn> completed = new ArrayList<>();
+        FakeBackend failedBackend = new FakeBackend();
+        RequestController failedController = new RequestController(new ConversationStore(temporaryDirectory.resolve("completion-failed"), DIRECT),
+                failedBackend, DIRECT, (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()), ignored -> { }, completed::add);
+        failedController.begin(submission("completion-failed", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        failedBackend.emit("completion-failed", new ModelBackend.Event(ModelBackend.EventKind.FAILED, null, null,
+                List.of(), List.of(), "failed"));
+
+        FakeBackend replayBackend = new FakeBackend();
+        RequestController replayController = new RequestController(new ConversationStore(temporaryDirectory.resolve("completion-replay"), DIRECT),
+                replayBackend, DIRECT, (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()), ignored -> { }, completed::add);
+        replayController.begin(submission("completion-replay", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        assertTrue(replayController.steer("accepted steering"));
+        replayBackend.emit("completion-replay", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null,
+                List.of(), List.of(), null));
+
+        FakeBackend tokenBackend = new FakeBackend();
+        RequestController tokenController = new RequestController(new ConversationStore(temporaryDirectory.resolve("completion-token"), DIRECT),
+                tokenBackend, DIRECT, (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ignored -> {
+                    throw new IllegalStateException("token count failed");
+                }, prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()), ignored -> { }, completed::add);
+        tokenController.begin(submission("completion-token", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        tokenBackend.emit("completion-token", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null,
+                List.of(), List.of(), null));
+
+        assertTrue(completed.isEmpty());
+        assertEquals(ChatContracts.OutcomeStatus.FAILED, replayController.view().conversation().turns().getLast().outcome().status());
+        assertEquals(ChatContracts.OutcomeStatus.FAILED, tokenController.view().conversation().turns().getLast().outcome().status());
+    }
+
+    @Test
+    void completionListenerIgnoresCancelledRequests() {
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.Turn> completed = new ArrayList<>();
+        RequestController controller = new RequestController(new ConversationStore(temporaryDirectory, DIRECT), backend, DIRECT,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")),
+                ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()), ignored -> { }, completed::add);
+        controller.begin(submission("completion-cancelled", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+
+        controller.stop();
+
+        assertTrue(completed.isEmpty());
+        assertEquals(ChatContracts.OutcomeStatus.CANCELLED, controller.view().conversation().turns().getLast().outcome().status());
+    }
+
+    @Test
     void submissionAndCapturedImageBytesReachTheInjectedRequestBuilderUnchanged() {
         FakeBackend backend = new FakeBackend();
         AtomicReference<ChatContracts.PreparedRequest> prepared = new AtomicReference<>();

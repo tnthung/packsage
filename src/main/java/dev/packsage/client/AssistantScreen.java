@@ -403,7 +403,6 @@ public final class AssistantScreen extends Screen {
         for (ChatContracts.ActivityStep step : steps) {
             String key = prefix + ":" + step.id();
             MessageLayout header = activityHeader(key, step, y);
-            int left = readableLeft + 26;
             for (MessageRun run : header.runs()) {
                 ScreenText.InlineSpan span = run.span();
                 graphics.drawString(font, Component.literal(span.text()).withStyle(style -> style

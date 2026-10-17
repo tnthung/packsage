@@ -337,7 +337,12 @@ public final class AssistantScreen extends Screen {
             y = drawUserMessage(graphics, turn.question(), y, included);
             y = drawMessageActions(graphics, turn, true, tokens.user(), y, mouseX, mouseY);
             y += 7;
-            y = drawActivityRows(graphics, turn.activities(), "request:" + turn.requestId().value(), y);
+            y = drawActivityRows(graphics, turn.activities(), "request:" + turn.requestId().value(), switch (turn.outcome().status()) {
+                case ACTIVE -> ChatContracts.ActivityStatus.RUNNING;
+                case COMPLETED -> ChatContracts.ActivityStatus.COMPLETED;
+                case CANCELLED -> ChatContracts.ActivityStatus.CANCELLED;
+                case FAILED -> ChatContracts.ActivityStatus.FAILED;
+            }, y);
             y = drawAssistantMessage(graphics, turn.answer(), turn, y, included);
             y = drawMessageActions(graphics, turn, false, tokens.assistant(), y, mouseX, mouseY);
             String outcome = ScreenText.outcomeLine(turn.outcome());
@@ -361,7 +366,8 @@ public final class AssistantScreen extends Screen {
             drawAssistantAvatar(graphics, y);
             int responseTop = y;
             y = drawActivityRows(graphics, view.activities(), "request:" + (view.activeRequestId() == null
-                    ? view.activeQuestion() + ":" + view.activeSentAt() : view.activeRequestId()), y);
+                    ? view.activeQuestion() + ":" + view.activeSentAt() : view.activeRequestId()),
+                    ChatContracts.ActivityStatus.RUNNING, y);
             if (!view.streamingAnswer().isEmpty()) y = drawInlineLines(graphics, ScreenText.inlineLines(view.streamingAnswer(), List.of()), y,
                     readableLeft + 26, readableWidth - 26, null);
             graphics.drawString(font, Component.literal(view.activity().isEmpty() ? "Working..." : view.activity())
@@ -381,7 +387,19 @@ public final class AssistantScreen extends Screen {
         return Math.max(y, contentBottom - scrollOffset);
     }
 
-    private int drawActivityRows(GuiGraphics graphics, List<ChatContracts.ActivityStep> steps, String prefix, int y) {
+    private int drawActivityRows(GuiGraphics graphics, List<ChatContracts.ActivityStep> steps, String prefix,
+                                 ChatContracts.ActivityStatus status, int y) {
+        if (steps.isEmpty()) return y;
+        MessageLayout group = activityGroupHeader(prefix, steps.size(), status, y);
+        int left = readableLeft + 26;
+        for (MessageRun run : group.runs()) {
+            ScreenText.InlineSpan span = run.span();
+            graphics.drawString(font, Component.literal(span.text()).withStyle(style -> style
+                            .withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT).withColor(span.color())),
+                    left + run.x(), y + run.y(), span.color(), false);
+        }
+        y += group.height();
+        if (!activityExpanded(prefix)) return y;
         for (ChatContracts.ActivityStep step : steps) {
             String key = prefix + ":" + step.id();
             MessageLayout header = activityHeader(key, step, y);
@@ -440,6 +458,25 @@ public final class AssistantScreen extends Screen {
         if (!suffix.isEmpty()) spans.add(new ScreenText.InlineSpan(suffix, null, ModernUi.MUTED, false, false));
         MessageLayout layout = messageLayout(List.of(new ScreenText.InlineLine(spans)), Math.max(1, readableWidth - 26));
         activityHits.removeIf(hit -> hit.key().equals(key));
+        activityHits.add(new ActivityHit(key, readableLeft + 26, y, readableLeft + readableWidth, y + layout.height()));
+        return layout;
+    }
+
+    MessageLayout activityGroupHeader(String key, int stepCount, ChatContracts.ActivityStatus status, int y) {
+        updateActivityExpansion(key, status);
+        List<ScreenText.InlineSpan> spans = new ArrayList<>();
+        spans.add(new ScreenText.InlineSpan(activityExpanded(key) ? "v " : "> ", null, ModernUi.MUTED, false, false));
+        spans.add(new ScreenText.InlineSpan(stepCount + (stepCount == 1 ? " step" : " steps"), null,
+                status == ChatContracts.ActivityStatus.FAILED ? ModernUi.DANGER : ModernUi.TEXT, false, false));
+        String suffix = switch (status) {
+            case RUNNING -> "";
+            case COMPLETED -> " (done)";
+            case FAILED -> " (failed)";
+            case CANCELLED -> " (cancelled)";
+        };
+        if (!suffix.isEmpty()) spans.add(new ScreenText.InlineSpan(suffix, null, ModernUi.MUTED, false, false));
+        MessageLayout layout = messageLayout(List.of(new ScreenText.InlineLine(spans)), Math.max(1, readableWidth - 26));
+        activityHits.removeIf(hit -> hit.key().equals(key) || hit.key().startsWith(key + ":"));
         activityHits.add(new ActivityHit(key, readableLeft + 26, y, readableLeft + readableWidth, y + layout.height()));
         return layout;
     }

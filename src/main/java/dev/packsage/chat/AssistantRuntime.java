@@ -52,6 +52,9 @@ public final class AssistantRuntime implements ChatActions {
     private AssistantScreen currentScreen;
     private long worldEpoch;
     private long publicationEpoch;
+    private ChatContracts.RequestId completionRequestId;
+    private long completionWorldEpoch;
+    private long completionPublicationEpoch;
     private long authEpoch;
     private boolean requestedPaused;
     private boolean newChatPending;
@@ -603,6 +606,9 @@ public final class AssistantRuntime implements ChatActions {
                 scope = nextScope;
                 newChatPending = false;
                 epoch = worldEpoch;
+                completionRequestId = submission.requestId();
+                completionWorldEpoch = worldEpoch;
+                completionPublicationEpoch = publicationEpoch;
             }
             try {
                 long dispatchAtNanos = System.nanoTime();
@@ -867,17 +873,22 @@ public final class AssistantRuntime implements ChatActions {
     private void publishCompletionNotice(ChatContracts.Turn turn) {
         ChatContracts.WorldIdentity expectedWorld;
         Evidence.Scope expectedScope = turn.context().scope();
+        ChatContracts.RequestId expectedRequestId;
         long epoch;
         long publication;
         synchronized (stateLock) {
-            if (world == null || !scope.equals(expectedScope) || sessionLoading || sessionDeletion) return;
+            if (completionRequestId == null || !turn.requestId().equals(completionRequestId)
+                    || completionWorldEpoch != worldEpoch || completionPublicationEpoch != publicationEpoch
+                    || world == null || !scope.equals(expectedScope) || sessionLoading || sessionDeletion) return;
             expectedWorld = world;
-            epoch = worldEpoch;
-            publication = publicationEpoch;
+            expectedRequestId = completionRequestId;
+            epoch = completionWorldEpoch;
+            publication = completionPublicationEpoch;
         }
         clientExecutor.execute(() -> {
             synchronized (stateLock) {
-                if (epoch != worldEpoch || publication != publicationEpoch || world == null
+                if (!expectedRequestId.equals(completionRequestId) || epoch != completionWorldEpoch
+                        || publication != completionPublicationEpoch || epoch != worldEpoch || publication != publicationEpoch || world == null
                         || !world.equals(expectedWorld) || !scope.equals(expectedScope) || sessionLoading || sessionDeletion) return;
             }
             completionNotice.accept(turn);

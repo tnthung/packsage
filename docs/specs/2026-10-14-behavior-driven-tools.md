@@ -74,6 +74,8 @@ Canonical provider references and live slot references remain the adapter contra
 
 The application, saved conversations, source details and navigation continue to use canonical identities. Model-result translation must preserve exact replay validation, streamed text, steering positions and hosted citation offsets. A JEI payload's operational `viewerHandle` receives the same evidence alias only when it exactly matches that record's canonical source handle; it must not expose a competing raw locator. Cursors and arbitrary source text are not reference aliases. Existing short readable canonical references may remain unchanged. This representation does not change the tool signatures or permit old evidence to substitute for a fresh read.
 
+Saved Markdown destinations beginning exactly `jei/` may recover a missing provider qualifier for display only. The handle must match sources recorded in that answer exactly, with one distinct provider-qualified identity and provider `jei`; repeated observations of that identity are allowed. Other-provider collisions, typos and targets without a same-answer source remain unbound. Navigation additionally requires an existing target with the selected source's provider, handle and scope. This recognizes one legacy representation without changing stored text, live reads or general reference validation.
+
 The intended single model-facing entry point is:
 
 ```ts

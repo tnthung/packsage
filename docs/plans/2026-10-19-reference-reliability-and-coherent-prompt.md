@@ -10,6 +10,8 @@ Translate only defined reference fields and supported citation syntax. This incl
 
 Rewrite `GroundingInstructions.INSTRUCTIONS` as one ordered policy covering the player's goal and read-only boundary, claim-specific evidence, feasibility, focused reads and a useful answer. State each governing rule once. Preserve important source, coverage, inventory, recipe, reference, history, targeting and privacy contracts; remove repeated scenario warnings. A request-assembly test is not proof of model behavior.
 
+The live test exposed a saved JEI Markdown destination missing only its provider qualifier. Add a narrow rendering compatibility path for exact `jei/` handles already recorded in that same answer. Require one distinct provider/handle identity, provider `jei`, and scope-matching existing navigation; collisions, typos and target-only matches stay unbound. This repairs the known saved representation without rewriting history or weakening tool validation. Luna owns only `ScreenText.java` and `ScreenTextTest.java` from this specified contract, with parent-owned RED/GREEN runs and installed old-answer navigation proof.
+
 ## Ownership and checks
 
 - Sol owns the backend decorator, its runtime wiring and focused tests because replay and streaming offsets require judgment across components. Root owns the full prompt and documentation. Writers have disjoint files; only root mutates Git or runs Gradle.

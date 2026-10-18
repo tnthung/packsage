@@ -43,6 +43,8 @@ Independent review of the correction and cursor follow-up found no additional ma
 
 At the player's request, Minecraft saved the world, quit to title and exited normally. After verifying the instance process had stopped, the corrected JAR was installed into `Packsage/mods/packsage.jar`; its hash matched the distribution and settings remained unchanged. The game was left closed and no live test was performed. The player's natural-language retry, actual tool count/timing, caption correspondence and clicked viewer remain pending the [player checks](../testing/2026-10-18-ponder-support.md).
 
+The player subsequently authorized live testing. The installed and distribution hashes were rechecked and matched, but desktop input failed before profile launch: both coordinate clicks and the accessible CurseForge Play control returned `SendInput sent 0 of 1 events; GetLastError=87`. Reobserving the launcher did not restore input. Minecraft did not launch and no new Ponder, viewer or navigation-expiry acceptance was obtained; this is a desktop-control blocker rather than an adapter result.
+
 ## Delivered limits
 
 Ponder documents remain `guide` records under the existing tools. Search reads current registrations and executes at most four storyboard callbacks per call; evidence executes one current callback per requested handle with fresh private localization. Individual callback duration cannot be guaranteed. No read calls global reload, component-wide compilation, scene-world setup or simulation.

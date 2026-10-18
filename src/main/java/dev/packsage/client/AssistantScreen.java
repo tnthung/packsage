@@ -455,9 +455,8 @@ public final class AssistantScreen extends Screen {
         if (!step.id().startsWith("tool:")) return detail;
         String arguments = step.serializedArguments();
         if (arguments == null) {
-            String callId = step.id().substring("tool:".length());
             for (ModelBackend.InputItem item : replayItems) {
-                if (item instanceof ModelBackend.ToolCall call && call.callId().equals(callId)) {
+                if (item instanceof ModelBackend.ToolCall call && call.callId().equals(step.id().substring("tool:".length()))) {
                     arguments = call.serializedArguments();
                     break;
                 }
@@ -1065,9 +1064,8 @@ public final class AssistantScreen extends Screen {
             sourceTooltip = SourceDetailsScreen.details(tooltipSource, tooltipTurn);
         }
         List<net.minecraft.util.FormattedCharSequence> lines = new ArrayList<>();
-        String action = navigation != null ? "Click: " + ScreenText.navigationLabel(navigation.target())
-                : "Click: view recorded source details";
-        lines.addAll(font.split(Component.literal(action).withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
+        lines.addAll(font.split(Component.literal(navigation != null ? "Click: " + ScreenText.navigationLabel(navigation.target())
+                : "Click: view recorded source details").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
                 Math.max(1, Math.min(280, width - 24) - 20)));
         if (hovered != null) for (String detail : sourceTooltip.stream().filter(detail -> !detail.isBlank()
                 && !detail.startsWith("Observed:") && !detail.startsWith("Authority:")

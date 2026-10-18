@@ -463,14 +463,11 @@ class AssistantScreenStateTest {
     @Test
     void legacyExpandedToolActivityResolvesArgumentsByExactCallId() {
         AssistantScreen screen = new AssistantScreen(new FakeActions());
-        ChatContracts.ActivityStep legacy = new ChatContracts.ActivityStep("tool:second", "Reading progress", "",
-                ChatContracts.ActivityStatus.COMPLETED);
-        List<ModelBackend.InputItem> replay = List.of(
+        String body = screen.activityBody(new ChatContracts.ActivityStep("tool:second", "Reading progress", "",
+                ChatContracts.ActivityStatus.COMPLETED), List.of(
                 new ModelBackend.ToolCall("first", "packsage", "read_progress", "{\"selected\":\"wrong call\"}"),
                 new ModelBackend.ToolCall("second", "packsage", "read_progress",
-                        "{\"selected\":null,\"path\":[{\"child\":true}]}"));
-
-        String body = screen.activityBody(legacy, replay);
+                        "{\"selected\":null,\"path\":[{\"child\":true}]}")));
 
         assertTrue(body.contains("selected"));
         assertTrue(body.contains("null"));
@@ -488,11 +485,9 @@ class AssistantScreenStateTest {
     @Test
     void toolActivityBodyPrefersCapturedArgumentsAndHidesMalformedOrUnavailablePayloads() {
         AssistantScreen screen = new AssistantScreen(new FakeActions());
-        List<ModelBackend.InputItem> replay = List.of(new ModelBackend.ToolCall("call-1", "packsage", "lookup",
-                "{\"legacy\":true}"));
-
         String captured = screen.activityBody(new ChatContracts.ActivityStep("tool:call-1", "Lookup", "Completed",
-                ChatContracts.ActivityStatus.COMPLETED, "{\"current\":null}"), replay);
+                ChatContracts.ActivityStatus.COMPLETED, "{\"current\":null}"), List.of(
+                new ModelBackend.ToolCall("call-1", "packsage", "lookup", "{\"legacy\":true}")));
         assertTrue(captured.contains("current"));
         assertTrue(captured.contains("null"));
         assertFalse(captured.contains("legacy"));
@@ -505,9 +500,8 @@ class AssistantScreenStateTest {
         assertTrue(malformed.contains("malformed JSON"));
         assertFalse(malformed.contains("SECRET"));
 
-        String unavailable = screen.activityBody(new ChatContracts.ActivityStep("tool:missing", "Lookup", "Completed",
-                ChatContracts.ActivityStatus.COMPLETED), List.of());
-        assertTrue(unavailable.contains("Arguments unavailable"));
+        assertTrue(screen.activityBody(new ChatContracts.ActivityStep("tool:missing", "Lookup", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED), List.of()).contains("Arguments unavailable"));
     }
 
     @Test

@@ -1160,12 +1160,11 @@ class RequestControllerTest {
     @Test
     void toolArgumentsStayBoundToTheirActivityFromRunningThroughCompletion() {
         FakeBackend backend = new FakeBackend();
-        List<ChatContracts.View> published = new ArrayList<>();
         CompletableFuture<ChatContracts.ToolResponse> response = new CompletableFuture<>();
         RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
                 (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
                         new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
-                ignored -> response, published::add);
+                ignored -> response, ignored -> { });
         String arguments = "{\"query\":null,\"filters\":[\"one\",{\"nested\":true}],\"options\":{\"limit\":3}}";
         controller.begin(submission("activity-arguments", WORLD_A, SCOPE_A, false,
                 new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))

@@ -207,22 +207,18 @@ public final class KnowledgeService {
         if (!scope.equals(currentScope.get())) return CompletableFuture.completedFuture(null);
         var provider = providers.stream().filter(value -> value.id().equals(target.providerId())).findFirst().orElse(null);
         if (provider == null) return CompletableFuture.completedFuture(null);
-        CompletionStage<Evidence.Result> query;
+        CompletionStage<Evidence.NavigationTarget> resolution;
         try {
-            query = provider.query(new Evidence.Query(Evidence.Operation.GET,
-                    new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(target.sourceHandle()))), 1, null, null), scope);
+            resolution = provider.refreshNavigation(target, scope);
         } catch (RuntimeException failure) {
             return CompletableFuture.completedFuture(null);
         }
-        if (query == null) return CompletableFuture.completedFuture(null);
-        return query.handle((result, failure) -> {
-            if (failure != null || result == null || result.outcome() == Evidence.Outcome.ERROR
-                    || !scope.equals(currentScope.get()) || result.records().size() != 1) return null;
-            var record = result.records().getFirst();
-            var currentTarget = new Evidence.NavigationTarget(scope, target.providerId(), target.sourceHandle(), target.targetId());
-            if (!record.source().scope().equals(scope) || !record.source().providerId().equals(target.providerId())
-                    || !record.source().sourceHandle().equals(target.sourceHandle()) || !record.targets().contains(currentTarget)) return null;
+        if (resolution == null) return CompletableFuture.completedFuture(null);
+        return resolution.handle((currentTarget, failure) -> {
+            if (failure != null || currentTarget == null || !scope.equals(currentTarget.scope())
+                    || !target.providerId().equals(currentTarget.providerId())) return null;
             synchronized (this) {
+                if (!scope.equals(currentScope.get())) return null;
                 refreshedNavigation.add(currentTarget);
                 while (refreshedNavigation.size() > 64) refreshedNavigation.remove(refreshedNavigation.iterator().next());
             }

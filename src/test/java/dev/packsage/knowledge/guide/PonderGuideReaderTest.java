@@ -19,10 +19,8 @@ class PonderGuideReaderTest {
     @Test
     void titleSearchIsBoundedAndKeepsSameSchematicRegistrationsDistinct() {
         var source = new FixtureSource();
-        source.entries.add(new PonderGuideReader.Entry("a", "create:shaft", "create", "create:shared",
-                List.of("create:rotation"), "First Scene", "create:first", List.of("first caption")));
-        source.entries.add(new PonderGuideReader.Entry("b", "create:gearbox", "create", "create:shared",
-                List.of("create:rotation"), "Second Scene", "create:second", List.of("second caption")));
+        source.entries.add(new PonderGuideReader.Entry("a", "create:shaft", "create", "create:shared", List.of("create:rotation")));
+        source.entries.add(new PonderGuideReader.Entry("b", "create:gearbox", "create", "create:shared", List.of("create:rotation")));
         source.entries.addAll(List.of(
                 entry("c", "Other 3"), entry("d", "Other 4"), entry("e", "Other 5")));
         var reader = new PonderGuideReader(source);
@@ -30,9 +28,30 @@ class PonderGuideReaderTest {
         var page = reader.candidates(null, 8, new Toolbox.DocumentBudget());
 
         assertEquals(4, page.candidates().size());
-        assertEquals(4, source.compiles.get());
+        assertEquals(0, source.compiles.get());
         assertNotEquals(page.candidates().get(0).id(), page.candidates().get(1).id());
         assertTrue(page.more());
+    }
+
+    @Test
+    void providerTitleSearchAndNoMatchEachCompileAtMostFourCandidates() {
+        var source = new FixtureSource();
+        for (var index = 0; index < 8; index++) source.entries.add(entry("provider_" + index,
+                index == 2 ? "Matching Scene" : "Other Scene"));
+        var provider = new GuideDocumentProvider(new PonderGuideReader(source), () -> SCOPE, Runnable::run, 4);
+
+        var match = provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(java.util.Map.of("query", new Evidence.JsonString("Matching Scene"))),
+                16, null, null), SCOPE).toCompletableFuture().join();
+
+        assertEquals(1, match.records().size());
+        assertEquals(4, source.compiles.get());
+        source.compiles.set(0);
+        var noMatch = provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(java.util.Map.of("query", new Evidence.JsonString("absent"))),
+                16, null, null), SCOPE).toCompletableFuture().join();
+        assertTrue(noMatch.records().isEmpty());
+        assertEquals(4, source.compiles.get());
     }
 
     @Test
@@ -43,6 +62,7 @@ class PonderGuideReaderTest {
         var candidate = reader.candidates(null, 1, new Toolbox.DocumentBudget()).candidates().getFirst();
         source.captions.put("a", List.of("new caption"));
 
+        assertTrue(reader.readFragment(candidate.id(), null, 1024, new Toolbox.DocumentBudget()).text().contains("Old title"));
         var resolved = reader.resolve(candidate.id(), 1024, new Toolbox.DocumentBudget());
 
         assertTrue(resolved.fragment().text().contains("new caption"));
@@ -71,9 +91,17 @@ class PonderGuideReaderTest {
     }
 
     private static PonderGuideReader.Entry entry(String identity, String title, String... captions) {
-        return new PonderGuideReader.Entry(identity, "create:shaft", "create", "create:shared",
-                List.of("create:rotation"), title, "create:scene_" + identity, List.of(captions));
+        var result = new PonderGuideReader.Entry(identity, "create:shaft", "create", "create:shared",
+                List.of("create:rotation"));
+        TITLES.put(identity, title);
+        SCENE_IDS.put(identity, "create:scene_" + identity);
+        CAPTION_DEFAULTS.put(identity, List.of(captions));
+        return result;
     }
+
+    private static final java.util.Map<String, String> TITLES = new java.util.HashMap<>();
+    private static final java.util.Map<String, String> SCENE_IDS = new java.util.HashMap<>();
+    private static final java.util.Map<String, List<String>> CAPTION_DEFAULTS = new java.util.HashMap<>();
 
     private static final class FixtureSource implements PonderGuideReader.Source {
         final List<PonderGuideReader.Entry> entries = new ArrayList<>();
@@ -82,11 +110,11 @@ class PonderGuideReaderTest {
         final AtomicInteger opens = new AtomicInteger();
         boolean clientThread = true;
 
-        @Override public List<PonderGuideReader.Entry> entries() { return List.copyOf(entries); }
+        @Override public Iterable<PonderGuideReader.Entry> entries() { return entries; }
         @Override public PonderGuideReader.SceneText compile(PonderGuideReader.Entry entry) {
             compiles.incrementAndGet();
-            return new PonderGuideReader.SceneText(entry.title(), entry.sceneId(), "Header",
-                    captions.getOrDefault(entry.identity(), entry.captions()));
+            return new PonderGuideReader.SceneText(TITLES.get(entry.identity()), SCENE_IDS.get(entry.identity()), "Header",
+                    captions.getOrDefault(entry.identity(), CAPTION_DEFAULTS.get(entry.identity())));
         }
         @Override public boolean isClientThread() { return clientThread; }
         @Override public void openComponent(String component) { opens.incrementAndGet(); }

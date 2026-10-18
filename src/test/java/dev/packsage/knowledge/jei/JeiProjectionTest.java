@@ -684,11 +684,18 @@ class JeiProjectionTest {
             var helpers = Proxy.newProxyInstance(helpersType.getClassLoader(), new Class<?>[] { helpersType },
                     (proxy, method, arguments) -> method.getName().equals("getFocusFactory") ? focusFactory : null);
             var type = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), Object.class);
+            var canonicalIdsEnabled = new AtomicBoolean();
+            var canonicalIdThrows = new AtomicBoolean();
             var category = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
                     new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "getRecipeType" -> type;
                         case "getTitle" -> Component.literal("Crafting");
                         case "getTooltipStrings" -> List.of();
+                        case "getRegistryName" -> {
+                            if (canonicalIdThrows.get()) throw new IllegalStateException("fixture canonical ID failure");
+                            yield canonicalIdsEnabled.get()
+                                    ? ResourceLocation.fromNamespaceAndPath("fixture", "press") : null;
+                        }
                         default -> null;
                     });
             var replacementCategory = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
@@ -1005,6 +1012,59 @@ class JeiProjectionTest {
             PackSageJeiPlugin.clientTicked();
             var replacedCategory = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
             assertEquals(Evidence.Coverage.UNAVAILABLE, replacedCategory.coverage());
+
+            currentCategory.set(category);
+            managerCategory.set(category);
+            canonicalIdsEnabled.set(true);
+            recipes.set(List.of(recipe));
+            PackSageJeiPlugin.clientTicked();
+            var durableRecord = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("fixture:press"))), 4,
+                    null, null), nextScope).toCompletableFuture().get().records().getFirst();
+            var savedTarget = durableRecord.targets().getFirst();
+            assertEquals("recipe-v1|minecraft:crafting|fixture:press", savedTarget.targetId());
+
+            var recreatedRecipe = new Object();
+            recipes.set(List.of(recreatedRecipe));
+            var recreatedPlugin = new PackSageJeiPlugin();
+            recreatedPlugin.onRuntimeAvailable(runtime);
+            var refreshedTarget = recreatedPlugin.provider().refreshNavigation(savedTarget, nextScope)
+                    .toCompletableFuture().get();
+            assertNotNull(refreshedTarget, "the saved recipe should resolve after recreating the JEI runtime state");
+            assertNotEquals(savedTarget.sourceHandle(), refreshedTarget.sourceHandle());
+            assertEquals(savedTarget.targetId(), refreshedTarget.targetId());
+            assertEquals(Evidence.NavigationStatus.OPENED, recreatedPlugin.provider().open(refreshedTarget, nextScope).status());
+            assertSame(recreatedRecipe, shownRecipes.get().getFirst());
+
+            var legacyTarget = new Evidence.NavigationTarget(savedTarget.scope(), "jei", savedTarget.sourceHandle(),
+                    savedTarget.sourceHandle());
+            assertNotNull(recreatedPlugin.provider().refreshNavigation(legacyTarget, nextScope)
+                    .toCompletableFuture().get(), "an unambiguous legacy canonical handle should migrate");
+
+            recipes.set(List.of(recreatedRecipe, new Object()));
+            assertNull(recreatedPlugin.provider().refreshNavigation(savedTarget, nextScope).toCompletableFuture().get(),
+                    "duplicate canonical IDs must not select an arbitrary recipe");
+            recipes.set(List.of(recreatedRecipe));
+            hiddenRecipe.set(true);
+            assertNull(recreatedPlugin.provider().refreshNavigation(savedTarget, nextScope).toCompletableFuture().get(),
+                    "hidden recipes must not be restored from saved navigation");
+            hiddenRecipe.set(false);
+            recipes.set(List.of());
+            assertNull(recreatedPlugin.provider().refreshNavigation(savedTarget, nextScope).toCompletableFuture().get(),
+                    "removed recipes must not be restored from saved navigation");
+            assertNull(recreatedPlugin.provider().refreshNavigation(new Evidence.NavigationTarget(savedTarget.scope(),
+                    "jei", "bad", "recipe-v1|minecraft:crafting|not a resource id"), nextScope)
+                    .toCompletableFuture().get(), "malformed stable targets must fail closed");
+            recipes.set(List.of(replacementRecipe));
+            canonicalIdThrows.set(true);
+            PackSageJeiPlugin.clientTicked();
+            var temporaryRecord = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, null, null), nextScope)
+                    .toCompletableFuture().get().records().getFirst();
+            assertEquals(temporaryRecord.source().sourceHandle(), temporaryRecord.targets().getFirst().targetId(),
+                    "a throwing canonical ID must retain only its temporary locator");
+            assertNull(recreatedPlugin.provider().refreshNavigation(temporaryRecord.targets().getFirst(), nextScope)
+                    .toCompletableFuture().get(), "a temporary locator must not acquire semantic fallback identity");
         } finally {
             minecraftInstance.set(null, previousMinecraft);
         }

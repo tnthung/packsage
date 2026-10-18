@@ -68,6 +68,12 @@ Results record when that call read the source. Conversation history and validati
 
 ## Find or inspect inventory contents
 
+### Model-facing reference representation
+
+Canonical provider references and live slot references remain the adapter contract. The model boundary may represent long references with compact typed aliases registered only from accepted current tool output. Each model request owns its registry; record and inventory-location aliases are distinct, unknown aliases do not select a target, and historical prose cannot register an alias. Resolving an alias restores the exact canonical reference before ordinary scope, expiry, identity and access validation. No fuzzy matching or similar-target substitution is permitted.
+
+The application, saved conversations, source details and navigation continue to use canonical identities. Model-result translation must preserve exact replay validation, streamed text, steering positions and hosted citation offsets. Cursors and arbitrary source text are not reference aliases. Existing short readable canonical references may remain unchanged. This representation does not change the tool signatures or permit old evidence to substitute for a fresh read.
+
 The intended single model-facing entry point is:
 
 ```ts

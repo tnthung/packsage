@@ -213,8 +213,7 @@ public final class PonderGuideReader implements GuideDocumentReader {
         var fragment = new Fragment(text.toString(), "scene", 0, null, Evidence.Coverage.PARTIAL,
                 "Literal caption templates only; shared text, formatting arguments and visual instructions are omitted"
                         + (truncated || budget.exhausted() ? "; caption output reached its read bound" : ""));
-        var candidateTitle = scene.title().length() > 256 ? scene.title().substring(0, 256) : scene.title();
-        var candidate = new Candidate(found.identity(), candidateTitle, found.identity(),
+        var candidate = new Candidate(found.identity(), scene.title().length() > 256 ? scene.title().substring(0, 256) : scene.title(), found.identity(),
                 List.of("component:" + found.component(), "namespace:" + found.namespace(),
                         "schematic:" + found.schematic(), "navigation:component viewer"), Evidence.Coverage.PARTIAL);
         return new ResolvedDocument(candidate, fragment);
@@ -287,7 +286,6 @@ public final class PonderGuideReader implements GuideDocumentReader {
                         var component = mapping.getKey();
                         var entry = mapping.getValue();
                         try {
-                            var identity = (index + 1) + ":" + Integer.toHexString(System.identityHashCode(entry));
                             var tags = ((List<?>) entry.getClass().getMethod("getTags").invoke(entry)).stream().limit(8)
                                     .map(Object::toString).toList();
                             var displayText = new StringBuilder();
@@ -304,7 +302,8 @@ public final class PonderGuideReader implements GuideDocumentReader {
                                     displayText.append('\n').append(value, 0, Math.min(value.length(), 1023 - displayText.length()));
                                 }
                             }
-                            return new Entry(identity, component.toString(), (String) entry.getClass().getMethod("getNamespace").invoke(entry),
+                            return new Entry((index + 1) + ":" + Integer.toHexString(System.identityHashCode(entry)),
+                                    component.toString(), (String) entry.getClass().getMethod("getNamespace").invoke(entry),
                                     entry.getClass().getMethod("getSchematicLocation").invoke(entry).toString(),
                                     tags, displayText.toString());
                         } catch (ReflectiveOperationException failure) {
@@ -336,11 +335,10 @@ public final class PonderGuideReader implements GuideDocumentReader {
                         "Ponder storyboard registration changed");
                 var localization = Class.forName("net.createmod.ponder.foundation.registration.PonderLocalization")
                         .getConstructor().newInstance();
-                var registryClass = Class.forName("net.createmod.ponder.foundation.registration.PonderSceneRegistry");
-                var compile = registryClass.getMethod("compileScene", localization.getClass(),
+                var scene = Class.forName("net.createmod.ponder.foundation.registration.PonderSceneRegistry")
+                        .getMethod("compileScene", localization.getClass(),
                         Class.forName("net.createmod.ponder.api.registration.StoryBoardEntry"),
-                        Class.forName("net.createmod.ponder.api.level.PonderLevel"));
-                var scene = compile.invoke(null, localization, registered, null);
+                        Class.forName("net.createmod.ponder.api.level.PonderLevel")).invoke(null, localization, registered, null);
                 var sceneId = (ResourceLocation) scene.getClass().getMethod("getId").invoke(scene);
                 var raw = ((Map<?, ?>) localization.getClass().getField("specific").get(localization)).get(sceneId);
                 return literalText(sceneId, raw instanceof Map<?, ?> fields ? fields : Map.of());
@@ -355,9 +353,9 @@ public final class PonderGuideReader implements GuideDocumentReader {
 
         @Override public void openComponent(String component) {
             try {
-                var ui = Class.forName("net.createmod.ponder.foundation.ui.PonderUI");
-                var screen = ui.getMethod("of", ResourceLocation.class).invoke(null, ResourceLocation.parse(component));
-                Minecraft.getInstance().setScreen((net.minecraft.client.gui.screens.Screen) screen);
+                Minecraft.getInstance().setScreen((net.minecraft.client.gui.screens.Screen)
+                        Class.forName("net.createmod.ponder.foundation.ui.PonderUI").getMethod("of", ResourceLocation.class)
+                                .invoke(null, ResourceLocation.parse(component)));
             } catch (ReflectiveOperationException failure) {
                 throw new IllegalStateException(failure);
             }

@@ -56,6 +56,24 @@ class PonderGuideReaderTest {
     }
 
     @Test
+    void combinedDiscoverySharesTheCallbackLimitAndContinuesOnTheNextToolCall() {
+        var source = new FixtureSource();
+        for (int index = 0; index < 12; index++) source.entries.add(entry("combined_" + index, "Other scene"));
+        var service = new dev.packsage.knowledge.KnowledgeService(List.of(new GuideDocumentProvider(
+                new PonderGuideReader(source), () -> SCOPE, Runnable::run, 4)), () -> SCOPE);
+        var first = service.execute(new dev.packsage.model.PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(java.util.Map.of("query", new Evidence.JsonString("absent"))), SCOPE))
+                .toCompletableFuture().join();
+        assertEquals(4, source.compiles.get());
+        assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
+        assertTrue(first.nextCursor() != null);
+        service.execute(new dev.packsage.model.PackSageTools.ReadRequest("search_document", new Evidence.JsonObject(
+                java.util.Map.of("query", new Evidence.JsonString("absent"), "cursor", new Evidence.JsonString(first.nextCursor()))),
+                SCOPE)).toCompletableFuture().join();
+        assertEquals(8, source.compiles.get());
+    }
+
+    @Test
     void fragmentResolutionUsesFreshCaptionsAndRejectsReplacedRegistration() {
         var source = new FixtureSource();
         source.entries.add(entry("a", "Old title", "old caption"));

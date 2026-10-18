@@ -4,12 +4,12 @@
 
 **Spec:** [Ponder support](../specs/2026-10-18-ponder-support.md).
 
-**Architecture:** Reuse `GuideDocumentProvider` with a configurable candidate bound and optional reader navigation hooks. Add an isolated reflective `PonderGuideReader` for the inspected runtime; retain registration locators and cursors, never compiled scenes or returned bodies.
+**Architecture:** Reuse `GuideDocumentProvider` with a configurable candidate bound and optional reader navigation hooks. Add an isolated reflective `PonderGuideReader` for the compatible API family; retain registration locators and cursors, never compiled scenes or returned bodies.
 
 ## Constraints
 
 - No formatting tools or unrelated refactoring. Preserve existing uncommitted validation work.
-- Ponder remains optional, version-pinned to `1.0.81+mc1.21.1`.
+- Ponder remains optional and accepts the Minecraft 1.21.1 API family `[0.8.1,1.1)`. Normalize its known Minecraft suffix for comparison and retain the complete runtime version in evidence.
 - Search reads at most four candidate storyboards per call. Evidence resolves one current storyboard per handle with fresh private localization; all captions remain explicitly partial.
 - Keep model signatures and document type `guide` unchanged. Player navigation opens the component viewer, with scope/registration checks on the client thread.
 - Commit each written work step immediately using a staged-index commit message, before waiting for test results.
@@ -21,6 +21,7 @@
 - [x] Register optional Ponder metadata/version support and document the source semantics in grounding/help text; test optional metadata without Ponder installed.
 - [x] Run focused tests and the full test/build commands, review the patch independently, and fix material findings with regression coverage.
 - [x] Record exact API evidence, automated results and live acceptance limits; update roadmap entries only to the delivered scope.
+- [x] Replace the initial exact-version gate with the researched API-family range, cover historical/current labels and boundaries, and preserve the observed runtime version in fresh evidence.
 
 ## Review focus
 

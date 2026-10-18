@@ -6,7 +6,7 @@ These checks cover the [Ponder adapter](../specs/2026-10-18-ponder-support.md). 
 
 ## Preparation
 
-With Minecraft closed, copy the tested `dist/packsage.jar` into the chosen instance's `mods` folder, replacing its existing PackSage JAR. The inspected runtime is Ponder `1.0.81+mc1.21.1`, bundled by ATM10's PonderJS `2.4.0`. Launch the instance and enter a world with Create available.
+With Minecraft closed, copy the tested `dist/packsage.jar` into the chosen instance's `mods` folder, replacing its existing PackSage JAR. Create already bundles Ponder; no separate Ponder or PonderJS installation is needed for Create's instructions. The inspected ATM10 runtime selects Ponder `1.0.82+mc1.21.1` from Create `6.0.10`. PackSage accepts the Minecraft 1.21.1 Ponder API family `[0.8.1,1.1)` and records the actual loaded version. Launch the instance and enter a world with Create available.
 
 ## Checks
 

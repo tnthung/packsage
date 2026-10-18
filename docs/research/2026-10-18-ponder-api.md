@@ -1,12 +1,28 @@
-# Installed Ponder API
+# Ponder API compatibility
 
 Date: 2026-10-18.
 
-Scope: the installed ATM10 artifact and existing PackSage document/navigation paths, supporting the [Ponder specification](../specs/2026-10-18-ponder-support.md). This is API inspection, not installed Minecraft acceptance.
+Scope: installed ATM10 artifacts, official published source history and existing PackSage document/navigation paths, supporting the [Ponder specification](../specs/2026-10-18-ponder-support.md). This is API inspection, not installed Minecraft acceptance.
 
 ## Artifact
 
-`C:/Users/hung1/curseforge/minecraft/Instances/All the Mods 10 - ATM10/mods/ponderjs-neoforge-1.21.1-2.4.0.jar` contains `META-INF/jarjar/ponder-neoforge-1.0.81+mc1.21.1.jar`. Its jar-in-jar metadata identifies `net.createmod.ponder` and artifact version `1.0.81+mc1.21.1`. The extracted nested JAR was inspected with `javap -p` and `javap -p -c`; no dependency was installed or downloaded for this inspection.
+`C:/Users/hung1/curseforge/minecraft/Instances/All the Mods 10 - ATM10/mods/ponderjs-neoforge-1.21.1-2.4.0.jar` contains `META-INF/jarjar/ponder-neoforge-1.0.81+mc1.21.1.jar`. Its jar-in-jar metadata identifies `net.createmod.ponder` and artifact version `1.0.81+mc1.21.1`. The initial inspection used the extracted nested JAR with `javap -p` and `javap -p -c`.
+
+The same instance's `create-1.21.1-6.0.10.jar` embeds `META-INF/jarjar/ponder-neoforge-1.0.82+mc1.21.1.jar`. Its jar-in-jar metadata requests `[1.0.82+mc1.21.1,)`, and `logs/latest.log` identifies Create as the parent of the selected Ponder `1.0.82+mc1.21.1` (discovery line 545, mod list line 1052). The reflected signatures and relevant compilation/localization bytecode match the inspected `1.0.81` copy. Create supplies Ponder without a separate player installation; PonderJS adds scripting support. Upstream Create also [declares Ponder as a bundled dependency](https://github.com/Creators-of-Create/Create/blob/mc1.21.1/dev/build.gradle).
+
+## Compatible version range
+
+Accept `[0.8.1,1.1)` on Minecraft 1.21.1. Compare the numeric version after removing the exact `+mc1.21.1` suffix when present; older artifact labels are bare versions. Reject other Minecraft suffixes and malformed labels. Preserve the complete observed runtime version in status and evidence rather than reporting one inspected release for every installation.
+
+The [older official Maven metadata](https://maven.createmod.net/net/createmod/ponder/Ponder-Common-1.21.1/maven-metadata.xml) uses `net.createmod.ponder:Ponder-Common-1.21.1` and starts at `0.8.1`. Source JARs inspected from that coordinate were `0.8.1`, `0.8.7`, `0.9.9`, `0.9.23`, `1.0.24`, `1.0.43`, `1.0.56`, `1.0.64` and `1.0.69`. The [0.8.1 source JAR](https://maven.createmod.net/net/createmod/ponder/Ponder-Common-1.21.1/0.8.1/Ponder-Common-1.21.1-0.8.1-sources.jar) already contains every entry point used by this adapter:
+
+- `PonderIndex.getSceneAccess()` and `getLangAccess()`, with `getRegisteredEntries()` returning component-to-storyboard associations.
+- Storyboard component/namespace/schematic/tag access, public `PonderLocalization.specific`, `PonderSceneRegistry.compileScene(PonderLocalization, StoryBoardEntry, PonderLevel)` with the nullable-level language-generation route, and `PonderScene.getId()`.
+- Current-language `<namespace>.ponder.<scene path>.header` and `text_N` lookup, tag name/description lookup, and `PonderUI.of(ResourceLocation)`.
+
+The [new coordinate's official metadata](https://maven.createmod.net/net/createmod/ponder/ponder-common/maven-metadata.xml) lists Minecraft 1.21.1 releases `1.0.79`, `1.0.80`, `1.0.81`, `1.0.82`, `1.0.83`, `1.0.84`, `1.0.85` and `1.0.87` with the Minecraft suffix. All eight source JARs were inspected; the six central registry, storyboard, scene, localization and UI source files have identical hashes across them. This coordinate's `.79` floor reflects artifact history, not the introduction of the API.
+
+The inspected samples retain the required signatures and localization behavior from `0.8.1` through `1.0.87`. Later changes add unrelated rendering/plugin behavior and overloads. No upstream API stability guarantee or observed breaking release was found. The upper bound `1.1` is the next-family audit boundary: accepting later `1.0.x` versions is a compatibility policy, not a claim that unpublished versions were tested. Releases between the older inspected samples were not individually runtime-tested. Minecraft's own dependency checks still govern the game and loader requirements of each installed Ponder artifact.
 
 ## Source contract
 
@@ -18,7 +34,7 @@ Scope: the installed ATM10 artifact and existing PackSage document/navigation pa
 - Avoid component-wide `compile` and global `generateSceneLang`/`provideLang` during reads. The former sets up schematic worlds and starts scenes; editing mode can reload global registrations/localization. The latter traverses all registered callbacks and may re-register providers.
 - `PonderUI.of(ResourceLocation)` opens the scenes associated with a component. There is no public single-scene-ID factory; the scene-list constructor is protected. A navigation link must describe the component viewer.
 
-The current upstream [scene registry](https://raw.githubusercontent.com/Creators-of-Create/Ponder/mc1.21.1/dev/common/src/main/java/net/createmod/ponder/foundation/registration/PonderSceneRegistry.java), [localization](https://raw.githubusercontent.com/Creators-of-Create/Ponder/mc1.21.1/dev/common/src/main/java/net/createmod/ponder/foundation/registration/PonderLocalization.java) and [storyboard interface](https://raw.githubusercontent.com/Creators-of-Create/Ponder/mc1.21.1/dev/common/src/main/java/net/createmod/ponder/api/registration/StoryBoardEntry.java) corroborate the broad structure. The installed bytecode governs exact version support and localization details.
+The current upstream [scene registry](https://raw.githubusercontent.com/Creators-of-Create/Ponder/mc1.21.1/dev/common/src/main/java/net/createmod/ponder/foundation/registration/PonderSceneRegistry.java), [localization](https://raw.githubusercontent.com/Creators-of-Create/Ponder/mc1.21.1/dev/common/src/main/java/net/createmod/ponder/foundation/registration/PonderLocalization.java) and [storyboard interface](https://raw.githubusercontent.com/Creators-of-Create/Ponder/mc1.21.1/dev/common/src/main/java/net/createmod/ponder/api/registration/StoryBoardEntry.java) corroborate the structure. Published versioned sources and the installed bytecode provide the compatibility evidence above.
 
 ## PackSage integration
 

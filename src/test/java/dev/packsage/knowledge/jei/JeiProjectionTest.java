@@ -1101,6 +1101,28 @@ class JeiProjectionTest {
             PackSageJeiPlugin.clientTicked();
             assertNull(recreatedPlugin.provider().refreshNavigation(temporaryRecord.targets().getFirst(), nextScope)
                     .toCompletableFuture().get(), "a temporary locator must not acquire semantic fallback identity");
+
+            canonicalIdThrows.set(false);
+            var addonType = new RecipeType<>(ResourceLocation.parse("addon:machine"), Object.class);
+            var addonCategory = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
+                    new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) ->
+                            method.getName().equals("getRecipeType") ? addonType : method.invoke(category, arguments));
+            currentCategory.set(addonCategory);
+            managerCategory.set(addonCategory);
+            PackSageJeiPlugin.clientTicked();
+            var opaqueRecord = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, null, null), nextScope)
+                    .toCompletableFuture().get().records().getFirst();
+            assertEquals(Evidence.DecodingStatus.OPAQUE, opaqueRecord.recipePayload().decodingStatus());
+            assertEquals("recipe-v1|addon:machine|fixture:press", opaqueRecord.targets().getFirst().targetId(),
+                    "custom category discovery must preserve canonical identity even when slot semantics are opaque");
+            var addonRestart = new PackSageJeiPlugin();
+            addonRestart.onRuntimeAvailable(runtime);
+            var addonTarget = addonRestart.provider().refreshNavigation(opaqueRecord.targets().getFirst(), recreatedScope)
+                    .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertNotNull(addonTarget);
+            assertEquals(Evidence.NavigationStatus.OPENED, addonRestart.provider().open(addonTarget, recreatedScope).status());
+            assertSame(replacementRecipe, shownRecipes.get().getFirst());
         } finally {
             minecraftInstance.set(null, previousMinecraft);
         }

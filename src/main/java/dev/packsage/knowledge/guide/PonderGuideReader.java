@@ -28,10 +28,27 @@ public final class PonderGuideReader implements GuideDocumentReader {
 
     interface Source {
         Iterable<Entry> entries();
+        default Iterable<Registration> registrations() {
+            return () -> new java.util.Iterator<>() {
+                private final java.util.Iterator<Entry> entries = Source.this.entries().iterator();
+                @Override public boolean hasNext() { return entries.hasNext(); }
+                @Override public Registration next() {
+                    var entry = entries.next();
+                    return new Registration(entry.identity(), entry.component());
+                }
+            };
+        }
+        default Entry metadata(Registration registration) {
+            for (var entry : entries()) if (entry.identity().equals(registration.identity())
+                    && entry.component().equals(registration.component())) return entry;
+            throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "Ponder storyboard registration changed");
+        }
         SceneText compile(Entry entry);
         boolean isClientThread();
         void openComponent(String component);
     }
+
+    record Registration(String identity, String component) { }
 
     record Entry(String identity, String component, String namespace, String schematic, List<String> tags, String displayText) {
         Entry {
@@ -73,40 +90,60 @@ public final class PonderGuideReader implements GuideDocumentReader {
     @Override public String sourceIdentity(Evidence.Scope scope) {
         var hash = scope.resourcesLocale().hashCode();
         var count = 0;
-        var entries = source.entries().iterator();
+        var entries = source.registrations().iterator();
         while (entries.hasNext()) {
             if (count == MAX_REGISTRATIONS) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE,
                     "Ponder registration registry exceeds its identity bound");
-            var entry = entries.next();
-            hash = 31 * hash + Objects.hash(entry.identity(), entry.component(), entry.namespace(), entry.schematic(), entry.tags(), entry.displayText());
+            var registration = entries.next();
+            hash = 31 * hash + Objects.hash(registration.identity(), registration.component());
             count++;
         }
         return Integer.toHexString(hash) + ':' + count;
     }
 
     @Override public CandidatePage candidates(String afterPosition, int limit, Toolbox.DocumentBudget budget) {
+        return candidates("", afterPosition, limit, budget);
+    }
+
+    @Override public CandidatePage candidates(String query, String afterPosition, int limit,
+                                              Toolbox.DocumentBudget budget) {
         if (limit < 1) throw new IllegalArgumentException("candidate limit must be positive");
+        String exactComponent = null;
+        if (query != null && query.indexOf(':') > 0) {
+            try {
+                var parsed = ResourceLocation.parse(query);
+                if (parsed.toString().equals(query)) exactComponent = query;
+            } catch (RuntimeException ignored) { }
+        }
         var result = new ArrayList<Candidate>();
         var afterFound = afterPosition == null;
         var inspected = 0;
         var more = false;
         var coverage = Evidence.Coverage.COMPLETE;
         String nextPosition = afterPosition;
-        var entries = source.entries().iterator();
+        var entries = source.registrations().iterator();
         while (entries.hasNext()) {
             if (inspected == MAX_REGISTRATIONS) return new CandidatePage(result, nextPosition, true,
                     Evidence.Coverage.PARTIAL, "Ponder registrations reached the traversal bound");
-            if (afterFound && result.size() == Math.min(limit, 4)) { more = true; break; }
-            var entry = entries.next();
+            if (afterFound && exactComponent == null && result.size() == Math.min(limit, 4)) { more = true; break; }
+            if (afterFound && !budget.value()) return new CandidatePage(result, nextPosition, true, Evidence.Coverage.PARTIAL,
+                    "Ponder registrations reached the source budget");
+            var registration = entries.next();
             inspected++;
-            var position = inspected + ":" + entry.identity();
+            var position = inspected + ":" + registration.identity();
             if (!afterFound) {
                 nextPosition = position;
                 if (position.equals(afterPosition)) afterFound = true;
                 continue;
             }
-            if (!budget.value()) return new CandidatePage(result, nextPosition, true, Evidence.Coverage.PARTIAL,
-                    "Ponder registrations reached the source budget");
+            nextPosition = position;
+            if (exactComponent != null && !exactComponent.equals(registration.component())) continue;
+            if (result.size() == Math.min(limit, 4)) {
+                more = true;
+                nextPosition = result.getLast().sourcePosition();
+                break;
+            }
+            var entry = source.metadata(registration);
             if (entry.identity().length() > 1024 || entry.component().length() > 246 || entry.namespace().length() > 246
                     || entry.schematic().length() > 246) {
                 coverage = Evidence.Coverage.PARTIAL;
@@ -276,6 +313,70 @@ public final class PonderGuideReader implements GuideDocumentReader {
     }
 
     private static final class RuntimeSource implements Source {
+        @Override public Iterable<Registration> registrations() {
+            try {
+                var index = Class.forName("net.createmod.ponder.foundation.PonderIndex");
+                var access = index.getMethod("getSceneAccess").invoke(null);
+                var iterator = ((Collection<?>) access.getClass().getMethod("getRegisteredEntries").invoke(access)).iterator();
+                return () -> new java.util.Iterator<>() {
+                    int index;
+                    @Override public boolean hasNext() { return iterator.hasNext(); }
+                    @Override public Registration next() {
+                        var mapping = (Map.Entry<?, ?>) iterator.next();
+                        var entry = mapping.getValue();
+                        var registration = new Registration((index + 1) + ":"
+                                + Integer.toHexString(System.identityHashCode(entry)), mapping.getKey().toString());
+                        index++;
+                        return registration;
+                    }
+                };
+            } catch (ReflectiveOperationException failure) {
+                throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Ponder registry is unavailable");
+            }
+        }
+
+        @Override public Entry metadata(Registration registration) {
+            try {
+                var index = Class.forName("net.createmod.ponder.foundation.PonderIndex");
+                var access = index.getMethod("getSceneAccess").invoke(null);
+                var entries = (Collection<?>) access.getClass().getMethod("getRegisteredEntries").invoke(access);
+                var localization = index.getMethod("getLangAccess").invoke(null);
+                var currentIndex = 0;
+                for (var mapping : entries) {
+                    if (currentIndex == MAX_REGISTRATIONS) break;
+                    var component = ((Map.Entry<?, ?>) mapping).getKey();
+                    var entry = ((Map.Entry<?, ?>) mapping).getValue();
+                    var identity = (currentIndex + 1) + ":" + Integer.toHexString(System.identityHashCode(entry));
+                    currentIndex++;
+                    if (!identity.equals(registration.identity()) || !component.toString().equals(registration.component())) continue;
+                    var tags = ((List<?>) entry.getClass().getMethod("getTags").invoke(entry)).stream().limit(8)
+                            .map(Object::toString).toList();
+                    var displayText = new StringBuilder();
+                    var item = BuiltInRegistries.ITEM.getOptional((ResourceLocation) component).orElse(null);
+                    if (item != null) {
+                        String name = Language.getInstance().getOrDefault(item.getDescriptionId());
+                        displayText.append(name, 0, Math.min(256, name.length()));
+                    }
+                    for (var tag : tags) {
+                        for (String method : List.of("getTagName", "getTagDescription")) {
+                            if (displayText.length() >= 1023) break;
+                            String value = (String) localization.getClass().getMethod(method, ResourceLocation.class)
+                                    .invoke(localization, ResourceLocation.parse(tag));
+                            displayText.append('\n').append(value, 0, Math.min(value.length(), 1023 - displayText.length()));
+                        }
+                    }
+                    return new Entry(identity, component.toString(),
+                            (String) entry.getClass().getMethod("getNamespace").invoke(entry),
+                            entry.getClass().getMethod("getSchematicLocation").invoke(entry).toString(), tags, displayText.toString());
+                }
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "Ponder storyboard registration changed");
+            } catch (Toolbox.Failure failure) {
+                throw failure;
+            } catch (ReflectiveOperationException failure) {
+                throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "Ponder registry metadata is unavailable");
+            }
+        }
+
         @Override public Iterable<Entry> entries() {
             try {
                 var index = Class.forName("net.createmod.ponder.foundation.PonderIndex");

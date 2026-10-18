@@ -25,6 +25,10 @@ public interface GuideDocumentReader {
      */
     CandidatePage candidates(String afterPosition, int limit, Toolbox.DocumentBudget budget);
 
+    default CandidatePage candidates(String query, String afterPosition, int limit, Toolbox.DocumentBudget budget) {
+        return candidates(afterPosition, limit, budget);
+    }
+
     /**
      * Reads one current text fragment, charging extraction before copying and respecting maxChars.
      * Continued ranges within one field overlap up to FRAGMENT_OVERLAP_CHARS characters. A new field starts without overlap.

@@ -299,7 +299,7 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
             int pageLimit = Math.min(MAX_CANDIDATES_PER_PAGE, maxCandidatesPerCall - inspectedCandidates);
             GuideDocumentReader.CandidatePage page;
             try {
-                page = reader.candidates(afterPosition, pageLimit, context.documentBudget());
+                page = reader.candidates(search.query(), afterPosition, pageLimit, context.documentBudget());
             } catch (Toolbox.Failure failure) {
                 if (failure.code() != Toolbox.Code.UNAVAILABLE && failure.code() != Toolbox.Code.EXTRACTION_FAILED) throw failure;
                 coverage = mergeCoverage(coverage, Evidence.Coverage.PARTIAL);

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -68,6 +69,7 @@ class PonderGuideReaderTest {
 
         assertTrue(resolved.fragment().text().contains("new caption"));
         assertTrue(resolved.fragment().text().contains("create:scene_a"));
+        assertFalse(resolved.fragment().text().contains("Header:"));
         assertEquals(2, source.compiles.get());
         source.entries.set(0, entry("replacement", "Replacement", "replacement caption"));
         var failure = assertThrows(Toolbox.Failure.class,
@@ -191,7 +193,7 @@ class PonderGuideReaderTest {
         @Override public Iterable<PonderGuideReader.Entry> entries() { return entries; }
         @Override public PonderGuideReader.SceneText compile(PonderGuideReader.Entry entry) {
             compiles.incrementAndGet();
-            return new PonderGuideReader.SceneText(TITLES.get(entry.identity()), SCENE_IDS.get(entry.identity()), "Header",
+            return new PonderGuideReader.SceneText(TITLES.get(entry.identity()), SCENE_IDS.get(entry.identity()), TITLES.get(entry.identity()),
                     captions.getOrDefault(entry.identity(), CAPTION_DEFAULTS.get(entry.identity())));
         }
         @Override public boolean isClientThread() { return clientThread; }

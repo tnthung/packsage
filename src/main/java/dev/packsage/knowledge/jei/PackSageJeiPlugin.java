@@ -140,8 +140,6 @@ public final class PackSageJeiPlugin implements IModPlugin {
                     && (id.startsWith("recipe-v1|") || id.startsWith("category-v1|") || id.startsWith("jei/"))) {
                 var identity = navigationIdentity(id, manager, budget);
                 retained = identity == null ? null : resolveNavigation(identity, manager, scope, budget);
-                dev.packsage.PackSageLog.LOGGER.info("PackSage JEI navigation probe identity={} resolved={} exhausted={}",
-                        identity, retained != null, budget.exhausted());
                 if (retained == null) {
                     return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
                             Evidence.Coverage.UNAVAILABLE, true, null);
@@ -233,8 +231,6 @@ public final class PackSageJeiPlugin implements IModPlugin {
                     projection = project(runtime, manager, category, retained.recipe(), categoryId, id,
                             canonical.value(), title(category, categoryId), knownCategory(categoryId), canonical.failed(),
                             catalystCapture, budget);
-                    dev.packsage.PackSageLog.LOGGER.info("PackSage JEI navigation probe projection={} visible={} known={} exhausted={}",
-                            canonical.value(), projection.visible(), projection.visibilityKnown(), budget.exhausted());
                     if (!projection.visible() || !projection.visibilityKnown()) {
                         return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
                                 Evidence.Coverage.UNAVAILABLE, true, null);
@@ -913,7 +909,6 @@ public final class PackSageJeiPlugin implements IModPlugin {
 
         private RegisteredRecipe resolveNavigation(NavigationIdentity identity, IRecipeManager manager,
                                                     Evidence.Scope scope, Toolbox.DocumentBudget budget) {
-            var started = System.nanoTime();
             var selectedCategory = identity.legacyCategory();
             if (selectedCategory == null) {
                 try (var categories = manager.createRecipeCategoryLookup().get()) {
@@ -936,15 +931,11 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 return new RegisteredRecipe(selectedCategory, null, scope, null);
             }
             Object selectedRecipe = null;
-            var scanned = 0;
             try (var recipes = manager.createRecipeLookup(type).get()) {
                 var iterator = recipes.iterator();
-                for (; iterator.hasNext(); scanned++) {
-                    if (scanned >= MAX_NAVIGATION_RECIPES || !budget.callback(JeiProvider.ID, MAX_NAVIGATION_RECIPES)) {
-                        dev.packsage.PackSageLog.LOGGER.info("PackSage JEI navigation probe scan_limit category={} recipe={} scanned={} found={}",
-                                identity.categoryId(), identity.canonicalRecipeId(), scanned, selectedRecipe != null);
-                        return null;
-                    }
+                for (int scanned = 0; iterator.hasNext(); scanned++) {
+                    if (scanned >= MAX_NAVIGATION_RECIPES
+                            || !budget.callback(JeiProvider.ID, MAX_NAVIGATION_RECIPES)) return null;
                     var recipe = iterator.next();
                     var canonical = canonical(selectedCategory, recipe);
                     if (!canonical.failed() && identity.canonicalRecipeId().equals(canonical.value())) {
@@ -955,8 +946,6 @@ public final class PackSageJeiPlugin implements IModPlugin {
             } catch (RuntimeException ignored) {
                 return null;
             }
-            dev.packsage.PackSageLog.LOGGER.info("PackSage JEI navigation probe complete category={} scanned={} elapsed_ms={}",
-                    identity.categoryId(), scanned, (System.nanoTime() - started) / 1_000_000.0);
             return selectedRecipe == null ? null : new RegisteredRecipe(selectedCategory, selectedRecipe, scope, null);
         }
 

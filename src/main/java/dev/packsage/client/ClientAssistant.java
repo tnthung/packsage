@@ -134,7 +134,8 @@ public final class ClientAssistant {
                 "immersiveengineering", optionalStatus("immersiveengineering", "[12.4.2-194]"),
                 "actuallyadditions", optionalStatus("actuallyadditions", "[1.3.26]"),
                 "relics", optionalStatus("relics", "[0.12.8]"),
-                "artifacts", optionalStatus("artifacts", "[13.2.3]"));
+                "artifacts", optionalStatus("artifacts", "[13.2.3]"),
+                "ponder", optionalStatus("ponder", "[1.0.81+mc1.21.1]"));
         settingsPath = client.gameDirectory.toPath().resolve("config").resolve("packsage.properties");
         settings = PackSageSettings.load(settingsPath);
         var backend = new ChatGptBackend(new ChatGptAuth(ChatGptAuth.defaultCredentialFile()));
@@ -429,6 +430,7 @@ public final class ClientAssistant {
         providers.add(optionalMinecraftProvider("actuallyadditions", "dev.packsage.knowledge.guide.ActuallyAdditionsGuideReader", "forMinecraft", scope));
         providers.add(optionalMinecraftProvider("relics", "dev.packsage.knowledge.guide.RelicsGuideReader", "forMinecraft", scope));
         providers.add(optionalMinecraftProvider("artifacts", "dev.packsage.knowledge.guide.ArtifactsGuideReader", "forMinecraft", scope));
+        providers.add(optionalMinecraftProvider("ponder", "dev.packsage.knowledge.guide.PonderGuideReader", "forMinecraft", scope));
         return new KnowledgeService(providers, scope);
     }
 
@@ -658,7 +660,7 @@ public final class ClientAssistant {
 
         @Override public Metadata metadata() {
             return new Metadata(id, id.equals("ftb_quests") ? List.of("quest")
-                    : List.of("patchouli", "modonomicon", "guideme", "immersiveengineering", "actuallyadditions", "relics", "artifacts")
+                    : List.of("patchouli", "modonomicon", "guideme", "immersiveengineering", "actuallyadditions", "relics", "artifacts", "ponder")
                     .contains(id) ? List.of("guide") : List.of(),
                     id.equals("jei"), List.of(), Map.of());
         }

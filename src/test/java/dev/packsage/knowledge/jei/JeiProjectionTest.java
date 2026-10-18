@@ -698,6 +698,7 @@ class JeiProjectionTest {
             var type = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), Object.class);
             var canonicalIdsEnabled = new AtomicBoolean();
             var canonicalIdThrows = new AtomicBoolean();
+            var canonicalVisits = new AtomicInteger();
             var navigationFiller = new Object();
             var category = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
                     new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
@@ -705,6 +706,7 @@ class JeiProjectionTest {
                         case "getTitle" -> Component.literal("Crafting");
                         case "getTooltipStrings" -> List.of();
                         case "getRegistryName" -> {
+                            canonicalVisits.incrementAndGet();
                             if (canonicalIdThrows.get()) throw new IllegalStateException("fixture canonical ID failure");
                             yield canonicalIdsEnabled.get()
                                     ? ResourceLocation.fromNamespaceAndPath("fixture", arguments[0] == navigationFiller
@@ -1076,8 +1078,7 @@ class JeiProjectionTest {
             assertNull(recreatedPlugin.provider().refreshNavigation(savedTarget, recreatedScope)
                     .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS),
                     "a duplicate beyond the old 2048 scan window must still reject navigation");
-            recipes.set(java.util.Collections.nCopies(65_536, navigationFiller));
-            recipes.set(new java.util.ArrayList<>(recipes.get()));
+            recipes.set(new java.util.ArrayList<>(java.util.Collections.nCopies(65_536, navigationFiller)));
             recipes.get().set(65_535, recreatedRecipe);
             PackSageJeiPlugin.clientTicked();
             var lastBoundedTarget = recreatedPlugin.provider().refreshNavigation(savedTarget, recreatedScope)
@@ -1086,12 +1087,16 @@ class JeiProjectionTest {
             assertEquals(Evidence.NavigationStatus.OPENED,
                     recreatedPlugin.provider().open(lastBoundedTarget, recreatedScope).status());
             recipes.get().add(navigationFiller);
+            recipes.get().set(0, recreatedRecipe);
+            recipes.get().set(65_535, navigationFiller);
             recipeVisits.set(0);
+            canonicalVisits.set(0);
             PackSageJeiPlugin.clientTicked();
             assertNull(recreatedPlugin.provider().refreshNavigation(savedTarget, recreatedScope)
                     .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS),
                     "an incomplete scan beyond the navigation bound must remain unavailable");
-            assertEquals(65_536, recipeVisits.get());
+            assertEquals(65_537, recipeVisits.get(), "the stream iterator can prefetch one entry in hasNext");
+            assertEquals(65_536, canonicalVisits.get());
 
             recipes.set(List.of(recreatedRecipe, new Object()));
             PackSageJeiPlugin.clientTicked();

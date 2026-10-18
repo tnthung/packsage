@@ -275,6 +275,20 @@ public final class PonderGuideReader implements GuideDocumentReader {
         return List.of(new Evidence.NavigationTarget(scope, providerId(), candidate.id(), found.component()));
     }
 
+    @Override public Evidence.NavigationTarget refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!providerId().equals(target.providerId())) return null;
+        var component = ResourceLocation.tryParse(target.targetId());
+        if (component == null || !component.toString().equals(target.targetId())) return null;
+        var registrations = source.registrations().iterator();
+        var inspected = 0;
+        while (registrations.hasNext() && inspected++ < MAX_REGISTRATIONS) {
+            var registration = registrations.next();
+            if (component.toString().equals(registration.component())) return new Evidence.NavigationTarget(scope,
+                    providerId(), registration.identity(), component.toString());
+        }
+        return null;
+    }
+
     @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
         if (!scope.equals(target.scope())) return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
                 "Ponder target is outside the active scope");

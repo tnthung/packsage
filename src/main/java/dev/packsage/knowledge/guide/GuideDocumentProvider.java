@@ -85,6 +85,29 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
     }
 
     @Override
+    public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target,
+                                                                         Evidence.Scope scope) {
+        Objects.requireNonNull(target);
+        Objects.requireNonNull(scope);
+        if (!id().equals(target.providerId())) return CompletableFuture.completedFuture(null);
+        try {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    requireScope(scope);
+                    var refreshed = reader.refreshNavigation(target, scope);
+                    requireScope(scope);
+                    return refreshed != null && id().equals(refreshed.providerId()) && scope.equals(refreshed.scope())
+                            ? refreshed : null;
+                } catch (RuntimeException | LinkageError failure) {
+                    return null;
+                }
+            }, clientExecutor);
+        } catch (RuntimeException failure) {
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    @Override
     public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
         Objects.requireNonNull(query);
         Objects.requireNonNull(scope);

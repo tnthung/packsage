@@ -258,8 +258,9 @@ class PonderGuideReaderTest {
         assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "ponder", "old", "create:missing"), SCOPE));
         assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "other", "old",
                 "create:mechanical_press"), SCOPE));
-        assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "ponder", "old",
-                "create:mechanical_press"), new Evidence.Scope("other", "en_us", "team", "runtime", 1)));
+        var refreshedScope = new Evidence.Scope("other", "en_us", "team", "runtime", 1);
+        assertEquals(refreshedScope, reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "ponder", "old",
+                "create:mechanical_press"), refreshedScope).scope());
         assertEquals(0, source.compiles.get());
         assertEquals(0, source.opens.get());
     }

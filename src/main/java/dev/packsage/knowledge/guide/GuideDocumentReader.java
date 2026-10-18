@@ -42,6 +42,11 @@ public interface GuideDocumentReader {
         return List.of();
     }
 
+    /** Rebinds a durable destination to its current source identity, or returns null when unsupported or unavailable. */
+    default Evidence.NavigationTarget refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        return null;
+    }
+
     /** Navigation is invoked on the client thread after the player chooses a refreshed target. */
     default Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
         return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,

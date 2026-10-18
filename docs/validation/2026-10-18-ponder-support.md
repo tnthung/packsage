@@ -39,7 +39,9 @@ Four new Ponder regressions cover a press after unrelated registrations, a termi
 
 `gradlew.bat test build` passed after correction: 566 tests, 562 passed, four existing skips, zero failures/errors. `PonderGuideReaderTest` has fifteen passing tests, and `AssistantScreenStateTest` has 39. The latter includes the navigation-feedback viewport regression described in the [fixture validation](2026-10-18-all-adapter-fixture.md).
 
-The built JAR, refreshed `dist/packsage.jar` and distribution metadata match SHA-256 `2B2911C6119BAC759722AFB431A8E7B0D37A47A35438DF1A9E84BE68A8D4D11B`. Minecraft is still running with the earlier fixture build, so this correction has not been copied into the instance. The player's natural-language retry, actual tool count/timing, caption correspondence and clicked viewer remain pending the [player checks](../testing/2026-10-18-ponder-support.md).
+Independent review of the correction and cursor follow-up found no additional material defect. The built JAR, refreshed `dist/packsage.jar` and distribution metadata match SHA-256 `2B2911C6119BAC759722AFB431A8E7B0D37A47A35438DF1A9E84BE68A8D4D11B`.
+
+At the player's request, Minecraft saved the world, quit to title and exited normally. After verifying the instance process had stopped, the corrected JAR was installed into `Packsage/mods/packsage.jar`; its hash matched the distribution and settings remained unchanged. The game was left closed and no live test was performed. The player's natural-language retry, actual tool count/timing, caption correspondence and clicked viewer remain pending the [player checks](../testing/2026-10-18-ponder-support.md).
 
 ## Delivered limits
 

@@ -22,7 +22,7 @@ The bottom composer accepts multiline text and grows upward to a bounded height,
 
 List stored sessions asynchronously through the existing conversation store. Selecting another session cancels the active request and uses generation guards for late loads/results. Same-world sessions can continue with fresh current context. Sessions belonging to another world/server open read-only until that world/server is joined; New chat always starts in the active game world. Viewing history must not replace the operational world, provider scope or knowledge connection.
 
-Persist navigation targets with their answer turns. Old logs without this field remain readable. Keep exact target/source binding and current-scope validation at click time; do not relax provider lifecycle checks for UI convenience.
+Persist navigation targets with their answer turns. Old logs without this field remain readable. Keep exact historical target/source binding and current-scope validation at click time. [Persistent source navigation](2026-10-18-persistent-navigation.md) resolves durable destinations against the current provider independently of the historical evidence handle; current registration and access checks still apply.
 
 ## Settings
 

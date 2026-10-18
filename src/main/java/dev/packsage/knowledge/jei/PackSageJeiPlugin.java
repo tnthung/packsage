@@ -134,9 +134,25 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var id = stringArgument(query.arguments(), "id");
             var retained = query.operation() == Evidence.Operation.GET && id != null
                     ? navigationRegistrations.get(id) : null;
-            if (query.operation() == Evidence.Operation.GET && retained == null && id != null && id.startsWith("jei/")) {
-                return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
-                        Evidence.Coverage.UNAVAILABLE, true, null);
+            var resolvedNavigation = false;
+            if (query.operation() == Evidence.Operation.GET && retained == null && id != null
+                    && (id.startsWith("recipe-v1|") || id.startsWith("category-v1|") || id.startsWith("jei/"))) {
+                var navigationBudget = new Toolbox.DocumentBudget();
+                var identity = navigationIdentity(id, manager, navigationBudget);
+                retained = identity == null ? null : resolveNavigation(identity, manager, scope, navigationBudget);
+                if (retained == null) {
+                    return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
+                            Evidence.Coverage.UNAVAILABLE, true, null);
+                }
+                var categoryId = categoryId(retained.category(), 0);
+                var canonical = canonical(retained.category(), retained.recipe());
+                id = sourceHandle(generation, snapshotVersion, categoryId, canonical.value(), retained.recipe(), 0);
+                retained = new RegisteredRecipe(retained.category(), retained.recipe(), scope, null);
+                navigationRegistrations.put(id, retained);
+                while (navigationRegistrations.size() > MAX_NAVIGATION_REGISTRATIONS) {
+                    navigationRegistrations.remove(navigationRegistrations.keySet().iterator().next());
+                }
+                resolvedNavigation = true;
             }
             if (retained != null) {
                 if (!retained.scope().worldSession().equals(scope.worldSession())
@@ -168,15 +184,17 @@ public final class PackSageJeiPlugin implements IModPlugin {
                     return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
                             Evidence.Coverage.UNAVAILABLE, true, null);
                 }
-                var categoryRegistered = false;
-                try (var categories = manager.createRecipeCategoryLookup().limitTypes(List.of(type))
-                        .limitFocus(focuses).get()) {
-                    var iterator = categories.iterator();
-                    for (int scanned = 0; ; scanned++) {
-                        if (scanned >= MAX_CATEGORIES || !budget.document()) throw new Toolbox.Failure(
-                                Toolbox.Code.EXTRACTION_FAILED, "JEI category membership exceeded the read budget");
-                        if (!iterator.hasNext()) break;
-                        if (iterator.next() == category) { categoryRegistered = true; break; }
+                var categoryRegistered = resolvedNavigation;
+                if (!resolvedNavigation) {
+                    try (var categories = manager.createRecipeCategoryLookup().limitTypes(List.of(type))
+                            .limitFocus(focuses).get()) {
+                        var iterator = categories.iterator();
+                        for (int scanned = 0; ; scanned++) {
+                            if (scanned >= MAX_CATEGORIES || !budget.document()) throw new Toolbox.Failure(
+                                    Toolbox.Code.EXTRACTION_FAILED, "JEI category membership exceeded the read budget");
+                            if (!iterator.hasNext()) break;
+                            if (iterator.next() == category) { categoryRegistered = true; break; }
+                        }
                     }
                 }
                 if (!categoryRegistered) {
@@ -186,17 +204,20 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 var categoryId = categoryId(category, 0);
                 JeiProvider.Projection projection;
                 if (retained.recipe() == null) {
-                    projection = JeiProvider.Projection.opaque(categoryId, id, title(category, categoryId),
-                            "JEI category has no detached recipe projection");
+                    projection = new JeiProvider.Projection(categoryId, id, null, title(category, categoryId),
+                            List.of(), List.of(), List.of(), true, true, Evidence.Coverage.OPAQUE,
+                            Evidence.DecodingStatus.OPAQUE, "JEI category has no detached recipe projection");
                 } else {
-                    var recipeRegistered = false;
-                    try (var recipes = manager.createRecipeLookup(type).limitFocus(focuses).get()) {
-                        var iterator = recipes.iterator();
-                        for (int scanned = 0; ; scanned++) {
-                            if (scanned >= MAX_SCANNED_RECIPES || !budget.value()) throw new Toolbox.Failure(
-                                    Toolbox.Code.EXTRACTION_FAILED, "JEI recipe membership exceeded the read budget");
-                            if (!iterator.hasNext()) break;
-                            if (iterator.next() == retained.recipe()) { recipeRegistered = true; break; }
+                    var recipeRegistered = resolvedNavigation;
+                    if (!resolvedNavigation) {
+                        try (var recipes = manager.createRecipeLookup(type).limitFocus(focuses).get()) {
+                            var iterator = recipes.iterator();
+                            for (int scanned = 0; ; scanned++) {
+                                if (scanned >= MAX_SCANNED_RECIPES || !budget.value()) throw new Toolbox.Failure(
+                                        Toolbox.Code.EXTRACTION_FAILED, "JEI recipe membership exceeded the read budget");
+                                if (!iterator.hasNext()) break;
+                                if (iterator.next() == retained.recipe()) { recipeRegistered = true; break; }
+                            }
                         }
                     }
                     if (!recipeRegistered) {
@@ -213,10 +234,12 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 Evidence.Coverage.UNAVAILABLE, true, null);
                     }
                 }
+                var registeredHandle = id;
+                var registeredRecipe = retained;
                 return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(projection), handle -> {
                     if (!active) throw new IllegalStateException("JEI runtime unavailable");
-                    if (!id.equals(handle)) throw new IllegalArgumentException("unknown JEI projection " + handle);
-                    showRecipe(runtime, retained);
+                    if (!registeredHandle.equals(handle)) throw new IllegalArgumentException("unknown JEI projection " + handle);
+                    showRecipe(runtime, registeredRecipe);
                 }, projection.coverage(), true, null);
             }
             var projections = new ArrayList<JeiProvider.Projection>();
@@ -368,18 +391,17 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             if (seekingRecipe) continue;
                             scanned++;
                             var canonicalCapture = new Canonical(null, true);
-                            if (categoryKnown) {
-                                if (!budget.value()) {
-                                    partial = true;
-                                    hasMore = true;
-                                    nextCategory = categoryIndex;
-                                    nextRecipe = recipeOrdinal - 1;
-                                    break;
-                                }
-                                try {
-                                    var name = ((IRecipeCategory<Object>) category).getRegistryName(recipe);
-                                    if (name == null) canonicalCapture = new Canonical(null, false);
-                                    else {
+                            if (!budget.value()) {
+                                partial = true;
+                                hasMore = true;
+                                nextCategory = categoryIndex;
+                                nextRecipe = recipeOrdinal - 1;
+                                break;
+                            }
+                            try {
+                                var name = ((IRecipeCategory<Object>) category).getRegistryName(recipe);
+                                if (name == null) canonicalCapture = new Canonical(null, false);
+                                else {
                                         var canonicalBytes = ((long) name.getNamespace().length()
                                                 + name.getPath().length() + 1) * 2;
                                         var retryCursorBytes = (Long.toString(generation).length() + 1L
@@ -412,12 +434,11 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                             break;
                                         }
                                         canonicalCapture = new Canonical(name.toString(), false);
-                                    }
-                                } catch (Throwable ignored) {
-                                    canonicalCapture = new Canonical(null, true);
                                 }
+                            } catch (Throwable ignored) {
+                                canonicalCapture = new Canonical(null, true);
                             }
-                            if (categoryKnown && canonicalCapture.failed()) partial = true;
+                            if (canonicalCapture.failed()) partial = true;
                             var handle = sourceHandle(generation, snapshotVersion, categoryId, canonicalCapture.value(), recipe, recipeOrdinal);
                             var candidate = matches(categoryId, title, canonicalCapture.value(), handle, query.operation(), id, text);
                             if (!candidate) continue;
@@ -465,8 +486,9 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 nextCategory = categoryIndex;
                                 nextRecipe = 0;
                             } else {
-                                projections.add(JeiProvider.Projection.opaque(categoryId, handle, title,
-                                        "JEI category has no detached recipe projection"));
+                                projections.add(new JeiProvider.Projection(categoryId, handle, null, title, List.of(),
+                                        List.of(), List.of(), true, true, Evidence.Coverage.OPAQUE,
+                                        Evidence.DecodingStatus.OPAQUE, "JEI category has no detached recipe projection"));
                                 var registration = new RegisteredRecipe(category, null, scope, outputItem);
                                 navigation.put(handle, registration);
                                 navigationRegistrations.put(handle, registration);
@@ -798,6 +820,9 @@ public final class PackSageJeiPlugin implements IModPlugin {
         private record RegisteredRecipe(IRecipeCategory<?> category, Object recipe, Evidence.Scope scope,
                                         String outputItem) { }
 
+        private record NavigationIdentity(String categoryId, String canonicalRecipeId,
+                                          IRecipeCategory<?> legacyCategory) { }
+
         private static <T> void showRecipe(IJeiRuntime runtime, RegisteredRecipe registered) {
             if (registered.recipe() == null) {
                 runtime.getRecipesGui().showTypes(List.of(registered.category().getRecipeType()));
@@ -825,6 +850,99 @@ public final class PackSageJeiPlugin implements IModPlugin {
             } catch (Throwable ignored) {
                 return "unknown:category-" + index;
             }
+        }
+
+        private NavigationIdentity navigationIdentity(String id, IRecipeManager manager,
+                                                       Toolbox.DocumentBudget budget) {
+            if (id.length() > budget.remainingBytes() / 2 || !budget.bytes(id.length() * 2)) return null;
+            if (id.startsWith("category-v1|")) {
+                var category = id.substring("category-v1|".length());
+                var parsed = ResourceLocation.tryParse(category);
+                return parsed != null && parsed.toString().equals(category)
+                        ? new NavigationIdentity(category, null, null) : null;
+            }
+            if (id.startsWith("recipe-v1|")) {
+                var parts = id.split("\\|", -1);
+                if (parts.length != 3) return null;
+                var category = ResourceLocation.tryParse(parts[1]);
+                var recipe = ResourceLocation.tryParse(parts[2]);
+                return category != null && recipe != null && category.toString().equals(parts[1])
+                        && recipe.toString().equals(parts[2])
+                        ? new NavigationIdentity(parts[1], parts[2], null) : null;
+            }
+            if (!id.matches("jei/[0-9]+/[0-9]+/.*")) return null;
+            var prefixStart = id.indexOf('/', id.indexOf('/', 4) + 1);
+            if (prefixStart < 0) return null;
+            NavigationIdentity identity = null;
+            try (var categories = manager.createRecipeCategoryLookup().get()) {
+                var iterator = categories.iterator();
+                for (int scanned = 0; iterator.hasNext(); scanned++) {
+                    if (scanned >= MAX_CATEGORIES || !budget.document()) return null;
+                    var category = iterator.next();
+                    var categoryId = categoryId(category, scanned + 1);
+                    var parsedCategory = ResourceLocation.tryParse(categoryId);
+                    if (parsedCategory == null || !parsedCategory.toString().equals(categoryId)) continue;
+                    var prefix = id.substring(0, prefixStart + 1) + categoryId + "/recipe-";
+                    if (!id.startsWith(prefix)) continue;
+                    var suffix = id.substring(prefix.length());
+                    var ordinalSeparator = suffix.lastIndexOf('-');
+                    if (ordinalSeparator <= 0) continue;
+                    try {
+                        if (Integer.parseInt(suffix.substring(ordinalSeparator + 1)) < 0) continue;
+                    } catch (NumberFormatException ignored) {
+                        continue;
+                    }
+                    var canonical = suffix.substring(0, ordinalSeparator);
+                    var canonicalId = ResourceLocation.tryParse(canonical);
+                    if (canonicalId == null || !canonicalId.toString().equals(canonical)) continue;
+                    if (identity != null) return null;
+                    identity = new NavigationIdentity(categoryId, canonical, category);
+                }
+            } catch (RuntimeException ignored) {
+                return null;
+            }
+            return identity;
+        }
+
+        private RegisteredRecipe resolveNavigation(NavigationIdentity identity, IRecipeManager manager,
+                                                    Evidence.Scope scope, Toolbox.DocumentBudget budget) {
+            var selectedCategory = identity.legacyCategory();
+            if (selectedCategory == null) {
+                try (var categories = manager.createRecipeCategoryLookup().get()) {
+                    var iterator = categories.iterator();
+                    for (int scanned = 0; iterator.hasNext(); scanned++) {
+                        if (scanned >= MAX_CATEGORIES || !budget.document()) return null;
+                        var category = iterator.next();
+                        if (!identity.categoryId().equals(categoryId(category, scanned + 1))) continue;
+                        if (selectedCategory != null) return null;
+                        selectedCategory = category;
+                    }
+                } catch (RuntimeException ignored) {
+                    return null;
+                }
+            }
+            if (selectedCategory == null) return null;
+            var type = selectedCategory.getRecipeType();
+            if (manager.getRecipeCategory(type) != selectedCategory) return null;
+            if (identity.canonicalRecipeId() == null) {
+                return new RegisteredRecipe(selectedCategory, null, scope, null);
+            }
+            Object selectedRecipe = null;
+            try (var recipes = manager.createRecipeLookup(type).get()) {
+                var iterator = recipes.iterator();
+                for (int scanned = 0; iterator.hasNext(); scanned++) {
+                    if (scanned >= MAX_SCANNED_RECIPES || !budget.value()) return null;
+                    var recipe = iterator.next();
+                    var canonical = canonical(selectedCategory, recipe);
+                    if (!canonical.failed() && identity.canonicalRecipeId().equals(canonical.value())) {
+                        if (selectedRecipe != null) return null;
+                        selectedRecipe = recipe;
+                    }
+                }
+            } catch (RuntimeException ignored) {
+                return null;
+            }
+            return selectedRecipe == null ? null : new RegisteredRecipe(selectedCategory, selectedRecipe, scope, null);
         }
 
         private static String title(IRecipeCategory<?> category, String fallback) {

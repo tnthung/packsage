@@ -334,6 +334,55 @@ public final class JeiProvider implements KnowledgeProvider {
     }
 
     @Override
+    public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target,
+                                                                         Evidence.Scope scope) {
+        if (target == null || scope == null || !ID.equals(target.providerId())
+                || !(target.targetId().startsWith("recipe-v1|") || target.targetId().startsWith("category-v1|")
+                || target.targetId().startsWith("jei/") && target.targetId().contains("/recipe-"))
+                && !sameEnvironment(target.scope(), scope)) return CompletableFuture.completedFuture(null);
+        return query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of(
+                "id", new Evidence.JsonString(target.targetId()))), 1, null, null), scope)
+                .thenApply(result -> {
+                    if (result == null || result.records().size() != 1 || result.outcome() == Evidence.Outcome.ERROR) {
+                        return null;
+                    }
+                    var record = result.records().getFirst();
+                    if (!record.source().scope().equals(scope) || !ID.equals(record.source().providerId())
+                            || record.targets().size() != 1) return null;
+                    var refreshed = record.targets().getFirst();
+                    if (!scope.equals(refreshed.scope()) || !ID.equals(refreshed.providerId())) return null;
+                    if (target.targetId().startsWith("recipe-v1|")) {
+                        return target.targetId().equals(refreshed.targetId()) ? refreshed : null;
+                    }
+                    if (target.targetId().startsWith("category-v1|")) {
+                        var category = record.payload().values().get("categoryId");
+                        if (!(category instanceof Evidence.JsonString categoryId)) return null;
+                        var categoryIdValue = categoryId.value();
+                        var parsedCategory = ResourceLocation.tryParse(categoryIdValue);
+                        var currentCategoryTarget = parsedCategory != null
+                                && parsedCategory.toString().equals(categoryIdValue)
+                                ? "category-v1|" + categoryIdValue : null;
+                        return target.targetId().equals(currentCategoryTarget)
+                                && refreshed.targetId().equals(currentCategoryTarget) ? refreshed : null;
+                    }
+                    if (!target.targetId().equals(target.sourceHandle()) || record.recipePayload() == null) return null;
+                    var category = record.payload().values().get("categoryId");
+                    if (record.recipePayload().canonicalRecipeId() == null) {
+                        return sameEnvironment(target.scope(), scope) && target.equals(refreshed) ? refreshed : null;
+                    }
+                    if (!(category instanceof Evidence.JsonString categoryId)) return null;
+                    var categoryIdValue = categoryId.value();
+                    var parsedCategory = ResourceLocation.tryParse(categoryIdValue);
+                    var parsedRecipe = ResourceLocation.tryParse(record.recipePayload().canonicalRecipeId());
+                    return parsedCategory != null && parsedRecipe != null
+                            && parsedCategory.toString().equals(categoryIdValue)
+                            && parsedRecipe.toString().equals(record.recipePayload().canonicalRecipeId())
+                            && refreshed.targetId().equals("recipe-v1|" + categoryIdValue + "|"
+                            + record.recipePayload().canonicalRecipeId()) ? refreshed : null;
+                });
+    }
+
+    @Override
     public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
         return query(query, scope, new Toolbox.DocumentBudget());
     }
@@ -486,8 +535,19 @@ public final class JeiProvider implements KnowledgeProvider {
                 Instant.now(), Evidence.Activity.ACTIVE, projection.coverage(), Evidence.Authority.VIEWER,
                 List.of("jei:" + projection.categoryId(), "runtime-generation:" + snapshot.generation(),
                         "snapshot-version:" + snapshot.snapshotVersion()));
+        var categoryId = ResourceLocation.tryParse(projection.categoryId());
+        var canonicalRecipeId = projection.canonicalRecipeId() == null ? null
+                : ResourceLocation.tryParse(projection.canonicalRecipeId());
+        var persistentTarget = projection.viewerHandle().endsWith("/category")
+                ? categoryId != null && categoryId.toString().equals(projection.categoryId())
+                ? "category-v1|" + projection.categoryId() : null
+                : categoryId != null && canonicalRecipeId != null
+                && categoryId.toString().equals(projection.categoryId())
+                && canonicalRecipeId.toString().equals(projection.canonicalRecipeId())
+                ? "recipe-v1|" + projection.categoryId() + "|" + projection.canonicalRecipeId() : null;
         var targets = projection.coverage() == Evidence.Coverage.ERROR ? List.<Evidence.NavigationTarget>of()
-                : List.of(new Evidence.NavigationTarget(snapshot.scope(), ID, projection.viewerHandle(), projection.viewerHandle()));
+                : List.of(new Evidence.NavigationTarget(snapshot.scope(), ID, projection.viewerHandle(),
+                persistentTarget == null ? projection.viewerHandle() : persistentTarget));
         return new Evidence.Record(source, Evidence.RecordKind.RECIPE, projection.title(), new Evidence.JsonObject(payloadValues),
                 targets, payload);
     }
@@ -556,8 +616,20 @@ public final class JeiProvider implements KnowledgeProvider {
                                                  Evidence.Scope scope) {
         if (!ID.equals(target.providerId()) || !sameScope(snapshot.scope(), scope)
                 || !sameScope(target.scope(), scope)) return null;
-        return snapshot.projections().stream().filter(value -> value.viewerHandle().equals(target.sourceHandle())
-                && value.viewerHandle().equals(target.targetId())).findFirst().orElse(null);
+        return snapshot.projections().stream().filter(value -> {
+            var category = ResourceLocation.tryParse(value.categoryId());
+            var canonicalRecipeId = value.canonicalRecipeId() == null ? null
+                    : ResourceLocation.tryParse(value.canonicalRecipeId());
+            var persistentTarget = value.viewerHandle().endsWith("/category")
+                    ? category != null && category.toString().equals(value.categoryId())
+                    ? "category-v1|" + value.categoryId() : null
+                    : category != null && canonicalRecipeId != null
+                    && category.toString().equals(value.categoryId())
+                    && canonicalRecipeId.toString().equals(value.canonicalRecipeId())
+                    ? "recipe-v1|" + value.categoryId() + "|" + value.canonicalRecipeId() : null;
+            return value.viewerHandle().equals(target.sourceHandle())
+                    && Objects.equals(target.targetId(), persistentTarget == null ? value.viewerHandle() : persistentTarget);
+        }).findFirst().orElse(null);
     }
 
     private static boolean matchesQuery(Projection projection, Evidence.Operation operation, String id, String text) {
@@ -625,4 +697,10 @@ public final class JeiProvider implements KnowledgeProvider {
                 && left.playerTeam().equals(right.playerTeam()) && left.providerRuntime().equals(right.providerRuntime())
                 && left.requestGeneration() == right.requestGeneration();
     }
+
+    private static boolean sameEnvironment(Evidence.Scope left, Evidence.Scope right) {
+        return left.worldSession().equals(right.worldSession()) && left.resourcesLocale().equals(right.resourcesLocale())
+                && left.playerTeam().equals(right.playerTeam()) && left.providerRuntime().equals(right.providerRuntime());
+    }
+
 }

@@ -779,6 +779,63 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void inlineReferencesDistinguishNavigationFromRecordedSourcesBeforeLayout() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+
+        var targetAndSource = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("Lantern recipe", TARGET, ModernUi.TEXT, false, false, SOURCE)), false)), 120);
+        var navigation = targetAndSource.runs().getFirst();
+        assertEquals("Open Lantern recipe", navigation.span().text());
+        assertSame(TARGET, navigation.span().target());
+        assertSame(SOURCE, navigation.span().source());
+        assertEquals(ModernUi.ACCENT, navigation.span().color());
+        assertTrue(navigation.span().bold());
+
+        var sourceOnly = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("Lantern recipe", null, ModernUi.TEXT, false, false, SOURCE)), false)), 120);
+        var source = sourceOnly.runs().getFirst();
+        assertEquals("Source: Lantern recipe", source.span().text());
+        assertNull(source.span().target());
+        assertSame(SOURCE, source.span().source());
+        assertEquals(ModernUi.TEXT, source.span().color());
+        assertFalse(source.span().bold());
+
+        var targetOnly = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("Lantern recipe", TARGET, ModernUi.TEXT, false, false)), false)), 120);
+        assertEquals("Open Lantern recipe", targetOnly.runs().getFirst().span().text());
+        assertSame(TARGET, targetOnly.runs().getFirst().span().target());
+
+        var alreadyOpen = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("Open Lantern recipe", TARGET, ModernUi.TEXT, false, false)), false)), 120);
+        assertEquals("Open Lantern recipe", alreadyOpen.runs().getFirst().span().text());
+    }
+
+    @Test
+    void inlineReferencePresentationUsesItsFinalLabelForWrappingAndClipping() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+
+        var wrapped = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("Recipe", TARGET, ModernUi.TEXT, false, false)), false)), 35);
+        var run = wrapped.runs().getFirst();
+        assertEquals("Open", run.span().text());
+        assertSame(TARGET, run.span().target());
+        assertTrue(run.width() <= 35);
+
+        var plainAndCode = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("plain", null, ModernUi.TEXT, false, false),
+                new ScreenText.InlineSpan("code", null, ScreenText.CODE_COLOR, false, true)), false)), 100);
+        assertEquals(List.of("plain", "code"), plainAndCode.runs().stream().map(value -> value.span().text()).toList());
+        assertEquals(List.of(ModernUi.TEXT, ScreenText.CODE_COLOR), plainAndCode.runs().stream()
+                .map(value -> value.span().color()).toList());
+    }
+
+    @Test
     void composerToolbarHasEqualCompactWidthsAndWrapsWithinTheMainArea() {
         var screen = new AssistantScreen(new FakeActions());
         screen.width = 1100;

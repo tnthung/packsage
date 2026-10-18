@@ -45,6 +45,26 @@ At the player's request, Minecraft saved the world, quit to title and exited nor
 
 The player subsequently authorized live testing. The installed and distribution hashes were rechecked and matched, but desktop input failed before profile launch: both coordinate clicks and the accessible CurseForge Play control returned `SendInput sent 0 of 1 events; GetLastError=87`. Reobserving the launcher did not restore input. Minecraft did not launch and no new Ponder, viewer or navigation-expiry acceptance was obtained; this is a desktop-control blocker rather than an adapter result.
 
+## Installed mechanical-press retry
+
+After the player opened Minecraft, desktop control worked again. Minecraft 1.21.1 / NeoForge 21.1.259 showed 26 loaded mods, and the existing `New World` fixture loaded. All thirteen adapter status rows were visible and green. The installed JAR still matched the correction hash above. GPT-6-Luna and Extra high effort were preserved.
+
+A fresh conversation repeated the original question exactly: `show me the usage of create presser in ponder`. Saved request `8f10a72a-4997-4e91-ac40-1852b8cd0973` began at 21:25:33.422 Taipei time and finished with eleven displayed activities and five actual tool calls:
+
+1. Block registry search `presser`: no matches.
+2. Item registry search `presser`: no matches.
+3. Block registry search `press`: nineteen matches, including `create:mechanical_press`.
+4. One Ponder document search with query `create:mechanical_press`, provider `ponder` and guide type: two records, both navigable, with a terminal cursor.
+5. One evidence read for both exact returned Ponder references: fresh scene titles and literal captions, with Ponder version `1.0.82+mc1.21.1` in provenance.
+
+The returned registrations were `ponder:57:7632b7e8` for scene `create:mechanical_press`, titled `Processing Items with the Mechanical Press`, and `ponder:58:4ef2278a` for scene `create:mechanical_press_compacting`, titled `Compacting items with the Mechanical Press`. Both target the component viewer `create:mechanical_press`. Evidence described placing or dropping items on a Depot, automatic processing on a belt, compacting items in a Basin, optional Blaze Burner heat and the filter slot. Coverage remained partial for the documented caption omissions; terminal discovery did not claim complete scene evidence.
+
+The last evidence observation was 21:26:06.086, 32.664 seconds after submission; completed-turn persistence was about 42.9 seconds after submission. The earlier failed trial used sixteen tools and 33 activities, with its last Ponder evidence about 65.5 seconds after submission. The new run reached both scenes with one Ponder search, followed by one fresh evidence read. These are single observed trials with unchanged model settings, not a response-time guarantee.
+
+The visible answer included two Ponder links. Clicking the first opened the native component viewer on `Processing Items with the Mechanical Press`; its displayed scene contained the press, Depot and belt. The live caption `When items are provided on a belt...` matched the freshly returned literal caption. Search and evidence reading left the chat open; only the link click opened the viewer.
+
+The saved conversation is `f9fa953a-eadf-4a8d-8e05-e226d3595f3b` in the Packsage profile. The known-item discovery, fresh caption read, answer link and component-viewer check passed. Broader title-only discovery, every scene/caption, other Ponder releases and cross-world link behavior remain outside this live trial. No source/settings changes or additional build were needed; the assistant was left open on the successful answer.
+
 ## Delivered limits
 
 Ponder documents remain `guide` records under the existing tools. Search reads current registrations and executes at most four storyboard callbacks per call; evidence executes one current callback per requested handle with fresh private localization. Individual callback duration cannot be guaranteed. No read calls global reload, component-wide compilation, scene-world setup or simulation.

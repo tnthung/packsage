@@ -39,7 +39,7 @@ The assistant tooltip was directly observed with all thirteen rows visible and g
 
 ## Acceptance boundary
 
-Filesystem preparation, startup/world entry and the corrected tooltip are verified. Full adapter search/fresh-read acceptance and native rendering of timed navigation feedback remain player checks. The earlier [guide/manual acceptance](2026-10-15-guide-manual-adapters.md) used ATM10 and its Artifacts replacement branch; it does not establish the base Artifacts path in this minimal profile.
+Filesystem preparation, startup/world entry and the corrected tooltip are verified. Full adapter search/fresh-read acceptance remains pending beyond the Ponder trial below. Native rendering and expiry of navigation feedback also passed below. The earlier [guide/manual acceptance](2026-10-15-guide-manual-adapters.md) used ATM10 and its Artifacts replacement branch; it does not establish the base Artifacts path in this minimal profile.
 
 The player's earlier 19:04 Ponder request took 33 activity steps and returned a Minecraft item reference without the requested Ponder viewer link. That retrieval/performance failure is a separate follow-up; a green adapter status does not establish its functional acceptance.
 
@@ -48,3 +48,11 @@ The player's earlier 19:04 Ponder request took 33 activity steps and returned a 
 Independent review found that new navigation feedback could render below the viewport in an idle overflowing transcript. Its regression first failed: a player following the bottom remained at the old offset after the feedback increased content height. Feedback now follows the new bottom only when the player was already following; scrolling up to read history preserves the offset. The reviewer confirmed both cases close the finding.
 
 The combined follow-up build passed 566 tests: 562 passed, four existing skips, zero failures/errors. This includes the viewport regression and the [direct Ponder item lookup correction](2026-10-18-ponder-support.md). At the player's request, Minecraft was closed normally and the corrected JAR was installed with matching hashes and unchanged settings. The game remains closed; no live retry was performed.
+
+## Authorized live follow-up
+
+After the player reopened Minecraft, the fixture loaded and all thirteen status rows were again visible and green on the corrected artifact. The original mechanical-press question passed discovery, fresh caption reads and a clicked Ponder viewer link; actual calls, timing and limits are recorded in the [Ponder validation](2026-10-18-ponder-support.md).
+
+For the persistent-feedback regression, the older crafting conversation's `JEI torch recipe` link returned `Navigation target is no longer available`. The red feedback was visible at the bottom of the overflowing transcript without another scroll. Leaving the chat open without input cleared it automatically. A repeated timed observation saw the same message at 21:29:07.109 Taipei time and confirmed it absent 6.082 seconds later, after the five-second deadline. The ordinary answer remained visible. This establishes native display/expiry and the bottom-following correction; the stale recipe itself was not counted as successful JEI retrieval.
+
+The game was left paused with the successful Ponder conversation selected. Other adapters' functional search/fresh-read checks in this minimal profile remain pending; a green row is availability evidence only.

@@ -1158,6 +1158,32 @@ class RequestControllerTest {
     }
 
     @Test
+    void toolArgumentsStayBoundToTheirActivityFromRunningThroughCompletion() {
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.View> published = new ArrayList<>();
+        CompletableFuture<ChatContracts.ToolResponse> response = new CompletableFuture<>();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> response, published::add);
+        String arguments = "{\"query\":null,\"filters\":[\"one\",{\"nested\":true}],\"options\":{\"limit\":3}}";
+        controller.begin(submission("activity-arguments", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))
+                .toCompletableFuture().join();
+
+        backend.emit("activity-arguments", toolEvent("call-1", "lookup", arguments));
+        assertEquals(arguments, controller.view().activities().stream()
+                .filter(step -> step.id().equals("tool:call-1")).findFirst().orElseThrow().serializedArguments());
+
+        response.complete(new ChatContracts.ToolResponse(new ModelBackend.ToolResult("call-1", "{\"ok\":true}", false),
+                new ChatContracts.EvidenceSelection(List.of(), List.of())));
+        ChatContracts.ActivityStep completed = controller.view().activities().stream()
+                .filter(step -> step.id().equals("tool:call-1")).findFirst().orElseThrow();
+        assertEquals(ChatContracts.ActivityStatus.COMPLETED, completed.status());
+        assertEquals(arguments, completed.serializedArguments());
+    }
+
+    @Test
     void activityLabelOmitsUnlistedArgumentsAndTruncatesLongOnes() {
         FakeBackend backend = new FakeBackend();
         List<ChatContracts.View> published = new ArrayList<>();

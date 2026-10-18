@@ -15,7 +15,11 @@ public final class ChatContracts {
     public enum OutcomeStatus { ACTIVE, COMPLETED, CANCELLED, FAILED }
     public enum ActivityStatus { RUNNING, COMPLETED, FAILED, CANCELLED }
 
-    public record ActivityStep(String id, String title, String detail, ActivityStatus status) {
+    public record ActivityStep(String id, String title, String detail, ActivityStatus status, String serializedArguments) {
+        public ActivityStep(String id, String title, String detail, ActivityStatus status) {
+            this(id, title, detail, status, null);
+        }
+
         public ActivityStep {
             Objects.requireNonNull(id);
             Objects.requireNonNull(title);

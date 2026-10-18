@@ -50,7 +50,8 @@ class ConversationStoreTest {
                         List.of(new ModelBackend.OutputText("Here.", List.of())))), context, List.of(source),
                 List.of(target), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, "ok"), 9,
                 Instant.parse("2026-10-13T01:02:03Z"), List.of(new ChatContracts.ActivityStep("tool:call-1",
-                "Reading evidence", "Completed", ChatContracts.ActivityStatus.COMPLETED)),
+                "Reading evidence", "Completed", ChatContracts.ActivityStatus.COMPLETED,
+                "{\"filters\":[null,{\"item\":\"packsage:fixture_lantern\"}] }")),
                 List.of(new ChatContracts.SteeringMessage("Actually, here.", 5)));
 
         store.appendMedia(world, conversation.id(), screenshot, new byte[]{1, 2, 3}).toCompletableFuture().join();
@@ -61,6 +62,8 @@ class ConversationStoreTest {
         assertEquals(List.of(target), reopened.turns().getFirst().navigationTargets());
         assertEquals(turn.sentAt(), reopened.turns().getFirst().sentAt());
         assertEquals(turn.activities(), reopened.turns().getFirst().activities());
+        assertEquals("{\"filters\":[null,{\"item\":\"packsage:fixture_lantern\"}] }",
+                reopened.turns().getFirst().activities().getFirst().serializedArguments());
         assertEquals(turn.steeringMessages(), reopened.turns().getFirst().steeringMessages());
         assertArrayEquals(new byte[]{1, 2, 3}, store.readMedia(world, conversation.id(), screenshot)
                 .toCompletableFuture().join());

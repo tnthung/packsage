@@ -461,6 +461,30 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void legacyExpandedToolActivityResolvesArgumentsByExactCallId() {
+        AssistantScreen screen = new AssistantScreen(new FakeActions());
+        ChatContracts.ActivityStep legacy = new ChatContracts.ActivityStep("tool:second", "Reading progress", "",
+                ChatContracts.ActivityStatus.COMPLETED);
+        List<ModelBackend.InputItem> replay = List.of(
+                new ModelBackend.ToolCall("first", "packsage", "read_progress", "{\"selected\":\"wrong call\"}"),
+                new ModelBackend.ToolCall("second", "packsage", "read_progress",
+                        "{\"selected\":null,\"path\":[{\"child\":true}]}"));
+
+        String body = screen.activityBody(legacy, replay);
+
+        assertTrue(body.contains("selected"));
+        assertTrue(body.contains("null"));
+        assertTrue(body.contains("child"));
+        assertFalse(body.contains("wrong call"));
+
+        String bounded = screen.activityBody(new ChatContracts.ActivityStep("tool:large", "Reading progress", "",
+                        ChatContracts.ActivityStatus.RUNNING), List.of(new ModelBackend.ToolCall("large", "packsage",
+                        "read_progress", "{\"payload\":\"" + "x".repeat(6000) + "\"}")));
+        assertFalse(bounded.isEmpty());
+        assertTrue(bounded.length() <= 2048, "expanded tool arguments should have an explicit display bound");
+    }
+
+    @Test
     void navigationRequiresTheRegisteredTargetTuple() {
         FakeActions actions = new FakeActions();
         AssistantScreen screen = new AssistantScreen(actions);
@@ -785,18 +809,18 @@ class AssistantScreenStateTest {
         screen.height = 480;
         ScreenTestHost.initialize(screen);
 
-        var targetAndSource = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
-                new ScreenText.InlineSpan("Lantern recipe", TARGET, ModernUi.TEXT, false, false, SOURCE)), false)), 150);
-        var navigation = targetAndSource.runs().getFirst();
+        var navigation = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("Lantern recipe", TARGET, ModernUi.TEXT, false, false, SOURCE)), false)), 150)
+                .runs().getFirst();
         assertEquals("Open Lantern recipe", navigation.span().text());
         assertSame(TARGET, navigation.span().target());
         assertSame(SOURCE, navigation.span().source());
         assertEquals(ModernUi.ACCENT, navigation.span().color());
         assertTrue(navigation.span().bold());
 
-        var sourceOnly = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
-                new ScreenText.InlineSpan("Lantern recipe", null, ModernUi.TEXT, false, false, SOURCE)), false)), 150);
-        var source = sourceOnly.runs().getFirst();
+        var source = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("Lantern recipe", null, ModernUi.TEXT, false, false, SOURCE)), false)), 150)
+                .runs().getFirst();
         assertEquals("Source: Lantern recipe", source.span().text());
         assertNull(source.span().target());
         assertSame(SOURCE, source.span().source());
@@ -820,9 +844,8 @@ class AssistantScreenStateTest {
         screen.height = 480;
         ScreenTestHost.initialize(screen);
 
-        var wrapped = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
-                new ScreenText.InlineSpan("Recipe", TARGET, ModernUi.TEXT, false, false)), false)), 35);
-        var run = wrapped.runs().getFirst();
+        var run = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("Recipe", TARGET, ModernUi.TEXT, false, false)), false)), 35).runs().getFirst();
         assertEquals("Open", run.span().text());
         assertSame(TARGET, run.span().target());
         assertTrue(run.width() <= 35);

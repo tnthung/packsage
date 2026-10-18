@@ -350,7 +350,7 @@ public final class AssistantScreen extends Screen {
             y = drawUserMessage(graphics, turn.question(), y, included);
             y = drawMessageActions(graphics, turn, true, tokens.user(), y, mouseX, mouseY);
             y += 7;
-            y = drawActivityRows(graphics, turn.activities(), "request:" + turn.requestId().value(), switch (turn.outcome().status()) {
+            y = drawActivityRows(graphics, turn.activities(), turn.replayItems(), "request:" + turn.requestId().value(), switch (turn.outcome().status()) {
                 case ACTIVE -> ChatContracts.ActivityStatus.RUNNING;
                 case COMPLETED -> ChatContracts.ActivityStatus.COMPLETED;
                 case CANCELLED -> ChatContracts.ActivityStatus.CANCELLED;
@@ -379,7 +379,7 @@ public final class AssistantScreen extends Screen {
         if (view.active() || awaitingRequestView) {
             drawAssistantAvatar(graphics, y);
             int responseTop = y;
-            y = drawActivityRows(graphics, view.activities(), "request:" + (view.activeRequestId() == null
+            y = drawActivityRows(graphics, view.activities(), List.of(), "request:" + (view.activeRequestId() == null
                     ? view.activeQuestion() + ":" + view.activeSentAt() : view.activeRequestId()),
                     ChatContracts.ActivityStatus.RUNNING, y);
             y = drawAnswerSequence(graphics, view.streamingAnswer(), view.activeSteeringMessages(), liveTurn, y, false);
@@ -402,7 +402,8 @@ public final class AssistantScreen extends Screen {
         return Math.max(y, contentBottom - scrollOffset);
     }
 
-    private int drawActivityRows(GuiGraphics graphics, List<ChatContracts.ActivityStep> steps, String prefix,
+    private int drawActivityRows(GuiGraphics graphics, List<ChatContracts.ActivityStep> steps,
+                                 List<ModelBackend.InputItem> replayItems, String prefix,
                                  ChatContracts.ActivityStatus status, int y) {
         if (steps.isEmpty()) return y;
         MessageLayout group = activityGroupHeader(prefix, steps.size(), status, y);
@@ -425,14 +426,15 @@ public final class AssistantScreen extends Screen {
                         left + run.x(), y + run.y(), span.color(), false);
             }
             y += header.height();
-            String detail = step.detail().isBlank() ? switch (step.status()) {
+            String detail = activityBody(step, replayItems);
+            if (detail.isBlank()) detail = switch (step.status()) {
                 case RUNNING -> step.id().startsWith("tool:") ? "Running tool…"
                         : step.id().startsWith("search:") ? "Searching the web…" : "Waiting for a summary…";
                 case COMPLETED -> step.id().startsWith("reasoning:") ? "No summary was provided."
                         : step.id().startsWith("search:") ? "Search completed." : "Completed.";
                 case FAILED -> "Step failed.";
                 case CANCELLED -> "Step cancelled.";
-            } : step.detail();
+            };
             if (activityExpanded(key) && !detail.isBlank()) {
                 for (var line : font.split(Component.literal(detail).withStyle(style ->
                         style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), Math.max(1, readableWidth - 38))) {
@@ -442,6 +444,10 @@ public final class AssistantScreen extends Screen {
             }
         }
         return y;
+    }
+
+    String activityBody(ChatContracts.ActivityStep step, List<ModelBackend.InputItem> replayItems) {
+        return step.detail();
     }
 
     void toggleActivity(String key) {
@@ -672,13 +678,13 @@ public final class AssistantScreen extends Screen {
                     if (navigation && !labelText.regionMatches(true, 0, "Open ", 0, 5)) labelText = "Open " + labelText;
                     else if (!navigation && !labelText.regionMatches(true, 0, "Source: ", 0, 8)) labelText = "Source: " + labelText;
                     boolean bold = navigation;
-                    int color = navigation ? ModernUi.ACCENT : ModernUi.TEXT;
                     Component label = Component.literal(labelText).withStyle(style -> style
                             .withFont(bold ? ModernUi.BOLD_FONT : ModernUi.FONT));
                     int chipWidth = Math.min(Math.max(1, width - indent), font.width(label) + 12);
                     if (x > indent && x + chipWidth > width) { x = indent; y += ModernUi.MESSAGE_LINE_HEIGHT; }
                     String clipped = font.substrByWidth(label, Math.max(1, chipWidth - 12)).getString();
-                    runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, span.target(), color, bold, false, span.source()),
+                    runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, span.target(),
+                            navigation ? ModernUi.ACCENT : ModernUi.TEXT, bold, false, span.source()),
                             x, y, chipWidth, line.quote()));
                     x += chipWidth + 4;
                     continue;

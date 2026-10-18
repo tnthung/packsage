@@ -1102,3 +1102,61 @@ Saved conversation: [ec6438b7-0255-4efe-ac09-84b112e6ecb7-8f64a0a2a340252a.jsonl
 ### R3 result
 
 The first two turns correctly handle the coal reserve and calculate five lanterns. The refusal to craft appears only after a long lookup sequence. The charcoal quantities and recipes in turn 3 are correct, but its mismatched inventory identifier produces unbound citations and an unavailable nested-storage reference; preserve the box contents as unknown rather than interpreting that error as an unsupported-container result. The parent’s post-answer viewer check confirmed the lantern layout. R3 is controlled regression evidence on the final candidate, not independent-arc coverage. No game actions occurred.
+
+## Final-candidate controlled repeat R4: Create press speed and belt feed
+
+This is a controlled repeat on final source `6a0edde`, not another independent arc. Installed JAR SHA-256: `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`.
+
+Saved conversation: [0e2d21d4-eaaa-47d1-bd4e-62cf7315cf17-ec1c84b2c9f9c0fa.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/0e2d21d4-eaaa-47d1-bd4e-62cf7315cf17-ec1c84b2c9f9c0fa.jsonl)
+
+### Turn 1: speed up the Create press
+
+- Request ID: `c2254997-fc6d-46bc-a7ef-9609eafb716d`
+- Tool calls: 17
+- Elapsed time: 80.574 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=80574`).
+- Player:
+
+  ```text
+  the create presser thing on a belt. it feels kinda slow—could you show me how to speed it up?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  Yep—the straightforward Create fix is to **gear the press up**:
+
+  1. Find the shaft driving the press.
+  2. Put a **large cogwheel on the slower input**, then mesh it diagonally with a **small cogwheel on the press’s drive**.
+  3. That large-to-small gear shift **doubles the conveyed speed**. If it’s still too slow, you can add another speed-up stage, but keep an eye on the network for overload. [ponder:6:4fa91726]
+
+  If you have a **Rotation Speed Controller**, that’s a more adjustable option: it relays rotation through a large cogwheel above it, and you set the speed using the panel on its side. [ponder:51:3e3b346d] Your pack’s Create speed limit is **256 RPM**, so going beyond that won’t help. [config:create:SERVER:create-server.toml#kinetics.maxRotationSpeed]
+
+  For the belt setup itself, the press should hold and process items as they pass beneath it. [ponder:57:1c7ae255]
+  ```
+
+**Trace and UI evidence:** The Ponder captions support the diagonal large-to-small gear arrangement and 2x speed ratio, and the controller guide supports the large cogwheel above the controller with speed set from its side panel. The loaded and saved Create limit are both 256 RPM and synchronized to the server. The press guide says items passing beneath the press are held and processed. No actual drive or press setup was observed, so gearing up is a practical suggestion rather than a verified diagnosis of what makes this player’s press slow. The overload warning is generic advice, not a measured result for this setup. The parent did not click a chip for this answer. Scores (1–5): factual grounding 4; usefulness 4; citation coverage 4.
+
+### Turn 2: increase belt speed
+
+- Request ID: `eaca4e7b-06bd-4914-b30a-7976f968c30f`
+- Tool calls: 5
+- Elapsed time: 58.962 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=58962`).
+- Player:
+
+  ```text
+  If I speed up the belt, will the press still catch every item, or do I need to adjust something else too?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  If the belt runs under the press, **you shouldn’t need to space or time the items**: the installed guide says the press holds items on a belt and processes them automatically. [ponder:57:1c7ae255]
+
+  But a faster belt feeds items in sooner; it won’t by itself make the press finish each cycle faster. If items start backing up, the press is the bottleneck—ease off the belt speed or speed up the press’s drive. The guide doesn’t specify a maximum belt speed, so try the change and watch for backups.
+  ```
+
+**Trace and UI evidence:** The guide supports automatic processing of items held under the press, so the answer’s spacing/timing statement is grounded in that documented behavior. The backlog explanation and advice to adjust belt or drive speed are practical deductions; the guide provides no maximum belt speed, and neither throughput nor the player’s physical setup was tested. After the answer, the parent clicked the current Ponder link and opened the native “Processing Items with the Mechanical Press” animated viewer. That UI navigation happened after the model response. No machines were built, items fed, or game state changed; the answer does not establish that the belt powers the press. Scores (1–5): factual grounding 4; usefulness 4; citation coverage 5.
+
+### R4 result
+
+The assistant used the installed Ponder and config evidence to give a concrete setup explanation. Its 2x gearing and 256 RPM claims are source-backed. The press-speed diagnosis, overload warning, and belt-backlog guidance remain recommendations or deductions rather than observations of a built machine; the answer does not consistently label those assumptions. The post-answer viewer opened successfully, but no physical speed or throughput test occurred. R4 is controlled regression evidence on the final candidate, not independent-arc coverage.

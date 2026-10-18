@@ -18,12 +18,14 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +33,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 @JeiPlugin
 public final class PackSageJeiPlugin implements IModPlugin {
@@ -39,8 +42,20 @@ public final class PackSageJeiPlugin implements IModPlugin {
     private static final AtomicLong CLIENT_TICKS = new AtomicLong();
     private static boolean tickListenerRegistered;
     public static volatile KnowledgeProvider activeProvider;
+    private final Supplier<Collection<RecipeHolder<?>>> nativeRecipes;
     private volatile JeiProvider provider;
     private volatile RuntimeState runtimeState;
+
+    public PackSageJeiPlugin() {
+        this(() -> {
+            var client = Minecraft.getInstance();
+            return client.level == null ? List.of() : client.level.getRecipeManager().getRecipes();
+        });
+    }
+
+    PackSageJeiPlugin(Supplier<Collection<RecipeHolder<?>>> nativeRecipes) {
+        this.nativeRecipes = nativeRecipes;
+    }
 
     @Override
     public ResourceLocation getPluginUid() {
@@ -53,7 +68,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
         if (oldState != null) oldState.unavailable();
         var oldProvider = provider;
         if (oldProvider != null) oldProvider.unavailable();
-        var state = new RuntimeState(runtime, GENERATION.incrementAndGet());
+        var state = new RuntimeState(runtime, GENERATION.incrementAndGet(), nativeRecipes);
         if (!tickListenerRegistered) {
             tickListenerRegistered = true;
             NeoForge.EVENT_BUS.addListener((ClientTickEvent.Pre ignored) -> clientTicked());
@@ -103,13 +118,16 @@ public final class PackSageJeiPlugin implements IModPlugin {
 
         private final IJeiRuntime runtime;
         private final long generation;
+        private final Supplier<Collection<RecipeHolder<?>>> nativeRecipes;
         private final AtomicLong snapshotVersions = new AtomicLong();
         private final LinkedHashMap<String, RegisteredRecipe> navigationRegistrations = new LinkedHashMap<>();
         private volatile boolean active = true;
 
-        private RuntimeState(IJeiRuntime runtime, long generation) {
+        private RuntimeState(IJeiRuntime runtime, long generation,
+                             Supplier<Collection<RecipeHolder<?>>> nativeRecipes) {
             this.runtime = runtime;
             this.generation = generation;
+            this.nativeRecipes = nativeRecipes;
         }
 
         private Executor clientExecutor() {

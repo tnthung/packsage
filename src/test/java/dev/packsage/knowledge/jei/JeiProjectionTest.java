@@ -20,14 +20,18 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
 import java.lang.reflect.ParameterizedType;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -723,6 +727,19 @@ class JeiProjectionTest {
             var recipe = new Object();
             var replacementRecipe = new Object();
             var recipes = new AtomicReference<List<Object>>(List.of(recipe));
+            var nativeHolders = new AtomicReference<List<RecipeHolder<?>>>(List.of());
+            var nativeHolderReads = new AtomicInteger();
+            Supplier<Collection<RecipeHolder<?>>> nativeHolderSupplier = () -> {
+                nativeHolderReads.incrementAndGet();
+                return nativeHolders.get();
+            };
+            Supplier<Object> nativeRecipeFactory = () -> Proxy.newProxyInstance(Recipe.class.getClassLoader(),
+                    new Class<?>[] { Recipe.class }, (proxy, method, arguments) -> switch (method.getName()) {
+                        case "equals" -> Recipe.class.isInstance(arguments[0]);
+                        case "hashCode" -> 1;
+                        case "toString" -> "Native recipe fixture";
+                        default -> null;
+                    });
             var currentCategory = new AtomicReference<IRecipeCategory<?>>(category);
             var managerCategory = new AtomicReference<IRecipeCategory<?>>(category);
             var item = BuiltInRegistries.ITEM.get(ResourceLocation.fromNamespaceAndPath("minecraft", "stone"));
@@ -848,7 +865,7 @@ class JeiProjectionTest {
                         case "getRecipesGui" -> recipesGui;
                         default -> null;
                     });
-            var plugin = new PackSageJeiPlugin();
+            var plugin = new PackSageJeiPlugin(nativeHolderSupplier);
             plugin.onRuntimeAvailable(runtime);
 
             var result = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
@@ -1043,7 +1060,7 @@ class JeiProjectionTest {
 
             var recreatedRecipe = new Object();
             recipes.set(List.of(recreatedRecipe));
-            var recreatedPlugin = new PackSageJeiPlugin();
+            var recreatedPlugin = new PackSageJeiPlugin(nativeHolderSupplier);
             recreatedPlugin.onRuntimeAvailable(runtime);
             var recreatedScope = new Evidence.Scope("world-reconnected", "fr_fr", "team", "jei-2", 3);
             var refreshedTarget = recreatedPlugin.provider().refreshNavigation(savedTarget, recreatedScope)
@@ -1157,13 +1174,99 @@ class JeiProjectionTest {
             assertEquals(Evidence.DecodingStatus.OPAQUE, opaqueRecord.recipePayload().decodingStatus());
             assertEquals("recipe-v1|addon:machine|fixture:press", opaqueRecord.targets().getFirst().targetId(),
                     "custom category discovery must preserve canonical identity even when slot semantics are opaque");
-            var addonRestart = new PackSageJeiPlugin();
+            var addonRestart = new PackSageJeiPlugin(nativeHolderSupplier);
             addonRestart.onRuntimeAvailable(runtime);
             var addonTarget = addonRestart.provider().refreshNavigation(opaqueRecord.targets().getFirst(), recreatedScope)
                     .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS);
             assertNotNull(addonTarget);
             assertEquals(Evidence.NavigationStatus.OPENED, addonRestart.provider().open(addonTarget, recreatedScope).status());
             assertSame(replacementRecipe, shownRecipes.get().getFirst());
+
+            var nativeId = ResourceLocation.parse("actuallyadditions:laser/crystalize_diamatine_crystal");
+            canonicalIdsEnabled.set(false);
+            var nativeRecipe = nativeRecipeFactory.get();
+            recipes.set(List.of(nativeRecipe));
+            nativeHolders.set(List.of(new RecipeHolder<>(nativeId, (Recipe<?>) nativeRecipe)));
+            PackSageJeiPlugin.clientTicked();
+            var nativeRecord = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1,
+                    null, null), nextScope).toCompletableFuture().get().records().getFirst();
+            var nativeTarget = nativeRecord.targets().getFirst();
+            assertEquals("recipe-v1|addon:machine|" + nativeId, nativeTarget.targetId(),
+                    "a null JEI name should recover the native holder ID by exact recipe object identity");
+
+            var reloadedNativeRecipe = nativeRecipeFactory.get();
+            recipes.set(List.of(reloadedNativeRecipe));
+            nativeHolders.set(List.of(new RecipeHolder<>(nativeId, (Recipe<?>) reloadedNativeRecipe)));
+            var nativeRestart = new PackSageJeiPlugin(nativeHolderSupplier);
+            nativeRestart.onRuntimeAvailable(runtime);
+            PackSageJeiPlugin.clientTicked();
+            var nativeRefresh = nativeRestart.provider().refreshNavigation(nativeTarget, recreatedScope)
+                    .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertNotNull(nativeRefresh, "a recreated native recipe with the same holder ID should resolve");
+            assertEquals(Evidence.NavigationStatus.OPENED, nativeRestart.provider().open(nativeRefresh, recreatedScope).status());
+            assertSame(reloadedNativeRecipe, shownRecipes.get().getFirst());
+
+            var fillerNativeRecipe = nativeRecipeFactory.get();
+            var fillerHolder = new RecipeHolder<>(ResourceLocation.parse("fixture:filler"),
+                    (Recipe<?>) fillerNativeRecipe);
+            var boundedNativeHolders = new java.util.ArrayList<RecipeHolder<?>>(java.util.Collections.nCopies(
+                    65_535, fillerHolder));
+            boundedNativeHolders.add(new RecipeHolder<>(nativeId, (Recipe<?>) reloadedNativeRecipe));
+            nativeHolders.set(List.copyOf(boundedNativeHolders));
+            PackSageJeiPlugin.clientTicked();
+            assertNotNull(nativeRestart.provider().refreshNavigation(nativeTarget, recreatedScope)
+                    .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS),
+                    "a complete native holder scan at the cap should retain its ID");
+            boundedNativeHolders.add(fillerHolder);
+            nativeHolders.set(List.copyOf(boundedNativeHolders));
+            PackSageJeiPlugin.clientTicked();
+            assertNull(nativeRestart.provider().refreshNavigation(nativeTarget, recreatedScope)
+                    .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS),
+                    "an incomplete native holder scan must discard all fallback IDs");
+
+            var sameNativeObject = nativeRecipeFactory.get();
+            recipes.set(List.of(sameNativeObject));
+            nativeHolders.set(List.of(new RecipeHolder<>(nativeId, (Recipe<?>) sameNativeObject),
+                    new RecipeHolder<>(ResourceLocation.parse("fixture:alias"), (Recipe<?>) sameNativeObject)));
+            PackSageJeiPlugin.clientTicked();
+            var ambiguousNative = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, null, null), nextScope)
+                    .toCompletableFuture().get().records().getFirst();
+            assertEquals(ambiguousNative.source().sourceHandle(), ambiguousNative.targets().getFirst().targetId(),
+                    "multiple holder IDs for one recipe object must remain temporary");
+
+            var registeredNativeObject = nativeRecipeFactory.get();
+            recipes.set(List.of(nativeRecipeFactory.get()));
+            nativeHolders.set(List.of(new RecipeHolder<>(nativeId, (Recipe<?>) registeredNativeObject)));
+            PackSageJeiPlugin.clientTicked();
+            var equalContentNative = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, null, null), nextScope)
+                    .toCompletableFuture().get().records().getFirst();
+            assertEquals(equalContentNative.source().sourceHandle(), equalContentNative.targets().getFirst().targetId(),
+                    "an equal-content object without holder identity must not borrow another recipe ID");
+
+            recipes.set(List.of(nativeRecipeFactory.get()));
+            nativeHolders.set(List.of());
+            PackSageJeiPlugin.clientTicked();
+            var missingNative = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, null, null), nextScope)
+                    .toCompletableFuture().get().records().getFirst();
+            assertEquals(missingNative.source().sourceHandle(), missingNative.targets().getFirst().targetId(),
+                    "native recipes absent from the current holder collection must remain temporary");
+
+            canonicalIdsEnabled.set(true);
+            recipes.set(List.of(nativeRecipeFactory.get()));
+            nativeHolders.set(List.of(new RecipeHolder<>(nativeId, (Recipe<?>) recipes.get().getFirst())));
+            var nativeHolderReadsBeforeExplicitId = nativeHolderReads.get();
+            PackSageJeiPlugin.clientTicked();
+            var explicitJeiId = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("fixture:press"))), 1,
+                    null, null), nextScope).toCompletableFuture().get().records().getFirst();
+            assertEquals("recipe-v1|addon:machine|fixture:press", explicitJeiId.targets().getFirst().targetId(),
+                    "an explicit JEI registry ID must take precedence over the native holder ID");
+            assertEquals(nativeHolderReadsBeforeExplicitId, nativeHolderReads.get(),
+                    "explicit JEI names must not initialize the native holder index");
         } finally {
             minecraftInstance.set(null, previousMinecraft);
         }

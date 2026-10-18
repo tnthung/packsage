@@ -241,7 +241,69 @@ Candidate source `4cb7f7b` incorporates the earlier candidate `a2f540c` plus sta
 
 The full Java 21 `gradlew test build` run through `4cb7f7b` passed: 577 tests, 573 passed, 4 skipped, 0 failures or errors. Candidate JAR SHA-256 is `05255AA6CF6C05B76DC5A0B67715521B4186264DFBACAAA3FDEF325BFB3F5C2C`; the built `lib` JAR and installed `mods/packsage.jar` have matching hashes. The game was saved and exited normally, process absence was checked before copying, settings SHA remained unchanged, and no developer prompt override was set. The installed candidate uses the same fixture, model, screenshot, and search settings as baseline.
 
-The installed candidate has been submitted to controlled live repeat R1, which replays the original torch opening in a fresh chat and will later replay the exact challenge. This is a controlled repeat, not a new independent player arc. Its acceptance result is pending. The `dist` artifact still carries the baseline database hash; do not treat it as updated candidate evidence.
+Controlled live repeat R1 replayed the original torch opening and exact challenge in a fresh chat. It passed the core pack-specific quantity regression, while citation coverage and process accounting remain limitations. This is a controlled repeat, not a new independent player arc. The `dist` artifact still carries the baseline database hash; do not treat it as updated candidate evidence.
+
+### Controlled repeat R1: torch quantity challenge
+
+Player agent: `luna_high_player_lighting`. This is a fresh-chat candidate repeat of Arc 1, not an independent arc; the opening and follow-up challenge match the original questions.
+
+Saved conversation: [0dd5ed46-8cb6-466c-b1ff-e4dcf4e4e20c-c1ede8b49b988f18.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/0dd5ed46-8cb6-466c-b1ff-e4dcf4e4e20c-c1ede8b49b988f18.jsonl)
+
+#### Turn 1: original torch question
+
+- Request ID: `529773a8-6899-45c2-b70b-770379ef1f5f`
+- Tool calls: 7
+- Elapsed time: 84.910 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=84910`).
+- Player:
+
+  ```text
+  How do I make torches, and how many can I make from what I’m carrying? I haven’t crafted or moved anything yet btw.
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  Got it—you haven’t changed anything. You’re carrying **64 coal, 64 oak logs, and 64 stripped oak wood**; the shulker box has 7 diamonds, but no extra torch ingredients. [native:inventory:597af479-f784-4abd-ae2c-07356e498235:hotbar:0] [native:inventory:597af479-f784-4abd-ae2c-07356e498235:hotbar:2] [native:inventory:597af479-f784-4abd-ae2c-07356e498235:main:0]
+
+  To make torches:
+
+  1. Turn an oak log **or** stripped oak wood into 4 oak planks. [native:minecraft:oak_planks]
+  2. Use 2 planks to make 4 sticks. [native:minecraft:stick]
+  3. Craft 1 coal and 1 stick into a torch. The loaded recipe lists **1 torch per craft**, so your 64 coal are the limit: **you can make up to 64 torches**. [native:minecraft:torch]
+
+  You’ll have plenty of wood: just 8 of your 128 wood blocks can make enough planks for the 64 sticks. [native:minecraft:oak_planks] [native:minecraft:stick] Open the [torch recipe viewer](jei:jei/1/1/minecraft:crafting/recipe-minecraft:torch-1) for its exact grid placement.
+  ```
+
+**Observed UI evidence:** The parent observed readable Inventory, Oak Planks, Stick, and Torch chips, plus a torch recipe viewer link. The exact grid coordinates are not encoded in the returned recipe ingredient slots, and the viewer link was not clicked during this repeat. No craft action is established.
+
+**Trace audit:** Native and JEI results both report one torch per coal-and-stick craft; the inventory shows 64 coal, and returned plank/stick yields support that 8 wood blocks provide enough sticks. The answer gives the correct maximum of 64. Its inventory citations omit the `hotbar:1` slot containing the 64 stripped oak wood. The cited `main:0` is the shulker item slot, whose payload does not include nested contents; the claim that it contains 7 diamonds and no extra torch ingredients requires the complete storage result at `native:storage:98dd08c5-ebb5-46ef-83ed-52ac06aa1889:0`. One native `read_evidence` call repeated recipe evidence already returned. Scores (1–5): factual grounding 4; arithmetic 5; usefulness 4; citation coverage 2.
+
+#### Turn 2: exact quantity challenge
+
+- Request ID: `f41d362e-b274-473c-ab52-bee8aa2f3d86`
+- Tool calls: 4
+- Elapsed time: 34.880 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=34880`).
+- Player:
+
+  ```text
+  Wait, doesn’t one coal + one stick make 4 torches? Wouldn’t that be 256 then?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  You’re right: **in vanilla Minecraft, 1 coal + 1 stick makes 4 torches**. I should’ve checked the loaded recipe before giving you a number.
+
+  I checked your pack’s current recipe data, though, and it shows **1 torch per coal-and-stick craft**—so with your 64 coal, the pack data supports **64 torches, not 256**. [native:minecraft:torch] [jei:jei/1/2/minecraft:crafting/recipe-minecraft:torch-1]
+
+  If the crafting output in your game actually shows 4, trust that in-game result; then 64 coal would make 256 torches.
+  ```
+
+**Trace audit:** The fresh native and JEI results again show one torch per coal-and-stick craft, and the answer correctly distinguishes the usual vanilla quantity of four from this pack’s loaded quantity of one. Its conditional instruction to trust the actual crafting output is clearly framed. There is no arithmetic error. The statement “I should’ve checked the loaded recipe before giving you a number” is inaccurate process accounting: the previous turn had already checked both native and JEI recipe results. The parent observed clean Torch and recipe chips in the UI. No crafting output was observed in game. Scores (1–5): factual grounding 4; arithmetic 5; usefulness 4; citation coverage 4.
+
+#### R1 status
+
+R1 passed the core quantity regression: it reports the loaded pack output of one torch per craft before and after the exact vanilla-count challenge. The first answer still has inventory citation coverage gaps, and the challenge response inaccurately describes whether the recipe had already been checked. These are citation and process-accounting limits, not an arithmetic failure. R1 remains candidate evidence, not independent-arc coverage. No crafting occurred.
 
 ## Coverage status
 

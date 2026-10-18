@@ -235,6 +235,14 @@ The assistant handled the deliberately vague opener well, then used the two Pond
 
 The shipped default remained installed for this arc. Candidate prompt source `4cb7f7b` had been built but was not installed, so Arc 3 is baseline behavior.
 
+## Candidate deployment and live acceptance
+
+Candidate source `4cb7f7b` incorporates the earlier candidate `a2f540c` plus static-review clarifications from `3915719`. Its five focused policies address: prioritizing current pack evidence when challenged; not using citations or related guides to prove unstated mechanics; treating recipe ingredient groups as distinct from grid coordinates; enforcing the immediate-action boundary; and using exact, plain returned local references without cursors or opaque IDs as user-facing evidence. It adds no API or reader behavior changes and no fixture-specific recipe answers.
+
+The full Java 21 `gradlew test build` run through `4cb7f7b` passed: 577 tests, 573 passed, 4 skipped, 0 failures or errors. Candidate JAR SHA-256 is `05255AA6CF6C05B76DC5A0B67715521B4186264DFBACAAA3FDEF325BFB3F5C2C`; the built `lib` JAR and installed `mods/packsage.jar` have matching hashes. The game was saved and exited normally, process absence was checked before copying, settings SHA remained unchanged, and no developer prompt override was set. The installed candidate uses the same fixture, model, screenshot, and search settings as baseline.
+
+The installed candidate has been submitted to controlled live repeat R1, which replays the original torch opening in a fresh chat and will later replay the exact challenge. This is a controlled repeat, not a new independent player arc. Its acceptance result is pending. The `dist` artifact still carries the baseline database hash; do not treat it as updated candidate evidence.
+
 ## Coverage status
 
 Three of twelve planned independent arcs are complete. Further arcs and any justified fresh-chat retests remain pending.

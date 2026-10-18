@@ -143,7 +143,7 @@ public final class PackSageTools {
             schema.add("properties", properties);
             schema.add("required", required);
             definitions.add(new ModelBackend.ToolDefinition(name, switch (name) {
-                case "search_document" -> "Find quests, chapters or guides with one case-insensitive literal phrase. For partial results, continue with the returned cursor and the same query, filters and limit.";
+                case "search_document" -> "Find quests, chapters or guides with one case-insensitive literal phrase. For an item's Ponder scenes, use its exact registry ID as query with provider ponder. For partial results, continue with the returned cursor and the same query, filters and limit.";
                 case "search_recipe" -> "Find loaded recipes or viewer entries. For an exact output, use outputItem without text unless text is an additional intended filter. requiredInputTotals, when present, totals only unambiguous returned inputs and inherits record coverage. Keep native and JEI evidence distinct; use JEI when native lookup is partial or unavailable.";
                 case "search_inventory" -> "Read current contents of one target. Player summaries do not include nested containers; inspect each relevant carried container, including multiple matching items, with its returned slotReference. Vanilla inventory coverage does not include accessory slots.";
                 case "search_config" -> "Find accessible config keys and comments, including machine speed, energy and upgrade settings. Use returned config references with read_config; preserve scope and effective-value authority.";

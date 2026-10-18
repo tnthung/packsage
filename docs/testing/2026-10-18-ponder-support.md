@@ -1,0 +1,19 @@
+# Ponder support player checks
+
+Date: 2026-10-18.
+
+These checks cover the [Ponder adapter](../specs/2026-10-18-ponder-support.md). Automated tests/builds are handled during development. No Java or Gradle commands are needed from the player.
+
+## Preparation
+
+With Minecraft closed, copy the tested `dist/packsage.jar` into the chosen instance's `mods` folder, replacing its existing PackSage JAR. The inspected runtime is Ponder `1.0.81+mc1.21.1`, bundled by ATM10's PonderJS `2.4.0`. Launch the instance and enter a world with Create available.
+
+## Checks
+
+1. Ask PackSage to find installed Ponder instructions for a Create mechanical press. Confirm the returned documents identify `ponder`, associate the expected Create item and offer a Ponder navigation target. A search page examines at most four storyboard candidates; continuation may be needed before the relevant association is reached.
+2. Open the item's ordinary Ponder viewer and note an actual scene title. Ask PackSage to search installed Ponder documentation for that title. Confirm it can discover the title through document search, including continued pages where needed.
+3. Ask PackSage to read the returned scene evidence and explain the demonstrated steps. Compare its title and literal captions with the viewer. Shared captions, substituted formatting values and visual-only instructions may be missing; those gaps must remain explicit. Demonstration timing must not become a claim about machine speed.
+4. Click the returned Ponder link. Confirm it opens the item's ordinary viewer. The link does not promise to select one exact scene among that item's demonstrations. Merely searching or reading evidence must not open a screen or move/change world items.
+5. Leave the world and enter another world before using a prior link. Confirm old-world navigation is rejected or refreshed through the current world rather than opening stale content.
+
+Record the game/provider versions, prompts, relevant actual tool calls/results, observed viewer behavior and any missing captions in the [validation record](../validation/2026-10-18-ponder-support.md). Unit tests and API inspection do not substitute for these installed observations.

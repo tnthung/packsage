@@ -23,7 +23,8 @@ class PonderGuideReaderTest {
         source.entries.add(entryForComponent("a", "create:shaft", "First Scene"));
         source.entries.add(entryForComponent("b", "create:gearbox", "Second Scene"));
         source.entries.addAll(List.of(
-                entry("c", "Other 3"), entry("d", "Other 4"), entry("e", "Other 5")));
+                entryForComponent("c", "create:shaft", "Other 3"), entryForComponent("d", "create:shaft", "Other 4"),
+                entryForComponent("e", "create:shaft", "Other 5")));
         var reader = new PonderGuideReader(source);
 
         var page = reader.candidates(null, 8, new Toolbox.DocumentBudget());
@@ -37,7 +38,7 @@ class PonderGuideReaderTest {
     @Test
     void providerTitleSearchAndNoMatchEachCompileAtMostFourCandidates() {
         var source = new FixtureSource();
-        for (var index = 0; index < 8; index++) source.entries.add(entry("provider_" + index,
+        for (var index = 0; index < 8; index++) source.entries.add(entryForComponent("provider_" + index, "create:shaft",
                 index == 2 ? "Matching Scene" : "Other Scene"));
         var provider = new GuideDocumentProvider(new PonderGuideReader(source), () -> SCOPE, Runnable::run, 4);
 
@@ -58,7 +59,7 @@ class PonderGuideReaderTest {
     @Test
     void combinedDiscoverySharesTheCallbackLimitAndContinuesOnTheNextToolCall() {
         var source = new FixtureSource();
-        for (int index = 0; index < 12; index++) source.entries.add(entry("combined_" + index, "Other scene"));
+        for (int index = 0; index < 12; index++) source.entries.add(entryForComponent("combined_" + index, "create:shaft", "Other scene"));
         var service = new dev.packsage.knowledge.KnowledgeService(List.of(new GuideDocumentProvider(
                 new PonderGuideReader(source), () -> SCOPE, Runnable::run, 4)), () -> SCOPE);
         var first = service.execute(new dev.packsage.model.PackSageTools.ReadRequest("search_document",
@@ -76,7 +77,7 @@ class PonderGuideReaderTest {
     @Test
     void fragmentResolutionUsesFreshCaptionsAndRejectsReplacedRegistration() {
         var source = new FixtureSource();
-        source.entries.add(entry("a", "Old title", "old caption"));
+        source.entries.add(entryForComponent("a", "create:shaft", "Old title", "old caption"));
         var reader = new PonderGuideReader(source);
         var candidate = reader.candidates(null, 1, new Toolbox.DocumentBudget()).candidates().getFirst();
         source.captions.put("a", List.of("new caption"));
@@ -89,7 +90,7 @@ class PonderGuideReaderTest {
         assertTrue(resolved.fragment().text().contains("create:scene_a"));
         assertFalse(resolved.fragment().text().contains("Header:"));
         assertEquals(2, source.compiles.get());
-        source.entries.set(0, entry("replacement", "Replacement", "replacement caption"));
+        source.entries.set(0, entryForComponent("replacement", "create:shaft", "Replacement", "replacement caption"));
         var failure = assertThrows(Toolbox.Failure.class,
                 () -> reader.resolve(candidate.id(), 1024, new Toolbox.DocumentBudget()));
         assertEquals(Toolbox.Code.INVALID_REFERENCE, failure.code());
@@ -98,7 +99,7 @@ class PonderGuideReaderTest {
     @Test
     void navigationRejectsRemovedRegistrationAndOffThreadOpen() {
         var source = new FixtureSource();
-        source.entries.add(entry("a", "Title"));
+        source.entries.add(entryForComponent("a", "create:shaft", "Title"));
         var reader = new PonderGuideReader(source);
         var candidate = reader.candidates(null, 1, new Toolbox.DocumentBudget()).candidates().getFirst();
         var target = new Evidence.NavigationTarget(SCOPE, "ponder", candidate.id(), "create:shaft");
@@ -114,7 +115,7 @@ class PonderGuideReaderTest {
     @Test
     void continuationKeepsTheFirstUnreturnedStoryboard() {
         var source = new FixtureSource();
-        for (int index = 0; index < 7; index++) source.entries.add(entry("page_" + index, "Scene " + index));
+        for (int index = 0; index < 7; index++) source.entries.add(entryForComponent("page_" + index, "create:shaft", "Scene " + index));
         var reader = new PonderGuideReader(source);
         var first = reader.candidates(null, 4, new Toolbox.DocumentBudget());
         var second = reader.candidates(first.nextPosition(), 4, new Toolbox.DocumentBudget());
@@ -129,7 +130,7 @@ class PonderGuideReaderTest {
     @Test
     void tinyMetadataFragmentsDoNotExceedTheirCharacterLimit() {
         var source = new FixtureSource();
-        source.entries.add(entry("tiny", "Title"));
+        source.entries.add(entryForComponent("tiny", "create:shaft", "Title"));
         assertEquals(1, new PonderGuideReader(source).readFragment("tiny", null, 1,
                 new Toolbox.DocumentBudget()).text().length());
         assertTrue(new PonderGuideReader(source).readFragment("tiny", null, "Component: create:shaft".length(),
@@ -139,7 +140,7 @@ class PonderGuideReaderTest {
     @Test
     void captionOutputStaysBoundedAndNavigationOpensOnlyItsCurrentComponent() {
         var source = new FixtureSource();
-        source.entries.add(entry("bounded", "Title", "x".repeat(100_000), "later caption"));
+        source.entries.add(entryForComponent("bounded", "create:shaft", "Title", "x".repeat(100_000), "later caption"));
         var reader = new PonderGuideReader(source);
         var resolved = reader.resolve("bounded", 120, new Toolbox.DocumentBudget());
         assertTrue(resolved.fragment().text().length() <= 120);
@@ -183,17 +184,11 @@ class PonderGuideReaderTest {
         assertEquals("labels", result.records().getFirst().source().sourceHandle());
     }
 
-    private static PonderGuideReader.Entry entry(String identity, String title, String... captions) {
-        return entryForComponent(identity, "create:shaft", title, captions);
-    }
-
     private static PonderGuideReader.Entry entryForComponent(String identity, String component, String title, String... captions) {
-        var result = new PonderGuideReader.Entry(identity, component, "create", "create:shared",
-                List.of("create:rotation"), "");
         TITLES.put(identity, title);
         SCENE_IDS.put(identity, "create:scene_" + identity);
         CAPTION_DEFAULTS.put(identity, List.of(captions));
-        return result;
+        return new PonderGuideReader.Entry(identity, component, "create", "create:shared", List.of("create:rotation"), "");
     }
 
     private static final java.util.Map<String, String> TITLES = new java.util.HashMap<>();

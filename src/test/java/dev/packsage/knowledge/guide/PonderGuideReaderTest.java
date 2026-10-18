@@ -133,6 +133,34 @@ class PonderGuideReaderTest {
     }
 
     @Test
+    void knowledgeServiceExactComponentContinuationDoesNotSkipUncompiledMatches() {
+        var source = new FixtureSource();
+        for (int index = 0; index < 8; index++) source.entries.add(entryForComponent("service_unrelated_" + index,
+                "create:shaft", "Unrelated scene"));
+        for (int index = 0; index < 6; index++) source.entries.add(entryForComponent("service_press_" + index,
+                "create:mechanical_press", "Mechanical Press scene " + index));
+        var service = new dev.packsage.knowledge.KnowledgeService(List.of(new GuideDocumentProvider(
+                new PonderGuideReader(source), () -> SCOPE, Runnable::run, 4)), () -> SCOPE);
+
+        var first = service.execute(new dev.packsage.model.PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(java.util.Map.of("query", new Evidence.JsonString("create:mechanical_press"))), SCOPE))
+                .toCompletableFuture().join();
+
+        assertEquals(List.of("service_press_0", "service_press_1", "service_press_2", "service_press_3"),
+                first.records().stream().map(record -> record.source().sourceHandle()).toList());
+        assertTrue(first.nextCursor() != null);
+        assertEquals(4, source.compiles.get());
+        var second = service.execute(new dev.packsage.model.PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(java.util.Map.of("query", new Evidence.JsonString("create:mechanical_press"),
+                        "cursor", new Evidence.JsonString(first.nextCursor()))), SCOPE)).toCompletableFuture().join();
+
+        assertEquals(List.of("service_press_4", "service_press_5"),
+                second.records().stream().map(record -> record.source().sourceHandle()).toList());
+        assertNull(second.nextCursor());
+        assertEquals(6, source.compiles.get());
+    }
+
+    @Test
     void combinedDiscoverySharesTheCallbackLimitAndContinuesOnTheNextToolCall() {
         var source = new FixtureSource();
         for (int index = 0; index < 12; index++) source.entries.add(entryForComponent("combined_" + index, "create:shaft", "Other scene"));

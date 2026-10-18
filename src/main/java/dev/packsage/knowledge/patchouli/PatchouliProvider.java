@@ -734,6 +734,38 @@ public final class PatchouliProvider implements KnowledgeProvider {
     }
 
     @Override
+    public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!ID.equals(target.providerId()) || unavailable || !scopeIsCurrent(scope)) return CompletableFuture.completedFuture(null);
+        var parts = target.targetId().split("#", -1);
+        if (parts.length != 3) return CompletableFuture.completedFuture(null);
+        for (var id : List.of(parts[0], parts[1])) {
+            var parsed = ResourceLocation.tryParse(id);
+            if (parsed == null || !parsed.toString().equals(id)) return CompletableFuture.completedFuture(null);
+        }
+        final int page;
+        try {
+            var position = parts[2].split("@lifecycle=", -1);
+            page = Integer.parseInt(position[0]);
+            if (page < 0 || !Integer.toString(page).equals(position[0]) || position.length > 2
+                    || position.length == 2 && (Long.parseLong(position[1]) < 0
+                    || !Long.toString(Long.parseLong(position[1])).equals(position[1]))) return CompletableFuture.completedFuture(null);
+        } catch (RuntimeException malformed) {
+            return CompletableFuture.completedFuture(null);
+        }
+        var generation = lifecycleGeneration;
+        return query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of(
+                "id", new Evidence.JsonString(parts[0] + "#" + parts[1]))), 1, null, null), scope).thenApply(result -> {
+            if (generation != lifecycleGeneration || !scopeIsCurrent(scope) || result == null
+                    || result.outcome() == Evidence.Outcome.ERROR || result.records().size() != 1) return null;
+            var record = result.records().getFirst();
+            if (!record.source().scope().equals(scope) || !ID.equals(record.source().providerId())
+                    || !record.source().sourceHandle().equals(parts[0] + "#" + parts[1])) return null;
+            return record.targets().stream().filter(value -> value.targetId().equals(parts[0] + "#" + parts[1] + "#" + page))
+                    .findFirst().orElse(null);
+        });
+    }
+
+    @Override
     public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
         Objects.requireNonNull(target);
         Objects.requireNonNull(scope);
@@ -747,10 +779,10 @@ public final class PatchouliProvider implements KnowledgeProvider {
         final long generation;
         try {
             var marker = parts[2].indexOf("@lifecycle=");
-            page = Integer.parseInt(parts[2].substring(0, marker));
-            generation = Long.parseLong(parts[2].substring(marker + "@lifecycle=".length()));
+            page = Integer.parseInt(marker < 0 ? parts[2] : parts[2].substring(0, marker));
+            generation = marker < 0 ? lifecycleGeneration : Long.parseLong(parts[2].substring(marker + "@lifecycle=".length()));
             if (page < 0 || generation != lifecycleGeneration || !target.targetId().equals(parts[0] + "#" + parts[1]
-                    + "#" + page + "@lifecycle=" + generation)) throw new IllegalArgumentException();
+                    + "#" + page + (marker < 0 ? "" : "@lifecycle=" + generation))) throw new IllegalArgumentException();
         } catch (RuntimeException malformed) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "guide target page or lifecycle is invalid");
         }
@@ -899,11 +931,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
                 Evidence.Activity.ACTIVE, coverage, Evidence.Authority.INSTALLED_DOCUMENTATION,
                 provenance);
         var targets = targetPages.stream().filter(index -> entry.pages().stream().anyMatch(page -> page.index() == index))
-                .map(index -> {
-                    var pageHandle = sourceHandle + "#" + index;
-                    return new Evidence.NavigationTarget(snapshot.scope(), ID,
-                            sourceHandle, pageHandle + "@lifecycle=" + lifecycleGeneration);
-                }).toList();
+                .map(index -> new Evidence.NavigationTarget(snapshot.scope(), ID, sourceHandle, sourceHandle + "#" + index)).toList();
         return new Evidence.Record(source, Evidence.RecordKind.GUIDE, entry.title(), new Evidence.JsonObject(payloadValues), targets);
     }
 

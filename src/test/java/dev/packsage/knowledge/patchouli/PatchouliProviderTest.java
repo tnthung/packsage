@@ -240,7 +240,7 @@ class PatchouliProviderTest {
                 .findFirst().orElseThrow();
         assertEquals(new Evidence.JsonString("later"), page.values().get("text"));
         var target = result.records().getFirst().targets().stream()
-                .filter(value -> value.targetId().contains("#1@lifecycle=")).findFirst().orElseThrow();
+                .filter(value -> value.targetId().endsWith("#1")).findFirst().orElseThrow();
         assertEquals(Evidence.NavigationStatus.OPENED, provider.open(target, SCOPE).status());
         assertEquals(1, opened.get().page());
     }
@@ -594,9 +594,9 @@ class PatchouliProviderTest {
         var generated = record.targets().getFirst();
 
         var leadingZeroPage = new Evidence.NavigationTarget(SCOPE, PatchouliProvider.ID, generated.sourceHandle(),
-                generated.targetId().replace("#0@lifecycle=", "#00@lifecycle="));
+                generated.targetId().replace("#0", "#00"));
         var leadingZeroLifecycle = new Evidence.NavigationTarget(SCOPE, PatchouliProvider.ID, generated.sourceHandle(),
-                generated.targetId().replace("@lifecycle=1", "@lifecycle=01"));
+                generated.targetId() + "@lifecycle=01");
 
         assertTrue(provider.open(leadingZeroPage, SCOPE).status() != Evidence.NavigationStatus.OPENED);
         assertTrue(provider.open(leadingZeroLifecycle, SCOPE).status() != Evidence.NavigationStatus.OPENED);

@@ -728,10 +728,6 @@ public final class AssistantRuntime implements ChatActions {
             selectionGeneration = sessionSelectionGeneration;
             currentKnowledge = knowledge;
         }
-        if ("web".equals(target.providerId()) && !target.scope().equals(expected)) {
-            showNavigationError(navigationId, "Navigation target is stale");
-            return;
-        }
         boolean stale;
         synchronized (stateLock) {
             stale = epoch != worldEpoch || !expected.equals(scope);

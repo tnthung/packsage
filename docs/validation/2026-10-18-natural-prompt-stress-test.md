@@ -919,3 +919,36 @@ The assistant handles the complete AE2 registry no-match carefully, identifies e
 ## Coverage status
 
 All twelve planned independent arcs are complete: 33 submitted turns and 245 tool calls, excluding controlled repeat R1. Arcs 1–3 used the baseline build (9 turns, 58 calls); Arcs 4–8 used Candidate 1 (13 turns, 114 calls); Arcs 9–12 used Candidate 2 (11 turns, 73 calls). The evaluation is not a full pass: source-bounded claims, citation coverage, and repeated search churn remain issues in some arcs.
+
+## Candidate 3 deployment and controlled repeat N1 (2026-10-19)
+
+Final prompt source `6a0edde` was installed after saving and quitting the game and confirming process absence. The built and installed JAR SHA-256 values match: `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`. The game properties SHA-256 remains `AF7DA001C214347F01A17D76A991150D1728907B5EC16615FC2EE1126DAA5FA0`; no developer prompt override is set. A new window/process (`81006064`) loaded the same fixture.
+
+### N1: Diamatine recipe repeat before restart
+
+This is a controlled repeat, not a thirteenth independent arc. It was run before the pending full restart check.
+
+Saved conversation: [bbd773b4-0aca-415f-bb52-ebdf628d1a9e-901a89040ca54f71.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/bbd773b4-0aca-415f-bb52-ebdf628d1a9e-901a89040ca54f71.jsonl)
+
+- Request ID: `7fa69683-9ae8-46b7-b8ac-48a2eaab57bf`
+- Tool calls: 14
+- Elapsed time: 67.418 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=67418`).
+- Player:
+
+  ```text
+  Can my seven diamonds make Diamatine crystals? I’d like to see the recipe too.
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  Yes. Your carried Shulker Box has **7 diamonds**. The Atomic Reconstructor recipe uses **1 diamond to make 1 Diamatine Crystal**, so you could get **7 crystals** if you have a powered Reconstructor. [native:storage:9107d579-ab08-4031-b19c-ef733ccaf0e3:0] [jei:jei/1/3/actuallyadditions:laser/recipe-actuallyadditions:laser/crystalize_diamatine_crystal-1]
+
+  **Recipe:** Put a diamond in the Reconstructor’s laser path; it’s converted into a Diamatine Crystal. The Reconstructor needs power to fire its laser. [actuallyadditions:actuallyadditions:crystals]
+
+  Open the [Atomic Reconstructor recipe](jei:jei/1/3/actuallyadditions:laser/recipe-actuallyadditions:laser/crystalize_diamatine_crystal-1) to see it in your recipe viewer.
+  ```
+
+**Trace and UI evidence:** A fresh complete storage result shows 7 diamonds. An exact read of the JEI laser recipe returned 1 consumed diamond, the Atomic Reconstructor as render-only machine metadata, and 1 Diamatine Crystal output. Although the category is opaque, the exact structured recipe result supports the 1:1 calculation. The guide supports the power and beam conditions. Current citation resolution bound the recipe to the stable target `recipe-v1|actuallyadditions:laser|actuallyadditions:laser/crystalize_diamatine_crystal`. After the answer, the parent clicked the named recipe link and the native viewer showed diamond to crystal at 1:1; this operator check was after the model response. Fourteen calls were used. No crafting or power setup occurred.
+
+Restart persistence is pending. This result verifies the installed candidate before restart only; it does not resolve the Arc 8 saved-link failure observed after restarting Candidate 2.

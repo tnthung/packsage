@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -54,6 +55,81 @@ class PonderGuideReaderTest {
                 16, null, null), SCOPE).toCompletableFuture().join();
         assertTrue(noMatch.records().isEmpty());
         assertEquals(4, source.compiles.get());
+    }
+
+    @Test
+    void exactComponentSearchFindsLateMechanicalPressWithoutCompilingUnrelatedScenes() {
+        var source = new FixtureSource();
+        for (int index = 0; index < 12; index++) source.entries.add(entryForComponent("unrelated_" + index,
+                "create:shaft", "Unrelated scene"));
+        source.entries.add(entryForComponent("press", "create:mechanical_press", "Mechanical Press", "press caption"));
+        var service = new dev.packsage.knowledge.KnowledgeService(List.of(new GuideDocumentProvider(
+                new PonderGuideReader(source), () -> SCOPE, Runnable::run, 4)), () -> SCOPE);
+
+        var result = service.execute(new dev.packsage.model.PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(java.util.Map.of("query", new Evidence.JsonString("create:mechanical_press"))), SCOPE))
+                .toCompletableFuture().join();
+
+        assertEquals(1, result.records().size());
+        assertEquals("press", result.records().getFirst().source().sourceHandle());
+        assertEquals(1, source.compiles.get());
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertNull(result.nextCursor());
+        var target = result.records().getFirst().targets().getFirst();
+        assertEquals(SCOPE, target.scope());
+        assertEquals("ponder", target.providerId());
+        assertEquals("press", target.sourceHandle());
+        assertEquals("create:mechanical_press", target.targetId());
+
+        source.captions.put("press", List.of("fresh press caption"));
+        var evidence = service.execute(new dev.packsage.model.PackSageTools.ReadRequest("read_evidence",
+                new Evidence.JsonObject(java.util.Map.of("handles", new Evidence.JsonArray(List.of(
+                        new Evidence.JsonString("ponder:press"))))), SCOPE)).toCompletableFuture().join();
+        assertTrue(((Evidence.JsonString) evidence.records().getFirst().payload().values().get("text")).value()
+                .contains("fresh press caption"));
+        assertEquals(target, evidence.records().getFirst().targets().getFirst());
+        assertEquals(2, source.compiles.get());
+    }
+
+    @Test
+    void exactComponentNoMatchCompletesWithoutCompilingUnrelatedScenes() {
+        var source = new FixtureSource();
+        for (int index = 0; index < 20; index++) source.entries.add(entryForComponent("unrelated_" + index,
+                "create:shaft", "Unrelated scene"));
+        var provider = new GuideDocumentProvider(new PonderGuideReader(source), () -> SCOPE, Runnable::run, 4);
+
+        var result = provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(java.util.Map.of("query", new Evidence.JsonString("create:mechanical_press"))),
+                16, null, null), SCOPE).toCompletableFuture().join();
+
+        assertTrue(result.records().isEmpty());
+        assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
+        assertNull(result.nextCursor());
+        assertEquals(0, source.compiles.get());
+    }
+
+    @Test
+    void exactComponentContinuationPagesOnlyMatchingStoryboards() {
+        var source = new FixtureSource();
+        for (int index = 0; index < 8; index++) source.entries.add(entryForComponent("unrelated_page_" + index,
+                "create:shaft", "Unrelated scene"));
+        for (int index = 0; index < 6; index++) source.entries.add(entryForComponent("press_page_" + index,
+                "create:mechanical_press", "Mechanical Press scene " + index));
+        var provider = new GuideDocumentProvider(new PonderGuideReader(source), () -> SCOPE, Runnable::run, 4);
+        var first = provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(java.util.Map.of("query", new Evidence.JsonString("create:mechanical_press"))),
+                16, null, null), SCOPE).toCompletableFuture().join();
+
+        assertEquals(4, first.records().size());
+        assertTrue(first.nextCursor() != null);
+        assertEquals(4, source.compiles.get());
+        var second = provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(java.util.Map.of("query", new Evidence.JsonString("create:mechanical_press"))),
+                16, SCOPE, first.nextCursor()), SCOPE).toCompletableFuture().join();
+
+        assertEquals(2, second.records().size());
+        assertNull(second.nextCursor());
+        assertEquals(6, source.compiles.get());
     }
 
     @Test

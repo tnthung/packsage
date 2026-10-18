@@ -558,7 +558,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
                             .contains(query.toLowerCase(Locale.ROOT)))) {
                         var observation = new Snapshot(request.scope(), request.scope().requestGeneration(), List.of(), ignored -> { });
                         records.add(toRecord(found, observation, matchingPages(found, Evidence.Operation.SEARCH,
-                                query.toLowerCase(Locale.ROOT)), generation));
+                                query.toLowerCase(Locale.ROOT))));
                     }
                     if (fragment.next() != null) {
                         next = new LiveCursor(candidate, owner, token, false, fragment.next());
@@ -724,7 +724,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
                     currentLifecycleGeneration = generation;
                 }
                 failure = snapshot.coverage() == Evidence.Coverage.ERROR ? snapshot.failure() : null;
-                return querySnapshot(query, snapshot, start, generation);
+                return querySnapshot(query, snapshot, start);
             });
         } catch (RuntimeException schedulingFailure) {
             failure = "Patchouli client-thread scheduling failed: " + schedulingFailure;
@@ -857,7 +857,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
         }
     }
 
-    private static Evidence.Result querySnapshot(Evidence.Query query, Snapshot snapshot, int start, long lifecycleGeneration) {
+    private static Evidence.Result querySnapshot(Evidence.Query query, Snapshot snapshot, int start) {
         var text = stringArgument(query.arguments(), "text");
         text = text == null ? "" : text.toLowerCase(Locale.ROOT);
         var id = stringArgument(query.arguments(), "id");
@@ -888,7 +888,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
             if (query.operation() == Evidence.Operation.GET && !id.equals(entry.id())
                     && !id.equals(entry.bookId() + "#" + entry.id())) continue;
             if (query.operation() == Evidence.Operation.SEARCH && !matches(entry, text)) continue;
-            records.add(toRecord(entry, snapshot, matchingPages(entry, query.operation(), text), lifecycleGeneration));
+            records.add(toRecord(entry, snapshot, matchingPages(entry, query.operation(), text)));
         }
         var coverage = snapshot.coverage();
         if (coverage == Evidence.Coverage.COMPLETE && records.stream()
@@ -902,8 +902,7 @@ public final class PatchouliProvider implements KnowledgeProvider {
         return result(records, coverage, next, snapshot.failure());
     }
 
-    private static Evidence.Record toRecord(EntryRecord entry, Snapshot snapshot, List<Integer> targetPages,
-                                            long lifecycleGeneration) {
+    private static Evidence.Record toRecord(EntryRecord entry, Snapshot snapshot, List<Integer> targetPages) {
         var opaque = entry.pages().stream().anyMatch(page -> page.decoding() == Evidence.DecodingStatus.OPAQUE);
         var gated = entry.pages().stream().anyMatch(page -> !page.visible());
         var payloadValues = new java.util.LinkedHashMap<String, Evidence.JsonValue>();

@@ -58,6 +58,12 @@ class PatchouliProviderTest {
             assertEquals(Evidence.NavigationStatus.OPENED, service.open(refreshed, SCOPE).status());
             assertEquals(new PatchouliProvider.Navigation("fixture:book", "fixture:entry", 0), opened.get());
         }
+        for (var malformed : List.of("fixture:book#fixture:entry#00", "fixture:book#fixture:entry#0@lifecycle=01",
+                "fixture:book#fixture:entry#0@lifecycle=-1", "fixture:book#fixture:entry#-1",
+                "fixture:book#fixture:entry#0@lifecycle=1@lifecycle=2")) {
+            assertNull(service.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "patchouli",
+                    "fixture:book#fixture:entry", malformed), SCOPE).toCompletableFuture().join());
+        }
         snapshot.set(new PatchouliProvider.Snapshot(SCOPE, 2, List.of(), opened::set));
         assertNull(service.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "patchouli",
                 "fixture:book#fixture:entry", "fixture:book#fixture:entry#0"), SCOPE).toCompletableFuture().join());

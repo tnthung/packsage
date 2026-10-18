@@ -155,6 +155,86 @@ The assistant tracks the changed goal and distinguishes both interpretations of 
 
 The shipped default remained installed for this arc. Candidate prompt source `a2f540c` had been built but was not installed, so Arc 2 is baseline behavior.
 
+## Arc 3: Create press speed and item handling
+
+Player agent: `luna_high_player_press`.
+
+Saved conversation: [48c9ad84-8db6-46f1-ac2e-b9e7b899a26a-66dc29d98e0a28d3.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/48c9ad84-8db6-46f1-ac2e-b9e7b899a26a-66dc29d98e0a28d3.jsonl)
+
+The player agent received a private goal about a Create Mechanical Press setup. The operator deliberately seeded the vague opening phrase; the player agent chose the adaptive follow-ups. No physical press was built or observed during this arc. Exact saved turns follow.
+
+### Turn 1
+
+- Request ID: `5d80b06d-dbde-48d0-b461-35bcb327dd0e`
+- Tool calls: 0
+- Elapsed time: 11.817 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=11817`).
+- Player:
+
+  ```text
+  how do i make it go faster?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  What are you trying to make faster—your movement, a machine, or the day/night cycle?
+  ```
+
+**Evidence and assessment:** The opener was deliberately vague. The assistant asked a concise clarifying question and offered plausible interpretations without assuming the target. Scores (1–5): intent handling 5; factual grounding 5; usefulness 4; clarification quality 5.
+
+### Turn 2
+
+- Request ID: `02d93da2-5b29-4ebd-8535-6d65c9c8617f`
+- Tool calls: 11
+- Elapsed time: 67.061 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=67061`).
+- Player:
+
+  ```text
+  the create presser thing on a belt. it feels kinda slow—could you show me how to speed it up?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  The **Mechanical Press is driven by the belt’s rotation**, so speed up the drive feeding the belt. In this pack, a **Rotation Speed Controller** lets you set the outgoing speed. citeponder:57:1a5161e7ponder:51:636b9e24
+
+  1. Put the controller into the shaft drive that powers the belt—not on the belt itself.
+  2. Set it up with a **Large Cogwheel above it**, as shown in Create’s controller demo.
+  3. Use the controller’s side value panel to raise the speed.
+  4. If the drive stalls, dial it back or strengthen the power source.
+
+  You can open the [Rotation Speed Controller demo](ponder:51:636b9e24) and the [Mechanical Press demo](ponder:57:1a5161e7) for the in-game examples.
+  ```
+
+**Evidence and assessment:** The Ponder caption for the Rotation Speed Controller (`51:636b9e24`) shows a relay axis leading to a Large Cogwheel above and a side panel configuring conveyed speed. This supports those two depicted details. The Mechanical Press caption (`57:1a5161e7`) describes items beneath the press, the Depot, belt, and holding/processing automatically. Neither caption establishes the press is “driven by the belt’s rotation,” that a controller must be installed in the shaft drive feeding the belt, or the advice to strengthen a stalled power source. Those causal and troubleshooting claims are presented confidently without evidence from the cited demonstrations. The parent observed readable Ponder chips and demo links in the UI, but no link was clicked in this arc, so successful navigation was not tested. Eleven tool calls were used. Scores (1–5): intent handling 4; factual grounding 2; usefulness 3; citation/navigation 4.
+
+### Turn 3
+
+- Request ID: `9213a8b9-0103-4f4a-985a-42c9870e0ea5`
+- Tool calls: 6
+- Elapsed time: 46.445 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=46445`).
+- Player:
+
+  ```text
+  If I speed up the belt, will the press still catch every item, or do I need to adjust something else too?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  You shouldn’t need to time it manually: Create’s press demo says that on a belt, the press **holds each item and processes it automatically**. Keep the belt running directly beneath the press. [ponder:57:1a5161e7]
+
+  If you raise the speed and items start backing up, the press is processing slower than they’re arriving—lower the speed a little.
+  ```
+
+**Evidence and assessment:** The cited Ponder caption supports the claim that the press holds each item and processes it automatically, and it depicts the belt beneath the press. It does not report maximum throughput, promise the press catches every item at increased speed, or recommend a speed adjustment based on observed backlog. The backlog explanation is a practical inference, not caption content, and no actual throughput test or physical setup was observed. The player said manual timing was no longer a concern but remained unclear about the location of the controller's speed setting. Six tool calls were used. The parent observed a readable Ponder chip in the UI; no native-side navigation was clicked in this arc. Scores (1–5): intent handling 4; factual grounding 3; usefulness 3; citation/navigation 4.
+
+### Arc-level result
+
+The assistant handled the deliberately vague opener well, then used the two Ponder demonstrations to give concrete controller details and explain automatic press handling. The captions support the Large Cogwheel-above and side-panel configuration details, and the hold/process behavior. The guidance about where the controller must be installed, stalled-drive causes, and press throughput goes beyond the observed captions; those claims should have been qualified as inference or left unresolved. The player felt the manual timing concern was resolved but still wanted help locating the controller's speed setting. UI citation chips and demo links were visible, but none was opened during this arc. No physical setup, power condition, belt speed, or completed gameplay action was observed.
+
+The shipped default remained installed for this arc. Candidate prompt source `4cb7f7b` had been built but was not installed, so Arc 3 is baseline behavior.
+
 ## Coverage status
 
-Two of twelve planned arcs are complete. Further arcs and any justified fresh-chat retests remain pending.
+Three of twelve planned independent arcs are complete. Further arcs and any justified fresh-chat retests remain pending.

@@ -380,11 +380,10 @@ final class ScreenText {
                                 && matchingSources.stream().map(Evidence.Source::providerId).distinct().count() == 1
                                 && matchingSources.getFirst().providerId().equals("jei")
                                 ? matchingSources.getLast() : null;
-                        Evidence.NavigationTarget target = source == null ? null : targets.stream().filter(value ->
-                                value.providerId().equals("jei") && value.sourceHandle().equals(url)
-                                        && value.scope().equals(source.scope())).findFirst().orElse(null);
                         flushInline(spans, plain, bold, code);
-                        spans.add(new InlineSpan(text.substring(index + 1, close), target, ModernUi.TEXT, false, false, source));
+                        spans.add(new InlineSpan(text.substring(index + 1, close), source == null ? null : targets.stream().filter(value ->
+                                value.providerId().equals("jei") && value.sourceHandle().equals(url)
+                                        && value.scope().equals(source.scope())).findFirst().orElse(null), ModernUi.TEXT, false, false, source));
                         index = end;
                         continue;
                     }

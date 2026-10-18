@@ -41,3 +41,11 @@ The current upstream [scene registry](https://raw.githubusercontent.com/Creators
 `GuideDocumentProvider` already owns bounded live document search, metadata-only cursors and source-qualified fresh evidence reads. Optional reader navigation hooks preserve the other guide sources' unsupported defaults. `AssistantRuntime.navigate` refreshes evidence, then calls `KnowledgeService.open` in its client-executor callback; the Ponder reader additionally checks the owning thread before opening a screen. No queue-and-block bridge is needed.
 
 Search limits count storyboard callbacks as well as returned results. Removed/replaced registrations must invalidate their old handles. Literal captions describe authored demonstrations; scene animation ticks do not establish machine throughput or an operating world machine.
+
+## Observed item-lookup failure
+
+The saved Packsage request `9a86f2b2-c0b0-4ee7-8061-f4231a913c9a` started at 19:04:05.986 Taipei with `show me the usage of create presser in ponder`. Its 33 activity steps contained 15 Ponder document searches and one native item-registry search. The last Ponder evidence was observed at 19:05:11.516, about 65.5 seconds after request start. The item lookup found `create:mechanical_press`, but the subsequent guide searches did not select that component.
+
+Text queries repeatedly returned empty partial pages with continuation cursors. An empty query returned four unrelated shaft/encasing-shaft scenes and their component navigation targets. Those titles establish successful compilation of those early registrations; the trace does not prove that the press association was reached or that its callback failed. The final answer had a non-navigable Minecraft item record and no press-scene Ponder target.
+
+The reader compiled up to four entries in global registration order before the shared guide provider applied the literal query. Changing phrases restarted that work. A known item ID needs an exact-component candidate path before title compilation, using the existing live registration metadata and public query string. This keeps the callback limit and normal title discovery while avoiding repeated unrelated pages for an identified item. It requires no new upstream Ponder API or retained index.

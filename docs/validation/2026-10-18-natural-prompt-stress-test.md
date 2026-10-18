@@ -405,6 +405,81 @@ The player asked for one small goal for their next caving trip, then asked how t
 
 The first answer invents a unique “next quest” ordering from evidence that shows multiple branches. The iron scout is a plausible optional objective, but the evidence does not establish cave iron generation. The follow-up correctly says iron is unnecessary for the coal-based lantern and gives sound recipe arithmetic. Its citations omit the lantern recipe that establishes iron as an alternative, and the final ingredient claim points only to the quest objective. A separate operator check after the answer opened the linked JEI viewer and confirmed the 8-coal-or-charcoal-surrounding-torch layout; the viewer was opaque in serialized PackSage data, so this live visual check is the evidence for its arrangement. The player’s unsent judgment indicates intent but no submitted action or completed outcome. No item action occurred.
 
+## Arc 6: Nature’s Aura meaning and collection
+
+Candidate-build conversation: [09665340-4f00-4011-8885-93d35b0d9362-02021c1778e4e56e.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/09665340-4f00-4011-8885-93d35b0d9362-02021c1778e4e56e.jsonl)
+
+Player agent: `luna_high_player_aura`. Three turns were submitted. The player’s later judgment—that they understood local energy and the Bloom/Bottle first step but remained unsure about other causes and whether collection drains aura over time—was not submitted as a turn. No game actions occurred.
+
+### Turn 1
+
+- Request ID: `88a2dcfa-d21b-441e-a44f-f3d5ddaa5862`
+- Tool calls: 6
+- Elapsed time: 46.493 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=46493`).
+- Player:
+
+  ```text
+  I found Nature’s Aura but I’m not sure what “aura” means in it. What is it?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  Think of **aura as ambient magical energy spread through the world**—each area has a concentration of it, rather than aura being a single item. Some special plants grow where aura is concentrated; the guide says an **Aura Bloom** grows in grassy areas and can help you collect aura with a **Bottle and Cork**. [patchouli:naturesaura:book#naturesaura:practices/aura_plants]
+
+  Small note: this pack’s conceptual entry in the book has been replaced, so the Aura Plants page is the clearer explanation I could find.
+  ```
+
+**Trace and UI evidence:** The conceptual Aura page resolves to a fixture stub and does not define aura as ambient magical energy. The Aura Plants page says vegetation raises local concentration when it first grows; the answer reverses that relationship by saying special plants grow where aura is already concentrated. The page does support Aura Bloom in grassy areas and collecting with Bottle and Cork as less destructive for the environment. The parent later observed readable Guide chips, but the cited page does not substantiate the definition or reversed causality. Scores (1–5): intent handling 3; factual grounding 1; usefulness 2; citation coverage 2.
+
+### Turn 2
+
+- Request ID: `7e5ac6d7-3fb2-4a95-af0c-38e6e4223107`
+- Tool calls: 21
+- Elapsed time: 114.984 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=114984`).
+- Player:
+
+  ```text
+  How do I get started collecting aura, and is there a book page that explains what makes it go up or down?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  Start with the book’s **Aura Plants** page: look for an **Aura Bloom** growing in grassy areas, then collect aura there with a **Bottle and Cork**—the book describes that as the gentler way to start. Your screenshot shows grass, but not an Aura Bloom, so you may need to search nearby for one. [patchouli:naturesaura:book#naturesaura:practices/aura_plants]
+
+  You can craft the Bottle and Cork from **one glass bottle and one plank**; the recipe is shapeless. [jei:jei/1/7/minecraft:crafting/recipe-naturesaura:bottle_two_the_rebottling-1]
+
+  For what makes aura rise or fall: **Aura Plants** says certain vegetation raises the local concentration when it first grows. I haven’t found a complete up-and-down explanation in the book pages surfaced so far; the book’s conceptual Aura page is replaced with a pack-specific stub. [patchouli:naturesaura:book#naturesaura:practices/aura_plants] [patchouli:naturesaura:book#naturesaura:intro/aura]
+  ```
+
+**Trace and UI evidence:** The Aura Plants text directly supports the growth-related increase. The native Bottle and Cork recipe is shapeless and uses a glass bottle plus any plank; the cited JEI result corroborates the inputs and link. The answer accurately reports that the book search did not establish a complete up/down explanation. The screenshot claim was not independently verified from serialized replay evidence; the parent later observed a grassy scene, which does not establish the exact original screenshot contents. The 21 calls included 15 guide searches, 2 item-registry searches, and 2 recipe searches, with repeated partial zero-result guide searches. The parent observed readable Guide and Recipe chips. Scores (1–5): intent handling 4; factual grounding 4; recipe/resource arithmetic 5; usefulness 4; citation coverage 4.
+
+### Turn 3
+
+- Request ID: `18729c59-fd33-41a3-a042-45050798b365`
+- Tool calls: 15
+- Elapsed time: 82.836 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=82836`).
+- Player:
+
+  ```text
+  Got it, plants can raise it when they grow. What makes the local aura go down?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  **Collecting aura from the area is the clearest drain I can verify.** The book says collecting it with a Bottle and Cork near an Aura Bloom is “less destructive,” while plants add aura when they first grow. [patchouli:naturesaura:book#naturesaura:practices/aura_plants]
+
+  I can’t confirm a complete list of other causes from the loaded book: its conceptual Aura page has been replaced with a pack-specific stub. [patchouli:naturesaura:book#naturesaura:intro/aura]
+  ```
+
+**Trace and UI evidence:** The cited text explicitly says Bottle and Cork collection is less destructive for the environment; it does not state that collection lowers local aura. Calling it the “clearest drain” is an inference, not a verified rule. The statement that plants add aura on initial growth is directly supported, and the answer appropriately says it cannot confirm a complete list from the available book pages. The 15 calls were guide searches, including repeated aura searches with pagination; no source for a complete depletion mechanism was found. The parent observed readable Guide chips. Scores (1–5): intent handling 4; factual grounding 2; usefulness 3; citation coverage 3.
+
+### Arc-level result
+
+The first answer gives an unsupported definition and reverses the Aura Plants page’s direction of causality. The second accurately describes the Bottle and Cork recipe and the supported growth effect, and it clearly reports that the book does not provide a complete up/down explanation. The third turns “less destructive for the environment” into an unverified claim that collection drains local aura. The three turns used 42 tool calls and about 244.313 seconds of accepted-to-model-terminal time; repeated partial searches did not find a documented depletion rule. After the third answer, the parent opened the first Guide chip and inspected the Patchouli Aura Plants/Aura Bloom spread; the displayed text confirmed the book details described above. The operator closed the book with Escape and reopened chat with P. This post-answer inspection was not part of the assistant’s input. No gameplay actions occurred.
+
 ## Coverage status
 
-Five of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.
+Six of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.

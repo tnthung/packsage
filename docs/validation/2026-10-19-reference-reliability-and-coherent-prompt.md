@@ -71,4 +71,21 @@ The saved malformed torch link has an exact JEI source and durable destination r
 
 The new `ScreenTextTest` regression in `ffe8bc3` failed as expected; 33 other tests passed. After `e0bb495`, all 34 screen-text tests passed in 14 seconds. The final production code is `61a71c6`; Java 21 `gradlew test build` passed in 27 seconds: 51 suites, 593 tests, 589 passed, four existing skips and no failures/errors. A test-only style alignment in `542d087` then passed all 34 screen-text tests again in 13 seconds. No formatting tools were used.
 
-The final built and installed JAR SHA-256 is `F980A02E54D790A85BE171CD14B722833339A138F325F3F4273C5EE70DC02A60`. Minecraft was saved/exited and process absence verified before installation. The settings hash remains `AF7DA001C214347F01A17D76A991150D1728907B5EC16615FC2EE1126DAA5FA0`. Final installed saved-link/restart acceptance is pending at this checkpoint.
+The final built and installed JAR SHA-256 is `F980A02E54D790A85BE171CD14B722833339A138F325F3F4273C5EE70DC02A60`. Minecraft was saved/exited and process absence verified before installation. The settings hash remains `AF7DA001C214347F01A17D76A991150D1728907B5EC16615FC2EE1126DAA5FA0`. Independent Luna review of the saved-link recovery reported no actionable findings.
+
+## Final installed acceptance
+
+The final artifact started a new Minecraft process/window (`123605494`, replacing `138023338`) and loaded the same world. These checks used saved answers; the fresh restart log contains zero backend starts and zero model-terminal events:
+
+| Saved answer | Observed native destination after restart |
+|---|---|
+| Corrected torch answer `46bb4b78-b24b-481f-bab2-24dd73553d59` in `e0670abe-4df0-4cd2-a7ec-b4c9da0fda86-ec2374551f68e704.jsonl` | Its existing torch chip opened JEI with coal above a stick producing one torch. |
+| Formerly malformed torch answer `eb9cb55c-e642-455a-9a41-b671bb8f9bc2` in `456c6528-85fa-482e-9116-1345cecdb1c3-24009b3244a0784a.jsonl` | After New chat, session search reopened the answer with active source chips. Torch recipe opened the correct one-torch JEI recipe. The saved answer still contains the original bare `jei/1/10/...` Markdown destination, proving display recovery without rewriting history. This also verifies the saved-session state fix in the installed client. |
+| Earlier Diamatine answer `7fa69683-9ae8-46b7-b8ac-48a2eaab57bf` in `bbd773b4-0aca-415f-bb52-ebdf628d1a9e-901a89040ca54f71.jsonl` | Atomic Reconstructor recipe opened the native diamond-to-Diamatine viewer, using the previously saved native-holder destination. |
+| Earlier Ponder probe in `eef677b1-7015-46e0-a354-c84b8ff1e246-f311626224b89e79.jsonl`, source `ponder:57:6508a422` | Open Ponder launched the animated Processing Items with the Mechanical Press viewer. This historical plumbing probe is not counted as an independent natural-player conversation. |
+
+No crafting, item movement or machine operation occurred. The fixture remains unchanged, and Minecraft is left paused in PackSage with the corrected conversation visible. The final restart log is retained in ignored `.tools/reference-reliability/final-restart.log`.
+
+The built, installed and `dist/packsage.jar` hashes all match the final hash above. Only `sha256` changed in `dist/build-metadata.json`; its remaining metadata was preserved. Distribution outputs remain ignored by Git. The two unrelated pre-existing dirty validation documents were preserved.
+
+Acceptance: the demonstrated reference-copy failures, duplicate JEI locator leak, saved-session visibility bug and exact saved bare-JEI representation are resolved with automated regressions and installed navigation proof. The prompt is a reviewed whole, with its original size reduced by about 19%. This does not establish universal model reliability: unsupported placement, false correction under challenge, duplicate boundary text, variable lookup cost and a late boundary in the earlier candidate remain recorded. Corrupted identities and genuinely anonymous old destinations are not guessed into another target.

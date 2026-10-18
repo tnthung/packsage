@@ -4,6 +4,8 @@
 
 ### 2026-10-18
 
+- Navigation failure feedback now expires after five seconds, clears on the next navigation or session/world change, and ignores older asynchronous navigation results. The adapter tooltip now includes all twelve registered knowledge providers plus Chat history, with current availability for the seven newer guide sources.
+- Prepared the minimal Packsage profile with the missing guide/manual mods, real Modonomicon/GuideME book content and required dependencies. The [all-adapter player checks](docs/testing/2026-10-18-all-adapter-fixture.md) distinguish setup from actual retrieval acceptance.
 - Added optional Ponder scene documentation for the Minecraft 1.21.1 API family `[0.8.1,1.1)` through the existing guide search and evidence tools: localized titles, component/tag metadata, fresh literal caption templates and player-click component-viewer navigation. Discovery executes at most four storyboard callbacks per call and does not retain compiled scenes or text.
 - Added Ponder citation links and regression coverage for pagination, fresh reads, callback/output limits, optional metadata, caption ordering and stale navigation. Partial guide fragments no longer report complete evidence. Shared/dynamic captions and exact scene deep links remain outside the delivered coverage; [installed acceptance](docs/validation/2026-10-18-ponder-support.md) is pending.
 - Replaced Ponder's initial exact-version pin with the researched API range, normalized its `+mc1.21.1` version labels and preserved the actual loaded version in evidence. Create's bundled Ponder is sufficient; PonderJS is optional.

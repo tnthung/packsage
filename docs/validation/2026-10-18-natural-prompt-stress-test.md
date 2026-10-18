@@ -635,7 +635,15 @@ The assistant initially declined to guess the crystal input while the target was
 
 Candidate source `e440e2f` adds guidance on causal direction and conditions, distinguishing required quest order from recommendations, accurate correction history, and stopping searches when they stop adding relevant evidence. Java 21 `gradlew test build` passed 50 suites and 577 tests: 573 passed, 4 existing skipped, 0 errors or failures; build completed in 25 seconds. The built `build/libs/packsage-0.1.0.jar` SHA-256 is `7BF5D161E044CD21899A023AF4CA0D5A053F0612F1EDF0EB5CE5454EF37AD526`.
 
-Candidate 2 is **not installed**. Arc 8 and the remaining current-version live tests continue on candidate `4cb7f7b`, installed JAR SHA-256 `05255AA6CF6C05B76DC5A0B67715521B4186264DFBACAAA3FDEF325BFB3F5C2C`. The `dist` artifact still has the baseline database hash `DB1211BFF7CDA5EA4A81A1303CF24A80D887223D7A7B4035C70FCEB1247BDE0B`. The validation filename retains its 2026-10-18 date because the test batch began that day.
+At the time of this build-status entry, Candidate 2 was not yet installed. Arc 8 completed on candidate `4cb7f7b`, installed JAR SHA-256 `05255AA6CF6C05B76DC5A0B67715521B4186264DFBACAAA3FDEF325BFB3F5C2C`. The `dist` artifact still had the baseline database hash `DB1211BFF7CDA5EA4A81A1303CF24A80D887223D7A7B4035C70FCEB1247BDE0B`. The validation filename retains its 2026-10-18 date because the test batch began that day.
+
+## Candidate 2 deployment and persistence check (2026-10-19 00:11)
+
+The game was saved and quit normally, and no active Minecraft Java process was present before copying the build JAR. The installed JAR and built JAR hashes both match `7BF5D161E044CD21899A023AF4CA0D5A053F0612F1EDF0EB5CE5454EF37AD526`. The game properties SHA-256 remains the baseline value `AF7DA001C214347F01A17D76A991150D1728907B5EC16615FC2EE1126DAA5FA0`; there is no developer prompt override. A fresh process/window (`155322106`) loaded the same `New World` fixture. The UI shows GPT-6-Luna Extra high with screenshots enabled.
+
+Arc 9’s first quest question has been submitted on Candidate 2 but is not yet a completed turn. Coverage therefore remains 8/12. The `dist` artifact has not been promoted and still carries baseline database hash `DB1211BFF7CDA5EA4A81A1303CF24A80D887223D7A7B4035C70FCEB1247BDE0B`.
+
+After restart, opening the saved Diamatine custom-recipe link from Arc 8 displayed “Navigation target is no longer available”; the same link had worked before restart. A read-only specialist identified the saved target as a no-ID temporary class/hash handle and noted that native registered recipes have stable `recipe-v1` metadata. Genuine-ID recovery remains under narrow investigation and is unresolved.
 
 ## Coverage status
 

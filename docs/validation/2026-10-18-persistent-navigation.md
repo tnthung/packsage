@@ -18,6 +18,8 @@ Source through `b7f47a0` passed portable Java 21.0.12.1 `./gradlew.bat test buil
 
 Manual style inspection followed the existing code conventions. No formatter was used. Relative documentation links and `git diff --check` passed. The two pre-existing uncommitted validation documents were preserved.
 
+Independent review covered shared resolution, Ponder/Patchouli, saved URLs and the final JEI implementation through `b7f47a0`. Its custom-category identity finding was reproduced and corrected. The final review found no remaining actionable correctness issue, including the category restoration, shared-budget, temporary-link request progression, current registration/visibility and late-result paths.
+
 ## Artifact
 
 Built JAR: `build/libs/packsage-0.1.0.jar`. Distribution: `dist/packsage.jar`; matching metadata is in `dist/build-metadata.json`.

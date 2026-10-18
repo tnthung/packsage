@@ -26,7 +26,7 @@
 - [x] Run focused suites, full `gradlew.bat test build`, independent review and targeted corrections. Record exact automated evidence and remaining live limits under `docs/validation/`.
 - [x] Exercise historical destinations in the installed test profile across full Minecraft restarts. Add a regression through the actual optional-provider wrapper and forward provider-owned navigation resolution to its current delegate.
 - [x] Reproduce the installed JEI category scan-limit failure, separate identity/membership work from semantic extraction, cover the large-category boundary and measure live resolution before removing diagnostic probes.
-- [ ] Recover native holder IDs for JEI recipes registered as raw native recipe objects: keep explicit JEI IDs first, use a capture-local identity index bounded at 65,536 holders, and reject incomplete scans and ambiguous aliases. Cover recreated objects, current registration, reload replacement and anonymous-recipe limits, then generate a new Actually Additions laser link and open it after a full restart. The old hash-only link remains unavailable.
+- [x] Recover native holder IDs for JEI recipes registered as raw native recipe objects: keep explicit JEI IDs first, use a capture-local identity index bounded at 65,536 holders, and reject incomplete scans and ambiguous aliases. Cover recreated objects, current registration, reload replacement and anonymous-recipe limits, then generate a new Actually Additions laser link and open it after a full restart. The old hash-only link remains unavailable.
 
 ## Review focus
 

@@ -68,3 +68,13 @@ The new runtime fixture first failed because discovery emitted a temporary targe
 Java 21 `gradlew test build` passed through `f154242` in 25 seconds: 50 suites, 577 tests, 573 passed, four existing skips, zero failures or errors. The extended `JeiProjectionTest` still contains 24 test methods. Existing deprecated-API and unchecked-operation warnings remain. Built JAR SHA-256 is `58EE4E7B14C6F1A2B83741145FC46B6A074EA96EE766A54FA84417496D409864`.
 
 At this checkpoint the new build is not installed: the live prompt trials still run the preceding `7BF5D161E044CD21899A023AF4CA0D5A053F0612F1EDF0EB5CE5454EF37AD526` JAR, and `dist` retains the initial artifact above. Acceptance for the native fallback remains pending a newly generated laser citation opened after a full Minecraft restart. The old temporary Diamatine link is not that acceptance target.
+
+### Installed native identity acceptance
+
+The subsequent build through prompt source `6a0edde` passed the same 50 suites and 577 tests (573 passed, four existing skips, zero failures or errors) in 24 seconds. Its SHA-256 is `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`. After normal save/quit and a process-absence check, the built and installed JAR hashes matched; settings retained SHA-256 `AF7DA001C214347F01A17D76A991150D1728907B5EC16615FC2EE1126DAA5FA0` with no developer prompt override.
+
+An ordinary in-game question generated request `7fa69683-9ae8-46b7-b8ac-48a2eaab57bf`, saved in `bbd773b4-0aca-415f-bb52-ebdf628d1a9e-901a89040ca54f71.jsonl`: “Can my seven diamonds make Diamatine crystals? I’d like to see the recipe too.” Its current JEI reference saved destination `recipe-v1|actuallyadditions:laser|actuallyadditions:laser/crystalize_diamatine_crystal`. The named recipe link opened the native Atomic Reconstructor viewer with diamond input and Diamatine output.
+
+Minecraft was then saved and exited normally, process absence was confirmed, and a new process/window (`156959942`, replacing `81006064`) loaded the same world. The saved answer was restored from disk. Clicking that same named recipe link opened the correct Atomic Reconstructor recipe again, before any new model request or recipe search. No conversation data was edited, and no item was crafted or consumed. This passes live restart acceptance for the native-ID fallback on the installed Actually Additions version. The old class/hash-only link remains unavailable; genuinely anonymous recipes retain that limit.
+
+The [prompt journal](2026-10-18-natural-prompt-stress-test.md) records the exact answer, current recipe evidence and separate navigation observation. Distribution promotion follows the remaining prompt regression checks; the earlier artifact sections above describe their own checkpoints.

@@ -74,6 +74,87 @@ The player’s goal was answered with current inventory and recipe evidence, and
 
 Elapsed time is the host log's accepted-to-model-terminal duration, not perceived player latency. The saved JSONL alone does not contain per-turn finish timestamps.
 
+## Arc 2: Lantern quantities and coal reserve
+
+Player agent: `luna_high_player_lanterns`.
+
+Saved conversation: [677dabcc-1553-48d4-b5a6-faa97cdac084-97c68e3616da0b98.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/677dabcc-1553-48d4-b5a6-faa97cdac084-97c68e3616da0b98.jsonl)
+
+The player wanted nine lanterns while reserving 16 coal, then accepted making five first and asked about completing the rest later. The player stated they had not crafted or moved anything before the first turn. Exact saved turns follow.
+
+#### Turn 1
+
+- Request ID: `b1d1c5c4-ed2b-4ead-9fe0-138f1a8481ad`
+- Tool calls: 10
+- Elapsed time: 166.878 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=166878`).
+- Player:
+
+  ```text
+  Can you see if I can make 9 lanterns with what I’m carrying? I need to keep 16 coal for smelting later, and I dont want charcoal. Haven’t crafted or moved anything yet.
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  **Not nine with your current coal while keeping 16.** Your inventory has 64 coal and plenty of wood, but the inspected carried slots and shulker don’t show any torches or iron nuggets. citeturn0inventory0turn0inventory1turn0inventory2turn0inventory3turn0storage0
+
+  I found two lantern recipes: the standard one uses **8 iron nuggets + 1 torch** per lantern; the pack’s alternate recipe lets you use **8 coal instead of those nuggets**, but still needs a torch. The loaded torch recipe uses 1 coal and 1 stick to make 1 torch. citeturn0search1turn0search2turn0search3 So nine lanterns by the coal route would take **81 coal** if you make the torches from coal—leaving 16 would require 97 total, **33 more than you carry**.
+
+  You could make **five** by that route: 40 coal for the lanterns and 5 for their torches, leaving 19. Your wood can provide the sticks and a crafting table. citeturn0search4turn0search5turn0search6 To make all nine without spending your reserved coal, you’d need to get the 72 iron nuggets for the standard recipe.
+  ```
+
+**Evidence and assessment:** Direct inventory evidence showed 64 coal; resolved contents of the carried shulker showed 7 diamonds, with no torches or iron nuggets reported. The native and JEI results show the standard lantern recipe uses 8 iron nuggets and a torch, the installed fixture recipe accepts 8 coal and a torch, and the native and JEI torch recipe yields one from coal and stick. Nine lanterns by the coal route require 81 coal plus 9 for torches, or 97 total to preserve 16; the player has 64, leaving a 33-coal shortfall. Five require 45 and leave 19. The arithmetic and intent handling are sound. However, every citation is an invented `turn0...` reference, so none points to evidence and the client cannot render useful chips. The 10 tool calls included redundant JEI and shulker investigations. Scores (1–5): factual grounding 3; arithmetic 5; usefulness 3; citation/navigation 1.
+
+#### Turn 2
+
+- Request ID: `1e8f791c-3093-48a4-8a2b-59a738ad3d4c`
+- Tool calls: 8
+- Elapsed time: 93.792 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=93792`).
+- Player:
+
+  ```text
+  Okay, five is fine. Can you make those and leave the 16 coal untouched?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  I can’t craft or move items for you—my access is read-only, so nothing has changed. **But yes, you’re carrying enough to make five and still keep 16 coal.**
+
+  Use **45 coal total**: 5 coal plus 5 sticks for five torches, then 8 coal around each torch for five lanterns. That leaves **19 coal**, so your 16-coal reserve stays untouched; no charcoal needed. cite[native:minecraft:torch][native:packsage:fixture_lantern][native:inventory:4f3b175e-e480-4c1c-87a5-003d6e5567f6:hotbar:0]
+
+  For the wood: craft 2 stripped oak wood into 8 planks; use 4 for a crafting table and the other 4 for 8 sticks. You have plenty of stripped oak wood. Then make the torches, and use the table’s 3×3 grid to craft each lantern with a torch in the center and coal in the eight surrounding slots. cite[native:minecraft:oak_planks][native:minecraft:crafting_table][native:minecraft:stick][native:inventory:4f3b175e-e480-4c1c-87a5-003d6e5567f6:hotbar:1]
+  ```
+
+**Evidence and assessment:** The assistant correctly declined to perform the crafting and said nothing had changed. The proposed quantities are consistent: 5 coal for torches and 40 for lanterns leaves 19. Two stripped oak wood yield 8 planks; 4 can make a crafting table and the other 4 yield 8 sticks. The returned recipe metadata supports ingredient counts but has no explicit grid coordinates, so the center/surrounding placement is not established by serialized slots. Citation markup includes actual references but wraps each one in a malformed citation group, resulting in citation chips with garbage text. The eight calls again include redundant recipe and container checks. Scores (1–5): factual grounding 4; arithmetic 5; usefulness 4; citation/navigation 2.
+
+#### Turn 3
+
+- Request ID: `8f3ab1df-0fdb-44c0-aeed-f7d5d554fd9e`
+- Tool calls: 9
+- Elapsed time: 112.621 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=112621`).
+- Player:
+
+  ```text
+  Got it, I’ll make five myself for now. If I want all nine later, I need 72 iron nuggets and can still keep my 16 coal, right?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  **Yes—if you mean nine lanterns total made with the iron-nugget recipe:** that’s **72 iron nuggets plus 9 torches**. You currently have 64 coal, and the loaded torch recipe uses 1 coal and 1 stick per torch, so making all nine torches that way would leave **55 coal**—well above your 16-coal reserve. No charcoal needed. [native:minecraft:lantern] [native:minecraft:torch] [native:inventory:2a8f2a1f-0aab-40d0-a720-8a612f9ba6f7:hotbar:0]
+
+  One wrinkle if you make five with the coal lantern recipe first: that leaves 19 coal. Making four more lanterns with nuggets takes **32 nuggets and 4 torches**; if you craft those torches from coal, you’d end up with **15**, one below your reserve. So for that sequence, save or get at least one of the four torches another way—or get 1 more coal. [native:packsage:fixture_lantern] [native:minecraft:lantern] [native:minecraft:torch]
+  ```
+
+**Evidence and assessment:** The answer distinguishes nine lanterns made with nuggets from the alternative sequence where five are made with coal first. Starting fresh, 72 nuggets plus 9 torches can be made while spending 9 coal and keeping 55 of the current 64. After spending 45 coal on five via the fixture recipe, 19 remain; four additional torches would cost 4 coal, leaving 15, so the warning about needing one more coal or an alternate torch source is correct. Citations use exact plain references and rendered as readable Lantern, Torch, Inventory and Fixture Lantern chips in the client. The player says they will make five, but there is no evidence they actually did; no crafting or inventory change is claimed. Nine tool calls for this follow-up suggest redundant investigation. Scores (1–5): factual grounding 4; arithmetic 5; usefulness 4; citation formatting 5.
+
+#### Arc-level result
+
+The assistant tracks the changed goal and distinguishes both interpretations of “all nine later.” The resource arithmetic and refusal to claim it can craft are strong. Citation handling is inconsistent: the first turn cites nonexistent search references, the second wraps real references in malformed citation syntax, and the third uses valid plain references rendered as readable chips. The arc also used 8–10 calls per turn, including repeated JEI and shulker checks. Treat arithmetic and context handling as a pass; citation consistency and tool economy did not pass. No game action or resulting inventory change is evidenced.
+
+The shipped default remained installed for this arc. Candidate prompt source `a2f540c` had been built but was not installed, so Arc 2 is baseline behavior.
+
 ## Coverage status
 
-This is the first completed arc of the twelve-arc stress test. Further arcs and any justified fresh-chat retests remain pending.
+Two of twelve planned arcs are complete. Further arcs and any justified fresh-chat retests remain pending.

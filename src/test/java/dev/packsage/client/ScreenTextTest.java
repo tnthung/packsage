@@ -277,6 +277,19 @@ class ScreenTextTest {
     }
 
     @Test
+    void ponderCitationsKeepPlayerNavigationForRawAndGroupedMarkers() {
+        var target = new Evidence.NavigationTarget(SCOPE, "ponder", "1:registration", "create:shaft");
+        for (String marker : List.of("[ponder:1:registration]", "\uE200cite\uE202ponder:1:registration\uE201")) {
+            var spans = ScreenText.inlineLines(marker, List.of(target)).getFirst().spans();
+            assertEquals(1, spans.size());
+            assertEquals("Ponder", spans.getFirst().text());
+            assertEquals(target, spans.getFirst().target());
+        }
+        assertEquals("[ponder]", ScreenText.inlineLines("[ponder:1:registration]", List.of())
+                .getFirst().spans().getFirst().text());
+    }
+
+    @Test
     void bracketedTextThatIsNotAPackSageProviderMarkerIsPreservedVerbatim() {
         String text = "Use [minecraft:torch] or [todo:fix] or [other:abc] or [Native:x]";
 

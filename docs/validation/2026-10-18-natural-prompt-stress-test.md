@@ -1160,3 +1160,67 @@ Saved conversation: [0e2d21d4-eaaa-47d1-bd4e-62cf7315cf17-ec1c84b2c9f9c0fa.jsonl
 ### R4 result
 
 The assistant used the installed Ponder and config evidence to give a concrete setup explanation. Its 2x gearing and 256 RPM claims are source-backed. The press-speed diagnosis, overload warning, and belt-backlog guidance remain recommendations or deductions rather than observations of a built machine; the answer does not consistently label those assumptions. The post-answer viewer opened successfully, but no physical speed or throughput test occurred. R4 is controlled regression evidence on the final candidate, not independent-arc coverage.
+
+## Final-candidate controlled repeat R5: Nature’s Aura growth and local depletion
+
+This is a controlled repeat on final source `6a0edde`, not another independent arc. Installed JAR SHA-256: `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`.
+
+Saved conversation: [2acba110-64f7-4cc0-93c2-938ce1bbf6b4-535012f7cb9411dd.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/2acba110-64f7-4cc0-93c2-938ce1bbf6b4-535012f7cb9411dd.jsonl)
+
+### Turn 1: meaning of aura
+
+- Request ID: `bc3841b0-52be-4bff-8800-99ce255a87a4`
+- Tool calls: 2
+- Elapsed time: 23.819 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=23819`).
+- Player:
+
+  ```text
+  I found Nature’s Aura but I’m not sure what “aura” means in it. What is it?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  In Nature’s Aura, **aura is an ambient natural resource**: places have different concentrations of it, and certain plants can make the surrounding area richer in aura when they grow. The book says you can collect it with a **Bottle and Cork**; Aura Blooms often grow in grassy areas and are a gentler place to start. [patchouli:naturesaura:book#naturesaura:practices/aura_plants]
+
+  So think of it less as a visible spell effect and more as the mod’s natural energy to gather.
+  ```
+
+**Trace and UI evidence:** The guide supports that plants raise local aura concentration when they grow, and describes Aura Blooms in grassy areas and Bottle-and-Cork collection there as less destructive to the environment. The answer gets the growth direction right. “Ambient natural resource” and “natural energy” are explanatory paraphrases, rather than wording directly established by the returned guide. The parent did not click a chip; no in-game action occurred. Scores (1–5): factual grounding 4; usefulness 4; citation coverage 4.
+
+### Turn 2: what lowers local aura
+
+- Request ID: `23985824-f84a-4f52-a6ff-1743481fbcfb`
+- Tool calls: 14
+- Elapsed time: 57.855 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=57855`).
+- Player:
+
+  ```text
+  Got it, plants can raise it when they grow. What makes the local aura go down?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  The clearest confirmed cause is **collecting aura with a Bottle and Cork**—that takes aura from the surrounding area. The book says doing this near Aura Blooms is *less destructive* to the environment, not that it has no effect. [patchouli:naturesaura:book#naturesaura:practices/aura_plants]
+
+  That guide entry doesn’t spell out other causes or exact amounts, so I can’t say from it alone what else lowers the local aura.
+  ```
+
+**Trace and UI evidence:** The citation supports that collection near Aura Blooms is less destructive to the environment, but it does not explicitly say collection reduces local aura, or explain a depletion mechanism or amount. Calling collection the “clearest confirmed cause” overstates the source; this is a plausible inference that should be labeled as such. The answer correctly leaves other causes and quantities unknown. The 14-call search repeated broad and closely related guide queries without adding direct evidence, so search stopping did not improve the answer’s grounding. No chip was clicked and no items or world state changed. Scores (1–5): factual grounding 2; usefulness 3; citation coverage 3.
+
+### R5 result and coverage total
+
+The answer preserves the correct plant-growth direction, but the follow-up still presents aura depletion by collection as confirmed when the cited page only compares environmental impact. This remaining inference is not a factual pass. Across the journal there are 12 independent arcs (33 turns, 245 tool calls) and 6 controlled repeats (12 turns, 97 tool calls), for 45 completed turns and 342 tool calls total. The controlled repeats include R1, N1, R2, R3, R4, and R5; they do not increase independent-arc coverage. Results remain mixed, with unresolved citation, inference-labeling, and search-churn issues.
+
+## Final assessment
+
+The manual test batch is complete. Private player agents chose natural questions and adaptive follow-ups in twelve independent arcs; controlled repeats checked the resulting prompt changes separately. Exact saved turns, request IDs, tool counts, host timings and operator navigation observations are recorded above. Player satisfaction was kept separate from factual acceptance. No autonomous scenario runner or fabricated gameplay actions were used.
+
+The final candidate retains the pack-specific torch total under challenge, handles the coal reserve correctly, distinguishes recommended quests from required order, refreshes the three recipe links in the charcoal follow-up, and preserves unknown Curios equipment state. Ponder gearing captions and the loaded server speed limit support the improved press answer. These are bounded observations, not a universal behavioral pass.
+
+Remaining failures are explicit: an unnecessary correction apology, a mistyped inventory handle that also breaks a storage read, delayed action-boundary feedback, unlabeled setup deductions, repeated low-value searches and the Aura drain claim presented as confirmed. The growth-direction correction passed; the depletion follow-up did not. Additional scenario-specific prompt warnings were not added after these final observations because the general policies already cover them and still proved unreliable in these trials.
+
+The built, installed and distribution JARs match SHA-256 `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`; distribution metadata agrees and settings remain unchanged. Source is unchanged from tested `6a0edde`: Java 21 `gradlew test build` passed 573 tests with four existing skips, zero failures and zero errors. The [persistent-navigation report](2026-10-18-persistent-navigation.md) records the new custom recipe and older Ponder links opened after a full process restart. Old hash-only recipe links cannot be safely migrated.
+
+Coverage is the Packsage fixture with GPT-6-Luna Extra high, not full ATM10 or remote multiplayer. Crafting, power transfer, physical machine throughput, falling damage and equipment changes were not performed. Host elapsed times measure accepted request to model terminal, not perceived player latency. No formatter was used; the pre-existing unrelated validation changes were preserved.

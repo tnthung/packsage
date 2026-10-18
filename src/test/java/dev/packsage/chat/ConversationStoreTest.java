@@ -87,7 +87,7 @@ class ConversationStoreTest {
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1,
                 Instant.parse("2026-10-17T00:00:00Z"), List.of(
                         new ChatContracts.ActivityStep("tool:call-1", "Reading evidence", "Could not complete",
-                                ChatContracts.ActivityStatus.FAILED),
+                                ChatContracts.ActivityStatus.FAILED, "{\"handle\":null}"),
                         new ChatContracts.ActivityStep("tool:call-2", "Reading history", "Existing specific reason",
                                 ChatContracts.ActivityStatus.FAILED)));
         store.appendTurn(world, SCOPE, conversation.id(), turn).toCompletableFuture().join();
@@ -96,6 +96,7 @@ class ConversationStoreTest {
 
         assertTrue(loaded.activities().getFirst().detail().contains("Missing evidence"), loaded.activities().getFirst().detail());
         assertTrue(loaded.activities().getFirst().detail().contains("NOT_FOUND"), loaded.activities().getFirst().detail());
+        assertEquals("{\"handle\":null}", loaded.activities().getFirst().serializedArguments());
         assertEquals("Existing specific reason", loaded.activities().get(1).detail());
     }
 

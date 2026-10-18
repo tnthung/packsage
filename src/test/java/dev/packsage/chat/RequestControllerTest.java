@@ -1280,8 +1280,8 @@ class RequestControllerTest {
                 }, ignored -> { });
         controller.begin(submission("activity-parallel", WORLD_A, SCOPE_A, false,
                 new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
-        backend.emit("activity-parallel", toolEvent("one", "read_evidence", "{}"));
-        backend.emit("activity-parallel", toolEvent("two", "read_history", "{}"));
+        backend.emit("activity-parallel", toolEvent("one", "read_evidence", "{\"one\":null}"));
+        backend.emit("activity-parallel", toolEvent("two", "read_history", "{\"two\":[1,2]}"));
 
         assertEquals(List.of(ChatContracts.ActivityStatus.RUNNING, ChatContracts.ActivityStatus.RUNNING),
                 controller.view().activities().stream().map(ChatContracts.ActivityStep::status).toList());
@@ -1297,6 +1297,8 @@ class RequestControllerTest {
         List<ChatContracts.ActivityStep> saved = controller.view().conversation().turns().getFirst().activities();
         assertEquals(ChatContracts.ActivityStatus.FAILED, saved.getFirst().status());
         assertEquals(ChatContracts.ActivityStatus.FAILED, saved.get(1).status());
+        assertEquals("{\"one\":null}", saved.getFirst().serializedArguments());
+        assertEquals("{\"two\":[1,2]}", saved.get(1).serializedArguments());
     }
 
     @Test
@@ -1313,7 +1315,7 @@ class RequestControllerTest {
         controller.begin(submission("activity-tool-error", WORLD_A, SCOPE_A, false,
                 new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
 
-        backend.emit("activity-tool-error", toolEvent("call-1", "read_evidence", "{}"));
+        backend.emit("activity-tool-error", toolEvent("call-1", "read_evidence", "{\"query\":null}"));
 
         String detail = controller.view().activities().getFirst().detail();
         assertTrue(detail.contains("Missing recipe entry"), detail);
@@ -1326,6 +1328,7 @@ class RequestControllerTest {
         ChatContracts.Turn saved = store.openLatest(WORLD_A).toCompletableFuture().join().turns().getFirst();
         assertEquals(detail, saved.activities().getFirst().detail());
         assertEquals(ChatContracts.ActivityStatus.FAILED, saved.activities().getFirst().status());
+        assertEquals("{\"query\":null}", saved.activities().getFirst().serializedArguments());
     }
 
     @Test
@@ -1399,13 +1402,28 @@ class RequestControllerTest {
                 request -> new CompletableFuture<>(), ignored -> { });
         controller.begin(submission("activity-cancel", WORLD_A, SCOPE_A, false,
                 new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
-        backend.emit("activity-cancel", toolEvent("pending", "read_history", "{}"));
+        backend.emit("activity-cancel", toolEvent("pending", "read_history", "{\"page\":2}"));
 
         controller.stop();
 
         ChatContracts.Turn saved = controller.view().conversation().turns().getFirst();
         assertEquals(ChatContracts.OutcomeStatus.CANCELLED, saved.outcome().status());
         assertEquals(ChatContracts.ActivityStatus.CANCELLED, saved.activities().getFirst().status());
+        assertEquals("{\"page\":2}", saved.activities().getFirst().serializedArguments());
+    }
+
+    @Test
+    void retryCancellationPreservesRunningToolArguments() {
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = activityController(backend, new ArrayList<>(), "activity-retry-tool");
+        backend.emit("activity-retry-tool", toolEvent("retry-call", "lookup", "{\"filter\":null}"));
+
+        backend.emit("activity-retry-tool", new ModelBackend.Event(ModelBackend.EventKind.RETRYING, null, null,
+                List.of(), null));
+
+        ChatContracts.ActivityStep cancelled = controller.view().activities().getFirst();
+        assertEquals(ChatContracts.ActivityStatus.CANCELLED, cancelled.status());
+        assertEquals("{\"filter\":null}", cancelled.serializedArguments());
     }
 
     private static RequestController controller(ConversationStore store, FakeBackend backend,

@@ -1,5 +1,8 @@
 package dev.packsage.client;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParser;
 import dev.packsage.chat.ChatActions;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.PackSageSettings;
@@ -28,6 +31,9 @@ import java.util.Set;
 public final class AssistantScreen extends Screen {
     public record RuntimeState(boolean privateSingleplayer, boolean integratedServer, boolean published) { }
     public static final int QUESTION_MAX_LENGTH = 1000;
+    private static final int ACTIVITY_ARGUMENTS_INPUT_LIMIT = 16_384;
+    private static final int ACTIVITY_ARGUMENTS_DISPLAY_LIMIT = 2_048;
+    private static final Gson ACTIVITY_ARGUMENTS_JSON = new GsonBuilder().serializeNulls().setPrettyPrinting().create();
     private final ChatActions actions;
     private final PackSageSettings settings;
     private ChatContracts.View view;
@@ -426,17 +432,8 @@ public final class AssistantScreen extends Screen {
                         left + run.x(), y + run.y(), span.color(), false);
             }
             y += header.height();
-            String detail = activityBody(step, replayItems);
-            if (detail.isBlank()) detail = switch (step.status()) {
-                case RUNNING -> step.id().startsWith("tool:") ? "Running tool…"
-                        : step.id().startsWith("search:") ? "Searching the web…" : "Waiting for a summary…";
-                case COMPLETED -> step.id().startsWith("reasoning:") ? "No summary was provided."
-                        : step.id().startsWith("search:") ? "Search completed." : "Completed.";
-                case FAILED -> "Step failed.";
-                case CANCELLED -> "Step cancelled.";
-            };
-            if (activityExpanded(key) && !detail.isBlank()) {
-                for (var line : font.split(Component.literal(detail).withStyle(style ->
+            if (activityExpanded(key)) {
+                for (var line : font.split(Component.literal(activityBody(step, replayItems)).withStyle(style ->
                         style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), Math.max(1, readableWidth - 38))) {
                     graphics.drawString(font, line, left + 10, y, ModernUi.MUTED, false);
                     y += ModernUi.MESSAGE_LINE_HEIGHT;
@@ -447,7 +444,62 @@ public final class AssistantScreen extends Screen {
     }
 
     String activityBody(ChatContracts.ActivityStep step, List<ModelBackend.InputItem> replayItems) {
-        return step.detail();
+        String detail = step.detail().isBlank() ? switch (step.status()) {
+            case RUNNING -> step.id().startsWith("tool:") ? "Running tool…"
+                    : step.id().startsWith("search:") ? "Searching the web…" : "Waiting for a summary…";
+            case COMPLETED -> step.id().startsWith("reasoning:") ? "No summary was provided."
+                    : step.id().startsWith("search:") ? "Search completed." : "Completed.";
+            case FAILED -> "Step failed.";
+            case CANCELLED -> "Step cancelled.";
+        } : step.detail();
+        if (!step.id().startsWith("tool:")) return detail;
+        String arguments = step.serializedArguments();
+        if (arguments == null) {
+            String callId = step.id().substring("tool:".length());
+            for (ModelBackend.InputItem item : replayItems) {
+                if (item instanceof ModelBackend.ToolCall call && call.callId().equals(callId)) {
+                    arguments = call.serializedArguments();
+                    break;
+                }
+            }
+        }
+        String parameters;
+        if (arguments == null) parameters = "Arguments unavailable.";
+        else if (arguments.length() > ACTIVITY_ARGUMENTS_INPUT_LIMIT) parameters = "Arguments unavailable (input exceeds display limit).";
+        else {
+            int nesting = 0;
+            boolean quoted = false;
+            boolean escaped = false;
+            boolean tooDeep = false;
+            for (int index = 0; index < arguments.length(); index++) {
+                char character = arguments.charAt(index);
+                if (quoted) {
+                    if (escaped) escaped = false;
+                    else if (character == '\\') escaped = true;
+                    else if (character == '"') quoted = false;
+                } else if (character == '"') quoted = true;
+                else if (character == '{' || character == '[') {
+                    nesting++;
+                    if (nesting > 32) tooDeep = true;
+                } else if (character == '}' || character == ']') nesting--;
+            }
+            if (tooDeep) parameters = "Arguments unavailable (nesting exceeds display limit).";
+            else {
+                try {
+                    var parsed = JsonParser.parseString(arguments);
+                    parameters = parsed.isJsonObject() ? ACTIVITY_ARGUMENTS_JSON.toJson(parsed)
+                            : "Arguments unavailable (malformed JSON object).";
+                } catch (RuntimeException failure) {
+                    parameters = "Arguments unavailable (malformed JSON).";
+                }
+            }
+        }
+        String body = detail + "\nParameters:\n" + parameters;
+        if (body.length() <= ACTIVITY_ARGUMENTS_DISPLAY_LIMIT) return body;
+        String marker = "… [truncated]";
+        int end = ACTIVITY_ARGUMENTS_DISPLAY_LIMIT - marker.length();
+        if (Character.isHighSurrogate(body.charAt(end - 1)) && Character.isLowSurrogate(body.charAt(end))) end--;
+        return body.substring(0, end) + marker;
     }
 
     void toggleActivity(String key) {

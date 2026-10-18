@@ -602,7 +602,8 @@ public final class RequestController {
                     }
                 }
                 request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
-                        : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED));
+                        : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED,
+                        step.serializedArguments()));
                 request.activity = providerRetry ? "Retrying provider request…" : ActivityLabels.RETRYING_WITHOUT_WEB_SEARCH;
             } else if (event.kind() == ModelBackend.EventKind.REASONING) {
                 request.activity = ActivityLabels.THINKING;
@@ -657,7 +658,7 @@ public final class RequestController {
             request.activity = ActivityLabels.tool(call, request.toolCalls.size());
             String id = "tool:" + call.callId();
             request.activities.put(id, new ChatContracts.ActivityStep(id, ActivityLabels.tool(call, request.toolCalls.size()),
-                    "", ChatContracts.ActivityStatus.RUNNING));
+                    "", ChatContracts.ActivityStatus.RUNNING, call.serializedArguments()));
             started = currentView();
         }
         publisher.accept(started);
@@ -690,7 +691,8 @@ public final class RequestController {
             if (toolActivity != null) request.activities.put(activityId, new ChatContracts.ActivityStep(activityId,
                     toolActivity.title(), response.result().error()
                     ? ActivityLabels.toolError(response.result().serializedResult()) : "Completed",
-                    response.result().error() ? ChatContracts.ActivityStatus.FAILED : ChatContracts.ActivityStatus.COMPLETED));
+                    response.result().error() ? ChatContracts.ActivityStatus.FAILED : ChatContracts.ActivityStatus.COMPLETED,
+                    toolActivity.serializedArguments()));
             List<Evidence.Source> mergedSources = new ArrayList<>(request.evidence.sources());
             response.evidence().sources().forEach(source -> {
                 if (!mergedSources.contains(source)) mergedSources.add(source);
@@ -741,7 +743,7 @@ public final class RequestController {
             request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
                     : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(),
                     terminalActivity == ChatContracts.ActivityStatus.COMPLETED && id.startsWith("tool:")
-                            ? ChatContracts.ActivityStatus.CANCELLED : terminalActivity));
+                            ? ChatContracts.ActivityStatus.CANCELLED : terminalActivity, step.serializedArguments()));
             markPersistencePending(request);
             active = null;
             if (request.submission.replacing() != null) pendingReplacement = request;
@@ -796,7 +798,8 @@ public final class RequestController {
                 context = captured.context();
             }
             request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
-                    : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED));
+                    : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED,
+                    step.serializedArguments()));
         }
         long cancelledAtNanos = System.nanoTime();
         PackSageLog.LOGGER.info("PackSage timing request={} phase=cancel event_ns={} elapsed_ms={} backendMs={}",

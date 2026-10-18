@@ -482,6 +482,32 @@ class AssistantScreenStateTest {
                         "read_progress", "{\"payload\":\"" + "x".repeat(6000) + "\"}")));
         assertFalse(bounded.isEmpty());
         assertTrue(bounded.length() <= 2048, "expanded tool arguments should have an explicit display bound");
+        assertTrue(bounded.contains("[truncated]"));
+    }
+
+    @Test
+    void toolActivityBodyPrefersCapturedArgumentsAndHidesMalformedOrUnavailablePayloads() {
+        AssistantScreen screen = new AssistantScreen(new FakeActions());
+        List<ModelBackend.InputItem> replay = List.of(new ModelBackend.ToolCall("call-1", "packsage", "lookup",
+                "{\"legacy\":true}"));
+
+        String captured = screen.activityBody(new ChatContracts.ActivityStep("tool:call-1", "Lookup", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED, "{\"current\":null}"), replay);
+        assertTrue(captured.contains("current"));
+        assertTrue(captured.contains("null"));
+        assertFalse(captured.contains("legacy"));
+
+        assertTrue(screen.activityBody(new ChatContracts.ActivityStep("tool:empty", "Lookup", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED, "{}"), List.of()).endsWith("Parameters:\n{}"));
+
+        String malformed = screen.activityBody(new ChatContracts.ActivityStep("tool:broken", "Lookup", "Completed",
+                ChatContracts.ActivityStatus.FAILED, "{broken SECRET"), List.of());
+        assertTrue(malformed.contains("malformed JSON"));
+        assertFalse(malformed.contains("SECRET"));
+
+        String unavailable = screen.activityBody(new ChatContracts.ActivityStep("tool:missing", "Lookup", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED), List.of());
+        assertTrue(unavailable.contains("Arguments unavailable"));
     }
 
     @Test
@@ -832,9 +858,9 @@ class AssistantScreenStateTest {
         assertEquals("Open Lantern recipe", targetOnly.runs().getFirst().span().text());
         assertSame(TARGET, targetOnly.runs().getFirst().span().target());
 
-        var alreadyOpen = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
-                new ScreenText.InlineSpan("Open Lantern recipe", TARGET, ModernUi.TEXT, false, false)), false)), 150);
-        assertEquals("Open Lantern recipe", alreadyOpen.runs().getFirst().span().text());
+        assertEquals("Open Lantern recipe", screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("Open Lantern recipe", TARGET, ModernUi.TEXT, false, false)), false)), 150)
+                .runs().getFirst().span().text());
     }
 
     @Test

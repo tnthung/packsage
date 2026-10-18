@@ -851,6 +851,7 @@ public final class ConversationStore {
             item.addProperty("title", step.title());
             item.addProperty("detail", step.detail());
             item.addProperty("status", step.status().name());
+            if (step.serializedArguments() != null) item.addProperty("serializedArguments", step.serializedArguments());
             activities.add(item);
         });
         value.add("activities", activities);
@@ -1033,7 +1034,9 @@ public final class ConversationStore {
             JsonObject item = activity.getAsJsonObject();
             activities.add(new ChatContracts.ActivityStep(item.get("id").getAsString(), item.get("title").getAsString(),
                     item.has("detail") ? item.get("detail").getAsString() : "",
-                    ChatContracts.ActivityStatus.valueOf(item.get("status").getAsString())));
+                    ChatContracts.ActivityStatus.valueOf(item.get("status").getAsString()),
+                    item.has("serializedArguments") && !item.get("serializedArguments").isJsonNull()
+                            ? item.get("serializedArguments").getAsString() : null));
         });
         List<ChatContracts.SteeringMessage> steeringMessages = new ArrayList<>();
         if (value.has("steeringMessages")) value.getAsJsonArray("steeringMessages").forEach(message -> {
@@ -1051,7 +1054,7 @@ public final class ConversationStore {
                 if (replayItem instanceof dev.packsage.model.ModelBackend.ToolResult result
                         && result.error() && result.callId().equals(callId)) {
                     activities.set(i, new ChatContracts.ActivityStep(activity.id(), activity.title(),
-                            ActivityLabels.toolError(result.serializedResult()), activity.status()));
+                            ActivityLabels.toolError(result.serializedResult()), activity.status(), activity.serializedArguments()));
                     break;
                 }
             }

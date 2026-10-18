@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ClientAssistantTest {
     @Test
     void unavailableGuideAdaptersKeepTheirDiscoveryMetadata() {
-        for (String id : List.of("modonomicon", "guideme", "immersiveengineering", "actuallyadditions", "relics", "artifacts")) {
+        for (String id : List.of("modonomicon", "guideme", "immersiveengineering", "actuallyadditions", "relics", "artifacts", "ponder")) {
             var wrapper = new ClientAssistant.ReflectiveProvider(new ClientAssistant.OptionalStatus(id, id,
                     "[1]", "unloaded", false, false, "not installed"), () -> null);
             assertEquals(List.of("guide"), wrapper.metadata().documentTypes(), id);

@@ -368,7 +368,8 @@ public final class JeiProvider implements KnowledgeProvider {
                     if (!target.targetId().equals(target.sourceHandle()) || record.recipePayload() == null) return null;
                     var category = record.payload().values().get("categoryId");
                     if (record.recipePayload().canonicalRecipeId() == null) {
-                        return sameEnvironment(target.scope(), scope) && target.equals(refreshed) ? refreshed : null;
+                        return sameEnvironment(target.scope(), scope) && target.sourceHandle().equals(refreshed.sourceHandle())
+                                && target.targetId().equals(refreshed.targetId()) ? refreshed : null;
                     }
                     if (!(category instanceof Evidence.JsonString categoryId)) return null;
                     var categoryIdValue = categoryId.value();

@@ -137,16 +137,16 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var resolvedNavigation = false;
             if (query.operation() == Evidence.Operation.GET && retained == null && id != null
                     && (id.startsWith("recipe-v1|") || id.startsWith("category-v1|") || id.startsWith("jei/"))) {
-                var navigationBudget = new Toolbox.DocumentBudget();
-                var identity = navigationIdentity(id, manager, navigationBudget);
-                retained = identity == null ? null : resolveNavigation(identity, manager, scope, navigationBudget);
+                var identity = navigationIdentity(id, manager, budget);
+                retained = identity == null ? null : resolveNavigation(identity, manager, scope, budget);
                 if (retained == null) {
                     return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
                             Evidence.Coverage.UNAVAILABLE, true, null);
                 }
                 var categoryId = categoryId(retained.category(), 0);
-                var canonical = canonical(retained.category(), retained.recipe());
-                id = sourceHandle(generation, snapshotVersion, categoryId, canonical.value(), retained.recipe(), 0);
+                id = retained.recipe() == null ? categoryHandle(snapshotVersion, categoryId)
+                        : sourceHandle(generation, snapshotVersion, categoryId,
+                        canonical(retained.category(), retained.recipe()).value(), retained.recipe(), 0);
                 retained = new RegisteredRecipe(retained.category(), retained.recipe(), scope, null);
                 navigationRegistrations.put(id, retained);
                 while (navigationRegistrations.size() > MAX_NAVIGATION_REGISTRATIONS) {

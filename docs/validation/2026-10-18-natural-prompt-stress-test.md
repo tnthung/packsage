@@ -954,3 +954,61 @@ Saved conversation: [bbd773b4-0aca-415f-bb52-ebdf628d1a9e-901a89040ca54f71.jsonl
 After N1, the game was saved and quit normally and process absence was confirmed. A new full Minecraft process/window (`156959942`) loaded the same `New World`. The saved answer was restored from disk; the parent clicked the same “Atomic Reconstructor recipe” link and the native viewer opened with a 1-diamond-to-1-cyan-crystal recipe. There was no new model request, answer edit, or recipe query before the click. The build and installed JAR hashes remained matched at `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`, and the game properties remained unchanged at `AF7DA001C214347F01A17D76A991150D1728907B5EC16615FC2EE1126DAA5FA0`.
 
 This passes persistence for the new stable native recipe target used by N1. It does not resolve migration of the old temporary hash link observed in Arc 8.
+
+## Final-candidate controlled repeat R2: torch count challenge
+
+This fresh-chat repeat is controlled regression evidence, not another independent arc. It used final source `6a0edde`, installed JAR SHA-256 `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`.
+
+Saved conversation: [5bdca0e4-dc39-45e4-b209-f99fc49524dc-51850dd39854a84e.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/5bdca0e4-dc39-45e4-b209-f99fc49524dc-51850dd39854a84e.jsonl)
+
+### Turn 1: repeated torch question
+
+- Request ID: `539d7ae5-c60f-4525-bfe3-00e167a06d7f`
+- Tool calls: 7
+- Elapsed time: 61.551 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=61551`).
+- Player:
+
+  ```text
+  How do I make torches, and how many can I make from what I’m carrying? I haven’t crafted or moved anything yet btw.
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  You can make **64 torches** with what you’re carrying. Your loaded recipe gives **1 torch per 1 coal and 1 stick**—so your 64 coal sets the limit. [native:minecraft:torch] [jei:jei/1/3/minecraft:crafting/recipe-minecraft:torch-1]
+
+  To make enough sticks while leaving your oak logs alone:
+
+  1. Craft **8 stripped oak wood into 32 oak planks**. Each piece makes 4 planks. [native:minecraft:oak_planks]
+  2. Craft those **32 planks into 64 sticks**—2 planks make 4 sticks. [native:minecraft:stick]
+  3. Combine **64 sticks with 64 coal** in the crafting grid to make 64 torches.
+
+  I checked your current inventory: you have 64 coal and 64 stripped oak wood, and your shulker box contains diamonds, not extra torch ingredients. [native:inventory:4b6650f9-d137-49a5-bb5b-d50e7d5ce58a:hotbar:0] [native:inventory:4b6650f9-d137-49a5-bb5b-d50e7d5ce58a:hotbar:1] [native:storage:6d227db3-3563-423d-bff3-a52da1d2762e:0]
+  ```
+
+**Trace and UI evidence:** Fresh native and JEI results both show 1 torch per coal-and-stick craft. Current inventory has 64 coal and 64 stripped oak wood; the complete carried-shulker inspection shows 7 diamonds and no extra torch ingredients. The wood yields support the calculation of 8 stripped wood to 32 planks to 64 sticks, so the maximum is 64 torches. The answer cites the current inventory and recipes, though it gives no grid coordinates. The parent observed readable chips; none was clicked. Scores (1–5): factual grounding 5; recipe/resource arithmetic 5; usefulness 5; citation coverage 5.
+
+### Turn 2: exact quantity challenge
+
+- Request ID: `c67974ef-6f69-4c78-aeee-23ea50911c1e`
+- Tool calls: 4
+- Elapsed time: 41.569 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=41569`).
+- Player:
+
+  ```text
+  Wait, doesn’t one coal + one stick make 4 torches? Wouldn’t that be 256 then?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  You’re right: the usual Minecraft recipe gives **4 torches**. Sorry—I should’ve flagged that the loaded recipe for your pack shows something different: **1 torch** per coal (or charcoal) and stick. Both the loaded recipe and JEI entry report that output. [native:minecraft:torch] [jei:jei/1/4/minecraft:crafting/recipe-minecraft:torch-1]
+
+  So, **based on this pack’s recipe, your 64 coal makes 64 torches**, not 256. [native:inventory:deed9c41-320b-4d3f-a31e-0fce133271d4:hotbar:0] If the recipe shown in your in-game JEI actually says **4**, then 64 coal would make 256—and your carried wood should provide enough sticks.
+  ```
+
+**Trace and UI evidence:** Current native and JEI results both confirm the pack output of 1 torch per craft, and the answer preserves the correct 64-torch result under challenge. The UI chips were readable; none was clicked. However, “I should’ve flagged” inaccurately describes the prior answer, which already stated the loaded result was 1. The additional conditional that JEI might show 4 is redundant against the two current sources, and the “wood should provide enough sticks” statement cites only coal despite depending on the prior-turn wood/recipe evidence. Scores (1–5): factual grounding 4; recipe/resource arithmetic 5; usefulness 3; citation coverage 3.
+
+### R2 result
+
+The core quantity regression passes: both turns give the pack-specific result of 64 torches, including after the exact challenge. The remaining limitation is response-history accuracy: the assistant apologizes for not flagging a fact that was already stated, then reopens a four-torch conditional unsupported by current pack evidence. No recipe viewer was opened and no item was crafted, smelted, moved, or otherwise changed.

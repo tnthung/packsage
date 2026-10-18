@@ -84,7 +84,6 @@ public final class PonderGuideReader implements GuideDocumentReader {
         var result = new ArrayList<Candidate>();
         var afterFound = afterPosition == null;
         var inspected = 0;
-        var callbacks = 0;
         var more = false;
         var coverage = Evidence.Coverage.COMPLETE;
         String nextPosition = afterPosition;
@@ -92,7 +91,7 @@ public final class PonderGuideReader implements GuideDocumentReader {
         while (entries.hasNext()) {
             if (inspected == MAX_REGISTRATIONS) return new CandidatePage(result, nextPosition, true,
                     Evidence.Coverage.PARTIAL, "Ponder registrations reached the traversal bound");
-            if (afterFound && (result.size() == Math.min(limit, 4) || callbacks == 4)) { more = true; break; }
+            if (afterFound && result.size() == Math.min(limit, 4)) { more = true; break; }
             var entry = entries.next();
             inspected++;
             var position = inspected + ":" + entry.identity();
@@ -115,7 +114,8 @@ public final class PonderGuideReader implements GuideDocumentReader {
                 return new CandidatePage(result, nextPosition, true, Evidence.Coverage.PARTIAL,
                         "Ponder candidate metadata reached its byte budget");
             }
-            callbacks++;
+            if (!budget.callback(providerId(), 4)) return new CandidatePage(result, nextPosition, true,
+                    Evidence.Coverage.PARTIAL, "Ponder storyboard callbacks reached the tool-call budget");
             var title = "";
             try {
                 var scene = source.compile(entry);

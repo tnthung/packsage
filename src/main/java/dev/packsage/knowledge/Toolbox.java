@@ -41,6 +41,7 @@ public interface Toolbox {
         private int values;
         private int bytes;
         private boolean exhausted;
+        private final Map<String, Integer> callbacks = new java.util.HashMap<>();
 
         public synchronized boolean document() {
             if (documents >= 256) { exhausted = true; return false; }
@@ -57,6 +58,13 @@ public interface Toolbox {
         public synchronized boolean bytes(int count) {
             if (count < 0 || count > remainingBytes()) { exhausted = true; return false; }
             bytes += count;
+            return true;
+        }
+
+        public synchronized boolean callback(String providerId, int limit) {
+            int count = callbacks.getOrDefault(providerId, 0);
+            if (count >= limit) { exhausted = true; return false; }
+            callbacks.put(providerId, count + 1);
             return true;
         }
 

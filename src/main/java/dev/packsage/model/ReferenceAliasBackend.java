@@ -288,6 +288,18 @@ public final class ReferenceAliasBackend implements ModelBackend {
             for (String key : List.of("owner", "location", "mainhandLocation", "offhandLocation")) {
                 if (object.get(key) instanceof JsonObject nested) encodeSlots(nested, depth + 1);
             }
+            if (object.get("owners") instanceof com.google.gson.JsonArray owners) {
+                for (JsonElement value : owners) {
+                    if (value instanceof JsonObject owner) encodeSlots(owner, depth + 1);
+                }
+            }
+            if (object.get("entries") instanceof com.google.gson.JsonArray entries) {
+                for (JsonElement value : entries) {
+                    if (value instanceof JsonObject entry && entry.get("payload") instanceof JsonObject payload) {
+                        encodeSlots(payload, depth + 1);
+                    }
+                }
+            }
         }
 
         private String register(String canonical, boolean slot) {

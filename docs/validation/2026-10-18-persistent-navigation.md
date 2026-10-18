@@ -77,4 +77,8 @@ An ordinary in-game question generated request `7fa69683-9ae8-46b7-b8ac-48a2eaab
 
 Minecraft was then saved and exited normally, process absence was confirmed, and a new process/window (`156959942`, replacing `81006064`) loaded the same world. The saved answer was restored from disk. Clicking that same named recipe link opened the correct Atomic Reconstructor recipe again, before any new model request or recipe search. No conversation data was edited, and no item was crafted or consumed. This passes live restart acceptance for the native-ID fallback on the installed Actually Additions version. The old class/hash-only link remains unavailable; genuinely anonymous recipes retain that limit.
 
-The [prompt journal](2026-10-18-natural-prompt-stress-test.md) records the exact answer, current recipe evidence and separate navigation observation. Distribution promotion follows the remaining prompt regression checks; the earlier artifact sections above describe their own checkpoints.
+The [prompt journal](2026-10-18-natural-prompt-stress-test.md) records the exact answer, current recipe evidence and separate navigation observation. The earlier artifact sections above describe their own checkpoints.
+
+### Current artifact
+
+The built JAR, `dist/packsage.jar` and installed profile JAR now all have SHA-256 `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`. The existing `dist/build-metadata.json` has the matching hash; other metadata fields are preserved. Distribution outputs remain ignored by Git. This artifact includes the native identity correction and prompt source `6a0edde`; ongoing conversation regressions are documented separately in the prompt journal and do not establish universal model reliability.

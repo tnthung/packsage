@@ -11,6 +11,7 @@ import dev.ftb.mods.ftbquests.quest.task.Task;
 import dev.ftb.mods.ftbquests.quest.task.TaskType;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
+import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.knowledge.AdapterRegistry;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
@@ -36,6 +37,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class FtbProviderTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "ftb-1", 1);
     private static final String LARGE_ID = "FFFFFFFFFFFFFFFF";
+
+    @Test
+    void savedQuestDestinationResolvesWithARecreatedProviderAndRejectsRemoval() {
+        var opened = new AtomicReference<String>();
+        var snapshots = new AtomicReference<>(new FtbProvider.Snapshot(SCOPE, 4,
+                List.of(quest(LARGE_ID, "Current quest", List.of())), List.of(), opened::set));
+        var provider = new FtbProvider(snapshots::get, Runnable::run);
+        provider.refresh();
+        var service = new KnowledgeService(List.of(provider), () -> SCOPE);
+        var saved = new Evidence.NavigationTarget(new Evidence.Scope("old-session", "old-resources", "team",
+                "old-runtime", 1), FtbProvider.ID, LARGE_ID, LARGE_ID);
+
+        var refreshed = service.refreshNavigation(saved, SCOPE).toCompletableFuture().join();
+
+        assertNotNull(refreshed);
+        assertEquals(SCOPE, refreshed.scope());
+        assertEquals(Evidence.NavigationStatus.OPENED, service.open(refreshed, SCOPE).status());
+        assertEquals(LARGE_ID, opened.get());
+        snapshots.set(new FtbProvider.Snapshot(SCOPE, 5, List.of(), List.of(), opened::set));
+        assertNull(service.refreshNavigation(saved, SCOPE).toCompletableFuture().join());
+    }
 
     @Test
     void documentAdapterMatchesItsQualifiedTypeAndReadsCurrentSnapshot() {

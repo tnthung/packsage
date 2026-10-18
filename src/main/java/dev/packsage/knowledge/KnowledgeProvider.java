@@ -1,7 +1,7 @@
 package dev.packsage.knowledge;
 
-import java.util.Objects;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 
 public interface KnowledgeProvider extends Toolbox {

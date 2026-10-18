@@ -46,7 +46,7 @@ class KnowledgeServiceTest {
         var current = new Evidence.NavigationTarget(SCOPE, "ponder", "new-registration", "create:shaft");
         var received = new AtomicReference<Evidence.NavigationTarget>();
         var provider = new PagedProvider("ponder", query -> page(List.of(), null)) {
-            public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+            @Override public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
                 received.set(target);
                 assertEquals(SCOPE, scope);
                 return CompletableFuture.completedFuture(current);
@@ -69,7 +69,7 @@ class KnowledgeServiceTest {
                 new Evidence.NavigationTarget(new Evidence.Scope("other", "resources", "team", "runtime", 1),
                         "ponder", "new", "create:shaft"))) {
             var provider = new PagedProvider("ponder", query -> page(List.of(), null)) {
-                public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                @Override public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
                     return CompletableFuture.completedFuture(invalid);
                 }
             };
@@ -80,7 +80,7 @@ class KnowledgeServiceTest {
         var pending = new CompletableFuture<Evidence.NavigationTarget>();
         var active = new AtomicReference<>(SCOPE);
         var service = new KnowledgeService(List.of(new PagedProvider("ponder", query -> page(List.of(), null)) {
-            public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+            @Override public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
                 return pending;
             }
         }), active::get);

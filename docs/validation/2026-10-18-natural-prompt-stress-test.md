@@ -558,6 +558,12 @@ Player agent: `luna_high_player_powah`. Three turns were submitted. The player�
 
 The assistant gave a useful entry point and exact solar-panel ingredients, all grounded in returned registry and recipe records. The broad “power tech” label is a reasonable names-based summary rather than a verified detailed description. The placement and cable advice is plausible but was not established by the guide searches, so it should remain framed as general setup guidance. The player’s unsent judgment indicates they found a basic starting point but still wanted clarity about the machine and cable count; no setup or item action was attempted. The parent observed readable citations but did not open a result in this arc. The three turns used 22 tool calls total. No game action occurred.
 
+## Candidate 2 build status (2026-10-19)
+
+Candidate source `e440e2f` adds guidance on causal direction and conditions, distinguishing required quest order from recommendations, accurate correction history, and stopping searches when they stop adding relevant evidence. Java 21 `gradlew test build` passed 50 suites and 577 tests: 573 passed, 4 existing skipped, 0 errors or failures; build completed in 25 seconds. The built `build/libs/packsage-0.1.0.jar` SHA-256 is `7BF5D161E044CD21899A023AF4CA0D5A053F0612F1EDF0EB5CE5454EF37AD526`.
+
+Candidate 2 is **not installed**. Arc 8 and the remaining current-version live tests continue on candidate `4cb7f7b`, installed JAR SHA-256 `05255AA6CF6C05B76DC5A0B67715521B4186264DFBACAAA3FDEF325BFB3F5C2C`. The `dist` artifact still has the baseline database hash `DB1211BFF7CDA5EA4A81A1303CF24A80D887223D7A7B4035C70FCEB1247BDE0B`. The validation filename retains its 2026-10-18 date because the test batch began that day.
+
 ## Coverage status
 
 Seven of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.

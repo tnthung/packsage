@@ -42,3 +42,9 @@ The assistant tooltip was directly observed with all thirteen rows visible and g
 Filesystem preparation, startup/world entry and the corrected tooltip are verified. Full adapter search/fresh-read acceptance and native rendering of timed navigation feedback remain player checks. The earlier [guide/manual acceptance](2026-10-15-guide-manual-adapters.md) used ATM10 and its Artifacts replacement branch; it does not establish the base Artifacts path in this minimal profile.
 
 The player's earlier 19:04 Ponder request took 33 activity steps and returned a Minecraft item reference without the requested Ponder viewer link. That retrieval/performance failure is a separate follow-up; a green adapter status does not establish its functional acceptance.
+
+## Follow-up corrections
+
+Independent review found that new navigation feedback could render below the viewport in an idle overflowing transcript. Its regression first failed: a player following the bottom remained at the old offset after the feedback increased content height. Feedback now follows the new bottom only when the player was already following; scrolling up to read history preserves the offset. The reviewer confirmed both cases close the finding.
+
+The combined follow-up build passed 566 tests: 562 passed, four existing skips, zero failures/errors. This includes the viewport regression and the [direct Ponder item lookup correction](2026-10-18-ponder-support.md). The new distribution hash is recorded there; Minecraft remains open with the earlier installed artifact, and the player will perform the live retry.

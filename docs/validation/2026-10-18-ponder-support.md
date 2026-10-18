@@ -19,7 +19,7 @@ Java 21.0.12.1, Minecraft 1.21.1 and NeoForge 21.1.202 remain the build/test bas
 
 The versioned source inspection and unit fixtures do not establish runtime extraction of every Create/PonderJS callback. Some callbacks may fail with a null scene world, use shared/dynamic captions, or perform custom code outside the literal-text source contract.
 
-## Artifact and installed status
+## Initial artifact and installed status
 
 The successful build produced `build/libs/packsage-0.1.0.jar`, copied to `dist/packsage.jar`.
 
@@ -27,7 +27,19 @@ SHA-256: `18D4B61B024981EE8333E972271E3CD4FDAAD52FEC49A2012CC82ED3DFE88877`.
 
 The built JAR, distribution copy and `dist/build-metadata.json` hashes match. The JAR contains `PonderGuideReader` and does not bundle Ponder library classes.
 
-This task did not copy the artifact into a Minecraft instance or launch the game. Installed title search, caption correspondence and actual viewer opening remain pending the [player checks](../testing/2026-10-18-ponder-support.md).
+The initial artifact was not copied into a Minecraft instance during that implementation step. A later [all-adapter fixture check](2026-10-18-all-adapter-fixture.md) installed a newer build and observed all thirteen adapter statuses. That startup check does not establish Ponder retrieval or viewer acceptance.
+
+## Exact-component correction
+
+The player's `show me the usage of create presser in ponder` request (`9a86f2b2-c0b0-4ee7-8061-f4231a913c9a`) began at 19:04:05.986 Taipei time. Its saved trace contains fifteen Ponder document searches and one native item search, within 33 displayed activity steps. The last Ponder result arrived about 65.5 seconds after the request began. Every named search returned no records with partial coverage and continuation; a blank search found unrelated shaft scenes. The native lookup found `create:mechanical_press`, but no press Ponder record or viewer target reached the answer. This is not evidence that the press callback failed: the trace does not show it being reached.
+
+Ponder search now treats a valid fully-qualified registry ID as an exact component selection before copying scene metadata or compiling titles. Model and tool guidance resolve the item's ID, use that query with provider `ponder`, and cite the returned Ponder source for its viewer. Other guide readers and natural-language/title discovery retain their existing path. The change removes unrelated storyboard callbacks from known-item lookup; model response time and individual mod-owned callback duration remain unbounded.
+
+Four new Ponder regressions cover a press after unrelated registrations, a terminal no-association result, matching-only pagination, fresh caption reads with the same scoped viewer target, and continuation through the real knowledge-service coordinator. The initial three tests failed before the query path existed. Review of the first implementation exposed a cursor advance before callback-budget rejection; the coordinator regression reproduced missing remaining scenes, and the corrected cursor retains them for the next public call.
+
+`gradlew.bat test build` passed after correction: 566 tests, 562 passed, four existing skips, zero failures/errors. `PonderGuideReaderTest` has fifteen passing tests, and `AssistantScreenStateTest` has 39. The latter includes the navigation-feedback viewport regression described in the [fixture validation](2026-10-18-all-adapter-fixture.md).
+
+The built JAR, refreshed `dist/packsage.jar` and distribution metadata match SHA-256 `2B2911C6119BAC759722AFB431A8E7B0D37A47A35438DF1A9E84BE68A8D4D11B`. Minecraft is still running with the earlier fixture build, so this correction has not been copied into the instance. The player's natural-language retry, actual tool count/timing, caption correspondence and clicked viewer remain pending the [player checks](../testing/2026-10-18-ponder-support.md).
 
 ## Delivered limits
 

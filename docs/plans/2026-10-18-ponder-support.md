@@ -22,7 +22,7 @@
 - [x] Run focused tests and the full test/build commands, review the patch independently, and fix material findings with regression coverage.
 - [x] Record exact API evidence, automated results and live acceptance limits; update roadmap entries only to the delivered scope.
 - [x] Replace the initial exact-version gate with the researched API-family range, cover historical/current labels and boundaries, and preserve the observed runtime version in fresh evidence.
-- [ ] Add exact-component query regressions and pass the query into bounded candidate traversal without changing the public tool schema. Skip unrelated title callbacks while preserving ordinary title discovery, matching-only continuations, fresh reads and scoped viewer targets.
+- [x] Add exact-component query regressions and pass the query into bounded candidate traversal without changing the public tool schema. Skip unrelated title callbacks while preserving ordinary title discovery, matching-only continuations, fresh reads and scoped viewer targets.
 - [ ] Retest the player's mechanical-press request against the installed adapter, recording actual tool-call counts, returned Ponder evidence and component-viewer navigation separately from automated proof.
 
 ## Review focus

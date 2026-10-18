@@ -4,6 +4,7 @@
 
 ### 2026-10-18
 
+- Ponder item questions can search an exact registry ID before compiling scene titles, avoiding unrelated demonstrations and retaining the returned viewer targets. Model/tool guidance now uses this path and cites the Ponder source; shared-budget continuation retains every matching scene. The player's mechanical-press retry remains pending.
 - Navigation failure feedback now expires after five seconds, clears on the next navigation or session/world change, and ignores older asynchronous navigation results. The adapter tooltip now includes all twelve registered knowledge providers plus Chat history, with current availability for the seven newer guide sources.
 - Prepared the minimal Packsage profile with the missing guide/manual mods, real Modonomicon/GuideME book content and required dependencies. The [all-adapter player checks](docs/testing/2026-10-18-all-adapter-fixture.md) distinguish setup from actual retrieval acceptance.
 - Added optional Ponder scene documentation for the Minecraft 1.21.1 API family `[0.8.1,1.1)` through the existing guide search and evidence tools: localized titles, component/tag metadata, fresh literal caption templates and player-click component-viewer navigation. Discovery executes at most four storyboard callbacks per call and does not retain compiled scenes or text.

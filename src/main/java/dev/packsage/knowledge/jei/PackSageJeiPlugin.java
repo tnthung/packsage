@@ -95,6 +95,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
     private static final class RuntimeState {
         private static final int MAX_CATEGORIES = 256;
         private static final int MAX_SCANNED_RECIPES = 2048;
+        private static final int MAX_NAVIGATION_RECIPES = 65_536;
         private static final int MAX_CURSOR_SEEK = 65_536;
         private static final int MAX_PAGE = 64;
         private static final int MAX_NAVIGATION_REGISTRATIONS = 512;
@@ -215,7 +216,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         try (var recipes = manager.createRecipeLookup(type).limitFocus(focuses).get()) {
                             var iterator = recipes.iterator();
                             for (int scanned = 0; ; scanned++) {
-                                if (scanned >= MAX_SCANNED_RECIPES || !budget.value()) throw new Toolbox.Failure(
+                                if (scanned >= MAX_NAVIGATION_RECIPES
+                                        || !budget.callback(JeiProvider.ID, MAX_NAVIGATION_RECIPES)) throw new Toolbox.Failure(
                                         Toolbox.Code.EXTRACTION_FAILED, "JEI recipe membership exceeded the read budget");
                                 if (!iterator.hasNext()) break;
                                 if (iterator.next() == retained.recipe()) { recipeRegistered = true; break; }
@@ -911,6 +913,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
 
         private RegisteredRecipe resolveNavigation(NavigationIdentity identity, IRecipeManager manager,
                                                     Evidence.Scope scope, Toolbox.DocumentBudget budget) {
+            var started = System.nanoTime();
             var selectedCategory = identity.legacyCategory();
             if (selectedCategory == null) {
                 try (var categories = manager.createRecipeCategoryLookup().get()) {
@@ -933,10 +936,11 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 return new RegisteredRecipe(selectedCategory, null, scope, null);
             }
             Object selectedRecipe = null;
+            var scanned = 0;
             try (var recipes = manager.createRecipeLookup(type).get()) {
                 var iterator = recipes.iterator();
-                for (int scanned = 0; iterator.hasNext(); scanned++) {
-                    if (scanned >= MAX_SCANNED_RECIPES || !budget.value()) {
+                for (; iterator.hasNext(); scanned++) {
+                    if (scanned >= MAX_NAVIGATION_RECIPES || !budget.callback(JeiProvider.ID, MAX_NAVIGATION_RECIPES)) {
                         dev.packsage.PackSageLog.LOGGER.info("PackSage JEI navigation probe scan_limit category={} recipe={} scanned={} found={}",
                                 identity.categoryId(), identity.canonicalRecipeId(), scanned, selectedRecipe != null);
                         return null;
@@ -951,6 +955,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
             } catch (RuntimeException ignored) {
                 return null;
             }
+            dev.packsage.PackSageLog.LOGGER.info("PackSage JEI navigation probe complete category={} scanned={} elapsed_ms={}",
+                    identity.categoryId(), scanned, (System.nanoTime() - started) / 1_000_000.0);
             return selectedRecipe == null ? null : new RegisteredRecipe(selectedCategory, selectedRecipe, scope, null);
         }
 

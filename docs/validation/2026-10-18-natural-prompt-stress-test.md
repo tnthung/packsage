@@ -768,6 +768,85 @@ Player agent: `luna_high_player_ring`. Three turns were submitted. The player’
 
 The assistant identifies the Springy Boot and accurately describes its conditional fall-protection effect. It correctly reports absence only in the checked regular inventory/equipment and preserves the unknown Curios-equipped state after the player asks for a screen it cannot open. The item citation in turn 2 does not support the negative inventory result, and the turn 3 `main:0` citation does not support the coverage limitation. The item remains neither confirmed present nor confirmed absent in Curios. The player’s unsent judgment is not evidence of equipped state or an action. No equipment or gameplay change occurred.
 
+## Arc 11: Lantern recommendation and charcoal preference
+
+Candidate 2 conversation: [e2655b81-0858-493b-9de3-00f4118b6770-cbd22c82a2189c31.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/e2655b81-0858-493b-9de3-00f4118b6770-cbd22c82a2189c31.jsonl)
+
+Three turns were submitted. The player’s final judgment—that they were satisfied and could preserve oak logs by using stripped wood—was not submitted as a turn, and no game action occurred.
+
+### Turn 1
+
+- Request ID: `0532ce62-6e87-4838-9b8c-88dd3b7070fa`
+- Tool calls: 8
+- Elapsed time: 105.440 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=105440`).
+- Player:
+
+  ```text
+  Hi, can you help me figure out what to do next?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  Hi! Your **“Gather the fixture input”** quest is complete. I’d tackle **“Craft the fixture lantern”** next; **“Check the alternate input”** is also available, so the lantern isn’t established as the only next step. [ftb_quests:1000000000000001] [ftb_quests:1000000000000002] [ftb_quests:1000000000000003]
+
+  For the lantern, the pack’s recipe calls for **8 coal or charcoal and 1 torch**. To make the torch, you’ll need **1 coal or charcoal and 1 stick**. You have plenty of coal and oak wood, but I didn’t find a torch in your inspected inventory or shulker. [jei:jei/1/3/minecraft:crafting/recipe-packsage:fixture_lantern-2] [native:minecraft:torch] [native:inventory:cb79d6ec-f992-4b4a-8b29-01c7c3515dad:hotbar:0] [native:inventory:cb79d6ec-f992-4b4a-8b29-01c7c3515dad:hotbar:2] [native:storage:9f6f8d0b-81f6-44e5-8961-868dcfc95899:0]
+
+  So: make planks and a stick from your wood, craft a torch, then make the lantern. If using coal for both, that’s **9 coal total**. The recipe viewer lists a crafting table as a reusable crafting option; check its display for the exact arrangement. [native:minecraft:oak_planks] [native:minecraft:stick] [jei:jei/1/3/minecraft:crafting/recipe-packsage:fixture_lantern-2]
+  ```
+
+**Trace and UI evidence:** Quest progress confirms the Gather task complete and lantern quest incomplete; an alternate-input quest is also available. The answer recommends the lantern as a choice without presenting it as the only valid next quest. Native and JEI recipe evidence supports 8 coal or charcoal plus a torch for the lantern and 1 coal or charcoal plus a stick for the torch. Direct inventory and complete storage searches found no torch, and the answer scopes the absence to those inspected locations. Its qualifications are accurate but somewhat stiff. The parent observed readable chips; no result was clicked. Scores (1–5): intent handling 5; factual grounding 5; recipe/resource arithmetic 5; usefulness 4; citation coverage 5.
+
+### Turn 2
+
+- Request ID: `14b17b0b-b37a-4f44-9049-236fc5d017e6`
+- Tool calls: 8
+- Elapsed time: 76.325 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=76325`).
+- Player:
+
+  ```text
+  Can I use charcoal for both instead? How do I make charcoal from the oak wood?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  Yes—**charcoal works for the torch and the lantern**. You’ll need **9 charcoal total**: 1 for the torch, then 8 for the lantern. [native:minecraft:torch] [jei:jei/1/3/minecraft:crafting/recipe-packsage:fixture_lantern-2]
+
+  To make it, smelt **oak logs or stripped oak wood** in a furnace: put the wood in the input slot and fuel in the fuel slot. Each piece makes 1 charcoal. [native:minecraft:charcoal] [jei:jei/1/4/minecraft:smelting/recipe-minecraft:charcoal-1] You have plenty of oak logs and coal, so use some coal as furnace fuel and save the charcoal for crafting. [native:inventory:b20019aa-ed9b-4ad2-8c31-246d7112d08d:hotbar:0] [native:inventory:b20019aa-ed9b-4ad2-8c31-246d7112d08d:hotbar:2]
+
+  You could also skip smelting and use your coal directly for both recipes.
+  ```
+
+**Trace and UI evidence:** Charcoal is valid for both recipes, and the 9-charcoal total is correct. The smelting recipe supports producing one charcoal from each oak log or stripped oak wood. The old lantern JEI `1/3` reference was absent from this turn’s sources and navigation targets; the UI displayed it as a grey plain `[recipe]` entry. The charcoal JEI `1/4` reference was current and rendered as a valid button. Inventory citations support the available oak and coal. The parent observed readable chips aside from the stale recipe reference; none was clicked. Scores (1–5): intent handling 5; factual grounding 5; recipe/resource arithmetic 5; usefulness 4; citation coverage 3.
+
+### Turn 3
+
+- Request ID: `d3c79d39-228e-4180-aa55-1647f173a8d2`
+- Tool calls: 2
+- Elapsed time: 24.313 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=24313`).
+- Player:
+
+  ```text
+  Actually, I’d rather save the oak logs for building. What do I need for “Check the alternate input”?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  **“Check the alternate input” needs 1 charcoal.** It doesn’t require you to spend any oak logs; the quest is currently incomplete. [ftb_quests:1000000000000003]
+
+  You’re holding stripped oak wood, so you could smelt a piece of that into charcoal instead.
+  ```
+
+**Trace and UI evidence:** The quest record supports the one-charcoal objective and incomplete state. The suggestion to smelt stripped oak wood relies on inventory and recipe evidence from earlier in this conversation, not a fresh inventory or recipe check in this turn, and it is uncited here. The unsent player judgment says this preserved-log plan was understood, but no smelting or other action occurred. The parent observed readable chips; none was clicked. Scores (1–5): intent handling 5; factual grounding 4; usefulness 5; citation coverage 3.
+
+### Arc-level result
+
+The assistant recommends a next goal without inventing a unique quest order, gives correct recipe and charcoal quantities, and adapts when the player prefers to keep logs for building. The second turn contains a stale JEI lantern reference that rendered as plain grey `[recipe]`, while its current charcoal recipe reference worked. The final stripped-wood suggestion relies on earlier evidence and lacks a citation. The player’s unsent judgment is not evidence of crafting or smelting; no game state changed.
+
+This arc used installed Candidate 2 JAR SHA-256 `7BF5D161E044CD21899A023AF4CA0D5A053F0612F1EDF0EB5CE5454EF37AD526`. The newer prompt source `6a0edde` covers current-request citations; its Java 21 build passed 50 suites and 577 tests (573 passed, 4 skipped, 0 failures or errors) in 24 seconds. Its JAR SHA-256 is `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`; it was not installed for this arc.
+
 ## Coverage status
 
-Ten of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.
+Eleven of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.

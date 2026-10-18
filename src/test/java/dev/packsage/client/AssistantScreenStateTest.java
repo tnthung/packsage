@@ -786,7 +786,7 @@ class AssistantScreenStateTest {
         ScreenTestHost.initialize(screen);
 
         var targetAndSource = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
-                new ScreenText.InlineSpan("Lantern recipe", TARGET, ModernUi.TEXT, false, false, SOURCE)), false)), 120);
+                new ScreenText.InlineSpan("Lantern recipe", TARGET, ModernUi.TEXT, false, false, SOURCE)), false)), 150);
         var navigation = targetAndSource.runs().getFirst();
         assertEquals("Open Lantern recipe", navigation.span().text());
         assertSame(TARGET, navigation.span().target());
@@ -795,7 +795,7 @@ class AssistantScreenStateTest {
         assertTrue(navigation.span().bold());
 
         var sourceOnly = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
-                new ScreenText.InlineSpan("Lantern recipe", null, ModernUi.TEXT, false, false, SOURCE)), false)), 120);
+                new ScreenText.InlineSpan("Lantern recipe", null, ModernUi.TEXT, false, false, SOURCE)), false)), 150);
         var source = sourceOnly.runs().getFirst();
         assertEquals("Source: Lantern recipe", source.span().text());
         assertNull(source.span().target());
@@ -804,12 +804,12 @@ class AssistantScreenStateTest {
         assertFalse(source.span().bold());
 
         var targetOnly = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
-                new ScreenText.InlineSpan("Lantern recipe", TARGET, ModernUi.TEXT, false, false)), false)), 120);
+                new ScreenText.InlineSpan("Lantern recipe", TARGET, ModernUi.TEXT, false, false)), false)), 150);
         assertEquals("Open Lantern recipe", targetOnly.runs().getFirst().span().text());
         assertSame(TARGET, targetOnly.runs().getFirst().span().target());
 
         var alreadyOpen = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
-                new ScreenText.InlineSpan("Open Lantern recipe", TARGET, ModernUi.TEXT, false, false)), false)), 120);
+                new ScreenText.InlineSpan("Open Lantern recipe", TARGET, ModernUi.TEXT, false, false)), false)), 150);
         assertEquals("Open Lantern recipe", alreadyOpen.runs().getFirst().span().text());
     }
 

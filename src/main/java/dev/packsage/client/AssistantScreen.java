@@ -640,12 +640,13 @@ public final class AssistantScreen extends Screen {
             }
             ScreenText.InlineSpan span = run.span();
             if (span.target() != null || span.source() != null) {
-                ModernUi.surface(graphics, x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.SURFACE_HOVER);
+                ModernUi.surface(graphics, x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT,
+                        span.target() != null ? ModernUi.ACCENT_DARK : ModernUi.SURFACE_HOVER);
                 if (turn != null && span.target() != null) chipHits.add(new ChipHit(span.target(), x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT));
                 if (turn != null && span.source() != null) sourceHits.add(new SourceHit(span.source(), turn, x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT));
             }
             graphics.drawString(font, Component.literal(span.text()).withStyle(style -> style
-                            .withFont(span.bold() || span.target() != null || span.source() != null ? ModernUi.BOLD_FONT : ModernUi.FONT).withColor(span.color())),
+                            .withFont(span.bold() || span.target() != null ? ModernUi.BOLD_FONT : ModernUi.FONT).withColor(span.color())),
                     x + (span.target() == null && span.source() == null ? 0 : 6),
                     top + (ModernUi.MESSAGE_LINE_HEIGHT - font.lineHeight) / 2 + 1, span.color(), false);
         }
@@ -666,11 +667,18 @@ public final class AssistantScreen extends Screen {
                     new ScreenText.InlineSpan("", null, ModernUi.TEXT, false, false), x, y, 0, true));
             for (ScreenText.InlineSpan span : line.spans()) {
                 if (span.target() != null || span.source() != null) {
-                    Component label = Component.literal(span.text()).withStyle(style -> style.withFont(ModernUi.BOLD_FONT));
+                    boolean navigation = span.target() != null;
+                    String labelText = span.text();
+                    if (navigation && !labelText.regionMatches(true, 0, "Open ", 0, 5)) labelText = "Open " + labelText;
+                    else if (!navigation && !labelText.regionMatches(true, 0, "Source: ", 0, 8)) labelText = "Source: " + labelText;
+                    boolean bold = navigation;
+                    int color = navigation ? ModernUi.ACCENT : ModernUi.TEXT;
+                    Component label = Component.literal(labelText).withStyle(style -> style
+                            .withFont(bold ? ModernUi.BOLD_FONT : ModernUi.FONT));
                     int chipWidth = Math.min(Math.max(1, width - indent), font.width(label) + 12);
                     if (x > indent && x + chipWidth > width) { x = indent; y += ModernUi.MESSAGE_LINE_HEIGHT; }
                     String clipped = font.substrByWidth(label, Math.max(1, chipWidth - 12)).getString();
-                    runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, span.target(), ModernUi.TEXT, true, false, span.source()),
+                    runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, span.target(), color, bold, false, span.source()),
                             x, y, chipWidth, line.quote()));
                     x += chipWidth + 4;
                     continue;
@@ -990,14 +998,20 @@ public final class AssistantScreen extends Screen {
                 || mouseX >= readableLeft + readableWidth) return;
         SourceHit hovered = sourceHits.stream().filter(hit -> mouseX >= hit.left() && mouseX < hit.right()
                 && mouseY >= hit.top() && mouseY < hit.bottom()).findFirst().orElse(null);
-        if (hovered == null) return;
-        if (!hovered.source().equals(tooltipSource) || hovered.turn() != tooltipTurn) {
+        ChipHit navigation = chipHits.stream().filter(hit -> mouseX >= hit.left() && mouseX < hit.right()
+                && mouseY >= hit.top() && mouseY < hit.bottom()).findFirst().orElse(null);
+        if (hovered == null && navigation == null) return;
+        if (hovered != null && (!hovered.source().equals(tooltipSource) || hovered.turn() != tooltipTurn)) {
             tooltipSource = hovered.source();
             tooltipTurn = hovered.turn();
             sourceTooltip = SourceDetailsScreen.details(tooltipSource, tooltipTurn);
         }
         List<net.minecraft.util.FormattedCharSequence> lines = new ArrayList<>();
-        for (String detail : sourceTooltip.stream().filter(detail -> !detail.isBlank()
+        String action = navigation != null ? "Click: " + ScreenText.navigationLabel(navigation.target())
+                : "Click: view recorded source details";
+        lines.addAll(font.split(Component.literal(action).withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
+                Math.max(1, Math.min(280, width - 24) - 20)));
+        if (hovered != null) for (String detail : sourceTooltip.stream().filter(detail -> !detail.isBlank()
                 && !detail.startsWith("Observed:") && !detail.startsWith("Authority:")
                 && !detail.startsWith("Source:") && !detail.startsWith("Provenance:"))
                 .limit(8).toList()) lines.addAll(font.split(Component.literal(detail)

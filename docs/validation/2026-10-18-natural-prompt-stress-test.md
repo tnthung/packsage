@@ -924,9 +924,9 @@ All twelve planned independent arcs are complete: 33 submitted turns and 245 too
 
 Final prompt source `6a0edde` was installed after saving and quitting the game and confirming process absence. The built and installed JAR SHA-256 values match: `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`. The game properties SHA-256 remains `AF7DA001C214347F01A17D76A991150D1728907B5EC16615FC2EE1126DAA5FA0`; no developer prompt override is set. A new window/process (`81006064`) loaded the same fixture.
 
-### N1: Diamatine recipe repeat before restart
+### N1: Diamatine recipe repeat across restart
 
-This is a controlled repeat, not a thirteenth independent arc. It was run before the pending full restart check.
+This is a controlled repeat, not a thirteenth independent arc. The answer and recipe link were first captured before restart, then reloaded for a post-restart persistence check.
 
 Saved conversation: [bbd773b4-0aca-415f-bb52-ebdf628d1a9e-901a89040ca54f71.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/bbd773b4-0aca-415f-bb52-ebdf628d1a9e-901a89040ca54f71.jsonl)
 
@@ -951,4 +951,6 @@ Saved conversation: [bbd773b4-0aca-415f-bb52-ebdf628d1a9e-901a89040ca54f71.jsonl
 
 **Trace and UI evidence:** A fresh complete storage result shows 7 diamonds. An exact read of the JEI laser recipe returned 1 consumed diamond, the Atomic Reconstructor as render-only machine metadata, and 1 Diamatine Crystal output. Although the category is opaque, the exact structured recipe result supports the 1:1 calculation. The guide supports the power and beam conditions. Current citation resolution bound the recipe to the stable target `recipe-v1|actuallyadditions:laser|actuallyadditions:laser/crystalize_diamatine_crystal`. After the answer, the parent clicked the named recipe link and the native viewer showed diamond to crystal at 1:1; this operator check was after the model response. Fourteen calls were used. No crafting or power setup occurred.
 
-Restart persistence is pending. This result verifies the installed candidate before restart only; it does not resolve the Arc 8 saved-link failure observed after restarting Candidate 2.
+After N1, the game was saved and quit normally and process absence was confirmed. A new full Minecraft process/window (`156959942`) loaded the same `New World`. The saved answer was restored from disk; the parent clicked the same “Atomic Reconstructor recipe” link and the native viewer opened with a 1-diamond-to-1-cyan-crystal recipe. There was no new model request, answer edit, or recipe query before the click. The build and installed JAR hashes remained matched at `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`, and the game properties remained unchanged at `AF7DA001C214347F01A17D76A991150D1728907B5EC16615FC2EE1126DAA5FA0`.
+
+This passes persistence for the new stable native recipe target used by N1. It does not resolve migration of the old temporary hash link observed in Arc 8.

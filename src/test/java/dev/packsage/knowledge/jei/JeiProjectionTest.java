@@ -670,6 +670,7 @@ class JeiProjectionTest {
             var focusApplications = new AtomicInteger();
             var focusCreations = new AtomicInteger();
             var shownRecipes = new AtomicReference<List<?>>();
+            var shownTypes = new AtomicReference<List<?>>();
             var hiddenRecipe = new AtomicBoolean();
             var hiddenCategory = new AtomicBoolean();
             var hiddenIngredient = new AtomicBoolean();
@@ -832,6 +833,7 @@ class JeiProjectionTest {
             var recipesGui = Proxy.newProxyInstance(recipesGuiType.getClassLoader(), new Class<?>[] { recipesGuiType },
                     (proxy, method, arguments) -> {
                         if (method.getName().equals("showRecipes")) shownRecipes.set((List<?>) arguments[1]);
+                        if (method.getName().equals("showTypes")) shownTypes.set((List<?>) arguments[0]);
                         return null;
                     });
             var runtime = (IJeiRuntime) Proxy.newProxyInstance(IJeiRuntime.class.getClassLoader(),
@@ -1051,23 +1053,35 @@ class JeiProjectionTest {
 
             var legacyTarget = new Evidence.NavigationTarget(savedTarget.scope(), "jei", savedTarget.sourceHandle(),
                     savedTarget.sourceHandle());
+            PackSageJeiPlugin.clientTicked();
             assertNotNull(recreatedPlugin.provider().refreshNavigation(legacyTarget, recreatedScope)
                     .toCompletableFuture().get(), "an unambiguous legacy canonical handle should migrate");
 
             recipes.set(List.of(recreatedRecipe, new Object()));
+            PackSageJeiPlugin.clientTicked();
             assertNull(recreatedPlugin.provider().refreshNavigation(savedTarget, recreatedScope).toCompletableFuture().get(),
                     "duplicate canonical IDs must not select an arbitrary recipe");
             recipes.set(List.of(recreatedRecipe));
             hiddenRecipe.set(true);
+            PackSageJeiPlugin.clientTicked();
             assertNull(recreatedPlugin.provider().refreshNavigation(savedTarget, recreatedScope).toCompletableFuture().get(),
                     "hidden recipes must not be restored from saved navigation");
             hiddenRecipe.set(false);
             recipes.set(List.of());
+            PackSageJeiPlugin.clientTicked();
             assertNull(recreatedPlugin.provider().refreshNavigation(savedTarget, recreatedScope).toCompletableFuture().get(),
                     "removed recipes must not be restored from saved navigation");
+            PackSageJeiPlugin.clientTicked();
             assertNull(recreatedPlugin.provider().refreshNavigation(new Evidence.NavigationTarget(savedTarget.scope(),
                     "jei", "bad", "recipe-v1|minecraft:crafting|not a resource id"), recreatedScope)
                     .toCompletableFuture().get(), "malformed stable targets must fail closed");
+            PackSageJeiPlugin.clientTicked();
+            var categoryTarget = recreatedPlugin.provider().refreshNavigation(new Evidence.NavigationTarget(
+                    savedTarget.scope(), "jei", "old-category", "category-v1|minecraft:crafting"), recreatedScope)
+                    .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertNotNull(categoryTarget, "category destinations must resolve without a recipe object");
+            assertEquals(Evidence.NavigationStatus.OPENED, recreatedPlugin.provider().open(categoryTarget, recreatedScope).status());
+            assertEquals(List.of(type), shownTypes.get());
             recipes.set(List.of(replacementRecipe));
             canonicalIdThrows.set(true);
             PackSageJeiPlugin.clientTicked();
@@ -1076,8 +1090,15 @@ class JeiProjectionTest {
                     .toCompletableFuture().get().records().getFirst();
             assertEquals(temporaryRecord.source().sourceHandle(), temporaryRecord.targets().getFirst().targetId(),
                     "a throwing canonical ID must retain only its temporary locator");
+            PackSageJeiPlugin.clientTicked();
             assertNotNull(plugin.provider().refreshNavigation(temporaryRecord.targets().getFirst(), nextScope)
                     .toCompletableFuture().get(), "temporary handles should remain openable in the same runtime");
+            PackSageJeiPlugin.clientTicked();
+            assertNotNull(plugin.provider().refreshNavigation(temporaryRecord.targets().getFirst(), new Evidence.Scope(
+                    nextScope.worldSession(), nextScope.resourcesLocale(), nextScope.playerTeam(), nextScope.providerRuntime(), 4))
+                    .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS),
+                    "temporary handles must survive ordinary request progression in the same environment");
+            PackSageJeiPlugin.clientTicked();
             assertNull(recreatedPlugin.provider().refreshNavigation(temporaryRecord.targets().getFirst(), nextScope)
                     .toCompletableFuture().get(), "a temporary locator must not acquire semantic fallback identity");
         } finally {

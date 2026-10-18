@@ -353,6 +353,58 @@ The player asked where their diamonds were and how to access them, then followed
 
 The assistant correctly identified the carried Shulker Box, located 7 diamonds through a complete nested-storage inspection, and gave a concise way to access them. On the crafting follow-up it refreshed the same storage count, but the complete inventory-to-crafting limitation was not established by the partial documentation search; this answer should distinguish general game knowledge from retrieved pack evidence. The player’s unsent thank-you is not evidence of a submitted conversational turn. UI evidence showed readable inventory but an opaque GUID storage chip; the target was not opened through native navigation. No item action or fixture change occurred.
 
+## Arc 5: Progression direction and cave goal
+
+Candidate-build conversation: [1e71b950-ec94-4e20-a4a0-753fd2542f79-428b6250ca07d792.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/1e71b950-ec94-4e20-a4a0-753fd2542f79-428b6250ca07d792.jsonl)
+
+The player asked for one small goal for their next caving trip, then asked how to make the lantern and what to look for. The later player judgment (“Got it—I’ll aim for the lantern and scout one cave branch for iron on the same trip.”) was not submitted, so it is not a turn and does not establish that any action occurred.
+
+### Turn 1
+
+- Request ID: `d63760e2-1f01-47aa-9c8f-88f09b566aac`
+- Tool calls: 7
+- Elapsed time: 97.714 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=97714`).
+- Player:
+
+  ```text
+  I’m kinda lost on what to work toward in this pack—what’s one small goal for my next caving trip?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  Make your next trip a **short iron scout**: explore one cave branch and bring home any iron you find. You’ve already finished the coal quest and have a full stack, so no need to mine more coal. Your next quest is to craft a lantern; the pack also has a recipe using coal or charcoal plus a torch, so you’re already set on the coal part. [ftb_quests:1000000000000001] [native:inventory:50699469-e20b-46c0-ac8f-98862133863d:hotbar:0] [ftb_quests:1000000000000002] [native:packsage:fixture_lantern]
+  ```
+
+**Trace and UI evidence:** The quest evidence shows two available directions, including the lantern objective; the answer presents lantern as the unique “next quest” without support for that ordering. The inventory and fixture recipe support having coal and the coal-or-charcoal-plus-torch lantern route. The iron-scout idea is a reasonable optional goal, but its rationale is unclear when the answer recommends the coal-based lantern route; no iron requirement is established for that chosen goal. The parent observed readable citation chips. Scores (1–5): intent handling 3; factual grounding 3; usefulness 3; citation coverage 3.
+
+### Turn 2
+
+- Request ID: `8bde3464-14fa-4afe-9a59-bd9e4cf53dea`
+- Tool calls: 11
+- Elapsed time: 80.835 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=80835`).
+- Player:
+
+  ```text
+  How do I make the lantern, and what should I look for while I’m caving?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  **You don’t need to mine iron for this lantern.** Small correction to my last suggestion: iron is only for the alternate recipe. The pack has a simpler recipe: **8 coal or charcoal + 1 torch** makes a lantern. You’re already carrying 64 coal. [native:packsage:fixture_lantern] [native:inventory:4ab0d6e3-199f-4a6d-84bf-a01e43dfae8b:hotbar:0]
+
+  To make the torch, turn **2 planks into 4 sticks**, then craft **1 stick + 1 coal** into a torch. You have oak wood to make the planks. Then use a **crafting table** for the lantern; check its recipe in JEI for the exact layout. [native:minecraft:stick] [native:minecraft:torch] [native:minecraft:oak_planks] [jei:jei/1/4/minecraft:crafting/recipe-packsage:fixture_lantern-2]
+
+  For your caving trip, **don’t bother collecting more coal for this goal**. If you want a small extra objective, scout for iron ore—but the lantern quest itself just needs that torch and coal. [ftb_quests:1000000000000002] [native:item:minecraft:iron_ore]
+  ```
+
+**Trace and UI evidence:** The returned fixture recipe specifies one lantern from 8 coal or charcoal and a torch; the torch recipe yields one, and the stick and plank recipes support the stated preparation quantities. The answer correctly removes iron as a requirement for the coal-based lantern. It omits `native:minecraft:lantern`, which supports that iron is the alternate recipe, and the final claim about the lantern quest’s ingredients cites only the quest objective rather than the fixture recipe. The crafting-table instruction is an inference from a crafting recipe, not an observed crafting action. The serialized JEI fixture entry is opaque and does not provide grid coordinates. After the answer, the parent clicked the JEI recipe chip, saw the correct viewer layout with 8 coal or charcoal surrounding a torch, and returned to chat; that operator check was not part of the model input. The parent observed readable citation chips. Scores (1–5): intent handling 4; factual grounding 4; recipe/resource arithmetic 5; usefulness 4; citation coverage 3; navigation 5.
+
+### Arc-level result
+
+The first answer invents a unique “next quest” ordering from evidence that shows multiple branches. The iron scout is a plausible optional objective, but the evidence does not establish cave iron generation. The follow-up correctly says iron is unnecessary for the coal-based lantern and gives sound recipe arithmetic. Its citations omit the lantern recipe that establishes iron as an alternative, and the final ingredient claim points only to the quest objective. A separate operator check after the answer opened the linked JEI viewer and confirmed the 8-coal-or-charcoal-surrounding-torch layout; the viewer was opaque in serialized PackSage data, so this live visual check is the evidence for its arrangement. The player’s unsent judgment indicates intent but no submitted action or completed outcome. No item action occurred.
+
 ## Coverage status
 
-Four of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.
+Five of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.

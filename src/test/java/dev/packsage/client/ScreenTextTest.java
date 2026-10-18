@@ -58,27 +58,24 @@ class ScreenTextTest {
         assertEquals(source, sourceOnly.source());
         assertEquals(null, sourceOnly.target());
 
-        var targetOnly = ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(target)).getFirst().spans();
-        assertTrue(targetOnly.stream().noneMatch(span -> span.target() != null || span.source() != null));
+        assertTrue(ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(target)).getFirst().spans().stream()
+                .noneMatch(span -> span.target() != null || span.source() != null));
 
-        var typo = ScreenText.inlineLines("[Torch recipe](" + handle + "x)", List.of(target), List.of(), List.of(source))
-                .getFirst().spans();
-        assertTrue(typo.stream().noneMatch(span -> span.target() != null || span.source() != null));
+        assertTrue(ScreenText.inlineLines("[Torch recipe](" + handle + "x)", List.of(target), List.of(), List.of(source))
+                .getFirst().spans().stream().noneMatch(span -> span.target() != null || span.source() != null));
 
-        var collision = new Evidence.Source(SCOPE, "other", "1", handle, 1, java.time.Instant.EPOCH,
-                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("other"));
-        var collided = ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(target), List.of(), List.of(source, collision))
-                .getFirst().spans();
-        assertTrue(collided.stream().noneMatch(span -> span.target() != null || span.source() != null));
+        assertTrue(ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(target), List.of(), List.of(source,
+                new Evidence.Source(SCOPE, "other", "1", handle, 1, java.time.Instant.EPOCH, Evidence.Activity.ACTIVE,
+                        Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("other"))))
+                .getFirst().spans().stream().noneMatch(span -> span.target() != null || span.source() != null));
 
         var repeated = ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(target), List.of(), List.of(source, source))
                 .getFirst().spans().getFirst();
         assertEquals(source, repeated.source());
         assertEquals(target, repeated.target());
 
-        var otherScope = new Evidence.Scope("other-world", "en_us", "team", "runtime", 1);
-        var otherScopeTarget = new Evidence.NavigationTarget(otherScope, "jei", handle, "other-scope-target");
-        var mismatchedScope = ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(otherScopeTarget), List.of(), List.of(source))
+        var mismatchedScope = ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(new Evidence.NavigationTarget(
+                new Evidence.Scope("other-world", "en_us", "team", "runtime", 1), "jei", handle, "other-scope-target")), List.of(), List.of(source))
                 .getFirst().spans().getFirst();
         assertEquals(source, mismatchedScope.source());
         assertEquals(null, mismatchedScope.target());

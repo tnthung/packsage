@@ -16,11 +16,11 @@
 
 ## Work steps
 
-- [ ] Add failing tests for reader-owned navigation targets, stale scope handling and a lower candidate bound; implement the minimal shared guide hooks.
-- [ ] Add failing Ponder reader tests for bounded title discovery, distinct registrations, fresh captions and stale/removal behavior; implement the reflective reader and its bounded source contract.
-- [ ] Register optional Ponder metadata/version support and document the source semantics in grounding/help text; test optional metadata without Ponder installed.
-- [ ] Run focused tests and the full test/build commands, review the patch independently, and fix material findings with regression coverage.
-- [ ] Record exact API evidence, automated results and live acceptance limits; update roadmap entries only to the delivered scope.
+- [x] Add failing tests for reader-owned navigation targets, stale scope handling and a lower candidate bound; implement the minimal shared guide hooks.
+- [x] Add failing Ponder reader tests for bounded title discovery, distinct registrations, fresh captions and stale/removal behavior; implement the reflective reader and its bounded source contract.
+- [x] Register optional Ponder metadata/version support and document the source semantics in grounding/help text; test optional metadata without Ponder installed.
+- [x] Run focused tests and the full test/build commands, review the patch independently, and fix material findings with regression coverage.
+- [x] Record exact API evidence, automated results and live acceptance limits; update roadmap entries only to the delivered scope.
 
 ## Review focus
 

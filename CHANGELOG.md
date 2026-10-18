@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### 2026-10-18
+
+- Added optional Ponder `1.0.81+mc1.21.1` scene documentation through the existing guide search and evidence tools: localized titles, component/tag metadata, fresh literal caption templates and player-click component-viewer navigation. Discovery executes at most four storyboard callbacks per call and does not retain compiled scenes or text.
+- Added Ponder citation links and regression coverage for pagination, fresh reads, callback/output limits, optional metadata, caption ordering and stale navigation. Partial guide fragments no longer report complete evidence. Shared/dynamic captions and exact scene deep links remain outside the delivered coverage; [installed acceptance](docs/validation/2026-10-18-ponder-support.md) is pending.
+
 ### 2026-10-15
 
 - Added developer prompt settings behind Ctrl-click on the assistant's settings button, with a multiline prompt draft, Save, Cancel and Restore default. Saved overrides apply to new requests without restarting Minecraft; in-flight requests retain their original instructions.

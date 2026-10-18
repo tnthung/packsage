@@ -641,10 +641,66 @@ At the time of this build-status entry, Candidate 2 was not yet installed. Arc 8
 
 The game was saved and quit normally, and no active Minecraft Java process was present before copying the build JAR. The installed JAR and built JAR hashes both match `7BF5D161E044CD21899A023AF4CA0D5A053F0612F1EDF0EB5CE5454EF37AD526`. The game properties SHA-256 remains the baseline value `AF7DA001C214347F01A17D76A991150D1728907B5EC16615FC2EE1126DAA5FA0`; there is no developer prompt override. A fresh process/window (`155322106`) loaded the same `New World` fixture. The UI shows GPT-6-Luna Extra high with screenshots enabled.
 
-Arc 9’s first quest question has been submitted on Candidate 2 but is not yet a completed turn. Coverage therefore remains 8/12. The `dist` artifact has not been promoted and still carries baseline database hash `DB1211BFF7CDA5EA4A81A1303CF24A80D887223D7A7B4035C70FCEB1247BDE0B`.
+At this 00:11 checkpoint, Arc 9’s first quest question had been submitted on Candidate 2 but its conversation was not yet complete; the completed turns are recorded below. The `dist` artifact has not been promoted and still carries baseline database hash `DB1211BFF7CDA5EA4A81A1303CF24A80D887223D7A7B4035C70FCEB1247BDE0B`.
 
 After restart, opening the saved Diamatine custom-recipe link from Arc 8 displayed “Navigation target is no longer available”; the same link had worked before restart. A read-only specialist identified the saved target as a no-ID temporary class/hash handle and noted that native registered recipes have stable `recipe-v1` metadata. Genuine-ID recovery remains under narrow investigation and is unresolved.
 
+## Arc 9: Quest status and torch preparation
+
+Candidate 2 conversation: [56f21da0-a014-4199-a4bf-77c5d65a81e6-50c2f37266024650.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/56f21da0-a014-4199-a4bf-77c5d65a81e6-50c2f37266024650.jsonl)
+
+Player agent: `luna_high_player_quests`. Two turns were submitted. The player’s later judgment (“Got it—the coal quest is done. I’ll try making a torch next.”) was not submitted, so it is not counted as a turn or completed action. No item actions occurred.
+
+### Turn 1
+
+- Request ID: `420c6d9c-ff90-4a74-907d-3890c66f549f`
+- Tool calls: 8
+- Elapsed time: 61.956 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=61956`).
+- Player:
+
+  ```text
+  I’ve got some coal now—does that mean I finished the coal quest, and what’s one small thing I should do next?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  Yes—the coal quest is complete: its coal task is **1/1**, and you have 64 coal. [ftb_quests:1000000000000001] [native:inventory:6239c83e-0f24-4769-accc-5b6b9dad601b:hotbar:0]
+
+  One small next step: **make or find a torch**. I don’t see one in your direct inventory; once you have one, this pack’s lantern recipe uses it with 8 coal. The lantern quest is still incomplete. [native:minecraft:lantern] [native:packsage:fixture_lantern] [ftb_quests:1000000000000002]
+  ```
+
+**Trace and UI evidence:** `read_progress` confirms the coal task is complete at 1/1, and direct inventory shows 64 coal. The lantern quest remains incomplete. The recipe sources show the lantern route with 8 coal and a torch. A separate alternate-input branch is also available, so the recommendation is framed as one small next step rather than a unique quest ordering. Direct inventory search returned complete coverage with no torch, and the answer scopes that absence to direct inventory rather than nested containers. The parent observed readable citation chips; none was clicked. Scores (1–5): intent handling 5; factual grounding 5; usefulness 5; citation coverage 5.
+
+### Turn 2
+
+- Request ID: `cccb58dc-2be5-4ffd-bc62-4ec71c45a31d`
+- Tool calls: 5
+- Elapsed time: 39.779 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=39779`).
+- Player:
+
+  ```text
+  How do I make a torch with what I’ve got?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  Yep—you have the coal and enough wood. In your 2×2 crafting grid:
+
+  1. Turn **1 oak log** into **4 oak planks**.
+  2. Put **2 planks vertically** to make **4 sticks**.
+  3. Put **1 coal above 1 stick** to make a torch.
+
+  You can use your oak log or stripped oak wood for the planks recipe. [native:minecraft:oak_planks] [jei:jei/1/2/minecraft:crafting/recipe-minecraft:stick-1] [native:minecraft:torch]
+  ```
+
+**Trace and UI evidence:** Inventory shows 64 coal, 64 oak logs, and 64 stripped oak wood. Recipe data supports one log or stripped oak wood yielding 4 planks, 2 planks yielding 4 sticks, and 1 coal or charcoal plus 1 stick yielding 1 torch. The answer’s 2×2 grid, vertical plank placement, and coal-above-stick coordinates are conventional Minecraft crafting instructions; the serialized recipe fields do not encode row/column coordinates. They are practically correct instructions, but their layout is not established by those tool results. The ingredients and yields are accurate. The answer does not cite the inventory results supporting its claim that the player has enough coal and wood; an extra targeted shulker lookup was unused. The parent observed readable chips; no result was clicked. Scores (1–5): intent handling 5; factual grounding 4; recipe/resource arithmetic 5; usefulness 4; citation coverage 3.
+
+### Arc-level result
+
+The first answer is a strong example of reporting exact quest progress and offering a next step without inventing unique quest order. The second gives correct ingredients and yields, while presenting conventional grid coordinates that the recipe evidence does not serialize; these are standard Minecraft instructions rather than source-verified layout. It omits a citation for the inventory evidence behind “you have the coal and enough wood.” No item was crafted. The unsent player judgment is not evidence of a completed action.
+
 ## Coverage status
 
-Eight of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.
+Nine of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.

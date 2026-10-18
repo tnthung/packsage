@@ -19,6 +19,45 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ClientAssistantTest {
     @Test
+    void optionalProviderForwardsSavedDestinationResolutionToTheCurrentDelegate() {
+        var scope = new Evidence.Scope("new-session", "new-resources", "player", "runtime-2", 2);
+        var saved = new Evidence.NavigationTarget(new Evidence.Scope("old-session", "old-resources", "player",
+                "runtime-1", 1), "ponder", "old-registration", "create:mechanical_press");
+        var current = new Evidence.NavigationTarget(scope, "ponder", "new-registration", "create:mechanical_press");
+        var resolutions = new java.util.concurrent.atomic.AtomicInteger();
+        var delegate = new java.util.concurrent.atomic.AtomicReference<KnowledgeProvider>(new KnowledgeProvider() {
+            @Override public String id() { return "ponder"; }
+            @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", null); }
+            @Override public java.util.concurrent.CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope requestedScope) {
+                return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                        Evidence.Outcome.COMPLETE, null));
+            }
+            @Override public java.util.concurrent.CompletionStage<Evidence.NavigationTarget> refreshNavigation(
+                    Evidence.NavigationTarget target, Evidence.Scope requestedScope) {
+                assertEquals(saved, target);
+                assertEquals(scope, requestedScope);
+                resolutions.incrementAndGet();
+                return CompletableFuture.completedFuture(current);
+            }
+            @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope requestedScope) {
+                assertEquals(current, target);
+                assertEquals(scope, requestedScope);
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "current viewer");
+            }
+        });
+        var wrapper = new ClientAssistant.ReflectiveProvider(new ClientAssistant.OptionalStatus("ponder", "ponder",
+                "[0.8.1,1.1)", "1.0.82+mc1.21.1", true, true, "supported"), delegate::get);
+        var service = new dev.packsage.knowledge.KnowledgeService(List.of(wrapper), () -> scope);
+
+        assertEquals(current, service.refreshNavigation(saved, scope).toCompletableFuture().join());
+        assertEquals(1, resolutions.get());
+        assertEquals(Evidence.NavigationStatus.OPENED, service.open(current, scope).status());
+        delegate.set(null);
+        assertEquals(null, service.refreshNavigation(saved, scope).toCompletableFuture().join());
+        assertEquals(1, resolutions.get());
+    }
+
+    @Test
     void unavailableGuideAdaptersKeepTheirDiscoveryMetadata() {
         for (String id : List.of("modonomicon", "guideme", "immersiveengineering", "actuallyadditions", "relics", "artifacts", "ponder")) {
             var wrapper = new ClientAssistant.ReflectiveProvider(new ClientAssistant.OptionalStatus(id, id,

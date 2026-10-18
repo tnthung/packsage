@@ -166,6 +166,37 @@ class ReferenceAliasBackendTest {
     }
 
     @Test
+    void matchingJeiViewerHandleUsesEvidenceAliasWithoutRewritingOtherPayloadValues() {
+        var actual = new FakeBackend();
+        var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), ignored -> { });
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("recipes", "search_recipe", "{}"), List.of(), null));
+        exchange.submit(new ModelBackend.ToolResult("recipes", """
+                {"records":[
+                  {"reference":"jei:jei/1/10/minecraft:crafting/recipe-minecraft:torch-1",
+                   "source":{"providerId":"jei","sourceHandle":"jei/1/10/minecraft:crafting/recipe-minecraft:torch-1"},
+                   "payload":{"viewerHandle":"jei/1/10/minecraft:crafting/recipe-minecraft:torch-1",
+                     "text":"jei/1/10/minecraft:crafting/recipe-minecraft:torch-1","recipeId":"minecraft:torch"}},
+                  {"reference":"jei:jei/1/10/minecraft:crafting/recipe-minecraft:torch-1",
+                   "source":{"providerId":"jei","sourceHandle":"jei/1/10/minecraft:crafting/recipe-minecraft:torch-1"},
+                   "payload":{"viewerHandle":"jei/1/10/minecraft:crafting/recipe-minecraft:torch-2"}},
+                  {"reference":"patchouli:jei/1/10/minecraft:crafting/recipe-minecraft:torch-1",
+                   "source":{"providerId":"patchouli","sourceHandle":"jei/1/10/minecraft:crafting/recipe-minecraft:torch-1"},
+                   "payload":{"viewerHandle":"jei/1/10/minecraft:crafting/recipe-minecraft:torch-1"}}
+                ]}
+                """, false));
+        var records = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject().getAsJsonArray("records");
+        var matching = records.get(0).getAsJsonObject();
+        assertTrue(matching.get("reference").getAsString().startsWith("ref:"));
+        assertEquals(matching.get("reference"), matching.getAsJsonObject("payload").get("viewerHandle"));
+        assertEquals(matching.get("reference"), matching.getAsJsonObject("source").get("sourceHandle"));
+        assertEquals("jei/1/10/minecraft:crafting/recipe-minecraft:torch-1", matching.getAsJsonObject("payload").get("text").getAsString());
+        assertEquals("minecraft:torch", matching.getAsJsonObject("payload").get("recipeId").getAsString());
+        assertEquals("jei/1/10/minecraft:crafting/recipe-minecraft:torch-2", records.get(1).getAsJsonObject().getAsJsonObject("payload").get("viewerHandle").getAsString());
+        assertEquals("jei/1/10/minecraft:crafting/recipe-minecraft:torch-1", records.get(2).getAsJsonObject().getAsJsonObject("payload").get("viewerHandle").getAsString());
+    }
+
+    @Test
     void concurrentResultsDeduplicateCanonicalReferencesWithoutMixingTheirReplay() {
         var actual = new FakeBackend();
         var events = new ArrayList<ModelBackend.Event>();

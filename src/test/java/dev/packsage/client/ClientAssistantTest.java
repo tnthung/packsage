@@ -52,6 +52,15 @@ class ClientAssistantTest {
     }
 
     @Test
+    void bundledPonderVersionsPassTheConfiguredApiGateAndRejectOtherMinecraftBuilds() {
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.81+mc1.21.1"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.82+mc1.21.1"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.82+mc1.21.2"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.82+mc1.20.1"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.82+mc1.21.1-extra"));
+    }
+
+    @Test
     void optionalProviderPreservesObservedVersionAndEvidenceWhenWrappingResults() {
         var scope = new Evidence.Scope("world", "en_us", "player", "runtime", 4);
         var target = new Evidence.NavigationTarget(scope, "jei", "recipe-handle", "target-id");

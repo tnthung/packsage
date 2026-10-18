@@ -69,6 +69,7 @@ public final class ClientAssistant {
     private static final String JEI_VERSION = "[19.27.0.340,20)";
     private static final String FTB_VERSION = "[2101.1.36,2101.2)";
     private static final String PATCHOULI_VERSION = "[1.21.1-92,1.21.1-94)";
+    static final String PONDER_VERSION = "[1.0.81+mc1.21.1]";
     private static final String LOADER_VERSION_SUFFIX = "-NEOFORGE";
 
     public record CopiedWorld(String source, String readableLabel, boolean privateSingleplayer,
@@ -135,7 +136,7 @@ public final class ClientAssistant {
                 "actuallyadditions", optionalStatus("actuallyadditions", "[1.3.26]"),
                 "relics", optionalStatus("relics", "[0.12.8]"),
                 "artifacts", optionalStatus("artifacts", "[13.2.3]"),
-                "ponder", optionalStatus("ponder", "[1.0.81+mc1.21.1]"));
+                "ponder", optionalStatus("ponder", PONDER_VERSION));
         settingsPath = client.gameDirectory.toPath().resolve("config").resolve("packsage.properties");
         settings = PackSageSettings.load(settingsPath);
         var backend = new ChatGptBackend(new ChatGptAuth(ChatGptAuth.defaultCredentialFile()));

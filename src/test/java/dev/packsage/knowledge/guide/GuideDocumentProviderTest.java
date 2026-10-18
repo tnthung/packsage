@@ -234,6 +234,51 @@ class GuideDocumentProviderTest {
                 secondRetry.records().getFirst().payload().values().get("text"));
     }
 
+    @Test
+    void readerNavigationTargetsSurviveFreshReadsAndRejectChangedScopesBeforeOpening() {
+        var reader = new FixtureReader();
+        reader.navigationEnabled.set(true);
+        var currentScope = new AtomicReference<>(SCOPE);
+        var provider = new GuideDocumentProvider(reader, currentScope::get, Runnable::run);
+        var result = provider.query(new Evidence.Query(Evidence.Operation.GET,
+                new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("fixture:guide/entry"))), 1, null, null),
+                SCOPE).toCompletableFuture().join();
+        var target = result.records().getFirst().targets().getFirst();
+
+        assertEquals("fixture:guide/entry", target.sourceHandle());
+        assertEquals(Evidence.NavigationStatus.OPENED, provider.open(target, SCOPE).status());
+        assertEquals(1, reader.opens.get());
+        currentScope.set(new Evidence.Scope("other-world", "en_us", "team", "guides-1", 1));
+        assertEquals(Evidence.NavigationStatus.STALE, provider.open(target, SCOPE).status());
+        assertEquals(1, reader.opens.get());
+    }
+
+    @Test
+    void lowerCandidateBoundStopsNoMatchTraversalAndReturnsALiveContinuation() {
+        var reader = new FixtureReader();
+        reader.manyCandidates.set(true);
+        var provider = new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run, 4);
+        var arguments = new Evidence.JsonObject(Map.of("query", new Evidence.JsonString("absent"),
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("fixture_guide")))));
+        var result = provider.searchDocument(new PackSageTools.ReadRequest("search_document", arguments, SCOPE),
+                new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null))
+                .toCompletableFuture().join();
+
+        assertTrue(result.records().isEmpty());
+        assertEquals(4, reader.inspectedCandidates.get());
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertNotNull(result.nextCursor());
+    }
+
+    @Test
+    void defaultGuideReadersKeepNavigationUnsupported() {
+        var provider = new GuideDocumentProvider(new FixtureReader(), () -> SCOPE, Runnable::run);
+        assertEquals(Evidence.NavigationStatus.UNSUPPORTED, provider.open(new Evidence.NavigationTarget(
+                SCOPE, "fixture_guide", "fixture:guide/entry", "fixture:guide/entry"), SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.STALE, provider.open(new Evidence.NavigationTarget(
+                SCOPE, "other", "fixture:guide/entry", "fixture:guide/entry"), SCOPE).status());
+    }
+
     private static final class FixtureReader implements GuideDocumentReader {
         private final String providerId;
         private final String candidateId;
@@ -246,6 +291,10 @@ class GuideDocumentProviderTest {
         private final AtomicBoolean exhaustFirstCandidatePage = new AtomicBoolean();
         private final AtomicBoolean exhaustFirstFragment = new AtomicBoolean();
         private final AtomicBoolean exhaustSecondFragment = new AtomicBoolean();
+        private final AtomicBoolean navigationEnabled = new AtomicBoolean();
+        private final AtomicInteger opens = new AtomicInteger();
+        private final AtomicBoolean manyCandidates = new AtomicBoolean();
+        private final AtomicInteger inspectedCandidates = new AtomicInteger();
 
         private FixtureReader() { this("fixture_guide", "fixture:guide/entry"); }
 
@@ -260,6 +309,17 @@ class GuideDocumentProviderTest {
 
         @Override
         public CandidatePage candidates(String afterPosition, int limit, Toolbox.DocumentBudget budget) {
+            if (manyCandidates.get()) {
+                var candidates = new java.util.ArrayList<Candidate>();
+                int index = afterPosition == null ? 0 : Integer.parseInt(afterPosition);
+                while (index < 10 && candidates.size() < limit && budget.value()) {
+                    inspectedCandidates.incrementAndGet();
+                    index++;
+                    candidates.add(new Candidate("fixture:entry/" + index, "Entry " + index,
+                            String.valueOf(index), List.of(), Evidence.Coverage.COMPLETE));
+                }
+                return new CandidatePage(candidates, String.valueOf(index), index < 10, Evidence.Coverage.COMPLETE, null);
+            }
             if (exhaustFirstCandidatePage.compareAndSet(true, false)) {
                 while (budget.value()) { }
                 return new CandidatePage(List.of(), afterPosition, true, Evidence.Coverage.PARTIAL,
@@ -296,6 +356,19 @@ class GuideDocumentProviderTest {
         public ResolvedDocument resolve(String id, int maxChars, Toolbox.DocumentBudget budget) {
             var candidate = new Candidate(id, "Guide entry", candidateId, List.of("fixture guide"), Evidence.Coverage.COMPLETE);
             return new ResolvedDocument(candidate, readFragment(id, null, maxChars, budget));
+        }
+
+        @Override
+        public List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope scope, Candidate candidate) {
+            return navigationEnabled.get() ? List.of(new Evidence.NavigationTarget(scope, providerId,
+                    candidate.id(), candidate.id())) : List.of();
+        }
+
+        @Override
+        public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+            if (!navigationEnabled.get()) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "unsupported");
+            opens.incrementAndGet();
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "opened");
         }
     }
 }

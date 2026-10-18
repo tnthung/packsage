@@ -166,17 +166,14 @@ public final class PackSageJeiPlugin implements IModPlugin {
 
                 private void build() {
                     initialized = true;
+                    var complete = false;
                     try {
                         var holders = nativeRecipes.get();
                         if (holders == null) {
-                            unavailable = true;
                             return;
                         }
                         for (var holder : holders) {
                             if (!budget.callback("jei-native-identity", MAX_NAVIGATION_RECIPES)) {
-                                identities.clear();
-                                ambiguous.clear();
-                                unavailable = true;
                                 return;
                             }
                             var recipe = holder.value();
@@ -188,10 +185,15 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 ambiguous.put(recipe, true);
                             }
                         }
+                        complete = true;
                     } catch (RuntimeException failure) {
-                        identities.clear();
-                        ambiguous.clear();
                         unavailable = true;
+                    } finally {
+                        if (!complete) {
+                            identities.clear();
+                            ambiguous.clear();
+                            unavailable = true;
+                        }
                     }
                 }
             }

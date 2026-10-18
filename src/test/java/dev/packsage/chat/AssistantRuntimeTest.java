@@ -1032,6 +1032,95 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void modelAliasesStayCanonicalInSavedAnswersSteeringReadsNavigationDetailsAndReopenedHistory() throws Exception {
+        String handle = "book:example:guides/carried_storage/very_long_container_page";
+        String reference = "patchouli:" + handle;
+        var reads = new AtomicInteger();
+        var navigations = new AtomicInteger();
+        KnowledgeProvider provider = new KnowledgeProvider() {
+            @Override public String id() { return "patchouli"; }
+            @Override public Metadata metadata() { return new Metadata(id(), List.of("guide"), false, List.of(), Map.of()); }
+            @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
+            @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                var source = new Evidence.Source(scope, id(), "fixture", handle, scope.requestGeneration(), Instant.EPOCH,
+                        Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+                var target = new Evidence.NavigationTarget(scope, id(), handle, "container-page");
+                return CompletableFuture.completedFuture(new Evidence.Result(List.of(new Evidence.Record(source,
+                        Evidence.RecordKind.GUIDE, "Carried storage guide", new Evidence.JsonObject(Map.of(
+                        "text", new Evidence.JsonString("Inspect every relevant carried container."))), List.of(target))),
+                        Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
+            }
+            @Override public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Context context) {
+                return query(new Evidence.Query(Evidence.Operation.GET, request.arguments(), 1, null, null), request.scope());
+            }
+            @Override public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Context context) {
+                assertEquals(handle, context.reference(request).sourceHandle());
+                assertEquals(reference, ((Evidence.JsonString) ((Evidence.JsonArray) request.arguments().values().get("handles")).values().getFirst()).value());
+                reads.incrementAndGet();
+                return query(new Evidence.Query(Evidence.Operation.GET, request.arguments(), 1, null, null), request.scope());
+            }
+            @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                assertEquals(handle, target.sourceHandle());
+                assertEquals("container-page", target.targetId());
+                navigations.incrementAndGet();
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, null);
+            }
+        };
+        var store = new ConversationStore(Files.createTempDirectory("packsage-canonical-reference-runtime"), DIRECT);
+        var backend = new FakeBackend();
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(provider), current), GroundingInstructions::historyTextBudget,
+                GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        runtime.send("Check carried storage", false, false);
+        var search = new ModelBackend.ToolCall("search", "search_document", "{\"query\":\"carried storage\",\"filter\":{\"provider\":\"patchouli\",\"types\":[\"guide\"]}}");
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, search, List.of(), null));
+        assertEquals(1, backend.results.size());
+        String alias = com.google.gson.JsonParser.parseString(backend.results.getFirst().serializedResult()).getAsJsonObject()
+                .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
+        assertTrue(alias.startsWith("ref:"), alias);
+        var read = new ModelBackend.ToolCall("read", "read_evidence", "{\"handles\":[\"" + alias + "\"]}");
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, read, List.of(), null));
+        assertEquals(1, reads.get());
+        String wireAnswer = "Inspect the bundle [" + alias + "].";
+        String canonicalAnswer = "Inspect the bundle [" + reference + "].";
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, wireAnswer, null, List.of(), null));
+        assertEquals(canonicalAnswer, runtime.view().streamingAnswer());
+        assertTrue(runtime.steer("Also check the second bundle"));
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, " Check both.", null, List.of(), null));
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(search,
+                backend.results.getFirst(), read, backend.results.getLast(), backend.steered.getFirst(),
+                new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED, ModelBackend.OutputPhase.FINAL_ANSWER,
+                        List.of(new ModelBackend.OutputText(wireAnswer + " Check both.", List.of())))), null));
+        var turn = runtime.view().conversation().turns().getLast();
+        assertEquals(ChatContracts.OutcomeStatus.COMPLETED, turn.outcome().status(), turn.outcome().detail());
+        assertEquals(canonicalAnswer + " Check both.", turn.answer());
+        assertEquals(canonicalAnswer.length(), turn.steeringMessages().getFirst().answerOffset());
+        assertEquals(handle, turn.sources().getFirst().sourceHandle());
+        assertEquals(reference, com.google.gson.JsonParser.parseString(((ModelBackend.ToolCall) turn.replayItems().get(2)).serializedArguments()).getAsJsonObject()
+                .getAsJsonArray("handles").get(0).getAsString());
+        var saved = store.openConversation(WORLD, runtime.view().conversation().id()).toCompletableFuture().join();
+        assertEquals(turn, saved.turns().getLast());
+        var details = Class.forName("dev.packsage.client.SourceDetailsScreen").getDeclaredMethod("details", Evidence.Source.class, ChatContracts.Turn.class);
+        details.setAccessible(true);
+        assertTrue(((List<?>) details.invoke(null, turn.sources().getFirst(), saved.turns().getLast())).contains("Carried storage guide"));
+        runtime.newChat();
+        runtime.openSession(new ChatContracts.SessionSummary(WORLD, saved.id(), turn.question(), turn.answer(), Instant.EPOCH));
+        assertEquals(turn, runtime.view().conversation().turns().getLast());
+        runtime.navigate(turn.navigationTargets().getFirst());
+        assertEquals(1, navigations.get());
+        runtime.send("Which bundle did we check?", false, false);
+        assertTrue(backend.requests.getLast().input().stream().filter(ModelBackend.Message.class::isInstance)
+                .map(ModelBackend.Message.class::cast).flatMap(message -> message.content().stream())
+                .filter(ModelBackend.TextContent.class::isInstance).map(ModelBackend.TextContent.class::cast)
+                .anyMatch(text -> text.text().contains(canonicalAnswer)));
+        assertTrue(backend.requests.getLast().input().stream().noneMatch(item -> item instanceof ModelBackend.ToolResult));
+    }
+
+    @Test
     void modelCanSearchAndReadSavedHistoryBeyondItsAutomaticWindow() throws Exception {
         var store = new ConversationStore(Files.createTempDirectory("packsage-history-runtime"), DIRECT);
         var older = store.newConversation(WORLD).toCompletableFuture().join();

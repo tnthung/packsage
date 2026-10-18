@@ -279,6 +279,16 @@ class GuideDocumentProviderTest {
                 SCOPE, "other", "fixture:guide/entry", "fixture:guide/entry"), SCOPE).status());
     }
 
+    @Test
+    void partialTerminalFragmentsDoNotClaimCompleteDocumentEvidence() {
+        var reader = new FixtureReader();
+        reader.partialTerminalFragment.set(true);
+        var result = new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run).query(new Evidence.Query(
+                Evidence.Operation.GET, new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("fixture:guide/entry"))),
+                1, null, null), SCOPE).toCompletableFuture().join();
+        assertEquals(new Evidence.JsonBoolean(false), result.records().getFirst().payload().values().get("complete"));
+    }
+
     private static final class FixtureReader implements GuideDocumentReader {
         private final String providerId;
         private final String candidateId;
@@ -295,6 +305,7 @@ class GuideDocumentProviderTest {
         private final AtomicInteger opens = new AtomicInteger();
         private final AtomicBoolean manyCandidates = new AtomicBoolean();
         private final AtomicInteger inspectedCandidates = new AtomicInteger();
+        private final AtomicBoolean partialTerminalFragment = new AtomicBoolean();
 
         private FixtureReader() { this("fixture_guide", "fixture:guide/entry"); }
 
@@ -340,6 +351,8 @@ class GuideDocumentProviderTest {
 
         @Override
         public Fragment readFragment(String id, String fragmentPosition, int maxChars, Toolbox.DocumentBudget budget) {
+            if (partialTerminalFragment.get()) return new Fragment("bounded text", "page:first", 0, null,
+                    Evidence.Coverage.PARTIAL, "truncated source text");
             if (fragmentPosition == null && exhaustFirstFragment.compareAndSet(true, false)
                     || fragmentPosition != null && exhaustSecondFragment.compareAndSet(true, false)) {
                 while (budget.value()) { }

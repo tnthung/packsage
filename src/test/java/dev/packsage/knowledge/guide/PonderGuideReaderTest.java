@@ -112,6 +112,8 @@ class PonderGuideReaderTest {
         source.entries.add(entry("tiny", "Title"));
         assertEquals(1, new PonderGuideReader(source).readFragment("tiny", null, 1,
                 new Toolbox.DocumentBudget()).text().length());
+        assertTrue(new PonderGuideReader(source).readFragment("tiny", null, "Component: create:shaft".length(),
+                new Toolbox.DocumentBudget()).text().length() <= "Component: create:shaft".length());
     }
 
     @Test
@@ -131,13 +133,43 @@ class PonderGuideReaderTest {
         assertEquals(1, source.opens.get());
     }
 
+    @Test
+    void literalCaptionExtractionUsesNumericOrderAndBoundsCopiedText() {
+        var captions = new java.util.HashMap<String, String>();
+        captions.put("header", "Localized Scene");
+        captions.put("text_10", "tenth caption");
+        captions.put("text_2", "second caption");
+        captions.put("text_1", "first caption");
+        var extracted = PonderGuideReader.literalText(net.minecraft.resources.ResourceLocation.parse("fixture:scene"), captions);
+        assertEquals(List.of("first caption", "second caption", "tenth caption"), extracted.captions());
+        captions.put("text_1", "x".repeat(100_000));
+        extracted = PonderGuideReader.literalText(net.minecraft.resources.ResourceLocation.parse("fixture:scene"), captions);
+        assertTrue(extracted.captions().stream().mapToInt(String::length).sum() <= 16_384);
+    }
+
+    @Test
+    void componentAndTagDisplayTextCanFindAStoryboard() {
+        var source = new FixtureSource();
+        source.entries.add(new PonderGuideReader.Entry("labels", "create:shaft", "create", "create:shared",
+                List.of("create:rotation"), "Localized Shaft Rotation Components"));
+        TITLES.put("labels", "Unrelated scene title");
+        SCENE_IDS.put("labels", "create:labels");
+        CAPTION_DEFAULTS.put("labels", List.of());
+        var provider = new GuideDocumentProvider(new PonderGuideReader(source), () -> SCOPE, Runnable::run, 4);
+        var result = provider.query(new Evidence.Query(Evidence.Operation.SEARCH,
+                new Evidence.JsonObject(java.util.Map.of("query", new Evidence.JsonString("Localized Shaft"))),
+                16, null, null), SCOPE).toCompletableFuture().join();
+        assertEquals(1, result.records().size());
+        assertEquals("labels", result.records().getFirst().source().sourceHandle());
+    }
+
     private static PonderGuideReader.Entry entry(String identity, String title, String... captions) {
         return entryForComponent(identity, "create:shaft", title, captions);
     }
 
     private static PonderGuideReader.Entry entryForComponent(String identity, String component, String title, String... captions) {
         var result = new PonderGuideReader.Entry(identity, component, "create", "create:shared",
-                List.of("create:rotation"));
+                List.of("create:rotation"), "");
         TITLES.put(identity, title);
         SCENE_IDS.put(identity, "create:scene_" + identity);
         CAPTION_DEFAULTS.put(identity, List.of(captions));

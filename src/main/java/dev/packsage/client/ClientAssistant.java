@@ -506,6 +506,7 @@ public final class ClientAssistant {
         if (actualVersion == null) return false;
         String normalized = actualVersion.endsWith(LOADER_VERSION_SUFFIX)
                 ? actualVersion.substring(0, actualVersion.length() - LOADER_VERSION_SUFFIX.length()) : actualVersion;
+        if (normalized.endsWith("+mc1.21.1")) normalized = normalized.substring(0, normalized.length() - "+mc1.21.1".length());
         if (!Pattern.matches("[0-9]+(?:[.-][0-9]+)*", normalized)) return false;
         try {
             return VersionRange.createFromVersionSpec(expectedVersion)

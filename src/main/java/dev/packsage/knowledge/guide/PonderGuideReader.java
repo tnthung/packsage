@@ -7,6 +7,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.locale.Language;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.fml.ModList;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,12 +19,12 @@ import java.util.function.Supplier;
 
 /** Bounded access to current Ponder storyboard registrations and their literal captions. */
 public final class PonderGuideReader implements GuideDocumentReader {
-    private static final String VERSION = "1.0.81+mc1.21.1";
     private static final int MAX_REGISTRATIONS = 4096;
     private static final int MAX_METADATA_CHARS = 2048;
     private static final int MAX_CAPTIONS = 512;
     private static final int MAX_TEXT_CHARS = 16_384;
     private final Source source;
+    private final String readerVersion;
 
     interface Source {
         Iterable<Entry> entries();
@@ -53,17 +54,21 @@ public final class PonderGuideReader implements GuideDocumentReader {
         }
     }
 
-    public PonderGuideReader() { this(new RuntimeSource()); }
+    PonderGuideReader(Source source) { this(source, "unknown"); }
 
-    PonderGuideReader(Source source) { this.source = Objects.requireNonNull(source); }
+    PonderGuideReader(Source source, String version) {
+        this.source = Objects.requireNonNull(source);
+        this.readerVersion = Objects.requireNonNull(version);
+    }
 
     public static KnowledgeProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor) {
-        return new GuideDocumentProvider(new PonderGuideReader(), currentScope, clientExecutor, 4);
+        return new GuideDocumentProvider(new PonderGuideReader(new RuntimeSource(), ModList.get().getModContainerById("ponder")
+                .map(container -> container.getModInfo().getVersion().toString()).orElse("unknown")), currentScope, clientExecutor, 4);
     }
 
     @Override public String providerId() { return "ponder"; }
 
-    @Override public String version() { return VERSION; }
+    @Override public String version() { return readerVersion; }
 
     @Override public String sourceIdentity(Evidence.Scope scope) {
         var hash = scope.resourcesLocale().hashCode();

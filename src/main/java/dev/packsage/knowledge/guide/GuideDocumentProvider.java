@@ -491,7 +491,7 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
         payload.put("title", new Evidence.JsonString(title));
         payload.put("text", new Evidence.JsonString(fragment.text()));
         payload.put("fragment", new Evidence.JsonString(fragment.sourcePosition()));
-        payload.put("complete", new Evidence.JsonBoolean(fragment.nextPosition() == null));
+        payload.put("complete", new Evidence.JsonBoolean(fragment.nextPosition() == null && coverage == Evidence.Coverage.COMPLETE));
         payload.put("provenance", new Evidence.JsonArray(candidate.provenance().stream().limit(MAX_PROVENANCE_ITEMS)
                 .map(value -> (Evidence.JsonValue) new Evidence.JsonString(value.length() > MAX_PROVENANCE_CHARS
                         ? value.substring(0, MAX_PROVENANCE_CHARS) : value)).toList()));

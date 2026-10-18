@@ -952,9 +952,13 @@ class AssistantRuntimeTest {
             assertEquals(List.of(historical), screen.view().conversation().turns());
             assertTrue(screen.view().navigationTargets().contains(target));
             assertTrue(screen.view().sources().contains(source));
+            List<String> requestErrors = runtime.view().errors();
             runtime.navigate(target);
             assertEquals(0, navigations.get());
-            assertTrue(screen.view().errors().stream().anyMatch(error -> error.contains(otherWorld ? "Join this session" : "stale")));
+            assertEquals(requestErrors, runtime.view().errors());
+            var navigationError = screen.getClass().getDeclaredMethod("navigationError", long.class);
+            navigationError.setAccessible(true);
+            assertTrue(String.valueOf(navigationError.invoke(screen, 0L)).contains(otherWorld ? "Join this session" : "stale"));
             runtime.send("continue", false, false);
             if (otherWorld) {
                 assertEquals(0, backend.starts);

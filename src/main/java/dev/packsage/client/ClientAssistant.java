@@ -575,6 +575,17 @@ public final class ClientAssistant {
         @Override public CompletionStage<Evidence.Result> readProgress(PackSageTools.ReadRequest request, Context context) { return invoke(provider -> provider.readProgress(request, context)); }
 
         @Override
+        public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+            try {
+                Object current = delegate.get();
+                return current instanceof KnowledgeProvider provider ? provider.refreshNavigation(target, scope)
+                        : CompletableFuture.completedFuture(null);
+            } catch (RuntimeException | LinkageError failure) {
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        @Override
         public String id() { return status.id(); }
 
         @Override

@@ -91,6 +91,46 @@ class PonderGuideReaderTest {
         assertEquals(0, source.opens.get());
     }
 
+    @Test
+    void continuationKeepsTheFirstUnreturnedStoryboard() {
+        var source = new FixtureSource();
+        for (int index = 0; index < 7; index++) source.entries.add(entry("page_" + index, "Scene " + index));
+        var reader = new PonderGuideReader(source);
+        var first = reader.candidates(null, 4, new Toolbox.DocumentBudget());
+        var second = reader.candidates(first.nextPosition(), 4, new Toolbox.DocumentBudget());
+
+        assertEquals(List.of("page_0", "page_1", "page_2", "page_3"),
+                first.candidates().stream().map(GuideDocumentReader.Candidate::id).toList());
+        assertEquals(List.of("page_4", "page_5", "page_6"),
+                second.candidates().stream().map(GuideDocumentReader.Candidate::id).toList());
+        assertEquals(7, source.compiles.get());
+    }
+
+    @Test
+    void tinyMetadataFragmentsDoNotExceedTheirCharacterLimit() {
+        var source = new FixtureSource();
+        source.entries.add(entry("tiny", "Title"));
+        assertEquals(1, new PonderGuideReader(source).readFragment("tiny", null, 1,
+                new Toolbox.DocumentBudget()).text().length());
+    }
+
+    @Test
+    void captionOutputStaysBoundedAndNavigationOpensOnlyItsCurrentComponent() {
+        var source = new FixtureSource();
+        source.entries.add(entry("bounded", "Title", "x".repeat(100_000), "later caption"));
+        var reader = new PonderGuideReader(source);
+        var resolved = reader.resolve("bounded", 120, new Toolbox.DocumentBudget());
+        assertTrue(resolved.fragment().text().length() <= 120);
+        assertTrue(resolved.fragment().text().contains("Caption 1:"));
+        var target = reader.navigationTargets(SCOPE, resolved.candidate()).getFirst();
+        assertEquals(Evidence.NavigationStatus.OPENED, reader.open(target, SCOPE).status());
+        assertEquals("create:shaft", source.openedComponent);
+        assertEquals(1, source.opens.get());
+        assertEquals(Evidence.NavigationStatus.STALE, reader.open(new Evidence.NavigationTarget(SCOPE,
+                "ponder", "bounded", "create:gearbox"), SCOPE).status());
+        assertEquals(1, source.opens.get());
+    }
+
     private static PonderGuideReader.Entry entry(String identity, String title, String... captions) {
         return entryForComponent(identity, "create:shaft", title, captions);
     }
@@ -114,6 +154,7 @@ class PonderGuideReaderTest {
         final AtomicInteger compiles = new AtomicInteger();
         final AtomicInteger opens = new AtomicInteger();
         boolean clientThread = true;
+        String openedComponent;
 
         @Override public Iterable<PonderGuideReader.Entry> entries() { return entries; }
         @Override public PonderGuideReader.SceneText compile(PonderGuideReader.Entry entry) {
@@ -122,6 +163,6 @@ class PonderGuideReaderTest {
                     captions.getOrDefault(entry.identity(), CAPTION_DEFAULTS.get(entry.identity())));
         }
         @Override public boolean isClientThread() { return clientThread; }
-        @Override public void openComponent(String component) { opens.incrementAndGet(); }
+        @Override public void openComponent(String component) { openedComponent = component; opens.incrementAndGet(); }
     }
 }

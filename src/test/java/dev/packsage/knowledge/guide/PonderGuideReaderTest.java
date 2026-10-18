@@ -228,6 +228,43 @@ class PonderGuideReaderTest {
     }
 
     @Test
+    void savedComponentNavigationRefreshesAgainstCurrentRegistrationsWithoutCompilingScenes() {
+        var source = new FixtureSource();
+        source.entries.add(entryForComponent("old_registration", "create:mechanical_press", "Old title"));
+        var reader = new PonderGuideReader(source);
+        var saved = new Evidence.NavigationTarget(SCOPE, "ponder", "removed:old_candidate",
+                "create:mechanical_press");
+        source.entries.clear();
+        source.entries.add(entryForComponent("new_registration", "create:shaft", "New scene first"));
+        source.entries.add(entryForComponent("new_press_registration", "create:mechanical_press", "New press scene"));
+
+        var refreshed = reader.refreshNavigation(saved, SCOPE);
+
+        assertEquals(new Evidence.NavigationTarget(SCOPE, "ponder", "new_press_registration",
+                "create:mechanical_press"), refreshed);
+        assertEquals(0, source.compiles.get());
+        assertEquals(Evidence.NavigationStatus.OPENED, reader.open(refreshed, SCOPE).status());
+        assertEquals("create:mechanical_press", source.openedComponent);
+        assertEquals(0, source.compiles.get());
+    }
+
+    @Test
+    void savedComponentNavigationRejectsMalformedMissingWrongProviderAndScope() {
+        var source = new FixtureSource();
+        source.entries.add(entryForComponent("current", "create:mechanical_press", "Title"));
+        var reader = new PonderGuideReader(source);
+
+        assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "ponder", "old", "not a resource id"), SCOPE));
+        assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "ponder", "old", "create:missing"), SCOPE));
+        assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "other", "old",
+                "create:mechanical_press"), SCOPE));
+        assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "ponder", "old",
+                "create:mechanical_press"), new Evidence.Scope("other", "en_us", "team", "runtime", 1)));
+        assertEquals(0, source.compiles.get());
+        assertEquals(0, source.opens.get());
+    }
+
+    @Test
     void continuationKeepsTheFirstUnreturnedStoryboard() {
         var source = new FixtureSource();
         for (int index = 0; index < 7; index++) source.entries.add(entryForComponent("page_" + index, "create:shaft", "Scene " + index));
@@ -299,7 +336,7 @@ class PonderGuideReaderTest {
         assertEquals("labels", result.records().getFirst().source().sourceHandle());
     }
 
-    private static PonderGuideReader.Entry entryForComponent(String identity, String component, String title, String... captions) {
+    static PonderGuideReader.Entry entryForComponent(String identity, String component, String title, String... captions) {
         TITLES.put(identity, title);
         SCENE_IDS.put(identity, "create:scene_" + identity);
         CAPTION_DEFAULTS.put(identity, List.of(captions));
@@ -310,7 +347,7 @@ class PonderGuideReaderTest {
     private static final java.util.Map<String, String> SCENE_IDS = new java.util.HashMap<>();
     private static final java.util.Map<String, List<String>> CAPTION_DEFAULTS = new java.util.HashMap<>();
 
-    private static final class FixtureSource implements PonderGuideReader.Source {
+    static final class FixtureSource implements PonderGuideReader.Source {
         final List<PonderGuideReader.Entry> entries = new ArrayList<>();
         final java.util.Map<String, List<String>> captions = new java.util.HashMap<>();
         final AtomicInteger compiles = new AtomicInteger();

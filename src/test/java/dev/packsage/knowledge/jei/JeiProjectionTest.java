@@ -161,6 +161,29 @@ class JeiProjectionTest {
     }
 
     @Test
+    void recipeNavigationTargetUsesCanonicalIdentityAcrossCategoryNamespaces() {
+        var projection = new JeiProvider.Projection("addon:machine", "jei/7/19/addon:machine/recipe-addon:press",
+                "addon:press", "Press", List.of(), List.of(), List.of(), true,
+                Evidence.Coverage.COMPLETE, Evidence.DecodingStatus.VERIFIED, null);
+        var record = JeiProvider.toRecord(projection, new JeiProvider.Snapshot(SCOPE, 7, 19,
+                List.of(projection), ignored -> { }));
+
+        assertEquals("recipe-v1|addon:machine|addon:press", record.targets().getFirst().targetId());
+        assertEquals(projection.viewerHandle(), record.targets().getFirst().sourceHandle());
+    }
+
+    @Test
+    void recipeWithoutCanonicalIdKeepsOnlyTemporaryNavigationIdentity() {
+        var projection = new JeiProvider.Projection("addon:machine", "jei/7/19/addon:machine/object-123",
+                null, "Press", List.of(), List.of(), List.of(), true,
+                Evidence.Coverage.COMPLETE, Evidence.DecodingStatus.VERIFIED, null);
+        var record = JeiProvider.toRecord(projection, new JeiProvider.Snapshot(SCOPE, 7, 19,
+                List.of(projection), ignored -> { }));
+
+        assertEquals(projection.viewerHandle(), record.targets().getFirst().targetId());
+    }
+
+    @Test
     void opaqueCategoryRemainsSearchableWithoutConsumedInputEdges() throws Exception {
         var projection = JeiProvider.Projection.opaque("addon:machine", "addon:machine#0", "Machine", "custom category");
         var provider = new JeiProvider(new JeiProvider.Snapshot(SCOPE, 1, List.of(projection), ignored -> { }));

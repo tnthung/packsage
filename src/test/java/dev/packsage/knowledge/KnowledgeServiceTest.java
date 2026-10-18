@@ -1,9 +1,13 @@
 package dev.packsage.knowledge;
 
+import dev.packsage.chat.ChatContracts;
+import dev.packsage.chat.ConversationStore;
 import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.math.BigDecimal;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -23,6 +27,72 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class KnowledgeServiceTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
+
+    @Test
+    void savedDestinationResolvesWithANewProviderAndSourceHandle(@TempDir Path directory) throws Exception {
+        var historicalScope = new Evidence.Scope("old-session", "old-resources", "team", "old-runtime", 3);
+        var historical = new Evidence.NavigationTarget(historicalScope, "ponder", "old-registration", "create:shaft");
+        var world = new ChatContracts.WorldIdentity("world", "World");
+        var store = new ConversationStore(directory, Runnable::run);
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, historicalScope, conversation.id(), new ChatContracts.Turn(
+                new ChatContracts.RequestId("saved"), "Question", "Answer", List.of(),
+                new ChatContracts.Context("context", null, historicalScope), List.of(new Evidence.Source(historicalScope,
+                "ponder", "fixture", "old-registration", 1, Instant.EPOCH, Evidence.Activity.ACTIVE,
+                Evidence.Coverage.PARTIAL, Evidence.Authority.INSTALLED_DOCUMENTATION, List.of())), List.of(historical),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
+        var saved = new ConversationStore(directory, Runnable::run).openLatest(world).toCompletableFuture().join()
+                .turns().getFirst().navigationTargets().getFirst();
+        var current = new Evidence.NavigationTarget(SCOPE, "ponder", "new-registration", "create:shaft");
+        var received = new AtomicReference<Evidence.NavigationTarget>();
+        var provider = new PagedProvider("ponder", query -> page(List.of(), null)) {
+            public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                received.set(target);
+                assertEquals(SCOPE, scope);
+                return CompletableFuture.completedFuture(current);
+            }
+        };
+        var service = service(provider);
+
+        assertEquals(current, service.refreshNavigation(saved, SCOPE).toCompletableFuture().join());
+        assertEquals(saved, received.get());
+        assertEquals(Evidence.NavigationStatus.STALE, service.open(saved, SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.UNSUPPORTED, service.open(current, SCOPE).status());
+        assertEquals(Evidence.Outcome.ERROR, execute(service, "read_evidence", Map.of("handles",
+                strings("ponder:new-registration"))).outcome());
+    }
+
+    @Test
+    void destinationResolversCannotAuthorizeForeignScopesProvidersOrLateResults() {
+        var historical = new Evidence.NavigationTarget(SCOPE, "ponder", "old", "create:shaft");
+        for (var invalid : List.of(new Evidence.NavigationTarget(SCOPE, "jei", "new", "create:shaft"),
+                new Evidence.NavigationTarget(new Evidence.Scope("other", "resources", "team", "runtime", 1),
+                        "ponder", "new", "create:shaft"))) {
+            var provider = new PagedProvider("ponder", query -> page(List.of(), null)) {
+                public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                    return CompletableFuture.completedFuture(invalid);
+                }
+            };
+            var service = service(provider);
+            assertNull(service.refreshNavigation(historical, SCOPE).toCompletableFuture().join());
+            assertEquals(Evidence.NavigationStatus.STALE, service.open(invalid, SCOPE).status());
+        }
+        var pending = new CompletableFuture<Evidence.NavigationTarget>();
+        var active = new AtomicReference<>(SCOPE);
+        var service = new KnowledgeService(List.of(new PagedProvider("ponder", query -> page(List.of(), null)) {
+            public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                return pending;
+            }
+        }), active::get);
+        var refresh = service.refreshNavigation(historical, SCOPE).toCompletableFuture();
+        assertFalse(refresh.isDone());
+        active.set(new Evidence.Scope("next", "resources", "team", "runtime", 2));
+        pending.complete(new Evidence.NavigationTarget(SCOPE, "ponder", "new", "create:shaft"));
+        assertNull(refresh.join());
+        active.set(SCOPE);
+        assertEquals(Evidence.NavigationStatus.STALE, service.open(new Evidence.NavigationTarget(SCOPE,
+                "ponder", "new", "create:shaft"), SCOPE).status());
+    }
 
     @Test
     void refreshNavigationRevalidatesHistoricalTargetsAndKeepsNavigationHandlesOutOfModelEvidence() {

@@ -254,6 +254,27 @@ class GuideDocumentProviderTest {
     }
 
     @Test
+    void ponderDestinationRefreshRunsOnClientExecutorAndRechecksCurrentScope() {
+        var source = new PonderGuideReaderTest.FixtureSource();
+        source.entries.add(PonderGuideReaderTest.entryForComponent("new_registration", "create:press", "Title"));
+        var pending = new java.util.ArrayList<Runnable>();
+        var currentScope = new AtomicReference<>(SCOPE);
+        var provider = new GuideDocumentProvider(new PonderGuideReader(source), currentScope::get, pending::add);
+        var saved = new Evidence.NavigationTarget(SCOPE, "ponder", "old_registration", "create:press");
+
+        var resolving = provider.refreshNavigation(saved, SCOPE);
+
+        assertTrue(!pending.isEmpty());
+        assertTrue(!resolving.toCompletableFuture().isDone());
+        assertEquals(0, source.compiles.get());
+        currentScope.set(new Evidence.Scope("other-world", "en_us", "team", "guides-1", 1));
+        pending.removeFirst().run();
+        assertEquals(null, resolving.toCompletableFuture().join());
+        assertEquals(0, source.opens.get());
+        assertEquals(0, source.compiles.get());
+    }
+
+    @Test
     void lowerCandidateBoundStopsNoMatchTraversalAndReturnsALiveContinuation() {
         var reader = new FixtureReader();
         reader.manyCandidates.set(true);

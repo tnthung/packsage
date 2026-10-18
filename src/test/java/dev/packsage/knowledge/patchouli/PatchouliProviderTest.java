@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.AdapterRegistry;
+import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,33 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PatchouliProviderTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "zh_tw", "team", "patchouli-1", 1);
+
+    @Test
+    void savedPageDestinationResolvesAfterProviderReloadAndMigratesLegacyLifecycle() {
+        var opened = new AtomicReference<PatchouliProvider.Navigation>();
+        var entry = new PatchouliProvider.EntryRecord("fixture:book", "fixture:entry", "Entry",
+                List.of(new PatchouliProvider.PageRecord(0, "text", new Evidence.JsonObject(Map.of()), "Text",
+                        List.of(), List.of(), true, Evidence.DecodingStatus.VERIFIED)), true, false, false, false, List.of());
+        var snapshot = new AtomicReference<>(new PatchouliProvider.Snapshot(SCOPE, 1,
+                List.of(new PatchouliProvider.BookRecord("fixture:book", "Book", List.of(entry), List.of())), opened::set));
+        var provider = new PatchouliProvider(snapshot::get, Runnable::run);
+        provider.refresh();
+        provider.invalidate();
+        provider.refresh();
+        var service = new KnowledgeService(List.of(provider), () -> SCOPE);
+        for (var destination : List.of("fixture:book#fixture:entry#0", "fixture:book#fixture:entry#0@lifecycle=1")) {
+            var refreshed = service.refreshNavigation(new Evidence.NavigationTarget(new Evidence.Scope(
+                    "old-session", "old-resources", "team", "old-runtime", 0), "patchouli",
+                    "fixture:book#fixture:entry", destination), SCOPE).toCompletableFuture().join();
+            assertTrue(refreshed != null);
+            assertEquals("fixture:book#fixture:entry#0", refreshed.targetId());
+            assertEquals(Evidence.NavigationStatus.OPENED, service.open(refreshed, SCOPE).status());
+            assertEquals(new PatchouliProvider.Navigation("fixture:book", "fixture:entry", 0), opened.get());
+        }
+        snapshot.set(new PatchouliProvider.Snapshot(SCOPE, 2, List.of(), opened::set));
+        assertNull(service.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "patchouli",
+                "fixture:book#fixture:entry", "fixture:book#fixture:entry#0"), SCOPE).toCompletableFuture().join());
+    }
 
     @Test
     void boundedPageContinuationReadsCurrentTextAndPreservesStructuredFields() {

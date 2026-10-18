@@ -1289,6 +1289,7 @@ public final class AssistantScreen extends Screen {
     public int scrollOffset() { return scrollOffset; }
 
     public void showNavigationError(String error) {
+        if (error != null) followOnCompletion = followBottom;
         navigationError = error;
         navigationErrorExpiresAt = error == null ? 0 : System.currentTimeMillis() + 5_000;
     }

@@ -1012,3 +1012,93 @@ Saved conversation: [5bdca0e4-dc39-45e4-b209-f99fc49524dc-51850dd39854a84e.jsonl
 ### R2 result
 
 The core quantity regression passes: both turns give the pack-specific result of 64 torches, including after the exact challenge. The remaining limitation is response-history accuracy: the assistant apologizes for not flagging a fact that was already stated, then reopens a four-torch conditional unsupported by current pack evidence. No recipe viewer was opened and no item was crafted, smelted, moved, or otherwise changed.
+
+## Final-candidate controlled repeat R3: lantern quantities and charcoal option
+
+This is a controlled repeat on final source `6a0edde`, not another independent arc. Installed JAR SHA-256: `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`.
+
+Saved conversation: [ec6438b7-0255-4efe-ac09-84b112e6ecb7-8f64a0a2a340252a.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/ec6438b7-0255-4efe-ac09-84b112e6ecb7-8f64a0a2a340252a.jsonl)
+
+### Turn 1: nine lanterns while reserving coal
+
+- Request ID: `f517878d-8a20-4af5-a75b-54ed7ffcbf03`
+- Tool calls: 6
+- Elapsed time: 134.023 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=134023`).
+- Player:
+
+  ```text
+  Can you see if I can make 9 lanterns with what I’m carrying? I need to keep 16 coal for smelting later, and I dont want charcoal. Haven’t crafted or moved anything yet.
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  **No—not with what you’re carrying right now.** You have 64 coal, so keeping 16 leaves 48 available. Your carry scan shows wood and a shulker with 7 diamonds, but no iron nuggets or torches. [native:inventory:62febea1-66a5-4ddb-ba33-69347dc5f228:hotbar:0] [native:inventory:62febea1-66a5-4ddb-ba33-69347dc5f228:hotbar:1] [native:inventory:62febea1-66a5-4ddb-ba33-69347dc5f228:hotbar:2] [native:storage:e70bca1d-983f-4af0-b419-24242912f9ce:0]
+
+  The regular lantern recipe needs **8 iron nuggets and 1 torch per lantern**—so 9 lanterns would take 72 nuggets and 9 torches. [jei:jei/1/6/minecraft:crafting/recipe-minecraft:lantern-1] There’s also a loaded coal-or-charcoal alternative: using only coal, its lantern frames alone call for **72 coal** for 9 lanterns—more than the 48 you can spend, even before the torches. [jei:jei/1/6/minecraft:crafting/recipe-packsage:fixture_lantern-2]
+  ```
+
+**Trace and UI evidence:** Current direct and nested inventory results show 64 coal, 64 oak logs, 64 stripped oak wood, and 7 diamonds; no iron nuggets or torches were found. The complete recipe results support 8 iron nuggets plus a torch for the regular lantern, and 8 coal or charcoal plus a torch for the alternate. With a 16-coal reserve, only 48 coal is available, less than the 72 coal frames alone needed for nine alternate lanterns. The no-nine conclusion and quantities are correct, and the current citations are valid. No recipe chip was clicked. Scores (1–5): factual grounding 5; recipe/resource arithmetic 5; usefulness 5; citation coverage 5.
+
+### Turn 2: five coal lanterns
+
+- Request ID: `5674d6cf-3785-4398-b40a-de0576132f8a`
+- Tool calls: 9
+- Elapsed time: 107.321 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=107321`).
+- Player:
+
+  ```text
+  Okay, five is fine. Can you make those and leave the 16 coal untouched?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  I can’t craft them in-game for you, but **yes—you have enough to make five without touching the 16 coal you’re saving**.
+
+  Set aside 16 coal first. Then:
+
+  1. Turn **3 stripped oak wood into 12 planks**. You’re carrying plenty. [native:inventory:8833a683-da77-40d9-9772-c62a503050e8:hotbar:1] [jei:jei/1/10/minecraft:crafting/recipe-minecraft:oak_planks-1]
+  2. Use **4 planks for a crafting table**, and **4 more for 8 sticks**. [jei:jei/1/11/minecraft:crafting/recipe-minecraft:crafting_table-1] [jei:jei/1/9/minecraft:crafting/recipe-minecraft:stick-1]
+  3. Use **5 coal and 5 sticks to make 5 torches**. In this pack, that recipe makes 1 torch per coal and stick. [native:minecraft:torch]
+  4. Use those torches with **40 coal** to craft five lanterns—8 coal per lantern. [native:packsage:fixture_lantern]
+
+  That spends **45 coal total**, leaving **19**: your reserved 16 untouched, plus 3 spare. No charcoal needed.
+  ```
+
+**Trace and UI evidence:** The arithmetic is sound: 5 coal for torches plus 40 for lanterns spends 45 and leaves 19. Three stripped wood make 12 planks; the steps use 8 (4 for a table and 4 for 8 sticks), so this preparation is valid though slightly wasteful. The recipe and inventory evidence support the counts. The answer does state that it cannot craft, but only after nine lookups and 107.321 seconds; there was no visible pre-tool boundary statement. Current chips were readable; none was clicked. Scores (1–5): factual grounding 5; recipe/resource arithmetic 5; usefulness 4; citation coverage 4; action-boundary timing 2.
+
+### Turn 3: charcoal preference and furnace condition
+
+- Request ID: `0ecfb57a-5cac-4b36-8414-4a14903d5eca`
+- Tool calls: 8
+- Elapsed time: 141.701 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=141701`).
+- Player:
+
+  ```text
+  Actually, can I use charcoal for both instead? How do I make charcoal from the oak wood? Show me the recipes too.
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  **Yes.** The pack’s alternate lantern recipe accepts charcoal wherever it accepts coal, and charcoal also works in the torch recipe. The regular iron-nugget lantern recipe is separate; use the alternate one shown below. [native:packsage:fixture_lantern] [native:minecraft:torch] [jei:jei/1/14/minecraft:crafting/recipe-packsage:fixture_lantern-2]
+
+  For **five lanterns**, you’ll need **45 charcoal total**: 5 for the torches and 40 for the lanterns.
+
+  ### Recipes
+  - **Charcoal:** Smelt **1 oak log, oak wood, or stripped oak wood → 1 charcoal** in a furnace. [native:minecraft:charcoal] [jei:jei/1/12/minecraft:smelting/recipe-minecraft:charcoal-1]
+  - **Torch:** **1 charcoal + 1 stick → 1 torch.** [native:minecraft:torch] [jei:jei/1/13/minecraft:crafting/recipe-minecraft:torch-1]
+  - **Alternate lantern:** **8 charcoal + 1 torch → 1 lantern.** [native:packsage:fixture_lantern] [jei:jei/1/14/minecraft:crafting/recipe-packsage:fixture_lantern-2]
+  - **Sticks:** **2 planks → 4 sticks**; one oak log or stripped oak wood gives 4 planks. [native:minecraft:stick] [native:minecraft:oak_planks]
+
+  You’re carrying 64 coal, 64 oak logs, and 64 stripped oak wood, so you have enough wood for the charcoal and sticks. Set aside your **16 coal** first, then use some of the rest as furnace fuel; the charcoal recipe requires furnace access. [native:inventory:07cd5168-6e5d-48b3-95ac-9f9889de7ef6:hotbar:0] [native:inventory:07cd5168-6e5d-48b3-95ac-9f9889de7ef6:hotbar:1] [native:inventory:07cd5168-6e5d-48b3-95ac-9f9889de7ef6:hotbar:2]
+
+  I don’t see a furnace in your regular inventory slots, and I couldn’t verify the shulker’s contents—so this works once you have access to a furnace.
+  ```
+
+**Trace and UI evidence:** The current JEI targets for charcoal, torch, and the fixture lantern are valid. The quantities are correct: 5 charcoal for torches and 40 for lanterns, 45 total. The direct inventory data shows 64 coal, logs, and stripped wood, and no furnace in direct inventory. The answer’s inventory UUID is mismatched, so those citations appeared as grey raw unbound references. Its nested-storage reference also targets the wrong slot and returned `UNAVAILABLE`; this is not evidence that the container is unsupported. Treat the shulker contents as unknown for this turn, and the furnace recommendation as conditional on access. After the answer, the parent clicked the current lantern recipe button and the native viewer showed 8 coal or charcoal around a torch producing 1 lantern; no earlier recipe chip was clicked. No coal, charcoal, items, or equipment were moved or crafted. Scores (1–5): factual grounding 4; recipe/resource arithmetic 5; usefulness 3; citation coverage 2.
+
+### R3 result
+
+The first two turns correctly handle the coal reserve and calculate five lanterns. The refusal to craft appears only after a long lookup sequence. The charcoal quantities and recipes in turn 3 are correct, but its mismatched inventory identifier produces unbound citations and an unavailable nested-storage reference; preserve the box contents as unknown rather than interpreting that error as an unsupported-container result. The parent’s post-answer viewer check confirmed the lantern layout. R3 is controlled regression evidence on the final candidate, not independent-arc coverage. No game actions occurred.

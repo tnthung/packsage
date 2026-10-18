@@ -2,6 +2,7 @@ package dev.packsage.chat;
 
 import dev.packsage.client.GameplayContextCapture;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
@@ -646,7 +647,17 @@ class AssistantRuntimeTest {
         AtomicInteger factoryCalls = new AtomicInteger();
         var knowledgeFactory = (java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService>) current -> {
             if (factoryCalls.incrementAndGet() == 3) throw new IllegalStateException("provider refresh failed");
-            return new KnowledgeService(List.of(), current);
+            return new KnowledgeService(List.of(new KnowledgeProvider() {
+                @Override public String id() { return "ponder"; }
+                @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
+                @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                    return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                            Evidence.Outcome.COMPLETE, null));
+                }
+                @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                    return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "fixture");
+                }
+            }), current);
         };
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
                 new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
@@ -656,12 +667,69 @@ class AssistantRuntimeTest {
         runtime.enterWorld(WORLD, SCOPE);
         Map<String, Boolean> activeAdapters = new java.util.HashMap<>(unavailableAdapters);
         activeAdapters.put("history", true);
+        activeAdapters.put("ponder", true);
         assertEquals(activeAdapters, runtime.adapterAvailability());
         runtime.enterWorld(new ChatContracts.WorldIdentity("world-2", "World 2"),
                 new Evidence.Scope("world-2", "resources", "team", "runtime", 0));
         assertEquals(unavailableAdapters, runtime.adapterAvailability());
         runtime.disconnect();
         assertEquals(unavailableAdapters, runtime.adapterAvailability());
+    }
+
+    @Test
+    void lateNavigationResultCannotReplaceFeedbackFromNewerClick() throws Exception {
+        ChatContracts.WorldIdentity world = WORLD;
+        Evidence.Scope historicalScope = new Evidence.Scope("world", "old-resources", "team", "runtime", 2);
+        var firstSource = new Evidence.Source(historicalScope, "patchouli", "fixture", "first", 2, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var secondSource = new Evidence.Source(historicalScope, "patchouli", "fixture", "second", 2, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var firstTarget = new Evidence.NavigationTarget(historicalScope, "patchouli", "first", "first-page");
+        var secondTarget = new Evidence.NavigationTarget(historicalScope, "patchouli", "second", "second-page");
+        var historical = new ChatContracts.Turn(new ChatContracts.RequestId("navigation-history"), "question", "answer",
+                List.of(), new ChatContracts.Context("historical context", null, historicalScope),
+                List.of(firstSource, secondSource), List.of(firstTarget, secondTarget),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-navigation-race-store"), DIRECT);
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, historicalScope, conversation.id(), historical).toCompletableFuture().join();
+        var firstRead = new CompletableFuture<Evidence.Result>();
+        var secondRead = new CompletableFuture<Evidence.Result>();
+        KnowledgeProvider provider = new KnowledgeProvider() {
+            @Override public String id() { return "patchouli"; }
+            @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
+            @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                String id = ((Evidence.JsonString) query.arguments().values().get("id")).value();
+                return id.equals("first") ? firstRead : secondRead;
+            }
+            @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "fixture");
+            }
+        };
+        FakeBackend backend = new FakeBackend();
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(provider), current), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(MODEL.id(), "instructions", List.of(new ModelBackend.Message(
+                        ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(prepared.submission().question())))),
+                        List.of(), prepared.submission().searchMode(), prepared.submission().requestId().value(), 512),
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(world, SCOPE);
+        var screen = runtime.openScreen();
+        runtime.openSession(new ChatContracts.SessionSummary(world, conversation.id(), "question", "answer", Instant.EPOCH));
+
+        runtime.navigate(firstTarget);
+        runtime.navigate(secondTarget);
+        var currentSecondTarget = new Evidence.NavigationTarget(SCOPE, "patchouli", "second", "second-page");
+        var currentSecondSource = new Evidence.Source(SCOPE, "patchouli", "fixture", "second", 0, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        secondRead.complete(new Evidence.Result(List.of(new Evidence.Record(currentSecondSource, Evidence.RecordKind.GUIDE,
+                "Second page", new Evidence.JsonObject(Map.of()), List.of(currentSecondTarget))),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
+        firstRead.complete(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
+
+        var navigationError = screen.getClass().getDeclaredMethod("navigationError", long.class);
+        navigationError.setAccessible(true);
+        assertEquals("Navigation unsupported: fixture", navigationError.invoke(screen, 0L));
     }
 
     @Test

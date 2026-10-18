@@ -15,6 +15,7 @@ import java.util.concurrent.CompletionStage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -448,6 +449,43 @@ class AssistantScreenStateTest {
         screen.navigate(TARGET);
 
         assertEquals(List.of("navigate"), actions.calls);
+    }
+
+    @Test
+    void navigationFeedbackExpiresAndASecondNavigationReplacesIt() {
+        AssistantScreen screen = new AssistantScreen(new FakeActions());
+
+        screen.showNavigationError("First target is unavailable");
+        assertEquals("First target is unavailable", screen.navigationError(0));
+        long replacementStarted = System.currentTimeMillis();
+        screen.showNavigationError("Second target is unavailable");
+        assertEquals("Second target is unavailable", screen.navigationError(replacementStarted + 4_999));
+        assertNull(screen.navigationError(System.currentTimeMillis() + 5_000));
+    }
+
+    @Test
+    void navigationFeedbackClearsOnNextNavigationAndSessionOrWorldChange() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.showNavigationError("Target is unavailable");
+
+        screen.navigate(TARGET);
+
+        assertNull(screen.navigationError(0));
+        screen.showNavigationError("Target is unavailable");
+        ChatContracts.Conversation current = actions.view.conversation();
+        ChatContracts.Conversation nextConversation = new ChatContracts.Conversation("conversation-next", current.world(),
+                current.turns(), current.outcome());
+        screen.refresh(new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT, true, nextConversation,
+                actions.view.context(), actions.view.sources(), actions.view.navigationTargets(), actions.view.errors(),
+                actions.view.streamingAnswer(), actions.view.activity(), actions.view.activeWorld(), false));
+        assertNull(screen.navigationError(0));
+
+        screen.showNavigationError("Target is unavailable");
+        screen.refresh(new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT, true, nextConversation,
+                actions.view.context(), actions.view.sources(), actions.view.navigationTargets(), actions.view.errors(),
+                actions.view.streamingAnswer(), actions.view.activity(), new ChatContracts.WorldIdentity("world-2", "World 2"), false));
+        assertNull(screen.navigationError(0));
     }
 
     @Test

@@ -35,6 +35,8 @@ public final class AssistantScreen extends Screen {
     String pendingQuestion = "";
     private Instant pendingSentAt;
     private String input = "";
+    private String navigationError;
+    private long navigationErrorExpiresAt;
     private boolean explicitWebSearch;
     private boolean includeScreenshot = true;
     private MultilineEditor inputEditor;
@@ -387,9 +389,11 @@ public final class AssistantScreen extends Screen {
             if (!view.streamingAnswer().isEmpty()) y = drawMessageActions(graphics, liveTurn, false,
                     GroundingInstructions.historyTokenCounts(liveTurn).assistant(), y, mouseX, mouseY);
         }
-        if (!view.errors().isEmpty()) {
+        String visibleError = navigationError(System.currentTimeMillis());
+        if (visibleError == null && !view.errors().isEmpty()) visibleError = view.errors().getLast();
+        if (visibleError != null) {
             y += 4;
-            for (var line : font.split(Component.literal(view.errors().getLast()).withStyle(style ->
+            for (var line : font.split(Component.literal(visibleError).withStyle(style ->
                     style.withFont(ModernUi.FONT).withColor(ModernUi.DANGER)), Math.max(1, readableWidth - 26))) {
                 graphics.drawString(font, line, readableLeft + 26, y, ModernUi.DANGER, false);
                 y += ModernUi.MESSAGE_LINE_HEIGHT;
@@ -914,7 +918,11 @@ public final class AssistantScreen extends Screen {
                 Map<String, Boolean> availability = actions.adapterAvailability();
                 for (var adapter : List.of(Map.entry("native", "Minecraft"), Map.entry("jei", "JEI"),
                         Map.entry("ftb_quests", "FTB Quests"), Map.entry("config", "NeoForge configs"),
-                        Map.entry("patchouli", "Patchouli"), Map.entry("history", "Chat history"))) {
+                        Map.entry("patchouli", "Patchouli"), Map.entry("modonomicon", "Modonomicon"),
+                        Map.entry("guideme", "GuideME"), Map.entry("immersiveengineering", "Immersive Engineering"),
+                        Map.entry("actuallyadditions", "Actually Additions"), Map.entry("relics", "Relics"),
+                        Map.entry("artifacts", "Artifacts"), Map.entry("ponder", "Ponder"),
+                        Map.entry("history", "Chat history"))) {
                     lines.add(Component.literal("• ").withStyle(style -> style.withColor(
                                     availability.getOrDefault(adapter.getKey(), false) ? 0xff6fd48a : 0xffe36b6b))
                             .append(Component.literal(adapter.getValue()).withStyle(style -> style.withColor(ModernUi.TEXT))));
@@ -1234,6 +1242,10 @@ public final class AssistantScreen extends Screen {
 
     public void refresh(ChatContracts.View next) {
         if (inputEditor != null) input = inputEditor.value();
+        if (!view.conversation().id().equals(next.conversation().id()) || view.readOnly() != next.readOnly()
+                || !view.activeWorld().equals(next.activeWorld()) || !view.context().scope().equals(next.context().scope())) {
+            showNavigationError(null);
+        }
         boolean completed = view.active() && !next.active();
         boolean sessionsChanged = !view.conversation().id().equals(next.conversation().id()) || completed;
         boolean historyLoaded = !view.conversation().id().equals(next.conversation().id())
@@ -1275,6 +1287,16 @@ public final class AssistantScreen extends Screen {
     public void setRuntimeState(RuntimeState state) { runtimeState = Objects.requireNonNull(state); }
     public RuntimeState runtimeState() { return actualRuntimeState(); }
     public int scrollOffset() { return scrollOffset; }
+
+    public void showNavigationError(String error) {
+        navigationError = error;
+        navigationErrorExpiresAt = error == null ? 0 : System.currentTimeMillis() + 5_000;
+    }
+
+    String navigationError(long nowMillis) {
+        if (navigationError != null && nowMillis >= navigationErrorExpiresAt) showNavigationError(null);
+        return navigationError;
+    }
 
     public void submit() {
         input = input();
@@ -1339,6 +1361,7 @@ public final class AssistantScreen extends Screen {
     }
 
     public void navigate(Evidence.NavigationTarget target) {
+        showNavigationError(null);
         if (target == null
                 || view.navigationTargets().stream().noneMatch(target::equals)
                 || view.sources().stream().noneMatch(source -> source.scope().equals(target.scope())

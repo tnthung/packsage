@@ -56,6 +56,7 @@ public final class AssistantRuntime implements ChatActions {
     private long completionWorldEpoch;
     private long completionPublicationEpoch;
     private long authEpoch;
+    private long navigationGeneration;
     private boolean requestedPaused;
     private boolean newChatPending;
     private ChatContracts.Conversation readOnlyConversation;
@@ -195,11 +196,16 @@ public final class AssistantRuntime implements ChatActions {
     @Override
     public Map<String, Boolean> adapterAvailability() {
         synchronized (stateLock) {
-            if (world == null || historyAdapter == null) return Map.of("native", false, "jei", false,
-                    "ftb_quests", false, "config", false, "patchouli", false, "history", false);
+            if (world == null || historyAdapter == null) return Map.ofEntries(Map.entry("native", false),
+                    Map.entry("jei", false), Map.entry("ftb_quests", false), Map.entry("config", false),
+                    Map.entry("patchouli", false), Map.entry("modonomicon", false), Map.entry("guideme", false),
+                    Map.entry("immersiveengineering", false), Map.entry("actuallyadditions", false),
+                    Map.entry("relics", false), Map.entry("artifacts", false), Map.entry("ponder", false),
+                    Map.entry("history", false));
             var availability = new java.util.LinkedHashMap<String, Boolean>();
             Map<String, Boolean> providers = knowledge.adapterAvailability();
-            for (String id : List.of("native", "jei", "ftb_quests", "config", "patchouli")) {
+            for (String id : List.of("native", "jei", "ftb_quests", "config", "patchouli", "modonomicon",
+                    "guideme", "immersiveengineering", "actuallyadditions", "relics", "artifacts", "ponder")) {
                 availability.put(id, providers.getOrDefault(id, false));
             }
             availability.put("history", true);
@@ -696,17 +702,20 @@ public final class AssistantRuntime implements ChatActions {
     @Override
     public void navigate(Evidence.NavigationTarget target) {
         if (target == null) return;
+        long navigationId;
+        synchronized (stateLock) {
+            navigationId = ++navigationGeneration;
+        }
+        showNavigationError(navigationId, null);
         ChatContracts.View current = view();
         if (current.readOnly()) {
-            addError("Join this session's world before opening its sources");
-            publishCurrentView(worldEpoch);
+            showNavigationError(navigationId, "Join this session's world before opening its sources");
             return;
         }
         if (current.navigationTargets().stream().noneMatch(value -> value.equals(target))
                 || current.sources().stream().noneMatch(source -> source.scope().equals(target.scope())
                 && source.providerId().equals(target.providerId()) && source.sourceHandle().equals(target.sourceHandle()))) {
-            addError("Navigation target is stale");
-            publishCurrentView(worldEpoch);
+            showNavigationError(navigationId, "Navigation target is stale");
             return;
         }
         Evidence.Scope expected;
@@ -720,8 +729,7 @@ public final class AssistantRuntime implements ChatActions {
             currentKnowledge = knowledge;
         }
         if ("web".equals(target.providerId()) && !target.scope().equals(expected)) {
-            addError("Navigation target is stale");
-            publishCurrentView(epoch);
+            showNavigationError(navigationId, "Navigation target is stale");
             return;
         }
         boolean stale;
@@ -729,42 +737,50 @@ public final class AssistantRuntime implements ChatActions {
             stale = epoch != worldEpoch || !expected.equals(scope);
         }
         if (stale) {
-            addError("Navigation target is stale");
+            showNavigationError(navigationId, "Navigation target is stale");
             return;
         }
         if ("web".equals(target.providerId())) {
             if (!target.sourceHandle().equals(target.targetId()) || externalUrl(target.targetId()) == null) {
-                addError("Navigation target is invalid");
+                showNavigationError(navigationId, "Navigation target is invalid");
                 return;
             }
             try {
                 externalNavigation.accept(target.targetId());
             } catch (RuntimeException failure) {
-                addError("Navigation failed: " + failureMessage(failure));
+                showNavigationError(navigationId, "Navigation failed: " + failureMessage(failure));
             }
             return;
         }
         currentKnowledge.refreshNavigation(target, expected).whenCompleteAsync((refreshed, failure) -> {
             synchronized (stateLock) {
-                if (epoch != worldEpoch || selectionGeneration != sessionSelectionGeneration
+                if (navigationId != navigationGeneration || epoch != worldEpoch || selectionGeneration != sessionSelectionGeneration
                         || !expected.equals(scope) || currentKnowledge != knowledge) return;
             }
             if (failure != null) {
-                addError("Navigation failed: " + failureMessage(failure));
+                showNavigationError(navigationId, "Navigation failed: " + failureMessage(failure));
             } else if (refreshed == null) {
-                addError("Navigation target is no longer available");
+                showNavigationError(navigationId, "Navigation target is no longer available");
             } else {
                 try {
                     var result = currentKnowledge.open(refreshed, expected);
-                    if (result.status() != Evidence.NavigationStatus.OPENED) addError(
+                    if (result.status() != Evidence.NavigationStatus.OPENED) showNavigationError(navigationId,
                             "Navigation " + result.status().name().toLowerCase() + ": "
                                     + (result.detail() == null ? "target unavailable" : result.detail()));
                 } catch (RuntimeException navigationFailure) {
-                    addError("Navigation failed: " + failureMessage(navigationFailure));
+                    showNavigationError(navigationId, "Navigation failed: " + failureMessage(navigationFailure));
                 }
             }
-            publishCurrentView(epoch);
         }, clientExecutor);
+    }
+
+    private void showNavigationError(long navigationId, String error) {
+        AssistantScreen screen;
+        synchronized (stateLock) {
+            if (navigationId != navigationGeneration) return;
+            screen = currentScreen;
+        }
+        if (screen != null) screen.showNavigationError(error);
     }
 
     private CompletionStage<ChatContracts.ToolResponse> executeTool(ChatContracts.ToolRequest request) {

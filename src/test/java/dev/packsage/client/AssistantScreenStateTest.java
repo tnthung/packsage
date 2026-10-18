@@ -256,6 +256,27 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void navigationFeedbackStaysVisibleAtTheBottomWithoutPullingEarlierHistory() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        screen.refresh(active(actions, "partial", "Writing answer…"));
+        screen.updateContentMetrics(1000, 200);
+        screen.refresh(actions.view);
+        screen.updateContentMetrics(1000, 200);
+
+        screen.showNavigationError("Target is unavailable");
+        screen.updateContentMetrics(1040, 200);
+        assertEquals(840, screen.scrollOffset());
+
+        screen.mouseScrolled(400, 200, 0, 5);
+        screen.showNavigationError("Another target is unavailable");
+        screen.updateContentMetrics(1080, 200);
+        assertEquals(740, screen.scrollOffset());
+    }
+
+    @Test
     void statusLineShowsTheActivityWhileActiveAndIdleOtherwise() {
         FakeActions actions = new FakeActions();
         AssistantScreen screen = new AssistantScreen(actions);

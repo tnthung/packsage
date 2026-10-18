@@ -727,7 +727,7 @@ class JeiProjectionTest {
             var recipe = new Object();
             var replacementRecipe = new Object();
             var recipes = new AtomicReference<List<Object>>(List.of(recipe));
-            var nativeHolders = new AtomicReference<List<RecipeHolder<?>>>(List.of());
+            var nativeHolders = new AtomicReference<Collection<RecipeHolder<?>>>(List.of());
             var nativeHolderReads = new AtomicInteger();
             Supplier<Collection<RecipeHolder<?>>> nativeHolderSupplier = () -> {
                 nativeHolderReads.incrementAndGet();
@@ -1268,6 +1268,47 @@ class JeiProjectionTest {
                     "an explicit JEI registry ID must take precedence over the native holder ID");
             assertEquals(nativeHolderReadsBeforeExplicitId, nativeHolderReads.get(),
                     "explicit JEI names must not initialize the native holder index");
+
+            canonicalIdsEnabled.set(false);
+            var firstPartialNative = nativeRecipeFactory.get();
+            var secondPartialNative = nativeRecipeFactory.get();
+            recipes.set(List.of(firstPartialNative, secondPartialNative));
+            var firstPartialHolder = new RecipeHolder<>(ResourceLocation.parse("fixture:first_partial"),
+                    (Recipe<?>) firstPartialNative);
+            var secondPartialHolder = new RecipeHolder<>(ResourceLocation.parse("fixture:second_partial"),
+                    (Recipe<?>) secondPartialNative);
+            nativeHolders.set(new java.util.AbstractCollection<>() {
+                @Override
+                public java.util.Iterator<RecipeHolder<?>> iterator() {
+                    return new java.util.Iterator<>() {
+                        private int index;
+
+                        @Override
+                        public boolean hasNext() {
+                            if (index < 2) return true;
+                            throw new AssertionError("native holder scan failed after a partial result");
+                        }
+
+                        @Override
+                        public RecipeHolder<?> next() {
+                            return index++ == 0 ? firstPartialHolder : secondPartialHolder;
+                        }
+                    };
+                }
+
+                @Override
+                public int size() {
+                    return 3;
+                }
+            });
+            PackSageJeiPlugin.clientTicked();
+            var partialNativeRecords = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 10, null, null), nextScope)
+                    .toCompletableFuture().get().records();
+            assertEquals(2, partialNativeRecords.size());
+            assertTrue(partialNativeRecords.stream().allMatch(record -> record.targets().getFirst().targetId()
+                    .equals(record.source().sourceHandle())),
+                    "a holder iterator failure must discard every ID from its partial native index");
         } finally {
             minecraftInstance.set(null, previousMinecraft);
         }

@@ -34,6 +34,16 @@ public interface GuideDocumentReader {
     /** Resolves a current candidate and its first bounded fragment without using a previous body. */
     ResolvedDocument resolve(String id, int maxChars, Toolbox.DocumentBudget budget);
 
+    default List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope scope, Candidate candidate) {
+        return List.of();
+    }
+
+    /** Navigation is invoked on the client thread after the player chooses a refreshed target. */
+    default Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,
+                "this guide source does not expose PackSage navigation");
+    }
+
     record Candidate(String id, String title, String sourcePosition, List<String> provenance,
                      Evidence.Coverage coverage) {
         public Candidate {

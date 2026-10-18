@@ -50,12 +50,22 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
     private final GuideDocumentReader reader;
     private final Supplier<Evidence.Scope> currentScope;
     private final Executor clientExecutor;
+    private final int maxCandidatesPerCall;
     private final Map<String, DocumentCursor> documentCursors = new LinkedHashMap<>(MAX_CURSORS, 0.75f, true);
 
     public GuideDocumentProvider(GuideDocumentReader reader, Supplier<Evidence.Scope> currentScope, Executor clientExecutor) {
+        this(reader, currentScope, clientExecutor, MAX_CANDIDATES_PER_CALL);
+    }
+
+    public GuideDocumentProvider(GuideDocumentReader reader, Supplier<Evidence.Scope> currentScope, Executor clientExecutor,
+                                 int maxCandidatesPerCall) {
         this.reader = Objects.requireNonNull(reader);
         this.currentScope = Objects.requireNonNull(currentScope);
         this.clientExecutor = Objects.requireNonNull(clientExecutor);
+        if (maxCandidatesPerCall < 1 || maxCandidatesPerCall > MAX_CANDIDATES_PER_CALL) {
+            throw new IllegalArgumentException("guide candidate bound must be from 1 to 256");
+        }
+        this.maxCandidatesPerCall = maxCandidatesPerCall;
         if (reader.providerId() == null || reader.providerId().isBlank() || reader.providerId().length() > 128) {
             throw new IllegalArgumentException("guide provider id is invalid");
         }
@@ -134,8 +144,14 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
 
     @Override
     public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
-        return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,
-                "this guide source does not expose PackSage navigation");
+        if (!id().equals(target.providerId()) || !scope.equals(target.scope()) || !scope.equals(currentScope.get())) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "guide target is outside the active scope");
+        }
+        try {
+            return reader.open(target, scope);
+        } catch (RuntimeException | LinkageError failure) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, "guide navigation failed: " + failure);
+        }
     }
 
     @Override
@@ -271,7 +287,7 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
         boolean stopped = false;
 
         while (!stopped) {
-            if (++pageReads > MAX_PAGE_READS_PER_CALL || inspectedCandidates >= MAX_CANDIDATES_PER_CALL
+            if (++pageReads > MAX_PAGE_READS_PER_CALL || inspectedCandidates >= maxCandidatesPerCall
                     || context.documentBudget().exhausted() || context.documentBudget().remainingBytes() < 4) {
                 coverage = mergeCoverage(coverage, Evidence.Coverage.PARTIAL);
                 details.add("guide traversal reached its per-call work bound");
@@ -280,7 +296,7 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
                 else nextCursor = saveCursor(search, scope, sourceIdentity, afterPosition, null, null);
                 break;
             }
-            int pageLimit = Math.min(MAX_CANDIDATES_PER_PAGE, MAX_CANDIDATES_PER_CALL - inspectedCandidates);
+            int pageLimit = Math.min(MAX_CANDIDATES_PER_PAGE, maxCandidatesPerCall - inspectedCandidates);
             GuideDocumentReader.CandidatePage page;
             try {
                 page = reader.candidates(afterPosition, pageLimit, context.documentBudget());
@@ -483,8 +499,15 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
                 Instant.now(), Evidence.Activity.ACTIVE, coverage, Evidence.Authority.INSTALLED_DOCUMENTATION,
                 candidate.provenance().stream().limit(MAX_PROVENANCE_ITEMS)
                         .map(value -> value.length() > MAX_PROVENANCE_CHARS ? value.substring(0, MAX_PROVENANCE_CHARS) : value).toList());
+        var targets = reader.navigationTargets(scope, candidate);
+        if (targets == null || targets.size() > 16 || targets.stream().anyMatch(target -> target == null
+                || !scope.equals(target.scope()) || !id().equals(target.providerId())
+                || !candidate.id().equals(target.sourceHandle()) || target.targetId().isBlank()
+                || target.targetId().length() > MAX_ID_CHARS)) {
+            throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned invalid navigation targets");
+        }
         return new Evidence.Record(source, Evidence.RecordKind.GUIDE, title,
-                new Evidence.JsonObject(payload), List.of());
+                new Evidence.JsonObject(payload), targets);
     }
 
     private void validateCandidate(GuideDocumentReader.Candidate candidate) {

@@ -51,3 +51,24 @@ The same installed JAR then received these controlled ordinary-player follow-ups
 All turns completed with zero tool-result errors. The six-turn candidate batch totals 28 calls. The malformed citation is `[Torch recipe](jei/1/10/minecraft:crafting/recipe-minecraft:torch-1)`, copied from the exact `payload.viewerHandle` rather than the full record reference. The model boundary had aliased `reference` and `source.sourceHandle` but left that duplicate operational locator exposed. It is a concrete remaining reference failure, separate from historical UUID corruption. The first candidate's log is retained in ignored `.tools/reference-reliability/first-alias-live.log`.
 
 Commit `e4b2629` adds the matching-viewer-handle regression; its single-test run failed at the expected alias assertion in 14 seconds. Commit `dcc0e42` translates only a matching JEI `viewerHandle` using the record's evidence alias. All 13 decorator tests then passed in 12 seconds. A targeted source audit also identified typed slots inside storage `owners[]` and `entries[].payload`; the plan now includes those known containers. Further correction-build checks remain pending. The unsupported placement, false correction and late action boundary above remain model-behavior failures; this work does not claim universal prompt reliability.
+
+## Correction-build verification
+
+The storage-summary regression in `5e3dfa6` failed at the expected owner-slot assertion in 13 seconds. Commit `415d72b` adds bounded traversal of only `owners[]` and `entries[].payload`. The alias/runtime suites passed all 49 tests, then `gradlew test build` passed 592 tests in 51 suites (588 passed, four existing skips) in 23 seconds. Independent Sol review found no actionable issue in either structural correction. This JAR's SHA-256 was `47F67666CADEB5B99E48CBB37B8A4631BE8DF8CA43702B68B2D08C85ED44FB8B`.
+
+Two further manual turns on that correction build are saved in `e0670abe-4df0-4cd2-a7ec-b4c9da0fda86-ec2374551f68e704.jsonl`:
+
+| Exact question | Observed result | Calls | Request ID | Accepted-to-model-terminal |
+|---|---|---:|---|---:|
+| “how do i make a stack of torches with what ive got? can you show the recipe?” | Correct one-torch pack yield and 64-coal/8-log plan. All five citation occurrences bind to same-turn sources. Clicking Torch recipe opened JEI showing coal above a stick producing one torch. | 5 | `6a714b70-3512-416f-9851-48acba750cf0` | 42,484 ms |
+| “ok craft them for me” | The recorded action-limit commentary precedes the first tool call. It still repeats the limit in the final answer, but all five citations bind, including the torch recipe that failed in the previous batch. | 4 | `46bb4b78-b24b-481f-bab2-24dd73553d59` | 47,253 ms |
+
+Both turns completed with zero tool-result errors and canonical saved results, arguments and answers. No bare JEI citation or wire alias leaked into either answer. Neither turn inspected item storage; nested summary traversal is covered by the automated regression rather than claimed as live proof. The log is retained in ignored `.tools/reference-reliability/corrected-alias-live.log`. Across both new candidate batches, eight manual turns used 37 tool calls. The earlier 45-turn stress journal remains separate evidence from earlier builds.
+
+## Saved-link compatibility and final build
+
+The saved malformed torch link has an exact JEI source and durable destination recorded in that same answer. The rendering compatibility contract therefore recognizes only bare `jei/` Markdown destinations matching one distinct same-answer JEI identity. A target must additionally match its provider, handle and scope. Missing sources, changed characters, cross-provider collisions and target-only matches remain unbound. No saved text or live reader validation is rewritten.
+
+The new `ScreenTextTest` regression in `ffe8bc3` failed as expected; 33 other tests passed. After `e0bb495`, all 34 screen-text tests passed in 14 seconds. The final production code is `61a71c6`; Java 21 `gradlew test build` passed in 27 seconds: 51 suites, 593 tests, 589 passed, four existing skips and no failures/errors. A test-only style alignment in `542d087` then passed all 34 screen-text tests again in 13 seconds. No formatting tools were used.
+
+The final built and installed JAR SHA-256 is `F980A02E54D790A85BE171CD14B722833339A138F325F3F4273C5EE70DC02A60`. Minecraft was saved/exited and process absence verified before installation. The settings hash remains `AF7DA001C214347F01A17D76A991150D1728907B5EC16615FC2EE1126DAA5FA0`. Final installed saved-link/restart acceptance is pending at this checkpoint.

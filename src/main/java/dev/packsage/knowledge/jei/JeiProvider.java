@@ -703,5 +703,4 @@ public final class JeiProvider implements KnowledgeProvider {
         return left.worldSession().equals(right.worldSession()) && left.resourcesLocale().equals(right.resourcesLocale())
                 && left.playerTeam().equals(right.playerTeam()) && left.providerRuntime().equals(right.providerRuntime());
     }
-
 }

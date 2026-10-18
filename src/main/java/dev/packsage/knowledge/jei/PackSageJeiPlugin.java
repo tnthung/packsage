@@ -402,38 +402,38 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 var name = ((IRecipeCategory<Object>) category).getRegistryName(recipe);
                                 if (name == null) canonicalCapture = new Canonical(null, false);
                                 else {
-                                        var canonicalBytes = ((long) name.getNamespace().length()
-                                                + name.getPath().length() + 1) * 2;
-                                        var retryCursorBytes = (Long.toString(generation).length() + 1L
-                                                + Integer.toString(categoryIndex * CURSOR_RADIX
-                                                + recipeOrdinal - 1).length()) * 2;
-                                        var freshCategoryBytes = queryRemainingBytes + queryCursorBytes
-                                                - retryCursorBytes - categoryPreludeBytes;
-                                        if (canonicalBytes > budget.remainingBytes()) {
-                                            if (canonicalBytes > freshCategoryBytes) {
-                                                partial = true;
-                                                terminalPartial = true;
-                                                break;
-                                            }
+                                    var canonicalBytes = ((long) name.getNamespace().length()
+                                            + name.getPath().length() + 1) * 2;
+                                    var retryCursorBytes = (Long.toString(generation).length() + 1L
+                                            + Integer.toString(categoryIndex * CURSOR_RADIX
+                                            + recipeOrdinal - 1).length()) * 2;
+                                    var freshCategoryBytes = queryRemainingBytes + queryCursorBytes
+                                            - retryCursorBytes - categoryPreludeBytes;
+                                    if (canonicalBytes > budget.remainingBytes()) {
+                                        if (canonicalBytes > freshCategoryBytes) {
+                                            partial = true;
+                                            terminalPartial = true;
+                                            break;
+                                        }
+                                        partial = true;
+                                        hasMore = true;
+                                        nextCategory = categoryIndex;
+                                        nextRecipe = recipeOrdinal - 1;
+                                        break;
+                                    }
+                                    if (!budget.bytes((int) canonicalBytes)) {
+                                        if (canonicalBytes > freshCategoryBytes) {
+                                            partial = true;
+                                            terminalPartial = true;
+                                        } else {
                                             partial = true;
                                             hasMore = true;
                                             nextCategory = categoryIndex;
                                             nextRecipe = recipeOrdinal - 1;
-                                            break;
                                         }
-                                        if (!budget.bytes((int) canonicalBytes)) {
-                                            if (canonicalBytes > freshCategoryBytes) {
-                                                partial = true;
-                                                terminalPartial = true;
-                                            } else {
-                                                partial = true;
-                                                hasMore = true;
-                                                nextCategory = categoryIndex;
-                                                nextRecipe = recipeOrdinal - 1;
-                                            }
-                                            break;
-                                        }
-                                        canonicalCapture = new Canonical(name.toString(), false);
+                                        break;
+                                    }
+                                    canonicalCapture = new Canonical(name.toString(), false);
                                 }
                             } catch (Throwable ignored) {
                                 canonicalCapture = new Canonical(null, true);
@@ -446,8 +446,9 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             try {
                                 projection = categoryKnown ? project(runtime, manager, category, recipe, categoryId, handle,
                                         canonicalCapture.value(), title, true, canonicalCapture.failed(), catalystCapture, budget)
-                                        : JeiProvider.Projection.opaque(categoryId, handle, title,
-                                        "JEI category semantics are not decoded by PackSage");
+                                        : new JeiProvider.Projection(categoryId, handle, canonicalCapture.value(), title,
+                                        List.of(), List.of(), List.of(), false, false, Evidence.Coverage.OPAQUE,
+                                        Evidence.DecodingStatus.OPAQUE, "JEI category semantics are not decoded by PackSage");
                             } catch (Throwable failure) {
                                 projection = JeiProvider.Projection.error(categoryId, handle, canonicalCapture.value(),
                                         title, failure.toString());

@@ -1114,10 +1114,10 @@ class AssistantRuntimeTest {
         runtime.navigate(turn.navigationTargets().getFirst());
         assertEquals(1, navigations.get());
         runtime.send("Which bundle did we check?", false, false);
-        assertTrue(backend.requests.getLast().input().stream().filter(ModelBackend.Message.class::isInstance)
-                .map(ModelBackend.Message.class::cast).flatMap(message -> message.content().stream())
-                .filter(ModelBackend.TextContent.class::isInstance).map(ModelBackend.TextContent.class::cast)
-                .anyMatch(text -> text.text().contains(canonicalAnswer)));
+        assertTrue(backend.requests.getLast().input().stream().filter(ModelBackend.AssistantOutput.class::isInstance)
+                .map(ModelBackend.AssistantOutput.class::cast).flatMap(output -> output.content().stream())
+                .filter(ModelBackend.OutputText.class::isInstance).map(ModelBackend.OutputText.class::cast)
+                .anyMatch(text -> text.text().equals(canonicalAnswer)));
         assertTrue(backend.requests.getLast().input().stream().noneMatch(item -> item instanceof ModelBackend.ToolResult));
     }
 

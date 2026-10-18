@@ -24,6 +24,8 @@
 - [x] Add failing Patchouli tests for lifecycle-independent destinations and legacy migration; resolve current page targets and keep existing viewer access checks. Verify FTB's stable-ID path with a recreated provider.
 - [x] Add saved-conversation integration regressions and allow validated historical web URLs in the active world's conversation. Keep foreign-world refusal and navigation race coverage.
 - [x] Run focused suites, full `gradlew.bat test build`, independent review and targeted corrections. Record exact automated evidence and remaining live limits under `docs/validation/`.
+- [x] Exercise historical destinations in the installed test profile across full Minecraft restarts. Add a regression through the actual optional-provider wrapper and forward provider-owned navigation resolution to its current delegate.
+- [x] Reproduce the installed JEI category scan-limit failure, separate identity/membership work from semantic extraction, cover the large-category boundary and measure live resolution before removing diagnostic probes.
 
 ## Review focus
 

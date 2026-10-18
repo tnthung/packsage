@@ -18,6 +18,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.common.NeoForge;
@@ -26,6 +27,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +35,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 @JeiPlugin
@@ -149,6 +152,50 @@ public final class PackSageJeiPlugin implements IModPlugin {
             if (!owningThread()) throw new IllegalStateException("JEI snapshot must be captured on the client thread");
             var snapshotVersion = snapshotVersions.incrementAndGet();
             var manager = runtime.getRecipeManager();
+            class NativeIdentityIndex {
+                private final IdentityHashMap<Object, ResourceLocation> identities = new IdentityHashMap<>();
+                private final IdentityHashMap<Object, Boolean> ambiguous = new IdentityHashMap<>();
+                private boolean initialized;
+                private boolean unavailable;
+
+                private ResourceLocation id(Object recipe) {
+                    if (!(recipe instanceof Recipe<?>)) return null;
+                    if (!initialized) build();
+                    return unavailable || ambiguous.containsKey(recipe) ? null : identities.get(recipe);
+                }
+
+                private void build() {
+                    initialized = true;
+                    try {
+                        var holders = nativeRecipes.get();
+                        if (holders == null) {
+                            unavailable = true;
+                            return;
+                        }
+                        for (var holder : holders) {
+                            if (!budget.callback("jei-native-identity", MAX_NAVIGATION_RECIPES)) {
+                                identities.clear();
+                                ambiguous.clear();
+                                unavailable = true;
+                                return;
+                            }
+                            var recipe = holder.value();
+                            var id = holder.id();
+                            if (ambiguous.containsKey(recipe)) continue;
+                            var previous = identities.putIfAbsent(recipe, id);
+                            if (previous != null && !previous.equals(id)) {
+                                identities.remove(recipe);
+                                ambiguous.put(recipe, true);
+                            }
+                        }
+                    } catch (RuntimeException failure) {
+                        identities.clear();
+                        ambiguous.clear();
+                        unavailable = true;
+                    }
+                }
+            }
+            Function<Object, ResourceLocation> nativeRecipeId = new NativeIdentityIndex()::id;
             var outputItem = stringArgument(query.arguments(), "outputItem");
             var id = stringArgument(query.arguments(), "id");
             var retained = query.operation() == Evidence.Operation.GET && id != null
@@ -157,7 +204,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
             if (query.operation() == Evidence.Operation.GET && retained == null && id != null
                     && (id.startsWith("recipe-v1|") || id.startsWith("category-v1|") || id.startsWith("jei/"))) {
                 var identity = navigationIdentity(id, manager, budget);
-                retained = identity == null ? null : resolveNavigation(identity, manager, scope, budget);
+                retained = identity == null ? null : resolveNavigation(identity, manager, scope, budget,
+                        nativeRecipeId);
                 if (retained == null) {
                     return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
                             Evidence.Coverage.UNAVAILABLE, true, null);
@@ -165,7 +213,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 var categoryId = categoryId(retained.category(), 0);
                 id = retained.recipe() == null ? categoryHandle(snapshotVersion, categoryId)
                         : sourceHandle(generation, snapshotVersion, categoryId,
-                        canonical(retained.category(), retained.recipe()).value(), retained.recipe(), 0);
+                        canonical(retained.category(), retained.recipe(), nativeRecipeId).value(), retained.recipe(), 0);
                 retained = new RegisteredRecipe(retained.category(), retained.recipe(), scope, null);
                 navigationRegistrations.put(id, retained);
                 while (navigationRegistrations.size() > MAX_NAVIGATION_REGISTRATIONS) {
@@ -244,7 +292,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
                                 Evidence.Coverage.UNAVAILABLE, true, null);
                     }
-                    var canonical = canonical(category, retained.recipe());
+                    var canonical = canonical(category, retained.recipe(), nativeRecipeId);
                     var catalystCapture = catalysts(runtime, manager, type, budget);
                     projection = project(runtime, manager, category, retained.recipe(), categoryId, id,
                             canonical.value(), title(category, categoryId), knownCategory(categoryId), canonical.failed(),
@@ -418,45 +466,38 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 nextRecipe = recipeOrdinal - 1;
                                 break;
                             }
-                            try {
-                                var name = ((IRecipeCategory<Object>) category).getRegistryName(recipe);
-                                if (name == null) canonicalCapture = new Canonical(null, false);
-                                else {
-                                    var canonicalBytes = ((long) name.getNamespace().length()
-                                            + name.getPath().length() + 1) * 2;
-                                    var retryCursorBytes = (Long.toString(generation).length() + 1L
-                                            + Integer.toString(categoryIndex * CURSOR_RADIX
-                                            + recipeOrdinal - 1).length()) * 2;
-                                    var freshCategoryBytes = queryRemainingBytes + queryCursorBytes
-                                            - retryCursorBytes - categoryPreludeBytes;
-                                    if (canonicalBytes > budget.remainingBytes()) {
-                                        if (canonicalBytes > freshCategoryBytes) {
-                                            partial = true;
-                                            terminalPartial = true;
-                                            break;
-                                        }
+                            canonicalCapture = canonical(category, recipe, nativeRecipeId);
+                            if (canonicalCapture.value() != null) {
+                                var canonicalBytes = canonicalCapture.value().length() * 2L;
+                                var retryCursorBytes = (Long.toString(generation).length() + 1L
+                                        + Integer.toString(categoryIndex * CURSOR_RADIX
+                                        + recipeOrdinal - 1).length()) * 2;
+                                var freshCategoryBytes = queryRemainingBytes + queryCursorBytes
+                                        - retryCursorBytes - categoryPreludeBytes;
+                                if (canonicalBytes > budget.remainingBytes()) {
+                                    if (canonicalBytes > freshCategoryBytes) {
+                                        partial = true;
+                                        terminalPartial = true;
+                                        break;
+                                    }
+                                    partial = true;
+                                    hasMore = true;
+                                    nextCategory = categoryIndex;
+                                    nextRecipe = recipeOrdinal - 1;
+                                    break;
+                                }
+                                if (!budget.bytes((int) canonicalBytes)) {
+                                    if (canonicalBytes > freshCategoryBytes) {
+                                        partial = true;
+                                        terminalPartial = true;
+                                    } else {
                                         partial = true;
                                         hasMore = true;
                                         nextCategory = categoryIndex;
                                         nextRecipe = recipeOrdinal - 1;
-                                        break;
                                     }
-                                    if (!budget.bytes((int) canonicalBytes)) {
-                                        if (canonicalBytes > freshCategoryBytes) {
-                                            partial = true;
-                                            terminalPartial = true;
-                                        } else {
-                                            partial = true;
-                                            hasMore = true;
-                                            nextCategory = categoryIndex;
-                                            nextRecipe = recipeOrdinal - 1;
-                                        }
-                                        break;
-                                    }
-                                    canonicalCapture = new Canonical(name.toString(), false);
+                                    break;
                                 }
-                            } catch (Throwable ignored) {
-                                canonicalCapture = new Canonical(null, true);
                             }
                             if (canonicalCapture.failed()) partial = true;
                             var handle = sourceHandle(generation, snapshotVersion, categoryId, canonicalCapture.value(), recipe, recipeOrdinal);
@@ -926,7 +967,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
         }
 
         private RegisteredRecipe resolveNavigation(NavigationIdentity identity, IRecipeManager manager,
-                                                    Evidence.Scope scope, Toolbox.DocumentBudget budget) {
+                                                    Evidence.Scope scope, Toolbox.DocumentBudget budget,
+                                                    Function<Object, ResourceLocation> nativeRecipeId) {
             var selectedCategory = identity.legacyCategory();
             if (selectedCategory == null) {
                 try (var categories = manager.createRecipeCategoryLookup().get()) {
@@ -955,7 +997,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                     if (scanned >= MAX_NAVIGATION_RECIPES
                             || !budget.callback(JeiProvider.ID, MAX_NAVIGATION_RECIPES)) return null;
                     var recipe = iterator.next();
-                    var canonical = canonical(selectedCategory, recipe);
+                    var canonical = canonical(selectedCategory, recipe, nativeRecipeId);
                     if (!canonical.failed() && identity.canonicalRecipeId().equals(canonical.value())) {
                         if (selectedRecipe != null) return null;
                         selectedRecipe = recipe;
@@ -975,10 +1017,13 @@ public final class PackSageJeiPlugin implements IModPlugin {
             }
         }
 
-        private static Canonical canonical(IRecipeCategory<?> category, Object recipe) {
+        private static Canonical canonical(IRecipeCategory<?> category, Object recipe,
+                                           Function<Object, ResourceLocation> nativeRecipeId) {
             try {
                 var name = ((IRecipeCategory<Object>) category).getRegistryName(recipe);
-                return new Canonical(name == null ? null : name.toString(), false);
+                if (name != null) return new Canonical(name.toString(), false);
+                var nativeName = nativeRecipeId.apply(recipe);
+                return new Canonical(nativeName == null ? null : nativeName.toString(), false);
             } catch (Throwable ignored) {
                 return new Canonical(null, true);
             }

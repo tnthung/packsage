@@ -1228,7 +1228,8 @@ class JeiProjectionTest {
             var sameNativeObject = nativeRecipeFactory.get();
             recipes.set(List.of(sameNativeObject));
             nativeHolders.set(List.of(new RecipeHolder<>(nativeId, (Recipe<?>) sameNativeObject),
-                    new RecipeHolder<>(ResourceLocation.parse("fixture:alias"), (Recipe<?>) sameNativeObject)));
+                    new RecipeHolder<>(ResourceLocation.parse("fixture:alias"), (Recipe<?>) sameNativeObject),
+                    new RecipeHolder<>(nativeId, (Recipe<?>) sameNativeObject)));
             PackSageJeiPlugin.clientTicked();
             var ambiguousNative = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, null, null), nextScope)

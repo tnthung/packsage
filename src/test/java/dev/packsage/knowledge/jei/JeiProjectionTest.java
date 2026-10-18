@@ -698,6 +698,7 @@ class JeiProjectionTest {
             var type = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), Object.class);
             var canonicalIdsEnabled = new AtomicBoolean();
             var canonicalIdThrows = new AtomicBoolean();
+            var navigationFiller = new Object();
             var category = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
                     new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "getRecipeType" -> type;
@@ -706,7 +707,8 @@ class JeiProjectionTest {
                         case "getRegistryName" -> {
                             if (canonicalIdThrows.get()) throw new IllegalStateException("fixture canonical ID failure");
                             yield canonicalIdsEnabled.get()
-                                    ? ResourceLocation.fromNamespaceAndPath("fixture", "press") : null;
+                                    ? ResourceLocation.fromNamespaceAndPath("fixture", arguments[0] == navigationFiller
+                                    ? "filler" : "press") : null;
                         }
                         default -> null;
                     });
@@ -932,15 +934,15 @@ class JeiProjectionTest {
             assertTrue(unretainedHandle.records().isEmpty());
             assertEquals(focusApplicationsBeforeUnknown, focusApplications.get());
 
-            var distantRecipes = new java.util.ArrayList<Object>(java.util.Collections.nCopies(4096, replacementRecipe));
-            distantRecipes.set(4095, recipe);
+            var distantRecipes = new java.util.ArrayList<Object>(java.util.Collections.nCopies(65_537, replacementRecipe));
+            distantRecipes.set(65_536, recipe);
             recipes.set(distantRecipes);
             recipeVisits.set(0);
             PackSageJeiPlugin.clientTicked();
             var boundedRecipeRead = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
             assertEquals(Evidence.Coverage.ERROR, boundedRecipeRead.coverage());
             assertTrue(boundedRecipeRead.records().isEmpty());
-            assertTrue(recipeVisits.get() <= 2048);
+            assertTrue(recipeVisits.get() <= 65_536);
             recipes.set(List.of(recipe));
             categoryPrefix.set(400);
             categoryVisits.set(0);
@@ -1056,6 +1058,40 @@ class JeiProjectionTest {
             PackSageJeiPlugin.clientTicked();
             assertNotNull(recreatedPlugin.provider().refreshNavigation(legacyTarget, recreatedScope)
                     .toCompletableFuture().get(), "an unambiguous legacy canonical handle should migrate");
+
+            var largeCategory = new java.util.ArrayList<Object>(java.util.Collections.nCopies(4096, navigationFiller));
+            largeCategory.set(4095, recreatedRecipe);
+            recipes.set(largeCategory);
+            ingredientBudgetScenario.set(true);
+            PackSageJeiPlugin.clientTicked();
+            var largeCategoryTarget = recreatedPlugin.provider().refreshNavigation(savedTarget, recreatedScope)
+                    .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertNotNull(largeCategoryTarget, "navigation must not exhaust the semantic extraction budget scanning identities");
+            assertEquals(Evidence.NavigationStatus.OPENED,
+                    recreatedPlugin.provider().open(largeCategoryTarget, recreatedScope).status());
+            assertSame(recreatedRecipe, shownRecipes.get().getFirst());
+            ingredientBudgetScenario.set(false);
+            largeCategory.set(0, new Object());
+            PackSageJeiPlugin.clientTicked();
+            assertNull(recreatedPlugin.provider().refreshNavigation(savedTarget, recreatedScope)
+                    .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS),
+                    "a duplicate beyond the old 2048 scan window must still reject navigation");
+            recipes.set(java.util.Collections.nCopies(65_536, navigationFiller));
+            recipes.set(new java.util.ArrayList<>(recipes.get()));
+            recipes.get().set(65_535, recreatedRecipe);
+            PackSageJeiPlugin.clientTicked();
+            var lastBoundedTarget = recreatedPlugin.provider().refreshNavigation(savedTarget, recreatedScope)
+                    .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS);
+            assertNotNull(lastBoundedTarget, "a complete scan at the navigation bound must resolve");
+            assertEquals(Evidence.NavigationStatus.OPENED,
+                    recreatedPlugin.provider().open(lastBoundedTarget, recreatedScope).status());
+            recipes.get().add(navigationFiller);
+            recipeVisits.set(0);
+            PackSageJeiPlugin.clientTicked();
+            assertNull(recreatedPlugin.provider().refreshNavigation(savedTarget, recreatedScope)
+                    .toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS),
+                    "an incomplete scan beyond the navigation bound must remain unavailable");
+            assertEquals(65_536, recipeVisits.get());
 
             recipes.set(List.of(recreatedRecipe, new Object()));
             PackSageJeiPlugin.clientTicked();

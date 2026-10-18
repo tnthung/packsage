@@ -38,10 +38,7 @@ public final class PonderGuideReader implements GuideDocumentReader {
             Objects.requireNonNull(component);
             Objects.requireNonNull(namespace);
             Objects.requireNonNull(schematic);
-            component = component.length() > 256 ? component.substring(0, 256) : component;
-            namespace = namespace.length() > 128 ? namespace.substring(0, 128) : namespace;
-            schematic = schematic.length() > 256 ? schematic.substring(0, 256) : schematic;
-            tags = tags.stream().limit(8).map(tag -> tag.length() > 128 ? tag.substring(0, 128) : tag).toList();
+            tags = tags.stream().limit(64).toList();
         }
     }
 
@@ -85,6 +82,7 @@ public final class PonderGuideReader implements GuideDocumentReader {
         var result = new ArrayList<Candidate>();
         var afterFound = afterPosition == null;
         var inspected = 0;
+        var callbacks = 0;
         var more = false;
         var coverage = Evidence.Coverage.COMPLETE;
         String nextPosition = afterPosition;
@@ -92,14 +90,20 @@ public final class PonderGuideReader implements GuideDocumentReader {
         while (entries.hasNext()) {
             if (inspected == MAX_REGISTRATIONS) return new CandidatePage(result, nextPosition, true,
                     Evidence.Coverage.PARTIAL, "Ponder registrations reached the traversal bound");
-            if (!budget.value()) return new CandidatePage(result, nextPosition, true, Evidence.Coverage.PARTIAL,
-                    "Ponder registrations reached the source budget");
             var entry = entries.next();
             inspected++;
             var position = inspected + ":" + entry.identity();
             if (!afterFound) {
                 nextPosition = position;
                 if (position.equals(afterPosition)) afterFound = true;
+                continue;
+            }
+            nextPosition = position;
+            if (!budget.value()) return new CandidatePage(result, nextPosition, true, Evidence.Coverage.PARTIAL,
+                    "Ponder registrations reached the source budget");
+            if (entry.identity().length() > 1024 || entry.component().length() > 246 || entry.namespace().length() > 246
+                    || entry.schematic().length() > 246) {
+                coverage = Evidence.Coverage.PARTIAL;
                 continue;
             }
             if (!budget.bytes(Math.min(MAX_METADATA_CHARS, entry.component().length() * 6 + entry.schematic().length() * 6 + 512))) {
@@ -109,14 +113,30 @@ public final class PonderGuideReader implements GuideDocumentReader {
                         "Ponder candidate metadata reached its byte budget");
             }
             if (result.size() == Math.min(limit, 4)) { more = true; break; }
-            var scene = source.compile(entry);
-            var title = scene.title().length() > 256 ? scene.title().substring(0, 256) : scene.title();
-            if (title.length() != scene.title().length()) coverage = Evidence.Coverage.PARTIAL;
+            if (callbacks == 4) { more = true; break; }
+            callbacks++;
+            var title = "";
+            var candidateCoverage = Evidence.Coverage.PARTIAL;
+            try {
+                var scene = source.compile(entry);
+                title = scene.title().length() > 256 ? scene.title().substring(0, 256) : scene.title();
+                if (title.length() != scene.title().length()) coverage = Evidence.Coverage.PARTIAL;
+            } catch (RuntimeException | LinkageError failure) {
+                coverage = Evidence.Coverage.PARTIAL;
+            }
             nextPosition = position;
+            var provenance = new ArrayList<String>();
+            provenance.add("component:" + entry.component());
+            provenance.add("namespace:" + entry.namespace());
+            provenance.add("schematic:" + entry.schematic());
+            provenance.add("navigation:component viewer");
+            for (var tag : entry.tags()) {
+                if (provenance.size() == 8) { coverage = Evidence.Coverage.PARTIAL; break; }
+                if (tag.length() <= 251) provenance.add("tag:" + tag);
+                else coverage = Evidence.Coverage.PARTIAL;
+            }
             result.add(new Candidate(entry.identity(), title, position,
-                    List.of("component:" + entry.component(), "namespace:" + entry.namespace(),
-                            "schematic:" + entry.schematic(), "tags:" + String.join(",", entry.tags()),
-                            "navigation:component viewer"), Evidence.Coverage.PARTIAL));
+                    provenance, candidateCoverage));
         }
         if (!afterFound) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                 "Ponder continuation registration is no longer present");
@@ -137,12 +157,19 @@ public final class PonderGuideReader implements GuideDocumentReader {
         }
         if (entry == null) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
                 "Ponder storyboard registration is no longer present");
-        var text = "Component: " + entry.component() + "\nNamespace: "
-                + entry.namespace() + "\nSchematic: " + entry.schematic() + "\nTags: " + String.join(", ", entry.tags());
-        if (text.length() > maxChars) text = text.substring(0, maxChars);
+        if (maxChars < 1) throw new IllegalArgumentException("fragment size must be positive");
+        var text = new StringBuilder();
+        for (var value : List.of("Component: " + entry.component(), "Namespace: " + entry.namespace(),
+                "Schematic: " + entry.schematic(), "Tags: " + String.join(", ", entry.tags()))) {
+            if (!text.isEmpty()) text.append('\n');
+            var count = Math.min(value.length(), maxChars - text.length());
+            if (count <= 0) break;
+            text.append(value, 0, count);
+            if (count < value.length()) break;
+        }
         if (!budget.bytes(text.length() * 6)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                 "Ponder candidate text cannot fit the remaining byte budget");
-        return new Fragment(text, "scene", 0, null, Evidence.Coverage.PARTIAL,
+        return new Fragment(text.toString(), "scene", 0, null, Evidence.Coverage.PARTIAL,
                 "Ponder registration metadata; the current localized title is included in candidate metadata");
     }
 

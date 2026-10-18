@@ -19,8 +19,8 @@ class PonderGuideReaderTest {
     @Test
     void titleSearchIsBoundedAndKeepsSameSchematicRegistrationsDistinct() {
         var source = new FixtureSource();
-        source.entries.add(new PonderGuideReader.Entry("a", "create:shaft", "create", "create:shared", List.of("create:rotation")));
-        source.entries.add(new PonderGuideReader.Entry("b", "create:gearbox", "create", "create:shared", List.of("create:rotation")));
+        source.entries.add(entryForComponent("a", "create:shaft", "First Scene"));
+        source.entries.add(entryForComponent("b", "create:gearbox", "Second Scene"));
         source.entries.addAll(List.of(
                 entry("c", "Other 3"), entry("d", "Other 4"), entry("e", "Other 5")));
         var reader = new PonderGuideReader(source);
@@ -69,7 +69,7 @@ class PonderGuideReaderTest {
         assertTrue(resolved.fragment().text().contains("new caption"));
         assertTrue(resolved.fragment().text().contains("create:scene_a"));
         assertEquals(2, source.compiles.get());
-        source.entries.set(0, entry("a", "Replacement", "replacement caption"));
+        source.entries.set(0, entry("replacement", "Replacement", "replacement caption"));
         var failure = assertThrows(Toolbox.Failure.class,
                 () -> reader.resolve(candidate.id(), 1024, new Toolbox.DocumentBudget()));
         assertEquals(Toolbox.Code.INVALID_REFERENCE, failure.code());
@@ -92,7 +92,11 @@ class PonderGuideReaderTest {
     }
 
     private static PonderGuideReader.Entry entry(String identity, String title, String... captions) {
-        var result = new PonderGuideReader.Entry(identity, "create:shaft", "create", "create:shared",
+        return entryForComponent(identity, "create:shaft", title, captions);
+    }
+
+    private static PonderGuideReader.Entry entryForComponent(String identity, String component, String title, String... captions) {
+        var result = new PonderGuideReader.Entry(identity, component, "create", "create:shared",
                 List.of("create:rotation"));
         TITLES.put(identity, title);
         SCENE_IDS.put(identity, "create:scene_" + identity);

@@ -136,8 +136,10 @@ public final class PonderGuideReader implements GuideDocumentReader {
                 if (position.equals(afterPosition)) afterFound = true;
                 continue;
             }
-            nextPosition = position;
-            if (exactComponent != null && !exactComponent.equals(registration.component())) continue;
+            if (exactComponent != null && !exactComponent.equals(registration.component())) {
+                nextPosition = position;
+                continue;
+            }
             if (result.size() == Math.min(limit, 4)) {
                 more = true;
                 nextPosition = result.getLast().sourcePosition();

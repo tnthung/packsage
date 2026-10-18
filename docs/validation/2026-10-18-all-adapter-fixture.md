@@ -25,8 +25,20 @@ The selected framework/mod versions satisfy the current adapter gates. Published
 
 The adapter tooltip and runtime availability map both hard-coded only five knowledge providers plus history, omitting the seven newer guide sources despite their registration. Separately, navigation failures entered the durable runtime error list, which cleared only on world entry. This made `Navigation target is no longer available` persist throughout the session.
 
-The two targeted `AssistantRuntimeTest` checks failed before correction: stale navigation must leave durable errors empty, and availability must include every currently supported adapter across world lifecycle states. The UI correction and fresh build/startup checks remain pending in this preparation record.
+The two targeted `AssistantRuntimeTest` checks failed before correction: stale navigation must leave durable errors empty, and availability must include every currently supported adapter across world lifecycle states. Navigation feedback now lives on the screen with a five-second deadline, clears on subsequent navigation and conversation/world/scope changes, and ignores asynchronous results from older navigation attempts. The ordinary request error list is preserved.
+
+`gradlew.bat test build` passed: 561 tests, 557 passed, four existing skips, zero failures/errors. `AssistantRuntimeTest` has 34 passing tests and `AssistantScreenStateTest` has 38. Checks cover expiry/replacement, session/world clearing, older navigation completions, preserved request errors, all thirteen status keys and a positive optional-provider availability result. One older session-navigation assertion initially still expected durable error text; it was corrected to observe transient feedback while retaining the original world/stale guards, then the full suite passed.
+
+## Installed build and startup
+
+The built JAR, `dist/packsage.jar`, its distribution metadata and the installed Packsage JAR all matched SHA-256 `33F6B9D612B5FE9C0F31FA48D19AEC19A16D41C0FFDFF6D3865EC52E4EEEF843`. Installation occurred with Minecraft closed; settings remained unchanged.
+
+Native UI verification reached the Minecraft 1.21.1 / NeoForge 21.1.259 main menu showing 26 loaded mods (including nested libraries/mods). The existing `New World` fixture loaded after choosing Minecraft's `Create Backup and Load` option for the experimental-settings notice. No other profile was launched or changed.
+
+The assistant tooltip was directly observed with all thirteen rows visible and green: Minecraft, JEI, FTB Quests, NeoForge configs, Patchouli, Modonomicon, GuideME, Immersive Engineering, Actually Additions, Relics, Artifacts, Ponder and Chat history. No assistant prompt was submitted during this setup check. The chat was left open for the player's functional tests.
 
 ## Acceptance boundary
 
-Filesystem preparation is verified. Full adapter search/fresh-read acceptance, native navigation feedback expiry, and the corrected tooltip still require the rebuilt artifact and live observations. The earlier [guide/manual acceptance](2026-10-15-guide-manual-adapters.md) used ATM10 and its Artifacts replacement branch; it does not establish the base Artifacts path in this minimal profile.
+Filesystem preparation, startup/world entry and the corrected tooltip are verified. Full adapter search/fresh-read acceptance and native rendering of timed navigation feedback remain player checks. The earlier [guide/manual acceptance](2026-10-15-guide-manual-adapters.md) used ATM10 and its Artifacts replacement branch; it does not establish the base Artifacts path in this minimal profile.
+
+The player's earlier 19:04 Ponder request took 33 activity steps and returned a Minecraft item reference without the requested Ponder viewer link. That retrieval/performance failure is a separate follow-up; a green adapter status does not establish its functional acceptance.

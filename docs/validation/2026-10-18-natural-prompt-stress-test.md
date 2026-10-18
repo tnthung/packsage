@@ -305,6 +305,54 @@ Saved conversation: [0dd5ed46-8cb6-466c-b1ff-e4dcf4e4e20c-c1ede8b49b988f18.jsonl
 
 R1 passed the core quantity regression: it reports the loaded pack output of one torch per craft before and after the exact vanilla-count challenge. The first answer still has inventory citation coverage gaps, and the challenge response inaccurately describes whether the recipe had already been checked. These are citation and process-accounting limits, not an arithmetic failure. R1 remains candidate evidence, not independent-arc coverage. No crafting occurred.
 
+## Arc 4: Carried shulker contents and crafting access
+
+Candidate-build conversation: [300d8952-f77c-4bc0-ba3a-e8b0e5c2e0df-7ff673902c131ca5.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/300d8952-f77c-4bc0-ba3a-e8b0e5c2e0df-7ff673902c131ca5.jsonl)
+
+The player asked where their diamonds were and how to access them, then followed up about crafting with them inside the Shulker Box. There are two completed submitted turns. The later “Got it, thanks—that answers it” was not submitted and is not counted as a turn. No item actions occurred.
+
+### Turn 1
+
+- Request ID: `b5051c2c-4bd4-4e9a-86f0-93ebf2b86930`
+- Tool calls: 2
+- Elapsed time: 20.833 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=20833`).
+- Player:
+
+  ```text
+  Hey, where’d my dimonds go? I’m not sure which container they’re in or how many I have—how do I get to them?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  Your **Shulker Box** is in your main inventory, and it contains **7 diamonds**. Open your inventory, place the shulker box, then open it to get them. [native:inventory:e4a1d051-c141-4716-ba19-7df2eb7fd0a6:main:0] [native:storage:62a2c0a8-f9fc-4b7b-8ee7-10053b88f273:0]
+  ```
+
+**Trace and UI evidence:** Current inventory slot `main:0` contains the Shulker Box, and the complete storage inspection shows 7 diamonds. The answer cites both sources correctly and gives direct access instructions. The parent observed a readable inventory chip; the storage chip displayed an opaque GUID title. No navigation link was clicked. Scores (1–5): factual grounding 5; usefulness 4; citation coverage 3.
+
+### Turn 2
+
+- Request ID: `ebea7456-01c4-49dd-adc4-46bccdedcbc1`
+- Tool calls: 3
+- Elapsed time: 34.509 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=34509`).
+- Player:
+
+  ```text
+  Can I craft with the diamonds while they’re in the Shulker Box, or do I need to move them into my inventory first?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  For ordinary crafting, **you’ll need to take them out first**—the crafting grid won’t use items tucked inside a Shulker Box. I currently see **7 diamonds** in yours; move them into your inventory, then craft as usual. [native:storage:83f9143a-882d-4620-9852-0226542e49bb:0]
+  ```
+
+**Trace and UI evidence:** A fresh complete storage inspection again shows the same 7 diamonds. The parent observed the storage chip with an opaque GUID title, and no navigation was clicked. The rule about ordinary crafting not searching nested shulker contents is general game knowledge; the partial documentation search did not establish it. The answer states the rule directly and cites only the storage count, so the citation does not support that general rule. No item was moved or crafted. Scores (1–5): factual grounding 3; usefulness 4; citation coverage 2.
+
+### Arc-level result
+
+The assistant correctly identified the carried Shulker Box, located 7 diamonds through a complete nested-storage inspection, and gave a concise way to access them. On the crafting follow-up it refreshed the same storage count, but the complete inventory-to-crafting limitation was not established by the partial documentation search; this answer should distinguish general game knowledge from retrieved pack evidence. The player’s unsent thank-you is not evidence of a submitted conversational turn. UI evidence showed readable inventory but an opaque GUID storage chip; the target was not opened through native navigation. No item action or fixture change occurred.
+
 ## Coverage status
 
-Three of twelve planned independent arcs are complete. Further arcs and any justified fresh-chat retests remain pending.
+Four of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.

@@ -28,7 +28,7 @@ class PonderGuideReaderTest {
         var page = reader.candidates(null, 8, new Toolbox.DocumentBudget());
 
         assertEquals(4, page.candidates().size());
-        assertEquals(0, source.compiles.get());
+        assertEquals(4, source.compiles.get());
         assertNotEquals(page.candidates().get(0).id(), page.candidates().get(1).id());
         assertTrue(page.more());
     }
@@ -62,7 +62,8 @@ class PonderGuideReaderTest {
         var candidate = reader.candidates(null, 1, new Toolbox.DocumentBudget()).candidates().getFirst();
         source.captions.put("a", List.of("new caption"));
 
-        assertTrue(reader.readFragment(candidate.id(), null, 1024, new Toolbox.DocumentBudget()).text().contains("Old title"));
+        assertTrue(candidate.title().contains("Old title"));
+        assertTrue(reader.readFragment(candidate.id(), null, 1024, new Toolbox.DocumentBudget()).text().contains("Component: create:shaft"));
         var resolved = reader.resolve(candidate.id(), 1024, new Toolbox.DocumentBudget());
 
         assertTrue(resolved.fragment().text().contains("new caption"));

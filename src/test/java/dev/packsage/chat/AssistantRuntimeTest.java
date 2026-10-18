@@ -596,6 +596,7 @@ class AssistantRuntimeTest {
         runtime.newChat();
         runtime.navigate(target);
         assertNull(opened.get());
+        assertTrue(runtime.view().errors().isEmpty(), runtime.view().errors().toString());
     }
 
     @Test
@@ -637,6 +638,11 @@ class AssistantRuntimeTest {
     @Test
     void adapterAvailabilityTracksWorldHistoryAndFactoryFailure() throws Exception {
         FakeBackend backend = new FakeBackend();
+        Map<String, Boolean> unavailableAdapters = Map.ofEntries(Map.entry("native", false), Map.entry("jei", false),
+                Map.entry("ftb_quests", false), Map.entry("config", false), Map.entry("patchouli", false),
+                Map.entry("modonomicon", false), Map.entry("guideme", false), Map.entry("immersiveengineering", false),
+                Map.entry("actuallyadditions", false), Map.entry("relics", false), Map.entry("artifacts", false),
+                Map.entry("ponder", false), Map.entry("history", false));
         AtomicInteger factoryCalls = new AtomicInteger();
         var knowledgeFactory = (java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService>) current -> {
             if (factoryCalls.incrementAndGet() == 3) throw new IllegalStateException("provider refresh failed");
@@ -646,18 +652,16 @@ class AssistantRuntimeTest {
                 new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
                 knowledgeFactory, DIRECT);
 
-        assertEquals(Map.of("native", false, "jei", false, "ftb_quests", false, "config", false,
-                "patchouli", false, "history", false), runtime.adapterAvailability());
+        assertEquals(unavailableAdapters, runtime.adapterAvailability());
         runtime.enterWorld(WORLD, SCOPE);
-        assertEquals(Map.of("native", false, "jei", false, "ftb_quests", false, "config", false,
-                "patchouli", false, "history", true), runtime.adapterAvailability());
+        Map<String, Boolean> activeAdapters = new java.util.HashMap<>(unavailableAdapters);
+        activeAdapters.put("history", true);
+        assertEquals(activeAdapters, runtime.adapterAvailability());
         runtime.enterWorld(new ChatContracts.WorldIdentity("world-2", "World 2"),
                 new Evidence.Scope("world-2", "resources", "team", "runtime", 0));
-        assertEquals(Map.of("native", false, "jei", false, "ftb_quests", false, "config", false,
-                "patchouli", false, "history", false), runtime.adapterAvailability());
+        assertEquals(unavailableAdapters, runtime.adapterAvailability());
         runtime.disconnect();
-        assertEquals(Map.of("native", false, "jei", false, "ftb_quests", false, "config", false,
-                "patchouli", false, "history", false), runtime.adapterAvailability());
+        assertEquals(unavailableAdapters, runtime.adapterAvailability());
     }
 
     @Test

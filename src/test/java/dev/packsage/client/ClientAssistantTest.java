@@ -53,8 +53,16 @@ class ClientAssistantTest {
 
     @Test
     void bundledPonderVersionsPassTheConfiguredApiGateAndRejectOtherMinecraftBuilds() {
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "0.8.1"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "0.9.23"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.43"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.79+mc1.21.1"));
         assertTrue(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.81+mc1.21.1"));
         assertTrue(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.82+mc1.21.1"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.87+mc1.21.1"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.99+mc1.21.1"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "0.8.0"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.1.0+mc1.21.1"));
         assertFalse(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.82+mc1.21.2"));
         assertFalse(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.82+mc1.20.1"));
         assertFalse(ClientAssistant.versionMatches(ClientAssistant.PONDER_VERSION, "1.0.82+mc1.21.1-extra"));

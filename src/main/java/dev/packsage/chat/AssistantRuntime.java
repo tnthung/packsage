@@ -7,6 +7,7 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.PackSageTools;
+import dev.packsage.model.ReferenceAliasBackend;
 
 import java.net.URI;
 import java.time.Instant;
@@ -86,7 +87,7 @@ public final class AssistantRuntime implements ChatActions {
                             ToIntFunction<ModelBackend.ModelInfo> outputBudget, Consumer<Boolean> pauseGame,
                             Consumer<String> externalNavigation, Consumer<ChatContracts.Turn> completionNotice) {
         this.store = Objects.requireNonNull(store);
-        this.backend = Objects.requireNonNull(backend);
+        this.backend = new ReferenceAliasBackend(Objects.requireNonNull(backend));
         this.controllerExecutor = Objects.requireNonNull(controllerExecutor);
         this.clientExecutor = Objects.requireNonNull(clientExecutor);
         Objects.requireNonNull(historyCounter);
@@ -99,7 +100,7 @@ public final class AssistantRuntime implements ChatActions {
         this.knowledgeFactory = Objects.requireNonNull(knowledgeFactory);
         this.knowledge = Objects.requireNonNull(this.knowledgeFactory.apply(this::currentScope));
         this.capture = Objects.requireNonNull(Objects.requireNonNull(captureFactory).apply(this::currentScope));
-        this.controller = new RequestController(store, backend, controllerExecutor,
+        this.controller = new RequestController(store, this.backend, controllerExecutor,
                 capture::capture, capture::cancel, ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
                 this::executeTool, historyCounter, prepared -> {
                     var request = requestBuilder.apply(prepared);

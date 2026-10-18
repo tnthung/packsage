@@ -558,6 +558,79 @@ Player agent: `luna_high_player_powah`. Three turns were submitted. The player�
 
 The assistant gave a useful entry point and exact solar-panel ingredients, all grounded in returned registry and recipe records. The broad “power tech” label is a reasonable names-based summary rather than a verified detailed description. The placement and cable advice is plausible but was not established by the guide searches, so it should remain framed as general setup guidance. The player’s unsent judgment indicates they found a basic starting point but still wanted clarity about the machine and cable count; no setup or item action was attempted. The parent observed readable citations but did not open a result in this arc. The three turns used 22 tool calls total. No game action occurred.
 
+## Arc 8: Actually Additions Diamatine crystals
+
+Candidate 1 conversation: [e59c2968-db46-461c-887e-f77526608de7-dd9f5edf17c6eb7d.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/e59c2968-db46-461c-887e-f77526608de7-dd9f5edf17c6eb7d.jsonl)
+
+Player agent: `luna_high_player_crystals`. Three turns were submitted. The player’s later judgment that they knew a useful next step and had enough diamonds for seven crystals was not submitted as a turn. No crafting, power setup, or other gameplay action occurred.
+
+### Turn 1
+
+- Request ID: `d9eb109a-e467-4fa2-ad15-9d8ffd8e78a3`
+- Tool calls: 13
+- Elapsed time: 69.778 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=69778`).
+- Player:
+
+  ```text
+  How do I use that laser thingy from Actually Additions to make crystals? I’m not sure what it’s called.
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  The laser machine is the **Atomic Reconstructor**—not the Energy Laser Relay. It needs power, then fires a beam that converts compatible items or blocks it hits, stopping at a block in its path. [actuallyadditions:actuallyadditions:crystals] [native:block:actuallyadditions:atomic_reconstructor]
+
+  Set it up with a clear beam aimed at a solid block, then put the ingredient the crystal’s recipe calls for in the beam. For the exact ingredient, search the crystal in JEI and look for its **Atomic Reconstructor** recipe; the installed recipe details aren’t fully readable here, so I don’t want to guess which input makes which crystal. If you mean an **Empowered** crystal, that uses the separate Empowerer category, not the laser. [jei:jei/1/15/actuallyadditions:empowerer/de.ellpeck.actuallyadditions.mod.crafting.EmpowererRecipe-1feda0e1-1]
+  ```
+
+**Trace and UI evidence:** The guide supports identifying the Atomic Reconstructor, its power requirement, and beam-based operation; the native block record supports its existence. A clear beam aimed at a solid stop block is practical setup advice, not a detail established by the returned guide. The answer avoids guessing crystal inputs and distinguishes the Empowerer category. The parent observed readable Guide, item, and Recipe chips; none was clicked during this turn. Scores (1–5): intent handling 4; factual grounding 3; usefulness 3; citation coverage 4.
+
+### Turn 2
+
+- Request ID: `f2bef436-8639-4981-aeec-f161ea9ff65c`
+- Tool calls: 6
+- Elapsed time: 52.024 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=52024`).
+- Player:
+
+  ```text
+  How do I find the right crystal recipe in JEI, and can you help me check whether I already have the ingredients?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  In JEI, search **`crystal`**, find the specific **Actually Additions** crystal you want, then hover it and press **R** to see its recipes. Look for the **Atomic Reconstructor** recipe—the laser machine—and check the input shown there. (JEI’s keybinds can be changed.) The pack guide confirms the Reconstructor turns compatible items or blocks along its beam into other materials. [actuallyadditions:actuallyadditions:crystals]
+
+  I checked your inventory: you have **64 coal, 64 stripped oak wood, 64 oak logs**, and **7 diamonds in your shulker box**. [native:inventory:06489c1d-48b7-4391-98b7-cae8a14b6f52:hotbar:0] [native:inventory:06489c1d-48b7-4391-98b7-cae8a14b6f52:hotbar:1] [native:inventory:06489c1d-48b7-4391-98b7-cae8a14b6f52:hotbar:2] [native:storage:ac82697b-3a6d-470d-9029-f7ef8a25d94c:0]
+
+  Which crystal are you aiming for—say, **Restonia (red)**, **Palis (blue)**, or another one? Once I know the target, I can compare its exact recipe with what you have.
+  ```
+
+**Trace and UI evidence:** The guide supports the general Reconstructor operation; direct and complete nested-inventory results correctly show the carried wood/coal and 7 diamonds in the Shulker Box. Asking which crystal the player wants is necessary to select the target recipe. The parent observed readable Guide and Inventory chips, though the storage chip showed an opaque GUID title. No chip was clicked during this turn. Scores (1–5): intent handling 5; factual grounding 5; usefulness 4; clarification quality 5; citation coverage 4.
+
+### Turn 3
+
+- Request ID: `1b04ed73-11fe-4afe-a9e5-ebbba2a3ee77`
+- Tool calls: 8
+- Elapsed time: 53.924 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=53924`).
+- Player:
+
+  ```text
+  I’m after Diamatine crystals. Are my 7 diamonds enough to make any?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  **Yes.** Your shulker box has **7 diamonds**, and JEI shows the Atomic Reconstructor turns **1 diamond into 1 Diamatine Crystal**—enough for up to **7 crystals**, if the Reconstructor is powered. [native:storage:5a9e2b2d-a384-4ea9-a13f-5cceaf75013c:0] [jei:jei/1/18/actuallyadditions:laser/de.ellpeck.actuallyadditions.mod.crafting.LaserRecipe-1472962e-1]
+  ```
+
+**Trace and UI evidence:** The JEI category is marked `OPAQUE`, but an exact `read_evidence` call for the cited recipe returned structured inputs and outputs: 1 diamond consumed, the Atomic Reconstructor as render-only, and 1 Diamatine Crystal produced. This exact recipe evidence supports the answer despite the category-level opaque status. The complete storage result at `native:storage:5a9e2b2d-a384-4ea9-a13f-5cceaf75013c:0` verifies seven diamonds; seven crafts therefore yield up to seven crystals, with power required. After the answer, the parent clicked the Recipe chip and observed the Atomic Reconstructor viewer showing diamond to crystal; this operator check was post-answer and was not model input. No crafting or power setup occurred. Scores (1–5): intent handling 5; factual grounding 5; recipe/resource arithmetic 5; usefulness 5; citation coverage 5; navigation 5.
+
+### Arc-level result
+
+The assistant initially declined to guess the crystal input while the target was unspecified, then used an exact structured JEI recipe read to correctly confirm that seven diamonds can produce up to seven Diamatine crystals. Treat the exact recipe read as decisive evidence even though its JEI category was marked opaque. The power condition is supported by the guide. The clear-beam/solid-stop-block instruction in turn 1 is practical setup advice rather than a source-established detail. Readable citations were observed throughout; opening the recipe after the final answer confirmed the viewer content but did not contribute to the assistant’s reasoning. The player’s unsent judgment indicates they had a next step and sufficient diamonds, but no action was taken. No items were crafted, moved or consumed.
+
 ## Candidate 2 build status (2026-10-19)
 
 Candidate source `e440e2f` adds guidance on causal direction and conditions, distinguishing required quest order from recommendations, accurate correction history, and stopping searches when they stop adding relevant evidence. Java 21 `gradlew test build` passed 50 suites and 577 tests: 573 passed, 4 existing skipped, 0 errors or failures; build completed in 25 seconds. The built `build/libs/packsage-0.1.0.jar` SHA-256 is `7BF5D161E044CD21899A023AF4CA0D5A053F0612F1EDF0EB5CE5454EF37AD526`.
@@ -566,4 +639,4 @@ Candidate 2 is **not installed**. Arc 8 and the remaining current-version live t
 
 ## Coverage status
 
-Seven of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.
+Eight of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.

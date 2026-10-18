@@ -139,6 +139,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
                     && (id.startsWith("recipe-v1|") || id.startsWith("category-v1|") || id.startsWith("jei/"))) {
                 var identity = navigationIdentity(id, manager, budget);
                 retained = identity == null ? null : resolveNavigation(identity, manager, scope, budget);
+                dev.packsage.PackSageLog.LOGGER.info("PackSage JEI navigation probe identity={} resolved={} exhausted={}",
+                        identity, retained != null, budget.exhausted());
                 if (retained == null) {
                     return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
                             Evidence.Coverage.UNAVAILABLE, true, null);
@@ -229,6 +231,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
                     projection = project(runtime, manager, category, retained.recipe(), categoryId, id,
                             canonical.value(), title(category, categoryId), knownCategory(categoryId), canonical.failed(),
                             catalystCapture, budget);
+                    dev.packsage.PackSageLog.LOGGER.info("PackSage JEI navigation probe projection={} visible={} known={} exhausted={}",
+                            canonical.value(), projection.visible(), projection.visibilityKnown(), budget.exhausted());
                     if (!projection.visible() || !projection.visibilityKnown()) {
                         return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
                                 Evidence.Coverage.UNAVAILABLE, true, null);
@@ -932,7 +936,11 @@ public final class PackSageJeiPlugin implements IModPlugin {
             try (var recipes = manager.createRecipeLookup(type).get()) {
                 var iterator = recipes.iterator();
                 for (int scanned = 0; iterator.hasNext(); scanned++) {
-                    if (scanned >= MAX_SCANNED_RECIPES || !budget.value()) return null;
+                    if (scanned >= MAX_SCANNED_RECIPES || !budget.value()) {
+                        dev.packsage.PackSageLog.LOGGER.info("PackSage JEI navigation probe scan_limit category={} recipe={} scanned={} found={}",
+                                identity.categoryId(), identity.canonicalRecipeId(), scanned, selectedRecipe != null);
+                        return null;
+                    }
                     var recipe = iterator.next();
                     var canonical = canonical(selectedCategory, recipe);
                     if (!canonical.failed() && identity.canonicalRecipeId().equals(canonical.value())) {

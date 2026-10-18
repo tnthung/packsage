@@ -43,7 +43,7 @@ The fresh UI trial was request `6c2b7d27-6323-4d06-ad69-63cf6b50a20e`, persisted
 
 The instrumented first JEI click completed canonical resolution of 2,963 crafting recipes in 77.3436 ms; a later legacy-link click completed it in 13.1021 ms. Log timestamps place first-click resolution plus projection/open revalidation at about 103 ms. These individual measurements do not establish a latency guarantee for larger categories or arbitrary category callbacks.
 
-## Artifact
+## Initial artifact (2026-10-18)
 
 Built JAR: `build/libs/packsage-0.1.0.jar`. Distribution: `dist/packsage.jar`; matching metadata is in `dist/build-metadata.json`.
 
@@ -56,3 +56,15 @@ Automated source, persistence, provider-recreation and build acceptance passed. 
 Live coverage is the existing fixture profile, not the full ATM10 profile or a remote multiplayer server. Resource-reload, hidden/removed/duplicate destinations, foreign-world refusal and navigation races retain automated coverage; they were not newly exercised as live negative scenarios. External web navigation was not live-tested in this pass.
 
 Durable destinations re-resolve current content and do not update historical answers or their evidence. Recipes without a reliable canonical ID remain temporary. Removed, hidden, ambiguous or budget-inconclusive destinations remain unavailable; no alternative recipe, page or component is silently substituted. Existing Ponder component destinations and parseable canonical JEI/Patchouli destinations can migrate without changing the conversation format.
+
+## Native identity recovery follow-up (2026-10-19)
+
+The [normal-player prompt trials](2026-10-18-natural-prompt-stress-test.md) generated an Actually Additions Diamatine laser recipe link that opened before restart but expired afterward. Its saved destination was the explicitly temporary class/object-hash handle. [Installed binary research](../research/2026-10-19-native-recipe-identities.md) established that this mod registers the exact raw native recipe objects with JEI, losing JEI's default holder-name lookup while Minecraft still retains their real holder IDs.
+
+Source through `f154242` recovers a native ID only for an exact object match to one current native holder ID, after a null JEI registry name. The lazy index is rebuilt for each capture, bounded at 65,536 holders and discarded on every incomplete exit. Explicit JEI names, duplicate rejection, current registration and visibility checks remain in force. No semantic or output matching was added; old hash-only destinations cannot be safely migrated.
+
+The new runtime fixture first failed because discovery emitted a temporary target instead of the expected native ID. It now exercises recreated native objects, exact opening, explicit-name precedence without initializing the fallback, ambiguous aliases including a repeated first alias, equal-but-distinct objects, missing membership and exact/over-cap enumeration. Independent review found that an iterator `Error` could leave a partial index visible to later recipes in the same capture. A second regression reproduced that leak, and an atomic-completion/finally cleanup fixed it. Follow-up review confirmed the finding resolved.
+
+Java 21 `gradlew test build` passed through `f154242` in 25 seconds: 50 suites, 577 tests, 573 passed, four existing skips, zero failures or errors. The extended `JeiProjectionTest` still contains 24 test methods. Existing deprecated-API and unchecked-operation warnings remain. Built JAR SHA-256 is `58EE4E7B14C6F1A2B83741145FC46B6A074EA96EE766A54FA84417496D409864`.
+
+At this checkpoint the new build is not installed: the live prompt trials still run the preceding `7BF5D161E044CD21899A023AF4CA0D5A053F0612F1EDF0EB5CE5454EF37AD526` JAR, and `dist` retains the initial artifact above. Acceptance for the native fallback remains pending a newly generated laser citation opened after a full Minecraft restart. The old temporary Diamatine link is not that acceptance target.

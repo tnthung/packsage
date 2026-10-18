@@ -1025,7 +1025,8 @@ public final class AssistantScreen extends Screen {
         int tooltipWidth = Math.max(1, Math.min(300, width - 16));
         int tooltipHeight = Math.min(height - 8, 12 + lines.size() * 14);
         int left = Math.max(4, Math.min(mouseX + 10, width - tooltipWidth - 4));
-        int top = Math.max(4, Math.min(hovered.top() - tooltipHeight - 4, height - tooltipHeight - 4));
+        int top = Math.max(4, Math.min((hovered != null ? hovered.top() : navigation.top()) - tooltipHeight - 4,
+                height - tooltipHeight - 4));
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 400);
         ModernUi.surface(graphics, left, top, left + tooltipWidth, top + tooltipHeight, 0xff20252a);

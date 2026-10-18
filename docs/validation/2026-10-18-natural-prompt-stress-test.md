@@ -847,6 +847,75 @@ The assistant recommends a next goal without inventing a unique quest order, giv
 
 This arc used installed Candidate 2 JAR SHA-256 `7BF5D161E044CD21899A023AF4CA0D5A053F0612F1EDF0EB5CE5454EF37AD526`. The newer prompt source `6a0edde` covers current-request citations; its Java 21 build passed 50 suites and 577 tests (573 passed, 4 skipped, 0 failures or errors) in 24 seconds. Its JAR SHA-256 is `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`; it was not installed for this arc.
 
+## Arc 12: AE2 availability and storage-search alternatives
+
+Candidate 2 conversation: [a6c2afb3-004e-4631-920a-d9b1ccf20dc1-444ee3798053c7df.jsonl](C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/New_World-8a315c270917e038/a6c2afb3-004e-4631-920a-d9b1ccf20dc1-444ee3798053c7df.jsonl)
+
+Player agent: `luna_high_player_absent`. Three turns were submitted. The player’s final private judgment—that they still lacked a confirmed way to search storage and remained unsure whether the shelf provides that feature—was not submitted. No game actions occurred.
+
+### Turn 1
+
+- Request ID: `b33bb360-7177-4dd6-a8a0-4b4c42e6cffa`
+- Tool calls: 6
+- Elapsed time: 32.128 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=32128`).
+- Player:
+
+  ```text
+  Hey, does this pack have Applied Energistics? I’m hoping to search all my storage from one screen.
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  I don’t see Applied Energistics 2 in this pack’s item or block registries, so you probably can’t use an AE2 terminal to search your storage. Want me to look for what storage or item-search systems the pack does have?
+  ```
+
+**Trace and UI evidence:** The item and block registry searches were complete and returned no AE2 entries, so the qualified no-match is supported. Additional partial documentation and recipe probes do not establish general absence. The assistant appropriately offers to inspect available alternatives rather than treating the partial searches as proof that no storage-search method exists. Scores (1–5): intent handling 5; factual grounding 5; usefulness 4; citation coverage 5.
+
+### Turn 2
+
+- Request ID: `83f7e221-671e-4772-bfce-b6bd57fc0590`
+- Tool calls: 18
+- Elapsed time: 67.061 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=67061`).
+- Player:
+
+  ```text
+  Yeah, what storage or item-search options does the pack have instead?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  The options I can confirm are **vanilla chests and Ender Chests**, plus Immersive Engineering’s **Wooden Storage Crates**, **Reinforced Storage Crates**, and **Crate Storage Shelf**. [native:item:minecraft:chest] [native:item:minecraft:ender_chest] [native:item:immersiveengineering:crate] [native:item:immersiveengineering:reinforced_crate] [native:block:immersiveengineering:shelf]
+
+  I didn’t find an AE2-style terminal or storage network, so I can’t point you to a screen that searches across all those containers. Create’s **Portable Storage Interface** is also in the pack, but its guide calls it “Contraption Storage Exchange”—not a general storage-search terminal. [ponder:137:3e017964]
+  ```
+
+**Trace and UI evidence:** Registry results support that the named chests, crates, shelf, and Portable Storage Interface exist. They do not establish detailed storage or search behavior. The Ponder registration title “Contraption Storage Exchange” makes the distinction from a general terminal plausible, but the title alone does not document all behavior. The 18 calls included duplicate drawer queries. The parent observed readable chips; none was clicked. Scores (1–5): intent handling 4; factual grounding 3; usefulness 3; citation coverage 4.
+
+### Turn 3
+
+- Request ID: `dd2e8356-b9d9-47c1-9b73-33c72861d89d`
+- Tool calls: 4
+- Elapsed time: 32.247 s from accepted to model terminal (`latest.log`, `phase=model_terminal`, `elapsed_ms=32247`).
+- Player:
+
+  ```text
+  Does the Crate Storage Shelf let me search the crates it holds, or is it just for storing them?
+  ```
+
+- Assistant (exact saved answer):
+
+  ```text
+  I can’t verify the shelf’s exact interactions from the loaded pack evidence—the pack confirms the **Crate Storage Shelf** exists, but its Immersive Engineering manual isn’t available here. I found no evidence that it searches across the crates it holds, so **don’t count on it as a search terminal**; treat its search capability as unconfirmed. [native:block:immersiveengineering:shelf]
+  ```
+
+**Trace and UI evidence:** The native block record supports that the shelf exists. The relevant Immersive Engineering manual lookup was partial and reported that exact manual entries had not been loaded; other partial searches also returned no evidence. The answer correctly treats the shelf’s search behavior as unknown rather than claiming it cannot search. Its citation supports the shelf’s existence, not the unavailable documentation or unconfirmed search behavior. The parent observed readable chips; none was clicked. Scores (1–5): intent handling 5; factual grounding 5; usefulness 4; citation coverage 3.
+
+### Arc-level result
+
+The assistant handles the complete AE2 registry no-match carefully, identifies existing storage-related items without claiming their functions, and leaves the shelf’s search capability unconfirmed when the manual evidence is unavailable. The Portable Storage Interface’s Ponder title supports a plausible distinction but does not document full behavior. Turn 2 used 18 calls and repeated drawer queries; search churn remains a practical cost. No storage UI was opened and no game actions occurred. The player’s private judgment is not evidence that the shelf can or cannot search.
+
 ## Coverage status
 
-Eleven of twelve planned independent player arcs are complete. Further arcs and any justified fresh-chat retests remain pending.
+All twelve planned independent arcs are complete: 33 submitted turns and 245 tool calls, excluding controlled repeat R1. Arcs 1–3 used the baseline build (9 turns, 58 calls); Arcs 4–8 used Candidate 1 (13 turns, 114 calls); Arcs 9–12 used Candidate 2 (11 turns, 73 calls). The evaluation is not a full pass: source-bounded claims, citation coverage, and repeated search churn remain issues in some arcs.

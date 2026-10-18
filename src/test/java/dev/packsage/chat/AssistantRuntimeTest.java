@@ -1110,6 +1110,7 @@ class AssistantRuntimeTest {
         runtime.newChat();
         runtime.openSession(new ChatContracts.SessionSummary(WORLD, saved.id(), turn.question(), turn.answer(), Instant.EPOCH));
         assertEquals(turn, runtime.view().conversation().turns().getLast());
+        assertTrue(runtime.view().navigationTargets().contains(turn.navigationTargets().getFirst()));
         runtime.navigate(turn.navigationTargets().getFirst());
         assertEquals(1, navigations.get());
         runtime.send("Which bundle did we check?", false, false);

@@ -377,6 +377,7 @@ public final class AssistantRuntime implements ChatActions {
             synchronized (stateLock) {
                 if (requestGeneration != sessionGeneration || epoch != worldEpoch || world == null) return;
                 sessionLoading = false;
+                if (failure == null) newChatPending = false;
                 if (failure != null) {
                     readOnlyConversation = null;
                     runtimeErrors.add("Session could not be opened: " + failureMessage(failure));

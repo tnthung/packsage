@@ -82,3 +82,5 @@ The [prompt journal](2026-10-18-natural-prompt-stress-test.md) records the exact
 ### Current artifact
 
 The built JAR, `dist/packsage.jar` and installed profile JAR now all have SHA-256 `C6DD1751F858AB63088246DEEB9B03C06083865ECA0BA8A579416C5EF1F4C299`. The existing `dist/build-metadata.json` has the matching hash; other metadata fields are preserved. Distribution outputs remain ignored by Git. This artifact includes the native identity correction and prompt source `6a0edde`; ongoing conversation regressions are documented separately in the prompt journal and do not establish universal model reliability.
+
+The older saved Ponder destination from `eef677b1-7015-46e0-a354-c84b8ff1e246-f311626224b89e79.jsonl` was also selected through session search on this final artifact after the full restart. Its original `ponder:57:6508a422` link opened the animated “Processing Items with the Mechanical Press” viewer. This was navigation from the historical answer, not a newly generated Ponder citation.

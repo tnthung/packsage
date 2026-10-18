@@ -166,6 +166,34 @@ class ReferenceAliasBackendTest {
     }
 
     @Test
+    void nativeStorageOwnersAndEntryPayloadLocationsReuseTheTypedSlotAlias() {
+        var json = JsonParser.parseString(RESULT.serializedResult()).getAsJsonObject();
+        var payload = json.getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("payload");
+        payload.add("owners", JsonParser.parseString("[{\"slotReference\":\"" + SLOT + "\",\"ownerIdentity\":\"" + SLOT + "\"}]"));
+        payload.add("entries", JsonParser.parseString("[{\"kind\":\"item\",\"payload\":{\"slotReference\":\"" + SLOT
+                + "\",\"location\":{\"slotReference\":\"" + SLOT + "\"},\"ownerIdentity\":\"" + SLOT + "\"}}]"));
+        payload.add("metadata", JsonParser.parseString("{\"owners\":[{\"slotReference\":\"" + SLOT
+                + "\"}],\"entries\":[{\"payload\":{\"slotReference\":\"" + SLOT + "\"}}]}"));
+        var actual = new FakeBackend();
+        var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), ignored -> { });
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"item\",\"slotReference\":\"" + SLOT + "\"}}"), List.of(), null));
+        exchange.submit(new ModelBackend.ToolResult("inventory", json.toString(), false));
+        var encoded = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
+                .getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("payload");
+        String alias = encoded.get("slotReference").getAsString();
+        assertTrue(alias.startsWith("slot:"));
+        var owner = encoded.getAsJsonArray("owners").get(0).getAsJsonObject();
+        var entry = encoded.getAsJsonArray("entries").get(0).getAsJsonObject().getAsJsonObject("payload");
+        assertEquals(alias, owner.get("slotReference").getAsString());
+        assertEquals(alias, entry.get("slotReference").getAsString());
+        assertEquals(alias, entry.getAsJsonObject("location").get("slotReference").getAsString());
+        assertEquals(SLOT, owner.get("ownerIdentity").getAsString());
+        assertEquals(SLOT, entry.get("ownerIdentity").getAsString());
+        assertEquals(payload.get("metadata"), encoded.get("metadata"));
+    }
+
+    @Test
     void matchingJeiViewerHandleUsesEvidenceAliasWithoutRewritingOtherPayloadValues() {
         var actual = new FakeBackend();
         var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), ignored -> { });

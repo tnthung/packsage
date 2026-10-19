@@ -431,7 +431,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
         private final List<Replacement> replacements = new ArrayList<>();
         private int position;
         private int tokenStart;
-        // Bracket body, after label, destination, group prefix, group body, pending citation/link; zero means plain text.
+        // Bracket body, after label, destination, group prefix, group body, pending citation/link, label spacing; zero means plain text.
         private int mode;
         private boolean code;
 
@@ -447,7 +447,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
             var output = new StringBuilder();
             for (int index = 0; index < text.length(); index++) {
                 char character = text.charAt(index);
-                if (!token.isEmpty() && (mode == 6 || mode == 7) && character != '(' && !Character.isWhitespace(character)) emit(output);
+                if (!token.isEmpty() && (mode == 2 || mode == 6 || mode == 7) && character != '(' && !Character.isWhitespace(character)) emit(output);
                 else if (!token.isEmpty() && token.length() == MAX_TOKEN_CHARS) {
                     output.append(token);
                     token.setLength(0);

@@ -80,6 +80,48 @@ class SourceDetailsScreenTest {
     }
 
     @Test
+    void brewingDetailsKeepKnownFactsWhenAnAlternativeQuantityIsUnknown() {
+        Evidence.Source brewing = new Evidence.Source(SCOPE, "native", "native", "brewing:fixture", 4,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.LOADED,
+                List.of("client-recipe-manager"));
+        JsonObject payload = new JsonObject();
+        JsonArray outputs = new JsonArray();
+        JsonObject output = new JsonObject();
+        output.addProperty("comparisonIdentity", "minecraft:potion");
+        output.addProperty("quantity", 1);
+        outputs.add(output);
+        payload.add("outputs", outputs);
+        JsonArray inputs = new JsonArray();
+        JsonObject input = new JsonObject();
+        JsonArray alternatives = new JsonArray();
+        JsonObject alternative = new JsonObject();
+        alternative.addProperty("comparisonIdentity", "minecraft:blaze_powder");
+        alternative.addProperty("type", "item");
+        alternative.add("quantity", com.google.gson.JsonNull.INSTANCE);
+        alternatives.add(alternative);
+        input.add("alternatives", alternatives);
+        inputs.add(input);
+        JsonObject flatInput = new JsonObject();
+        flatInput.addProperty("comparisonIdentity", "minecraft:water");
+        flatInput.addProperty("type", "fluid");
+        flatInput.add("quantity", com.google.gson.JsonNull.INSTANCE);
+        inputs.add(flatInput);
+        payload.add("inputs", inputs);
+        var turn = new ChatContracts.Turn(new ChatContracts.RequestId("request"), "question", "answer",
+                List.of(new ModelBackend.ToolResult("brewing", nativeResult(brewing, payload), false)),
+                new ChatContracts.Context("{}", null, SCOPE), List.of(brewing),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+
+        List<String> details = SourceDetailsScreen.details(brewing, turn);
+        assertTrue(details.contains("Outputs:"));
+        assertTrue(details.contains("  Potion ×1"));
+        assertTrue(details.contains("Inputs:"));
+        assertTrue(details.contains("  Blaze Powder ×?"));
+        assertTrue(details.contains("  Water ×?"));
+        assertFalse(details.contains("Value snapshot unavailable in this session."));
+    }
+
+    @Test
     void nativeDetailsUseOnlyTheExactRecordedInventoryAndRecipePayloads() {
         Evidence.Source inventory = new Evidence.Source(SCOPE, "native", "native", "inventory:observation:hotbar:0", 4,
                 Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED,

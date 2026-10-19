@@ -115,6 +115,34 @@ class RelicsInstanceReaderTest {
     }
 
     @Test
+    void successfulEmptyAbilityAndStatCollectionsRemainComplete() {
+        var emptyAbilitiesStack = relicStack(1, 0, 0, 0, 0, 1.0, 0);
+        var emptyAbilitiesData = emptyAbilitiesStack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        emptyAbilitiesData.put("abilities", new CompoundTag());
+        emptyAbilitiesStack.set(DataComponents.CUSTOM_DATA, CustomData.of(emptyAbilitiesData));
+
+        var emptyAbilities = new RelicsInstanceReader(true, true, "0.12.8").project(null, emptyAbilitiesStack,
+                new FixtureRelicItem());
+
+        assertEquals("COMPLETE", ((Evidence.JsonString) emptyAbilities.values().get("coverage")).value());
+        assertTrue(((Evidence.JsonObject) emptyAbilities.values().get("abilities")).values().isEmpty());
+
+        var emptyStatsStack = relicStack(1, 0, 0, 0, 0, 1.0, 0);
+        var emptyStatsData = emptyStatsStack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        var ability = emptyStatsData.getCompound("abilities").getCompound(ABILITY);
+        ability.put("stats", new CompoundTag());
+        emptyStatsStack.set(DataComponents.CUSTOM_DATA, CustomData.of(emptyStatsData));
+
+        var emptyStats = new RelicsInstanceReader(true, true, "0.12.8").project(null, emptyStatsStack,
+                new FixtureRelicItem());
+        var projectedAbility = (Evidence.JsonObject) ((Evidence.JsonObject) emptyStats.values().get("abilities"))
+                .values().get(ABILITY);
+
+        assertEquals("COMPLETE", ((Evidence.JsonString) emptyStats.values().get("coverage")).value());
+        assertTrue(((Evidence.JsonObject) projectedAbility.values().get("stats")).values().isEmpty());
+    }
+
+    @Test
     void traversalRespectsAbilityPerAbilityAndAggregateStatBounds() {
         var customData = new CompoundTag();
         customData.putInt("level", 1);
@@ -142,11 +170,15 @@ class RelicsInstanceReaderTest {
 
         assertNotNull(result);
         var projectedAbilities = (Evidence.JsonObject) result.values().get("abilities");
-        assertTrue(projectedAbilities.values().size() <= 16);
+        assertEquals(16, projectedAbilities.values().size());
         assertTrue(projectedAbilities.values().values().stream().map(value -> (Evidence.JsonObject) value)
-                .allMatch(value -> ((Evidence.JsonObject) value.values().get("stats")).values().size() <= 32));
+                .allMatch(value -> value.values().containsKey("points")));
+        assertTrue(projectedAbilities.values().values().stream().map(value -> (Evidence.JsonObject) value)
+                .allMatch(value -> !(value.values().get("stats") instanceof Evidence.JsonObject stats)
+                        || stats.values().size() <= 32));
         int totalStats = projectedAbilities.values().values().stream().map(value -> (Evidence.JsonObject) value)
-                .mapToInt(value -> ((Evidence.JsonObject) value.values().get("stats")).values().size()).sum();
+                .mapToInt(value -> value.values().get("stats") instanceof Evidence.JsonObject stats
+                        ? stats.values().size() : 0).sum();
         assertEquals(128, totalStats);
         assertEquals("PARTIAL", ((Evidence.JsonString) result.values().get("coverage")).value());
     }

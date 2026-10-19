@@ -90,7 +90,8 @@ final class SourceDetailsScreen extends Screen {
                                         for (int alternative = 0; alternative < alternatives.size() && alternative < 3; alternative++) {
                                             JsonObject option = alternatives.get(alternative).getAsJsonObject();
                                             if (option.has("comparisonIdentity")) names.add(ScreenText.displayName(option.get("comparisonIdentity").getAsString())
-                                                    + " ×" + (option.has("quantity") ? option.get("quantity").getAsString() : "?"));
+                                                    + " ×" + (option.has("quantity") && !option.get("quantity").isJsonNull()
+                                                    ? option.get("quantity").getAsString() : "?"));
                                         }
                                         if (!names.isEmpty()) facts.add("  " + String.join(" / ", names)
                                                 + (alternatives.size() > 3 ? " +" + (alternatives.size() - 3) + " more alternatives" : ""));
@@ -98,7 +99,8 @@ final class SourceDetailsScreen extends Screen {
                                         String identity = entry.has("comparisonIdentity") ? entry.get("comparisonIdentity").getAsString()
                                                 : entry.has("type") ? entry.get("type").getAsString() : null;
                                         if (identity != null) facts.add("  " + ScreenText.displayName(identity) + " ×"
-                                                + (entry.has("quantity") ? entry.get("quantity").getAsString() : "?"));
+                                                + (entry.has("quantity") && !entry.get("quantity").isJsonNull()
+                                                ? entry.get("quantity").getAsString() : "?"));
                                     }
                                 }
                             }

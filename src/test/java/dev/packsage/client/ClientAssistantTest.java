@@ -108,6 +108,45 @@ class ClientAssistantTest {
     }
 
     @Test
+    void guideAdapterCompatibilityRangesAcceptCurrentAndBoundaryReleases() {
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.MODONOMICON_VERSION, "1.120.7"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.MODONOMICON_VERSION, "1.98.1"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.MODONOMICON_VERSION, "1.119.9"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.MODONOMICON_VERSION, "1.98.0"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.MODONOMICON_VERSION, "2.0.0"));
+
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.GUIDEME_VERSION, "21.1.0"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.GUIDEME_VERSION, "21.1.19"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.GUIDEME_VERSION, "21.0.99"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.GUIDEME_VERSION, "21.2.0"));
+
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.IMMERSIVE_ENGINEERING_VERSION, "12.0.0-182"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.IMMERSIVE_ENGINEERING_VERSION, "12.4.2-194"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.IMMERSIVE_ENGINEERING_VERSION, "11.9.9"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.IMMERSIVE_ENGINEERING_VERSION, "13.0.0"));
+
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.ACTUALLY_ADDITIONS_VERSION, "1.3.0"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.ACTUALLY_ADDITIONS_VERSION, "1.3.26"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.ACTUALLY_ADDITIONS_VERSION, "1.2.99"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.ACTUALLY_ADDITIONS_VERSION, "1.4.0"));
+
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "0.12.8"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "0.12.9"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "0.12.7"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "0.13.0"));
+
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.ARTIFACTS_VERSION, "13.2.5"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.ARTIFACTS_VERSION, "13.2.3"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.ARTIFACTS_VERSION, "13.99.99"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.ARTIFACTS_VERSION, "13.2.2"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.ARTIFACTS_VERSION, "14.0.0"));
+
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.MODONOMICON_VERSION, "1.120.7+mc1.20.1"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.ARTIFACTS_VERSION, "13.2.5-FORGE"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "unknown"));
+    }
+
+    @Test
     void optionalProviderPreservesObservedVersionAndEvidenceWhenWrappingResults() {
         var scope = new Evidence.Scope("world", "en_us", "player", "runtime", 4);
         var target = new Evidence.NavigationTarget(scope, "jei", "recipe-handle", "target-id");

@@ -70,6 +70,12 @@ public final class ClientAssistant {
     private static final String FTB_VERSION = "[2101.1.36,2101.2)";
     private static final String PATCHOULI_VERSION = "[1.21.1-92,1.21.1-94)";
     static final String PONDER_VERSION = "[0.8.1,1.1)";
+    static final String MODONOMICON_VERSION = "[1.120.4]";
+    static final String GUIDEME_VERSION = "[21.1.19]";
+    static final String IMMERSIVE_ENGINEERING_VERSION = "[12.4.2-194]";
+    static final String ACTUALLY_ADDITIONS_VERSION = "[1.3.26]";
+    static final String RELICS_VERSION = "[0.12.8]";
+    static final String ARTIFACTS_VERSION = "[13.2.3]";
     private static final String LOADER_VERSION_SUFFIX = "-NEOFORGE";
 
     public record CopiedWorld(String source, String readableLabel, boolean privateSingleplayer,
@@ -130,12 +136,12 @@ public final class ClientAssistant {
                 "jei", optionalStatus("jei", JEI_VERSION),
                 "ftb_quests", optionalStatus("ftb_quests", "ftbquests", FTB_VERSION),
                 "patchouli", optionalStatus("patchouli", PATCHOULI_VERSION),
-                "modonomicon", optionalStatus("modonomicon", "[1.120.4]"),
-                "guideme", optionalStatus("guideme", "[21.1.19]"),
-                "immersiveengineering", optionalStatus("immersiveengineering", "[12.4.2-194]"),
-                "actuallyadditions", optionalStatus("actuallyadditions", "[1.3.26]"),
-                "relics", optionalStatus("relics", "[0.12.8]"),
-                "artifacts", optionalStatus("artifacts", "[13.2.3]"),
+                "modonomicon", optionalStatus("modonomicon", MODONOMICON_VERSION),
+                "guideme", optionalStatus("guideme", GUIDEME_VERSION),
+                "immersiveengineering", optionalStatus("immersiveengineering", IMMERSIVE_ENGINEERING_VERSION),
+                "actuallyadditions", optionalStatus("actuallyadditions", ACTUALLY_ADDITIONS_VERSION),
+                "relics", optionalStatus("relics", RELICS_VERSION),
+                "artifacts", optionalStatus("artifacts", ARTIFACTS_VERSION),
                 "ponder", optionalStatus("ponder", PONDER_VERSION));
         settingsPath = client.gameDirectory.toPath().resolve("config").resolve("packsage.properties");
         settings = PackSageSettings.load(settingsPath);

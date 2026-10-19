@@ -384,7 +384,7 @@ class JeiProjectionTest {
     }
 
     @Test
-    void outputItemSearchKeepsComponentVariantsAdvancesAndCanRefreshSelectedTarget() throws Exception {
+    void outputItemSearchKeepsComponentVariantsAndAdvancesPastUnrelatedCandidates() throws Exception {
         var other = new JeiProvider.Projection("minecraft:brewing", "jei/1/1/minecraft:brewing/0",
                 "minecraft:unrelated", "Strength from another item", List.of(), List.of(), List.of(), true,
                 Evidence.Coverage.COMPLETE, Evidence.DecodingStatus.VERIFIED, null);
@@ -419,10 +419,6 @@ class JeiProjectionTest {
         var next = provider.query(new Evidence.Query(Evidence.Operation.SEARCH, query.arguments(), 1, SCOPE,
                 first.nextCursor()), SCOPE).toCompletableFuture().get();
         assertEquals("jei/1/1/minecraft:brewing/2", next.records().getFirst().source().sourceHandle());
-        var refreshed = provider.refreshNavigation(first.records().getFirst().targets().getFirst(), SCOPE)
-                .toCompletableFuture().get();
-        assertNotNull(refreshed);
-        assertEquals(Evidence.NavigationStatus.OPENED, provider.open(refreshed, SCOPE).status());
     }
 
     @Test
@@ -748,6 +744,9 @@ class JeiProjectionTest {
             var canonicalIdThrows = new AtomicBoolean();
             var canonicalVisits = new AtomicInteger();
             var navigationFiller = new Object();
+            var unrelatedPotionQueryRecipe = new Object();
+            var strengthPotionRecipe = new Object();
+            var longStrengthPotionRecipe = new Object();
             var category = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
                     new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "getRecipeType" -> type;
@@ -758,7 +757,9 @@ class JeiProjectionTest {
                             if (canonicalIdThrows.get()) throw new IllegalStateException("fixture canonical ID failure");
                             yield canonicalIdsEnabled.get()
                                     ? ResourceLocation.fromNamespaceAndPath("fixture", arguments[0] == navigationFiller
-                                    ? "filler" : "press") : null;
+                                    ? "filler" : arguments[0] == strengthPotionRecipe ? "strength"
+                                    : arguments[0] == longStrengthPotionRecipe ? "long_strength"
+                                    : arguments[0] == unrelatedPotionQueryRecipe ? "unrelated" : "press") : null;
                         }
                         default -> null;
                     });
@@ -770,9 +771,6 @@ class JeiProjectionTest {
                     });
             var recipe = new Object();
             var replacementRecipe = new Object();
-            var unrelatedPotionQueryRecipe = new Object();
-            var strengthPotionRecipe = new Object();
-            var longStrengthPotionRecipe = new Object();
             var recipes = new AtomicReference<List<Object>>(List.of(recipe));
             var currentLayoutRecipe = new AtomicReference<Object>(recipe);
             var recipeOutputs = new java.util.IdentityHashMap<Object, ItemStack>();
@@ -931,6 +929,7 @@ class JeiProjectionTest {
             plugin.onRuntimeAvailable(runtime);
 
             componentSensitiveScenario.set(true);
+            canonicalIdsEnabled.set(true);
             recipes.set(List.of(unrelatedPotionQueryRecipe, strengthPotionRecipe, longStrengthPotionRecipe));
             var potionQuery = new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(Map.of(
                     "text", new Evidence.JsonString(""),
@@ -939,6 +938,8 @@ class JeiProjectionTest {
             assertEquals(1, potionFirstPage.records().size());
             assertTrue(potionFirstPage.records().getFirst().recipePayload().outputs().getFirst()
                     .comparisonIdentity().startsWith("minecraft:potion|componentsHash="));
+            assertEquals("recipe-v1|minecraft:crafting|fixture:strength",
+                    potionFirstPage.records().getFirst().targets().getFirst().targetId());
             assertTrue(Evidence.serialize(potionFirstPage.records().getFirst().payload()).contains("minecraft:strength"));
             assertNotNull(potionFirstPage.nextCursor());
             PackSageJeiPlugin.clientTicked();
@@ -951,12 +952,25 @@ class JeiProjectionTest {
                     .comparisonIdentity(), potionSecondPage.records().getFirst().recipePayload().outputs().getFirst()
                     .comparisonIdentity());
             assertTrue(Evidence.serialize(potionSecondPage.records().getFirst().payload()).contains("minecraft:long_strength"));
+            PackSageJeiPlugin.clientTicked();
+            var componentSearch = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("minecraft:strength"),
+                            "outputItem", new Evidence.JsonString("minecraft:potion"))), 1, null, null), SCOPE)
+                    .toCompletableFuture().get();
+            assertEquals(1, componentSearch.records().size());
+            assertEquals("fixture:strength", componentSearch.records().getFirst().recipePayload().canonicalRecipeId());
             var refreshedPotionTarget = plugin.provider().refreshNavigation(
                     potionFirstPage.records().getFirst().targets().getFirst(), SCOPE).toCompletableFuture().get();
             assertNotNull(refreshedPotionTarget);
             assertEquals(Evidence.NavigationStatus.OPENED,
                     plugin.provider().open(refreshedPotionTarget, SCOPE).status());
+            var currentPotionEvidence = plugin.provider().query(new Evidence.Query(Evidence.Operation.GET,
+                    new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(
+                            potionFirstPage.records().getFirst().source().sourceHandle()))), 1, null, null), SCOPE)
+                    .toCompletableFuture().get();
+            assertEquals(1, currentPotionEvidence.records().size());
             componentSensitiveScenario.set(false);
+            canonicalIdsEnabled.set(false);
             appliedFocus.set(null);
             recipes.set(List.of(recipe));
 

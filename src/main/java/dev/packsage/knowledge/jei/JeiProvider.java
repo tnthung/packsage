@@ -583,7 +583,8 @@ public final class JeiProvider implements KnowledgeProvider {
         var text = rawText == null ? "" : rawText.toLowerCase(Locale.ROOT);
         var outputItem = query.operation() == Evidence.Operation.SEARCH || query.operation() == Evidence.Operation.RELATED
                 ? stringArgument(query.arguments(), "outputItem") : null;
-        var records = snapshot.projections().stream().filter(projection -> matchesQuery(projection,
+        var records = snapshot.projections().stream().filter(projection -> query.operation() != Evidence.Operation.SEARCH
+                        && query.operation() != Evidence.Operation.RELATED || matchesQuery(projection,
                         query.operation(), stringArgument(query.arguments(), "id"), text))
                 .filter(projection -> outputItem == null || projection.slots().stream()
                         .filter(slot -> slot.role() == RecipeRole.OUTPUT)

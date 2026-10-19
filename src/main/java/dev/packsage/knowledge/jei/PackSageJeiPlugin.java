@@ -297,6 +297,17 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
                                 Evidence.Coverage.UNAVAILABLE, true, null);
                     }
+                    if (outputItem != null && !projection.slots().stream()
+                            .filter(slot -> slot.role() == JeiProvider.RecipeRole.OUTPUT)
+                            .flatMap(slot -> slot.alternatives().stream())
+                            .anyMatch(ingredient -> ingredient.type().equals("item")
+                                    && ingredient.comparisonIdentity().split("\\|componentsHash=", 2)[0]
+                                    .equals(outputItem))) {
+                        var coverage = projection.coverage() == Evidence.Coverage.COMPLETE
+                                ? Evidence.Coverage.UNAVAILABLE : projection.coverage();
+                        return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
+                                coverage, true, null);
+                    }
                 }
                 var registeredHandle = id;
                 var registeredRecipe = retained;

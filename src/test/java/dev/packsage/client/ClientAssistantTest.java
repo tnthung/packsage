@@ -148,9 +148,11 @@ class ClientAssistantTest {
         assertFalse(ClientAssistant.versionMatches(ClientAssistant.ACTUALLY_ADDITIONS_VERSION, "1.2.99"));
         assertFalse(ClientAssistant.versionMatches(ClientAssistant.ACTUALLY_ADDITIONS_VERSION, "1.4.0"));
 
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "0.12.0"));
+        assertTrue(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "0.12.7"));
         assertTrue(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "0.12.8"));
         assertTrue(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "0.12.9"));
-        assertFalse(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "0.12.7"));
+        assertFalse(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "0.11.9"));
         assertFalse(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "0.13.0"));
 
         assertTrue(ClientAssistant.versionMatches(ClientAssistant.ARTIFACTS_VERSION, "13.2.5"));

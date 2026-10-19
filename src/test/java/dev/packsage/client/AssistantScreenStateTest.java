@@ -868,6 +868,30 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void gearUsesLeftClickForSettingsAndMiddleClickForAdvancedSettings() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 240;
+        screen.height = 240;
+        screen.setRuntimeState(new AssistantScreen.RuntimeState(true, true, false));
+        var settingsOpens = new java.util.concurrent.atomic.AtomicInteger();
+        var advancedSettingsOpens = new java.util.concurrent.atomic.AtomicInteger();
+        screen.setSettingsOpener(settingsOpens::incrementAndGet);
+        screen.setAdvancedSettingsOpener(advancedSettingsOpens::incrementAndGet);
+        screen.layout();
+
+        screen.mouseClicked(50, 220, 0);
+        assertEquals(1, settingsOpens.get());
+        assertEquals(0, advancedSettingsOpens.get());
+        screen.mouseClicked(50, 220, 2);
+        assertEquals(1, settingsOpens.get());
+        assertEquals(1, advancedSettingsOpens.get());
+        screen.mouseClicked(50, 220, 1);
+        screen.mouseClicked(120, 220, 2);
+        assertEquals(1, settingsOpens.get());
+        assertEquals(1, advancedSettingsOpens.get());
+    }
+
+    @Test
     void messageWrappingKeepsWordsWholeAndChipsWithinTheirRows() {
         var screen = new AssistantScreen(new FakeActions());
         screen.width = 640;

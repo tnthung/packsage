@@ -52,6 +52,7 @@ public final class AssistantScreen extends Screen {
     private MultilineEditor sessionSearchEditor;
     private String sessionSearch = "";
     private Runnable settingsOpener = () -> { };
+    private Runnable advancedSettingsOpener = () -> { };
     private Runnable settingsSaver = () -> { };
     private net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> containerScreen;
     private RuntimeState runtimeState = new RuntimeState(true, true, false);
@@ -1451,6 +1452,7 @@ public final class AssistantScreen extends Screen {
     public boolean explicitWebSearch() { return explicitWebSearch; }
     public boolean includeScreenshot() { return includeScreenshot; }
     public void setSettingsOpener(Runnable opener) { settingsOpener = Objects.requireNonNull(opener); }
+    public void setAdvancedSettingsOpener(Runnable opener) { advancedSettingsOpener = Objects.requireNonNull(opener); }
     public void setSettingsSaver(Runnable saver) { settingsSaver = Objects.requireNonNull(saver); }
     public void setRuntimeState(RuntimeState state) { runtimeState = Objects.requireNonNull(state); }
     public RuntimeState runtimeState() { return actualRuntimeState(); }

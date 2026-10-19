@@ -76,6 +76,8 @@ class AssistantSettingsScreenTest {
         assertFalse(settings.openPaused());
         assertTrue(screen.mouseClicked(layout.left() + 20, layout.behaviorTop() + 36, 0));
         assertFalse(settings.automaticWebSearch());
+        assertTrue(screen.mouseClicked(layout.left() + 20, layout.behaviorTop() + 62, 0));
+        assertFalse(settings.hideInactiveAdapters());
     }
 
     @Test

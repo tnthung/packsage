@@ -1147,6 +1147,8 @@ class JeiProjectionTest {
             }
             assertNotNull(oversizedCatalystResult);
             assertEquals(Evidence.Coverage.PARTIAL, oversizedCatalystResult.coverage());
+            assertTrue(oversizedCatalystResult.records().isEmpty(),
+                    "a budget diagnostic must not be exposed as a navigable recipe record");
             assertNotNull(oversizedCatalystResult.detail());
             assertTrue(oversizedCatalystResult.detail().toLowerCase(java.util.Locale.ROOT).contains("budget"));
             assertNull(oversizedCatalystResult.nextCursor());

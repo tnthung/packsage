@@ -813,7 +813,7 @@ class JeiProjectionTest {
                         case "getType" -> ingredientBudgetScenario.get() || oversizedIngredientScenario.get()
                                 ? typedIngredientType : VanillaTypes.ITEM_STACK;
                         case "getIngredient" -> oversizedIngredientScenario.get() ? oversizedIngredientValue
-                                : recipeOutputs.get(currentLayoutRecipe.get());
+                                : recipeOutputs.getOrDefault(currentLayoutRecipe.get(), outputStack);
                         default -> null;
                     });
             var visibilityType = IJeiRuntime.class.getMethod("getIngredientVisibility").getReturnType();
@@ -1028,8 +1028,7 @@ class JeiProjectionTest {
             oversizedSlotNameScenario.set(true);
             PackSageJeiPlugin.clientTicked();
             var oversizedSlotResult = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
-                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),
-                            "outputItem", new Evidence.JsonString("minecraft:stone"))), 4, null, null), nextScope)
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 4, null, null), nextScope)
                     .toCompletableFuture().get();
             assertEquals(Evidence.Coverage.PARTIAL, oversizedSlotResult.coverage());
             var oversizedSlotPayload = Evidence.serialize(oversizedSlotResult.records().getFirst().payload());

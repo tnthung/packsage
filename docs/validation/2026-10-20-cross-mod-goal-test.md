@@ -145,3 +145,18 @@ Complete registry evidence identifies both comparison items as Artifacts, so thi
 Artifacts guide discovery returned zero records with partial tooltip coverage and no cursor, despite saying text continues at the supplied position. It supplied no usable passage. The comparison therefore relies on registry attributes and qualified config facts, not accepted Artifacts guide extraction.
 
 The follow-up's complete fresh functional Curios read finds one Springy Boot in feet slot zero. Its complete Relics instance data matches the final answer: level 2, XP 137, Bounce `radius=3.0`, `damage=5.0`, `stun=0.5`, `damage_modifier=0.15`, `power=0.75`, each quality 10, and zero ability points. Cosmetic Curios slots are explicitly outside that read and the answer says so. The installed Relics entry supports crouch-jump opposite the gaze, horizontal-surface bouncing and fall protection until stopped, including its stopping controls. Its unresolved launch-force placeholder supplies no numeric formula, and the answer correctly declines to convert the rolled values into invented percentages or distances. This accepts current stat discovery, not a separate `read_evidence` reread or physical movement test.
+
+### 9. Current quest selection and an item-substitution challenge
+
+Conversation: `b4506562-3115-4764-be7a-1ffcfeeb28d1-cedfb30dee9aabf8.jsonl`.
+
+| Turn | Submitted question | Request | Calls | Time | Assessment |
+|---|---|---|---|---|---|
+| 14 | What unfinished quest should I work on next? Check my actual quest progress and what I'm carrying, and pick one concrete next step rather than giving me a general modpack progression list. | `75b1cec0-0555-42d8-87a9-1f4f4f437a4d` | 8 | 65.357 s | Supported concrete recommendation; actual quest navigation passes. |
+| 15 | Can my stack of coal count for that charcoal task, or does it require charcoal specifically? What does its current progress say? | `fbb6a57b-6faa-437e-becd-bed22f3bbcf9` | 3 | 25.019 s | Correct exact-item distinction and refreshed 0/1 progress. |
+
+The fixture contains one completed input quest and two unfinished dependent quests: lantern and charcoal. Progress reads report zero of one requested item for both candidates, with the common prerequisite complete. Fresh complete direct and Shulker reads support carried coal/wood and no lantern/furnace. The native smelting recipe includes oak logs and stripped oak wood as inputs to charcoal. Recommending charcoal is a supported fit for available materials, with the answer explicitly requiring a nearby furnace rather than claiming one is owned or that all processing requirements are already met.
+
+Clicking the recommended `Open Quest` action opened the actual FTB Quests `Check the alternate input` task with the charcoal icon. Escape returned through the quest map to the original chat. This accepts the exact viewer action. A storage source chip still displayed an opaque UUID-style identifier, a presentation gap outside the previously fixed brewing labels.
+
+The follow-up rediscovered the charcoal task, refreshed inventory and called `read_progress`. Its answer correctly distinguishes `minecraft:charcoal` from carried `minecraft:coal`, retaining the task's current 0/1 state instead of inferring completion from similar items. Overall fixture-search/progress records remain partial; these checks do not establish coverage of a large quest pack, team synchronization changes or reward claims.

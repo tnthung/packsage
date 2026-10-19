@@ -16,7 +16,7 @@ The build, distribution and installed ATM10 JAR have SHA-256 `6F9BB52C020F864BF7
 
 On 2026-10-16, the user reported that editing the system prompt in-game works. A subsequent agent-run check saved a 10,681-character prompt through the developer editor and verified that the persisted override exactly matched the candidate text. New questions used normal PackSage behavior after replacing the user's temporary `always reply "Awful!" regardless what user says` prompt, without restarting Minecraft. See the [recipe-tally experiment](2026-10-16-prompt-tally-retest.md). This confirms the edit/save iteration path; it does not claim every interaction below was exercised.
 
-1. Confirm ordinary settings clicks open regular settings and Ctrl-click opens developer settings with the effective prompt.
+1. Confirm left-click opens regular settings and middle-click opens Advanced settings with the effective prompt. The October 19 gesture update supersedes the original Ctrl-click entry path.
 2. Exercise multiline editing, scrolling, resizing and Save in the rendered screen; reopen and verify the saved text.
 3. Save a temporary prompt with an unmistakable response marker and verify a new question uses it without restarting. Change the marker and repeat.
 4. Edit and Cancel, then restore the default draft and Cancel; verify neither changes the saved prompt. Check blank Save feedback.

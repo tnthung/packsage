@@ -1,6 +1,6 @@
 # Developer prompt settings
 
-Ctrl-clicking the assistant's settings button opens developer settings. Ordinary clicking continues to open regular settings. Developer mode is a per-open gesture, not a persistent global mode.
+Middle-clicking the assistant's settings button opens Advanced settings and its developer prompt editor. Left-clicking opens regular settings, including when Ctrl is held; right-clicking does not open settings. Keep the gesture within the gear's existing hitbox and advertise it in the tooltip. Advanced mode is a per-open gesture, not a persistent global mode.
 
 Developer settings contains a multiline system-prompt editor initialized with the currently effective prompt. Save persists an override in PackSage's settings and returns to the assistant; Cancel, Back or Escape discards the draft. Restore default replaces the draft with the shipped default and requires Save to apply it. Saving the shipped default clears the override, so future releases can supply a newer default. Blank and oversized prompts are rejected with visible feedback rather than silently truncating or applying them.
 

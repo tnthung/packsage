@@ -37,4 +37,4 @@ The filter was left on, matching its initial behavior, and `hideInactiveAdapters
 
 Installed rendering, active/inactive filtering, saved false across a process restart, pointer travel, independent scrolling and the tested GUI scales passed. No source change was needed. The disposable save copy remains available to identify the isolated inactive-mod fixture.
 
-The player subsequently authorized merging the width and scrollbar follow-up into `feat/packsage-v1`. The installed checks above cover the initial implementation; the corrected width and scrollbar appearance still await player rechecking.
+The player subsequently authorized merging the width and scrollbar follow-up into `feat/packsage-v1`. Merge commit `7b6efc3` preserves both branch histories and the installed evidence above. The merged `./gradlew.bat test build --console=plain` passed: 640 tests, 636 passed, four existing skips and no failures or errors. The updated JAR is `build/libs/packsage-0.1.0.jar`. The installed checks above cover the initial implementation; the corrected width and scrollbar appearance still await player rechecking.

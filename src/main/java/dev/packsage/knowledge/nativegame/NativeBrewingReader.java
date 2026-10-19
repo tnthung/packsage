@@ -87,7 +87,6 @@ final class NativeBrewingReader {
         if (ruleIndex < 0 || variantIndex < 0 || !parts[4].matches("[0-9a-f]{64}")) return null;
 
         var source = source(brewing, registries);
-        String expectedFingerprint = parts[4];
         var direct = candidateAt(source, parts[1], ruleIndex, variantIndex, registries, itemRegistry, scope);
         if (direct != null && identity.equals(direct.identity())) return direct.record();
 
@@ -96,7 +95,7 @@ final class NativeBrewingReader {
             if (projected != null) {
                 var refreshedParts = projected.identity().split(":", -1);
                 if (refreshedParts.length == 5 && parts[1].equals(refreshedParts[1])
-                        && expectedFingerprint.equals(refreshedParts[4])) return projected.record();
+                        && parts[4].equals(refreshedParts[4])) return projected.record();
             }
         }
         return null;
@@ -187,8 +186,7 @@ final class NativeBrewingReader {
 
         var bottles = new ArrayList<Item>();
         for (int index = 0; index < containerCount; index++) {
-            Object raw = containers.get(index);
-            if (!(raw instanceof Ingredient ingredient) || ingredient.getClass() != Ingredient.class
+            if (!(containers.get(index) instanceof Ingredient ingredient) || ingredient.getClass() != Ingredient.class
                     || ingredient.isCustom()) {
                 partial = true;
                 continue;
@@ -239,12 +237,11 @@ final class NativeBrewingReader {
             }
         }
 
-        long candidateCount = (long) customCount
-                + (long) containerMixCount * Math.max(1, potions.size())
-                + (long) potionMixCount * bottles.size();
         return new Source(customRecipes, customCount, containers, containerCount, containerMixes, containerMixCount,
                 potionMixes, potionMixCount, List.copyOf(bottles), List.copyOf(potions), partial,
-                (int) Math.min(Integer.MAX_VALUE, candidateCount));
+                (int) Math.min(Integer.MAX_VALUE, (long) customCount
+                        + (long) containerMixCount * Math.max(1, potions.size())
+                        + (long) potionMixCount * bottles.size()));
     }
 
     private static Projection projectCustom(Object recipe, int ruleIndex, RegistryAccess registries,
@@ -385,16 +382,18 @@ final class NativeBrewingReader {
         var source = new Evidence.Source(scope, "native", "1.21.1", identity, scope.requestGeneration(), Instant.now(),
                 Evidence.Activity.ACTIVE, opaque ? Evidence.Coverage.OPAQUE : Evidence.Coverage.PARTIAL,
                 Evidence.Authority.LOADED, List.of("client-potion-brewing", kind + "-brewing-rule"));
-        String title = outputKnown ? outputItem + " brewing transformation" : "Opaque brewing transformation";
-        var record = new Evidence.Record(source, Evidence.RecordKind.RECIPE, title, payload, List.of(), typed);
-        return new Projection(identity, record, outputKnown, outputItem, outputComponents.bounded() || opaque);
+        return new Projection(identity,
+                new Evidence.Record(source, Evidence.RecordKind.RECIPE,
+                        outputKnown ? outputItem + " brewing transformation" : "Opaque brewing transformation",
+                        payload, List.of(), typed),
+                outputKnown, outputItem, outputComponents.bounded() || opaque);
     }
 
     private static Projection opaqueProjection(String kind, int ruleIndex, int variantIndex, Object rule,
                                                Evidence.Scope scope) {
-        String type = rule == null ? "null" : rule.getClass().getName();
         var identity = "brewing:" + kind + ":" + ruleIndex + ":" + variantIndex + ":"
-                + digest("opaque|" + type + "|" + System.identityHashCode(rule));
+                + digest("opaque|" + (rule == null ? "null" : rule.getClass().getName()) + "|"
+                + System.identityHashCode(rule));
         var output = new Evidence.RecipeOutput("unknown", "unknown:brewing-output",
                 new Evidence.JsonObject(Map.of()), null);
         var constraints = List.of("brewing-batch=up-to-3-bottles; reagent=one-per-operation; fuel=unknown-per-operation; remainders=unknown",
@@ -528,8 +527,8 @@ final class NativeBrewingReader {
             throw new ReflectiveOperationException("unexpected brewing mix");
         }
         Field field = mix.getClass().getDeclaredField(name);
-        Class<?> expected = name.equals("ingredient") ? Ingredient.class : Holder.class;
-        if (field.getType() != expected || !field.trySetAccessible()) throw new ReflectiveOperationException(name);
+        if (field.getType() != (name.equals("ingredient") ? Ingredient.class : Holder.class)
+                || !field.trySetAccessible()) throw new ReflectiveOperationException(name);
         return field.get(mix);
     }
 

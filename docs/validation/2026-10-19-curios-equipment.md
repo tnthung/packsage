@@ -22,4 +22,10 @@ The built artifact is `build/libs/packsage-0.1.0.jar`, SHA-256 `47EDA8CF4E70E9DD
 
 ## Installed acceptance
 
-Installed Minecraft acceptance is pending. Follow the [player checks](../testing/2026-10-19-curios-equipment.md) after manually copying the built JAR. No game settings, inventory, installed JAR or saved conversation has been modified by this task. API inspection and automated fixtures are not live-world synchronization proof.
+The automated acceptance checkpoint left installed Minecraft acceptance pending and did not modify the installed JAR, game settings, inventory or saved conversations. The requested live checks follow the [player checks](../testing/2026-10-19-curios-equipment.md) and are recorded below. API inspection and automated fixtures are not live-world synchronization proof.
+
+### Distribution correction before live testing
+
+The requested minimal-instance test initially found installed SHA-256 `3CFFEAFDFF9C803D8DD4F2575658DA8CA364FEB45811374E446C9E82FB8803BD`, matching the stale distribution rather than the verified build. Both old JARs lacked `CuriosInventoryAdapter.class`; their native inventory and citation parser classes also differed from the new build. No acceptance test of the new capability was claimed from that process.
+
+The distribution now matches verified SHA-256 `47EDA8CF4E70E9DDBEAC47528048C2BCCEBB0644C8660AF6CC9178DF23B3F92E`; only the checksum field changed in its ignored build metadata. After the player exited Minecraft, minimal-process absence was verified, the corrected JAR was copied into the minimal instance, and its installed hash was verified equal. The minimal profile was then relaunched for the requested live checks. Settings remain unchanged; their baseline SHA-256 is `50EFFFD1284FBD4C99B0606F8120880542E3EE9EA6CBA3BCD80D0B47DF411D0B`.

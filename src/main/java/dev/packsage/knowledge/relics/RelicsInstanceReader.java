@@ -71,16 +71,14 @@ public final class RelicsInstanceReader {
             }
             var abilities = new LinkedHashMap<String, Evidence.JsonValue>();
             Object abilitiesData = relicData.getClass().getMethod("getAbilitiesData").invoke(relicData);
+            boolean abilitiesAvailable = false;
             if (!(abilitiesData.getClass().getMethod("getAbilityIDs").invoke(abilitiesData) instanceof Set<?> ids)) partial = true;
             else {
+                abilitiesAvailable = true;
                 if (ids.size() > MAX_ABILITIES) partial = true;
                 int abilityCount = 0;
                 int totalStats = 0;
                 for (Object rawId : ids) {
-                    if (totalStats == MAX_STATS) {
-                        partial = true;
-                        break;
-                    }
                     if (abilityCount == MAX_ABILITIES) break;
                     abilityCount++;
                     if (!(rawId instanceof String abilityId) || abilityId.isBlank()) {
@@ -109,6 +107,7 @@ public final class RelicsInstanceReader {
                         Object template = abilityData.getClass().getMethod("getTemplate").invoke(abilityData);
                         if (!(template.getClass().getMethod("getStats").invoke(template) instanceof Map<?, ?> statTemplates)) partial = true;
                         else {
+                            boolean statsAvailable = statTemplates.isEmpty();
                             if (statTemplates.size() > MAX_STATS_PER_ABILITY) partial = true;
                             int abilityStats = 0;
                             for (Object rawStatId : statTemplates.keySet()) {
@@ -148,16 +147,17 @@ public final class RelicsInstanceReader {
                                     partial = true;
                                 }
                                 if (!stat.isEmpty()) stats.put(statId, new Evidence.JsonObject(stat));
+                                if (!stat.isEmpty()) statsAvailable = true;
                             }
+                            if (statsAvailable) ability.put("stats", new Evidence.JsonObject(stats));
                         }
                     } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
                         partial = true;
                     }
-                    if (!stats.isEmpty()) ability.put("stats", new Evidence.JsonObject(stats));
                     abilities.put(abilityId, new Evidence.JsonObject(ability));
                 }
             }
-            if (!abilities.isEmpty()) result.put("abilities", new Evidence.JsonObject(abilities));
+            if (abilitiesAvailable) result.put("abilities", new Evidence.JsonObject(abilities));
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
             partial = true;
         }

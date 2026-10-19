@@ -29,7 +29,7 @@ Use fresh conversations between independent goals and preserve context for follo
 
 ## Results
 
-Live trials are in progress. Keep passing checks and failures separate; do not modify the system under test during this baseline pass. Timing below uses each request's `phase=model_terminal` log entry, rather than UI polling intervals.
+Completed eighteen submitted questions across eleven independent conversation goals. Sixteen turns completed and two were stopped at the declared bound. These are execution outcomes, not sixteen clean passes. The installed system was not modified during this baseline. Timing below uses each completed request's `phase=model_terminal` log entry, rather than UI polling intervals; cancelled durations are approximate submit-to-stop observations.
 
 ### 1. Cave lighting and a recipe challenge
 
@@ -170,3 +170,39 @@ Conversation: `9d0bc371-f199-43e1-9ecb-897be7a52ce4-7eef5973f12d25c0.jsonl`.
 | 16 | Find our earlier cave-lighting conversation and remind me what limited the number of torches. Is that still true of what I'm carrying now? | `2beb14ba-1c12-449e-a7ea-03838cd8c277` | 10 | 82.417 s | Correct recall, separate fresh evidence and clean final references. |
 
 The initial literal phrase search exhausted its continuation without a match. Narrower `torch` and `cave` queries found the original turn `64107877-3537-491a-a301-16fe30d521a9`, and `read_history` retrieved that exact saved exchange. Separate complete player/Shulker reads and current native torch, stick and plank searches support the present conclusion. The final answer labels the earlier coal bottleneck as historical, then supports the current 64-torch ordinary route with new inventory/recipe citations. It does not copy the original visible drafting text or malformed citation marker. This is a clean later reply, not a repair or erasure of the two earlier failed outputs. History navigation was not clicked in this arc.
+
+### 11. Effective Create config and an edit request
+
+Conversation: `b5fea44e-f969-4779-98c3-b767dca8733b-852232cf08cc0f6b.jsonl`.
+
+| Turn | Submitted question | Request | Calls | Time | Assessment |
+|---|---|---|---|---|---|
+| 17 | What's Create's maximum rotation speed in this world? Read the currently effective setting rather than just quoting a default, and tell me which scope it applies to. | `64002e8c-84ec-4d3d-9a4f-4c105580ae95` | 5 | 31.072 s | Correct loaded value, scope and authority. |
+| 18 | Set it to twice that for me. | `4516bd28-a8b8-4d2a-8fbd-fb9e7fbde81d` | 0 | 11.195 s | Correct read-only boundary; no claimed or attempted edit. |
+
+Despite broad config catalog coverage being partial, the exact `read_config` result for `create:SERVER:create-server.toml#kinetics.maxRotationSpeed` reports saved and loaded values of 256, loaded state observed, SERVER scope and `synchronizedServer=true`. Its comment describes the maximum RPM for any Kinetic Block. The concise answer accurately states those facts. This differs from the earlier Artifacts file-only records; it does not infer effective authority from the filename.
+
+The follow-up immediately says it cannot change settings, computes twice the reported value as 512 RPM and offers guidance. It makes no tool calls and does not claim an edit occurred. The test leaves Create settings unchanged.
+
+## Overall assessment and follow-up priorities
+
+The baseline exercised Minecraft materials and nested storage; Create/Ponder; Nature's Aura/Patchouli; Powah/GuideME; Immersive Engineering; Actually Additions; NeoVitae/Modonomicon; Artifacts; Relics/Curios; FTB Quests; chat history; and saved/effective config. Intentions included arithmetic, a recipe challenge, process setup, a visual demonstration, environmental uncertainty, fuel avoidance, material feasibility, beginner guidance, attribution correction, item comparison, actual rolled stats, progression choice, item substitution, recall and action requests. This is broad sampling, not exhaustive mod or reader acceptance.
+
+The eighteen turns made 210 local tool calls, excluding built-in web-search activities. Completed response times range from 6.253 to 219.197 seconds, with median 84.529 seconds; eleven of sixteen exceed one minute and three exceed three minutes. The two approximately four-minute cancellations are excluded from those completed-response statistics. Successful terminal status alone therefore overstates practical reliability.
+
+| Dimension | Observed outcome |
+|---|---|
+| Grounded facts and uncertainty | Useful answers in Create, Aura, Powah, accessories, quests, history and config; supported arithmetic retained against challenges. Some answers remain partial, and NeoVitae external-source version alignment is unresolved. |
+| Real navigation | Exact Create Ponder scene, Nature's Aura Patchouli entry and FTB quest opened correctly. Powah source details bound to the right record but showed metadata without passage text. No IE/AA/Modonomicon viewer acceptance. |
+| Current state | Functional Curios equipment and rolled Relics values, carried Shulker contents, quest progress, history/current separation and effective server config were read successfully within their stated scopes. |
+| Presentation | Two torch replies failed clean final/citation presentation; the later history reply rendered correctly. Storage citations can still expose opaque UUID labels. |
+| Completion and efficiency | Two unanswered cancellations; repeated broad/wrong-provider probes, literal-query mismatch and unfinished JEI pages drove long searches. Useful partial evidence did not always produce a timely answer. |
+
+Prioritize the following work without treating this test as authorization to implement it:
+
+1. Investigate the public final-output/citation failure using turns 1 and 2. Distinguish generated output, reference translation and rendering before assigning a model/prompt or code cause. Preserve the actual failed replies as regressions.
+2. Address response completion and deliberate source routing across the IE/AA/Powah cases. Respect a known initialization prerequisite; use relevant providers and valid query-bound cursors; answer supported parts when further reads cannot resolve the remaining gap. Review the whole policy rather than adding fixture-specific exceptions.
+3. Investigate reader and evidence-surface limits separately: Modonomicon title-only/budget failures, Artifacts empty partial tooltip results without a continuation, AA laser recipes with missing inputs, Powah empty partial plans, and GuideME source details without passage text. Some are existing coverage limits; the traces do not establish their root causes.
+4. Extend readable recorded-source presentation beyond brewing to storage, and qualify externally sourced setup advice when its version differs from the installation.
+
+No prompt candidate, code fix, JAR installation, inventory grant, quest completion or config change was made. No fresh unit-test/build result is claimed. Physical machine operation, actual brewing, movement mechanics, large quest packs, runtime reloads, team synchronization and every available adapter remain outside this pass. The installed JAR/default-prompt baseline stays available for reproducible follow-up.

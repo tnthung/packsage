@@ -23,16 +23,35 @@ class AssistantScreenStateTest {
     @Test
     void adapterRowsFilterUnavailableEntriesAndTooltipWindowIsCappedAndClamped() {
         var availability = java.util.Map.of("native", true, "jei", false);
-        var first = AssistantScreen.adapterTooltipRows(availability, true, 0, 480);
+        var first = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, true, 0, 640, 480);
         assertEquals(List.of("native"), first.rows().stream().map(java.util.Map.Entry::getKey).toList());
-        var firstAll = AssistantScreen.adapterTooltipRows(availability, false, 0, 480);
+        var firstAll = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 0, 640, 480);
         assertEquals(8, firstAll.rows().size());
         assertEquals(0, firstAll.offset());
         assertEquals(148, firstAll.height());
-        var last = AssistantScreen.adapterTooltipRows(availability, false, 100, 480);
+        var last = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 100, 640, 480);
         assertEquals(6, last.offset());
         assertEquals(List.of("ponder", "history"), last.rows().stream().map(java.util.Map.Entry::getKey).skip(6).toList());
-        assertEquals(5, AssistantScreen.adapterTooltipRows(availability, false, 0, 160).visibleRows());
+        assertEquals(5, AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 0, 640, 160).visibleRows());
+    }
+
+    @Test
+    void adapterTooltipWidthUsesLongestFilteredEntryAndScrollbarTracksScrollPosition() {
+        var availability = java.util.Map.<String, Boolean>of();
+        var first = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 0, 640, 480);
+        var middle = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 3, 640, 480);
+        var last = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 100, 640, 480);
+
+        assertEquals(first.tooltipWidth(), middle.tooltipWidth());
+        assertEquals(middle.tooltipWidth(), last.tooltipWidth());
+        assertTrue(first.tooltipWidth() >= 20 + 10 + 5 * "Immersive Engineering".length() + 8);
+        assertEquals(112, first.scrollTrackHeight());
+        assertEquals(64, first.scrollThumbHeight());
+        assertEquals(0, first.scrollThumbOffset());
+        assertEquals(24, middle.scrollThumbOffset());
+        assertEquals(48, last.scrollThumbOffset());
+        assertEquals(0, AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(),
+                java.util.Map.of("native", true), true, 0, 640, 480).scrollTrackHeight());
     }
 
     @Test
@@ -43,6 +62,7 @@ class AssistantScreenStateTest {
         AssistantScreen screen = new AssistantScreen(actions);
         screen.width = 640;
         screen.height = 480;
+        ScreenTestHost.initialize(screen);
         var visibleField = AssistantScreen.class.getDeclaredField("adapterPopupVisible");
         visibleField.setAccessible(true);
         visibleField.setBoolean(screen, true);

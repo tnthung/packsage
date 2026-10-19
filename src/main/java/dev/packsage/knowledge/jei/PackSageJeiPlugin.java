@@ -233,6 +233,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 }
                 outputItem = retained.outputItem();
             }
+            var matchingOutputItem = outputItem;
             List<IFocus<?>> focuses = List.of();
             if (outputItem != null) {
                 var itemId = ResourceLocation.tryParse(outputItem);
@@ -302,7 +303,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             .flatMap(slot -> slot.alternatives().stream())
                             .anyMatch(ingredient -> ingredient.type().equals("item")
                                     && ingredient.comparisonIdentity().split("\\|componentsHash=", 2)[0]
-                                    .equals(outputItem))) {
+                                    .equals(matchingOutputItem))) {
                         var coverage = projection.coverage() == Evidence.Coverage.COMPLETE
                                 ? Evidence.Coverage.UNAVAILABLE : projection.coverage();
                         return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
@@ -530,7 +531,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                     .flatMap(slot -> slot.alternatives().stream())
                                     .anyMatch(ingredient -> ingredient.type().equals("item")
                                             && ingredient.comparisonIdentity().split("\\|componentsHash=", 2)[0]
-                                            .equals(outputItem))) continue;
+                                            .equals(matchingOutputItem))) continue;
                             if (!JeiProvider.matches(projection, text)) continue;
                             projections.add(projection);
                             if (projection.coverage() != Evidence.Coverage.ERROR) {

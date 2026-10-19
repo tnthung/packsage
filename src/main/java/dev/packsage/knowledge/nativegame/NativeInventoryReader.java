@@ -96,7 +96,7 @@ public final class NativeInventoryReader implements InventoryReader {
                         "inventory request scope is no longer current"));
         var unsupportedSections = request.filter().sections().stream().filter(section -> !SUPPORTED_SECTIONS.contains(section)
                 && !(section.equals("curios") || section.startsWith("curios:") && section.length() > "curios:".length())).toList();
-        if (!unsupportedSections.isEmpty() && request.filter().sections().stream().noneMatch(SUPPORTED_SECTIONS::contains)) {
+        if (!unsupportedSections.isEmpty() && unsupportedSections.size() == request.filter().sections().size()) {
             return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                     Evidence.Outcome.UNKNOWN, null, "unsupported native inventory sections were not inspected: "
                     + String.join(", ", unsupportedSections) + "; native sections covered: " + String.join(", ", SUPPORTED_SECTIONS)));
@@ -127,11 +127,13 @@ public final class NativeInventoryReader implements InventoryReader {
                 if (result.capture().coverage() == Evidence.Coverage.UNAVAILABLE) return new Evidence.Result(
                         List.of(result.capture().summary()), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
                         "vanilla player inventory is unavailable");
-                if (curiosOnly && !curios.available() && result.capture().slots().stream()
+                boolean curiosComplete = result.capture().summary().payload().values().get("curiosCoverage")
+                        instanceof Evidence.JsonString value && value.value().equals("COMPLETE");
+                if (curiosOnly && !curiosComplete && result.capture().slots().stream()
                         .noneMatch(slot -> slot.section().startsWith("curios:") && slot.record() != null)) return new Evidence.Result(
                         List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
                         "Curios functional equipment is unavailable or could not be read");
-                if (curiosRequested && (curios == null || !curios.available())) {
+                if (curiosRequested && !curiosComplete) {
                     return page(request, new Capture(result.capture().slots(), result.capture().summary(),
                             Evidence.Coverage.PARTIAL, result.capture().capturedAt(), result.capture().capturedAtMillis()), 0);
                 }
@@ -246,11 +248,13 @@ public final class NativeInventoryReader implements InventoryReader {
                     && request.filter().sections().stream().allMatch(section -> section.equals("curios")
                     || section.startsWith("curios:") && section.length() > "curios:".length());
             synchronized (this) {
-                if (curiosOnly && (curios == null || !curios.available()) && result.capture().slots().stream()
+                boolean curiosComplete = result.capture().summary().payload().values().get("curiosCoverage")
+                        instanceof Evidence.JsonString value && value.value().equals("COMPLETE");
+                if (curiosOnly && !curiosComplete && result.capture().slots().stream()
                         .noneMatch(slot -> slot.section().startsWith("curios:") && slot.record() != null)) return new Evidence.Result(
                         List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
                         "Curios functional equipment is unavailable or could not be read");
-                if (curiosRequested && (curios == null || !curios.available())) return page(request,
+                if (curiosRequested && !curiosComplete) return page(request,
                         new Capture(result.capture().slots(), result.capture().summary(), Evidence.Coverage.PARTIAL,
                                 result.capture().capturedAt(), result.capture().capturedAtMillis()), state.offset());
                 return page(request, result.capture(), state.offset());

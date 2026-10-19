@@ -43,12 +43,20 @@ Canonical conversations are local JSONL files under the instance's `packsage/New
 
 ## Source and automated acceptance
 
-Commit `8326961` promotes the entire candidate 4 to `GroundingInstructions.INSTRUCTIONS` and aligns the recipe/document tool descriptions. It removes the obsolete assertion requiring automatic JEI fallback on partial native lookup, retaining existing request composition, override persistence/snapshot and schema/continuation tests. No reader, schema, cursor, transport, model-default or gameplay implementation changed in this step.
+Commit `8326961` promotes the entire candidate 4 to `GroundingInstructions.INSTRUCTIONS` and aligns the recipe/document tool descriptions. It removes the obsolete assertion requiring automatic JEI fallback on partial native lookup, retaining existing request composition, override persistence/snapshot and schema/continuation tests. No reader, schema, cursor, transport, model selection or gameplay implementation changed in this step.
 
 Java 21 `gradlew.bat test build` passed in 35 seconds: 641 tests across 54 suites, zero failures/errors and four existing skips. A direct compiled `defaultInstructions()` comparison exactly matched the 11,368-character saved candidate. Manual style review and `git diff --check` passed; no formatting tools ran.
 
 Minecraft saved and quit normally before `scripts/build.ps1` installed the final artifact. Its build reused the passing tasks. Built, dist and installed minimal-profile JARs matched SHA-256 `A3F593257640FF7A50CC1064295C2B9150179DDF56B3606C372516269FFAFB1B`.
 
-## Installed-default acceptance still to finish
+## Installed-default acceptance
 
-The final brewing trial with the developer override cleared remains pending. The current records demonstrate successful discovery on the earlier complete-policy candidates and expose remaining compliance problems; they do not establish universal reliability or an improvement in response time. The action retest passed after the final scope revision, but explicit-layout compliance remains unproven.
+Relaunched the same profile and original world. Middle-click opened the developer editor; Restore default followed by Save cleared the override. Java Properties confirmed `developerPrompt` was absent, with `modelId=gpt-6-luna` and `reasoningEffort=xhigh` unchanged. Screenshot and automatic-search settings remained enabled.
+
+Started a fresh conversation and submitted the unchanged original question: "How do I brew a Potion of Strength in this pack? Include the ordinary, longer and stronger versions. Please use the loaded pack brewing evidence."
+
+Request `659566d9-623a-48fd-9a1d-7489f94f7d57`, conversation file `14bf6e68-5079-47dd-9874-ef9b8a9167b9-8667a1005901d43f.jsonl`, completed with 17 local calls: one potion registry search, eleven native recipe searches and five evidence reads. There were zero tool errors and no public search or JEI calls. Discovery continued through empty pages, changed to the base potion output and component filters, then read the exact returned transformations and potion records.
+
+The installed answer correctly gave water bottles plus nether wart to awkward potions, awkward plus blaze powder to ordinary Strength, Strength plus redstone to longer Strength, and Strength plus glowstone dust to stronger Strength. Its 3,600/9,600/1,800-tick durations and ordinary/strong amplifiers 0/1 matched fresh potion registry records. All four native transformation references and the three registry references in the answer were returned during this request. The stated up-to-three-bottle batch and one reagent per operation matched native constraints, with unknown input quantities/consumption qualified. This checks the retrieved rule sequence, not physical brewing or effective server behavior.
+
+The shipped-default brewing question and final candidate's action-only regression pass. Earlier candidates also passed the related variant and carried-container feasibility checks recorded above; those were not all repeated on the final build. This small manual sample does not establish universal reliability or lower latency. Query selection still took extra searches, source labels remain technical, and candidates 2 and 3 added layout claims despite explicit policy. Candidate 3 also misread an item in the screenshot; candidate 4 avoids that unrequested assessment in the tested action case, not every possible visual question. Keep those compliance and reader/presentation limits open rather than treating a prompt revision as a reader fix.

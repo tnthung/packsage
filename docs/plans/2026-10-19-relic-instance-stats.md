@@ -1,0 +1,10 @@
+# Current relic stats implementation plan
+
+Implement the approved [instance contract](../specs/2026-10-19-relic-instance-stats.md) in the existing player inventory/evidence flow. One worker owns production and regression files; the parent owns documentation, Git, Gradle and live UI. Follow [repository working rules](../../AGENTS.md#working-rules), including immediate per-step commits and no formatting tools.
+
+1. Verify the installed Relics 0.12.8 public instance API, getter side effects, compatible version family and commands for a controlled nonzero fixture. Record API evidence under `docs/research/`.
+2. Add focused failing tests for real instance values, copied-stack safety, explicit zero, fresh changed values and failures. Use existing Minecraft bootstrap/test conventions and optional API fakes where required. Commit the test step and observe RED before implementation.
+3. Add `knowledge/relics/RelicsInstanceReader.java`, isolating optional reflected public APIs. Produce bounded typed `relicInstance` evidence from the copied current stack and successful getters; preserve partial data without fabricated zeros.
+4. Integrate at the current-record assembly paths in `knowledge/nativegame/NativeInventoryReader.java` for search/continuation and `readEvidence`. Keep `NativeSnapshot` generic, retain exact native source identities and avoid a callback/plugin framework. Add a small tool-description clarification if required for discoverability.
+5. Run focused tests, review the changed files and run Java 21 `gradlew test build`. Refresh ignored distribution JAR/metadata from the verified artifact. Save/quit the minimal instance normally, verify process absence, copy the JAR, verify matching hashes, restart New World and perform the approved nonzero/freshness checks. Retest the live spaced-citation correction in the same build.
+6. Record installed checks and remaining limits under `docs/validation/`, update the roadmap/changelog and finish with `git diff --check`. Keep failed stats reads distinct from complete equipment coverage. Preserve settings and the original fixture items.

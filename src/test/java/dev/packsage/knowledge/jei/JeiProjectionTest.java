@@ -841,17 +841,21 @@ class JeiProjectionTest {
                                     : (Class<?>) ((ParameterizedType) slotViewArgument).getRawType();
                             var slotViews = ingredientBudgetScenario.get() || oversizedIngredientScenario.get()
                                     || oversizedSlotNameScenario.get()
-                                    ? java.util.stream.IntStream.range(0, oversizedSlotNameScenario.get() ? 2 : 8)
+                                    ? java.util.stream.IntStream.range(0, oversizedSlotNameScenario.get() ? 2
+                                            : ingredientBudgetScenario.get() ? 9 : 8)
                                     .mapToObj(index -> Proxy.newProxyInstance(
                                             slotViewType.getClassLoader(), new Class<?>[] { slotViewType },
                                             (slotProxy, slotMethod, slotArgs) -> switch (slotMethod.getName()) {
-                                                case "getRole" -> RecipeIngredientRole.INPUT;
+                                                case "getRole" -> ingredientBudgetScenario.get() && index == 8
+                                                        ? RecipeIngredientRole.OUTPUT : RecipeIngredientRole.INPUT;
                                                 case "getAllIngredientsList" -> oversizedSlotNameScenario.get()
+                                                        || ingredientBudgetScenario.get() && index == 8
                                                         ? List.of(typedIngredient)
                                                         : java.util.Collections.nCopies(21, typedIngredient);
                                                 case "getSlotName" -> oversizedSlotNameScenario.get() && index == 1
                                                         ? java.util.Optional.of(oversizedSlotName)
-                                                        : java.util.Optional.of("input-" + index);
+                                                        : java.util.Optional.of(ingredientBudgetScenario.get() && index == 8
+                                                                ? "result" : "input-" + index);
                                                 default -> null;
                                             })).toList()
                                     : List.of(Proxy.newProxyInstance(slotViewType.getClassLoader(), new Class<?>[] { slotViewType },

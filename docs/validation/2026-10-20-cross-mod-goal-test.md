@@ -94,3 +94,15 @@ Before reaching GuideME, turn 7 tried broad Patchouli-dominated discovery, unrel
 Turn 8 refreshed complete carried inventory and Shulker contents. The observed recipes require three photoelectric panes, two tiny capacitors, one dielectric casing and three paste for one starter panel; a starter cable craft takes five horizontal rods, one tiny capacitor and two iron nuggets and yields twelve cables. Those required parts were absent. Its selective subrecipe discussion is accurate, but not a complete raw-material bill: for example, the rods also require iron bars and paste.
 
 Both depth-eight `plan_recipe` calls returned partial results with zero records despite independently found native recipes. Manual recipe searches recovered useful dependencies; the empty plans do not prove no crafting path exists. Extra unfinished JEI pages added no matching record. The final answer correctly limits its claim to not being craftable as-is, without inventing a recursively totaled bill.
+
+### 5. Immersive Engineering startup and manual access
+
+Conversation: `6b61501e-e240-4288-8e07-bc6deee79c7d-3c60679718b996c7.jsonl`.
+
+| Turn | Submitted question | Request | Calls | Time | Assessment |
+|---|---|---|---|---|---|
+| 9 | I want to get into Immersive Engineering. How do I make treated wood, and what should I build first to get the ingredients? Point me to the relevant manual page too. | `1c98f0dd-144b-4877-9937-95c7b5290f2a` | 30 local plus web searches | About 4 min 16 s before stop | CANCELLED at the declared bound; no final answer or viewer acceptance. |
+
+The actual IE reader repeatedly reported `Immersive Engineering manual entries have not been loaded`, partial coverage and no cursor. This is a live initialization prerequisite, not evidence that the manual contains no relevant page. This baseline does not initialize it by granting an item or changing player state.
+
+Exact native searches did return treated-wood and coke-brick recipes, while unrelated Patchouli/GuideME/Modonomicon queries added no requested manual page. One changed Patchouli query reused another query's cursor and received `INVALID_CURSOR`; one guessed coke-brick ID received `INVALID_ARGUMENTS` before the observed ID succeeded. Three JEI pages remained empty and unfinished. The UI stop action produced a saved `CANCELLED` turn with an empty answer and zero navigation targets. Useful partial evidence existed, but this run supplied no player guidance within the bound; it is not a completed functional pass.

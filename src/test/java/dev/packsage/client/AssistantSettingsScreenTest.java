@@ -58,7 +58,7 @@ class AssistantSettingsScreenTest {
             assertEquals(layout.left() + 16, layout.accountLeft());
             assertEquals(layout.width() - 32, layout.accountWidth());
             assertEquals(layout.width() >= 340 ? 40 : 68, layout.accountHeight());
-            assertEquals(26, layout.shortcutTop() - layout.behaviorTop() - 46);
+            assertEquals(26, layout.shortcutTop() - layout.behaviorTop() - 72);
             assertFalse(screen.mouseClicked(layout.left() + 20, layout.behaviorTop() + 22, 0));
             assertEquals(ModelBackend.ReasoningEffort.DEFAULT, settings.reasoningEffort());
         }

@@ -94,16 +94,21 @@ public final class NativeInventoryReader implements InventoryReader {
         if (!request.scope().equals(currentScope.get())) return CompletableFuture.completedFuture(
                 new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null,
                         "inventory request scope is no longer current"));
-        var unsupportedSections = request.filter().sections().stream().filter(section -> !supportedSection(section)).toList();
+        var unsupportedSections = request.filter().sections().stream().filter(section -> !SUPPORTED_SECTIONS.contains(section)
+                && !(section.equals("curios") || section.startsWith("curios:") && section.length() > "curios:".length())).toList();
         if (!unsupportedSections.isEmpty() && request.filter().sections().stream().noneMatch(SUPPORTED_SECTIONS::contains)) {
             return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                     Evidence.Outcome.UNKNOWN, null, "unsupported native inventory sections were not inspected: "
                     + String.join(", ", unsupportedSections) + "; native sections covered: " + String.join(", ", SUPPORTED_SECTIONS)));
         }
-        boolean curiosRequested = request.filter().sections().stream().anyMatch(NativeInventoryReader::curiosSection);
+        boolean curiosRequested = request.filter().sections().stream().anyMatch(section -> section.equals("curios")
+                || section.startsWith("curios:") && section.length() > "curios:".length());
         boolean curiosOnly = !request.filter().sections().isEmpty()
-                && request.filter().sections().stream().allMatch(NativeInventoryReader::curiosSection);
-        if (curiosOnly && (curios == null || !curios.canAttempt())) return unavailableCurios();
+                && request.filter().sections().stream().allMatch(section -> section.equals("curios")
+                || section.startsWith("curios:") && section.length() > "curios:".length());
+        if (curiosOnly && (curios == null || !curios.canAttempt())) return CompletableFuture.completedFuture(
+                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
+                        "Curios functional equipment is unavailable or could not be read"));
         if (request.cursor() != null) return continueRead(request);
         CompletionStage<Capture> captured;
         try {
@@ -123,7 +128,9 @@ public final class NativeInventoryReader implements InventoryReader {
                         List.of(result.capture().summary()), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
                         "vanilla player inventory is unavailable");
                 if (curiosOnly && !curios.available() && result.capture().slots().stream()
-                        .noneMatch(slot -> slot.section().startsWith("curios:") && slot.record() != null)) return unavailableCurios();
+                        .noneMatch(slot -> slot.section().startsWith("curios:") && slot.record() != null)) return new Evidence.Result(
+                        List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
+                        "Curios functional equipment is unavailable or could not be read");
                 if (curiosRequested && (curios == null || !curios.available())) {
                     return page(request, new Capture(result.capture().slots(), result.capture().summary(),
                             Evidence.Coverage.PARTIAL, result.capture().capturedAt(), result.capture().capturedAtMillis()), 0);
@@ -131,11 +138,6 @@ public final class NativeInventoryReader implements InventoryReader {
                 return page(request, result.capture(), 0);
             }
         }, executor);
-    }
-
-    private static Evidence.Result unavailableCurios() {
-        return new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
-                "Curios functional equipment is unavailable or could not be read");
     }
 
     public void clear() {
@@ -238,12 +240,16 @@ public final class NativeInventoryReader implements InventoryReader {
                     Evidence.Outcome.ERROR, null, "inventory continuation capture failed");
             if (!request.scope().equals(currentScope.get())) return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL,
                     Evidence.Outcome.UNKNOWN, null, "inventory scope changed during continuation");
-            boolean curiosRequested = request.filter().sections().stream().anyMatch(NativeInventoryReader::curiosSection);
+            boolean curiosRequested = request.filter().sections().stream().anyMatch(section -> section.equals("curios")
+                    || section.startsWith("curios:") && section.length() > "curios:".length());
             boolean curiosOnly = !request.filter().sections().isEmpty()
-                    && request.filter().sections().stream().allMatch(NativeInventoryReader::curiosSection);
+                    && request.filter().sections().stream().allMatch(section -> section.equals("curios")
+                    || section.startsWith("curios:") && section.length() > "curios:".length());
             synchronized (this) {
                 if (curiosOnly && (curios == null || !curios.available()) && result.capture().slots().stream()
-                        .noneMatch(slot -> slot.section().startsWith("curios:") && slot.record() != null)) return unavailableCurios();
+                        .noneMatch(slot -> slot.section().startsWith("curios:") && slot.record() != null)) return new Evidence.Result(
+                        List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
+                        "Curios functional equipment is unavailable or could not be read");
                 if (curiosRequested && (curios == null || !curios.available())) return page(request,
                         new Capture(result.capture().slots(), result.capture().summary(), Evidence.Coverage.PARTIAL,
                                 result.capture().capturedAt(), result.capture().capturedAtMillis()), state.offset());
@@ -293,7 +299,8 @@ public final class NativeInventoryReader implements InventoryReader {
                     capture.capturedAtMillis()));
             while (cursors.size() > MAX_CURSORS) cursors.remove(cursors.keySet().iterator().next());
         }
-        var unsupportedSections = request.filter().sections().stream().filter(section -> !supportedSection(section)).toList();
+        var unsupportedSections = request.filter().sections().stream().filter(section -> !SUPPORTED_SECTIONS.contains(section)
+                && !(section.equals("curios") || section.startsWith("curios:") && section.length() > "curios:".length())).toList();
         var coverage = capture.coverage();
         if (!unsupportedSections.isEmpty() && coverage == Evidence.Coverage.COMPLETE) coverage = Evidence.Coverage.PARTIAL;
         var outcome = coverage == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL;
@@ -321,14 +328,6 @@ public final class NativeInventoryReader implements InventoryReader {
                 && matchesText(filter.names(), List.of(slot.name()))
                 && (filter.tags().isEmpty() || filter.tags().stream().anyMatch(slot.tags()::contains))
                 && matchesText(filter.tooltip(), slot.tooltip());
-    }
-
-    private static boolean supportedSection(String section) {
-        return SUPPORTED_SECTIONS.contains(section) || curiosSection(section);
-    }
-
-    private static boolean curiosSection(String section) {
-        return section.equals("curios") || section.startsWith("curios:") && section.length() > "curios:".length();
     }
 
     private static boolean matchesText(List<String> requested, List<String> values) {
@@ -370,7 +369,8 @@ public final class NativeInventoryReader implements InventoryReader {
             allSlots.add(new SlotInput("offhand", index, "offhand", false, inventory.offhand.get(index)));
         }
         boolean curiosRequested = request.filter().sections().isEmpty()
-                || request.filter().sections().stream().anyMatch(NativeInventoryReader::curiosSection);
+                || request.filter().sections().stream().anyMatch(section -> section.equals("curios")
+                || section.startsWith("curios:") && section.length() > "curios:".length());
         CuriosInventoryAdapter.Capture equipment = null;
         if (curios != null && curiosRequested) {
             equipment = curios.capture(client.player);

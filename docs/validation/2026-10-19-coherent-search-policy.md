@@ -39,7 +39,16 @@ Canonical conversations are local JSONL files under the instance's `packsage/New
 | 3 / `820eb2b8-97c9-4ded-ad3a-406644374671` | Fresh count question failed with provider overload after registry and recipe reads. No final answer. |
 | 3 / `b6468414-1910-49ed-8288-0030ab43c1f6` | Fresh unchanged retry completed with three reads and corrected eight versus seven, but still described outer slots and an empty center. Returned group labels/counts do not independently meet the prompt's explicit-layout requirement. |
 | 3 / `e593e09b-9566-4982-b5ff-5bf4b1ce8429` | Same-conversation action request completed with zero tool calls and the read-only limit first. It then guessed 64 cobblestone from the screenshot, contrary to the earlier structured inventory, and repeated layout advice. Candidate 4 narrows action-only replies to the limit and an offer to help, excluding unrequested scene/material/execution assessment. |
+| 4 / `e60705c6-b2a6-4966-b651-d0ce2cb89a32` | Repeated the unchanged action request in that conversation, retaining its earlier misleading reply. Passed: brief read-only limit and an offer to explain crafting, zero tool calls, no scene/material/layout claims. |
 
-## Acceptance still to finish
+## Source and automated acceptance
 
-Candidate 4's focused action retest is in progress. Source promotion, automated checks and an installed-default brewing trial with the override cleared remain pending. The current records demonstrate successful discovery on the earlier complete-policy candidates and expose remaining compliance problems; they do not establish universal reliability or an improvement in response time.
+Commit `8326961` promotes the entire candidate 4 to `GroundingInstructions.INSTRUCTIONS` and aligns the recipe/document tool descriptions. It removes the obsolete assertion requiring automatic JEI fallback on partial native lookup, retaining existing request composition, override persistence/snapshot and schema/continuation tests. No reader, schema, cursor, transport, model-default or gameplay implementation changed in this step.
+
+Java 21 `gradlew.bat test build` passed in 35 seconds: 641 tests across 54 suites, zero failures/errors and four existing skips. A direct compiled `defaultInstructions()` comparison exactly matched the 11,368-character saved candidate. Manual style review and `git diff --check` passed; no formatting tools ran.
+
+Minecraft saved and quit normally before `scripts/build.ps1` installed the final artifact. Its build reused the passing tasks. Built, dist and installed minimal-profile JARs matched SHA-256 `A3F593257640FF7A50CC1064295C2B9150179DDF56B3606C372516269FFAFB1B`.
+
+## Installed-default acceptance still to finish
+
+The final brewing trial with the developer override cleared remains pending. The current records demonstrate successful discovery on the earlier complete-policy candidates and expose remaining compliance problems; they do not establish universal reliability or an improvement in response time. The action retest passed after the final scope revision, but explicit-layout compliance remains unproven.

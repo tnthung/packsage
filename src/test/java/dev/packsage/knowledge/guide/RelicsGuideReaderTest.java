@@ -10,11 +10,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RelicsGuideReaderTest {
     @Test
     void factoryReturnsTheLogicalProviderWithoutLoadingRelicsClasses() {
-        var provider = RelicsGuideReader.forMinecraft(() -> new Evidence.Scope("world", "en_us", "team", "guides", 1), Runnable::run);
+        var provider = RelicsGuideReader.forMinecraft(() -> new Evidence.Scope("world", "en_us", "team", "guides", 1), Runnable::run, "0.12.9");
 
         assertNotNull(provider);
         assertEquals("relics", provider.id());
-        assertEquals("0.12.8", provider.status().version());
+        assertEquals("0.12.9", provider.status().version());
     }
 
     @Test

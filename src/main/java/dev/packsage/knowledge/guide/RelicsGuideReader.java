@@ -26,7 +26,7 @@ public final class RelicsGuideReader implements GuideDocumentReader {
     private final String itemNamespace;
     private final TagKey<Item> discoveryTag;
 
-    private RelicsGuideReader() { this("relics", "0.12.8", null); }
+    private RelicsGuideReader() { this("relics", "unknown", null); }
 
     RelicsGuideReader(String providerId, String version, String itemNamespace) {
         this.readerProviderId = providerId;
@@ -35,8 +35,8 @@ public final class RelicsGuideReader implements GuideDocumentReader {
         this.discoveryTag = "artifacts".equals(itemNamespace) ? ARTIFACTS_TAG : RELIC_TAG;
     }
 
-    public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor) {
-        return new GuideDocumentProvider(new RelicsGuideReader(), currentScope, clientExecutor);
+    public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor, String actualVersion) {
+        return new GuideDocumentProvider(new RelicsGuideReader("relics", actualVersion, null), currentScope, clientExecutor);
     }
 
     @Override public String providerId() { return readerProviderId; }

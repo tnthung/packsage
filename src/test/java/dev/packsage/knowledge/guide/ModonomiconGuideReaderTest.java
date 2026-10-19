@@ -23,13 +23,13 @@ class ModonomiconGuideReaderTest {
 
     @Test
     void factoryExposesTheLogicalProviderAndVerifiedRuntimeVersion() {
-        KnowledgeProvider provider = ModonomiconGuideReader.forMinecraft(() -> SCOPE, Runnable::run);
+        KnowledgeProvider provider = ModonomiconGuideReader.forMinecraft(() -> SCOPE, Runnable::run, "1.120.7");
 
         assertEquals("modonomicon", provider.id());
         assertEquals("modonomicon", provider.metadata().id());
         assertEquals(java.util.List.of("guide"), provider.metadata().documentTypes());
         assertEquals(KnowledgeProvider.Availability.AVAILABLE, provider.status().availability());
-        assertTrue(provider.status().version().contains("1.120.4"));
+        assertEquals("1.120.7", provider.status().version());
     }
 
     @Test

@@ -10,6 +10,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.ModList;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -23,27 +24,37 @@ import java.util.function.Supplier;
 public final class ArtifactsGuideReader implements GuideDocumentReader {
     private static final String COMPONENTS = "artifacts.registry.ModDataComponents";
     private static final String ABILITY = "artifacts.component.ability.EquipmentAbility";
+    private final String readerVersion;
 
-    ArtifactsGuideReader() { }
+    ArtifactsGuideReader() { this("unknown"); }
 
-    public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor) {
+    ArtifactsGuideReader(String version) { this.readerVersion = version; }
+
+    public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor, String actualVersion) {
         var modList = ModList.get();
         if (modList.isLoaded("reliquified_artifacts")) {
             String addonVersion = modList.getModContainerById("reliquified_artifacts")
                     .map(container -> container.getModInfo().getVersion().toString()).orElse("unknown");
             String relicsVersion = modList.getModContainerById("relics")
                     .map(container -> container.getModInfo().getVersion().toString()).orElse("unknown");
-            if (!addonVersion.equals("1.0.8") || !relicsVersion.equals("0.12.8"))
+            if (addonVersion.endsWith("+mc1.21.1")) addonVersion = addonVersion.substring(0, addonVersion.length() - "+mc1.21.1".length());
+            if (relicsVersion.endsWith("+mc1.21.1")) relicsVersion = relicsVersion.substring(0, relicsVersion.length() - "+mc1.21.1".length());
+            if (!addonVersion.matches("[0-9]+(?:\\.[0-9]+)*") || new DefaultArtifactVersion(addonVersion)
+                    .compareTo(new DefaultArtifactVersion("1.0.8")) < 0
+                    || new DefaultArtifactVersion(addonVersion).compareTo(new DefaultArtifactVersion("2.0.0")) >= 0
+                    || !relicsVersion.matches("[0-9]+(?:\\.[0-9]+)*") || new DefaultArtifactVersion(relicsVersion)
+                    .compareTo(new DefaultArtifactVersion("0.12.8")) < 0
+                    || new DefaultArtifactVersion(relicsVersion).compareTo(new DefaultArtifactVersion("0.13.0")) >= 0)
                 throw new IllegalStateException("unsupported Reliquified Artifacts/Relics versions: "
                         + addonVersion + "/" + relicsVersion);
-            return new GuideDocumentProvider(new RelicsGuideReader("artifacts", "13.2.3", "artifacts"),
+            return new GuideDocumentProvider(new RelicsGuideReader("artifacts", actualVersion, "artifacts"),
                     currentScope, clientExecutor);
         }
-        return new GuideDocumentProvider(new ArtifactsGuideReader(), currentScope, clientExecutor);
+        return new GuideDocumentProvider(new ArtifactsGuideReader(actualVersion), currentScope, clientExecutor);
     }
 
     @Override public String providerId() { return "artifacts"; }
-    @Override public String version() { return "13.2.3"; }
+    @Override public String version() { return readerVersion; }
     @Override public String sourceIdentity(Evidence.Scope scope) {
         return "artifacts:registry=" + BuiltInRegistries.ITEM.size() + ":runtime=" + scope.providerRuntime()
                 + ":locale=" + scope.resourcesLocale();

@@ -19,17 +19,22 @@ import java.util.function.Supplier;
 public final class ImmersiveEngineeringGuideReader implements GuideDocumentReader {
     public static final String ID = "immersiveengineering";
     public static final String VERSION = "12.4.2-194";
+    private final String readerVersion;
     private static final String MANUAL_HELPER = "blusunrize.immersiveengineering.api.ManualHelper";
     private static final int MAX_ENTRY_ID_LENGTH = 256;
     private static final int MAX_TITLE_LENGTH = 512;
     private static final int MAX_SEEK_CHARS = 16 * 1024;
 
-    public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> scopeSource, Executor clientExecutor) {
-        return new GuideDocumentProvider(new ImmersiveEngineeringGuideReader(), scopeSource, clientExecutor);
+    public ImmersiveEngineeringGuideReader() { this(VERSION); }
+
+    ImmersiveEngineeringGuideReader(String version) { this.readerVersion = version; }
+
+    public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> scopeSource, Executor clientExecutor, String actualVersion) {
+        return new GuideDocumentProvider(new ImmersiveEngineeringGuideReader(actualVersion), scopeSource, clientExecutor);
     }
 
     @Override public String providerId() { return ID; }
-    @Override public String version() { return VERSION; }
+    @Override public String version() { return readerVersion; }
 
     @Override
     public String sourceIdentity(Evidence.Scope scope) {
@@ -37,10 +42,10 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
             var helper = Class.forName(MANUAL_HELPER, false, ImmersiveEngineeringGuideReader.class.getClassLoader());
             var manual = helper.getMethod("getManual").invoke(null);
             var entries = (Map<?, ?>) manual.getClass().getField("contentsByName").get(manual);
-            return VERSION + ":" + scope.resourcesLocale() + ":" + System.identityHashCode(manual) + ":"
+            return readerVersion + ":" + scope.resourcesLocale() + ":" + System.identityHashCode(manual) + ":"
                     + System.identityHashCode(entries) + ":" + entries.size();
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
-            return VERSION + ":unavailable:" + scope.resourcesLocale();
+            return readerVersion + ":unavailable:" + scope.resourcesLocale();
         }
     }
 

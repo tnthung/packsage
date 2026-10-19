@@ -18,18 +18,24 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
     public static final String VERSION = "1.3.26";
     private static final ResourceLocation BOOK_ID = ResourceLocation.parse("actuallyadditions:booklet");
     private final Supplier<Object> bookSource;
+    private final String readerVersion;
 
-    public ActuallyAdditionsGuideReader() { this(ActuallyAdditionsGuideReader::liveBook); }
+    public ActuallyAdditionsGuideReader() { this(ActuallyAdditionsGuideReader::liveBook, VERSION); }
 
-    ActuallyAdditionsGuideReader(Supplier<Object> bookSource) { this.bookSource = Objects.requireNonNull(bookSource); }
+    ActuallyAdditionsGuideReader(Supplier<Object> bookSource) { this(bookSource, VERSION); }
 
-    public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> scope, Executor clientExecutor) {
-        return new GuideDocumentProvider(new ActuallyAdditionsGuideReader(), scope, clientExecutor);
+    ActuallyAdditionsGuideReader(Supplier<Object> bookSource, String version) {
+        this.bookSource = Objects.requireNonNull(bookSource);
+        this.readerVersion = version;
+    }
+
+    public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> scope, Executor clientExecutor, String actualVersion) {
+        return new GuideDocumentProvider(new ActuallyAdditionsGuideReader(ActuallyAdditionsGuideReader::liveBook, actualVersion), scope, clientExecutor);
     }
 
     @Override public String providerId() { return ID; }
 
-    @Override public String version() { return VERSION; }
+    @Override public String version() { return readerVersion; }
 
     @Override
     public String sourceIdentity(Evidence.Scope scope) {

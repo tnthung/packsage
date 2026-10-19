@@ -15,14 +15,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ArtifactsGuideReaderTest {
     @Test
-    void exposesOnlyThePinnedArtifactsGuideSource() {
+    void exposesArtifactsGuideWithTheObservedRuntimeVersion() {
         Executor clientExecutor = Runnable::run;
-        var provider = new GuideDocumentProvider(new ArtifactsGuideReader(),
+        var provider = new GuideDocumentProvider(new ArtifactsGuideReader("13.2.5+mc1.21.1"),
                 () -> new Evidence.Scope("world", "en_us", "team", "source", 1),
                 clientExecutor);
 
         assertEquals("artifacts", provider.id());
-        assertEquals("13.2.3", provider.status().version());
+        assertEquals("13.2.5+mc1.21.1", provider.status().version());
         assertEquals(java.util.List.of("guide"), provider.metadata().documentTypes());
     }
 

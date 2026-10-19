@@ -14,14 +14,19 @@ import java.util.function.Supplier;
 public final class GuideMeGuideReader implements GuideDocumentReader {
     public static final String ID = "guideme";
     public static final String VERSION = "21.1.19";
+    private final String readerVersion;
 
-    public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> scope, Executor clientExecutor) {
-        return new GuideDocumentProvider(new GuideMeGuideReader(), scope, clientExecutor);
+    public GuideMeGuideReader() { this(VERSION); }
+
+    GuideMeGuideReader(String version) { this.readerVersion = version; }
+
+    public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> scope, Executor clientExecutor, String actualVersion) {
+        return new GuideDocumentProvider(new GuideMeGuideReader(actualVersion), scope, clientExecutor);
     }
 
     @Override public String providerId() { return ID; }
 
-    @Override public String version() { return VERSION; }
+    @Override public String version() { return readerVersion; }
 
     @Override
     public String sourceIdentity(Evidence.Scope scope) {

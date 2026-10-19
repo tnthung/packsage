@@ -28,10 +28,10 @@ class ActuallyAdditionsGuideReaderTest {
     @Test
     void registersThePinnedPatchouliBookletAsAnActuallyAdditionsGuide() {
         var scope = new Evidence.Scope("world", "en_us", "solo", "client", 1);
-        var provider = ActuallyAdditionsGuideReader.forMinecraft(() -> scope, Runnable::run);
+        var provider = ActuallyAdditionsGuideReader.forMinecraft(() -> scope, Runnable::run, "1.3.27");
 
         assertEquals("actuallyadditions", provider.id());
-        assertEquals("1.3.26", provider.status().version());
+        assertEquals("1.3.27", provider.status().version());
         assertTrue(provider.metadata().documentTypes().contains("guide"));
     }
 

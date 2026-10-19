@@ -24,20 +24,22 @@ import java.util.function.Supplier;
 
 /** Bounded reads from the currently loaded Modonomicon books. */
 public final class ModonomiconGuideReader implements GuideDocumentReader {
-    private static final String VERSION = "1.120.4";
+    private final String readerVersion;
     private static final String SEPARATOR = "|";
 
     record LocalizedText(String text, boolean partial) { }
 
-    ModonomiconGuideReader() { }
+    ModonomiconGuideReader() { this("unknown"); }
 
-    public static KnowledgeProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor) {
-        return new GuideDocumentProvider(new ModonomiconGuideReader(), currentScope, clientExecutor);
+    ModonomiconGuideReader(String version) { this.readerVersion = version; }
+
+    public static KnowledgeProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor, String actualVersion) {
+        return new GuideDocumentProvider(new ModonomiconGuideReader(actualVersion), currentScope, clientExecutor);
     }
 
     @Override public String providerId() { return "modonomicon"; }
 
-    @Override public String version() { return VERSION; }
+    @Override public String version() { return readerVersion; }
 
     @Override public String sourceIdentity(Evidence.Scope scope) {
         var manager = BookDataManager.get();

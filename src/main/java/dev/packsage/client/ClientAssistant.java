@@ -70,12 +70,12 @@ public final class ClientAssistant {
     private static final String FTB_VERSION = "[2101.1.36,2101.2)";
     private static final String PATCHOULI_VERSION = "[1.21.1-92,1.21.1-94)";
     static final String PONDER_VERSION = "[0.8.1,1.1)";
-    static final String MODONOMICON_VERSION = "[1.120.4]";
-    static final String GUIDEME_VERSION = "[21.1.19]";
-    static final String IMMERSIVE_ENGINEERING_VERSION = "[12.4.2-194]";
-    static final String ACTUALLY_ADDITIONS_VERSION = "[1.3.26]";
-    static final String RELICS_VERSION = "[0.12.8]";
-    static final String ARTIFACTS_VERSION = "[13.2.3]";
+    static final String MODONOMICON_VERSION = "[1.98.1,2.0.0)";
+    static final String GUIDEME_VERSION = "[21.1.0,21.2.0)";
+    static final String IMMERSIVE_ENGINEERING_VERSION = "[12.0.0-182,13.0.0)";
+    static final String ACTUALLY_ADDITIONS_VERSION = "[1.3.0,1.4.0)";
+    static final String RELICS_VERSION = "[0.12.8,0.13.0)";
+    static final String ARTIFACTS_VERSION = "[13.2.3,14.0.0)";
     private static final String LOADER_VERSION_SUFFIX = "-NEOFORGE";
 
     public record CopiedWorld(String source, String readableLabel, boolean privateSingleplayer,
@@ -461,8 +461,8 @@ public final class ClientAssistant {
         if (status == null || !status.supported()) return unavailableProvider(status, key + " runtime is not supported");
         try {
             Class<?> type = Class.forName(className, false, ClientAssistant.class.getClassLoader());
-            Object provider = type.getMethod(methodName, Supplier.class, Executor.class)
-                    .invoke(null, scope, clientExecutor);
+            Object provider = type.getMethod(methodName, Supplier.class, Executor.class, String.class)
+                    .invoke(null, scope, clientExecutor, status.actualVersion());
             if (provider instanceof KnowledgeProvider knowledgeProvider) {
                 return new ReflectiveProvider(status, () -> knowledgeProvider);
             }

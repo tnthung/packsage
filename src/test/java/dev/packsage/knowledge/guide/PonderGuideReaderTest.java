@@ -209,6 +209,8 @@ class PonderGuideReaderTest {
                 java.util.Map.of("id", new Evidence.JsonString("version"))), 1, null, null), SCOPE)
                 .toCompletableFuture().join();
         assertEquals("1.0.87+mc1.21.1", result.records().getFirst().source().providerVersion());
+        assertEquals("1.0.87+mc1.21.1", new GuideDocumentProvider(new PonderGuideReader(source, "1.0.87+mc1.21.1"),
+                () -> SCOPE, Runnable::run).status().version());
     }
 
     @Test

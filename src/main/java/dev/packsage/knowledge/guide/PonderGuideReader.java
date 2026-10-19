@@ -7,7 +7,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.locale.Language;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.fml.ModList;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -78,9 +77,8 @@ public final class PonderGuideReader implements GuideDocumentReader {
         this.readerVersion = Objects.requireNonNull(version);
     }
 
-    public static KnowledgeProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor) {
-        return new GuideDocumentProvider(new PonderGuideReader(new RuntimeSource(), ModList.get().getModContainerById("ponder")
-                .map(container -> container.getModInfo().getVersion().toString()).orElse("unknown")), currentScope, clientExecutor, 4);
+    public static KnowledgeProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor, String actualVersion) {
+        return new GuideDocumentProvider(new PonderGuideReader(new RuntimeSource(), actualVersion), currentScope, clientExecutor, 4);
     }
 
     @Override public String providerId() { return "ponder"; }

@@ -264,6 +264,11 @@ final class ScreenText {
         return lines;
     }
 
+    static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets,
+                                        List<ModelBackend.UrlCitation> webCitations, ChatContracts.Turn turn) {
+        return inlineLines(text, targets, webCitations, turn.sources());
+    }
+
     private static final int TEXT_COLOR = ModernUi.TEXT;
 
     private static void inlineSpans(String text, int absoluteStart, boolean inheritedBold,

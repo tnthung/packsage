@@ -21,6 +21,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void adapterRowsFilterUnavailableEntriesAndTooltipWindowIsCappedAndClamped() {
+        var availability = java.util.Map.of("native", true, "jei", false);
+        assertEquals(List.of("native"), AssistantScreen.adapterRows(availability, true).stream()
+                .map(java.util.Map.Entry::getKey).toList());
+        assertEquals(14, AssistantScreen.adapterRows(availability, false).size());
+
+        var allRows = AssistantScreen.adapterRows(availability, false);
+        var first = AssistantScreen.adapterTooltipRows(allRows, 0, 480);
+        assertEquals(8, first.rows().size());
+        assertEquals(0, first.offset());
+        assertEquals(148, first.height());
+        var last = AssistantScreen.adapterTooltipRows(allRows, 100, 480);
+        assertEquals(6, last.offset());
+        assertEquals(allRows.subList(6, 14), last.rows());
+        assertEquals(5, AssistantScreen.adapterTooltipRows(allRows, 0, 160).visibleRows());
+    }
+
+    @Test
     void closeDoesNotStopButStopAndNewChatDo() {
         FakeActions actions = new FakeActions();
         AssistantScreen screen = new AssistantScreen(actions);

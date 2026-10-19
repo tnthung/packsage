@@ -411,15 +411,15 @@ final class NativeBrewingReader {
     }
 
     private static ComponentCopy boundedComponents(ItemStack stack, RegistryAccess registries) {
-        var components = stack.getComponents();
+        var components = stack.getComponentsPatch();
         if (components.size() > 16) {
             var fingerprint = new StringBuilder("component-count:").append(components.size())
                     .append(":stack:").append(System.identityHashCode(stack));
             int visited = 0;
-            for (var type : components.keySet()) {
+            for (var entry : components.entrySet()) {
                 if (visited++ == 16) break;
-                fingerprint.append('|').append(System.identityHashCode(type)).append('=')
-                        .append(System.identityHashCode(components.get(type)));
+                fingerprint.append('|').append(System.identityHashCode(entry.getKey())).append('=')
+                        .append(System.identityHashCode(entry.getValue()));
             }
             return new ComponentCopy(new Evidence.JsonObject(Map.of("encoding", new Evidence.JsonString("bounded"))),
                     true, fingerprint.toString());
@@ -427,10 +427,14 @@ final class NativeBrewingReader {
         var fingerprint = new StringBuilder();
         long estimatedBytes = 64;
         boolean bounded = false;
-        for (var type : components.keySet()) {
-            Object value = components.get(type);
+        for (var entry : components.entrySet()) {
+            var type = entry.getKey();
+            Object value = entry.getValue().orElse(null);
             fingerprint.append('|').append(System.identityHashCode(type)).append('=');
-            if (type == DataComponents.CUSTOM_NAME && value instanceof Component component
+            if (value == null) {
+                estimatedBytes += 8;
+                fingerprint.append("removed");
+            } else if (type == DataComponents.CUSTOM_NAME && value instanceof Component component
                     && component.getContents() instanceof PlainTextContents plainText
                     && component.getSiblings().isEmpty() && component.getStyle().isEmpty()) {
                 String text = plainText.text();

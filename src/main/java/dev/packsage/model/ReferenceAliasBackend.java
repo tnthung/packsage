@@ -462,7 +462,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
                 } else {
                     token.append(character);
                     if (mode == 1 && character == ']') {
-                        if (evidence.containsKey(token.substring(1, token.length() - 1))) emit(output);
+                        if (resolve(token.substring(1, token.length() - 1)) != null) emit(output);
                         else mode = 2;
                     } else if (mode == 2) mode = 3;
                     else if (mode == 3 && character == ')') emit(output);
@@ -489,7 +489,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
             if (token.charAt(0) == '[') {
                 int start = mode == 1 ? 1 : token.indexOf("](") + 2;
                 int end = token.length() - 1;
-                String canonical = evidence.get(token.substring(start, end));
+                String canonical = resolve(token.substring(start, end));
                 if (canonical != null) changes.add(new Replacement(start, end, canonical));
             } else {
                 int start = GROUP_START.length();
@@ -513,6 +513,15 @@ public final class ReferenceAliasBackend implements ModelBackend {
             output.append(token, previous, token.length());
             token.setLength(0);
             mode = 0;
+        }
+
+        private String resolve(String reference) {
+            String canonical = evidence.get(reference);
+            if (canonical != null) return canonical;
+            int separator = reference.indexOf(':');
+            if (separator < 1) return null;
+            canonical = evidence.get(reference.substring(separator + 1));
+            return canonical != null && canonical.startsWith(reference.substring(0, separator + 1)) ? canonical : null;
         }
 
         private int offset(int index, boolean end) {

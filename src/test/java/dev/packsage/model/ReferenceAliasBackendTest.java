@@ -64,7 +64,7 @@ class ReferenceAliasBackendTest {
 
     @Test
     void everyCitationSplitExpandsToCanonicalTextAndTerminalReplayRetainsExactCanonicalResult() {
-        for (String template : List.of("Bundle [%s].", "[Bundle label](%s).", "\uE200cite\uE202%s\uE202%s\uE201")) {
+        for (String template : List.of("Bundle [%s].", "Bundle [native:%s].", "[Bundle label](%s).", "[Bundle label](native:%s).", "\uE200cite\uE202%s\uE202%s\uE201")) {
             for (int split = 0; ; split++) {
                 var actual = new FakeBackend();
                 var events = new ArrayList<ModelBackend.Event>();
@@ -84,12 +84,34 @@ class ReferenceAliasBackendTest {
                         List.of(new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"),
                                 actual.results.getFirst(), new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
                                         ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(answer, List.of())))), null));
-                assertEquals(template.formatted(REFERENCE, REFERENCE), events.stream()
+                String canonicalAnswer = template.replace("native:%s", "%s").formatted(REFERENCE, REFERENCE);
+                assertEquals(canonicalAnswer, events.stream()
                         .filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA).map(ModelBackend.Event::text)
                         .reduce("", String::concat), "split " + split);
                 assertEquals(RESULT, events.getLast().replayItems().get(1));
+                assertEquals(canonicalAnswer, ((ModelBackend.OutputText) ((ModelBackend.AssistantOutput)
+                        events.getLast().replayItems().getLast()).content().getFirst()).text(), "replay split " + split);
             }
         }
+    }
+
+    @Test
+    void wrongProviderAndUnknownQualifiedCitationAliasesRemainUnchanged() {
+        var actual = new FakeBackend();
+        var events = new ArrayList<ModelBackend.Event>();
+        var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+        exchange.submit(RESULT);
+        String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
+                .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
+        String slot = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
+                .getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("payload").get("slotReference").getAsString();
+        String answer = "[other:" + alias + "] [native:" + alias + "0] [native:" + slot + "] [native:ref:00000000.0.0]";
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer, null, List.of(), null));
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.FAILED, null, null, List.of(), "fixture"));
+        assertEquals(answer, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
+                .map(ModelBackend.Event::text).collect(java.util.stream.Collectors.joining()));
     }
 
     @Test

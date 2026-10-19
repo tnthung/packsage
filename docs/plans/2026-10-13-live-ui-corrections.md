@@ -12,4 +12,6 @@ Apply the [player feedback](../specs/2026-10-13-live-ui-corrections.md) in scope
 
 ## Failed-outcome follow-up, 2026-10-19
 
-The brewing investigation exposed a complete saved provider error clipped by single-line outcome rendering. Reproduce the outcome's actual render bounds and returned conversation height, replace that single draw with the existing plain-text error wrapping pattern, then run the screen checks and full build. Check the saved failed turn in Minecraft after installing the matching artifact; no new provider request is needed.
+The brewing investigation exposed a complete saved provider error clipped by single-line outcome rendering. Replace that single draw with the existing plain-text error wrapping pattern, then run the screen checks and full build. Check the actual outcome bounds, following-message placement and scrolling in Minecraft after installing the matching artifact; no new provider request is needed. A headless reproduction would require static graphics scaffolding, so verification stays on the real renderer.
+
+Completed in `8c5c943`; [automated and installed checks](../validation/2026-10-19-failed-outcome-wrapping.md) passed for the observed error.

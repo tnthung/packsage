@@ -55,7 +55,13 @@ class ScreenTextTest {
         JsonArray records = new JsonArray();
         for (Evidence.Source source : List.of(brewing, potion)) {
             JsonObject record = new JsonObject();
-            record.add("source", new Gson().toJsonTree(source));
+            JsonObject observed = new JsonObject();
+            observed.addProperty("providerId", source.providerId());
+            observed.addProperty("sourceHandle", source.sourceHandle());
+            observed.addProperty("observedAt", source.observedAt().toString());
+            observed.addProperty("observedGeneration", source.observedGeneration());
+            observed.add("scope", new Gson().toJsonTree(source.scope()));
+            record.add("source", observed);
             record.addProperty("title", source.equals(brewing)
                     ? "minecraft:potion brewing transformation" : "minecraft:long_strength");
             record.add("payload", source.equals(brewing) ? brewingPayload : potionPayload);

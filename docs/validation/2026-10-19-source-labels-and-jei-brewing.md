@@ -26,7 +26,7 @@ Generated native citations now use exact saved facts for labels such as `Brewing
 
 JEI item-ID output searches now scan bounded projected outputs across component variants instead of focusing a bare stack. Known ItemStack ingredients are normalized to `item`; a resolvable potion holder contributes its actual registry ID as `components.potion`, within the existing shared extraction budget. Literal text searches inspect ingredient facts even without an output filter. Component-bearing stacks retain partial coverage for omitted details. Current source reads recheck output identity, and persistent `recipe-v1` targets retain the plugin's fresh resolution rather than being rejected for differing from an old source handle.
 
-## Automated checks
+## Initial automated checks
 
 - The focused `ScreenTextTest` and `JeiProjectionTest` run passes all 63 tests. Cases cover exact recorded labels and vessel identity, custom Markdown labels, mismatched generations, distinct Strength outputs, text-only potion-ID matching, advancing cursors, fresh source reads and persistent target refresh/open.
 - Java 21 `gradlew.bat test build` passes: 643 tests, zero failures/errors and four existing skips across 54 suites. The built `build/libs/packsage-0.1.0.jar` has SHA256 `9546736FCE890B963379CF4B76A6858CD7C3FE01AF88B79BB72EE1C16451D439`.
@@ -36,10 +36,30 @@ JEI item-ID output searches now scan bounded projected outputs across component 
 
 ## Installed acceptance
 
-The player subsequently installed the candidate. The installed and distribution JARs both hash to `9546736FCE890B963379CF4B76A6858CD7C3FE01AF88B79BB72EE1C16451D439`. The supplied screenshot shows readable generated brewing/potion labels. Source-chip clicking and a real JEI brewing viewer link remain unverified. The player is using the desktop, so no desktop input is authorized until they resume the live checks.
+The player subsequently installed the candidate. At the initial inspection, the installed and distribution JARs both hashed to `9546736FCE890B963379CF4B76A6858CD7C3FE01AF88B79BB72EE1C16451D439`. The supplied screenshot shows readable generated brewing/potion labels. Source-chip clicking and a real JEI brewing viewer link were still unverified. Desktop checks were deferred while the player was using the PC, then resumed after the player explicitly granted desktop control while AFK.
 
 ### Continued JEI failure
 
 Conversation `f23519dd-81a0-4a35-bda4-f83fbc0c61d9-96a03c798ec52dee.jsonl`, request `3b384c7d-4c56-4d5d-8003-94b9e522810a`, records the player's `JEI recipe?` follow-up. The UI reports 49 steps; replay contains 25 actual tool calls. All 11 JEI searches returned no records with `PARTIAL` coverage and valid continuations: two pages for `strength`, four for output item `minecraft:potion`, two for `blaze_powder`, and three for `minecraft:strength` plus output item `minecraft:potion`. There was no JEI tool error and no navigation target to open. The other calls rediscovered native evidence; one mistyped native cursor produced `INVALID_CURSOR`. The reply correctly described the JEI search as incomplete but did not fulfill the viewer request.
 
 Code inspection confirms two reader concerns rather than an established model-capability failure. Every candidate is fully projected before the output filter, spending the shared budget on unrelated inputs and tooltip data. If projection exhausts the budget before the relevant output/text is decoded, a nonmatching filter's `continue` bypasses the exhaustion handler; the next cursor can advance past the unresolved recipe. Follow-up corrections must avoid full extraction for conclusively unrelated outputs and must never treat unread fields as a confirmed nonmatch. A candidate that cannot fit a fresh budget must terminate explicitly partial rather than produce an endlessly repeated cursor. Native localized potion-name matching and empty-page progress presentation remain separate open work.
+
+### Reader and recorded-detail corrections
+
+Exact output-item searches now inspect bounded detached OUTPUT slots before fully projecting matching recipes, reusing the same layout. Definitively unrelated candidates avoid full input/tooltip extraction. An undecoded nonmatch retains its source position for a fresh-budget retry; a repeated failure at that position terminates explicitly partial. Matching observed facts can still return records with incomplete details. Neither production extraction caps nor tool schemas changed.
+
+Focused regressions failed before these corrections: expensive unrelated recipes hid a later Strength output, and budget exhaustion skipped a late text match. Additional cases cover an intrinsically oversized recipe and category/catalyst setup that cannot fit a fresh budget. Review identified a setup retry loop, then a synthetic budget diagnostic becoming a recipe record. Both findings were repaired; terminal setup diagnostics use the existing result detail with no recipe or navigation target. Follow-up read-only review found those findings closed.
+
+The first agent-installed follow-up JAR, SHA256 `868BF9FFBA8E2A01EE72FE486FBC09E22AB624748A500ECB1CC1331F09CE8175`, still failed the short `JEI recipe?` request (`96b4a055-77ff-47f2-af0b-6994dc95974b`). Its 18 actual calls included 15 empty partial JEI pages. A fresh read of a pre-restart native reference was correctly rejected. Opening the actual JEI inventory viewer directly confirmed that its Brewing category contains the Strength recipe, blaze powder and awkward potion inputs; that direct keyboard action does not prove PackSage navigation.
+
+Clicking the saved `Brewing: Strength` chip selected its exact original source, but exposed a separate preview bug: unknown quantities are JSON null, and `getAsString()` discarded the entire saved preview. Two null guards now retain known inputs/outputs and show unknown quantities as `?`. A new regression failed before the fix and passed afterward.
+
+### Installed diagnostic candidate
+
+Java 21 `gradlew.bat test build` passed 644 tests across 54 suites, with zero failures/errors and four existing skips. Build, distribution and installed JAR SHA256 all matched `D8F31793568D6432C4A6DD9DE988AC19281B39D0558D2E40077441A587F80155`. This candidate also adds bounded pending category/recipe positions through the existing result detail, preserving opaque tool cursors and compatible snapshot constructors.
+
+The recorded-source live check passes on this candidate. Clicking `Brewing: Strength` opens the original source `brewing:potion:56:0:dd2c10d90e851649e418c479d0d2695c3eb9d551280029151ec3ccab0e67f48f`, observed at `2026-10-19T13:58:56.385718200Z`. The screen retains Potion ×1, Potion ×? and Blaze Powder ×?, with partial coverage and its recorded provenance.
+
+A fresh Luna Extra high conversation `6ffc905a-edc0-4900-88e3-8594d6314ff2-b695879f55965604.jsonl`, request `c3cd75c3-d771-49ce-a34e-e6136bebb3af`, asked: "Show me the JEI brewing recipe for a Potion of Strength in this pack." The agent stopped this latency trial after about five minutes and 34 actual tool calls (61 UI activity steps), before a final answer. This cancellation is not a completed model-response result. All 18 completed JEI calls returned empty partial pages with advancing positions: seven Strength pages reached category 0, recipe 87; nine exact potion-output pages reached category 0, recipe 1,404; two blaze-powder pages reached category 0, recipe 24. No source position stalled. Native fallback did find brewing facts, but it supplied no JEI viewer target.
+
+These positions establish category ordering as a practical discovery bottleneck. The [bounded brewing-first plan](../plans/2026-10-19-jei-potion-discovery.md) addresses it without claiming incomplete discovery means no recipe exists. The actual PackSage viewer link remains pending.

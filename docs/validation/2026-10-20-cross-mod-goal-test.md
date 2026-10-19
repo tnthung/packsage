@@ -29,4 +29,19 @@ Use fresh conversations between independent goals and preserve context for follo
 
 ## Results
 
-Live trials are in progress. Record each submitted question, saved conversation/request identity, calls, returned evidence, answer assessment, viewer interaction and observed timing below. Keep passing checks and failures separate; do not modify the system under test during this baseline pass.
+Live trials are in progress. Keep passing checks and failures separate; do not modify the system under test during this baseline pass. Timing below uses each request's `phase=model_terminal` log entry, rather than UI polling intervals.
+
+### 1. Cave lighting and a recipe challenge
+
+Conversation: `26791f08-a4b7-48b2-ae46-a8277b264366-46e611ead5c0e6b8.jsonl` in the profile's `packsage/New_World-8a315c270917e038` folder.
+
+| Turn | Submitted question | Request | Calls | Time | Assessment |
+|---|---|---|---|---|---|
+| 1 | I need to light up a cave. How many torches can I make from what I'm carrying, and what's the limiting material? | `64107877-3537-491a-a301-16fe30d521a9` | 12 | 117.415 s | Material count supported for the ordinary route; final presentation fails. |
+| 2 | Your answer has editing notes in it. Can you give me a clean answer? I thought one coal and one stick make four torches. | `247fdf62-bda3-460b-87aa-315ffc1dd387` | 10 | 103.710 s | Keeps the loaded pack output when challenged; malformed citation remains. |
+
+Complete current inventory evidence found 64 coal, 64 stripped oak wood and 64 oak logs. The carried Shulker Box was separately inspected and contained seven diamonds. The loaded native and JEI ordinary recipes report one torch per coal-or-charcoal and stick, while plank/stick recipes establish enough wood for 64 sticks. Thus 64 torches, limited by coal, is supported for that route. The alternate IE torch recipe requires wool and creosote not found in those complete carried-material reads. The partial planner result covers the terminal torch recipe, not a verified complete dependency tree or all possible future conversions.
+
+Turn 1 made one invalid evidence read using an unobserved bare handle, then successfully reread the native torch references. It also made extra unfinished JEI searches for sticks and planks after already finding relevant native facts. The final answer rendered the count followed by a malformed citation marker and visible citation-editing draft text. This is a final-output failure, not an inspection of hidden reasoning. A real JEI torch navigation target was retained, but its click action was not tested in this arc.
+
+Turn 2 refreshed inventory/storage and recipe evidence, distinguished the standard vanilla recipe from the installed one-torch output, and retained 64 rather than adopting 256. It produced normal explanatory prose, but still ended with a malformed citation marker and supplied no usable claim citation in that answer. Both turns completed; neither is an overall clean pass.

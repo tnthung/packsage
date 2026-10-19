@@ -72,13 +72,13 @@ final class NativeRecipeReader {
     static Evidence.Record read(Minecraft client, String identity, Evidence.Scope scope) {
         if (!client.isSameThread()) throw new IllegalStateException("native recipe read must run on the client thread");
         if (client.level == null) return null;
-        if (identity.startsWith("brewing:")) {
+        var id = ResourceLocation.tryParse(identity);
+        if (id == null || !id.toString().equals(identity)) {
+            if (!identity.startsWith("brewing:")) return null;
             var items = client.level.registryAccess().registryOrThrow(Registries.ITEM);
             return NativeBrewingReader.readCandidate(client.level.potionBrewing(), identity,
                     client.level.registryAccess(), items, scope);
         }
-        var id = ResourceLocation.tryParse(identity);
-        if (id == null || !id.toString().equals(identity)) return null;
         var holder = client.level.getRecipeManager().byKey(id).orElse(null);
         if (holder == null) return null;
         var items = client.level.registryAccess().registryOrThrow(Registries.ITEM);

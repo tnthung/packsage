@@ -5,6 +5,7 @@ import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.Toolbox;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
+import mezz.jei.api.constants.RecipeTypes;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IRecipeManager;
@@ -378,8 +379,17 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var cursorCategoryFound = false;
             var terminalPartial = false;
             String terminalBudgetDetail = null;
-            try (var categories = manager.createRecipeCategoryLookup().includeHidden().limitFocus(focuses).get()) {
-                var categoryIterator = categories.iterator();
+            try (var prioritizedCategories = (query.operation() == Evidence.Operation.SEARCH
+                    || query.operation() == Evidence.Operation.RELATED)
+                    && ("minecraft:potion".equals(outputItem) || "minecraft:splash_potion".equals(outputItem)
+                    || "minecraft:lingering_potion".equals(outputItem))
+                    ? manager.createRecipeCategoryLookup().includeHidden().limitTypes(List.of(RecipeTypes.BREWING))
+                    .limitFocus(focuses).get() : java.util.stream.Stream.<IRecipeCategory<?>>empty();
+                 var ordinaryCategories = manager.createRecipeCategoryLookup().includeHidden().limitFocus(focuses).get()) {
+                var prioritizedCategory = prioritizedCategories.findFirst().orElse(null);
+                var categoryIterator = (prioritizedCategory == null ? ordinaryCategories
+                        : java.util.stream.Stream.concat(java.util.stream.Stream.of(prioritizedCategory),
+                        ordinaryCategories.filter(category -> category != prioritizedCategory))).iterator();
                 while (categoryIterator.hasNext()) {
                     var categoryIndex = categoryCount;
                     var seekingCategory = categoryIndex < cursorCategory;

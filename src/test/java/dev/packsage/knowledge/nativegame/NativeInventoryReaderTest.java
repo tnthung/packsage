@@ -10,12 +10,16 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemContainerContents;
+import top.theillusivec4.curios.api.CuriosApi;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -166,6 +170,56 @@ class NativeInventoryReaderTest {
                 .toCompletableFuture().join();
         assertEquals(Evidence.Coverage.UNAVAILABLE, curiosOnly.coverage());
         assertEquals(Evidence.Outcome.UNKNOWN, curiosOnly.outcome());
+    }
+
+    @Test
+    void mixedCuriosAndUnsupportedSectionsRetainReadableCuriosRecords() {
+        var ring = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "curios:ring:0", 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Ring", new Evidence.JsonObject(Map.of()), List.of());
+        var summary = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "summary", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.OTHER, "Inventory", new Evidence.JsonObject(Map.of(
+                "curiosCoverage", new Evidence.JsonString("COMPLETE"),
+                "sourceScope", new Evidence.JsonString("vanilla-player-inventory-and-functional-curios"))), List.of());
+        var reader = new NativeInventoryReader(Runnable::run, () -> SCOPE,
+                request -> new NativeInventoryReader.Capture(List.of(new NativeInventoryReader.CapturedSlot("curios:ring", 0,
+                        "ring", false, "minecraft:gold_ingot", "Ring", "ring-ref", ring, List.of(), List.of(),
+                        new ItemStack(Items.GOLD_INGOT))), summary, Evidence.Coverage.COMPLETE, Instant.EPOCH, 1),
+                address -> null, () -> 1, new CuriosInventoryAdapter(true, true, "9.5.1+1.21.1"));
+
+        for (String section : List.of("curios", "curios:ring")) {
+            var result = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
+                    new InventoryReader.Filter(List.of(), List.of(), List.of(), List.of(), List.of(section, "unknown")),
+                    32, null, SCOPE)).toCompletableFuture().join();
+
+            assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+            assertEquals(List.of("Ring"), result.records().stream().map(Evidence.Record::title).toList());
+            assertEquals(Evidence.Coverage.COMPLETE, result.records().getFirst().source().coverage());
+        }
+    }
+
+    @Test
+    void completedCuriosSnapshotStaysCompleteAfterLaterAdapterFailure() {
+        var pending = new ArrayDeque<Runnable>();
+        CuriosApi.setInventory(Optional.empty());
+        var summary = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "summary", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.OTHER, "Inventory", new Evidence.JsonObject(Map.of(
+                "curiosCoverage", new Evidence.JsonString("COMPLETE"),
+                "sourceScope", new Evidence.JsonString("vanilla-player-inventory-and-functional-curios"))), List.of());
+        var curios = new CuriosInventoryAdapter(true, true, "9.5.1+1.21.1");
+        var reader = new NativeInventoryReader((Executor) pending::addLast, () -> SCOPE,
+                request -> new NativeInventoryReader.Capture(List.of(), summary, Evidence.Coverage.COMPLETE, Instant.EPOCH, 1),
+                address -> null, () -> 1, curios);
+
+        var result = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
+                new InventoryReader.Filter(List.of(), List.of(), List.of(), List.of(), List.of("curios")), 32, null, SCOPE));
+        pending.removeFirst().run();
+        assertEquals(Evidence.Coverage.PARTIAL, curios.capture(null).coverage());
+        pending.removeFirst().run();
+
+        assertEquals(Evidence.Coverage.COMPLETE, result.toCompletableFuture().join().coverage());
     }
 
     @Test

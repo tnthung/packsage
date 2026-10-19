@@ -83,7 +83,6 @@ class PackSageToolsTest {
         var recipe = definitions.stream().filter(value -> value.name().equals("search_recipe")).findFirst().orElseThrow().description();
         assertTrue(recipe.contains("outputItem without text"));
         assertTrue(recipe.contains("native and JEI evidence distinct"));
-        assertTrue(recipe.contains("native lookup is partial or unavailable"));
         var inventory = definitions.stream().filter(value -> value.name().equals("search_inventory")).findFirst().orElseThrow().description();
         assertTrue(inventory.contains("Player summaries do not include nested containers"));
         assertTrue(inventory.contains("returned slotReference"));

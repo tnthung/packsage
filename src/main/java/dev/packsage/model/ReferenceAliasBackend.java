@@ -448,7 +448,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
             for (int index = 0; index < text.length(); index++) {
                 char character = text.charAt(index);
                 if (!token.isEmpty() && (mode == 6 || mode == 7) && character != '(' && !Character.isWhitespace(character)) emit(output);
-                else if (!token.isEmpty() && (token.length() == MAX_TOKEN_CHARS || mode == 2 && character != '(')) {
+                else if (!token.isEmpty() && token.length() == MAX_TOKEN_CHARS) {
                     output.append(token);
                     token.setLength(0);
                     mode = 0;
@@ -465,7 +465,8 @@ public final class ReferenceAliasBackend implements ModelBackend {
                     if (mode == 1 && character == ']') {
                         if (resolve(token.substring(1, token.length() - 1)) != null) mode = 6;
                         else mode = 2;
-                    } else if (mode == 2) mode = 3;
+                    } else if (mode == 2 && Character.isWhitespace(character)) mode = 7;
+                    else if (mode == 2) mode = 3;
                     else if (mode == 6 && Character.isWhitespace(character)) mode = 7;
                     else if (mode == 6 && character == '(') mode = 3;
                     else if (mode == 7 && character == '(') mode = 3;
@@ -481,7 +482,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
                 position = Math.incrementExact(position);
             }
             if (finished && !token.isEmpty()) {
-                if (mode == 6) emit(output);
+                if (mode == 6 || mode == 7) emit(output);
                 else {
                     output.append(token);
                     token.setLength(0);
@@ -494,14 +495,19 @@ public final class ReferenceAliasBackend implements ModelBackend {
         private void emit(StringBuilder output) {
             var changes = new ArrayList<Replacement>();
             if (token.charAt(0) == '[') {
-                int close = token.indexOf(']');
-                int open = token.indexOf('(', close + 1);
-                int start = mode == 6 ? 1 : open + 1;
-                int end = token.length() - 1;
-                String canonical = resolve(token.substring(start, end));
-                if (canonical != null) {
-                    if (open > close + 1) changes.add(new Replacement(close + 1, open, ""));
-                    changes.add(new Replacement(start, end, canonical));
+                int close = token.indexOf("]");
+                int open = token.indexOf("(", close + 1);
+                if (open < 0) {
+                    String canonical = resolve(token.substring(1, close));
+                    if (canonical != null) changes.add(new Replacement(1, close, canonical));
+                } else {
+                    int start = open + 1;
+                    int end = token.length() - 1;
+                    String canonical = resolve(token.substring(start, end));
+                    if (canonical != null) {
+                        if (open > close + 1) changes.add(new Replacement(close + 1, open, ""));
+                        changes.add(new Replacement(start, end, canonical));
+                    }
                 }
             } else {
                 int start = GROUP_START.length();

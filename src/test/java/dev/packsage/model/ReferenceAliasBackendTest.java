@@ -172,6 +172,45 @@ class ReferenceAliasBackendTest {
     }
 
     @Test
+    void unknownBracketedProseDoesNotHideFollowingKnownCitation() {
+        var actual = new FakeBackend();
+        var events = new ArrayList<ModelBackend.Event>();
+        var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+        exchange.submit(RESULT);
+        String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
+                .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
+        String answer = "[label][" + alias + "]";
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer, null, List.of(), null));
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.FAILED, null, null, List.of(), "fixture"));
+        assertEquals("[label][" + REFERENCE + "]", events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
+                .map(ModelBackend.Event::text).reduce("", String::concat));
+    }
+
+    @Test
+    void standaloneKnownAliasWithWhitespaceAndProseExpandsEvenAtFinished() {
+        var actual = new FakeBackend();
+        var events = new ArrayList<ModelBackend.Event>();
+        var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+        exchange.submit(RESULT);
+        String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
+                .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
+        String answer = "[" + alias + "] remains prose [" + alias + "] ";
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer, null, List.of(), null));
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                List.of(actual.results.getFirst(), new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(answer, List.of())))), null));
+        String expected = "[" + REFERENCE + "] remains prose [" + REFERENCE + "] ";
+        assertEquals(expected, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
+                .map(ModelBackend.Event::text).reduce("", String::concat));
+        assertEquals(expected, ((ModelBackend.OutputText) ((ModelBackend.AssistantOutput)
+                events.getLast().replayItems().getLast()).content().getFirst()).text());
+    }
+
+    @Test
     void wrongProviderAndUnknownQualifiedCitationAliasesRemainUnchanged() {
         var actual = new FakeBackend();
         var events = new ArrayList<ModelBackend.Event>();
@@ -376,6 +415,26 @@ class ReferenceAliasBackendTest {
         assertEquals(List.of(steering), actual.steered);
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(12), null, List.of(), null));
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(call, actual.results.getFirst(), steering,
+                new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED, ModelBackend.OutputPhase.FINAL_ANSWER,
+                        List.of(new ModelBackend.OutputText(answer, List.of(new ModelBackend.UrlCitation(answer.indexOf("docs"), answer.length(), "Docs", "https://example.org/docs")))))), null));
+        var text = (ModelBackend.OutputText) ((ModelBackend.AssistantOutput) events.getLast().replayItems().getLast()).content().getFirst();
+        assertEquals("🌋 [Bundle](" + REFERENCE + ") then docs.", text.text());
+        assertEquals("docs.", text.text().substring(text.citations().getFirst().startIndex(), text.citations().getFirst().endIndex()));
+        assertEquals(text.text().indexOf("docs"), text.citations().getFirst().startIndex());
+    }
+
+    @Test
+    void webAnnotationRangesFollowSpacedLinkWhitespaceDeletionAndAliasExpansion() {
+        var actual = new FakeBackend();
+        var events = new ArrayList<ModelBackend.Event>();
+        var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
+        var call = new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}");
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, call, List.of(), null));
+        exchange.submit(RESULT);
+        String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
+                .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
+        String answer = "🌋 [Bundle] (" + alias + ") then docs.";
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(call, actual.results.getFirst(),
                 new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED, ModelBackend.OutputPhase.FINAL_ANSWER,
                         List.of(new ModelBackend.OutputText(answer, List.of(new ModelBackend.UrlCitation(answer.indexOf("docs"), answer.length(), "Docs", "https://example.org/docs")))))), null));
         var text = (ModelBackend.OutputText) ((ModelBackend.AssistantOutput) events.getLast().replayItems().getLast()).content().getFirst();

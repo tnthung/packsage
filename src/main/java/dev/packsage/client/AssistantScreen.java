@@ -1008,6 +1008,7 @@ public final class AssistantScreen extends Screen {
         List<ToolbarItem> tooltipItems = new ArrayList<>(toolbarItems());
         tooltipItems.add(new ToolbarItem("extra", readableLeft, sendY, 20));
         tooltipItems.add(new ToolbarItem("adapters", 12, Math.max(0, height - 32), 20));
+        tooltipItems.add(new ToolbarItem("settings", 40, Math.max(0, height - 32), 20));
         boolean adapterDrawn = false;
         for (ToolbarItem item : tooltipItems) {
             boolean adapterIconHovered = item.kind().equals("adapters") && mouseX >= item.x() && mouseX < item.x() + item.width()
@@ -1051,7 +1052,8 @@ public final class AssistantScreen extends Screen {
                                             .withStyle(style -> style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), adapterLayout.labelWidth()).getString())
                                     .withStyle(style -> style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT))));
                 }
-            } else if (item.kind().equals("model")) {
+            } else if (item.kind().equals("settings")) lines.add(Component.literal("Settings (middle-click for Advanced settings)"));
+            else if (item.kind().equals("model")) {
                 String selectedId = settings.modelId() == null ? actions.providerSelectedModelId() : settings.modelId();
                 lines.add(Component.literal(actions.modelCatalog().stream().filter(model -> model.id().equals(selectedId))
                         .findFirst().map(ModelBackend.ModelInfo::displayName).orElse("Select a model")));
@@ -1225,6 +1227,14 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 2 && picker == null) {
+            int controlY = Math.max(0, height - 32);
+            if (mouseX >= 40 && mouseX < 60 && mouseY >= controlY && mouseY < controlY + 20) {
+                setFocused(null);
+                advancedSettingsOpener.run();
+                return true;
+            }
+        }
         if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
         if (picker != null) {
             for (PickerRow row : pickerRows()) {

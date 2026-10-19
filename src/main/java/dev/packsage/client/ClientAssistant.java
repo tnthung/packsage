@@ -175,8 +175,9 @@ public final class ClientAssistant {
                     && event.getKeyCode() <= org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ADD
                     || event.getKeyCode() == org.lwjgl.glfw.GLFW.GLFW_KEY_KP_EQUAL)) return;
             event.setCanceled(true);
-            assistantScreen = runtime.openScreen(this::openSettings);
+            assistantScreen = runtime.openScreen(() -> openSettings(false));
             assistantScreen.setContainerScreen(screen);
+            assistantScreen.setAdvancedSettingsOpener(() -> openSettings(true));
             assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));
             client.setScreen(assistantScreen);
         });
@@ -216,7 +217,8 @@ public final class ClientAssistant {
         }
         while (openAssistant.consumeClick()) {
             if (client.level == null || client.screen != null) continue;
-            assistantScreen = runtime.openScreen(this::openSettings);
+            assistantScreen = runtime.openScreen(() -> openSettings(false));
+            assistantScreen.setAdvancedSettingsOpener(() -> openSettings(true));
             assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));
             client.setScreen(assistantScreen);
         }
@@ -534,9 +536,9 @@ public final class ClientAssistant {
         }
     }
 
-    private void openSettings() {
+    private void openSettings(boolean advanced) {
         settingsOpen = true;
-        if (net.minecraft.client.gui.screens.Screen.hasControlDown()) {
+        if (advanced) {
             client.setScreen(new DeveloperSettingsScreen(settings, settingsPath, runtime, () -> {
                 settingsOpen = false;
                 if (assistantScreen != null) client.setScreen(assistantScreen);

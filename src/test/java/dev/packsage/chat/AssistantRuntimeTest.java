@@ -643,7 +643,7 @@ class AssistantRuntimeTest {
                 Map.entry("ftb_quests", false), Map.entry("config", false), Map.entry("patchouli", false),
                 Map.entry("modonomicon", false), Map.entry("guideme", false), Map.entry("immersiveengineering", false),
                 Map.entry("actuallyadditions", false), Map.entry("relics", false), Map.entry("artifacts", false),
-                Map.entry("ponder", false), Map.entry("history", false));
+                Map.entry("ponder", false), Map.entry("history", false), Map.entry("curios", false));
         AtomicInteger factoryCalls = new AtomicInteger();
         var knowledgeFactory = (java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService>) current -> {
             if (factoryCalls.incrementAndGet() == 3) throw new IllegalStateException("provider refresh failed");

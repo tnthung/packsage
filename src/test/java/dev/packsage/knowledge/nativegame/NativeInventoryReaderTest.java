@@ -10,9 +10,9 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemContainerContents;
-import top.theillusivec4.curios.api.CuriosApi;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import top.theillusivec4.curios.api.CuriosApi;
 
 import java.time.Instant;
 import java.util.ArrayDeque;

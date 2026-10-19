@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### 2026-10-20
+
+- Completed an unchanged-build live baseline with eighteen questions across eleven player goals, covering eight content mods plus Curios, FTB Quests, native recipes/inventory, history and configs. The [validation report](docs/validation/2026-10-20-cross-mod-goal-test.md) records actual Ponder, Patchouli and quest navigation; successful current equipment/progress/history/config checks; two malformed torch replies; two unanswered four-minute cancellations; guide/planner limits; and search churn. Sixteen turns completed with an approximately 85-second median, which is not a sixteen-pass result. The roadmap records the observed reliability priorities; no code or prompt changes were made in this test.
+
 ### 2026-10-19
 
 - Replaced generated brewing/potion source fingerprints with readable labels from exact saved evidence, preserving custom labels and click bindings. Recorded recipe details retain known facts when quantities are unknown. JEI output searches preserve potion component variants, precheck unrelated outputs, retry undecoded candidates without skipping them, and report bounded scan progress. Exact potion-output searches visit Brewing first while retaining other recipe categories. The [validation record](docs/validation/2026-10-19-source-labels-and-jei-brewing.md) records the passing 644-test build and live source/detail checks. A fresh Luna request returned a real Strength recipe link in seven tool calls, and clicking it opened JEI's Strength brewing card. The turn still took about 95 seconds; preliminary unfiltered searches and broader model compliance remain limitations.

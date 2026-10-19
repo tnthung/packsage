@@ -90,6 +90,17 @@ class ScreenTextTest {
         assertEquals("Custom brew label", explicit.text());
         assertEquals(brewing, explicit.source());
         assertEquals(target, explicit.target());
+
+        JsonObject mismatchedResult = result.deepCopy();
+        mismatchedResult.getAsJsonArray("records").get(0).getAsJsonObject()
+                .getAsJsonObject("source").addProperty("observedGeneration", 2);
+        var mismatchedTurn = new ChatContracts.Turn(turn.requestId(), turn.question(), turn.answer(),
+                List.of(new ModelBackend.ToolResult("mismatched", mismatchedResult.toString(), false)),
+                turn.context(), turn.sources(), turn.navigationTargets(), turn.outcome(), 1);
+        var mismatched = ScreenText.inlineLines(grouped, List.of(), List.of(), mismatchedTurn).getFirst().spans()
+                .stream().filter(span -> span.source() != null).findFirst().orElseThrow();
+        assertEquals("Brewing recipe", mismatched.text());
+        assertEquals(brewing, mismatched.source());
     }
 
     @Test

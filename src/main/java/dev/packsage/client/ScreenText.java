@@ -1,5 +1,7 @@
 package dev.packsage.client;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -16,6 +18,7 @@ import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -204,6 +207,12 @@ final class ScreenText {
     static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets,
                                         List<ModelBackend.UrlCitation> webCitations,
                                         List<Evidence.Source> sources) {
+        return inlineLines(text, targets, webCitations, sources, Map.of());
+    }
+
+    static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets,
+                                        List<ModelBackend.UrlCitation> webCitations,
+                                        List<Evidence.Source> sources, Map<Evidence.Source, String> sourceLabels) {
         List<InlineLine> lines = new ArrayList<>();
         String[] rawLines = text.split("\\r?\\n", -1);
         int absolute = 0;
@@ -248,7 +257,7 @@ final class ScreenText {
                 boolean table = line.trim().startsWith("|");
                 if (table && isTableSeparator(line)) continue;
                 if (table && lineIndex + 1 < rawLines.length && isTableSeparator(rawLines[lineIndex + 1])) bold = true;
-                inlineSpans(line, lineOffset, bold, targets, webCitations, sources, spans);
+                inlineSpans(line, lineOffset, bold, targets, webCitations, sources, sourceLabels, spans);
                 if (table) {
                     for (int index = 0; index < spans.size(); index++) {
                         InlineSpan span = spans.get(index);
@@ -266,14 +275,83 @@ final class ScreenText {
 
     static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets,
                                         List<ModelBackend.UrlCitation> webCitations, ChatContracts.Turn turn) {
-        return inlineLines(text, targets, webCitations, turn.sources());
+        return inlineLines(text, targets, webCitations, turn, sourceLabels(turn));
+    }
+
+    static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets,
+                                        List<ModelBackend.UrlCitation> webCitations, ChatContracts.Turn turn,
+                                        Map<Evidence.Source, String> sourceLabels) {
+        return inlineLines(text, targets, webCitations, turn.sources(), sourceLabels);
+    }
+
+    static Map<Evidence.Source, String> sourceLabels(ChatContracts.Turn turn) {
+        Map<Evidence.Source, String> labels = new java.util.HashMap<>();
+        for (ModelBackend.InputItem item : turn.replayItems()) {
+            if (!(item instanceof ModelBackend.ToolResult result) || result.error()) continue;
+            try {
+                JsonArray records = JsonParser.parseString(result.serializedResult()).getAsJsonObject().getAsJsonArray("records");
+                if (records == null) continue;
+                for (JsonElement value : records) {
+                    JsonObject record = value.getAsJsonObject();
+                    JsonObject observed = record.getAsJsonObject("source");
+                    if (observed == null) continue;
+                    for (Evidence.Source source : turn.sources()) {
+                        if (!source.providerId().equals(string(observed, "providerId"))
+                                || !source.sourceHandle().equals(string(observed, "sourceHandle"))
+                                || !source.observedAt().toString().equals(string(observed, "observedAt"))
+                                || source.observedGeneration() != longValue(observed, "observedGeneration")
+                                || !new Gson().toJsonTree(source.scope()).equals(observed.get("scope"))) continue;
+                        String label = sourceLabel(source, record);
+                        if (label != null) labels.put(source, label);
+                    }
+                }
+            } catch (RuntimeException ignored) {
+                // Malformed or older tool results do not supply a trustworthy citation label.
+            }
+        }
+        return Map.copyOf(labels);
+    }
+
+    private static String sourceLabel(Evidence.Source source, JsonObject record) {
+        if (!source.providerId().equals("native")) return null;
+        String handle = source.sourceHandle();
+        if (handle.startsWith("brewing:")) {
+            JsonObject payload = record.getAsJsonObject("payload");
+            if (payload != null) {
+                JsonElement outputs = payload.get("outputs");
+                if ((outputs == null || !outputs.isJsonArray()) && record.has("recipe") && record.get("recipe").isJsonObject()) {
+                    outputs = record.getAsJsonObject("recipe").get("outputs");
+                }
+                if (outputs != null && outputs.isJsonArray()) {
+                    for (JsonElement outputValue : outputs.getAsJsonArray()) {
+                        JsonObject output = outputValue.isJsonObject() ? outputValue.getAsJsonObject() : null;
+                        JsonObject components = output == null ? null : output.getAsJsonObject("components");
+                        JsonObject potionContents = components == null ? null : components.getAsJsonObject("minecraft:potion_contents");
+                        String potion = potionContents == null ? null : string(potionContents, "potion");
+                        if (potion != null && !potion.equals("minecraft:empty")) return "Brewing: " + displayName(potion);
+                    }
+                }
+            }
+            return "Brewing recipe";
+        }
+        if (handle.startsWith("potion:")) {
+            JsonObject payload = record.getAsJsonObject("payload");
+            String id = payload == null ? null : string(payload, "id");
+            JsonElement effects = payload == null ? null : payload.get("effects");
+            if (payload != null && "potion".equals(string(payload, "registry"))
+                    && id != null && handle.equals("potion:" + id) && effects != null && effects.isJsonArray()
+                    && effects.getAsJsonArray().size() > 0) return "Potion effects: " + displayName(id);
+            return "Potion effects";
+        }
+        return null;
     }
 
     private static final int TEXT_COLOR = ModernUi.TEXT;
 
     private static void inlineSpans(String text, int absoluteStart, boolean inheritedBold,
                                     List<Evidence.NavigationTarget> targets, List<ModelBackend.UrlCitation> citations,
-                                    List<Evidence.Source> sources, List<InlineSpan> spans) {
+                                    List<Evidence.Source> sources, Map<Evidence.Source, String> sourceLabels,
+                                    List<InlineSpan> spans) {
         StringBuilder plain = new StringBuilder();
         boolean bold = inheritedBold;
         boolean strong = false;
@@ -299,7 +377,7 @@ final class ScreenText {
                 if (target != null) {
                     int firstSpan = spans.size();
                     inlineSpans(text.substring(index, citation.endIndex() - absoluteStart), absoluteStart + index,
-                            bold, targets, List.of(), sources, spans);
+                            bold, targets, List.of(), sources, sourceLabels, spans);
                     if (spans.subList(firstSpan, spans.size()).stream().map(InlineSpan::target).noneMatch(target::equals)) {
                         spans.add(new InlineSpan(citation.title() == null || citation.title().isBlank() ? "Source" : citation.title(),
                                 target, ModernUi.TEXT, false, false));
@@ -344,11 +422,12 @@ final class ScreenText {
                                 default -> "Source";
                             }, target, ModernUi.TEXT, false, false, source));
                             else {
-                                spans.add(new InlineSpan(source == null ? reference.group(1).equals("native")
-                                        ? displayName(reference.group(2)) : markerTag(reference.group(1), reference.group(2))
-                                        : reference.group(1).equals("config") ? "Config"
-                                        : source.sourceHandle().startsWith("inventory:") ? "Inventory" : displayName(reference.group(2)),
-                                        null, source == null ? DIM_COLOR : ModernUi.TEXT, false, false, source));
+                                String label = source == null ? reference.group(1).equals("native")
+                                        ? sourceFallbackLabel(null, reference.group(1), reference.group(2))
+                                        : markerTag(reference.group(1), reference.group(2))
+                                        : sourceLabels.getOrDefault(source, sourceFallbackLabel(source, reference.group(1), reference.group(2)));
+                                spans.add(new InlineSpan(label, null, source == null ? DIM_COLOR : ModernUi.TEXT,
+                                        false, false, source));
                             }
                         }
                         index = end + 1;
@@ -374,12 +453,9 @@ final class ScreenText {
                         case "config" -> "Config";
                         default -> "Source";
                     }, target, ModernUi.TEXT, false, false, source));
-                    else if (source != null) {
-                        spans.add(new InlineSpan(source.providerId().equals("config") ? "Config"
-                                : source.sourceHandle().startsWith("inventory:") ? "Inventory" : displayName(marker.group(2)),
-                                null, ModernUi.TEXT, false, false, source));
-                    } else spans.add(new InlineSpan(marker.group(1).equals("native") ? displayName(marker.group(2))
-                            : markerTag(marker.group(1), marker.group(2)), null, DIM_COLOR, false, false));
+                    else if (source != null) spans.add(new InlineSpan(sourceLabels.getOrDefault(source,
+                            sourceFallbackLabel(source, marker.group(1), marker.group(2))), null, ModernUi.TEXT, false, false, source));
+                    else spans.add(new InlineSpan(sourceFallbackLabel(null, marker.group(1), marker.group(2)), null, DIM_COLOR, false, false));
                     index = marker.end();
                     continue;
                 }
@@ -460,6 +536,26 @@ final class ScreenText {
             plain.append(text.charAt(index++));
         }
         flushInline(spans, plain, bold, code);
+    }
+
+    private static String sourceFallbackLabel(Evidence.Source source, String provider, String handle) {
+        if ((source != null && source.providerId().equals("native") || "native".equals(provider)) && handle != null) {
+            if (handle.startsWith("brewing:")) return "Brewing recipe";
+            if (handle.startsWith("potion:")) return "Potion effects";
+        }
+        if (source != null && source.providerId().equals("config")) return "Config";
+        if (source != null && source.sourceHandle().startsWith("inventory:")) return "Inventory";
+        return handle == null ? "Source" : displayName(handle);
+    }
+
+    private static String string(JsonObject object, String key) {
+        JsonElement value = object.get(key);
+        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() ? value.getAsString() : null;
+    }
+
+    private static long longValue(JsonObject object, String key) {
+        JsonElement value = object.get(key);
+        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsLong() : Long.MIN_VALUE;
     }
 
     private static void flushInline(List<InlineSpan> spans, StringBuilder plain, boolean bold, boolean code) {

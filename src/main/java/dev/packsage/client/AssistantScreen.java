@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +71,7 @@ public final class AssistantScreen extends Screen {
     private List<String> sourceTooltip = List.of();
     private final List<ActivityHit> activityHits = new ArrayList<>();
     private final Map<String, ActivityExpansion> activityExpansion = new LinkedHashMap<>();
+    private final Map<ChatContracts.RequestId, CachedSourceLabels> sourceLabelCache = new HashMap<>();
     private final Set<String> expandedWorlds = new HashSet<>();
     private int sidebarScroll;
     private int sidebarContentHeight;
@@ -657,8 +659,16 @@ public final class AssistantScreen extends Screen {
             }
         }
         return Math.max(y + 18, drawInlineLines(graphics,
-                ScreenText.inlineLines(segment.text(), targets, citations, turn), y,
+                ScreenText.inlineLines(segment.text(), targets, citations, turn, sourceLabels(turn)), y,
                 readableLeft + 26, readableWidth - 26, turn));
+    }
+
+    private Map<Evidence.Source, String> sourceLabels(ChatContracts.Turn turn) {
+        CachedSourceLabels cached = sourceLabelCache.get(turn.requestId());
+        if (cached != null && cached.turn() == turn) return cached.labels();
+        Map<Evidence.Source, String> labels = ScreenText.sourceLabels(turn);
+        sourceLabelCache.put(turn.requestId(), new CachedSourceLabels(turn, labels));
+        return labels;
     }
 
     private int drawMessageActions(GuiGraphics graphics, ChatContracts.Turn turn, boolean user, int tokens, int y, int mouseX, int mouseY) {
@@ -1429,6 +1439,7 @@ public final class AssistantScreen extends Screen {
         boolean sessionsChanged = !view.conversation().id().equals(next.conversation().id()) || completed;
         boolean historyLoaded = !view.conversation().id().equals(next.conversation().id())
                 || view.activity().equals("Loading session...") && !next.activity().equals("Loading session...");
+        if (!view.conversation().id().equals(next.conversation().id())) sourceLabelCache.clear();
         view = Objects.requireNonNull(next);
         history = null;
         if (!next.active()) resendingRequest = null;
@@ -1567,6 +1578,7 @@ public final class AssistantScreen extends Screen {
 
     private record ChipHit(Evidence.NavigationTarget target, int left, int top, int right, int bottom) { }
     private record SourceHit(Evidence.Source source, ChatContracts.Turn turn, int left, int top, int right, int bottom) { }
+    private record CachedSourceLabels(ChatContracts.Turn turn, Map<Evidence.Source, String> labels) { }
     private record WebLinkHit(String url, int left, int top, int right, int bottom) { }
     private record ActivityHit(String key, int left, int top, int right, int bottom) { }
     private record ActivityExpansion(ChatContracts.ActivityStatus status, boolean expanded) { }

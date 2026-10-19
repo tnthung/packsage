@@ -45,3 +45,18 @@ Complete current inventory evidence found 64 coal, 64 stripped oak wood and 64 o
 Turn 1 made one invalid evidence read using an unobserved bare handle, then successfully reread the native torch references. It also made extra unfinished JEI searches for sticks and planks after already finding relevant native facts. The final answer rendered the count followed by a malformed citation marker and visible citation-editing draft text. This is a final-output failure, not an inspection of hidden reasoning. A real JEI torch navigation target was retained, but its click action was not tested in this arc.
 
 Turn 2 refreshed inventory/storage and recipe evidence, distinguished the standard vanilla recipe from the installed one-torch output, and retained 64 rather than adopting 256. It produced normal explanatory prose, but still ended with a malformed citation marker and supplied no usable claim citation in that answer. Both turns completed; neither is an overall clean pass.
+
+### 2. Create automation, a demonstration and an action request
+
+Conversation: `7a8296c7-ba6c-48c3-982d-8a74262f96ac-b92912854fdc0d36.jsonl`.
+
+| Turn | Submitted question | Request | Calls | Time | Assessment |
+|---|---|---|---|---|---|
+| 3 | I want to automate making iron sheets with Create. What setup do I need, and can you show me a demonstration? | `2fdb3c3d-4574-4b35-bcc4-de0ab044e71e` | 13 local; two web-search activities | 116.650 s | Supported explanation and clicked Ponder viewer pass; extra search churn. |
+| 4 | Can you build that setup here for me? | `3ff3731a-24e6-4f61-97ad-0089c24213e8` | 0 | 6.253 s | Read-only boundary pass; no false action claim or unnecessary discovery. |
+
+The native recipe payload supports one iron ingot to one iron sheet. It remains partially decoded with unknown input-consumption metadata. Fresh reads of both Mechanical Press Ponder scenes support belt-fed automatic processing and distinguish Basin compacting. The answer cites the [official Create wiki](https://github.com/Creators-of-Create/Create/wiki/Mechanical-Press) for additional belt-stall and shaft-power details, which the evidence audit independently confirmed against that source.
+
+Clicking the actual `Processing Items with the Mechanical Press` control opened Ponder with that exact title and a rendered press scene. The final answer uses working local citations, a genuine Ponder target and an attributed external link. Broader guide discovery spent calls on unrelated bounded Patchouli searches; the first native recipe page was empty but its continuation found the recipe. Two JEI pages remained empty and unfinished, which does not establish recipe absence.
+
+The action follow-up immediately said it cannot place or build blocks and offered instructions instead. No tools were called and no game-world action occurred. Both turns fulfill their expected goals, with roughly two-minute latency and unnecessary discovery on the first turn.

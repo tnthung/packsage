@@ -9,6 +9,7 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.knowledge.curios.CuriosInventoryAdapter;
+import dev.packsage.knowledge.relics.RelicsInstanceReader;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.knowledge.config.ConfigProvider;
 import dev.packsage.knowledge.nativegame.NativeProvider;
@@ -75,7 +76,7 @@ public final class ClientAssistant {
     static final String GUIDEME_VERSION = "[21.1.0,21.2.0)";
     static final String IMMERSIVE_ENGINEERING_VERSION = "[12.0.0-182,13.0.0)";
     static final String ACTUALLY_ADDITIONS_VERSION = "[1.3.0,1.4.0)";
-    static final String RELICS_VERSION = "[0.12.8,0.13.0)";
+    static final String RELICS_VERSION = RelicsInstanceReader.VERSION_RANGE;
     static final String ARTIFACTS_VERSION = "[13.2.3,14.0.0)";
     private static final String LOADER_VERSION_SUFFIX = "-NEOFORGE";
 
@@ -428,7 +429,10 @@ public final class ClientAssistant {
     private KnowledgeService knowledge(Supplier<Evidence.Scope> scope) {
         OptionalStatus curiosStatus = optionalStatuses.get("curios");
         var curiosAdapter = new CuriosInventoryAdapter(curiosStatus.loaded(), curiosStatus.supported(), curiosStatus.actualVersion());
-        NativeProvider nativeProvider = new NativeProvider(client, workerExecutor, scope, curiosAdapter);
+        OptionalStatus relicsStatus = optionalStatuses.get("relics");
+        var relicsReader = new RelicsInstanceReader(relicsStatus != null && relicsStatus.loaded(),
+                relicsStatus != null && relicsStatus.supported(), relicsStatus == null ? "unknown" : relicsStatus.actualVersion());
+        NativeProvider nativeProvider = new NativeProvider(client, workerExecutor, scope, curiosAdapter, relicsReader);
         var providers = new ArrayList<KnowledgeProvider>();
         providers.add(nativeProvider);
         providers.add(curiosAdapter);

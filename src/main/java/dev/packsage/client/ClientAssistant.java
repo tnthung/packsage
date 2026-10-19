@@ -428,16 +428,16 @@ public final class ClientAssistant {
         var providers = new ArrayList<KnowledgeProvider>();
         providers.add(nativeProvider);
         providers.add(jeiProvider());
-        providers.add(optionalMinecraftProvider("ftb_quests", FTB_CLASS, "forMinecraft", scope));
+        providers.add(optionalMinecraftProvider(optionalStatuses.get("ftb_quests"), FTB_CLASS, "forMinecraft", scope, clientExecutor));
         providers.add(ConfigProvider.production(configRoots(), clientExecutor, workerExecutor, client::isSameThread));
-        providers.add(optionalMinecraftProvider("patchouli", PATCHOULI_CLASS, "forMinecraft", scope));
-        providers.add(optionalMinecraftProvider("modonomicon", "dev.packsage.knowledge.guide.ModonomiconGuideReader", "forMinecraft", scope));
-        providers.add(optionalMinecraftProvider("guideme", "dev.packsage.knowledge.guide.GuideMeGuideReader", "forMinecraft", scope));
-        providers.add(optionalMinecraftProvider("immersiveengineering", "dev.packsage.knowledge.guide.ImmersiveEngineeringGuideReader", "forMinecraft", scope));
-        providers.add(optionalMinecraftProvider("actuallyadditions", "dev.packsage.knowledge.guide.ActuallyAdditionsGuideReader", "forMinecraft", scope));
-        providers.add(optionalMinecraftProvider("relics", "dev.packsage.knowledge.guide.RelicsGuideReader", "forMinecraft", scope));
-        providers.add(optionalMinecraftProvider("artifacts", "dev.packsage.knowledge.guide.ArtifactsGuideReader", "forMinecraft", scope));
-        providers.add(optionalMinecraftProvider("ponder", "dev.packsage.knowledge.guide.PonderGuideReader", "forMinecraft", scope));
+        providers.add(optionalMinecraftProvider(optionalStatuses.get("patchouli"), PATCHOULI_CLASS, "forMinecraft", scope, clientExecutor));
+        providers.add(optionalMinecraftProvider(optionalStatuses.get("modonomicon"), "dev.packsage.knowledge.guide.ModonomiconGuideReader", "forMinecraft", scope, clientExecutor));
+        providers.add(optionalMinecraftProvider(optionalStatuses.get("guideme"), "dev.packsage.knowledge.guide.GuideMeGuideReader", "forMinecraft", scope, clientExecutor));
+        providers.add(optionalMinecraftProvider(optionalStatuses.get("immersiveengineering"), "dev.packsage.knowledge.guide.ImmersiveEngineeringGuideReader", "forMinecraft", scope, clientExecutor));
+        providers.add(optionalMinecraftProvider(optionalStatuses.get("actuallyadditions"), "dev.packsage.knowledge.guide.ActuallyAdditionsGuideReader", "forMinecraft", scope, clientExecutor));
+        providers.add(optionalMinecraftProvider(optionalStatuses.get("relics"), "dev.packsage.knowledge.guide.RelicsGuideReader", "forMinecraft", scope, clientExecutor));
+        providers.add(optionalMinecraftProvider(optionalStatuses.get("artifacts"), "dev.packsage.knowledge.guide.ArtifactsGuideReader", "forMinecraft", scope, clientExecutor));
+        providers.add(optionalMinecraftProvider(optionalStatuses.get("ponder"), "dev.packsage.knowledge.guide.PonderGuideReader", "forMinecraft", scope, clientExecutor));
         return new KnowledgeService(providers, scope);
     }
 
@@ -455,9 +455,9 @@ public final class ClientAssistant {
         });
     }
 
-    private KnowledgeProvider optionalMinecraftProvider(String key, String className, String methodName,
-                                                        Supplier<Evidence.Scope> scope) {
-        OptionalStatus status = optionalStatuses.get(key);
+    static KnowledgeProvider optionalMinecraftProvider(OptionalStatus status, String className, String methodName,
+                                                       Supplier<Evidence.Scope> scope, Executor clientExecutor) {
+        String key = status == null ? "optional" : status.id();
         if (status == null || !status.supported()) return unavailableProvider(status, key + " runtime is not supported");
         try {
             Class<?> type = Class.forName(className, false, ClientAssistant.class.getClassLoader());

@@ -69,6 +69,24 @@ class ClientAssistantTest {
     }
 
     @Test
+    void optionalMinecraftFactoryLoadsTwoArgumentProvidersAndVersionedGuideProviders() {
+        var scope = new Evidence.Scope("world", "en_us", "player", "runtime", 1);
+        var ftb = ClientAssistant.optionalMinecraftProvider(new ClientAssistant.OptionalStatus("ftb_quests", "ftbquests",
+                "[2101.1.36,2101.2)", "2101.1.36", true, true, "supported"),
+                "dev.packsage.knowledge.ftb.FtbProvider", "forMinecraft", () -> scope, Runnable::run);
+        var patchouli = ClientAssistant.optionalMinecraftProvider(new ClientAssistant.OptionalStatus("patchouli", "patchouli",
+                "[1.21.1-92,1.21.1-94)", "1.21.1-93-NEOFORGE", true, true, "supported"),
+                "dev.packsage.knowledge.patchouli.PatchouliProvider", "forMinecraft", () -> scope, Runnable::run);
+        var modonomicon = ClientAssistant.optionalMinecraftProvider(new ClientAssistant.OptionalStatus("modonomicon", "modonomicon",
+                ClientAssistant.MODONOMICON_VERSION, "1.120.7", true, true, "supported"),
+                "dev.packsage.knowledge.guide.ModonomiconGuideReader", "forMinecraft", () -> scope, Runnable::run);
+
+        assertTrue(ftb instanceof ClientAssistant.ReflectiveProvider);
+        assertTrue(patchouli instanceof ClientAssistant.ReflectiveProvider);
+        assertTrue(modonomicon instanceof ClientAssistant.ReflectiveProvider);
+    }
+
+    @Test
     void optionalVersionRangesAcceptValidatedAdapterReleasesAndRejectOtherLines() {
         assertTrue(ClientAssistant.versionMatches("[19.27.0.340,20)", "19.27.0.340"));
         assertTrue(ClientAssistant.versionMatches("[19.27.0.340,20)", "19.57.0.450"));

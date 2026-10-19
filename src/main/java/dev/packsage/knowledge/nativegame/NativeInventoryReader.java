@@ -310,8 +310,9 @@ public final class NativeInventoryReader implements InventoryReader {
                 ? value.value() : "unknown";
         String curiosCoverage = capture.summary().payload().values().get("curiosCoverage") instanceof Evidence.JsonString value
                 ? value.value() : "UNKNOWN";
-        var detail = "scope=direct vanilla player slots and " + (sourceScope.contains("functional-curios")
-                ? "functional Curios equipment" : "vanilla equipment") + "; Curios=" + curiosCoverage
+        var detail = "scope=direct vanilla player slots and equipment"
+                + (sourceScope.contains("functional-curios") ? "; functional Curios equipment included" : "")
+                + "; Curios=" + curiosCoverage
                 + " (API " + curiosVersion + "); cosmetic Curios slots are excluded; nested storage contents are not inspected"
                 + "; source=" + sourceScope + "; capturedAt=" + capture.capturedAt()
                 + (unsupportedSections.isEmpty() ? "" : "; unsupported native inventory sections were not inspected: "

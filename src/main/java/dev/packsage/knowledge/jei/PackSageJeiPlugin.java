@@ -14,6 +14,7 @@ import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.recipe.vanilla.IJeiIngredientInfoRecipe;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -781,7 +782,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var type = typed.getType();
             var value = typed.getIngredient();
             var partial = false;
-            var typeId = type.getUid();
+            var typeId = value instanceof ItemStack ? "item" : type.getUid();
             var valueClass = value.getClass().getName();
             if (typeId.length() > budget.remainingBytes() || valueClass.length() > budget.remainingBytes()) {
                 budget.bytes(budget.remainingBytes() + 1);
@@ -794,6 +795,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var componentBytes = valueClassBytes.length;
             var descriptionId = valueClass;
             var componentHash = 0;
+            String potionId = null;
             if (value instanceof ItemStack stack) {
                 var itemKey = BuiltInRegistries.ITEM.getKey(stack.getItem());
                 var itemNamespace = itemKey.getNamespace();
@@ -801,8 +803,13 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 descriptionId = stack.getDescriptionId();
                 componentHash = stack.getComponents().hashCode();
                 var componentHashText = Integer.toString(componentHash);
+                var potionContents = stack.get(DataComponents.POTION_CONTENTS);
+                potionId = potionContents == null ? null : potionContents.potion()
+                        .flatMap(holder -> holder.unwrapKey())
+                        .map(key -> key.location().toString()).orElse(null);
                 if (itemNamespace.length() + 1L + itemPath.length() > budget.remainingBytes()
-                        || descriptionId.length() > budget.remainingBytes()) {
+                        || descriptionId.length() > budget.remainingBytes()
+                        || potionId != null && potionId.length() > budget.remainingBytes()) {
                     budget.bytes(budget.remainingBytes() + 1);
                     return unreadIngredient;
                 }
@@ -811,9 +818,11 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 var descriptionIdBytes = descriptionId.getBytes(StandardCharsets.UTF_8);
                 identityBytes = itemNamespaceBytes.length + 1 + itemPathBytes.length
                         + "|componentsHash=".length() + componentHashText.length();
-                componentBytes = descriptionIdBytes.length;
+                componentBytes = descriptionIdBytes.length
+                        + (potionId == null ? 0 : potionId.getBytes(StandardCharsets.UTF_8).length);
                 var escapedBytes = 0;
-                for (var text : new String[] { typeId, itemNamespace, itemPath, itemNamespace, itemPath, descriptionId }) {
+                for (var text : new String[] { typeId, itemNamespace, itemPath, itemNamespace, itemPath,
+                        descriptionId, potionId == null ? "" : potionId }) {
                     for (var index = 0; index < text.length(); index++) {
                         var character = text.charAt(index);
                         if (character == '"' || character == '\\' || character == '\b' || character == '\t'
@@ -862,6 +871,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         stack.getComponents().size())));
                 componentValues.put("componentHash", new Evidence.JsonNumber(BigDecimal.valueOf(componentHash)));
                 componentValues.put("descriptionId", new Evidence.JsonString(descriptionId));
+                if (potionId != null) componentValues.put("potion", new Evidence.JsonString(potionId));
             } else {
                 componentValues.put("valueClass", new Evidence.JsonString(value.getClass().getName()));
                 partial = true;

@@ -578,7 +578,7 @@ class JeiProjectionTest {
             assertNotNull(first.nextCursor());
             var cursor = first.nextCursor();
             var matchPage = first;
-            for (var page = 1; page < 16 && matchPage.records().isEmpty(); page++) {
+            for (var page = 1; page < 128 && matchPage.records().isEmpty(); page++) {
                 recipeVisits.set(0);
                 PackSageJeiPlugin.clientTicked();
                 matchPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
@@ -802,6 +802,7 @@ class JeiProjectionTest {
                     Potions.LONG_STRENGTH));
             var componentSensitiveScenario = new AtomicBoolean();
             var oversizedTypeUid = "x".repeat(100_000);
+            var oversizedIngredientValue = new Object();
             var oversizedSlotName = "s".repeat(100_000);
             var typedIngredientType = Proxy.newProxyInstance(IIngredientType.class.getClassLoader(),
                     new Class<?>[] { IIngredientType.class },
@@ -811,7 +812,8 @@ class JeiProjectionTest {
                     new Class<?>[] { ITypedIngredient.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "getType" -> ingredientBudgetScenario.get() || oversizedIngredientScenario.get()
                                 ? typedIngredientType : VanillaTypes.ITEM_STACK;
-                        case "getIngredient" -> recipeOutputs.get(currentLayoutRecipe.get());
+                        case "getIngredient" -> oversizedIngredientScenario.get() ? oversizedIngredientValue
+                                : recipeOutputs.get(currentLayoutRecipe.get());
                         default -> null;
                     });
             var visibilityType = IJeiRuntime.class.getMethod("getIngredientVisibility").getReturnType();
@@ -936,8 +938,11 @@ class JeiProjectionTest {
                     "outputItem", new Evidence.JsonString("minecraft:potion"))), 1, null, null);
             var potionFirstPage = plugin.provider().query(potionQuery, SCOPE).toCompletableFuture().get();
             assertEquals(1, potionFirstPage.records().size());
+            assertEquals("item", potionFirstPage.records().getFirst().recipePayload().outputs().getFirst().type());
             assertTrue(potionFirstPage.records().getFirst().recipePayload().outputs().getFirst()
                     .comparisonIdentity().startsWith("minecraft:potion|componentsHash="));
+            assertEquals("minecraft:strength", ((Evidence.JsonString) potionFirstPage.records().getFirst()
+                    .recipePayload().outputs().getFirst().components().values().get("potion")).value());
             assertEquals("recipe-v1|minecraft:crafting|fixture:strength",
                     potionFirstPage.records().getFirst().targets().getFirst().targetId());
             assertTrue(Evidence.serialize(potionFirstPage.records().getFirst().payload()).contains("minecraft:strength"));
@@ -951,11 +956,13 @@ class JeiProjectionTest {
             assertNotEquals(potionFirstPage.records().getFirst().recipePayload().outputs().getFirst()
                     .comparisonIdentity(), potionSecondPage.records().getFirst().recipePayload().outputs().getFirst()
                     .comparisonIdentity());
+            assertEquals("minecraft:long_strength", ((Evidence.JsonString) potionSecondPage.records().getFirst()
+                    .recipePayload().outputs().getFirst().components().values().get("potion")).value());
             assertTrue(Evidence.serialize(potionSecondPage.records().getFirst().payload()).contains("minecraft:long_strength"));
             PackSageJeiPlugin.clientTicked();
             var componentSearch = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
-                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("minecraft:strength"),
-                            "outputItem", new Evidence.JsonString("minecraft:potion"))), 1, null, null), SCOPE)
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("minecraft:strength"))),
+                    1, null, null), SCOPE)
                     .toCompletableFuture().get();
             assertEquals(1, componentSearch.records().size());
             assertEquals("fixture:strength", componentSearch.records().getFirst().recipePayload().canonicalRecipeId());
@@ -1004,8 +1011,7 @@ class JeiProjectionTest {
             assertEquals(Evidence.Coverage.UNAVAILABLE, oversizedExactGet.coverage());
             PackSageJeiPlugin.clientTicked();
             var oversizedIngredient = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
-                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),
-                            "outputItem", new Evidence.JsonString("minecraft:stone"))), 4, null, null), nextScope)
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 4, null, null), nextScope)
                     .toCompletableFuture().get();
             assertEquals(Evidence.Coverage.PARTIAL, oversizedIngredient.coverage());
             var oversizedPayload = Evidence.serialize(oversizedIngredient.records().getFirst().payload());

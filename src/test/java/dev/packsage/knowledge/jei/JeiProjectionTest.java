@@ -721,6 +721,7 @@ class JeiProjectionTest {
             var ingredientBudgetScenario = new AtomicBoolean();
             var heavyCandidateScenario = new AtomicBoolean();
             var heavyAlternativeCount = new AtomicInteger(21);
+            var oversizedCatalystScenario = new AtomicBoolean();
             var oversizedIngredientScenario = new AtomicBoolean();
             var oversizedSlotNameScenario = new AtomicBoolean();
             var recipeVisits = new AtomicInteger();
@@ -831,7 +832,7 @@ class JeiProjectionTest {
             var catalystLookup = (IRecipeCatalystLookup) Proxy.newProxyInstance(IRecipeCatalystLookup.class.getClassLoader(),
                     new Class<?>[] { IRecipeCatalystLookup.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "includeHidden" -> proxy;
-                        case "get" -> Stream.empty();
+                        case "get" -> oversizedCatalystScenario.get() ? Stream.of(typedIngredient) : Stream.empty();
                         default -> null;
                     });
             var manager = (IRecipeManager) Proxy.newProxyInstance(IRecipeManager.class.getClassLoader(),
@@ -1126,7 +1127,29 @@ class JeiProjectionTest {
             var oversizedPayload = Evidence.serialize(oversizedIngredient.records().getFirst().payload());
             assertTrue(oversizedPayload.getBytes(StandardCharsets.UTF_8).length <= 96 * 1024);
             assertFalse(oversizedPayload.contains(oversizedTypeUid));
+            oversizedCatalystScenario.set(true);
+            recipes.set(List.of(strengthPotionRecipe));
+            String oversizedCatalystCursor = null;
+            Evidence.Result oversizedCatalystResult = null;
+            for (var attempt = 0; attempt < 3; attempt++) {
+                PackSageJeiPlugin.clientTicked();
+                oversizedCatalystResult = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                        new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1,
+                        oversizedCatalystCursor == null ? null : SCOPE, oversizedCatalystCursor), SCOPE)
+                        .toCompletableFuture().get();
+                if (oversizedCatalystResult.nextCursor() == null) break;
+                assertNotEquals(oversizedCatalystCursor, oversizedCatalystResult.nextCursor(),
+                        "an uncapturable catalyst must not return the same source position indefinitely");
+                oversizedCatalystCursor = oversizedCatalystResult.nextCursor();
+            }
+            assertNotNull(oversizedCatalystResult);
+            assertEquals(Evidence.Coverage.PARTIAL, oversizedCatalystResult.coverage());
+            assertNotNull(oversizedCatalystResult.detail());
+            assertTrue(oversizedCatalystResult.detail().toLowerCase(java.util.Locale.ROOT).contains("budget"));
+            assertNull(oversizedCatalystResult.nextCursor());
+            oversizedCatalystScenario.set(false);
             oversizedIngredientScenario.set(false);
+            recipes.set(List.of(recipe));
             oversizedSlotNameScenario.set(true);
             PackSageJeiPlugin.clientTicked();
             var oversizedSlotResult = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,

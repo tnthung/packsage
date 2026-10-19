@@ -447,7 +447,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
             var output = new StringBuilder();
             for (int index = 0; index < text.length(); index++) {
                 char character = text.charAt(index);
-                if (!token.isEmpty() && mode == 6 && character != '(') emit(output);
+                if (!token.isEmpty() && (mode == 6 || mode == 7) && character != '(' && !Character.isWhitespace(character)) emit(output);
                 else if (!token.isEmpty() && (token.length() == MAX_TOKEN_CHARS || mode == 2 && character != '(')) {
                     output.append(token);
                     token.setLength(0);
@@ -466,7 +466,9 @@ public final class ReferenceAliasBackend implements ModelBackend {
                         if (resolve(token.substring(1, token.length() - 1)) != null) mode = 6;
                         else mode = 2;
                     } else if (mode == 2) mode = 3;
+                    else if (mode == 6 && Character.isWhitespace(character)) mode = 7;
                     else if (mode == 6 && character == '(') mode = 3;
+                    else if (mode == 7 && character == '(') mode = 3;
                     else if (mode == 3 && character == ')') emit(output);
                     else if (mode == 4) {
                         if (!GROUP_START.startsWith(token.toString())) {
@@ -492,10 +494,15 @@ public final class ReferenceAliasBackend implements ModelBackend {
         private void emit(StringBuilder output) {
             var changes = new ArrayList<Replacement>();
             if (token.charAt(0) == '[') {
-                int start = mode == 6 ? 1 : token.indexOf("](") + 2;
+                int close = token.indexOf(']');
+                int open = token.indexOf('(', close + 1);
+                int start = mode == 6 ? 1 : open + 1;
                 int end = token.length() - 1;
                 String canonical = resolve(token.substring(start, end));
-                if (canonical != null) changes.add(new Replacement(start, end, canonical));
+                if (canonical != null) {
+                    if (open > close + 1) changes.add(new Replacement(close + 1, open, ""));
+                    changes.add(new Replacement(start, end, canonical));
+                }
             } else {
                 int start = GROUP_START.length();
                 for (int index = start; index < token.length(); index++) {

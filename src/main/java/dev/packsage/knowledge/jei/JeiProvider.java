@@ -93,7 +93,7 @@ public final class JeiProvider implements KnowledgeProvider {
 
     public record Snapshot(Evidence.Scope scope, long generation, long snapshotVersion,
                            List<Projection> projections, Consumer<String> navigator,
-                           Evidence.Coverage coverage, boolean queryScoped, String nextCursor) {
+                           Evidence.Coverage coverage, boolean queryScoped, String nextCursor, String detail) {
         public Snapshot {
             Objects.requireNonNull(scope);
             projections = List.copyOf(projections);
@@ -104,6 +104,12 @@ public final class JeiProvider implements KnowledgeProvider {
         public Snapshot(Evidence.Scope scope, long generation, List<Projection> projections,
                         Consumer<String> navigator) {
             this(scope, generation, generation, projections, navigator, coverage(projections), false, null);
+        }
+
+        public Snapshot(Evidence.Scope scope, long generation, long snapshotVersion,
+                        List<Projection> projections, Consumer<String> navigator,
+                        Evidence.Coverage coverage, boolean queryScoped, String nextCursor) {
+            this(scope, generation, snapshotVersion, projections, navigator, coverage, queryScoped, nextCursor, null);
         }
 
         public Snapshot(Evidence.Scope scope, long generation, long snapshotVersion,
@@ -593,7 +599,7 @@ public final class JeiProvider implements KnowledgeProvider {
                                 && ingredient.comparisonIdentity().split("\\|componentsHash=", 2)[0].equals(outputItem)))
                 .map(projection -> toRecord(projection, snapshot)).toList();
         var detail = snapshot.projections().stream().map(Projection::error).filter(Objects::nonNull)
-                .findFirst().orElse(null);
+                .findFirst().orElse(snapshot.detail());
         var result = result(records, snapshot.coverage(), snapshot.nextCursor());
         return detail == null ? result : new Evidence.Result(result.records(), result.coverage(), result.outcome(),
                 result.nextCursor(), detail);

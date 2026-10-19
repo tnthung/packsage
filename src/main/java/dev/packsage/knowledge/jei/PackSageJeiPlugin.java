@@ -705,7 +705,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 if (!active) throw new IllegalStateException("JEI runtime unavailable");
                 if (registered == null) throw new IllegalArgumentException("unknown JEI projection " + handle);
                 showRecipe(runtime, registered);
-            }, coverage, true, next);
+            }, coverage, true, next, hasMore ? "JEI scan pending category " + nextCategory
+                    + ", recipe " + nextRecipe + (nextRetryCandidate ? " (retry required)" : "") : null);
         }
 
         private static JeiProvider.Projection project(IJeiRuntime runtime, IRecipeManager manager,

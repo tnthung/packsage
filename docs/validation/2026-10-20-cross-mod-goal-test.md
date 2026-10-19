@@ -106,3 +106,15 @@ Conversation: `6b61501e-e240-4288-8e07-bc6deee79c7d-3c60679718b996c7.jsonl`.
 The actual IE reader repeatedly reported `Immersive Engineering manual entries have not been loaded`, partial coverage and no cursor. This is a live initialization prerequisite, not evidence that the manual contains no relevant page. This baseline does not initialize it by granting an item or changing player state.
 
 Exact native searches did return treated-wood and coke-brick recipes, while unrelated Patchouli/GuideME/Modonomicon queries added no requested manual page. One changed Patchouli query reused another query's cursor and received `INVALID_CURSOR`; one guessed coke-brick ID received `INVALID_ARGUMENTS` before the observed ID succeeded. Three JEI pages remained empty and unfinished. The UI stop action produced a saved `CANCELLED` turn with an empty answer and zero navigation targets. Useful partial evidence existed, but this run supplied no player guidance within the bound; it is not a completed functional pass.
+
+### 6. Actually Additions transformation and a mistaken ingredient premise
+
+Conversation: `af250220-f02e-47fc-8365-e40e3b82c65b-924eeb788f145c67.jsonl`.
+
+| Turn | Submitted question | Request | Calls | Time | Assessment |
+|---|---|---|---|---|---|
+| 10 | I need Restonia crystals for Actually Additions. Do I put iron ingots in front of the Atomic Reconstructor, and how do I power and use it? | `e3ad9d38-8bbe-4da2-a42c-7ee7a46577bc` | 28 local plus web searches | About 4 min 9 s before stop | CANCELLED without a final answer; correction handling and complete operation guidance unaccepted. |
+
+Targeted Actually Additions booklet searches returned `Crystals and Reconstructor` fragments. They describe a powered machine's laser converting compatible items/blocks along its path until a block, a 1,000 CF laser cost with conversion-dependent additional rates, and redstone-torch mode switching. `read_evidence` refreshed a bounded booklet fragment. Recipe pages remained partial and sometimes hit the page-seek budget.
+
+Native discovery and a fresh read returned `actuallyadditions:laser/crystalize_restonia_crystal`, outputting one Restonia Crystal but with an empty input list and partial decoding. This does not confirm the proposed iron input. Machine crafting recipes are separate from conversion operation. A useful answer could have explained the supported beam behavior and explicitly left the missing ingredient/power-wiring details unresolved. Instead broad document queries, unrelated Ponder probes, further native scans and pending JEI pages continued until the stop. Zero navigation targets and an empty saved answer establish no booklet/viewer or complete goal acceptance.

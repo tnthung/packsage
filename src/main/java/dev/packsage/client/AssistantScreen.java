@@ -988,6 +988,7 @@ public final class AssistantScreen extends Screen {
                 title = "Adapters";
                 Map<String, Boolean> availability = actions.adapterAvailability();
                 for (var adapter : List.of(Map.entry("native", "Minecraft"), Map.entry("jei", "JEI"),
+                        Map.entry("curios", "Curios"),
                         Map.entry("ftb_quests", "FTB Quests"), Map.entry("config", "NeoForge configs"),
                         Map.entry("patchouli", "Patchouli"), Map.entry("modonomicon", "Modonomicon"),
                         Map.entry("guideme", "GuideME"), Map.entry("immersiveengineering", "Immersive Engineering"),

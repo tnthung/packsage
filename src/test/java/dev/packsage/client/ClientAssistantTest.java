@@ -165,6 +165,15 @@ class ClientAssistantTest {
     }
 
     @Test
+    void curiosCompatibilityRangeAcceptsItsMinecraftSuffixAndRejectsOtherBuilds() {
+        assertTrue(ClientAssistant.versionMatches("[9.2.0,10.0.0)", "9.2.0+1.21.1"));
+        assertTrue(ClientAssistant.versionMatches("[9.2.0,10.0.0)", "9.5.1+1.21.1"));
+        assertFalse(ClientAssistant.versionMatches("[9.2.0,10.0.0)", "9.1.9+1.21.1"));
+        assertFalse(ClientAssistant.versionMatches("[9.2.0,10.0.0)", "10.0.0+1.21.1"));
+        assertFalse(ClientAssistant.versionMatches("[9.2.0,10.0.0)", "9.5.1+1.21.2"));
+    }
+
+    @Test
     void optionalProviderPreservesObservedVersionAndEvidenceWhenWrappingResults() {
         var scope = new Evidence.Scope("world", "en_us", "player", "runtime", 4);
         var target = new Evidence.NavigationTarget(scope, "jei", "recipe-handle", "target-id");

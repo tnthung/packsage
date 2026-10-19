@@ -87,7 +87,9 @@ class PackSageToolsTest {
         var inventory = definitions.stream().filter(value -> value.name().equals("search_inventory")).findFirst().orElseThrow().description();
         assertTrue(inventory.contains("Player summaries do not include nested containers"));
         assertTrue(inventory.contains("returned slotReference"));
-        assertTrue(inventory.contains("does not include accessory slots"));
+        assertTrue(inventory.contains("functional Curios equipment"));
+        assertTrue(inventory.contains("cosmetic slots are excluded"));
+        assertTrue(inventory.contains("curios:<type>"));
         for (var name : List.of("read_evidence", "read_progress")) {
             var description = definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow().description();
             assertTrue(description.contains("returned record references only"));

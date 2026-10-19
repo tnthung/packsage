@@ -62,6 +62,7 @@ public final class PackSageTools {
         return List.of(new Toolbox.Metadata("native", List.of(), true, NATIVE_REGISTRIES, NATIVE_INVENTORY_TARGETS),
                 new Toolbox.Metadata("ftb_quests", List.of("quest"), false, List.of(), Map.of()),
                 new Toolbox.Metadata("patchouli", List.of("guide"), false, List.of(), Map.of()),
+                new Toolbox.Metadata("curios", List.of(), false, List.of(), Map.of()),
                 new Toolbox.Metadata("jei", List.of(), true, List.of(), Map.of()));
     }
 
@@ -145,7 +146,7 @@ public final class PackSageTools {
             definitions.add(new ModelBackend.ToolDefinition(name, switch (name) {
                 case "search_document" -> "Find quests, chapters or guides with one case-insensitive literal phrase. For an item's Ponder scenes, use its exact registry ID as query with provider ponder. For partial results, continue with the returned cursor and the same query, filters and limit.";
                 case "search_recipe" -> "Find loaded recipes or viewer entries. For an exact output, use outputItem without text unless text is an additional intended filter. requiredInputTotals, when present, totals only unambiguous returned inputs and inherits record coverage. Keep native and JEI evidence distinct; use JEI when native lookup is partial or unavailable.";
-                case "search_inventory" -> "Read current contents of one target. Player summaries do not include nested containers; inspect each relevant carried container, including multiple matching items, with its returned slotReference. Vanilla inventory coverage does not include accessory slots.";
+                case "search_inventory" -> "Read current contents of one target. Player summaries do not include nested containers; inspect each relevant carried container, including multiple matching items, with its returned slotReference. Player reads include occupied functional Curios equipment when its API is supported; cosmetic slots are excluded. Filter sections with curios for all Curios equipment or curios:<type> for one slot type.";
                 case "search_config" -> "Find accessible config keys and comments, including machine speed, energy and upgrade settings. Use returned config references with read_config; preserve scope and effective-value authority.";
                 case "read_config" -> "Read a discovered config key or section at call time. A file value is not necessarily the effective server setting; preserve returned authority and scope.";
                 case "read_evidence", "read_progress" -> "Read current evidence for returned record references only. Do not pass search cursors, labels or guessed references.";

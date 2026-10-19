@@ -6,6 +6,7 @@ import dev.packsage.knowledge.KnowledgeIndex;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.RecipePlanner;
 import dev.packsage.knowledge.Toolbox;
+import dev.packsage.knowledge.curios.CuriosInventoryAdapter;
 import dev.packsage.knowledge.inventory.InventoryReader;
 import dev.packsage.knowledge.storage.NativeStorageReader;
 import dev.packsage.knowledge.storage.StorageReader;
@@ -61,11 +62,16 @@ public final class NativeProvider implements KnowledgeProvider {
     }
 
     public NativeProvider(Minecraft client, Executor executor, Supplier<Evidence.Scope> currentScope) {
+        this(client, executor, currentScope, null);
+    }
+
+    public NativeProvider(Minecraft client, Executor executor, Supplier<Evidence.Scope> currentScope,
+                          CuriosInventoryAdapter curios) {
         this.snapshotSource = null;
         this.client = Objects.requireNonNull(client);
         this.executor = Objects.requireNonNull(executor);
         this.currentScope = Objects.requireNonNull(currentScope);
-        this.inventory = new NativeInventoryReader(client, executor, currentScope);
+        this.inventory = new NativeInventoryReader(client, executor, currentScope, curios);
         this.storage = new NativeStorageReader(client, executor, currentScope, inventory::resolve);
     }
 

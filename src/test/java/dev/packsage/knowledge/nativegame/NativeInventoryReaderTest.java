@@ -1,6 +1,7 @@
 package dev.packsage.knowledge.nativegame;
 
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.curios.CuriosInventoryAdapter;
 import dev.packsage.knowledge.inventory.InventoryReader;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.PackSageTools;
@@ -99,6 +100,72 @@ class NativeInventoryReaderTest {
                 .toCompletableFuture().join();
 
         assertEquals(List.of("Apple", "Carrot"), result.records().stream().map(Evidence.Record::title).toList());
+    }
+
+    @Test
+    void curiosSectionFiltersKeepSameIndexTypesDistinct() {
+        var ring = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "curios:ring:0", 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Ring", new Evidence.JsonObject(Map.of("section", new Evidence.JsonString("curios:ring"),
+                "slot", new Evidence.JsonNumber(java.math.BigDecimal.ZERO), "equipmentSlot", new Evidence.JsonString("ring"))), List.of());
+        var necklace = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "curios:necklace:0", 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Necklace", new Evidence.JsonObject(Map.of("section", new Evidence.JsonString("curios:necklace"),
+                "slot", new Evidence.JsonNumber(java.math.BigDecimal.ZERO), "equipmentSlot", new Evidence.JsonString("necklace"))), List.of());
+        var summary = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "summary", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.OTHER, "Inventory", new Evidence.JsonObject(Map.of()), List.of());
+        var reader = new NativeInventoryReader(Runnable::run, () -> SCOPE,
+                request -> new NativeInventoryReader.Capture(List.of(
+                        new NativeInventoryReader.CapturedSlot("curios:ring", 0, "ring", false, "minecraft:gold_ingot", "Ring",
+                                "ring-ref", ring, List.of(), List.of(), new ItemStack(Items.GOLD_INGOT)),
+                        new NativeInventoryReader.CapturedSlot("curios:necklace", 0, "necklace", false, "minecraft:diamond", "Necklace",
+                                "necklace-ref", necklace, List.of(), List.of(), new ItemStack(Items.DIAMOND))), summary,
+                        Evidence.Coverage.COMPLETE, Instant.EPOCH, 1), address -> null, () -> 1,
+                new CuriosInventoryAdapter(true, true, "9.5.1+1.21.1"));
+
+        var allCurios = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
+                new InventoryReader.Filter(List.of(), List.of(), List.of(), List.of(), List.of("curios")),
+                32, null, SCOPE)).toCompletableFuture().join();
+        var ringOnly = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
+                new InventoryReader.Filter(List.of(), List.of(), List.of(), List.of(), List.of("curios:ring")),
+                32, null, SCOPE)).toCompletableFuture().join();
+
+        assertEquals(List.of("Ring", "Necklace"), allCurios.records().stream().map(Evidence.Record::title).toList());
+        assertEquals(List.of("Ring"), ringOnly.records().stream().map(Evidence.Record::title).toList());
+        assertEquals("curios:ring", ((Evidence.JsonString) allCurios.records().get(0).payload().values().get("section")).value());
+        assertEquals(java.math.BigDecimal.ZERO, ((Evidence.JsonNumber) allCurios.records().get(0).payload().values().get("slot")).value());
+        assertEquals("curios:necklace", ((Evidence.JsonString) allCurios.records().get(1).payload().values().get("section")).value());
+        assertEquals(java.math.BigDecimal.ZERO, ((Evidence.JsonNumber) allCurios.records().get(1).payload().values().get("slot")).value());
+    }
+
+    @Test
+    void unknownCuriosCoverageKeepsVanillaRecordsAndMarksReadSummaryPartial() {
+        var apple = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "apple", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Apple", new Evidence.JsonObject(Map.of()), List.of());
+        var summary = new Evidence.Record(new Evidence.Source(SCOPE, "native", "1.21.1", "summary", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.OTHER, "Inventory", new Evidence.JsonObject(Map.of()), List.of());
+        var reader = new NativeInventoryReader(Runnable::run, () -> SCOPE,
+                request -> new NativeInventoryReader.Capture(List.of(new NativeInventoryReader.CapturedSlot("hotbar", 0, null,
+                        true, "minecraft:apple", "Apple", "apple-ref", apple, List.of(), List.of(), new ItemStack(Items.APPLE))),
+                        summary, Evidence.Coverage.PARTIAL, Instant.EPOCH, 1), address -> null, () -> 1);
+
+        var result = reader.read(new InventoryReader.Request(InventoryReader.Operation.READ,
+                new InventoryReader.Filter(List.of(), List.of(), List.of(), List.of(), List.of("hotbar", "curios")),
+                32, null, SCOPE)).toCompletableFuture().join();
+
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertEquals(Evidence.Coverage.PARTIAL, result.records().getFirst().source().coverage());
+        assertEquals(List.of("Inventory", "Apple"), result.records().stream().map(Evidence.Record::title).toList());
+        assertEquals(Evidence.Coverage.COMPLETE, result.records().get(1).source().coverage());
+
+        var curiosOnly = reader.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
+                new InventoryReader.Filter(List.of(), List.of(), List.of(), List.of(), List.of("curios")), 32, null, SCOPE))
+                .toCompletableFuture().join();
+        assertEquals(Evidence.Coverage.UNAVAILABLE, curiosOnly.coverage());
+        assertEquals(Evidence.Outcome.UNKNOWN, curiosOnly.outcome());
     }
 
     @Test

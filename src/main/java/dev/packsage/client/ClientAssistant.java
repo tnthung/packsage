@@ -8,6 +8,7 @@ import dev.packsage.chat.PackSageSettings;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.KnowledgeService;
+import dev.packsage.knowledge.curios.CuriosInventoryAdapter;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.knowledge.config.ConfigProvider;
 import dev.packsage.knowledge.nativegame.NativeProvider;
@@ -132,17 +133,18 @@ public final class ClientAssistant {
             return thread;
         });
         locale = client.getLanguageManager().getSelected();
-        optionalStatuses = Map.of(
-                "jei", optionalStatus("jei", JEI_VERSION),
-                "ftb_quests", optionalStatus("ftb_quests", "ftbquests", FTB_VERSION),
-                "patchouli", optionalStatus("patchouli", PATCHOULI_VERSION),
-                "modonomicon", optionalStatus("modonomicon", MODONOMICON_VERSION),
-                "guideme", optionalStatus("guideme", GUIDEME_VERSION),
-                "immersiveengineering", optionalStatus("immersiveengineering", IMMERSIVE_ENGINEERING_VERSION),
-                "actuallyadditions", optionalStatus("actuallyadditions", ACTUALLY_ADDITIONS_VERSION),
-                "relics", optionalStatus("relics", RELICS_VERSION),
-                "artifacts", optionalStatus("artifacts", ARTIFACTS_VERSION),
-                "ponder", optionalStatus("ponder", PONDER_VERSION));
+        optionalStatuses = Map.ofEntries(
+                Map.entry("jei", optionalStatus("jei", JEI_VERSION)),
+                Map.entry("ftb_quests", optionalStatus("ftb_quests", "ftbquests", FTB_VERSION)),
+                Map.entry("patchouli", optionalStatus("patchouli", PATCHOULI_VERSION)),
+                Map.entry("modonomicon", optionalStatus("modonomicon", MODONOMICON_VERSION)),
+                Map.entry("guideme", optionalStatus("guideme", GUIDEME_VERSION)),
+                Map.entry("immersiveengineering", optionalStatus("immersiveengineering", IMMERSIVE_ENGINEERING_VERSION)),
+                Map.entry("actuallyadditions", optionalStatus("actuallyadditions", ACTUALLY_ADDITIONS_VERSION)),
+                Map.entry("relics", optionalStatus("relics", RELICS_VERSION)),
+                Map.entry("artifacts", optionalStatus("artifacts", ARTIFACTS_VERSION)),
+                Map.entry("ponder", optionalStatus("ponder", PONDER_VERSION)),
+                Map.entry("curios", optionalStatus("curios", CuriosInventoryAdapter.VERSION_RANGE)));
         settingsPath = client.gameDirectory.toPath().resolve("config").resolve("packsage.properties");
         settings = PackSageSettings.load(settingsPath);
         var backend = new ChatGptBackend(new ChatGptAuth(ChatGptAuth.defaultCredentialFile()));
@@ -424,9 +426,12 @@ public final class ClientAssistant {
     }
 
     private KnowledgeService knowledge(Supplier<Evidence.Scope> scope) {
-        NativeProvider nativeProvider = new NativeProvider(client, workerExecutor, scope);
+        OptionalStatus curiosStatus = optionalStatuses.get("curios");
+        var curiosAdapter = new CuriosInventoryAdapter(curiosStatus.loaded(), curiosStatus.supported(), curiosStatus.actualVersion());
+        NativeProvider nativeProvider = new NativeProvider(client, workerExecutor, scope, curiosAdapter);
         var providers = new ArrayList<KnowledgeProvider>();
         providers.add(nativeProvider);
+        providers.add(curiosAdapter);
         providers.add(jeiProvider());
         providers.add(optionalMinecraftProvider(optionalStatuses.get("ftb_quests"), FTB_CLASS, "forMinecraft", scope, clientExecutor));
         providers.add(ConfigProvider.production(configRoots(), clientExecutor, workerExecutor, client::isSameThread));
@@ -515,6 +520,7 @@ public final class ClientAssistant {
         String normalized = actualVersion.endsWith(LOADER_VERSION_SUFFIX)
                 ? actualVersion.substring(0, actualVersion.length() - LOADER_VERSION_SUFFIX.length()) : actualVersion;
         if (normalized.endsWith("+mc1.21.1")) normalized = normalized.substring(0, normalized.length() - "+mc1.21.1".length());
+        if (normalized.endsWith("+1.21.1")) normalized = normalized.substring(0, normalized.length() - "+1.21.1".length());
         if (!Pattern.matches("[0-9]+(?:[.-][0-9]+)*", normalized)) return false;
         try {
             return VersionRange.createFromVersionSpec(expectedVersion)

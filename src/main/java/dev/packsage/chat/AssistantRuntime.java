@@ -198,14 +198,14 @@ public final class AssistantRuntime implements ChatActions {
     public Map<String, Boolean> adapterAvailability() {
         synchronized (stateLock) {
             if (world == null || historyAdapter == null) return Map.ofEntries(Map.entry("native", false),
-                    Map.entry("jei", false), Map.entry("ftb_quests", false), Map.entry("config", false),
+                    Map.entry("jei", false), Map.entry("curios", false), Map.entry("ftb_quests", false), Map.entry("config", false),
                     Map.entry("patchouli", false), Map.entry("modonomicon", false), Map.entry("guideme", false),
                     Map.entry("immersiveengineering", false), Map.entry("actuallyadditions", false),
                     Map.entry("relics", false), Map.entry("artifacts", false), Map.entry("ponder", false),
                     Map.entry("history", false));
             var availability = new java.util.LinkedHashMap<String, Boolean>();
             Map<String, Boolean> providers = knowledge.adapterAvailability();
-            for (String id : List.of("native", "jei", "ftb_quests", "config", "patchouli", "modonomicon",
+            for (String id : List.of("native", "jei", "curios", "ftb_quests", "config", "patchouli", "modonomicon",
                     "guideme", "immersiveengineering", "actuallyadditions", "relics", "artifacts", "ponder")) {
                 availability.put(id, providers.getOrDefault(id, false));
             }

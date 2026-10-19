@@ -20,6 +20,8 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.alchemy.Potions;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import org.junit.jupiter.api.Test;
@@ -382,6 +384,48 @@ class JeiProjectionTest {
     }
 
     @Test
+    void outputItemSearchKeepsComponentVariantsAdvancesAndCanRefreshSelectedTarget() throws Exception {
+        var other = new JeiProvider.Projection("minecraft:brewing", "jei/1/1/minecraft:brewing/0",
+                "minecraft:unrelated", "Strength from another item", List.of(), List.of(), List.of(), true,
+                Evidence.Coverage.COMPLETE, Evidence.DecodingStatus.VERIFIED, null);
+        var awkwardPotion = new JeiProvider.Projection("minecraft:brewing", "jei/1/1/minecraft:brewing/1",
+                "minecraft:awkward_to_strength", "Awkward brew",
+                List.of(new JeiProvider.Slot("output", List.of(new JeiProvider.Ingredient("item",
+                        "minecraft:potion|componentsHash=17291", new Evidence.JsonObject(Map.of(
+                        "minecraft:potion_contents", new Evidence.JsonObject(Map.of("potion",
+                                new Evidence.JsonString("minecraft:strength"))))), 1,
+                        Evidence.Consumption.UNKNOWN)), JeiProvider.RecipeRole.OUTPUT)), List.of(), List.of(), true,
+                Evidence.Coverage.COMPLETE, Evidence.DecodingStatus.VERIFIED, null);
+        var longPotion = new JeiProvider.Projection("minecraft:brewing", "jei/1/1/minecraft:brewing/2",
+                "minecraft:long_strength", "Extended brew",
+                List.of(new JeiProvider.Slot("output", List.of(new JeiProvider.Ingredient("item",
+                        "minecraft:potion|componentsHash=29813", new Evidence.JsonObject(Map.of(
+                        "minecraft:potion_contents", new Evidence.JsonObject(Map.of("potion",
+                                new Evidence.JsonString("minecraft:long_strength"))))), 1,
+                        Evidence.Consumption.UNKNOWN)), JeiProvider.RecipeRole.OUTPUT)), List.of(), List.of(), true,
+                Evidence.Coverage.COMPLETE, Evidence.DecodingStatus.VERIFIED, null);
+        var provider = new JeiProvider((scope, query, budget) -> new JeiProvider.Snapshot(scope, 1, 1,
+                List.of(other, awkwardPotion, longPotion), ignored -> { }, Evidence.Coverage.COMPLETE, false, null),
+                Runnable::run, () -> true);
+        var query = new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(Map.of(
+                "text", new Evidence.JsonString("strength"),
+                "outputItem", new Evidence.JsonString("minecraft:potion"))), 1, null, null);
+
+        var first = provider.query(query, SCOPE).toCompletableFuture().get();
+
+        assertEquals(List.of("jei/1/1/minecraft:brewing/1"), first.records().stream()
+                .map(record -> record.source().sourceHandle()).toList());
+        assertEquals("2", first.nextCursor());
+        var next = provider.query(new Evidence.Query(Evidence.Operation.SEARCH, query.arguments(), 1, SCOPE,
+                first.nextCursor()), SCOPE).toCompletableFuture().get();
+        assertEquals("jei/1/1/minecraft:brewing/2", next.records().getFirst().source().sourceHandle());
+        var refreshed = provider.refreshNavigation(first.records().getFirst().targets().getFirst(), SCOPE)
+                .toCompletableFuture().get();
+        assertNotNull(refreshed);
+        assertEquals(Evidence.NavigationStatus.OPENED, provider.open(refreshed, SCOPE).status());
+    }
+
+    @Test
     void renderOnlySlotsArePreservedWithoutInventingRemainders() throws Exception {
         var input = new JeiProvider.Ingredient("item", "mod:input", new Evidence.JsonObject(Map.of()), 1,
                 Evidence.Consumption.CONSUMED);
@@ -726,7 +770,12 @@ class JeiProjectionTest {
                     });
             var recipe = new Object();
             var replacementRecipe = new Object();
+            var unrelatedPotionQueryRecipe = new Object();
+            var strengthPotionRecipe = new Object();
+            var longStrengthPotionRecipe = new Object();
             var recipes = new AtomicReference<List<Object>>(List.of(recipe));
+            var currentLayoutRecipe = new AtomicReference<Object>(recipe);
+            var recipeOutputs = new java.util.IdentityHashMap<Object, ItemStack>();
             var nativeHolders = new AtomicReference<Collection<RecipeHolder<?>>>(List.of());
             var nativeHolderReads = new AtomicInteger();
             Supplier<Collection<RecipeHolder<?>>> nativeHolderSupplier = () -> {
@@ -744,6 +793,16 @@ class JeiProjectionTest {
             var managerCategory = new AtomicReference<IRecipeCategory<?>>(category);
             var item = BuiltInRegistries.ITEM.get(ResourceLocation.fromNamespaceAndPath("minecraft", "stone"));
             var outputStack = new ItemStack(item);
+            recipeOutputs.put(recipe, outputStack);
+            recipeOutputs.put(replacementRecipe, outputStack);
+            recipeOutputs.put(unrelatedPotionQueryRecipe, outputStack);
+            recipeOutputs.put(strengthPotionRecipe, PotionContents.createItemStack(
+                    BuiltInRegistries.ITEM.get(ResourceLocation.parse("minecraft:potion")),
+                    Potions.STRENGTH));
+            recipeOutputs.put(longStrengthPotionRecipe, PotionContents.createItemStack(
+                    BuiltInRegistries.ITEM.get(ResourceLocation.parse("minecraft:potion")),
+                    Potions.LONG_STRENGTH));
+            var componentSensitiveScenario = new AtomicBoolean();
             var oversizedTypeUid = "x".repeat(100_000);
             var oversizedSlotName = "s".repeat(100_000);
             var typedIngredientType = Proxy.newProxyInstance(IIngredientType.class.getClassLoader(),
@@ -754,7 +813,7 @@ class JeiProjectionTest {
                     new Class<?>[] { ITypedIngredient.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "getType" -> ingredientBudgetScenario.get() || oversizedIngredientScenario.get()
                                 ? typedIngredientType : VanillaTypes.ITEM_STACK;
-                        case "getIngredient" -> outputStack;
+                        case "getIngredient" -> recipeOutputs.get(currentLayoutRecipe.get());
                         default -> null;
                     });
             var visibilityType = IJeiRuntime.class.getMethod("getIngredientVisibility").getReturnType();
@@ -771,6 +830,7 @@ class JeiProjectionTest {
                     new Class<?>[] { IRecipeManager.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "createRecipeCatalystLookup" -> catalystLookup;
                         case "createRecipeLayoutDrawable" -> {
+                            currentLayoutRecipe.set(arguments[1]);
                             var layoutArgument = ((ParameterizedType) method.getGenericReturnType()).getActualTypeArguments()[0];
                             var layoutType = layoutArgument instanceof Class<?> typeClass ? typeClass
                                     : (Class<?>) ((ParameterizedType) layoutArgument).getRawType();
@@ -822,6 +882,8 @@ class JeiProjectionTest {
                                                 yield lookup;
                                             }
                                             case "get" -> hiddenRecipe.get() && !includeHidden.get()
+                                                    || componentSensitiveScenario.get()
+                                                    && appliedFocus.get() instanceof Collection<?> focuses && !focuses.isEmpty()
                                                     ? Stream.empty() : recipes.get().stream().peek(value -> recipeVisits.incrementAndGet());
                                             default -> null;
                                         };
@@ -867,6 +929,36 @@ class JeiProjectionTest {
                     });
             var plugin = new PackSageJeiPlugin(nativeHolderSupplier);
             plugin.onRuntimeAvailable(runtime);
+
+            componentSensitiveScenario.set(true);
+            recipes.set(List.of(unrelatedPotionQueryRecipe, strengthPotionRecipe, longStrengthPotionRecipe));
+            var potionQuery = new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(Map.of(
+                    "text", new Evidence.JsonString(""),
+                    "outputItem", new Evidence.JsonString("minecraft:potion"))), 1, null, null);
+            var potionFirstPage = plugin.provider().query(potionQuery, SCOPE).toCompletableFuture().get();
+            assertEquals(1, potionFirstPage.records().size());
+            assertTrue(potionFirstPage.records().getFirst().recipePayload().outputs().getFirst()
+                    .comparisonIdentity().startsWith("minecraft:potion|componentsHash="));
+            assertTrue(Evidence.serialize(potionFirstPage.records().getFirst().payload()).contains("minecraft:strength"));
+            assertNotNull(potionFirstPage.nextCursor());
+            PackSageJeiPlugin.clientTicked();
+            var potionSecondPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    potionQuery.arguments(), 1, SCOPE, potionFirstPage.nextCursor()), SCOPE).toCompletableFuture().get();
+            assertEquals(1, potionSecondPage.records().size());
+            assertTrue(potionSecondPage.records().getFirst().recipePayload().outputs().getFirst()
+                    .comparisonIdentity().startsWith("minecraft:potion|componentsHash="));
+            assertNotEquals(potionFirstPage.records().getFirst().recipePayload().outputs().getFirst()
+                    .comparisonIdentity(), potionSecondPage.records().getFirst().recipePayload().outputs().getFirst()
+                    .comparisonIdentity());
+            assertTrue(Evidence.serialize(potionSecondPage.records().getFirst().payload()).contains("minecraft:long_strength"));
+            var refreshedPotionTarget = plugin.provider().refreshNavigation(
+                    potionFirstPage.records().getFirst().targets().getFirst(), SCOPE).toCompletableFuture().get();
+            assertNotNull(refreshedPotionTarget);
+            assertEquals(Evidence.NavigationStatus.OPENED,
+                    plugin.provider().open(refreshedPotionTarget, SCOPE).status());
+            componentSensitiveScenario.set(false);
+            appliedFocus.set(null);
+            recipes.set(List.of(recipe));
 
             var result = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),

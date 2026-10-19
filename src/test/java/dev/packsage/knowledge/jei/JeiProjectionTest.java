@@ -799,6 +799,7 @@ class JeiProjectionTest {
             var managerCategory = new AtomicReference<IRecipeCategory<?>>(category);
             var categoryCandidates = new AtomicReference<List<IRecipeCategory<?>>>(null);
             var recipesByType = new AtomicReference<Map<String, List<Object>>>(Map.of());
+            var categoryLookupThrows = new AtomicBoolean();
             var brewingCategory = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
                     new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
                         case "getRecipeType" -> brewingType;
@@ -941,6 +942,7 @@ class JeiProjectionTest {
                                         return switch (lookupMethod.getName()) {
                                             case "includeHidden" -> { includeHidden.set(true); yield lookup; }
                                             case "limitTypes" -> {
+                                                if (categoryLookupThrows.get()) throw new IllegalStateException("fixture category lookup failure");
                                                 limitedRecipeTypes.set(lookupArguments[0]);
                                                 typeFilter.set((Collection<?>) lookupArguments[0]);
                                                 yield lookup;
@@ -1041,6 +1043,20 @@ class JeiProjectionTest {
                     .payload().values().get("categoryId")).value());
             assertEquals("minecraft:long_strength", ((Evidence.JsonString) laterPotionPage.records().getFirst()
                     .recipePayload().outputs().getFirst().components().values().get("potion")).value());
+            PackSageJeiPlugin.clientTicked();
+            var ordinaryOutputOrder = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),
+                            "outputItem", new Evidence.JsonString("minecraft:stone"))), 1, null, null), SCOPE)
+                    .toCompletableFuture().get();
+            assertEquals("minecraft:crafting", ((Evidence.JsonString) ordinaryOutputOrder.records().getFirst()
+                    .payload().values().get("categoryId")).value(),
+                    "non-potion output searches must retain ordinary category order");
+            categoryLookupThrows.set(true);
+            PackSageJeiPlugin.clientTicked();
+            var typedLookupFailure = plugin.provider().query(potionQuery, SCOPE).toCompletableFuture().get();
+            assertEquals(Evidence.Coverage.ERROR, typedLookupFailure.coverage());
+            assertNull(typedLookupFailure.nextCursor());
+            categoryLookupThrows.set(false);
             PackSageJeiPlugin.clientTicked();
             var ordinaryOrder = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, null, null), SCOPE)

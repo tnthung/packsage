@@ -746,7 +746,7 @@ class JeiProjectionTest {
             var helpers = Proxy.newProxyInstance(helpersType.getClassLoader(), new Class<?>[] { helpersType },
                     (proxy, method, arguments) -> method.getName().equals("getFocusFactory") ? focusFactory : null);
             var type = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), Object.class);
-            var brewingType = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "brewing"), Object.class);
+            var brewingType = mezz.jei.api.constants.RecipeTypes.BREWING;
             var otherPotionType = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "stonecutting"), Object.class);
             var canonicalIdsEnabled = new AtomicBoolean();
             var canonicalIdThrows = new AtomicBoolean();
@@ -1014,7 +1014,7 @@ class JeiProjectionTest {
             assertEquals("minecraft:long_strength", ((Evidence.JsonString) potionSecondPage.records().getFirst()
                     .recipePayload().outputs().getFirst().components().values().get("potion")).value());
             assertTrue(Evidence.serialize(potionSecondPage.records().getFirst().payload()).contains("minecraft:long_strength"));
-            var craftingPrefix = java.util.stream.IntStream.range(0, 500).mapToObj(ignored -> new Object()).toList();
+            var craftingPrefix = java.util.stream.IntStream.range(0, 4096).mapToObj(ignored -> new Object()).toList();
             craftingPrefix.forEach(candidate -> recipeOutputs.put(candidate, outputStack));
             categoryCandidates.set(List.of(category, brewingCategory, otherPotionCategory));
             recipesByType.set(Map.of("minecraft:crafting", craftingPrefix,
@@ -1028,7 +1028,7 @@ class JeiProjectionTest {
                     .payload().values().get("categoryId")).value());
             String prioritizedCursor = prioritizedPotionPage.nextCursor();
             Evidence.Result laterPotionPage = null;
-            for (var attempt = 0; attempt < 10 && (laterPotionPage == null || laterPotionPage.records().isEmpty()); attempt++) {
+            for (var attempt = 0; attempt < 40 && (laterPotionPage == null || laterPotionPage.records().isEmpty()); attempt++) {
                 assertNotNull(prioritizedCursor);
                 PackSageJeiPlugin.clientTicked();
                 laterPotionPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,

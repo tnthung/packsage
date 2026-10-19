@@ -75,3 +75,22 @@ The returned Aura Plants entry supports Aura Blooms in grassy patches, collectio
 The actual Aura Plants link opened Patchouli's `Aura Plants` / `Aura Bloom` spread, with the expected text visible. Repeated searches rediscovered this entry but neither turn called `read_evidence`; this does not accept that separate fresh-read path. Broad guide searches repeatedly reached partial discovery bounds and several narrow queries returned the same entry.
 
 The follow-up says there is no guarantee of indefinite, consequence-free bottling and avoids inventing a safe harvest rate or self-refill behavior. Its statement that the guide does not establish those properties should be read as a limit of the cited entry; these partial searches do not prove that the entire book lacks further relevant information. Functional explanation, uncertainty handling and the clicked book action pass with those limits.
+
+### 4. Powah starter choice and multi-item material feasibility
+
+Conversation: `73b5d5de-fa31-47e8-be88-c3f16392e479-e8e84d8a7df02c82.jsonl`.
+
+| Turn | Submitted question | Request | Calls | Time | Assessment |
+|---|---|---|---|---|---|
+| 7 | I want a little power without burning through my fuel. What's a sensible first Powah setup, and where can I read how it works? | `1cc63a4f-9cc6-4fd9-8240-0bd22cbc9f0b` | 25 local plus web searches | 182.302 s | Supported solar/cable recommendation; severe search churn and recorded-source usability gap. |
+| 8 | Can I make that starter panel and a cable from what I'm carrying right now? If not, what am I missing? | `228008a3-7196-4499-b76f-887e2c24335d` | 22 | 219.197 s | Correct not-as-is conclusion and top-level quantities; dependency evidence and latency limits. |
+
+GuideME discovery returned the actual Powah solar-panel, cable and energy-cell fragments. Their text supports sunlight generation, overhead obstruction stopping production, cables transferring FE, and cells storing FE. Registry reads confirm the Starter variants. The recommendation adds no unsupported numeric generation rate. Solar evidence was reread through `read_evidence`, although GuideME still reports partial unsupported AST nodes and duplicated/fragmented text.
+
+Clicking `Source: Solar panel guide` opened the correctly bound recorded source, including its page ID, observation time, installed-documentation authority, partial status and provenance. It displayed no guide passage body. There was no serialized book navigation target. This verifies source binding, not opening or reading the actual GuideME book; the metadata-only screen is a usability gap. The answer separately provides the book's relevant section paths.
+
+Before reaching GuideME, turn 7 tried broad Patchouli-dominated discovery, unrelated Ponder lookups for Powah identifiers, Modonomicon and quest searches. A Modonomicon query ended partial with an extraction-budget failure. Explicit GuideME solar discovery then returned relevant records on its first page. This is a concrete search-routing/latency concern, not evidence that the Powah guide is absent.
+
+Turn 8 refreshed complete carried inventory and Shulker contents. The observed recipes require three photoelectric panes, two tiny capacitors, one dielectric casing and three paste for one starter panel; a starter cable craft takes five horizontal rods, one tiny capacitor and two iron nuggets and yields twelve cables. Those required parts were absent. Its selective subrecipe discussion is accurate, but not a complete raw-material bill: for example, the rods also require iron bars and paste.
+
+Both depth-eight `plan_recipe` calls returned partial results with zero records despite independently found native recipes. Manual recipe searches recovered useful dependencies; the empty plans do not prove no crafting path exists. Extra unfinished JEI pages added no matching record. The final answer correctly limits its claim to not being craftable as-is, without inventing a recursively totaled bill.

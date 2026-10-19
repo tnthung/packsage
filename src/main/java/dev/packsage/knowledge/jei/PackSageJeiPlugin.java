@@ -377,6 +377,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var cursorInvalid = false;
             var cursorCategoryFound = false;
             var terminalPartial = false;
+            String terminalBudgetDetail = null;
             try (var categories = manager.createRecipeCategoryLookup().includeHidden().limitFocus(focuses).get()) {
                 var categoryIterator = categories.iterator();
                 while (categoryIterator.hasNext()) {
@@ -678,11 +679,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 if (retryCursor && nextCategory * CURSOR_RADIX + nextRecipe == cursor) {
                     hasMore = false;
                     cursorCategoryFound = true;
-                    projections.add(new JeiProvider.Projection("unknown:category",
-                            "jei/" + generation + "/" + snapshotVersion + "/budget", null, "JEI budget",
-                            List.of(), List.of(), List.of(), false, false, Evidence.Coverage.PARTIAL,
-                            Evidence.DecodingStatus.PARTIAL,
-                            "JEI shared read budget ended again before this source position could be decoded"));
+                    terminalBudgetDetail = "JEI shared read budget ended again before category " + nextCategory
+                            + ", recipe " + nextRecipe + " could be decoded";
                 } else {
                     nextRetryCandidate = true;
                 }
@@ -705,8 +703,9 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 if (!active) throw new IllegalStateException("JEI runtime unavailable");
                 if (registered == null) throw new IllegalArgumentException("unknown JEI projection " + handle);
                 showRecipe(runtime, registered);
-            }, coverage, true, next, hasMore ? "JEI scan pending category " + nextCategory
-                    + ", recipe " + nextRecipe + (nextRetryCandidate ? " (retry required)" : "") : null);
+            }, coverage, true, next, terminalBudgetDetail != null ? terminalBudgetDetail
+                    : hasMore ? "JEI scan pending category " + nextCategory + ", recipe " + nextRecipe
+                    + (nextRetryCandidate ? " (retry required)" : "") : null);
         }
 
         private static JeiProvider.Projection project(IJeiRuntime runtime, IRecipeManager manager,

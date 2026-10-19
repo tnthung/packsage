@@ -378,9 +378,11 @@ public final class AssistantScreen extends Screen {
             y = drawMessageActions(graphics, turn, false, tokens.assistant(), y, mouseX, mouseY);
             String outcome = ScreenText.outcomeLine(turn.outcome());
             if (outcome != null) {
-                graphics.drawString(font, Component.literal(outcome).withStyle(style ->
-                        style.withFont(ModernUi.FONT).withColor(ModernUi.DANGER)), readableLeft + 26, y, ModernUi.DANGER, false);
-                y += ModernUi.MESSAGE_LINE_HEIGHT;
+                for (var line : font.split(Component.literal(outcome).withStyle(style ->
+                        style.withFont(ModernUi.FONT).withColor(ModernUi.DANGER)), Math.max(1, readableWidth - 26))) {
+                    graphics.drawString(font, line, readableLeft + 26, y, ModernUi.DANGER, false);
+                    y += ModernUi.MESSAGE_LINE_HEIGHT;
+                }
             }
             y += 10;
         }

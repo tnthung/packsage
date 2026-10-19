@@ -6,6 +6,20 @@ The supplied ATM10 screenshot exposes two separate problems. The stored answer c
 
 The citation regression first reproduced an unexpanded `[native:ref:...]`, then passed all 15 focused decorator tests. Independent review found that an alias-shaped Markdown label could consume the opening bracket before the parser recognized the destination. Both forms require exact current-request alias/provider validation rather than fuzzy source selection.
 
-The native inventory RED run completed ten tests with one expected failure: `curiosSectionFiltersKeepSameIndexTypesDistinct` expected Ring and Necklace but received no records. The separate partial-coverage fixture retained its vanilla item. Implementation, final automated verification and installed acceptance are recorded below as they complete.
+The native inventory RED run completed ten tests with one expected failure: `curiosSectionFiltersKeepSameIndexTypesDistinct` expected Ring and Necklace but received no records. The separate partial-coverage fixture retained its vanilla item.
 
-Installed Minecraft acceptance is pending. No game settings, inventory, installed JAR or saved conversation has been modified by this task. API inspection and automated fixtures are not live-world synchronization proof.
+## Implementation and automated acceptance
+
+Commit `61cbf74` adds the optional reflected Curios adapter and contributes its functional stacks to the existing native player inventory reader. Sections retain the Curios slot type and local index; records, filters, pagination and live references use the existing contracts. The actual loaded Curios version and per-capture coverage are reported, while cosmetic slots remain excluded. The adapter list contains one Curios entry. API absence, unsupported versions, failed access and traversal bounds retain honest coverage; later reads retry transient failures.
+
+The first focused run caught a return-type compilation error in the unavailable path; `6ed94b8` corrected it. The following 58-test run exposed the expected Markdown parsing regression and a changed vanilla scope-description phrase. `a52f359` preserves the vanilla description while reporting included Curios equipment, and `1ce638f` defers bracket interpretation until it distinguishes a standalone citation from a Markdown label. All 58 focused tests then passed, including every affected stream split and canonical completed replay.
+
+Independent review identified two additional defects: mixed Curios/unknown section filters discarded readable Curios results, and another request's latest adapter failure could override an already complete capture. Test commit `848b346` reproduced both deterministically: expected partial or complete coverage, but received unavailable. `3c10b39` fixes the mixed-section guard and uses each capture's own coverage metadata in both initial and continuation callbacks. All 60 focused tests then passed. The review's bounded recheck found no remaining actionable defect in these corrections or the citation parser.
+
+The first full run reached 616 tests and found one outdated runtime-availability fixture that omitted the new Curios entry. Test-only commit `4b679b9` updates that expected map. Java 21 `gradlew test build` then completed successfully in 25 seconds: 52 suites, 616 tests, 612 passed, four existing skips, zero failures and zero errors. Existing JEI deprecation and unchecked-operation warnings were observed during recompilation; no formatting tools were used.
+
+The built artifact is `build/libs/packsage-0.1.0.jar`, SHA-256 `47EDA8CF4E70E9DDBEAC47528048C2BCCEBB0644C8660AF6CC9178DF23B3F92E`. Documentation, implementation, regressions and corrections are separate commits under the repository working rules. The citation correction applies to newly translated responses; the old saved malformed alias is not resolved by guessing a source.
+
+## Installed acceptance
+
+Installed Minecraft acceptance is pending. Follow the [player checks](../testing/2026-10-19-curios-equipment.md) after manually copying the built JAR. No game settings, inventory, installed JAR or saved conversation has been modified by this task. API inspection and automated fixtures are not live-world synchronization proof.

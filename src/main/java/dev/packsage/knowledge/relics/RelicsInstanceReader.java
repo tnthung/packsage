@@ -10,4 +10,8 @@ public final class RelicsInstanceReader {
     public Evidence.JsonObject read(LivingEntity player, ItemStack stack) {
         return null;
     }
+
+    Evidence.JsonObject project(LivingEntity player, ItemStack stack, Object relicItem) {
+        return null;
+    }
 }

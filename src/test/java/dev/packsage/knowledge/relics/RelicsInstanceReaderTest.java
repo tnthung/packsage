@@ -1,13 +1,11 @@
 package dev.packsage.knowledge.relics;
 
 import dev.packsage.knowledge.Evidence;
-import it.hurts.sskirillss.relics.api.relics.IRelicItem;
-import it.hurts.sskirillss.relics.api.relics.RelicData;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.Bootstrap;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -28,13 +26,19 @@ class RelicsInstanceReaderTest {
     static void bootstrapMinecraft() { Bootstrap.bootStrap(); }
 
     @Test
+    void publicReadLeavesOrdinaryRegisteredItemsWithoutRelicProjection() {
+        assertNull(new RelicsInstanceReader(false, false, "not-installed").read(null, new ItemStack(Items.APPLE)));
+        assertNull(new RelicsInstanceReader(true, true, "0.12.8").read(null, new ItemStack(Items.DIAMOND)));
+    }
+
+    @Test
     void projectsFreshIndependentInstanceValuesAndExplicitZeroFromAStackCopy() {
         var reader = new RelicsInstanceReader(true, true, "0.12.8");
         var firstStack = relicStack(7, 123.5, 2, 0, 0, 1.75, 0);
         var secondStack = relicStack(3, 28.0, 1, 4, 2, 0.5, 3);
 
-        var first = reader.read(null, firstStack);
-        var second = reader.read(null, secondStack);
+        var first = reader.project(null, firstStack, new FixtureRelicItem());
+        var second = reader.project(null, secondStack, new FixtureRelicItem());
 
         assertNotNull(first);
         assertEquals("COMPLETE", ((Evidence.JsonString) first.values().get("coverage")).value());
@@ -63,7 +67,7 @@ class RelicsInstanceReaderTest {
         var changedAbility = changed.getCompound("abilities").getCompound(ABILITY);
         changedAbility.getCompound("stats").getCompound(STAT).putDouble("value", 2.25);
         firstStack.set(DataComponents.CUSTOM_DATA, CustomData.of(changed));
-        var reread = reader.read(null, firstStack);
+        var reread = reader.project(null, firstStack, new FixtureRelicItem());
 
         assertEquals(new BigDecimal("9"), ((Evidence.JsonNumber) reread.values().get("level")).value());
         assertEquals(new BigDecimal("250.0"), ((Evidence.JsonNumber) reread.values().get("experience")).value());
@@ -80,7 +84,7 @@ class RelicsInstanceReaderTest {
         customData.putString("failStat", STAT);
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(customData));
 
-        var result = new RelicsInstanceReader(true, true, "0.12.8").read(null, stack);
+        var result = new RelicsInstanceReader(true, true, "0.12.8").project(null, stack, new FixtureRelicItem());
 
         assertNotNull(result);
         assertEquals("PARTIAL", ((Evidence.JsonString) result.values().get("coverage")).value());
@@ -91,7 +95,8 @@ class RelicsInstanceReaderTest {
 
     @Test
     void unsupportedPresentApiReportsUnknownStatsWithoutInventingFields() {
-        var result = new RelicsInstanceReader(true, false, "0.13.0").read(null, relicStack(5, 63, 1, 2, 1, 1.25, 2));
+        var result = new RelicsInstanceReader(true, false, "0.13.0").project(null,
+                relicStack(5, 63, 1, 2, 1, 1.25, 2), new FixtureRelicItem());
 
         assertNotNull(result);
         assertEquals("UNKNOWN", ((Evidence.JsonString) result.values().get("coverage")).value());
@@ -128,10 +133,10 @@ class RelicsInstanceReaderTest {
             abilities.put("fixture:ability_" + abilityIndex, ability);
         }
         customData.put("abilities", abilities);
-        var stack = new ItemStack(new FixtureRelicItem());
+        var stack = new ItemStack(Items.APPLE);
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(customData));
 
-        var result = new RelicsInstanceReader(true, true, "0.12.8").read(null, stack);
+        var result = new RelicsInstanceReader(true, true, "0.12.8").project(null, stack, new FixtureRelicItem());
 
         assertNotNull(result);
         var projectedAbilities = (Evidence.JsonObject) result.values().get("abilities");
@@ -162,15 +167,8 @@ class RelicsInstanceReaderTest {
         var abilities = new CompoundTag();
         abilities.put(ABILITY, ability);
         customData.put("abilities", abilities);
-        var stack = new ItemStack(new FixtureRelicItem());
+        var stack = new ItemStack(Items.APPLE);
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(customData));
         return stack;
-    }
-
-    private static final class FixtureRelicItem extends Item implements IRelicItem {
-        private FixtureRelicItem() { super(new Item.Properties()); }
-        @Override public RelicData getRelicData(net.minecraft.world.entity.LivingEntity player, ItemStack stack) {
-            return new RelicData(stack);
-        }
     }
 }

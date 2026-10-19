@@ -719,6 +719,7 @@ class JeiProjectionTest {
             var hiddenCategory = new AtomicBoolean();
             var hiddenIngredient = new AtomicBoolean();
             var ingredientBudgetScenario = new AtomicBoolean();
+            var heavyCandidateScenario = new AtomicBoolean();
             var oversizedIngredientScenario = new AtomicBoolean();
             var oversizedSlotNameScenario = new AtomicBoolean();
             var recipeVisits = new AtomicInteger();
@@ -816,6 +817,12 @@ class JeiProjectionTest {
                                 : recipeOutputs.getOrDefault(currentLayoutRecipe.get(), outputStack);
                         default -> null;
                     });
+            var plainStoneIngredient = Proxy.newProxyInstance(ITypedIngredient.class.getClassLoader(),
+                    new Class<?>[] { ITypedIngredient.class }, (proxy, method, arguments) -> switch (method.getName()) {
+                        case "getType" -> VanillaTypes.ITEM_STACK;
+                        case "getIngredient" -> outputStack;
+                        default -> null;
+                    });
             var visibilityType = IJeiRuntime.class.getMethod("getIngredientVisibility").getReturnType();
             var visibility = Proxy.newProxyInstance(visibilityType.getClassLoader(), new Class<?>[] { visibilityType },
                     (proxy, method, arguments) -> method.getName().equals("isIngredientVisible")
@@ -839,22 +846,27 @@ class JeiProjectionTest {
                                     .getGenericReturnType()).getActualTypeArguments()[0];
                             var slotViewType = slotViewArgument instanceof Class<?> typeClass ? typeClass
                                     : (Class<?>) ((ParameterizedType) slotViewArgument).getRawType();
-                            var slotViews = ingredientBudgetScenario.get() || oversizedIngredientScenario.get()
-                                    || oversizedSlotNameScenario.get()
+                            var slotViews = ingredientBudgetScenario.get() || heavyCandidateScenario.get()
+                                    || oversizedIngredientScenario.get() || oversizedSlotNameScenario.get()
                                     ? java.util.stream.IntStream.range(0, oversizedSlotNameScenario.get() ? 2
-                                            : ingredientBudgetScenario.get() ? 9 : 8)
+                                            : ingredientBudgetScenario.get() || heavyCandidateScenario.get() ? 9 : 8)
                                     .mapToObj(index -> Proxy.newProxyInstance(
                                             slotViewType.getClassLoader(), new Class<?>[] { slotViewType },
                                             (slotProxy, slotMethod, slotArgs) -> switch (slotMethod.getName()) {
-                                                case "getRole" -> ingredientBudgetScenario.get() && index == 8
+                                                case "getRole" -> (ingredientBudgetScenario.get()
+                                                        || heavyCandidateScenario.get()) && index == 8
                                                         ? RecipeIngredientRole.OUTPUT : RecipeIngredientRole.INPUT;
-                                                case "getAllIngredientsList" -> oversizedSlotNameScenario.get()
+                                                case "getAllIngredientsList" -> heavyCandidateScenario.get()
+                                                        ? index == 8 ? List.of(typedIngredient)
+                                                        : java.util.Collections.nCopies(21, plainStoneIngredient)
+                                                        : oversizedSlotNameScenario.get()
                                                         || ingredientBudgetScenario.get() && index == 8
                                                         ? List.of(typedIngredient)
                                                         : java.util.Collections.nCopies(21, typedIngredient);
                                                 case "getSlotName" -> oversizedSlotNameScenario.get() && index == 1
                                                         ? java.util.Optional.of(oversizedSlotName)
-                                                        : java.util.Optional.of(ingredientBudgetScenario.get() && index == 8
+                                                        : java.util.Optional.of((ingredientBudgetScenario.get()
+                                                                || heavyCandidateScenario.get()) && index == 8
                                                                 ? "result" : "input-" + index);
                                                 default -> null;
                                             })).toList()
@@ -982,6 +994,76 @@ class JeiProjectionTest {
                             potionFirstPage.records().getFirst().source().sourceHandle()))), 1, null, null), SCOPE)
                     .toCompletableFuture().get();
             assertEquals(1, currentPotionEvidence.records().size());
+
+            var unrelatedHeavyRecipes = java.util.stream.IntStream.range(0, 64)
+                    .mapToObj(ignored -> new Object()).toList();
+            unrelatedHeavyRecipes.forEach(candidate -> recipeOutputs.put(candidate, outputStack));
+            var outputFilteredRecipes = new java.util.ArrayList<>(unrelatedHeavyRecipes);
+            outputFilteredRecipes.add(strengthPotionRecipe);
+            heavyCandidateScenario.set(true);
+            recipes.set(List.copyOf(outputFilteredRecipes));
+            PackSageJeiPlugin.clientTicked();
+            var boundedOutputSearch = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),
+                            "outputItem", new Evidence.JsonString("minecraft:potion"))), 1, null, null), SCOPE)
+                    .toCompletableFuture().get();
+            assertEquals(1, boundedOutputSearch.records().size(),
+                    "an item-ID search must find the matching output after 64 expensive unrelated candidates");
+            assertTrue(boundedOutputSearch.records().getFirst().recipePayload().outputs().getFirst()
+                    .comparisonIdentity().startsWith("minecraft:potion|componentsHash="));
+            assertEquals("minecraft:strength", ((Evidence.JsonString) boundedOutputSearch.records().getFirst()
+                    .recipePayload().outputs().getFirst().components().values().get("potion")).value());
+            assertEquals(8, boundedOutputSearch.records().getFirst().recipePayload().inputs().size());
+            assertTrue(boundedOutputSearch.records().getFirst().recipePayload().inputs().stream()
+                    .allMatch(slot -> slot.alternatives().size() == 21 && slot.alternatives().stream()
+                            .allMatch(alternative -> alternative.comparisonIdentity()
+                                    .startsWith("minecraft:stone|componentsHash="))));
+            PackSageJeiPlugin.clientTicked();
+            var boundedOutputTarget = plugin.provider().refreshNavigation(
+                    boundedOutputSearch.records().getFirst().targets().getFirst(), SCOPE).toCompletableFuture().get();
+            assertNotNull(boundedOutputTarget,
+                    "the fully projected match must remain available for current navigation validation");
+            assertEquals(Evidence.NavigationStatus.OPENED, plugin.provider().open(boundedOutputTarget, SCOPE).status());
+
+            canonicalIdsEnabled.set(false);
+            var heavyTextCandidate = new Object();
+            recipeOutputs.put(heavyTextCandidate, outputStack);
+            recipes.set(List.of(heavyTextCandidate));
+            PackSageJeiPlugin.clientTicked();
+            var standaloneHeavyProjection = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, null, null), SCOPE)
+                    .toCompletableFuture().get();
+            assertEquals(1, standaloneHeavyProjection.records().size());
+            assertEquals(8, standaloneHeavyProjection.records().getFirst().recipePayload().inputs().size());
+            assertTrue(standaloneHeavyProjection.records().getFirst().recipePayload().inputs().stream()
+                    .allMatch(slot -> slot.alternatives().size() == 21));
+            recipes.set(List.of(heavyTextCandidate, strengthPotionRecipe));
+            String componentCursor = null;
+            var foundHeavyComponentMatch = false;
+            for (var attempt = 0; attempt < 3 && !foundHeavyComponentMatch; attempt++) {
+                PackSageJeiPlugin.clientTicked();
+                var heavyTextPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                        new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("minecraft:strength"))),
+                        1, componentCursor == null ? null : SCOPE, componentCursor), SCOPE).toCompletableFuture().get();
+                if (!heavyTextPage.records().isEmpty()) {
+                    var matchedRecipe = heavyTextPage.records().getFirst().recipePayload();
+                    assertEquals("minecraft:strength", ((Evidence.JsonString) matchedRecipe.outputs().getFirst()
+                            .components().values().get("potion")).value());
+                    assertEquals(8, matchedRecipe.inputs().size());
+                    assertTrue(matchedRecipe.inputs().stream().allMatch(slot -> slot.alternatives().size() == 21
+                            && slot.alternatives().stream().allMatch(alternative ->
+                            alternative.comparisonIdentity().startsWith("minecraft:stone|componentsHash="))));
+                    foundHeavyComponentMatch = true;
+                } else {
+                    assertNotNull(heavyTextPage.nextCursor(),
+                            "a budget-limited text scan must emit a cursor that can reach the pending candidate");
+                    assertNotEquals(componentCursor, heavyTextPage.nextCursor());
+                    componentCursor = heavyTextPage.nextCursor();
+                }
+            }
+            assertTrue(foundHeavyComponentMatch,
+                    "a late matching output must not be skipped when earlier ingredient projection uses the shared budget");
+            heavyCandidateScenario.set(false);
             componentSensitiveScenario.set(false);
             canonicalIdsEnabled.set(false);
             appliedFocus.set(null);

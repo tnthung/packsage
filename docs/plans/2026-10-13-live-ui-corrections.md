@@ -9,3 +9,7 @@ Apply the [player feedback](../specs/2026-10-13-live-ui-corrections.md) in scope
 3. Correct chat geometry, hover/icons/focus, word wrapping, inline row heights, composer alignment/clearing and activity placement. Trace pause publication through the runtime and correct the first-click state. Coordinator owns chat/editor/runtime files and their tests. Use native logical GUI dimensions.
 4. Add the requested read-only config source panel using exact recorded source binding and replayed value snapshots, with a separate source action from gameplay navigation. Preserve the chat draft, current operational world and pause policy.
 5. Verify focused checks and commit each functional group. Run the full suite/build from committed source, install with Minecraft closed, compare artifact hashes, and update validation and player checks. Do not claim automated checks prove live visuals.
+
+## Failed-outcome follow-up, 2026-10-19
+
+The brewing investigation exposed a complete saved provider error clipped by single-line outcome rendering. Reproduce the outcome's actual render bounds and returned conversation height, replace that single draw with the existing plain-text error wrapping pattern, then run the screen checks and full build. Check the saved failed turn in Minecraft after installing the matching artifact; no new provider request is needed.

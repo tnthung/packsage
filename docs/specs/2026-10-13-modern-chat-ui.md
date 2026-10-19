@@ -24,6 +24,8 @@ Expanded tool steps show the actual arguments sent to that tool beneath its head
 
 The bottom composer accepts multiline text and grows upward to a bounded height, then scrolls within the input. Search and Screenshot controls float immediately above it and move as it grows. Keep Send available for text [steering during an active response](2026-10-17-chat-steering.md), with a separate Stop control during capture, model calls and tool work. Enter sends; Shift+Enter inserts a newline. Preserve the 1,000-character limit and draft across resize and temporary screenshot capture. Keep request activity and failures readable without dumping internal data.
 
+Saved turn outcomes wrap their complete plain text within the message column, retaining explicit line breaks and the existing error styling. Every wrapped line contributes to conversation scroll height so the final error detail remains reachable.
+
 ## Sessions
 
 List stored sessions asynchronously through the existing conversation store. Selecting another session cancels the active request and uses generation guards for late loads/results. Same-world sessions can continue with fresh current context. Sessions belonging to another world/server open read-only until that world/server is joined; New chat always starts in the active game world. Viewing history must not replace the operational world, provider scope or knowledge connection.

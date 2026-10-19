@@ -118,3 +118,15 @@ Conversation: `af250220-f02e-47fc-8365-e40e3b82c65b-924eeb788f145c67.jsonl`.
 Targeted Actually Additions booklet searches returned `Crystals and Reconstructor` fragments. They describe a powered machine's laser converting compatible items/blocks along its path until a block, a 1,000 CF laser cost with conversion-dependent additional rates, and redstone-torch mode switching. `read_evidence` refreshed a bounded booklet fragment. Recipe pages remained partial and sometimes hit the page-seek budget.
 
 Native discovery and a fresh read returned `actuallyadditions:laser/crystalize_restonia_crystal`, outputting one Restonia Crystal but with an empty input list and partial decoding. This does not confirm the proposed iron input. Machine crafting recipes are separate from conversion operation. A useful answer could have explained the supported beam behavior and explicitly left the missing ingredient/power-wiring details unresolved. Instead broad document queries, unrelated Ponder probes, further native scans and pending JEI pages continued until the stop. Zero navigation targets and an empty saved answer establish no booklet/viewer or complete goal acceptance.
+
+### 7. NeoVitae beginner goal and Modonomicon limits
+
+Conversation: `60acc1bd-39db-4f94-a66d-73900c1100bd-c66a5ffe278ea466.jsonl`.
+
+| Turn | Submitted question | Request | Calls | Time | Assessment |
+|---|---|---|---|---|---|
+| 11 | I've never used NeoVitae. What is Spiritus, and what is a sensible first step? Show me the relevant page in its guide rather than assuming I already have its machines. | `221f1470-dc60-4a0a-8722-d35000fc7b92` | 14 local plus web searches | 210.423 s | Useful qualified partial answer; requested installed guide presentation failed. |
+
+Explicit Modonomicon discovery found Spiritus, but fresh evidence exposed only the title `Spiritus`; component-backed/non-text fields and extraction-budget failure remained partial. The answer honestly discloses that it cannot retrieve the page text or open it directly. No native guide navigation target was saved, so this is not acceptance of showing the requested page.
+
+The loaded Alchemy Table recipe lists two iron-ingot slots and one string, producing sixteen Throwing Daggers; consumption is unknown. The answer uses this direct prerequisite rather than assuming Spiritus machinery is already owned. Dagger-marking and then killing hostiles is supported by the [official NeoVitae wiki](https://github.com/breakinblocks/NeoVitae/wiki/Spiritus-Aspects-and-Crystals), rather than the unread installed passage. The [project description](https://modrinth.com/mod/neovitae) supplies general Spiritus/aspect context. However, the cited [Quick Reference](https://github.com/breakinblocks/NeoVitae/blob/26.1.2/wiki/Quick-Reference.md) is on branch `26.1.2`, distinct from installed `1.1.44`; the answer does not qualify that version mismatch. Early setup/guidebook details from that branch remain unverified for this installation. Broad Patchouli-bound and unrelated GuideME queries also added latency before/after the targeted source worked.

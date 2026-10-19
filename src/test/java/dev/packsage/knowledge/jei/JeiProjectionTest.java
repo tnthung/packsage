@@ -576,6 +576,9 @@ class JeiProjectionTest {
                     + "; detail=" + first.detail());
             assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
             assertNotNull(first.nextCursor());
+            assertNotNull(first.detail(), "a partial page must explain the current pending source position");
+            assertTrue(first.detail().toLowerCase(java.util.Locale.ROOT).contains("category")
+                    && first.detail().toLowerCase(java.util.Locale.ROOT).contains("recipe"));
             var cursor = first.nextCursor();
             var matchPage = first;
             for (var page = 1; page < 128 && matchPage.records().isEmpty(); page++) {

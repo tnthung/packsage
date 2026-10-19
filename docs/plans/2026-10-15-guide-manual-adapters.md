@@ -8,7 +8,7 @@ Extend the approved [tool contract](../specs/2026-10-14-behavior-driven-tools.md
 - No content snapshots, parallel index or retained document bodies. Bound traversal, cursor seeking, extraction and output; continuation contains only identity/query/scope/position metadata. Fragment long text before copying it. Resolve references against current sources.
 - Ability descriptions are documentation, not evidence of the player's current item stats, upgrades or active effects.
 - Actually Additions 1.3.26 uses a Patchouli booklet; reuse its verified live reader for that book rather than substituting the legacy booklet API.
-- Preserve optional dependency isolation and pin supported runtime versions to verified APIs. Adding providers must not change dispatcher logic.
+- Preserve optional dependency isolation and select the widest version range sharing each reader's API. Untested releases alone do not justify an exact-version pin. Adding providers must not change dispatcher logic.
 - Parallel writers own disjoint files. Parent owns registration, build configuration and documentation; stage/commit operations are coordinated. No formatter. Commit each written step before awaiting test results, using the staged-index commit-message skill.
 
 ## Work steps
@@ -21,3 +21,12 @@ Extend the approved [tool contract](../specs/2026-10-14-behavior-driven-tools.md
 - [x] Run focused tests and the full build; independently review freshness, bounds, optional loading and source semantics; fix findings in separate commits.
 - [x] Install the tested artifact with Minecraft closed, run computer-use checks in `OoO - PackSage Trial`, and inspect actual call/result pairs for all six sources and fresh evidence reads.
 - [x] Update the six roadmap checkboxes only for delivered behavior; record tests, installed observations and remaining source limitations in a dated validation report.
+
+## Compatibility correction, 2026-10-19
+
+The installed Artifacts 13.2.5 and Modonomicon 1.120.7 are rejected by exact pins to 13.2.3 and 1.120.4. Apply the current repository adapter policy to all six guide/manual readers, including the Reliquified Artifacts replacement path. Keep one logical provider per mod and preserve existing unavailable/partial handling when an API is missing.
+
+- [ ] Record installed versions and API-family evidence, distinguishing direct signature checks from inferred release-family compatibility.
+- [ ] Add regression coverage for updated releases, range boundaries, source version metadata and the replacement path.
+- [ ] Replace exact pins with compatible ranges and report the actual loaded version in provider status and evidence.
+- [ ] Run automated tests and build the distributable; record the remaining installed acceptance boundary.

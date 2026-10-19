@@ -200,7 +200,7 @@ public final class AssistantSettingsScreen extends Screen {
             ModernUi.surface(graphics, x + 7, y + 3, x + 21, y + 17, checked ? ModernUi.ACCENT_DARK : ModernUi.BACKGROUND);
             if (checked) graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/check.png"),
                     x + 8, y + 4, 12, 12, 0f, 0f, 64, 64, 64, 64);
-            graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(index == 0 ? "Open paused" : "Automatic web search")
+            graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(index == 0 ? "Open paused" : "Allow web search when needed")
                             .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, rowWidth - 42))),
                     x + 30, y + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
@@ -240,6 +240,27 @@ public final class AssistantSettingsScreen extends Screen {
             int thumb = Math.min(track, Math.max(16, track * track / (track + maxScroll)));
             int y = layout.top() + scrollOffset * (track - thumb) / maxScroll;
             graphics.fill(layout.left() + layout.width() - 3, y, layout.left() + layout.width(), y + thumb, ModernUi.BORDER);
+        }
+        for (int index = 0; index < 2; index++) {
+            int y = layout.behaviorTop() + index * 26;
+            if (mouseX < x || mouseX >= x + rowWidth || mouseY < Math.max(y, layout.top())
+                    || mouseY >= Math.min(y + 20, layout.bottom())) continue;
+            int tooltipWidth = Math.max(1, Math.min(286, width - 24));
+            var lines = font.split(Component.literal(index == 0
+                            ? "Pause the game when opening PackSage in a private singleplayer world. Multiplayer and worlds opened to LAN cannot be paused."
+                            : "Let the model decide when web search is needed. When off, you can still ask for a search in your message. The Search button above the chat input requires a search either way.")
+                    .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, tooltipWidth - 20));
+            int tooltipHeight = Math.min(height - 8, 12 + Math.max(0, lines.size() - 1) * 14 + font.lineHeight);
+            int left = Math.max(4, Math.min(mouseX + 10, width - tooltipWidth - 4));
+            int top = Math.max(4, Math.min(y - tooltipHeight - 6, height - tooltipHeight - 4));
+            graphics.pose().pushPose();
+            graphics.pose().translate(0, 0, 400);
+            ModernUi.surface(graphics, left, top, left + tooltipWidth, top + tooltipHeight, 0xff20252a);
+            graphics.enableScissor(left + 4, top + 4, left + tooltipWidth - 4, top + tooltipHeight - 4);
+            for (int line = 0; line < lines.size(); line++) graphics.drawString(font, lines.get(line),
+                    left + 10, top + 6 + line * 14, ModernUi.TEXT, false);
+            graphics.disableScissor();
+            graphics.pose().popPose();
         }
     }
 

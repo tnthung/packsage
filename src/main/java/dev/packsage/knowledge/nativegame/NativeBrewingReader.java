@@ -317,12 +317,12 @@ final class NativeBrewingReader {
             Object to = mixValue(mix, "to");
             if (!(from instanceof Holder<?> fromHolder) || !(fromHolder.value() instanceof Potion fromPotion)
                     || !(ingredient instanceof Ingredient reagent) || !(to instanceof Holder<?> toHolder)
-                    || !(toHolder.value() instanceof Potion)) {
+                    || !(toHolder.value() instanceof Potion toPotion)) {
                 return opaqueProjection("potion", ruleIndex, variantIndex, mix, scope);
             }
             var potionRegistry = registries.registryOrThrow(Registries.POTION);
             var fromKey = potionRegistry.getKey(fromPotion);
-            var toKey = potionRegistry.getKey((Potion) toHolder.value());
+            var toKey = potionRegistry.getKey(toPotion);
             if (fromKey == null || toKey == null
                     || fromKey.getNamespace().length() + fromKey.getPath().length() + 1 > MAX_FACT_ID_LENGTH
                     || toKey.getNamespace().length() + toKey.getPath().length() + 1 > MAX_FACT_ID_LENGTH) {
@@ -330,8 +330,8 @@ final class NativeBrewingReader {
             }
             var bottle = source.bottles().get(variantIndex);
             var reagents = facts(reagent, itemRegistry);
-            ItemStack input = PotionContents.createItemStack(bottle, fromHolder);
-            ItemStack output = PotionContents.createItemStack(bottle, toHolder);
+            ItemStack input = PotionContents.createItemStack(bottle, potionRegistry.wrapAsHolder(fromPotion));
+            ItemStack output = PotionContents.createItemStack(bottle, potionRegistry.wrapAsHolder(toPotion));
             var inputComponents = boundedComponents(input, registries);
             var outputComponents = boundedComponents(output, registries);
             String bottleId = NativeSnapshot.itemIdentity(bottle, itemRegistry);

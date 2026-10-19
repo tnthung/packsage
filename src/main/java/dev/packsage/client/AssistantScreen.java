@@ -10,6 +10,7 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.GroundingInstructions;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.PlayerFaceRenderer;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
@@ -881,7 +882,9 @@ public final class AssistantScreen extends Screen {
     }
 
     record ToolbarItem(String kind, int x, int y, int width) { }
-    record AdapterTooltipRows(List<Map.Entry<String, String>> rows, int offset, int visibleRows, int height) { }
+    record AdapterTooltipRows(List<Map.Entry<String, String>> rows, int offset, int visibleRows, int height,
+                              int tooltipWidth, int labelWidth, int scrollTrackHeight, int scrollThumbHeight,
+                              int scrollThumbOffset) { }
 
     private static final List<Map.Entry<String, String>> ADAPTERS = List.of(Map.entry("native", "Minecraft"), Map.entry("jei", "JEI"),
             Map.entry("curios", "Curios"), Map.entry("ftb_quests", "FTB Quests"), Map.entry("config", "NeoForge configs"),
@@ -890,14 +893,25 @@ public final class AssistantScreen extends Screen {
             Map.entry("relics", "Relics"), Map.entry("artifacts", "Artifacts"), Map.entry("ponder", "Ponder"),
             Map.entry("history", "Chat history"));
 
-    static AdapterTooltipRows adapterTooltipRows(Map<String, Boolean> availability, boolean hideInactive, int offset, int screenHeight) {
+    static AdapterTooltipRows adapterTooltipRows(Font font, Map<String, Boolean> availability, boolean hideInactive,
+                                                 int offset, int screenWidth, int screenHeight) {
         List<Map.Entry<String, String>> rows = hideInactive
                 ? ADAPTERS.stream().filter(adapter -> availability.getOrDefault(adapter.getKey(), false)).toList() : ADAPTERS;
         int maxHeight = Math.min(Math.max(1, screenHeight - 8), Math.max(1, screenHeight * 7 / 10));
-        int visibleRows = Math.min(8, Math.max(0, (maxHeight - 36) / 14));
+        int visibleRows = Math.min(rows.size(), Math.min(8, Math.max(0, (maxHeight - 36) / 14)));
         int clampedOffset = Math.max(0, Math.min(Math.max(0, rows.size() - visibleRows), offset));
+        int trackHeight = visibleRows * 14;
+        boolean overflowing = rows.size() > visibleRows;
+        int thumbHeight = overflowing ? Math.min(trackHeight, Math.max(8, trackHeight * visibleRows / rows.size())) : 0;
+        int bulletWidth = font.width(Component.literal("• ").withStyle(style -> style.withFont(ModernUi.FONT)));
+        int tooltipWidth = Math.min(Math.max(1, Math.min(286, screenWidth - 24)), 20 + Math.max(
+                font.width(Component.literal("Adapters").withStyle(style -> style.withFont(ModernUi.BOLD_FONT))),
+                rows.stream().mapToInt(row -> bulletWidth + font.width(Component.literal(row.getValue())
+                        .withStyle(style -> style.withFont(ModernUi.FONT)))).max().orElse(0)) + (overflowing ? 8 : 0));
         return new AdapterTooltipRows(rows.subList(clampedOffset, Math.min(rows.size(), clampedOffset + visibleRows)),
-                clampedOffset, visibleRows, Math.min(maxHeight, 36 + visibleRows * 14));
+                clampedOffset, visibleRows, Math.min(maxHeight, 36 + visibleRows * 14), tooltipWidth,
+                Math.max(1, tooltipWidth - 20 - (overflowing ? 8 : 0) - bulletWidth), overflowing ? trackHeight : 0,
+                thumbHeight, overflowing ? clampedOffset * (trackHeight - thumbHeight) / (rows.size() - visibleRows) : 0);
     }
 
     List<ToolbarItem> toolbarItems() {
@@ -1004,6 +1018,7 @@ public final class AssistantScreen extends Screen {
             List<ScreenText.TooltipField> fields = List.of();
             String title = "";
             String footer = "";
+            AdapterTooltipRows adapterLayout = null;
             if (item.kind().equals("context")) {
                 title = "Chat context";
                 fields = ScreenText.historyContextFields(history);
@@ -1024,15 +1039,13 @@ public final class AssistantScreen extends Screen {
                     adapterRowsKey = key;
                     adapterScroll = 0;
                 }
-                AdapterTooltipRows adapterLayout = adapterTooltipRows(availability, settings.hideInactiveAdapters(), adapterScroll, height);
+                adapterLayout = adapterTooltipRows(font, availability, settings.hideInactiveAdapters(), adapterScroll, width, height);
                 adapterScroll = adapterLayout.offset();
-                int adapterLabelWidth = Math.max(1, Math.min(286, width - 24) - 20
-                        - font.width(Component.literal("• ").withStyle(style -> style.withFont(ModernUi.FONT))));
                 for (var adapter : adapterLayout.rows()) {
                     lines.add(Component.literal("• ").withStyle(style -> style.withColor(
                                     availability.getOrDefault(adapter.getKey(), false) ? 0xff6fd48a : 0xffe36b6b))
                             .append(Component.literal(font.substrByWidth(Component.literal(adapter.getValue())
-                                            .withStyle(style -> style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), adapterLabelWidth).getString())
+                                            .withStyle(style -> style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), adapterLayout.labelWidth()).getString())
                                     .withStyle(style -> style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT))));
                 }
             } else if (item.kind().equals("model")) {
@@ -1042,10 +1055,7 @@ public final class AssistantScreen extends Screen {
             } else if (item.kind().equals("effort")) lines.add(Component.literal("Reasoning effort: " + settings.reasoningEffort().name().toLowerCase(java.util.Locale.ROOT)));
             else lines.add(Component.literal(item.kind().equals("search") ? "Web search" : "Attach screenshot"));
             List<net.minecraft.util.FormattedCharSequence> wrapped = new ArrayList<>();
-            int tooltipWidth = Math.max(1, Math.min(286, width - 24));
-            if (item.kind().equals("adapters")) tooltipWidth = Math.min(tooltipWidth, Math.max(
-                    20 + font.width(Component.literal(title).withStyle(style -> style.withFont(ModernUi.BOLD_FONT))),
-                    20 + lines.stream().mapToInt(line -> font.width(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)))).max().orElse(0)));
+            int tooltipWidth = item.kind().equals("adapters") ? adapterLayout.tooltipWidth() : Math.max(1, Math.min(286, width - 24));
             if (title.isEmpty()) tooltipWidth = Math.min(tooltipWidth, 20 + lines.stream()
                     .mapToInt(line -> font.width(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)))).max().orElse(0));
             int labelWidth = fields.stream().mapToInt(field -> font.width(Component.literal(field.label())
@@ -1056,7 +1066,7 @@ public final class AssistantScreen extends Screen {
             for (Component line : lines) wrapped.addAll(font.split(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 20));
             List<net.minecraft.util.FormattedCharSequence> footerLines = footer.isEmpty() ? List.of()
                     : font.split(Component.literal(footer).withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 20);
-            int tooltipHeight = Math.min(item.kind().equals("adapters") ? Math.min(height - 8, height * 7 / 10) : height - 8, title.isEmpty()
+            int tooltipHeight = item.kind().equals("adapters") ? adapterLayout.height() : Math.min(height - 8, title.isEmpty()
                     ? 12 + Math.max(0, wrapped.size() - 1) * 14 + font.lineHeight
                     : 36 + wrapped.size() * 14
                     + values.stream().mapToInt(value -> Math.max(1, value.size()) * 14).sum()
@@ -1097,6 +1107,14 @@ public final class AssistantScreen extends Screen {
             for (var line : footerLines) {
                 graphics.drawString(font, line, left + 10, y, ModernUi.MUTED, false);
                 y += 14;
+            }
+            if (item.kind().equals("adapters") && adapterLayout.scrollTrackHeight() > 0) {
+                int trackTop = top + 26;
+                graphics.fill(left + tooltipWidth - 6, trackTop, left + tooltipWidth - 4,
+                        trackTop + adapterLayout.scrollTrackHeight(), ModernUi.BORDER);
+                int thumbTop = trackTop + adapterLayout.scrollThumbOffset();
+                graphics.fill(left + tooltipWidth - 6, thumbTop, left + tooltipWidth - 4,
+                        thumbTop + adapterLayout.scrollThumbHeight(), ModernUi.MUTED);
             }
             graphics.disableScissor();
             graphics.pose().popPose();
@@ -1177,13 +1195,13 @@ public final class AssistantScreen extends Screen {
         }
         if (adapterPopupVisible && mouseX >= adapterPopupLeft && mouseX < adapterPopupLeft + adapterPopupWidth
                 && mouseY >= adapterPopupTop && mouseY < adapterPopupTop + adapterPopupHeight) {
-            adapterScroll = adapterTooltipRows(actions.adapterAvailability(), settings.hideInactiveAdapters(),
-                    adapterScroll - (int) Math.signum(scrollY), height).offset();
+            adapterScroll = adapterTooltipRows(font, actions.adapterAvailability(), settings.hideInactiveAdapters(),
+                    adapterScroll - (int) Math.signum(scrollY), width, height).offset();
             return true;
         }
         if (mouseX >= 12 && mouseX < 32 && mouseY >= Math.max(0, height - 32) && mouseY < Math.max(0, height - 12)) {
-            adapterScroll = adapterTooltipRows(actions.adapterAvailability(), settings.hideInactiveAdapters(),
-                    adapterScroll - (int) Math.signum(scrollY), height).offset();
+            adapterScroll = adapterTooltipRows(font, actions.adapterAvailability(), settings.hideInactiveAdapters(),
+                    adapterScroll - (int) Math.signum(scrollY), width, height).offset();
             return true;
         }
         if (inputEditor != null && inputEditor.isMouseOver(mouseX, mouseY)) return inputEditor.mouseScrolled(mouseX, mouseY, scrollX, scrollY);

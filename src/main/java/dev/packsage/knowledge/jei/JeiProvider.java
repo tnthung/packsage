@@ -705,9 +705,9 @@ public final class JeiProvider implements KnowledgeProvider {
         if (cursor == null) return 0;
         try {
             var parts = cursor.split("\\|", -1);
-            var value = Integer.parseInt(parts.length == 2 ? parts[1] : cursor);
-            if (parts.length == 2 && Long.parseLong(parts[0]) < 0) return -1;
-            if (parts.length > 2) return -1;
+            if (parts.length > 3 || parts.length == 3 && !parts[2].equals("retry")) return -1;
+            var value = Integer.parseInt(parts.length > 1 ? parts[1] : cursor);
+            if (parts.length > 1 && Long.parseLong(parts[0]) < 0) return -1;
             return value < 0 ? -1 : value;
         } catch (NumberFormatException ignored) {
             return -1;

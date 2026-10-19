@@ -720,6 +720,7 @@ class JeiProjectionTest {
             var hiddenIngredient = new AtomicBoolean();
             var ingredientBudgetScenario = new AtomicBoolean();
             var heavyCandidateScenario = new AtomicBoolean();
+            var heavyAlternativeCount = new AtomicInteger(21);
             var oversizedIngredientScenario = new AtomicBoolean();
             var oversizedSlotNameScenario = new AtomicBoolean();
             var recipeVisits = new AtomicInteger();
@@ -858,7 +859,7 @@ class JeiProjectionTest {
                                                         ? RecipeIngredientRole.OUTPUT : RecipeIngredientRole.INPUT;
                                                 case "getAllIngredientsList" -> heavyCandidateScenario.get()
                                                         ? index == 8 ? List.of(typedIngredient)
-                                                        : java.util.Collections.nCopies(21, plainStoneIngredient)
+                                                        : java.util.Collections.nCopies(heavyAlternativeCount.get(), plainStoneIngredient)
                                                         : oversizedSlotNameScenario.get()
                                                         || ingredientBudgetScenario.get() && index == 8
                                                         ? List.of(typedIngredient)
@@ -1063,6 +1064,25 @@ class JeiProjectionTest {
             }
             assertTrue(foundHeavyComponentMatch,
                     "a late matching output must not be skipped when earlier ingredient projection uses the shared budget");
+            heavyAlternativeCount.set(2048);
+            recipes.set(List.of(strengthPotionRecipe));
+            String oversizedCursor = null;
+            Evidence.Result oversizedTextResult = null;
+            for (var attempt = 0; attempt < 2; attempt++) {
+                PackSageJeiPlugin.clientTicked();
+                oversizedTextResult = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                        new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("minecraft:strength"))),
+                        1, oversizedCursor == null ? null : SCOPE, oversizedCursor), SCOPE)
+                        .toCompletableFuture().get();
+                if (oversizedTextResult.nextCursor() == null) break;
+                oversizedCursor = oversizedTextResult.nextCursor();
+            }
+            assertNotNull(oversizedTextResult);
+            assertEquals(Evidence.Coverage.PARTIAL, oversizedTextResult.coverage());
+            assertNotNull(oversizedTextResult.detail());
+            assertTrue(oversizedTextResult.detail().toLowerCase(java.util.Locale.ROOT).contains("budget"));
+            assertNull(oversizedTextResult.nextCursor());
+            heavyAlternativeCount.set(21);
             heavyCandidateScenario.set(false);
             componentSensitiveScenario.set(false);
             canonicalIdsEnabled.set(false);

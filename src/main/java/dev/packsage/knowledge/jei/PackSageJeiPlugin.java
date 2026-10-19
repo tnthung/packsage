@@ -334,12 +334,17 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var queryRemainingBytes = budget.remainingBytes();
             var cursorParts = query.cursor() == null ? new String[0] : query.cursor().split("\\|", -1);
             var cursor = 0;
+            var retryCursor = false;
             try {
-                if (query.cursor() != null && cursorParts.length != 2
+                if (query.cursor() != null && cursorParts.length != 2 && cursorParts.length != 3
+                        || query.cursor() != null && cursorParts.length == 3 && !cursorParts[2].equals("retry")
                         || query.cursor() != null && Long.parseLong(cursorParts[0]) != generation) {
                     throw new NumberFormatException();
                 }
-                if (query.cursor() != null) cursor = Integer.parseInt(cursorParts[1]);
+                if (query.cursor() != null) {
+                    cursor = Integer.parseInt(cursorParts[1]);
+                    retryCursor = cursorParts.length == 3;
+                }
                 if (cursor < 0) throw new NumberFormatException();
             } catch (NumberFormatException invalidCursor) {
                 return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(
@@ -364,6 +369,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
             var hasMore = false;
             var nextCategory = 0;
             var nextRecipe = 0;
+            var nextRetryCandidate = false;
             var partial = false;
             var opaque = false;
             var error = false;
@@ -482,7 +488,9 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 var canonicalBytes = canonicalCapture.value().length() * 2L;
                                 var retryCursorBytes = (Long.toString(generation).length() + 1L
                                         + Integer.toString(categoryIndex * CURSOR_RADIX
-                                        + recipeOrdinal - 1).length()) * 2;
+                                        + recipeOrdinal - 1).length()
+                                        + (retryCursor && categoryIndex == cursorCategory
+                                        && recipeOrdinal - 1 == cursorRecipe ? "|retry".length() : 0)) * 2;
                                 var freshCategoryBytes = queryRemainingBytes + queryCursorBytes
                                         - retryCursorBytes - categoryPreludeBytes;
                                 if (canonicalBytes > budget.remainingBytes()) {
@@ -566,13 +574,32 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             error |= projection.coverage() == Evidence.Coverage.ERROR;
                             opaque |= projection.coverage() == Evidence.Coverage.OPAQUE;
                             partial |= projection.coverage() == Evidence.Coverage.PARTIAL;
-                            if (outputItem != null && !projection.slots().stream()
+                            var matchesQuery = (outputItem == null || projection.slots().stream()
                                     .filter(slot -> slot.role() == JeiProvider.RecipeRole.OUTPUT)
                                     .flatMap(slot -> slot.alternatives().stream())
                                     .anyMatch(ingredient -> ingredient.type().equals("item")
                                             && ingredient.comparisonIdentity().split("\\|componentsHash=", 2)[0]
-                                            .equals(matchingOutputItem))) continue;
-                            if (!JeiProvider.matches(projection, text)) continue;
+                                            .equals(matchingOutputItem))) && JeiProvider.matches(projection, text);
+                            if (budget.exhausted() && !matchesQuery) {
+                                partial = true;
+                                if (retryCursor && categoryIndex == cursorCategory
+                                        && recipeOrdinal - 1 == cursorRecipe) {
+                                    terminalPartial = true;
+                                    if (projections.size() < pageLimit) projections.add(new JeiProvider.Projection(
+                                            projection.categoryId(), projection.viewerHandle(), projection.canonicalRecipeId(),
+                                            projection.title(), projection.slots(), projection.catalysts(), projection.information(),
+                                            false, false, Evidence.Coverage.PARTIAL, Evidence.DecodingStatus.PARTIAL,
+                                            projection.error() == null ? "JEI candidate exceeded the shared read budget; search remains incomplete"
+                                                    : projection.error()));
+                                } else {
+                                    hasMore = true;
+                                    nextCategory = categoryIndex;
+                                    nextRecipe = recipeOrdinal - 1;
+                                    nextRetryCandidate = true;
+                                }
+                                break;
+                            }
+                            if (!matchesQuery) continue;
                             projections.add(projection);
                             if (projection.coverage() != Evidence.Coverage.ERROR) {
                                 var registration = new RegisteredRecipe(category, recipe, scope, outputItem);
@@ -657,7 +684,8 @@ public final class PackSageJeiPlugin implements IModPlugin {
             if (categoryLookupFailed || scanned >= MAX_SCANNED_RECIPES) partial = true;
             var coverage = error ? Evidence.Coverage.ERROR : partial ? Evidence.Coverage.PARTIAL
                     : opaque ? Evidence.Coverage.OPAQUE : Evidence.Coverage.COMPLETE;
-            var next = hasMore ? generation + "|" + (nextCategory * CURSOR_RADIX + nextRecipe) : null;
+            var next = hasMore ? generation + "|" + (nextCategory * CURSOR_RADIX + nextRecipe)
+                    + (nextRetryCandidate ? "|retry" : "") : null;
             return new JeiProvider.Snapshot(scope, generation, snapshotVersion, projections, handle -> {
                 var registered = navigation.get(handle);
                 if (!active) throw new IllegalStateException("JEI runtime unavailable");

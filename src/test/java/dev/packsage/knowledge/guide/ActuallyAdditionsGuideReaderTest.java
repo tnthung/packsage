@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ActuallyAdditionsGuideReaderTest {
     @Test
-    void registersThePinnedPatchouliBookletAsAnActuallyAdditionsGuide() {
+    void registersTheObservedPatchouliBookletAsAnActuallyAdditionsGuide() {
         var scope = new Evidence.Scope("world", "en_us", "solo", "client", 1);
         var provider = ActuallyAdditionsGuideReader.forMinecraft(() -> scope, Runnable::run, "1.3.27");
 

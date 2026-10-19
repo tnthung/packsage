@@ -461,8 +461,10 @@ public final class ClientAssistant {
         if (status == null || !status.supported()) return unavailableProvider(status, key + " runtime is not supported");
         try {
             Class<?> type = Class.forName(className, false, ClientAssistant.class.getClassLoader());
-            Object provider = type.getMethod(methodName, Supplier.class, Executor.class, String.class)
-                    .invoke(null, scope, clientExecutor, status.actualVersion());
+            Object provider = status.id().equals("ftb_quests") || status.id().equals("patchouli")
+                    ? type.getMethod(methodName, Supplier.class, Executor.class).invoke(null, scope, clientExecutor)
+                    : type.getMethod(methodName, Supplier.class, Executor.class, String.class)
+                            .invoke(null, scope, clientExecutor, status.actualVersion());
             if (provider instanceof KnowledgeProvider knowledgeProvider) {
                 return new ReflectiveProvider(status, () -> knowledgeProvider);
             }

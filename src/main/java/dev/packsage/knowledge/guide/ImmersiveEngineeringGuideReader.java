@@ -19,11 +19,11 @@ import java.util.function.Supplier;
 public final class ImmersiveEngineeringGuideReader implements GuideDocumentReader {
     public static final String ID = "immersiveengineering";
     public static final String VERSION = "12.4.2-194";
-    private final String readerVersion;
     private static final String MANUAL_HELPER = "blusunrize.immersiveengineering.api.ManualHelper";
     private static final int MAX_ENTRY_ID_LENGTH = 256;
     private static final int MAX_TITLE_LENGTH = 512;
     private static final int MAX_SEEK_CHARS = 16 * 1024;
+    private final String readerVersion;
 
     public ImmersiveEngineeringGuideReader() { this(VERSION); }
 

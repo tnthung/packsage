@@ -24,8 +24,8 @@ import java.util.function.Supplier;
 
 /** Bounded reads from the currently loaded Modonomicon books. */
 public final class ModonomiconGuideReader implements GuideDocumentReader {
-    private final String readerVersion;
     private static final String SEPARATOR = "|";
+    private final String readerVersion;
 
     record LocalizedText(String text, boolean partial) { }
 

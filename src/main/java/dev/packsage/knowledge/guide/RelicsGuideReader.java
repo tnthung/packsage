@@ -26,8 +26,6 @@ public final class RelicsGuideReader implements GuideDocumentReader {
     private final String itemNamespace;
     private final TagKey<Item> discoveryTag;
 
-    private RelicsGuideReader() { this("relics", "unknown", null); }
-
     RelicsGuideReader(String providerId, String version, String itemNamespace) {
         this.readerProviderId = providerId;
         this.readerVersion = version;

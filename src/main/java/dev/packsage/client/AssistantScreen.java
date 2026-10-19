@@ -12,11 +12,13 @@ import dev.packsage.model.GroundingInstructions;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.PlayerFaceRenderer;
+import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.locale.Language;
 
+import java.net.URI;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -60,6 +62,7 @@ public final class AssistantScreen extends Screen {
     private List<ChatContracts.SessionSummary> sessions = List.of();
     private final List<ChipHit> chipHits = new ArrayList<>();
     private final List<SourceHit> sourceHits = new ArrayList<>();
+    private final List<WebLinkHit> webLinkHits = new ArrayList<>();
     private Evidence.Source tooltipSource;
     private ChatContracts.Turn tooltipTurn;
     private List<String> sourceTooltip = List.of();
@@ -345,6 +348,7 @@ public final class AssistantScreen extends Screen {
         }
         chipHits.clear();
         sourceHits.clear();
+        webLinkHits.clear();
         activityHits.clear();
         messageActions.clear();
         if (history == null) history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
@@ -696,15 +700,17 @@ public final class AssistantScreen extends Screen {
                 quoteY = run.y();
             }
             ScreenText.InlineSpan span = run.span();
-            if (span.target() != null || span.source() != null) {
+            if (span.target() != null || span.source() != null || span.externalUrl() != null) {
                 ModernUi.surface(graphics, x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT,
-                        span.target() != null ? ModernUi.ACCENT_DARK : ModernUi.SURFACE_HOVER);
+                        span.target() != null || span.externalUrl() != null ? ModernUi.ACCENT_DARK : ModernUi.SURFACE_HOVER);
                 if (turn != null && span.target() != null) chipHits.add(new ChipHit(span.target(), x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT));
                 if (turn != null && span.source() != null) sourceHits.add(new SourceHit(span.source(), turn, x, top, x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT));
+                if (turn != null && span.externalUrl() != null) webLinkHits.add(new WebLinkHit(span.externalUrl(), x, top,
+                        x + run.width(), top + ModernUi.MESSAGE_LINE_HEIGHT));
             }
             graphics.drawString(font, Component.literal(span.text()).withStyle(style -> style
-                            .withFont(span.bold() || span.target() != null ? ModernUi.BOLD_FONT : ModernUi.FONT).withColor(span.color())),
-                    x + (span.target() == null && span.source() == null ? 0 : 6),
+                            .withFont(span.bold() || span.target() != null || span.externalUrl() != null ? ModernUi.BOLD_FONT : ModernUi.FONT).withColor(span.color())),
+                    x + (span.target() == null && span.source() == null && span.externalUrl() == null ? 0 : 6),
                     top + (ModernUi.MESSAGE_LINE_HEIGHT - font.lineHeight) / 2 + 1, span.color(), false);
         }
         return y + layout.height();
@@ -723,8 +729,8 @@ public final class AssistantScreen extends Screen {
             if (line.spans().isEmpty() && line.quote()) runs.add(new MessageRun(
                     new ScreenText.InlineSpan("", null, ModernUi.TEXT, false, false), x, y, 0, true));
             for (ScreenText.InlineSpan span : line.spans()) {
-                if (span.target() != null || span.source() != null) {
-                    boolean navigation = span.target() != null;
+                if (span.target() != null || span.source() != null || span.externalUrl() != null) {
+                    boolean navigation = span.target() != null || span.externalUrl() != null;
                     String labelText = span.text();
                     if (navigation && !labelText.regionMatches(true, 0, "Open ", 0, 5)) labelText = "Open " + labelText;
                     else if (!navigation && !labelText.regionMatches(true, 0, "Source: ", 0, 8)) labelText = "Source: " + labelText;
@@ -735,7 +741,7 @@ public final class AssistantScreen extends Screen {
                     if (x > indent && x + chipWidth > width) { x = indent; y += ModernUi.MESSAGE_LINE_HEIGHT; }
                     String clipped = font.substrByWidth(label, Math.max(1, chipWidth - 12)).getString();
                     runs.add(new MessageRun(new ScreenText.InlineSpan(clipped, span.target(),
-                            navigation ? ModernUi.ACCENT : ModernUi.TEXT, bold, false, span.source()),
+                            navigation ? ModernUi.ACCENT : ModernUi.TEXT, bold, false, span.source(), span.externalUrl()),
                             x, y, chipWidth, line.quote()));
                     x += chipWidth + 4;
                     continue;
@@ -1057,16 +1063,21 @@ public final class AssistantScreen extends Screen {
                 && mouseY >= hit.top() && mouseY < hit.bottom()).findFirst().orElse(null);
         ChipHit navigation = chipHits.stream().filter(hit -> mouseX >= hit.left() && mouseX < hit.right()
                 && mouseY >= hit.top() && mouseY < hit.bottom()).findFirst().orElse(null);
-        if (hovered == null && navigation == null) return;
+        WebLinkHit webLink = webLinkHits.stream().filter(hit -> mouseX >= hit.left() && mouseX < hit.right()
+                && mouseY >= hit.top() && mouseY < hit.bottom()).findFirst().orElse(null);
+        if (hovered == null && navigation == null && webLink == null) return;
         if (hovered != null && (!hovered.source().equals(tooltipSource) || hovered.turn() != tooltipTurn)) {
             tooltipSource = hovered.source();
             tooltipTurn = hovered.turn();
             sourceTooltip = SourceDetailsScreen.details(tooltipSource, tooltipTurn);
         }
         List<net.minecraft.util.FormattedCharSequence> lines = new ArrayList<>();
-        lines.addAll(font.split(Component.literal(navigation != null ? "Click: " + ScreenText.navigationLabel(navigation.target())
+        lines.addAll(font.split(Component.literal(webLink != null ? "Click: open web link"
+                : navigation != null ? "Click: " + ScreenText.navigationLabel(navigation.target())
                 : "Click: view recorded source details").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
                 Math.max(1, Math.min(280, width - 24) - 20)));
+        if (webLink != null) lines.addAll(font.split(Component.literal(webLink.url())
+                .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, Math.min(280, width - 24) - 20)));
         if (hovered != null) for (String detail : sourceTooltip.stream().filter(detail -> !detail.isBlank()
                 && !detail.startsWith("Observed:") && !detail.startsWith("Authority:")
                 && !detail.startsWith("Source:") && !detail.startsWith("Provenance:"))
@@ -1075,7 +1086,7 @@ public final class AssistantScreen extends Screen {
         int tooltipWidth = Math.max(1, Math.min(300, width - 16));
         int tooltipHeight = Math.min(height - 8, 12 + lines.size() * 14);
         int left = Math.max(4, Math.min(mouseX + 10, width - tooltipWidth - 4));
-        int top = Math.max(4, Math.min((hovered != null ? hovered.top() : navigation.top()) - tooltipHeight - 4,
+        int top = Math.max(4, Math.min((hovered != null ? hovered.top() : navigation != null ? navigation.top() : webLink.top()) - tooltipHeight - 4,
                 height - tooltipHeight - 4));
         graphics.pose().pushPose();
         graphics.pose().translate(0, 0, 400);
@@ -1248,6 +1259,13 @@ public final class AssistantScreen extends Screen {
             if (mouseY >= 48 && mouseY < toggleY - 8 && mouseX >= readableLeft && mouseX < readableLeft + readableWidth
                     && mouseX >= hit.left() && mouseX < hit.right() && mouseY >= hit.top() && mouseY < hit.bottom()) {
                 navigate(hit.target());
+                return true;
+            }
+        }
+        for (WebLinkHit hit : webLinkHits) {
+            if (mouseY >= 48 && mouseY < toggleY - 8 && mouseX >= readableLeft && mouseX < readableLeft + readableWidth
+                    && mouseX >= hit.left() && mouseX < hit.right() && mouseY >= hit.top() && mouseY < hit.bottom()) {
+                if (minecraft != null) ConfirmLinkScreen.confirmLinkNow(this, URI.create(hit.url()), true);
                 return true;
             }
         }
@@ -1458,6 +1476,7 @@ public final class AssistantScreen extends Screen {
 
     private record ChipHit(Evidence.NavigationTarget target, int left, int top, int right, int bottom) { }
     private record SourceHit(Evidence.Source source, ChatContracts.Turn turn, int left, int top, int right, int bottom) { }
+    private record WebLinkHit(String url, int left, int top, int right, int bottom) { }
     private record ActivityHit(String key, int left, int top, int right, int bottom) { }
     private record ActivityExpansion(ChatContracts.ActivityStatus status, boolean expanded) { }
     private record MessageAction(ChatContracts.Turn turn, boolean user, boolean edit, int x, int y, int width) { }

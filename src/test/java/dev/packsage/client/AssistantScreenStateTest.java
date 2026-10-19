@@ -879,6 +879,26 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void ordinaryWebLinksUseOpenControlsAndKeepTheirDestinationThroughWrappingAndClipping() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+
+        for (int width : List.of(45, 160, 300)) {
+            var layout = screen.messageLayout(ScreenText.inlineLines("[Minecraft Wiki homepage](https://minecraft.wiki/) "
+                    + "[Open Wiki](https://minecraft.wiki/)", List.of()), width);
+            var links = layout.runs().stream().filter(run -> run.span().externalUrl() != null).toList();
+            assertEquals(2, links.size());
+            assertTrue(links.stream().allMatch(run -> run.span().externalUrl().equals("https://minecraft.wiki/")
+                    && run.span().target() == null && run.span().source() == null && run.span().bold()
+                    && run.span().color() == ModernUi.ACCENT && run.x() + run.width() <= width));
+            if (width == 300) assertEquals(List.of("Open Minecraft Wiki homepage", "Open Wiki"),
+                    links.stream().map(run -> run.span().text()).toList());
+        }
+    }
+
+    @Test
     void composerToolbarHasEqualCompactWidthsAndWrapsWithinTheMainArea() {
         var screen = new AssistantScreen(new FakeActions());
         screen.width = 1100;

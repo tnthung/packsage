@@ -138,6 +138,52 @@ class ScreenTextTest {
     }
 
     @Test
+    void savedWikiAnswerFormatsMarkdownInsideWebCitationRangesWithoutDuplicateActions() {
+        var target = new Evidence.NavigationTarget(SCOPE, "web", "https://en.wikipedia.org/wiki/Minecraft?utm_source=openai",
+                "https://en.wikipedia.org/wiki/Minecraft?utm_source=openai");
+        String answer = "Here\u2019s the [Minecraft Wiki homepage](https://minecraft.wiki/). "
+                + "([en.wikipedia.org](https://en.wikipedia.org/wiki/Minecraft?utm_source=openai))";
+        var citation = new dev.packsage.model.ModelBackend.UrlCitation(63, 142, "Minecraft", target.sourceHandle());
+
+        var spans = ScreenText.inlineLines(answer, List.of(target), List.of(citation)).getFirst().spans();
+
+        assertEquals("Here\u2019s the Minecraft Wiki homepage. (en.wikipedia.org)",
+                spans.stream().map(ScreenText.InlineSpan::text).reduce("", String::concat));
+        assertEquals(List.of(target), spans.stream().map(ScreenText.InlineSpan::target).filter(java.util.Objects::nonNull).toList());
+        assertEquals("en.wikipedia.org", spans.stream().filter(span -> target.equals(span.target())).findFirst().orElseThrow().text());
+        assertEquals(List.of("https://minecraft.wiki/"), spans.stream().map(ScreenText.InlineSpan::externalUrl)
+                .filter(java.util.Objects::nonNull).toList());
+    }
+
+    @Test
+    void ordinaryWebMarkdownKeepsClickableUrlsSeparateFromEvidenceAndLeavesCodeLiteral() {
+        var target = new Evidence.NavigationTarget(SCOPE, "web", "https://example.test/source", "https://example.test/source");
+        var spans = ScreenText.inlineLines("[Wiki](https://minecraft.wiki/) [Site](http://unknown.test) "
+                + "[Other](HTTPS://unknown.test) "
+                + "`[Code](https://example.test/source)`", List.of(target)).getFirst().spans();
+
+        assertEquals("Wiki Site Other [Code](https://example.test/source)",
+                spans.stream().map(ScreenText.InlineSpan::text).reduce("", String::concat));
+        assertTrue(spans.stream().noneMatch(span -> span.target() != null || span.source() != null));
+        assertEquals(List.of("https://minecraft.wiki/", "http://unknown.test", "HTTPS://unknown.test"), spans.stream()
+                .map(ScreenText.InlineSpan::externalUrl).filter(java.util.Objects::nonNull).toList());
+        assertTrue(spans.stream().anyMatch(span -> span.code() && span.externalUrl() == null
+                && span.text().equals("[Code](https://example.test/source)")));
+    }
+
+    @Test
+    void webMarkdownRejectsUnsafeOrMalformedDestinationsAndKeepsTableLinks() {
+        for (String url : List.of("javascript:alert(1)", "file:///local", "https://user:password@example.test",
+                "https:///missing-host", "https://bad host.test")) {
+            assertTrue(ScreenText.inlineLines("[Link](" + url + ")", List.of()).stream().flatMap(line -> line.spans().stream())
+                    .noneMatch(span -> span.externalUrl() != null || span.target() != null || span.source() != null), url);
+        }
+        var table = ScreenText.inlineLines("| Page |\n| --- |\n| [Wiki](https://minecraft.wiki/) |", List.of());
+        assertEquals(List.of("https://minecraft.wiki/"), table.stream().flatMap(line -> line.spans().stream())
+                .map(ScreenText.InlineSpan::externalUrl).filter(java.util.Objects::nonNull).toList());
+    }
+
+    @Test
     void inlineMarkdownClosesStylesAndLeavesCodeReferencesLiteral() {
         var target = new Evidence.NavigationTarget(SCOPE, "patchouli", "book#entry", "entry");
         var spans = ScreenText.inlineLines("**bold** normal `code` [patchouli:book#entry]", List.of(target)).getFirst().spans();

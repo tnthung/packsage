@@ -10,6 +10,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -34,9 +36,14 @@ final class ScreenText {
     private static final Pattern HASH_SUFFIX = Pattern.compile("#\\d+$");
 
     record InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code,
-                      Evidence.Source source) {
+                      Evidence.Source source, String externalUrl) {
         InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code) {
-            this(text, target, color, bold, code, null);
+            this(text, target, color, bold, code, null, null);
+        }
+
+        InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code,
+                   Evidence.Source source) {
+            this(text, target, color, bold, code, source, null);
         }
 
         InlineSpan {
@@ -247,7 +254,7 @@ final class ScreenText {
                         InlineSpan span = spans.get(index);
                         if (span.target() == null && !span.code()) {
                             spans.set(index, new InlineSpan(span.text().replace("|", CELL_GAP), span.target(), span.color(), span.bold(), false,
-                                    span.source()));
+                                    span.source(), span.externalUrl()));
                         }
                     }
                 }
@@ -285,10 +292,13 @@ final class ScreenText {
                     }
                 }
                 if (target != null) {
-                    spans.add(new InlineSpan(text.substring(index, citation.endIndex() - absoluteStart), null,
-                            code ? CODE_COLOR : TEXT_COLOR, bold, code));
-                    spans.add(new InlineSpan(citation.title() == null || citation.title().isBlank() ? "Source" : citation.title(),
-                            target, ModernUi.TEXT, false, false));
+                    int firstSpan = spans.size();
+                    inlineSpans(text.substring(index, citation.endIndex() - absoluteStart), absoluteStart + index,
+                            bold, targets, List.of(), sources, spans);
+                    if (spans.subList(firstSpan, spans.size()).stream().map(InlineSpan::target).noneMatch(target::equals)) {
+                        spans.add(new InlineSpan(citation.title() == null || citation.title().isBlank() ? "Source" : citation.title(),
+                                target, ModernUi.TEXT, false, false));
+                    }
                     index = citation.endIndex() - absoluteStart;
                     continue;
                 }
@@ -405,9 +415,20 @@ final class ScreenText {
                     }
                     Evidence.NavigationTarget target = targets.stream().filter(value ->
                             value.providerId().equals("web") && value.sourceHandle().equals(url)).findFirst().orElse(null);
-                    if (target != null) {
+                    boolean externalUrl = false;
+                    if (target == null) {
+                        try {
+                            URI uri = new URI(url);
+                            externalUrl = ("http".equalsIgnoreCase(uri.getScheme())
+                                    || "https".equalsIgnoreCase(uri.getScheme()))
+                                    && uri.getHost() != null && !uri.getHost().isBlank() && uri.getUserInfo() == null;
+                        } catch (URISyntaxException ignored) {
+                        }
+                    }
+                    if (target != null || externalUrl) {
                         flushInline(spans, plain, bold, code);
-                        spans.add(new InlineSpan(text.substring(index + 1, close), target, ModernUi.TEXT, false, false));
+                        spans.add(new InlineSpan(text.substring(index + 1, close), target,
+                                ModernUi.TEXT, false, false, null, target == null ? url : null));
                         index = end;
                         continue;
                     }

@@ -160,3 +160,13 @@ The fixture contains one completed input quest and two unfinished dependent ques
 Clicking the recommended `Open Quest` action opened the actual FTB Quests `Check the alternate input` task with the charcoal icon. Escape returned through the quest map to the original chat. This accepts the exact viewer action. A storage source chip still displayed an opaque UUID-style identifier, a presentation gap outside the previously fixed brewing labels.
 
 The follow-up rediscovered the charcoal task, refreshed inventory and called `read_progress`. Its answer correctly distinguishes `minecraft:charcoal` from carried `minecraft:coal`, retaining the task's current 0/1 state instead of inferring completion from similar items. Overall fixture-search/progress records remain partial; these checks do not establish coverage of a large quest pack, team synchronization changes or reward claims.
+
+### 10. Saved conversation recall versus current materials
+
+Conversation: `9d0bc371-f199-43e1-9ecb-897be7a52ce4-7eef5973f12d25c0.jsonl`.
+
+| Turn | Submitted question | Request | Calls | Time | Assessment |
+|---|---|---|---|---|---|
+| 16 | Find our earlier cave-lighting conversation and remind me what limited the number of torches. Is that still true of what I'm carrying now? | `2beb14ba-1c12-449e-a7ea-03838cd8c277` | 10 | 82.417 s | Correct recall, separate fresh evidence and clean final references. |
+
+The initial literal phrase search exhausted its continuation without a match. Narrower `torch` and `cave` queries found the original turn `64107877-3537-491a-a301-16fe30d521a9`, and `read_history` retrieved that exact saved exchange. Separate complete player/Shulker reads and current native torch, stick and plank searches support the present conclusion. The final answer labels the earlier coal bottleneck as historical, then supports the current 64-torch ordinary route with new inventory/recipe citations. It does not copy the original visible drafting text or malformed citation marker. This is a clean later reply, not a repair or erasure of the two earlier failed outputs. History navigation was not clicked in this arc.

@@ -5,6 +5,7 @@ import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.Toolbox;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
+import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.ingredients.ITypedIngredient;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.IFocus;
@@ -236,9 +237,10 @@ public final class PackSageJeiPlugin implements IModPlugin {
             }
             var matchingOutputItem = outputItem;
             List<IFocus<?>> focuses = List.of();
+            ResourceLocation matchingOutputItemId = null;
             if (outputItem != null) {
-                var itemId = ResourceLocation.tryParse(outputItem);
-                if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) {
+                matchingOutputItemId = ResourceLocation.tryParse(outputItem);
+                if (matchingOutputItemId == null || !BuiltInRegistries.ITEM.containsKey(matchingOutputItemId)) {
                     throw new IllegalArgumentException("unknown or invalid outputItem " + outputItem);
                 }
             }
@@ -294,7 +296,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                     var catalystCapture = catalysts(runtime, manager, type, budget);
                     projection = project(runtime, manager, category, retained.recipe(), categoryId, id,
                             canonical.value(), title(category, categoryId), knownCategory(categoryId), canonical.failed(),
-                            catalystCapture, budget);
+                            catalystCapture, null, budget);
                     if (!projection.visible() || !projection.visibilityKnown()) {
                         return new JeiProvider.Snapshot(scope, generation, snapshotVersion, List.of(), ignored -> { },
                                 Evidence.Coverage.UNAVAILABLE, true, null);
@@ -515,11 +517,48 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                     query.operation(), id, text)) continue;
                             JeiProvider.Projection projection;
                             try {
-                                projection = categoryKnown ? project(runtime, manager, category, recipe, categoryId, handle,
-                                        canonicalCapture.value(), title, true, canonicalCapture.failed(), catalystCapture, budget)
-                                        : new JeiProvider.Projection(categoryId, handle, canonicalCapture.value(), title,
-                                        List.of(), List.of(), List.of(), false, false, Evidence.Coverage.OPAQUE,
-                                        Evidence.DecodingStatus.OPAQUE, "JEI category semantics are not decoded by PackSage");
+                                if (outputItem != null && categoryKnown) {
+                                    var layout = manager.createRecipeLayoutDrawable(
+                                            (IRecipeCategory<Object>) category, recipe, new EmptyFocusGroup())
+                                            .orElse(null);
+                                    if (layout == null) {
+                                        projection = JeiProvider.Projection.error(categoryId, handle,
+                                                canonicalCapture.value(), title,
+                                                "JEI did not provide a detached recipe layout");
+                                    } else {
+                                        var observedSlotsView = layout.getRecipeSlotsView();
+                                        var outputMatches = false;
+                                        var slotViews = observedSlotsView.getSlotViews().iterator();
+                                        while (slotViews.hasNext()) {
+                                            if (!budget.value()) break;
+                                            var slotView = slotViews.next();
+                                            if (slotView.getRole() != RecipeIngredientRole.OUTPUT) continue;
+                                            var ingredientValues = slotView.getAllIngredientsList().iterator();
+                                            while (ingredientValues.hasNext()) {
+                                                if (!budget.value()) break;
+                                                if (ingredientValues.next().getIngredient() instanceof ItemStack stack
+                                                        && BuiltInRegistries.ITEM.getKey(stack.getItem())
+                                                        .equals(matchingOutputItemId)) {
+                                                    outputMatches = true;
+                                                    break;
+                                                }
+                                            }
+                                            if (outputMatches || budget.exhausted()) break;
+                                        }
+                                        if (!outputMatches && !budget.exhausted()) continue;
+                                        projection = project(runtime, manager, category, recipe, categoryId, handle,
+                                                canonicalCapture.value(), title, true, canonicalCapture.failed(),
+                                                catalystCapture, observedSlotsView, budget);
+                                    }
+                                } else if (categoryKnown) {
+                                    projection = project(runtime, manager, category, recipe, categoryId, handle,
+                                            canonicalCapture.value(), title, true, canonicalCapture.failed(),
+                                            catalystCapture, null, budget);
+                                } else {
+                                    projection = new JeiProvider.Projection(categoryId, handle, canonicalCapture.value(), title,
+                                            List.of(), List.of(), List.of(), false, false, Evidence.Coverage.OPAQUE,
+                                            Evidence.DecodingStatus.OPAQUE, "JEI category semantics are not decoded by PackSage");
+                                }
                             } catch (Throwable failure) {
                                 projection = JeiProvider.Projection.error(categoryId, handle, canonicalCapture.value(),
                                         title, failure.toString());
@@ -633,16 +672,20 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                                             String title, boolean knownCategory,
                                                             boolean canonicalFailed,
                                                             CatalystCapture catalystCapture,
+                                                            IRecipeSlotsView observedSlotsView,
                                                             Toolbox.DocumentBudget budget) {
             if (!budget.value() || !budget.bytes(2048)) return new JeiProvider.Projection(categoryId, handle,
                     canonical, title, List.of(), catalystCapture.ingredients(), List.of(), false, false,
                     Evidence.Coverage.PARTIAL, Evidence.DecodingStatus.PARTIAL,
                     "JEI shared read budget ended before recipe layout extraction");
-            var layout = manager.createRecipeLayoutDrawable((IRecipeCategory<Object>) category, recipe,
-                    new EmptyFocusGroup()).orElse(null);
-            if (layout == null) return JeiProvider.Projection.error(categoryId, handle, canonical, title,
-                    "JEI did not provide a detached recipe layout");
-            var slotsView = layout.getRecipeSlotsView();
+            var slotsView = observedSlotsView;
+            if (slotsView == null) {
+                var layout = manager.createRecipeLayoutDrawable((IRecipeCategory<Object>) category, recipe,
+                        new EmptyFocusGroup()).orElse(null);
+                if (layout == null) return JeiProvider.Projection.error(categoryId, handle, canonical, title,
+                        "JEI did not provide a detached recipe layout");
+                slotsView = layout.getRecipeSlotsView();
+            }
             var capturedSlots = new ArrayList<JeiProvider.Slot>();
             var partial = canonicalFailed || catalystCapture.partial();
             var visible = catalystCapture.visible();

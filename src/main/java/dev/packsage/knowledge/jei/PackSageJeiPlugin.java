@@ -673,6 +673,20 @@ public final class PackSageJeiPlugin implements IModPlugin {
                         "JEI category lookup", failure.toString()));
                 error = true;
             }
+            if (hasMore && budget.exhausted()) {
+                partial = true;
+                if (retryCursor && nextCategory * CURSOR_RADIX + nextRecipe == cursor) {
+                    hasMore = false;
+                    cursorCategoryFound = true;
+                    projections.add(new JeiProvider.Projection("unknown:category",
+                            "jei/" + generation + "/" + snapshotVersion + "/budget", null, "JEI budget",
+                            List.of(), List.of(), List.of(), false, false, Evidence.Coverage.PARTIAL,
+                            Evidence.DecodingStatus.PARTIAL,
+                            "JEI shared read budget ended again before this source position could be decoded"));
+                } else {
+                    nextRetryCandidate = true;
+                }
+            }
             if (hasMore && (nextCategory >= MAX_CATEGORIES || nextRecipe >= MAX_CURSOR_SEEK)) {
                 hasMore = false;
                 partial = true;

@@ -746,6 +746,8 @@ class JeiProjectionTest {
             var helpers = Proxy.newProxyInstance(helpersType.getClassLoader(), new Class<?>[] { helpersType },
                     (proxy, method, arguments) -> method.getName().equals("getFocusFactory") ? focusFactory : null);
             var type = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), Object.class);
+            var brewingType = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "brewing"), Object.class);
+            var otherPotionType = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "stonecutting"), Object.class);
             var canonicalIdsEnabled = new AtomicBoolean();
             var canonicalIdThrows = new AtomicBoolean();
             var canonicalVisits = new AtomicInteger();
@@ -795,6 +797,24 @@ class JeiProjectionTest {
                     });
             var currentCategory = new AtomicReference<IRecipeCategory<?>>(category);
             var managerCategory = new AtomicReference<IRecipeCategory<?>>(category);
+            var categoryCandidates = new AtomicReference<List<IRecipeCategory<?>>>(null);
+            var recipesByType = new AtomicReference<Map<String, List<Object>>>(Map.of());
+            var brewingCategory = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
+                    new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
+                        case "getRecipeType" -> brewingType;
+                        case "getTitle" -> Component.literal("Brewing");
+                        case "getTooltipStrings" -> List.of();
+                        case "getRegistryName" -> null;
+                        default -> null;
+                    });
+            var otherPotionCategory = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
+                    new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
+                        case "getRecipeType" -> otherPotionType;
+                        case "getTitle" -> Component.literal("Other potion recipes");
+                        case "getTooltipStrings" -> List.of();
+                        case "getRegistryName" -> null;
+                        default -> null;
+                    });
             var item = BuiltInRegistries.ITEM.get(ResourceLocation.fromNamespaceAndPath("minecraft", "stone"));
             var outputStack = new ItemStack(item);
             recipeOutputs.put(recipe, outputStack);
@@ -893,6 +913,7 @@ class JeiProjectionTest {
                         case "getRecipeCategory" -> managerCategory.get();
                         case "createRecipeLookup" -> {
                             var includeHidden = new AtomicBoolean();
+                            var lookupType = (RecipeType<?>) arguments[0];
                             yield Proxy.newProxyInstance(IRecipeLookup.class.getClassLoader(),
                                     new Class<?>[] { IRecipeLookup.class }, (lookup, lookupMethod, lookupArguments) -> {
                                         return switch (lookupMethod.getName()) {
@@ -905,28 +926,41 @@ class JeiProjectionTest {
                                             case "get" -> hiddenRecipe.get() && !includeHidden.get()
                                                     || componentSensitiveScenario.get()
                                                     && appliedFocus.get() instanceof Collection<?> focuses && !focuses.isEmpty()
-                                                    ? Stream.empty() : recipes.get().stream().peek(value -> recipeVisits.incrementAndGet());
+                                                    ? Stream.empty() : (categoryCandidates.get() == null ? recipes.get()
+                                                    : recipesByType.get().getOrDefault(lookupType.getUid().toString(), List.of()))
+                                                    .stream().peek(value -> recipeVisits.incrementAndGet());
                                             default -> null;
                                         };
                                     });
                         }
                         case "createRecipeCategoryLookup" -> {
                             var includeHidden = new AtomicBoolean();
+                            var typeFilter = new AtomicReference<Collection<?>>();
                             yield Proxy.newProxyInstance(IRecipeCategoriesLookup.class.getClassLoader(),
                                     new Class<?>[] { IRecipeCategoriesLookup.class }, (lookup, lookupMethod, lookupArguments) -> {
                                         return switch (lookupMethod.getName()) {
                                             case "includeHidden" -> { includeHidden.set(true); yield lookup; }
-                                            case "limitTypes" -> { limitedRecipeTypes.set(lookupArguments[0]); yield lookup; }
+                                            case "limitTypes" -> {
+                                                limitedRecipeTypes.set(lookupArguments[0]);
+                                                typeFilter.set((Collection<?>) lookupArguments[0]);
+                                                yield lookup;
+                                            }
                                             case "limitFocus" -> {
                                                 appliedFocus.set(lookupArguments[0]);
                                                 focusApplications.incrementAndGet();
                                                 yield lookup;
                                             }
-                                            case "get" -> hiddenCategory.get() && !includeHidden.get()
-                                                    ? Stream.empty() : currentCategory.get() == null
-                                                    ? Stream.empty() : Stream.concat(Stream.generate(() -> replacementCategory)
-                                                    .limit(categoryPrefix.get()), Stream.of(currentCategory.get()))
-                                                    .peek(value -> categoryVisits.incrementAndGet());
+                                            case "get" -> {
+                                                if (hiddenCategory.get() && !includeHidden.get()) yield Stream.empty();
+                                                var candidates = categoryCandidates.get() == null
+                                                        ? currentCategory.get() == null ? Stream.<IRecipeCategory<?>>empty()
+                                                        : Stream.concat(Stream.generate(() -> replacementCategory)
+                                                        .limit(categoryPrefix.get()), Stream.of(currentCategory.get()))
+                                                        : categoryCandidates.get().stream();
+                                                if (typeFilter.get() != null) candidates = candidates.filter(candidate ->
+                                                        typeFilter.get().contains(candidate.getRecipeType()));
+                                                yield candidates.peek(value -> categoryVisits.incrementAndGet());
+                                            }
                                             default -> null;
                                         };
                                     });
@@ -980,6 +1014,42 @@ class JeiProjectionTest {
             assertEquals("minecraft:long_strength", ((Evidence.JsonString) potionSecondPage.records().getFirst()
                     .recipePayload().outputs().getFirst().components().values().get("potion")).value());
             assertTrue(Evidence.serialize(potionSecondPage.records().getFirst().payload()).contains("minecraft:long_strength"));
+            var craftingPrefix = java.util.stream.IntStream.range(0, 500).mapToObj(ignored -> new Object()).toList();
+            craftingPrefix.forEach(candidate -> recipeOutputs.put(candidate, outputStack));
+            categoryCandidates.set(List.of(category, brewingCategory, otherPotionCategory));
+            recipesByType.set(Map.of("minecraft:crafting", craftingPrefix,
+                    "minecraft:brewing", List.of(strengthPotionRecipe),
+                    "minecraft:stonecutting", List.of(longStrengthPotionRecipe)));
+            PackSageJeiPlugin.clientTicked();
+            var prioritizedPotionPage = plugin.provider().query(potionQuery, SCOPE).toCompletableFuture().get();
+            assertEquals(1, prioritizedPotionPage.records().size(),
+                    "exact potion output search must reach brewing before unrelated crafting candidates");
+            assertEquals("minecraft:brewing", ((Evidence.JsonString) prioritizedPotionPage.records().getFirst()
+                    .payload().values().get("categoryId")).value());
+            String prioritizedCursor = prioritizedPotionPage.nextCursor();
+            Evidence.Result laterPotionPage = null;
+            for (var attempt = 0; attempt < 10 && (laterPotionPage == null || laterPotionPage.records().isEmpty()); attempt++) {
+                assertNotNull(prioritizedCursor);
+                PackSageJeiPlugin.clientTicked();
+                laterPotionPage = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                        potionQuery.arguments(), 1, SCOPE, prioritizedCursor), SCOPE).toCompletableFuture().get();
+                if (laterPotionPage.records().isEmpty()) prioritizedCursor = laterPotionPage.nextCursor();
+            }
+            assertEquals(1, laterPotionPage.records().size(),
+                    "continuation must reach a later non-brewing potion category");
+            assertEquals("minecraft:stonecutting", ((Evidence.JsonString) laterPotionPage.records().getFirst()
+                    .payload().values().get("categoryId")).value());
+            assertEquals("minecraft:long_strength", ((Evidence.JsonString) laterPotionPage.records().getFirst()
+                    .recipePayload().outputs().getFirst().components().values().get("potion")).value());
+            PackSageJeiPlugin.clientTicked();
+            var ordinaryOrder = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+                    new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, null, null), SCOPE)
+                    .toCompletableFuture().get();
+            assertEquals("minecraft:crafting", ((Evidence.JsonString) ordinaryOrder.records().getFirst()
+                    .payload().values().get("categoryId")).value(),
+                    "text-only search must retain ordinary category order");
+            categoryCandidates.set(null);
+            recipesByType.set(Map.of());
             PackSageJeiPlugin.clientTicked();
             var componentSearch = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("minecraft:strength"))),

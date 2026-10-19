@@ -6,7 +6,6 @@ import dev.packsage.knowledge.Toolbox;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.RecipeIngredientRole;
@@ -240,11 +239,6 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) {
                     throw new IllegalArgumentException("unknown or invalid outputItem " + outputItem);
                 }
-                var item = BuiltInRegistries.ITEM.getOptional(itemId)
-                        .orElseThrow(() -> new IllegalArgumentException("unknown outputItem " + itemId));
-                var stack = new ItemStack(item);
-                focuses = List.of((IFocus<?>) runtime.getJeiHelpers().getFocusFactory().createFocus(
-                        RecipeIngredientRole.OUTPUT, VanillaTypes.ITEM_STACK, stack));
             }
             if (retained != null) {
                 var category = retained.category();
@@ -503,8 +497,9 @@ public final class PackSageJeiPlugin implements IModPlugin {
                             }
                             if (canonicalCapture.failed()) partial = true;
                             var handle = sourceHandle(generation, snapshotVersion, categoryId, canonicalCapture.value(), recipe, recipeOrdinal);
-                            var candidate = matches(categoryId, title, canonicalCapture.value(), handle, query.operation(), id, text);
-                            if (!candidate) continue;
+                            if (query.operation() == Evidence.Operation.GET
+                                    && !matches(categoryId, title, canonicalCapture.value(), handle,
+                                    query.operation(), id, text)) continue;
                             JeiProvider.Projection projection;
                             try {
                                 projection = categoryKnown ? project(runtime, manager, category, recipe, categoryId, handle,
@@ -516,6 +511,16 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                 projection = JeiProvider.Projection.error(categoryId, handle, canonicalCapture.value(),
                                         title, failure.toString());
                             }
+                            error |= projection.coverage() == Evidence.Coverage.ERROR;
+                            opaque |= projection.coverage() == Evidence.Coverage.OPAQUE;
+                            partial |= projection.coverage() == Evidence.Coverage.PARTIAL;
+                            if (outputItem != null && !projection.slots().stream()
+                                    .filter(slot -> slot.role() == JeiProvider.RecipeRole.OUTPUT)
+                                    .flatMap(slot -> slot.alternatives().stream())
+                                    .anyMatch(ingredient -> ingredient.type().equals("item")
+                                            && ingredient.comparisonIdentity().split("\\|componentsHash=", 2)[0]
+                                            .equals(outputItem))) continue;
+                            if (!JeiProvider.matches(projection, text)) continue;
                             projections.add(projection);
                             if (projection.coverage() != Evidence.Coverage.ERROR) {
                                 var registration = new RegisteredRecipe(category, recipe, scope, outputItem);
@@ -525,9 +530,6 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                     navigationRegistrations.remove(navigationRegistrations.keySet().iterator().next());
                                 }
                             }
-                            partial |= projection.coverage() == Evidence.Coverage.PARTIAL;
-                            opaque |= projection.coverage() == Evidence.Coverage.OPAQUE;
-                            error |= projection.coverage() == Evidence.Coverage.ERROR;
                             if (budget.exhausted()) {
                                 partial = true;
                                 hasMore = recipeIterator.hasNext() || categoryIterator.hasNext();

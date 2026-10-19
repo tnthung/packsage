@@ -965,16 +965,12 @@ class JeiProjectionTest {
                             "outputItem", new Evidence.JsonString("minecraft:stone"))), 4, null, null), SCOPE)
                     .toCompletableFuture().get();
 
-            assertEquals(2, focusApplications.get(), "both JEI category and recipe lookups must receive the output focus");
-            assertEquals(1, focusCreations.get());
-            assertNotNull(appliedFocus.get());
-            assertEquals(RecipeIngredientRole.OUTPUT, focusArguments.get()[0]);
-            assertEquals(VanillaTypes.ITEM_STACK, focusArguments.get()[1]);
-            assertSame(item, ((ItemStack) focusArguments.get()[2]).getItem());
             assertEquals("Crafting", result.records().getFirst().title());
             assertEquals(1, result.records().getFirst().targets().size());
             var initial = result.records().getFirst();
             assertEquals(1, initial.recipePayload().outputs().getFirst().quantity());
+            assertTrue(initial.recipePayload().outputs().getFirst().comparisonIdentity()
+                    .startsWith("minecraft:stone|componentsHash="));
             var handle = initial.source().sourceHandle();
             var nextScope = new Evidence.Scope("world", "en_us", "team", "jei-1", 2);
             var exactGet = new Evidence.Query(Evidence.Operation.GET,
@@ -1015,9 +1011,6 @@ class JeiProjectionTest {
             assertEquals(1, oversizedSlotResult.records().getFirst().recipePayload().inputs().size());
             assertEquals("input-0", oversizedSlotResult.records().getFirst().recipePayload().inputs().getFirst().groupId());
             oversizedSlotNameScenario.set(false);
-            focusApplications.set(0);
-            focusCreations.set(0);
-
             outputStack.setCount(2);
             PackSageJeiPlugin.clientTicked();
             var refreshed = plugin.provider().query(exactGet, nextScope).toCompletableFuture().get();
@@ -1025,8 +1018,6 @@ class JeiProjectionTest {
             assertEquals(refreshed.records().getFirst().source().coverage(), refreshed.coverage());
             assertTrue(refreshed.coverage() == Evidence.Coverage.COMPLETE
                     || refreshed.coverage() == Evidence.Coverage.PARTIAL);
-            assertEquals(2, focusApplications.get());
-            assertEquals(1, focusCreations.get(), "exact revalidation must reapply the original output focus");
             assertEquals(handle, refreshed.records().getFirst().source().sourceHandle());
             assertNotEquals(initial.source().provenance(), refreshed.records().getFirst().source().provenance());
             assertEquals(nextScope, refreshed.records().getFirst().source().scope());
@@ -1036,14 +1027,12 @@ class JeiProjectionTest {
                     plugin.provider().open(refreshed.records().getFirst().targets().getFirst(), nextScope).status());
             assertSame(recipe, shownRecipes.get().getFirst());
 
-            var focusApplicationsBeforeUnknown = focusApplications.get();
             PackSageJeiPlugin.clientTicked();
             var unretainedHandle = plugin.provider().query(new Evidence.Query(Evidence.Operation.GET,
                     new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("jei/1/999/minecraft:crafting/old"))),
                     4, null, null), nextScope).toCompletableFuture().get();
             assertEquals(Evidence.Coverage.UNAVAILABLE, unretainedHandle.coverage());
             assertTrue(unretainedHandle.records().isEmpty());
-            assertEquals(focusApplicationsBeforeUnknown, focusApplications.get());
 
             var distantRecipes = new java.util.ArrayList<Object>(java.util.Collections.nCopies(65_537, replacementRecipe));
             distantRecipes.set(65_536, recipe);

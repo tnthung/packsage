@@ -425,10 +425,7 @@ public final class JeiProvider implements KnowledgeProvider {
                         currentStatus = null;
                         return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null);
                     }
-                    if (query.arguments().values().get("outputItem") instanceof Evidence.JsonString && !snapshot.queryScoped()) {
-                        return errorResult("outputItem focus requires a live JEI runtime snapshot");
-                    }
-                    var result = snapshot.queryScoped() ? queryScopedResult(snapshot)
+                    var result = snapshot.queryScoped() ? queryScopedResult(snapshot, query)
                             : querySnapshot(snapshot, query, cursor);
                     currentStatus = new SnapshotStatus(snapshot.scope(), snapshot.generation(), snapshot.snapshotVersion(),
                             snapshot.coverage());
@@ -557,11 +554,18 @@ public final class JeiProvider implements KnowledgeProvider {
         var text = stringArgument(query.arguments(), "text");
         text = text == null ? "" : text.toLowerCase(Locale.ROOT);
         var id = stringArgument(query.arguments(), "id");
+        var outputItem = query.operation() == Evidence.Operation.SEARCH || query.operation() == Evidence.Operation.RELATED
+                ? stringArgument(query.arguments(), "outputItem") : null;
         var selected = new ArrayList<Evidence.Record>();
         int index = start;
         for (; index < snapshot.projections().size() && selected.size() < query.limit(); index++) {
             var projection = snapshot.projections().get(index);
             if (!matchesQuery(projection, query.operation(), id, text)) continue;
+            if (outputItem != null && !projection.slots().stream()
+                    .filter(slot -> slot.role() == RecipeRole.OUTPUT)
+                    .flatMap(slot -> slot.alternatives().stream())
+                    .anyMatch(ingredient -> ingredient.type().equals("item")
+                            && ingredient.comparisonIdentity().split("\\|componentsHash=", 2)[0].equals(outputItem))) continue;
             selected.add(toRecord(projection, snapshot));
         }
         var next = index < snapshot.projections().size() ? Integer.toString(index) : null;
@@ -574,8 +578,19 @@ public final class JeiProvider implements KnowledgeProvider {
         return result(selected, coverage, next);
     }
 
-    private static Evidence.Result queryScopedResult(Snapshot snapshot) {
-        var records = snapshot.projections().stream().map(projection -> toRecord(projection, snapshot)).toList();
+    private static Evidence.Result queryScopedResult(Snapshot snapshot, Evidence.Query query) {
+        var rawText = stringArgument(query.arguments(), "text");
+        var text = rawText == null ? "" : rawText.toLowerCase(Locale.ROOT);
+        var outputItem = query.operation() == Evidence.Operation.SEARCH || query.operation() == Evidence.Operation.RELATED
+                ? stringArgument(query.arguments(), "outputItem") : null;
+        var records = snapshot.projections().stream().filter(projection -> matchesQuery(projection,
+                        query.operation(), stringArgument(query.arguments(), "id"), text))
+                .filter(projection -> outputItem == null || projection.slots().stream()
+                        .filter(slot -> slot.role() == RecipeRole.OUTPUT)
+                        .flatMap(slot -> slot.alternatives().stream())
+                        .anyMatch(ingredient -> ingredient.type().equals("item")
+                                && ingredient.comparisonIdentity().split("\\|componentsHash=", 2)[0].equals(outputItem)))
+                .map(projection -> toRecord(projection, snapshot)).toList();
         var detail = snapshot.projections().stream().map(Projection::error).filter(Objects::nonNull)
                 .findFirst().orElse(null);
         var result = result(records, snapshot.coverage(), snapshot.nextCursor());
@@ -667,12 +682,17 @@ public final class JeiProvider implements KnowledgeProvider {
         return new Evidence.JsonObject(values);
     }
 
-    private static boolean matches(Projection projection, String text) {
-        return text.isEmpty() || projection.title().toLowerCase(Locale.ROOT).contains(text)
-                || projection.categoryId().toLowerCase(Locale.ROOT).contains(text)
-                || projection.viewerHandle().toLowerCase(Locale.ROOT).contains(text)
-                || projection.canonicalRecipeId() != null && projection.canonicalRecipeId().toLowerCase(Locale.ROOT).contains(text)
-                || projection.information().stream().anyMatch(value -> value.toLowerCase(Locale.ROOT).contains(text));
+    static boolean matches(Projection projection, String text) {
+        var normalizedText = text.toLowerCase(Locale.ROOT);
+        return normalizedText.isEmpty() || projection.title().toLowerCase(Locale.ROOT).contains(normalizedText)
+                || projection.categoryId().toLowerCase(Locale.ROOT).contains(normalizedText)
+                || projection.viewerHandle().toLowerCase(Locale.ROOT).contains(normalizedText)
+                || projection.canonicalRecipeId() != null && projection.canonicalRecipeId().toLowerCase(Locale.ROOT).contains(normalizedText)
+                || projection.information().stream().anyMatch(value -> value.toLowerCase(Locale.ROOT).contains(normalizedText))
+                || projection.slots().stream().flatMap(slot -> slot.alternatives().stream())
+                .anyMatch(value -> Evidence.serialize(ingredientJson(value)).toLowerCase(Locale.ROOT).contains(normalizedText))
+                || projection.catalysts().stream()
+                .anyMatch(value -> Evidence.serialize(ingredientJson(value)).toLowerCase(Locale.ROOT).contains(normalizedText));
     }
 
     private static String stringArgument(Evidence.JsonObject arguments, String key) {

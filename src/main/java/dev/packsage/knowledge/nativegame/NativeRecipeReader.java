@@ -26,9 +26,27 @@ final class NativeRecipeReader {
         if (client.level == null) throw new IllegalStateException("client level unavailable");
         Registry<Item> itemRegistry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
         var recipes = client.level.getRecipeManager().getRecipes();
-        if (!(recipes instanceof ImmutableCollection<?> immutableRecipes)) return new Page(List.of(), offset, false, 0);
-        return searchCandidates(immutableRecipes.asList(), client.level.registryAccess(), itemRegistry,
-                client.getResourceManager(), outputItem, text, offset, limit, scope);
+        boolean readableRecipes = recipes instanceof ImmutableCollection<?>;
+        List<?> orderedRecipes = readableRecipes ? ((ImmutableCollection<?>) recipes).asList() : List.of();
+        int recipeCount = orderedRecipes.size();
+        int startOffset = Math.max(offset, 0);
+        var ordinary = startOffset < recipeCount
+                ? searchCandidates(orderedRecipes, client.level.registryAccess(), itemRegistry, client.getResourceManager(),
+                        outputItem, text, startOffset, limit, scope)
+                : new Page(List.of(), recipeCount, true, 0, false);
+        if (!readableRecipes) ordinary = new Page(ordinary.records(), ordinary.nextOffset(), ordinary.exhausted(),
+                ordinary.scanned(), true);
+        if (!ordinary.exhausted()) return ordinary;
+        if (ordinary.records().size() == limit) return new Page(ordinary.records(), recipeCount, false,
+                ordinary.scanned(), ordinary.partial());
+        var brewing = NativeBrewingReader.searchCandidates(client.level.potionBrewing(), client.level.registryAccess(),
+                itemRegistry, client.getResourceManager(), outputItem, text, Math.max(0, startOffset - recipeCount),
+                limit - ordinary.records().size(), scope);
+        var combined = new ArrayList<Evidence.Record>(ordinary.records());
+        combined.addAll(brewing.records());
+        int nextOffset = recipeCount + brewing.nextOffset();
+        return new Page(combined, nextOffset, brewing.exhausted(), ordinary.scanned() + brewing.scanned(),
+                ordinary.partial() || brewing.partial());
     }
 
     static Page searchCandidates(List<?> orderedRecipes, HolderLookup.Provider registries,
@@ -54,6 +72,11 @@ final class NativeRecipeReader {
     static Evidence.Record read(Minecraft client, String identity, Evidence.Scope scope) {
         if (!client.isSameThread()) throw new IllegalStateException("native recipe read must run on the client thread");
         if (client.level == null) return null;
+        if (identity.startsWith("brewing:")) {
+            var items = client.level.registryAccess().registryOrThrow(Registries.ITEM);
+            return NativeBrewingReader.readCandidate(client.level.potionBrewing(), identity,
+                    client.level.registryAccess(), items, scope);
+        }
         var id = ResourceLocation.tryParse(identity);
         if (id == null || !id.toString().equals(identity)) return null;
         var holder = client.level.getRecipeManager().byKey(id).orElse(null);
@@ -62,9 +85,9 @@ final class NativeRecipeReader {
         return NativeSnapshot.copyRecipe(holder, client.level.registryAccess(), items, client.getResourceManager(), scope, null);
     }
 
-    static List<Evidence.Record> planCandidates(Minecraft client, Evidence.Scope scope) {
+    static PlanPage planCandidates(Minecraft client, Evidence.Scope scope) {
         if (!client.isSameThread()) throw new IllegalStateException("native recipe read must run on the client thread");
-        if (client.level == null) return List.of();
+        if (client.level == null) return new PlanPage(List.of(), true);
         Registry<Item> itemRegistry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
         var recipes = client.level.getRecipeManager().getRecipes();
         var result = new ArrayList<Evidence.Record>();
@@ -74,11 +97,23 @@ final class NativeRecipeReader {
             result.add(NativeSnapshot.copyRecipe(holder, client.level.registryAccess(), itemRegistry,
                     client.getResourceManager(), scope, null));
         }
-        return List.copyOf(result);
+        var brewing = NativeBrewingReader.planCandidates(client.level.potionBrewing(), client.level.registryAccess(), itemRegistry, scope);
+        result.addAll(brewing.records());
+        return new PlanPage(List.copyOf(result), recipes.size() > MAX_CANDIDATES || brewing.partial() || !brewing.exhausted());
     }
 
-    record Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, int scanned) {
+    record Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, int scanned, boolean partial) {
         Page {
+            records = List.copyOf(records);
+        }
+
+        Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, int scanned) {
+            this(records, nextOffset, exhausted, scanned, false);
+        }
+    }
+
+    record PlanPage(List<Evidence.Record> records, boolean partial) {
+        PlanPage {
             records = List.copyOf(records);
         }
     }

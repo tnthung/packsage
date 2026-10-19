@@ -285,11 +285,11 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         return new Evidence.Record(source, Evidence.RecordKind.OTHER, identity, new Evidence.JsonObject(values), List.of());
     }
 
-    private static Evidence.JsonObject recipePayloadJson(String id, List<Evidence.RecipeSlot> slots, List<Evidence.RecipeOutput> outputs,
+    static Evidence.JsonObject recipePayloadJson(String id, List<Evidence.RecipeSlot> slots, List<Evidence.RecipeOutput> outputs,
                                                           List<Evidence.RecipeOutput> remainders, List<Evidence.RecipeAlternative> catalysts,
                                                           List<String> constraints, Evidence.DecodingStatus decoding, Set<String> tags) {
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
-        values.put("canonicalRecipeId", new Evidence.JsonString(id));
+        values.put("canonicalRecipeId", id == null ? new Evidence.JsonNull() : new Evidence.JsonString(id));
         values.put("inputs", new Evidence.JsonArray(slots.stream().map(slot -> {
             var slotValues = new LinkedHashMap<String, Evidence.JsonValue>();
             slotValues.put("groupId", new Evidence.JsonString(slot.groupId()));
@@ -332,7 +332,7 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         return new Evidence.JsonObject(values);
     }
 
-    private static Evidence.JsonObject componentPayload(ItemStack stack, net.minecraft.core.HolderLookup.Provider registries) {
+    static Evidence.JsonObject componentPayload(ItemStack stack, net.minecraft.core.HolderLookup.Provider registries) {
         var encoded = codecJson(ItemStack.CODEC, stack, registries);
         var components = encoded.values().get("components");
         return components instanceof Evidence.JsonObject object ? object : new Evidence.JsonObject(Map.of());
@@ -362,11 +362,11 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         return new Evidence.JsonString(value.getAsString());
     }
 
-    private static String itemIdentity(ItemStack stack, Registry<Item> itemRegistry) {
+    static String itemIdentity(ItemStack stack, Registry<Item> itemRegistry) {
         return itemIdentity(stack.getItem(), itemRegistry);
     }
 
-    private static String itemIdentity(Item item, Registry<Item> itemRegistry) {
+    static String itemIdentity(Item item, Registry<Item> itemRegistry) {
         var identity = itemRegistry.getKey(item);
         if (identity != null) return identity.toString();
         var builtin = BuiltInRegistries.ITEM.getKey(item);

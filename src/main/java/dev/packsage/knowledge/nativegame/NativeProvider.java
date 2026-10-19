@@ -114,7 +114,7 @@ public final class NativeProvider implements KnowledgeProvider {
             }
             var candidates = NativeRecipeReader.planCandidates(client, scope);
             var index = new KnowledgeIndex();
-            index.replace(new NativeSnapshot(scope, candidates));
+            index.replace(new NativeSnapshot(scope, candidates.records()));
             var result = new RecipePlanner(index).plan(itemIdentity, quantity, scope, maxDepth);
             var planRecords = new ArrayList<Evidence.Record>();
             for (int route = 0; route < result.records().size(); route++) {
@@ -130,8 +130,7 @@ public final class NativeProvider implements KnowledgeProvider {
                         record.recipePayload()));
             }
             result = new Evidence.Result(planRecords, result.coverage(), result.outcome(), result.nextCursor(), result.detail());
-            boolean scanPartial = client.level.getRecipeManager().getRecipes().size() > NativeRecipeReader.MAX_CANDIDATES;
-            if (scanPartial) return partial(result, "bounded-live-recipe-scan");
+            if (candidates.partial()) return partial(result, "bounded-live-recipe-scan");
             return result;
         }).thenApply(result -> publish(result, scope));
     }
@@ -319,7 +318,8 @@ public final class NativeProvider implements KnowledgeProvider {
                 return NativeRecipeReader.search(client, output, text, offset, limit, request.scope());
             }).thenApply(page -> {
                 String next = page.exhausted() || page.nextOffset() <= offset ? null : storeCursor(page.nextOffset(), signature, request.scope());
-                boolean partial = !page.exhausted() || page.records().stream().anyMatch(record -> record.source().coverage() != Evidence.Coverage.COMPLETE);
+                boolean partial = page.partial() || !page.exhausted()
+                        || page.records().stream().anyMatch(record -> record.source().coverage() != Evidence.Coverage.COMPLETE);
                 var result = new Evidence.Result(page.records(), partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
                         partial ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE, next);
                 return publish(result, request.scope());

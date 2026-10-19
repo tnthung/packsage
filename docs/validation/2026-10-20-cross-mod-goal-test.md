@@ -60,3 +60,18 @@ The native recipe payload supports one iron ingot to one iron sheet. It remains 
 Clicking the actual `Processing Items with the Mechanical Press` control opened Ponder with that exact title and a rendered press scene. The final answer uses working local citations, a genuine Ponder target and an attributed external link. Broader guide discovery spent calls on unrelated bounded Patchouli searches; the first native recipe page was empty but its continuation found the recipe. Two JEI pages remained empty and unfinished, which does not establish recipe absence.
 
 The action follow-up immediately said it cannot place or build blocks and offered instructions instead. No tools were called and no game-world action occurred. Both turns fulfill their expected goals, with roughly two-minute latency and unnecessary discovery on the first turn.
+
+### 3. Nature's Aura, starting advice and environmental uncertainty
+
+Conversation: `f8138ff9-a6f4-48f1-b0f3-8b7e04e7b1af-be5b7fb65193c177.jsonl`.
+
+| Turn | Submitted question | Request | Calls | Time | Assessment |
+|---|---|---|---|---|---|
+| 5 | I'm starting Nature's Aura and don't want to drain the area around my base. What's the difference between generating Aura and collecting it, and what should I start with? | `276c248d-5c37-4fb3-bc3d-c43925751b94` | 10 local; two web-search activities | 111.232 s | Useful, grounded starting advice and clicked Patchouli page pass; no concrete replenishing setup established. |
+| 6 | Does less destructive mean I can keep bottling it at that patch forever with no consequences? | `0063cb6c-01a2-4759-9e7f-96352bf1ee8c` | 6 | 55.359 s | Rejects the unsupported guarantee; redundant rediscovery and a source-scope wording limit remain. |
+
+The returned Aura Plants entry supports Aura Blooms in grassy patches, collection using Bottle and Cork there as less destructive, and higher local concentration when aura plants first grow. The [official mod description](https://modrinth.com/mod/natures-aura) supports the broad collecting/using/replenishing distinction. Collecting away from the player's base is a practical recommendation derived from the player's goal and the lower-impact suggestion, rather than a measured safe-distance claim. The answer does not portray harvesting as refilling the area or claim continuous generation from mature plants. The loaded registry and a partially decoded recipe also establish Bottle and Cork availability.
+
+The actual Aura Plants link opened Patchouli's `Aura Plants` / `Aura Bloom` spread, with the expected text visible. Repeated searches rediscovered this entry but neither turn called `read_evidence`; this does not accept that separate fresh-read path. Broad guide searches repeatedly reached partial discovery bounds and several narrow queries returned the same entry.
+
+The follow-up says there is no guarantee of indefinite, consequence-free bottling and avoids inventing a safe harvest rate or self-refill behavior. Its statement that the guide does not establish those properties should be read as a limit of the cited entry; these partial searches do not prove that the entire book lacks further relevant information. Functional explanation, uncertainty handling and the clicked book action pass with those limits.

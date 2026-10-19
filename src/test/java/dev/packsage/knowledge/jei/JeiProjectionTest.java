@@ -746,8 +746,6 @@ class JeiProjectionTest {
             var helpers = Proxy.newProxyInstance(helpersType.getClassLoader(), new Class<?>[] { helpersType },
                     (proxy, method, arguments) -> method.getName().equals("getFocusFactory") ? focusFactory : null);
             var type = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), Object.class);
-            var brewingType = mezz.jei.api.constants.RecipeTypes.BREWING;
-            var otherPotionType = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "stonecutting"), Object.class);
             var canonicalIdsEnabled = new AtomicBoolean();
             var canonicalIdThrows = new AtomicBoolean();
             var canonicalVisits = new AtomicInteger();
@@ -802,7 +800,7 @@ class JeiProjectionTest {
             var categoryLookupThrows = new AtomicBoolean();
             var brewingCategory = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
                     new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
-                        case "getRecipeType" -> brewingType;
+                        case "getRecipeType" -> mezz.jei.api.constants.RecipeTypes.BREWING;
                         case "getTitle" -> Component.literal("Brewing");
                         case "getTooltipStrings" -> List.of();
                         case "getRegistryName" -> null;
@@ -810,7 +808,8 @@ class JeiProjectionTest {
                     });
             var otherPotionCategory = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
                     new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
-                        case "getRecipeType" -> otherPotionType;
+                        case "getRecipeType" -> new RecipeType<>(
+                                ResourceLocation.fromNamespaceAndPath("minecraft", "stonecutting"), Object.class);
                         case "getTitle" -> Component.literal("Other potion recipes");
                         case "getTooltipStrings" -> List.of();
                         case "getRegistryName" -> null;
@@ -1044,11 +1043,10 @@ class JeiProjectionTest {
             assertEquals("minecraft:long_strength", ((Evidence.JsonString) laterPotionPage.records().getFirst()
                     .recipePayload().outputs().getFirst().components().values().get("potion")).value());
             PackSageJeiPlugin.clientTicked();
-            var ordinaryOutputOrder = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+            assertEquals("minecraft:crafting", ((Evidence.JsonString) plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),
                             "outputItem", new Evidence.JsonString("minecraft:stone"))), 1, null, null), SCOPE)
-                    .toCompletableFuture().get();
-            assertEquals("minecraft:crafting", ((Evidence.JsonString) ordinaryOutputOrder.records().getFirst()
+                    .toCompletableFuture().get().records().getFirst()
                     .payload().values().get("categoryId")).value(),
                     "non-potion output searches must retain ordinary category order");
             categoryLookupThrows.set(true);
@@ -1058,10 +1056,9 @@ class JeiProjectionTest {
             assertNull(typedLookupFailure.nextCursor());
             categoryLookupThrows.set(false);
             PackSageJeiPlugin.clientTicked();
-            var ordinaryOrder = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
+            assertEquals("minecraft:crafting", ((Evidence.JsonString) plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""))), 1, null, null), SCOPE)
-                    .toCompletableFuture().get();
-            assertEquals("minecraft:crafting", ((Evidence.JsonString) ordinaryOrder.records().getFirst()
+                    .toCompletableFuture().get().records().getFirst()
                     .payload().values().get("categoryId")).value(),
                     "text-only search must retain ordinary category order");
             categoryCandidates.set(null);

@@ -35,7 +35,7 @@ public final class RelicsInstanceReader {
             return project(player, stack, stack.getItem());
         } catch (ClassNotFoundException failure) {
             return null;
-        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
+        } catch (RuntimeException | LinkageError failure) {
             return null;
         }
     }
@@ -60,8 +60,8 @@ public final class RelicsInstanceReader {
                 for (String[] field : new String[][]{{"level", "getLevel"}, {"experience", "getExperience"},
                         {"rank", "getRank"}, {"points", "getPoints"}}) {
                     try {
-                        Object raw = levelingData.getClass().getMethod(field[1]).invoke(levelingData);
-                        if (!(raw instanceof Number number) || number instanceof Double doubleValue && !Double.isFinite(doubleValue)
+                        if (!(levelingData.getClass().getMethod(field[1]).invoke(levelingData) instanceof Number number)
+                                || number instanceof Double doubleValue && !Double.isFinite(doubleValue)
                                 || number instanceof Float floatValue && !Float.isFinite(floatValue)) partial = true;
                         else result.put(field[0], new Evidence.JsonNumber(new BigDecimal(number.toString())));
                     } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
@@ -71,13 +71,16 @@ public final class RelicsInstanceReader {
             }
             var abilities = new LinkedHashMap<String, Evidence.JsonValue>();
             Object abilitiesData = relicData.getClass().getMethod("getAbilitiesData").invoke(relicData);
-            Object rawIds = abilitiesData.getClass().getMethod("getAbilityIDs").invoke(abilitiesData);
-            if (!(rawIds instanceof Set<?> ids)) partial = true;
+            if (!(abilitiesData.getClass().getMethod("getAbilityIDs").invoke(abilitiesData) instanceof Set<?> ids)) partial = true;
             else {
                 if (ids.size() > MAX_ABILITIES) partial = true;
                 int abilityCount = 0;
                 int totalStats = 0;
                 for (Object rawId : ids) {
+                    if (totalStats == MAX_STATS) {
+                        partial = true;
+                        break;
+                    }
                     if (abilityCount == MAX_ABILITIES) break;
                     abilityCount++;
                     if (!(rawId instanceof String abilityId) || abilityId.isBlank()) {
@@ -94,8 +97,8 @@ public final class RelicsInstanceReader {
                         continue;
                     }
                     try {
-                        Object rawPoints = abilityData.getClass().getMethod("getLevel").invoke(abilityData);
-                        if (!(rawPoints instanceof Number points) || points instanceof Double doublePoints && !Double.isFinite(doublePoints)
+                        if (!(abilityData.getClass().getMethod("getLevel").invoke(abilityData) instanceof Number points)
+                                || points instanceof Double doublePoints && !Double.isFinite(doublePoints)
                                 || points instanceof Float floatPoints && !Float.isFinite(floatPoints)) partial = true;
                         else ability.put("points", new Evidence.JsonNumber(new BigDecimal(points.toString())));
                     } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
@@ -104,8 +107,7 @@ public final class RelicsInstanceReader {
                     var stats = new LinkedHashMap<String, Evidence.JsonValue>();
                     try {
                         Object template = abilityData.getClass().getMethod("getTemplate").invoke(abilityData);
-                        Object rawStats = template.getClass().getMethod("getStats").invoke(template);
-                        if (!(rawStats instanceof Map<?, ?> statTemplates)) partial = true;
+                        if (!(template.getClass().getMethod("getStats").invoke(template) instanceof Map<?, ?> statTemplates)) partial = true;
                         else {
                             if (statTemplates.size() > MAX_STATS_PER_ABILITY) partial = true;
                             int abilityStats = 0;
@@ -130,16 +132,16 @@ public final class RelicsInstanceReader {
                                     continue;
                                 }
                                 try {
-                                    Object rawValue = statData.getClass().getMethod("getValue").invoke(statData);
-                                    if (!(rawValue instanceof Number value) || value instanceof Double doubleValue && !Double.isFinite(doubleValue)
+                                    if (!(statData.getClass().getMethod("getValue").invoke(statData) instanceof Number value)
+                                            || value instanceof Double doubleValue && !Double.isFinite(doubleValue)
                                             || value instanceof Float floatValue && !Float.isFinite(floatValue)) partial = true;
                                     else stat.put("value", new Evidence.JsonNumber(new BigDecimal(value.toString())));
                                 } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
                                     partial = true;
                                 }
                                 try {
-                                    Object rawQuality = statData.getClass().getMethod("getQuality").invoke(statData);
-                                    if (!(rawQuality instanceof Number quality) || quality instanceof Double doubleQuality && !Double.isFinite(doubleQuality)
+                                    if (!(statData.getClass().getMethod("getQuality").invoke(statData) instanceof Number quality)
+                                            || quality instanceof Double doubleQuality && !Double.isFinite(doubleQuality)
                                             || quality instanceof Float floatQuality && !Float.isFinite(floatQuality)) partial = true;
                                     else stat.put("quality", new Evidence.JsonNumber(new BigDecimal(quality.toString())));
                                 } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
@@ -162,5 +164,4 @@ public final class RelicsInstanceReader {
         result.put("coverage", new Evidence.JsonString(partial ? "PARTIAL" : "COMPLETE"));
         return new Evidence.JsonObject(result);
     }
-
 }

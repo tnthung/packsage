@@ -430,9 +430,9 @@ public final class ClientAssistant {
         OptionalStatus curiosStatus = optionalStatuses.get("curios");
         var curiosAdapter = new CuriosInventoryAdapter(curiosStatus.loaded(), curiosStatus.supported(), curiosStatus.actualVersion());
         OptionalStatus relicsStatus = optionalStatuses.get("relics");
-        var relicsReader = new RelicsInstanceReader(relicsStatus != null && relicsStatus.loaded(),
-                relicsStatus != null && relicsStatus.supported(), relicsStatus == null ? "unknown" : relicsStatus.actualVersion());
-        NativeProvider nativeProvider = new NativeProvider(client, workerExecutor, scope, curiosAdapter, relicsReader);
+        NativeProvider nativeProvider = new NativeProvider(client, workerExecutor, scope, curiosAdapter,
+                new RelicsInstanceReader(relicsStatus != null && relicsStatus.loaded(),
+                        relicsStatus != null && relicsStatus.supported(), relicsStatus == null ? "unknown" : relicsStatus.actualVersion()));
         var providers = new ArrayList<KnowledgeProvider>();
         providers.add(nativeProvider);
         providers.add(curiosAdapter);

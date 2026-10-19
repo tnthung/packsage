@@ -19,4 +19,18 @@ Review corrections fixed reversed wheel direction, added icon wheel routing, and
 
 ## Acceptance status
 
-Automated behavior and packaging checks are complete within the baseline failure limits above. Actual Minecraft rendering, hover travel into the popup, scrolling at different GUI scales and saved-setting behavior in a running client remain unverified. The branch and worktree are retained for the player's review and merge decision.
+The preceding checks describe the feature branch before the player's merge. The merged build subsequently completed 639 automated tests without failures (635 passed, four existing skips), including the repaired brewing tests; see [brewing validation](2026-10-19-brewing.md).
+
+## Installed checks after merge
+
+On 2026-10-19 the player installed the merged JAR in the CurseForge `Packsage` minimal profile, Minecraft 1.21.1 / NeoForge 21.1.259. Installed `mods/packsage.jar` matched the built artifact's SHA-256 `3F7D95FE728758CE1826F893776BC35564D7B6ED9664C543CDDBE884CA446E22`. Checks used the native Minecraft UI at a 1024 by 768 client area.
+
+- With no `hideInactiveAdapters` key, Settings showed the checkbox on. The full fixture showed fourteen green logical adapters, eight rows at a time.
+- Moving from the icon into the popup and scrolling over the popup reached later adapters. Scrolling over the icon also moved the popup, without scrolling the chat or session list. Further downward scrolling at the final `Chat history` row left the list clamped at its end.
+- Turning the filter off visibly cleared the checkbox and saved `hideInactiveAdapters=false`. After completely closing and restarting Minecraft, Settings still showed it off.
+- With Minecraft closed, Immersive Engineering was temporarily disabled through CurseForge. The inactive check used a separate copy of `New World`, in `saves/PackSage Adapter Filter Live Test`; the original save was not opened with the mod disabled. With the filter off, the ninth row was red `Immersive Engineering`. Turning the filter on removed that row: the next row after `GuideME` became green `Actually Additions`.
+- At GUI scales 2 and 3 the popup displayed eight readable rows without wrapped labels hiding later entries. Scale 2 was restored. The 70-percent cap for unusually short viewports and resize-time offset clamping retain automated coverage; the attempted native-window border drag did not resize the client, so it supplies no live resize evidence.
+
+The filter was left on, matching its initial behavior, and `hideInactiveAdapters=true` was verified on disk. Immersive Engineering was re-enabled with Minecraft closed; its enabled JAR and the full client's restored 34-mod title screen were verified before reopening the original world. No developer prompt or authentication setting was changed.
+
+Installed rendering, active/inactive filtering, saved false across a process restart, pointer travel, independent scrolling and the tested GUI scales passed. No source change was needed. The disposable save copy remains available to identify the isolated inactive-mod fixture.

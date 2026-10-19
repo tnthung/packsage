@@ -10,6 +10,8 @@ Translate only defined reference fields and supported citation syntax. This incl
 
 Rewrite `GroundingInstructions.INSTRUCTIONS` as one ordered policy covering the player's goal and read-only boundary, claim-specific evidence, feasibility, focused reads and a useful answer. State each governing rule once. Preserve important source, coverage, inventory, recipe, reference, history, targeting and privacy contracts; remove repeated scenario warnings. A request-assembly test is not proof of model behavior.
 
+The ATM10 relic question exposed `[native:ref:a6e39be8.1.j]`: a valid current-request alias wrapped in its provider qualifier. Translate this citation form only when the qualifier matches the exact canonical provider. Preserve wrong-provider, unknown, altered and previous-request aliases. Verify streamed text at every split and completed replay; do not broaden tool-argument decoding or infer missing Curios equipment support.
+
 The live test exposed a saved JEI Markdown destination missing only its provider qualifier. Add a narrow rendering compatibility path for exact `jei/` handles already recorded in that same answer. Require one distinct provider/handle identity, provider `jei`, and scope-matching existing navigation; collisions, typos and target-only matches stay unbound. This repairs the known saved representation without rewriting history or weakening tool validation. Luna owns only `ScreenText.java` and `ScreenTextTest.java` from this specified contract, with parent-owned RED/GREEN runs and installed old-answer navigation proof.
 
 ## Ownership and checks

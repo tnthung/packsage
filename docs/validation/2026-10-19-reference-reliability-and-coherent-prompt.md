@@ -93,3 +93,11 @@ Acceptance: the demonstrated reference-copy failures, duplicate JEI locator leak
 Final repository verification after the test-style change reran `gradlew test build`: 51 suites and all 593 tests completed in 35 seconds, with 589 passed, four existing skips and no failures/errors. The JAR remained byte-identical to the installed/distribution artifact. All 48 relative documentation links in the changed documents resolve. Manual style review and `git diff --check` passed; only the two unrelated pre-existing validation documents remain dirty.
 
 The later [reference-action and tool-parameter UI changes](2026-10-19-reference-actions-and-tool-parameters.md) supersede this installed artifact. That report records the current build hash and subsequent installed checks; the hashes and checks above describe this prompt/reference checkpoint.
+
+## ATM10 provider-qualified alias regression
+
+The player's October 19 10:17 relic question is saved in ATM10 session `b40ad954-fec1-4d48-b43a-ff31dd5e9813-cfdcd7d1488d6b23.jsonl`, request `c7a05b3a-5870-4ac2-b463-97e107afd5bc`. The answer contains `[native:ref:a6e39be8.1.j]` after Eternal Steak. Its recorded inventory result contains the canonical offhand reference `native:inventory:3980a235-aef5-4b89-a75d-4e71998fb3f5:offhand:0`. The alias translator recognized a bare `ref:` alias but did not recognize an additional matching provider qualifier; the UI therefore displayed its ordinary unbound-citation fallback.
+
+The focused regression failed with the same form: expected a canonical `native:inventory:...` citation, received `native:ref:...`. After adding exact provider validation at the citation boundary, all 15 decorator tests passed, including every stream split and canonical completed replay. Wrong providers, changed/unknown aliases and qualified slot aliases remain unresolved. Independent review then identified alias-shaped Markdown labels as another parsing case; its correction and final verification are recorded with the [Curios equipment validation](2026-10-19-curios-equipment.md).
+
+This corrects newly translated answers. The old saved response has no persisted alias registry and is not repaired by selecting a similar source. The same screenshot's missing accessory coverage is a separate capability gap, addressed by the [Curios equipment specification](../specs/2026-10-19-curios-equipment.md).

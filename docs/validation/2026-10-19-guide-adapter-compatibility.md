@@ -33,4 +33,14 @@ These ranges admit compatible release families instead of rejecting every untest
 
 ## Automated and installed acceptance
 
-Implementation and automated results are pending. No installed status, guide search or fresh-read acceptance is claimed for the corrected artifact.
+The six exact pins are replaced by the ranges above. Registration passes the detected, unmodified version string into all seven guide-reader factories, including Ponder. Provider status and evidence retain that actual version, including Minecraft suffixes. The Reliquified path supplies the loaded Artifacts version to its Relics-based reader and uses inline add-on/Relics range checks. Existing FTB Quests and Patchouli factories retain their two-argument contracts.
+
+The regression `ClientAssistantTest.guideAdapterCompatibilityRangesAcceptCurrentAndBoundaryReleases` first failed at the installed Modonomicon 1.120.7 input against the original exact pin. It now passes alongside accepted floors, updated patches, excluded upper bounds and malformed/foreign-version cases. Reader tests cover observed status versions and suffix-preserving source metadata.
+
+Independent review caught a regression in the first correction: the shared reflective loader also serves FTB Quests and Patchouli, whose factories take two arguments. The new `optionalMinecraftFactoryLoadsTwoArgumentProvidersAndVersionedGuideProviders` test exercised the real production loader and failed on FTB loading before the correction. The loader now preserves the two existing contracts while passing the actual version to guide factories. Review rechecked this fix and reported no remaining concrete behavior defect.
+
+With the repository's portable Java 21, `gradlew.bat --offline test build` completed successfully. JUnit XML totals: **605 tests, 601 passed, four skipped, zero failures/errors**. Both new ClientAssistant regressions passed. The final source/diff style pass used no formatter.
+
+`build/libs/packsage-0.1.0.jar` and `dist/packsage.jar` match SHA-256 `3CFFEAFDFF9C803D8DD4F2575658DA8CA364FEB45811374E446C9E82FB8803BD`. The distribution metadata records that hash. No installed instance JAR was replaced during this correction.
+
+No installed tooltip, guide search or fresh-read acceptance is claimed for the corrected artifact. The live ModList-based Reliquified branch has no direct automated acceptance test; its range checks and loaded-version forwarding were source-reviewed, while installed 1.0.9 metadata supplies dependency evidence. These limits remain separate from the passing automated suite.

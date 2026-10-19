@@ -26,7 +26,7 @@ Extend the approved [tool contract](../specs/2026-10-14-behavior-driven-tools.md
 
 The installed Artifacts 13.2.5 and Modonomicon 1.120.7 are rejected by exact pins to 13.2.3 and 1.120.4. Apply the current repository adapter policy to all six guide/manual readers, including the Reliquified Artifacts replacement path. Keep one logical provider per mod and preserve existing unavailable/partial handling when an API is missing.
 
-- [ ] Record installed versions and API-family evidence, distinguishing direct signature checks from inferred release-family compatibility.
-- [ ] Add regression coverage for updated releases, range boundaries, source version metadata and the replacement path.
-- [ ] Replace exact pins with compatible ranges and report the actual loaded version in provider status and evidence.
-- [ ] Run automated tests and build the distributable; record the remaining installed acceptance boundary.
+- [x] Record installed versions and API-family evidence, distinguishing direct signature checks from inferred release-family compatibility.
+- [x] Add regression coverage for updated releases, range boundaries and source version metadata; record the replacement path's direct-test limitation.
+- [x] Replace exact pins with compatible ranges and report the actual loaded version in provider status and evidence.
+- [x] Run automated tests and build the distributable; record the remaining installed acceptance boundary in the [compatibility report](../validation/2026-10-19-guide-adapter-compatibility.md).

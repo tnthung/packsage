@@ -966,11 +966,13 @@ class JeiProjectionTest {
                     .toCompletableFuture().get();
             assertEquals(1, componentSearch.records().size());
             assertEquals("fixture:strength", componentSearch.records().getFirst().recipePayload().canonicalRecipeId());
+            PackSageJeiPlugin.clientTicked();
             var refreshedPotionTarget = plugin.provider().refreshNavigation(
                     potionFirstPage.records().getFirst().targets().getFirst(), SCOPE).toCompletableFuture().get();
             assertNotNull(refreshedPotionTarget);
             assertEquals(Evidence.NavigationStatus.OPENED,
                     plugin.provider().open(refreshedPotionTarget, SCOPE).status());
+            PackSageJeiPlugin.clientTicked();
             var currentPotionEvidence = plugin.provider().query(new Evidence.Query(Evidence.Operation.GET,
                     new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(
                             potionFirstPage.records().getFirst().source().sourceHandle()))), 1, null, null), SCOPE)
@@ -981,6 +983,7 @@ class JeiProjectionTest {
             appliedFocus.set(null);
             recipes.set(List.of(recipe));
 
+            PackSageJeiPlugin.clientTicked();
             var result = plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH,
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString(""),
                             "outputItem", new Evidence.JsonString("minecraft:stone"))), 4, null, null), SCOPE)

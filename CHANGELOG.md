@@ -4,6 +4,7 @@
 
 ### 2026-10-19
 
+- Added a default-on "Hide inactive adapters" setting and a scrollable adapter popup capped at eight rows or 70% of the window height. Turning the setting off shows every supported adapter, including inactive entries.
 - T3 project install actions now run tests and build before installing into the selected minimal fixture or ATM10 profile. `scripts/build.ps1` accepts `-ModsDirectory`, checks that the target instance is closed before copying and verifies the installed hash. The [action checks](docs/validation/2026-10-19-project-build-install-actions.md) cover target isolation and installation failure handling.
 - Added functional Curios equipment to player inventory reads, with slot type/index, section filters, fresh location references and explicit unknown coverage when accessory access fails. The optional adapter supports the compatible Curios 9.x API family; [validation](docs/validation/2026-10-19-curios-equipment.md) records automated and installed acceptance separately.
 - Added current Relics item level, XP, rank/points and effective rolled ability stats to fresh player inventory/evidence reads. Optional API access operates on a stack copy, preserves explicit zero and reports failed fields as unknown/partial. The [validation report](docs/validation/2026-10-19-relic-instance-stats.md) records 627 automated tests and passing installed minimal checks for level 2, XP 123 to 137, rolled Bounce values and recorded source interaction.

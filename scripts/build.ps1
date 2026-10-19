@@ -1,4 +1,7 @@
-param([switch]$Bootstrap)
+param(
+    [switch]$Bootstrap,
+    [string]$ModsDirectory = 'C:\Users\hung1\curseforge\minecraft\Instances\Packsage\mods'
+)
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -51,9 +54,21 @@ try {
         scope = if ($Bootstrap) { 'bootstrap' } else { 'full' }
         sha256 = $hash.Hash
     } | ConvertTo-Json | Set-Content (Join-Path $dist 'build-metadata.json')
-    $mods = 'C:\Users\hung1\curseforge\minecraft\Instances\Packsage\mods'
+    $mods = [IO.Path]::GetFullPath($ModsDirectory)
+    $instanceDirectory = Split-Path -Parent $mods
+    if (Get-CimInstance Win32_Process |
+        Where-Object {
+            $_.Name -in @('java.exe', 'javaw.exe') -and
+            $_.CommandLine -and
+            $_.CommandLine.IndexOf($instanceDirectory, [StringComparison]::OrdinalIgnoreCase) -ge 0
+        } |
+        Select-Object -First 1) { throw "Minecraft instance is running from $instanceDirectory." }
     New-Item -ItemType Directory -Force -Path $mods | Out-Null
-    Copy-Item -LiteralPath (Join-Path $dist $distJar) -Destination (Join-Path $mods 'packsage.jar') -Force
+    $installedJar = Join-Path $mods 'packsage.jar'
+    Copy-Item -LiteralPath (Join-Path $dist $distJar) -Destination $installedJar -Force
+    if ((Get-FileHash -LiteralPath $installedJar -Algorithm SHA256).Hash -ne $hash.Hash) {
+        throw 'Installed JAR SHA256 does not match the built artifact.'
+    }
 } finally {
     Pop-Location
     $env:JAVA_HOME = $oldJavaHome

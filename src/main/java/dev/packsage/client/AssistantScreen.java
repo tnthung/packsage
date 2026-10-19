@@ -85,6 +85,13 @@ public final class AssistantScreen extends Screen {
     private ChatContracts.RequestId resendingRequest;
     private String picker;
     private int pickerScroll;
+    private int adapterScroll;
+    private int adapterPopupLeft;
+    private int adapterPopupTop;
+    private int adapterPopupWidth;
+    private int adapterPopupHeight;
+    private boolean adapterPopupVisible;
+    private String adapterRowsKey = "";
     private String hoveredPickerChoice;
     private long pickerHoverStarted;
     private ChatContracts.SessionSummary pendingDelete;
@@ -874,6 +881,26 @@ public final class AssistantScreen extends Screen {
     }
 
     record ToolbarItem(String kind, int x, int y, int width) { }
+    record AdapterTooltipRows(List<Map.Entry<String, String>> rows, int offset, int visibleRows, int height) { }
+
+    private static final List<Map.Entry<String, String>> ADAPTERS = List.of(Map.entry("native", "Minecraft"), Map.entry("jei", "JEI"),
+            Map.entry("curios", "Curios"), Map.entry("ftb_quests", "FTB Quests"), Map.entry("config", "NeoForge configs"),
+            Map.entry("patchouli", "Patchouli"), Map.entry("modonomicon", "Modonomicon"), Map.entry("guideme", "GuideME"),
+            Map.entry("immersiveengineering", "Immersive Engineering"), Map.entry("actuallyadditions", "Actually Additions"),
+            Map.entry("relics", "Relics"), Map.entry("artifacts", "Artifacts"), Map.entry("ponder", "Ponder"),
+            Map.entry("history", "Chat history"));
+
+    static List<Map.Entry<String, String>> adapterRows(Map<String, Boolean> availability, boolean hideInactive) {
+        return hideInactive ? ADAPTERS.stream().filter(adapter -> availability.getOrDefault(adapter.getKey(), false)).toList() : ADAPTERS;
+    }
+
+    static AdapterTooltipRows adapterTooltipRows(List<Map.Entry<String, String>> rows, int offset, int screenHeight) {
+        int maxHeight = Math.min(Math.max(1, screenHeight - 8), Math.max(1, screenHeight * 7 / 10));
+        int visibleRows = Math.min(8, Math.max(0, (maxHeight - 36) / 14));
+        int clampedOffset = Math.max(0, Math.min(Math.max(0, rows.size() - visibleRows), offset));
+        return new AdapterTooltipRows(rows.subList(clampedOffset, Math.min(rows.size(), clampedOffset + visibleRows)),
+                clampedOffset, visibleRows, Math.min(maxHeight, 36 + visibleRows * 14));
+    }
 
     List<ToolbarItem> toolbarItems() {
         int buttonWidth = Math.max(2, Math.min(86, readableWidth));
@@ -966,8 +993,15 @@ public final class AssistantScreen extends Screen {
         List<ToolbarItem> tooltipItems = new ArrayList<>(toolbarItems());
         tooltipItems.add(new ToolbarItem("extra", readableLeft, sendY, 20));
         tooltipItems.add(new ToolbarItem("adapters", 12, Math.max(0, height - 32), 20));
+        boolean adapterDrawn = false;
         for (ToolbarItem item : tooltipItems) {
-            if (mouseX < item.x() || mouseX >= item.x() + item.width() || mouseY < item.y() || mouseY >= item.y() + 20) continue;
+            boolean adapterIconHovered = item.kind().equals("adapters") && mouseX >= item.x() && mouseX < item.x() + item.width()
+                    && mouseY >= item.y() && mouseY < item.y() + 20;
+            boolean adapterPopupHovered = item.kind().equals("adapters") && adapterPopupVisible
+                    && mouseX >= adapterPopupLeft - 10 && mouseX < adapterPopupLeft + adapterPopupWidth + 10
+                    && mouseY >= adapterPopupTop - 6 && mouseY < adapterPopupTop + adapterPopupHeight + 6;
+            if (item.kind().equals("adapters") ? !adapterIconHovered && !adapterPopupHovered
+                    : mouseX < item.x() || mouseX >= item.x() + item.width() || mouseY < item.y() || mouseY >= item.y() + 20) continue;
             List<Component> lines = new ArrayList<>();
             List<ScreenText.TooltipField> fields = List.of();
             String title = "";
@@ -987,14 +1021,15 @@ public final class AssistantScreen extends Screen {
             } else if (item.kind().equals("adapters")) {
                 title = "Adapters";
                 Map<String, Boolean> availability = actions.adapterAvailability();
-                for (var adapter : List.of(Map.entry("native", "Minecraft"), Map.entry("jei", "JEI"),
-                        Map.entry("curios", "Curios"),
-                        Map.entry("ftb_quests", "FTB Quests"), Map.entry("config", "NeoForge configs"),
-                        Map.entry("patchouli", "Patchouli"), Map.entry("modonomicon", "Modonomicon"),
-                        Map.entry("guideme", "GuideME"), Map.entry("immersiveengineering", "Immersive Engineering"),
-                        Map.entry("actuallyadditions", "Actually Additions"), Map.entry("relics", "Relics"),
-                        Map.entry("artifacts", "Artifacts"), Map.entry("ponder", "Ponder"),
-                        Map.entry("history", "Chat history"))) {
+                List<Map.Entry<String, String>> adapters = adapterRows(availability, settings.hideInactiveAdapters());
+                String key = adapters.toString() + ":" + availability + ":" + width + ":" + height;
+                if (!key.equals(adapterRowsKey)) {
+                    adapterRowsKey = key;
+                    adapterScroll = 0;
+                }
+                AdapterTooltipRows adapterLayout = adapterTooltipRows(adapters, adapterScroll, height);
+                adapterScroll = adapterLayout.offset();
+                for (var adapter : adapterLayout.rows()) {
                     lines.add(Component.literal("• ").withStyle(style -> style.withColor(
                                     availability.getOrDefault(adapter.getKey(), false) ? 0xff6fd48a : 0xffe36b6b))
                             .append(Component.literal(adapter.getValue()).withStyle(style -> style.withColor(ModernUi.TEXT))));
@@ -1019,13 +1054,22 @@ public final class AssistantScreen extends Screen {
             for (Component line : lines) wrapped.addAll(font.split(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 20));
             List<net.minecraft.util.FormattedCharSequence> footerLines = footer.isEmpty() ? List.of()
                     : font.split(Component.literal(footer).withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 20);
-            int tooltipHeight = Math.min(height - 8, title.isEmpty()
+            int tooltipHeight = Math.min(item.kind().equals("adapters") ? Math.min(height - 8, height * 7 / 10) : height - 8, title.isEmpty()
                     ? 12 + Math.max(0, wrapped.size() - 1) * 14 + font.lineHeight
                     : 36 + wrapped.size() * 14
                     + values.stream().mapToInt(value -> Math.max(1, value.size()) * 14).sum()
                     + (footerLines.isEmpty() ? 0 : 6 + footerLines.size() * 14));
-            int left = Math.max(4, Math.min(mouseX + 10, width - tooltipWidth - 4));
+            int left = item.kind().equals("adapters") && !adapterIconHovered
+                    ? adapterPopupLeft : Math.max(4, Math.min(mouseX + 10, width - tooltipWidth - 4));
             int top = Math.max(4, item.y() - tooltipHeight - 6);
+            if (item.kind().equals("adapters")) {
+                adapterDrawn = true;
+                adapterPopupVisible = true;
+                adapterPopupLeft = left;
+                adapterPopupTop = top;
+                adapterPopupWidth = tooltipWidth;
+                adapterPopupHeight = tooltipHeight;
+            }
             graphics.pose().pushPose();
             graphics.pose().translate(0, 0, 400);
             ModernUi.surface(graphics, left, top, left + tooltipWidth, top + tooltipHeight, 0xff20252a);
@@ -1055,6 +1099,7 @@ public final class AssistantScreen extends Screen {
             graphics.disableScissor();
             graphics.pose().popPose();
         }
+        adapterPopupVisible = adapterDrawn;
     }
 
     private void drawSourceTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
@@ -1126,6 +1171,12 @@ public final class AssistantScreen extends Screen {
         if (picker != null) {
             pickerScroll -= (int) Math.signum(scrollY);
             pickerRows();
+            return true;
+        }
+        if (adapterPopupVisible && mouseX >= adapterPopupLeft && mouseX < adapterPopupLeft + adapterPopupWidth
+                && mouseY >= adapterPopupTop && mouseY < adapterPopupTop + adapterPopupHeight) {
+            List<Map.Entry<String, String>> adapters = adapterRows(actions.adapterAvailability(), settings.hideInactiveAdapters());
+            adapterScroll = adapterTooltipRows(adapters, adapterScroll + (int) Math.signum(scrollY), height).offset();
             return true;
         }
         if (inputEditor != null && inputEditor.isMouseOver(mouseX, mouseY)) return inputEditor.mouseScrolled(mouseX, mouseY, scrollX, scrollY);

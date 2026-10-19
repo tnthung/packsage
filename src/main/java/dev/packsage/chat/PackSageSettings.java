@@ -22,6 +22,7 @@ public final class PackSageSettings {
 
     private boolean openPaused;
     private boolean automaticWebSearch;
+    private boolean hideInactiveAdapters = true;
     private int historyTurns;
     private int historicalTokens;
     private SendShortcut sendShortcut;
@@ -55,6 +56,7 @@ public final class PackSageSettings {
             properties.load(input);
             settings.openPaused = Boolean.parseBoolean(properties.getProperty("openPaused", Boolean.toString(settings.openPaused)));
             settings.automaticWebSearch = Boolean.parseBoolean(properties.getProperty("automaticWebSearch", Boolean.toString(settings.automaticWebSearch)));
+            settings.hideInactiveAdapters = Boolean.parseBoolean(properties.getProperty("hideInactiveAdapters", Boolean.toString(settings.hideInactiveAdapters)));
             try {
                 settings.sendShortcut = SendShortcut.valueOf(properties.getProperty("sendShortcut", "enter").toUpperCase(java.util.Locale.ROOT));
             } catch (IllegalArgumentException ignored) { }
@@ -89,6 +91,7 @@ public final class PackSageSettings {
         Properties properties = new Properties();
         properties.setProperty("openPaused", Boolean.toString(openPaused));
         properties.setProperty("automaticWebSearch", Boolean.toString(automaticWebSearch));
+        properties.setProperty("hideInactiveAdapters", Boolean.toString(hideInactiveAdapters));
         properties.setProperty("sendShortcut", sendShortcut.name().toLowerCase(java.util.Locale.ROOT));
         properties.setProperty("historyTurns", Integer.toString(historyTurns));
         properties.setProperty("historicalTokens", Integer.toString(historicalTokens));
@@ -108,6 +111,7 @@ public final class PackSageSettings {
 
     public boolean openPaused() { return openPaused; }
     public boolean automaticWebSearch() { return automaticWebSearch; }
+    public boolean hideInactiveAdapters() { return hideInactiveAdapters; }
     public int historyTurns() { return historyTurns; }
     public int historicalTokens() { return historicalTokens; }
     public SendShortcut sendShortcut() { return sendShortcut; }
@@ -118,6 +122,7 @@ public final class PackSageSettings {
 
     public void setOpenPaused(boolean value) { openPaused = value; }
     public void setAutomaticWebSearch(boolean value) { automaticWebSearch = value; }
+    public void setHideInactiveAdapters(boolean value) { hideInactiveAdapters = value; }
     public void setSendShortcut(SendShortcut value) { sendShortcut = value == null ? SendShortcut.ENTER : value; }
     public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; }
     public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; }
@@ -134,6 +139,7 @@ public final class PackSageSettings {
         copy.sessionsBeforeCollapse = sessionsBeforeCollapse;
         copy.modelId = modelId;
         copy.reasoningEffort = reasoningEffort;
+        copy.hideInactiveAdapters = hideInactiveAdapters;
         if (!copy.setDeveloperPrompt(value)) throw new IllegalArgumentException("developerPrompt is out of bounds");
         return copy;
     }

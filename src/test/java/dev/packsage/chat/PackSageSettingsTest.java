@@ -23,6 +23,7 @@ class PackSageSettingsTest {
 
         assertTrue(settings.openPaused());
         assertTrue(settings.automaticWebSearch());
+        assertTrue(settings.hideInactiveAdapters());
         assertEquals(10, settings.historyTurns());
         assertEquals(12_000, settings.historicalTokens());
         assertEquals(PackSageSettings.SendShortcut.ENTER, settings.sendShortcut());
@@ -35,6 +36,7 @@ class PackSageSettingsTest {
         PackSageSettings settings = PackSageSettings.defaults();
         settings.setOpenPaused(false);
         settings.setAutomaticWebSearch(false);
+        settings.setHideInactiveAdapters(false);
         settings.setHistoryTurns(25);
         settings.setHistoricalTokens(20_000);
         settings.setSendShortcut(PackSageSettings.SendShortcut.CTRL_ENTER);
@@ -44,6 +46,7 @@ class PackSageSettingsTest {
         PackSageSettings loaded = PackSageSettings.load(path);
         assertFalse(loaded.openPaused());
         assertFalse(loaded.automaticWebSearch());
+        assertFalse(loaded.hideInactiveAdapters());
         assertEquals(25, loaded.historyTurns());
         assertEquals(20_000, loaded.historicalTokens());
         assertEquals(PackSageSettings.SendShortcut.CTRL_ENTER, loaded.sendShortcut());

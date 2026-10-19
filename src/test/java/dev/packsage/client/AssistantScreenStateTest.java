@@ -21,6 +21,51 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void adapterRowsFilterUnavailableEntriesAndTooltipWindowIsCappedAndClamped() {
+        var availability = java.util.Map.of("native", true, "jei", false);
+        var first = AssistantScreen.adapterTooltipRows(availability, true, 0, 480);
+        assertEquals(List.of("native"), first.rows().stream().map(java.util.Map.Entry::getKey).toList());
+        var firstAll = AssistantScreen.adapterTooltipRows(availability, false, 0, 480);
+        assertEquals(8, firstAll.rows().size());
+        assertEquals(0, firstAll.offset());
+        assertEquals(148, firstAll.height());
+        var last = AssistantScreen.adapterTooltipRows(availability, false, 100, 480);
+        assertEquals(6, last.offset());
+        assertEquals(List.of("ponder", "history"), last.rows().stream().map(java.util.Map.Entry::getKey).skip(6).toList());
+        assertEquals(5, AssistantScreen.adapterTooltipRows(availability, false, 0, 160).visibleRows());
+    }
+
+    @Test
+    void adapterTooltipAndIconConsumeWheelAndMoveDownThroughRows() throws Exception {
+        FakeActions actions = new FakeActions();
+        actions.settings.setHideInactiveAdapters(false);
+        actions.availableAdapters = java.util.Map.of("native", true);
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        var visibleField = AssistantScreen.class.getDeclaredField("adapterPopupVisible");
+        visibleField.setAccessible(true);
+        visibleField.setBoolean(screen, true);
+        for (var bounds : List.of("adapterPopupLeft", "adapterPopupTop", "adapterPopupWidth", "adapterPopupHeight")) {
+            var field = AssistantScreen.class.getDeclaredField(bounds);
+            field.setAccessible(true);
+            field.setInt(screen, switch (bounds) {
+                case "adapterPopupLeft" -> 200;
+                case "adapterPopupTop" -> 200;
+                case "adapterPopupWidth" -> 180;
+                default -> 148;
+            });
+        }
+
+        var offset = AssistantScreen.class.getDeclaredField("adapterScroll");
+        offset.setAccessible(true);
+        assertTrue(screen.mouseScrolled(210, 210, 0, -1));
+        assertEquals(1, offset.getInt(screen));
+        assertTrue(screen.mouseScrolled(20, 455, 0, -1));
+        assertEquals(2, offset.getInt(screen));
+    }
+
+    @Test
     void closeDoesNotStopButStopAndNewChatDo() {
         FakeActions actions = new FakeActions();
         AssistantScreen screen = new AssistantScreen(actions);
@@ -987,6 +1032,7 @@ class AssistantScreenStateTest {
 
     private static final class FakeActions implements ChatActions {
         private final PackSageSettings settings = PackSageSettings.defaults();
+        private java.util.Map<String, Boolean> availableAdapters = java.util.Map.of();
         private final List<String> calls = new ArrayList<>();
         private String sentQuestion;
         private boolean steeringAccepted = true;
@@ -1001,6 +1047,7 @@ class AssistantScreenStateTest {
 
         @Override public ChatContracts.View view() { return view; }
         @Override public PackSageSettings settings() { return settings; }
+        @Override public java.util.Map<String, Boolean> adapterAvailability() { return availableAdapters; }
         @Override public List<ModelBackend.ModelInfo> modelCatalog() { return List.of(
                 new ModelBackend.ModelInfo("model-one", "Model one", true, true, 50000, 1000),
                 new ModelBackend.ModelInfo("model-two", "Model two", true, true, 100000, 1000)); }

@@ -431,7 +431,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
         private final List<Replacement> replacements = new ArrayList<>();
         private int position;
         private int tokenStart;
-        // Bracket body, after label, destination, group prefix, group body; zero means plain text.
+        // Bracket body, after label, destination, group prefix, group body, pending citation/link; zero means plain text.
         private int mode;
         private boolean code;
 
@@ -447,7 +447,8 @@ public final class ReferenceAliasBackend implements ModelBackend {
             var output = new StringBuilder();
             for (int index = 0; index < text.length(); index++) {
                 char character = text.charAt(index);
-                if (!token.isEmpty() && (token.length() == MAX_TOKEN_CHARS || mode == 2 && character != '(')) {
+                if (!token.isEmpty() && mode == 6 && character != '(') emit(output);
+                else if (!token.isEmpty() && (token.length() == MAX_TOKEN_CHARS || mode == 2 && character != '(')) {
                     output.append(token);
                     token.setLength(0);
                     mode = 0;
@@ -462,9 +463,10 @@ public final class ReferenceAliasBackend implements ModelBackend {
                 } else {
                     token.append(character);
                     if (mode == 1 && character == ']') {
-                        if (resolve(token.substring(1, token.length() - 1)) != null) emit(output);
+                        if (resolve(token.substring(1, token.length() - 1)) != null) mode = 6;
                         else mode = 2;
                     } else if (mode == 2) mode = 3;
+                    else if (mode == 6 && character == '(') mode = 3;
                     else if (mode == 3 && character == ')') emit(output);
                     else if (mode == 4) {
                         if (!GROUP_START.startsWith(token.toString())) {
@@ -477,9 +479,12 @@ public final class ReferenceAliasBackend implements ModelBackend {
                 position = Math.incrementExact(position);
             }
             if (finished && !token.isEmpty()) {
-                output.append(token);
-                token.setLength(0);
-                mode = 0;
+                if (mode == 6) emit(output);
+                else {
+                    output.append(token);
+                    token.setLength(0);
+                    mode = 0;
+                }
             }
             return output.toString();
         }
@@ -487,7 +492,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
         private void emit(StringBuilder output) {
             var changes = new ArrayList<Replacement>();
             if (token.charAt(0) == '[') {
-                int start = mode == 1 ? 1 : token.indexOf("](") + 2;
+                int start = mode == 6 ? 1 : token.indexOf("](") + 2;
                 int end = token.length() - 1;
                 String canonical = resolve(token.substring(start, end));
                 if (canonical != null) changes.add(new Replacement(start, end, canonical));

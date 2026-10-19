@@ -659,7 +659,7 @@ public final class AssistantScreen extends Screen {
             }
         }
         return Math.max(y + 18, drawInlineLines(graphics,
-                ScreenText.inlineLines(segment.text(), targets, citations, turn, sourceLabels(turn)), y,
+                ScreenText.inlineLines(segment.text(), targets, citations, turn.sources(), sourceLabels(turn)), y,
                 readableLeft + 26, readableWidth - 26, turn));
     }
 

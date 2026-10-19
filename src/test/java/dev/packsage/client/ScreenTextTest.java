@@ -23,10 +23,14 @@ class ScreenTextTest {
     @Test
     void nativeBrewingAndPotionCitationsUseExactSavedDetailsForReadableLabels() {
         String brewingHandle = "brewing:potion:56:0:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        String splashHandle = "brewing:container:3:0:1123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
         String potionHandle = "potion:minecraft:long_strength";
         var brewing = new Evidence.Source(SCOPE, "native", "1.21.1", brewingHandle, 1, java.time.Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.LOADED,
                 List.of("client-potion-brewing", "potion-brewing-rule"));
+        var splash = new Evidence.Source(SCOPE, "native", "1.21.1", splashHandle, 1, java.time.Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL, Evidence.Authority.LOADED,
+                List.of("client-potion-brewing", "container-brewing-rule"));
         var potion = new Evidence.Source(SCOPE, "native", "1.21.1", potionHandle, 1, java.time.Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED,
                 List.of("client-registry:potion"));
@@ -42,6 +46,9 @@ class ScreenTextTest {
         output.add("components", outputComponents);
         outputs.add(output);
         brewingPayload.add("outputs", outputs);
+        JsonObject splashPayload = brewingPayload.deepCopy();
+        splashPayload.getAsJsonArray("outputs").get(0).getAsJsonObject()
+                .addProperty("comparisonIdentity", "minecraft:splash_potion");
         JsonObject potionPayload = new JsonObject();
         potionPayload.addProperty("registry", "potion");
         potionPayload.addProperty("id", "minecraft:long_strength");
@@ -53,7 +60,7 @@ class ScreenTextTest {
         effects.add(effect);
         potionPayload.add("effects", effects);
         JsonArray records = new JsonArray();
-        for (Evidence.Source source : List.of(brewing, potion)) {
+        for (Evidence.Source source : List.of(brewing, splash, potion)) {
             JsonObject record = new JsonObject();
             JsonObject observed = new JsonObject();
             observed.addProperty("providerId", source.providerId());
@@ -62,30 +69,33 @@ class ScreenTextTest {
             observed.addProperty("observedGeneration", source.observedGeneration());
             observed.add("scope", new Gson().toJsonTree(source.scope()));
             record.add("source", observed);
-            record.addProperty("title", source.equals(brewing)
-                    ? "minecraft:potion brewing transformation" : "minecraft:long_strength");
-            record.add("payload", source.equals(brewing) ? brewingPayload : potionPayload);
+            record.addProperty("title", source.equals(potion) ? "minecraft:long_strength"
+                    : source.equals(splash) ? "minecraft:splash_potion brewing transformation"
+                    : "minecraft:potion brewing transformation");
+            record.add("payload", source.equals(potion) ? potionPayload : source.equals(splash) ? splashPayload : brewingPayload);
             records.add(record);
         }
         JsonObject result = new JsonObject();
         result.add("records", records);
         var turn = new ChatContracts.Turn(new ChatContracts.RequestId("labels"), "question", "answer",
                 List.of(new ModelBackend.ToolResult("saved", result.toString(), false)),
-                new ChatContracts.Context("{}", null, SCOPE), List.of(brewing, potion),
+                new ChatContracts.Context("{}", null, SCOPE), List.of(brewing, splash, potion),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
         String grouped = "\uE200cite\uE202native:" + brewingHandle + "\uE201";
-        var spans = ScreenText.inlineLines(grouped + " [native:" + potionHandle + "]", List.of(), List.of(), turn)
+        var spans = ScreenText.inlineLines(grouped + " [native:" + splashHandle + "] [native:" + potionHandle + "]", List.of(), List.of(),
+                turn.sources(), ScreenText.sourceLabels(turn))
                 .getFirst().spans();
 
         var sourceSpans = spans.stream().filter(span -> span.source() != null).toList();
-        assertEquals(List.of("Brewing: Strength", "Potion effects: Long Strength"),
+        assertEquals(List.of("Brewing: Strength", "Brewing: Splash Potion (Strength)", "Potion effects: Long Strength"),
                 sourceSpans.stream().map(ScreenText.InlineSpan::text).toList());
-        assertEquals(List.of(brewing, potion), sourceSpans.stream().map(ScreenText.InlineSpan::source).toList());
+        assertEquals(List.of(brewing, splash, potion), sourceSpans.stream().map(ScreenText.InlineSpan::source).toList());
         assertTrue(sourceSpans.stream().allMatch(span -> span.target() == null));
         var target = new Evidence.NavigationTarget(SCOPE, "native", brewingHandle, "validated-target");
         var linkedTurn = new ChatContracts.Turn(turn.requestId(), turn.question(), turn.answer(), turn.replayItems(),
                 turn.context(), turn.sources(), List.of(target), turn.outcome(), 1);
-        var explicit = ScreenText.inlineLines("[Custom brew label](native:" + brewingHandle + ")", List.of(target), List.of(), linkedTurn)
+        var explicit = ScreenText.inlineLines("[Custom brew label](native:" + brewingHandle + ")", List.of(target), List.of(),
+                linkedTurn.sources(), ScreenText.sourceLabels(linkedTurn))
                 .getFirst().spans().getFirst();
         assertEquals("Custom brew label", explicit.text());
         assertEquals(brewing, explicit.source());
@@ -97,7 +107,8 @@ class ScreenTextTest {
         var mismatchedTurn = new ChatContracts.Turn(turn.requestId(), turn.question(), turn.answer(),
                 List.of(new ModelBackend.ToolResult("mismatched", mismatchedResult.toString(), false)),
                 turn.context(), turn.sources(), turn.navigationTargets(), turn.outcome(), 1);
-        var mismatched = ScreenText.inlineLines(grouped, List.of(), List.of(), mismatchedTurn).getFirst().spans()
+        var mismatched = ScreenText.inlineLines(grouped, List.of(), List.of(), mismatchedTurn.sources(),
+                ScreenText.sourceLabels(mismatchedTurn)).getFirst().spans()
                 .stream().filter(span -> span.source() != null).findFirst().orElseThrow();
         assertEquals("Brewing recipe", mismatched.text());
         assertEquals(brewing, mismatched.source());

@@ -273,17 +273,6 @@ final class ScreenText {
         return lines;
     }
 
-    static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets,
-                                        List<ModelBackend.UrlCitation> webCitations, ChatContracts.Turn turn) {
-        return inlineLines(text, targets, webCitations, turn, sourceLabels(turn));
-    }
-
-    static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets,
-                                        List<ModelBackend.UrlCitation> webCitations, ChatContracts.Turn turn,
-                                        Map<Evidence.Source, String> sourceLabels) {
-        return inlineLines(text, targets, webCitations, turn.sources(), sourceLabels);
-    }
-
     static Map<Evidence.Source, String> sourceLabels(ChatContracts.Turn turn) {
         Map<Evidence.Source, String> labels = new java.util.HashMap<>();
         for (ModelBackend.InputItem item : turn.replayItems()) {
@@ -299,7 +288,7 @@ final class ScreenText {
                         if (!source.providerId().equals(string(observed, "providerId"))
                                 || !source.sourceHandle().equals(string(observed, "sourceHandle"))
                                 || !source.observedAt().toString().equals(string(observed, "observedAt"))
-                                || source.observedGeneration() != longValue(observed, "observedGeneration")
+                                || source.observedGeneration() != observed.get("observedGeneration").getAsLong()
                                 || !new Gson().toJsonTree(source.scope()).equals(observed.get("scope"))) continue;
                         String label = sourceLabel(source, record);
                         if (label != null) labels.put(source, label);
@@ -328,7 +317,11 @@ final class ScreenText {
                         JsonObject components = output == null ? null : output.getAsJsonObject("components");
                         JsonObject potionContents = components == null ? null : components.getAsJsonObject("minecraft:potion_contents");
                         String potion = potionContents == null ? null : string(potionContents, "potion");
-                        if (potion != null && !potion.equals("minecraft:empty")) return "Brewing: " + displayName(potion);
+                        String item = output == null ? null : string(output, "comparisonIdentity");
+                        if (potion != null && !potion.equals("minecraft:empty")) {
+                            return item == null || item.equals("minecraft:potion") ? "Brewing: " + displayName(potion)
+                                    : "Brewing: " + displayName(item) + " (" + displayName(potion) + ")";
+                        }
                     }
                 }
             }
@@ -545,17 +538,8 @@ final class ScreenText {
         }
         if (source != null && source.providerId().equals("config")) return "Config";
         if (source != null && source.sourceHandle().startsWith("inventory:")) return "Inventory";
+        if (source == null && !"native".equals(provider)) return markerTag(provider, handle);
         return handle == null ? "Source" : displayName(handle);
-    }
-
-    private static String string(JsonObject object, String key) {
-        JsonElement value = object.get(key);
-        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() ? value.getAsString() : null;
-    }
-
-    private static long longValue(JsonObject object, String key) {
-        JsonElement value = object.get(key);
-        return value != null && value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber() ? value.getAsLong() : Long.MIN_VALUE;
     }
 
     private static void flushInline(List<InlineSpan> spans, StringBuilder plain, boolean bold, boolean code) {

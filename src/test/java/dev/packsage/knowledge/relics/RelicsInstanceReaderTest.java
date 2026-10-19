@@ -1,6 +1,8 @@
 package dev.packsage.knowledge.relics;
 
 import dev.packsage.knowledge.Evidence;
+import it.hurts.sskirillss.relics.api.relics.IRelicItem;
+import it.hurts.sskirillss.relics.api.relics.RelicData;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.Bootstrap;
@@ -170,5 +172,11 @@ class RelicsInstanceReaderTest {
         var stack = new ItemStack(Items.APPLE);
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(customData));
         return stack;
+    }
+
+    private static final class FixtureRelicItem implements IRelicItem {
+        @Override public RelicData getRelicData(net.minecraft.world.entity.LivingEntity player, ItemStack stack) {
+            return new RelicData(stack);
+        }
     }
 }

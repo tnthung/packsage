@@ -18,4 +18,22 @@ A read-only bytecode check compared the installed `jei-1.21.1-neoforge-19.64.0.4
 - Apply the item-ID output filter to bounded projected JEI output facts across component variants, preserving existing pagination limits, fresh membership/visibility checks and exact navigation identities. Literal text can inspect returned ingredient/component facts as well as recipe metadata.
 - Exercise meaningful failing regressions before fixes, followed by focused suites and the full Java 21 test/build. Record installed source-chip rendering and a real brewing viewer link separately from source/build checks.
 
-The focused RED run completed 63 tests with three expected assertion failures: generated labels retained the brewing fingerprint/extra potion namespace; the provider omitted component-matching potion projections; and the real plugin capture returned zero records for the item-ID potion query. Fixture construction/compilation errors were corrected before counting this run as behavioral RED. Implementation and final acceptance remain in progress. No prompt change is justified by the failed lookup alone.
+The focused RED run completed 63 tests with three expected assertion failures: generated labels retained the brewing fingerprint/extra potion namespace; the provider omitted component-matching potion projections; and the real plugin capture returned zero records for the item-ID potion query. Fixture construction/compilation errors were corrected before counting this run as behavioral RED. No prompt change was made.
+
+## Implemented behavior
+
+Generated native citations now use exact saved facts for labels such as `Brewing: Strength`, `Brewing: Splash Potion (Strength)` and `Potion effects: Long Strength`. Missing or mismatched records use generic labels. Explicit Markdown labels, recorded source bindings and validated navigation targets remain intact. Labels are cached with each immutable displayed turn; existing saved answers need no migration.
+
+JEI item-ID output searches now scan bounded projected outputs across component variants instead of focusing a bare stack. Known ItemStack ingredients are normalized to `item`; a resolvable potion holder contributes its actual registry ID as `components.potion`, within the existing shared extraction budget. Literal text searches inspect ingredient facts even without an output filter. Component-bearing stacks retain partial coverage for omitted details. Current source reads recheck output identity, and persistent `recipe-v1` targets retain the plugin's fresh resolution rather than being rejected for differing from an old source handle.
+
+## Automated checks
+
+- The focused `ScreenTextTest` and `JeiProjectionTest` run passes all 63 tests. Cases cover exact recorded labels and vessel identity, custom Markdown labels, mismatched generations, distinct Strength outputs, text-only potion-ID matching, advancing cursors, fresh source reads and persistent target refresh/open.
+- Java 21 `gradlew.bat test build` passes: 643 tests, zero failures/errors and four existing skips across 54 suites. The built `build/libs/packsage-0.1.0.jar` has SHA256 `9546736FCE890B963379CF4B76A6858CD7C3FE01AF88B79BB72EE1C16451D439`.
+- The long-scan fixture still checks per-call recipe visits, source bounds and emitted cursor validity. Its test-only retry ceiling increased from 16 to 128: projecting nonmatching ingredient facts spends at least 2,048 bytes per candidate against a 96 KiB shared budget, so reaching ordinal 4,095 can require roughly 90 continuations. No production cap was raised. Search latency is not established by this test.
+- Follow-up fixture corrections advance the simulated client tick between new captures, retain an output in the eight-input budget case, and exercise oversized custom-type/slot data without claiming an unknown output matches an exact item filter. A thread stack confirmed the initial new fixture stall was waiting for a simulated tick; it was interrupted and corrected before the passing run.
+- A read-only review found no additional material issue in the source-label, cursor and navigation changes. The subsequently repaired item-kind/potion capture path is covered by the passing focused and full suites.
+
+## Installed acceptance
+
+Pending: the running Minecraft instance still has the earlier JAR. The current desktop is in use by another game, so installation and live input are waiting for permission to take focus. The candidate has not yet demonstrated source-chip rendering or a real JEI brewing viewer link in the installed game. Native localized potion-name matching and empty-page progress presentation remain separate open work.

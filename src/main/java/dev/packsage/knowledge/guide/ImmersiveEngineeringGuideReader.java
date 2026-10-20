@@ -512,24 +512,36 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                 relationshipValues.put("recipes", new Evidence.JsonObject(group));
             }
             var relationshipObject = new Evidence.JsonObject(relationshipValues);
-            var resourceManager = Minecraft.getInstance().getResourceManager();
-            String locale = Minecraft.getInstance().getLanguageManager().getSelected();
-            Object location = entry.getClass().getMethod("getLocation").invoke(entry);
-            String entryPath = (String) location.getClass().getMethod("getPath").invoke(location);
-            var resource = resourceManager.getResource(ResourceLocation.fromNamespaceAndPath("immersiveengineering",
-                    "manual/" + locale + "/" + entryPath + ".txt"));
-            if (resource.isEmpty()) resource = resourceManager.getResource(ResourceLocation.fromNamespaceAndPath(
-                    "immersiveengineering", "manual/en_us/" + entryPath + ".txt"));
-            Fragment textFragment;
-            if (offset < 0) textFragment = new Fragment("", id + "@done", 0, null,
-                    Evidence.Coverage.COMPLETE, null);
-            else if (budget.remainingBytes() < 6 || budget.exhausted()) textFragment = new Fragment("", id + "@" + offset,
-                    0, Integer.toString(offset), Evidence.Coverage.PARTIAL,
-                    "localized manual text continues after the relationship fragment");
-            else if (resource.isEmpty()) textFragment = new Fragment("", id + "@" + offset, 0, null,
-                    Evidence.Coverage.PARTIAL, "localized manual text is missing");
-            else try (var stream = resource.get().open(); Reader text = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
-                textFragment = readText(text, id, offset, maxChars, FRAGMENT_OVERLAP_CHARS, budget);
+            Fragment textFragment = new Fragment("", id + "@" + offset, 0,
+                    offset < 0 ? null : Integer.toString(offset), Evidence.Coverage.PARTIAL,
+                    "localized manual text could not be read");
+            try {
+                if (offset < 0) textFragment = new Fragment("", id + "@done", 0, null,
+                        Evidence.Coverage.COMPLETE, null);
+                else if (budget.remainingBytes() < 6 || budget.exhausted()) textFragment = new Fragment("", id + "@" + offset,
+                        0, Integer.toString(offset), Evidence.Coverage.PARTIAL,
+                        "localized manual text continues after the relationship fragment");
+                else {
+                    var resourceManager = Minecraft.getInstance().getResourceManager();
+                    String locale = Minecraft.getInstance().getLanguageManager().getSelected();
+                    Object location = entry.getClass().getMethod("getLocation").invoke(entry);
+                    String entryPath = (String) location.getClass().getMethod("getPath").invoke(location);
+                    var resource = resourceManager.getResource(ResourceLocation.fromNamespaceAndPath("immersiveengineering",
+                            "manual/" + locale + "/" + entryPath + ".txt"));
+                    if (resource.isEmpty()) resource = resourceManager.getResource(ResourceLocation.fromNamespaceAndPath(
+                            "immersiveengineering", "manual/en_us/" + entryPath + ".txt"));
+                    if (resource.isEmpty()) textFragment = new Fragment("", id + "@" + offset, 0, null,
+                            Evidence.Coverage.PARTIAL, "localized manual text is missing");
+                    else try (var stream = resource.get().open(); Reader text = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+                        textFragment = readText(text, id, offset, maxChars, FRAGMENT_OVERLAP_CHARS, budget);
+                    }
+                }
+            } catch (Toolbox.Failure failure) {
+                throw failure;
+            } catch (ReflectiveOperationException | IOException | RuntimeException | LinkageError unavailableText) {
+                textFragment = new Fragment("", id + "@" + offset, 0,
+                        offset < 0 ? null : Integer.toString(offset), Evidence.Coverage.PARTIAL,
+                        "localized manual text could not be read");
             }
             String textNext = textFragment.nextPosition();
             String relationshipNext = scan.next == null ? null : scan.encode(scan.next);

@@ -360,7 +360,7 @@ class ModonomiconGuideReaderTest {
                 pages.add(spotlight(new ItemStack(Items.BREAD)));
                 unlockedPages.add(index);
             }
-            var longText = "0123456789abcdef".repeat(1024);
+            var longText = "0123456789abcdef".repeat(4096);
             pages.add(new BookTextPage(new BookTextHolder(Component.literal(longText)), new BookTextHolder(""),
                     false, true, null, null));
             unlockedPages.add(1100);
@@ -374,7 +374,7 @@ class ModonomiconGuideReaderTest {
 
             for (var fragmentIndex = 0; fragmentIndex < 220; fragmentIndex++) {
                 var previousPosition = position;
-                var fragment = reader.readFragment(fixture.identity(entry), position, 256, new Toolbox.DocumentBudget());
+                var fragment = reader.readFragment(fixture.identity(entry), position, 1024, new Toolbox.DocumentBudget());
                 itemPositions.addAll(relationshipValues(fragment, "items").stream()
                         .map(value -> jsonString(value, "sourcePosition")).toList());
                 text.append(fragment.text().substring(fragment.overlapChars()));

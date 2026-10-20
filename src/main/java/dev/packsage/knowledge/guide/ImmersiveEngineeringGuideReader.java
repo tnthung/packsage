@@ -155,7 +155,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     var indices = relationshipPosition.split("\\.", -1);
                     if (indices.length != 5 && indices.length != 6) throw new NumberFormatException();
                     for (int index = 0; index < 5; index++) if (Integer.parseInt(indices[index]) < 0) throw new NumberFormatException();
-                    if (indices.length == 6 && (Integer.parseInt(indices[5]) < 0 || Integer.parseInt(indices[5]) > 1))
+                    if (indices.length == 6 && (Integer.parseInt(indices[5]) < 0 || Integer.parseInt(indices[5]) > 2))
                         throw new NumberFormatException();
                     if (indices.length == 6) relationshipStage = Integer.parseInt(indices[5]);
                 }
@@ -430,6 +430,9 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     boolean recipe = (boolean) type.getMethod("isRecipeName").invoke(ref);
                     boolean output = (boolean) type.getMethod("isResult").invoke(ref);
                     boolean layout = (boolean) type.getMethod("isLayout").invoke(ref);
+                    if (resumePosition != null && resumeStage == 2 && compare(position, parseResume()) == 0 && !layout)
+                        throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                                "Immersive Engineering layout changed; restart the lookup");
                     var value = new LinkedHashMap<String, Evidence.JsonValue>();
                     String sourcePosition = source(position);
                     value.put("sourcePosition", new Evidence.JsonString(sourcePosition));
@@ -465,7 +468,9 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     int cellStart = resumePosition != null && compare(refPosition, cursorRef) == 0 ? resume[3] : 0;
                     int variantStart = resumePosition != null && compare(refPosition, cursorRef) == 0 ? resume[4] : 0;
                     boolean resumeMatchesRef = resumePosition != null && compare(refPosition, cursorRef) == 0;
-                    if (cellStart > cells.length || cellStart == cells.length && (cells.length > 0 || resumeMatchesRef))
+                    if (resumeMatchesRef && resumeStage == 2 && cells.length != 0
+                            || cellStart > cells.length
+                            || cellStart == cells.length && (cells.length > 0 || resumeMatchesRef && resumeStage != 2))
                         throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                             "Immersive Engineering layout changed; restart the lookup");
                     var cellValues = new ArrayList<Evidence.JsonValue>();
@@ -625,6 +630,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             ? new int[] {position[0], position[1], position[2], nextCell, nextVariant}
                             : following;
                     boolean completed = append(value, semanticCount, layoutEstimate, layoutPosition, afterLayout);
+                    // Stage 2 distinguishes an empty-layout retry from a removed pending cell.
+                    if (!completed && cells.length == 0) nextStage = 2;
                     if (completed && nextCell < cells.length) nextStage = 1;
                     return completed && (nextCell >= cells.length);
                 }

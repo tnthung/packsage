@@ -202,7 +202,7 @@ class ImmersiveEngineeringGuideReaderTest {
         }
         var entry = manual.addEntry("immersiveengineering:manual/quoted-anchor",
                 new blusunrize.lib.manual.ManualElementCrafting(rows));
-        entry.addSpecial("\"".repeat(256), 0);
+        entry.addSpecial(String.valueOf((char) 1).repeat(256), 0);
 
         String cursor = null;
         String allFragments = "";

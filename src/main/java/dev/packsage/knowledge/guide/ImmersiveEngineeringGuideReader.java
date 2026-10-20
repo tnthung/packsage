@@ -558,7 +558,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, detail, relationshipObject);
         } catch (Toolbox.Failure failure) {
             throw failure;
-        } catch (ReflectiveOperationException | IOException | RuntimeException | LinkageError failure) {
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {
             return new Fragment("", id + "@0", 0, null, Evidence.Coverage.PARTIAL,
                     "Immersive Engineering manual text could not be read");
         }

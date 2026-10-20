@@ -1,10 +1,12 @@
 package dev.packsage.knowledge.guide;
 
+import dev.packsage.knowledge.AdapterRegistry;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
-import guideme.compiler.Frontmatter;
+import dev.packsage.model.PackSageTools;
 import guideme.FixtureGuide;
 import guideme.Guides;
+import guideme.compiler.Frontmatter;
 import guideme.compiler.ParsedGuidePage;
 import guideme.compiler.tags.RecipeCompiler;
 import guideme.libs.mdast.mdx.model.MdxJsxAttribute;
@@ -295,5 +297,29 @@ class GuideMeGuideReaderTest {
 
         assertEquals("minecraft:bread", ((Evidence.JsonString) freshItem.values().get("itemId")).value());
         assertTrue(fresh.text().contains("fresh current text"));
+    }
+
+    @Test
+    void providerSearchFindsAnAssociatedItemAbsentFromThePageText() {
+        var page = new ParsedGuidePage(PAGE_ID, "en_us", new MdAstRoot(), new Frontmatter(Map.of(
+                "item_ids", List.of("minecraft:diamond"))));
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, List.of(page))));
+        var scope = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
+        var registry = new AdapterRegistry();
+        var provider = new GuideDocumentProvider(new GuideMeGuideReader(), () -> scope, Runnable::run);
+        registry.register(provider);
+        var context = new Toolbox.Context(() -> scope, Map.of(), registry, new Toolbox.DocumentBudget(), null);
+        var arguments = new Evidence.JsonObject(Map.of(
+                "query", new Evidence.JsonString("minecraft:diamond"),
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("guideme"),
+                        "types", new Evidence.JsonArray(List.of(new Evidence.JsonString("guide")))))));
+
+        var result = provider.searchDocument(new PackSageTools.ReadRequest("search_document", arguments, scope), context)
+                .toCompletableFuture().join();
+
+        assertEquals(1, result.records().size());
+        assertEquals("", result.records().getFirst().payload().values().get("text") instanceof Evidence.JsonString text
+                ? text.value() : null);
+        assertTrue(result.records().getFirst().payload().values().containsKey("relationships"));
     }
 }

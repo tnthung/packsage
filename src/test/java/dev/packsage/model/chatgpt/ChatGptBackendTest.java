@@ -43,9 +43,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -721,6 +723,99 @@ class ChatGptBackendTest {
                         List.of(new ModelBackend.OutputText("finished", List.of(
                                 new ModelBackend.UrlCitation(0, 8, "Official", "https://example.test")))))
         ), completed.replayItems());
+    }
+
+    @Test
+    void independentExchangesInterleaveDeltasAndToolContinuations() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(TOOL_CALL_RESPONSE, ANSWER_RESPONSE, ANSWER_RESPONSE));
+        ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        List<ModelBackend.Event> firstEvents = new ArrayList<>();
+        List<ModelBackend.Event> secondEvents = new ArrayList<>();
+        ChatGptBackend backend = new ChatGptBackend(signedInAuth(), client, tasks::add);
+
+        ModelBackend.Exchange first = backend.start(searchRequest("parallel-first", ModelBackend.SearchMode.DISABLED), firstEvents::add);
+        ModelBackend.Exchange second = backend.start(searchRequest("parallel-second", ModelBackend.SearchMode.DISABLED), secondEvents::add);
+
+        tasks.removeFirst().run();
+        assertEquals(1, firstEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.CLIENT_TOOL_CALL).count());
+        tasks.removeFirst().run();
+        assertEquals(1, secondEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+        assertEquals(0, firstEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+
+        first.submit(new ModelBackend.ToolResult("call_a", "{\"found\":true}", false));
+        tasks.removeFirst().run();
+
+        ModelBackend.Event firstCompleted = firstEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED)
+                .findFirst().orElseThrow();
+        ModelBackend.Event secondCompleted = secondEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED)
+                .findFirst().orElseThrow();
+        assertEquals("call_a", firstCompleted.replayItems().stream().filter(ModelBackend.ToolCall.class::isInstance)
+                .map(ModelBackend.ToolCall.class::cast).findFirst().orElseThrow().callId());
+        assertTrue(firstCompleted.replayItems().contains(new ModelBackend.ToolResult("call_a", "{\"found\":true}", false)));
+        assertTrue(firstCompleted.replayItems().contains(new ModelBackend.OutputText("local answer", List.of())));
+        assertTrue(secondCompleted.replayItems().contains(new ModelBackend.OutputText("local answer", List.of())));
+        assertEquals(3, client.requests.size());
+    }
+
+    @Test
+    void cancellingOneExchangeLeavesTheOtherActive() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(TOOL_CALL_RESPONSE, ANSWER_RESPONSE));
+        ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        List<ModelBackend.Event> cancelledEvents = new ArrayList<>();
+        List<ModelBackend.Event> activeEvents = new ArrayList<>();
+        ChatGptBackend backend = new ChatGptBackend(signedInAuth(), client, tasks::add);
+        ModelBackend.Exchange cancelled = backend.start(searchRequest("parallel-cancelled", ModelBackend.SearchMode.DISABLED), cancelledEvents::add);
+        backend.start(searchRequest("parallel-active", ModelBackend.SearchMode.DISABLED), activeEvents::add);
+
+        cancelled.cancel();
+        tasks.removeFirst().run();
+        tasks.removeFirst().run();
+
+        assertEquals(0, cancelledEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+        assertEquals(1, activeEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+    }
+
+    @Test
+    void signOutCancelsEveryRegisteredExchangeBeforeTheirStreamsRun() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(ANSWER_RESPONSE, ANSWER_RESPONSE));
+        ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        List<ModelBackend.Event> firstEvents = new ArrayList<>();
+        List<ModelBackend.Event> secondEvents = new ArrayList<>();
+        ChatGptBackend backend = new ChatGptBackend(signedInAuth(), client, tasks::add);
+        backend.start(searchRequest("parallel-signout-first", ModelBackend.SearchMode.DISABLED), firstEvents::add);
+        backend.start(searchRequest("parallel-signout-second", ModelBackend.SearchMode.DISABLED), secondEvents::add);
+
+        backend.signOut();
+        while (!tasks.isEmpty()) tasks.removeFirst().run();
+
+        assertEquals(0, firstEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+        assertEquals(0, secondEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+    }
+
+    @Test
+    void exchangeRacingSignOutRegistrationCannotCompleteInTheOldAccountEpoch() throws Exception {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(ANSWER_RESPONSE));
+        ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        List<ModelBackend.Event> events = new ArrayList<>();
+        ChatGptBackend backend = new ChatGptBackend(signedInAuth(), client, tasks::add);
+        CountDownLatch startTogether = new CountDownLatch(1);
+        AtomicReference<ModelBackend.Exchange> exchange = new AtomicReference<>();
+        Thread starter = new Thread(() -> {
+            try {
+                startTogether.await();
+                exchange.set(backend.start(searchRequest("parallel-registration-race", ModelBackend.SearchMode.DISABLED), events::add));
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        starter.start();
+        startTogether.countDown();
+        backend.signOut();
+        starter.join();
+        while (!tasks.isEmpty()) tasks.removeFirst().run();
+
+        assertTrue(exchange.get() != null);
+        assertEquals(0, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
     }
 
     @Test

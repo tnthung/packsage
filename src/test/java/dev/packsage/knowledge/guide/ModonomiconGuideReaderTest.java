@@ -357,7 +357,8 @@ class ModonomiconGuideReaderTest {
             var pages = new ArrayList<BookPage>();
             var unlockedPages = new ArrayList<Integer>();
             for (var index = 0; index < 1100; index++) {
-                pages.add(spotlight(new ItemStack(Items.BREAD)));
+                pages.add(new BookSpotlightPage(new BookTextHolder(""), new BookTextHolder(""),
+                        Either.left(new ItemStack(Items.BREAD)), null, null));
                 unlockedPages.add(index);
             }
             var longText = "0123456789abcdef".repeat(4096);

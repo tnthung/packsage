@@ -856,6 +856,7 @@ class AssistantRuntimeTest {
         runtime.send("Question A", true, false);
         while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
         String requestId = backend.requests.getLast().requestId();
+        backend.emit(requestId, new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Answer A", null, List.of(), null));
         backend.emit(requestId, new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
                 new ModelBackend.AssistantOutput("answer-a", ModelBackend.OutputStatus.COMPLETED,
                         ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A", List.of())))), null));

@@ -116,26 +116,39 @@ class ImmersiveEngineeringGuideReaderTest {
     void continuationUsesCurrentManualDeclarationsAndDoesNotRetainEarlierElementState() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();
+        var rows = new blusunrize.lib.manual.utils.ManualRecipeRef[24][];
+        for (int row = 0; row < rows.length; row++) {
+            rows[row] = new blusunrize.lib.manual.utils.ManualRecipeRef[] {
+                    new blusunrize.lib.manual.utils.ManualRecipeRef(net.minecraft.resources.ResourceLocation.parse(
+                            "immersiveengineering:old_recipe_" + row))
+            };
+        }
         var entry = manual.addEntry("immersiveengineering:manual/reloaded",
-                new blusunrize.lib.manual.ManualElementCrafting(new blusunrize.lib.manual.utils.ManualRecipeRef[][] {
-                        {new blusunrize.lib.manual.utils.ManualRecipeRef(
-                                net.minecraft.resources.ResourceLocation.parse("immersiveengineering:old"))}
-                }));
+                new blusunrize.lib.manual.ManualElementCrafting(rows));
         entry.addSpecial("anchor", 0);
         var reader = new ImmersiveEngineeringGuideReader();
         var first = reader.readFragment("immersiveengineering:manual/reloaded", null, 32, new Toolbox.DocumentBudget());
+        assertTrue(first.nextPosition() != null);
+        var changedRows = new blusunrize.lib.manual.utils.ManualRecipeRef[24][];
+        for (int row = 0; row < changedRows.length; row++) {
+            changedRows[row] = new blusunrize.lib.manual.utils.ManualRecipeRef[] {
+                    new blusunrize.lib.manual.utils.ManualRecipeRef(net.minecraft.resources.ResourceLocation.parse(
+                            "immersiveengineering:new_recipe_" + row))
+            };
+        }
         entry.setSpecials(java.util.List.of(new blusunrize.lib.manual.ManualEntry.SpecialElementData("new-anchor", 5,
-                new blusunrize.lib.manual.ManualElementCrafting(new blusunrize.lib.manual.utils.ManualRecipeRef[][] {
-                        {new blusunrize.lib.manual.utils.ManualRecipeRef(
-                                net.minecraft.resources.ResourceLocation.parse("immersiveengineering:new"))}
-                }))));
+                new blusunrize.lib.manual.ManualElementCrafting(changedRows))));
 
         var next = reader.readFragment("immersiveengineering:manual/reloaded", first.nextPosition(), 32,
                 new Toolbox.DocumentBudget());
+        var fresh = reader.readFragment("immersiveengineering:manual/reloaded", null, 32, new Toolbox.DocumentBudget());
 
-        assertTrue(Evidence.serialize(next.relationships()).contains("immersiveengineering:new"));
+        assertTrue(Evidence.serialize(next.relationships()).contains("immersiveengineering:new_recipe_"));
         assertTrue(Evidence.serialize(next.relationships()).contains("new-anchor"));
-        assertTrue(!Evidence.serialize(next.relationships()).contains("immersiveengineering:old"));
+        assertTrue(!Evidence.serialize(next.relationships()).contains("immersiveengineering:old_recipe_"));
+        assertTrue(Evidence.serialize(fresh.relationships()).contains("immersiveengineering:new_recipe_0"));
+        assertTrue(Evidence.serialize(fresh.relationships()).contains("new-anchor"));
+        assertTrue(!Evidence.serialize(fresh.relationships()).contains("immersiveengineering:old_recipe_"));
     }
 
     @Test
@@ -158,6 +171,20 @@ class ImmersiveEngineeringGuideReaderTest {
         assertTrue(first.nextPosition() != null);
         assertTrue(Evidence.serialize(first.relationships()).contains("PARTIAL"));
         assertTrue(Evidence.serialize(first.relationships()).contains("recipe_"));
+        var cursors = new java.util.HashSet<String>();
+        String cursor = first.nextPosition();
+        String allRows = Evidence.serialize(first.relationships());
+        int fragments = 1;
+        while (cursor != null && fragments < 8) {
+            assertTrue(cursors.add(cursor), "relationship/text cursor repeated");
+            var fragment = new ImmersiveEngineeringGuideReader().readFragment("immersiveengineering:manual/bounded", cursor,
+                    64, new Toolbox.DocumentBudget());
+            allRows += Evidence.serialize(fragment.relationships());
+            cursor = fragment.nextPosition();
+            fragments++;
+        }
+        assertNull(cursor, "bounded declaration traversal must reach a terminal cursor");
+        for (int row = 0; row < rows.length; row++) assertTrue(allRows.contains("recipe_" + row));
 
         manual.reset();
         var opaque = manual.addEntry("immersiveengineering:manual/custom", new blusunrize.lib.manual.SpecialManualElement());

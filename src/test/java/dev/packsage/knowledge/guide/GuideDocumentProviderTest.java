@@ -442,9 +442,10 @@ class GuideDocumentProviderTest {
     @Test
     void oversizedAndDeepRelationshipTreesAreRejectedBeforeUnboundedMaterialization() {
         var oversized = new FixtureReader();
-        oversized.relationships.set(new Evidence.JsonObject(Map.of("items", relationshipGroup(Evidence.Coverage.COMPLETE,
-                List.of(new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("associated"),
-                        "itemId", new Evidence.JsonString("x".repeat(9000))))))));
+        var oversizedValue = new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("associated"),
+                "itemId", new Evidence.JsonString("x".repeat(9000))));
+        oversized.relationships.set(new Evidence.JsonObject(Map.of("items", relationshipGroup(
+                Evidence.Coverage.COMPLETE, List.of(oversizedValue)))));
         assertExtractionFailure(oversized);
 
         var deepValue = new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("condition")));

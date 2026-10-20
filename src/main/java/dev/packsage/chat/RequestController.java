@@ -44,6 +44,7 @@ public final class RequestController {
     private final Consumer<ChatContracts.Turn> completionListener;
     private final Object stateLock = new Object();
     private final List<String> errors = new ArrayList<>();
+    private final Set<CompletableFuture<Void>> pendingPersistence = new LinkedHashSet<>();
     private ChatContracts.Conversation conversation;
     private ChatContracts.Context context;
     private List<Evidence.Source> sources = List.of();
@@ -330,6 +331,12 @@ public final class RequestController {
     public boolean persistencePending() {
         synchronized (stateLock) {
             return pendingPersistenceCount > 0;
+        }
+    }
+
+    public CompletionStage<Void> awaitPersistence() {
+        synchronized (stateLock) {
+            return CompletableFuture.allOf(pendingPersistence.toArray(CompletableFuture[]::new));
         }
     }
 
@@ -776,7 +783,6 @@ public final class RequestController {
         if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
         else publish();
         persist(request, target, turn, captured.screenshotBytes());
-        if (turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED) completionListener.accept(turn);
     }
 
     private void cancelActive(String detail) {
@@ -887,6 +893,7 @@ public final class RequestController {
             CompletionStage<Void> persisted = request.submission.replacing() == null
                     ? store.appendTurn(target.world(), request.submission.scope(), target.id(), finalTurn)
                     : store.replaceLatestTurn(target.world(), request.submission.scope(), target.id(), request.submission.replacing(), finalTurn);
+            if (finalTurn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED) completionListener.accept(finalTurn);
             persisted
                     .whenCompleteAsync((saved, appendFailure) -> {
                         finishPersistence(request);
@@ -925,6 +932,7 @@ public final class RequestController {
                 errors.add(failureMessage(failure));
                 snapshot = currentView();
             }
+            pendingPersistence.remove(request.persistence);
         }
         request.persistence.complete(null);
         if (snapshot != null) publisher.accept(snapshot);
@@ -950,15 +958,22 @@ public final class RequestController {
         if (request.persistencePending) return;
         request.persistencePending = true;
         pendingPersistenceCount++;
+        pendingPersistence.add(request.persistence);
     }
 
     private void finishPersistence(ActiveRequest request) {
         long persistedAtNanos = System.nanoTime();
+        boolean completeBarrier = false;
         synchronized (stateLock) {
             if (!request.persistencePending) return;
             request.persistencePending = false;
             pendingPersistenceCount--;
+            if (request.submission.replacing() == null) {
+                pendingPersistence.remove(request.persistence);
+                completeBarrier = true;
+            }
         }
+        if (completeBarrier) request.persistence.complete(null);
         if (request.persistenceStartedAtNanos != 0) {
             PackSageLog.LOGGER.info("PackSage timing request={} phase=persist_done event_ns={} elapsed_ms={} persistMs={}",
                     request.submission.requestId().value(), persistedAtNanos,

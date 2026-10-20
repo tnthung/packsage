@@ -513,7 +513,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
             }
             var relationshipObject = new Evidence.JsonObject(relationshipValues);
             Fragment textFragment = new Fragment("", id + "@" + offset, 0,
-                    offset < 0 ? null : Integer.toString(offset), Evidence.Coverage.PARTIAL,
+                    null, Evidence.Coverage.PARTIAL,
                     "localized manual text could not be read");
             try {
                 if (offset < 0) textFragment = new Fragment("", id + "@done", 0, null,
@@ -539,8 +539,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
             } catch (Toolbox.Failure failure) {
                 throw failure;
             } catch (ReflectiveOperationException | IOException | RuntimeException | LinkageError unavailableText) {
-                textFragment = new Fragment("", id + "@" + offset, 0,
-                        offset < 0 ? null : Integer.toString(offset), Evidence.Coverage.PARTIAL,
+                textFragment = new Fragment("", id + "@" + offset, 0, null, Evidence.Coverage.PARTIAL,
                         "localized manual text could not be read");
             }
             String textNext = textFragment.nextPosition();

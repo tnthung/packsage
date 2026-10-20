@@ -197,6 +197,72 @@ class RequestControllerTest {
     }
 
     @Test
+    void rejectedActivationTokenHasNoEffectsAndDoesNotDisableFreshAdmission() {
+        ConversationStore store = new ConversationStore(temporaryDirectory.resolve("activation-token"), DIRECT);
+        ChatContracts.Conversation seeded = store.newConversation(WORLD_A).toCompletableFuture().join();
+        FakeBackend backend = new FakeBackend();
+        AtomicInteger captureCalls = new AtomicInteger();
+        AtomicInteger evidenceCalls = new AtomicInteger();
+        List<ChatContracts.Turn> completed = new ArrayList<>();
+        List<ChatContracts.View> published = new ArrayList<>();
+        RequestController controller = new RequestController(store, backend, DIRECT, (capture, ignored) -> {
+            captureCalls.incrementAndGet();
+            return CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                    new ChatContracts.Context("fresh", null, capture.scope()), new byte[0]));
+        }, ignored -> { }, capture -> {
+            evidenceCalls.incrementAndGet();
+            return new ChatContracts.EvidenceSelection(List.of(), List.of());
+        }, ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")),
+                ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()),
+                published::add, completed::add);
+        controller.showConversation(seeded, SCOPE_A);
+        ChatContracts.View initialView = controller.view();
+        int initialPublications = published.size();
+        AtomicBoolean stalePermission = new AtomicBoolean(false);
+        ChatContracts.Submission request = submission("activation-token", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096);
+
+        assertTrue(controller.begin(request, stalePermission::get).toCompletableFuture().isCompletedExceptionally());
+        assertEquals(initialView, controller.view());
+        assertEquals(initialPublications, published.size());
+        assertEquals(0, captureCalls.get());
+        assertEquals(0, evidenceCalls.get());
+        assertTrue(backend.requests.isEmpty());
+        assertTrue(completed.isEmpty());
+        assertTrue(store.openConversation(WORLD_A, seeded.id()).toCompletableFuture().join().turns().isEmpty());
+
+        AtomicBoolean freshPermission = new AtomicBoolean(true);
+        ChatContracts.Submission freshRequest = submission("fresh-activation", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096);
+        assertEquals(freshRequest.requestId(), controller.begin(freshRequest, freshPermission::get).toCompletableFuture().join());
+        assertEquals(1, captureCalls.get());
+        assertEquals(1, evidenceCalls.get());
+        assertEquals(1, backend.requests.size());
+        controller.stop();
+        controller.awaitPersistence().toCompletableFuture().join();
+        ChatContracts.View stoppedView = controller.view();
+        int effectsAfterStop = published.size();
+        int backendStartsAfterStop = backend.requests.size();
+        int capturesAfterStop = captureCalls.get();
+        int evidenceAfterStop = evidenceCalls.get();
+
+        assertTrue(controller.begin(submission("stale-after-stop", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096),
+                stalePermission::get).toCompletableFuture().isCompletedExceptionally());
+        assertEquals(stoppedView, controller.view());
+        assertEquals(effectsAfterStop, published.size());
+        assertEquals(backendStartsAfterStop, backend.requests.size());
+        assertEquals(capturesAfterStop, captureCalls.get());
+        assertEquals(evidenceAfterStop, evidenceCalls.get());
+        assertEquals(1, store.openConversation(WORLD_A, seeded.id()).toCompletableFuture().join().turns().size());
+        assertTrue(completed.isEmpty());
+    }
+
+    @Test
     void completionListenerRunsOnceForAValidatedSuccessfulTurn() {
         FakeBackend backend = new FakeBackend();
         List<ChatContracts.Turn> completed = new ArrayList<>();

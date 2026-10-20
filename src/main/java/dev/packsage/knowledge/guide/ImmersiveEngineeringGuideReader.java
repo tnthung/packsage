@@ -777,6 +777,9 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     ? "ie1|" + (relationshipMore ? relationshipNext : "done") + "|"
                     + (scan.opaque || scan.unavailable ? "1" : relationshipFlags) + "|"
                     + (textNext == null ? "done" : textNext) : null;
+            if (budget.exhausted() && fragmentPosition != null && fragmentPosition.equals(next))
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                        "Immersive Engineering fragment budget is exhausted before progress");
             boolean partial = scan.partial || scan.unavailable || scan.opaque || relationshipFlags != 0
                     || relationshipMore || textFragment.coverage() != Evidence.Coverage.COMPLETE;
             String detail = textFragment.detail() != null ? textFragment.detail()

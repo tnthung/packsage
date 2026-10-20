@@ -313,16 +313,24 @@ public final class RequestController {
     }
 
     public void newChat(ChatContracts.WorldIdentity currentWorld, Evidence.Scope currentScope, boolean forceNewConversation) {
+        newChatWithResult(currentWorld, currentScope, forceNewConversation);
+    }
+
+    CompletionStage<ChatContracts.Conversation> newChatWithResult(ChatContracts.WorldIdentity currentWorld,
+                                                                    Evidence.Scope currentScope,
+                                                                    boolean forceNewConversation) {
         if (currentWorld == null || currentScope == null) {
             newChat();
-            return;
+            return CompletableFuture.failedFuture(new IllegalArgumentException("new chat requires a world and scope"));
         }
         boolean reused = false;
+        CompletionStage<ChatContracts.Conversation> result = null;
         synchronized (stateLock) {
             if (!forceNewConversation && active == null && worldLoad != null && worldLoad.createNew
                     && worldLoad.world.worldOrServer().equals(currentWorld.worldOrServer())) {
                 worldLoad.scope = currentScope;
                 context = new ChatContracts.Context("", null, currentScope);
+                result = worldLoad.result;
                 reused = true;
             } else if (!forceNewConversation && active == null && worldLoad == null
                     && conversation.world().worldOrServer().equals(currentWorld.worldOrServer())
@@ -335,11 +343,15 @@ public final class RequestController {
                 context = new ChatContracts.Context("", null, currentScope);
                 sources = List.of();
                 navigationTargets = List.of();
+                result = CompletableFuture.completedFuture(conversation);
                 reused = true;
             }
         }
-        if (reused) publish();
-        else startWorldLoad(currentWorld, currentScope, true, "new chat");
+        if (reused) {
+            publish();
+            return result;
+        }
+        return startWorldLoad(currentWorld, currentScope, true, "new chat");
     }
 
     public void newChat() {

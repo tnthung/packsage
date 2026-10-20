@@ -500,7 +500,10 @@ public final class AssistantRuntime implements ChatActions {
                 return java.util.concurrent.CompletableFuture.failedFuture(
                         new IllegalStateException("sessions cannot be deleted while the target chat is active or changing"));
             }
-            if (holder != null) holder.deleting = true;
+            if (holder != null) {
+                holder.deleting = true;
+                holder.requestAuthEpochs.clear();
+            }
             deletingSelected = holder != null && selected == holder || holder == null && selected == null
                     && sessionLoading && world.worldOrServer().equals(session.world().worldOrServer());
             sessionDeletion = true;
@@ -551,10 +554,10 @@ public final class AssistantRuntime implements ChatActions {
             holder = holders.get(new HolderKey(session.world().worldOrServer(), session.id()));
             if (holder == null) {
                 holder = new Holder(session.world(), session.id(), worldScope);
-                holder.unreadRequestId = session.unreadRequestId();
                 holders.put(new HolderKey(session.world().worldOrServer(), session.id()), holder);
             }
             if (holder.deleting) return;
+            if (holder.unreadRequestId == null) holder.unreadRequestId = session.unreadRequestId();
             if (!holder.active && !holder.requestStarting) holder.scope = worldScope;
             selected = holder;
             startLoad = !holder.loading && !holder.active && !holder.requestStarting;
@@ -1066,6 +1069,7 @@ public final class AssistantRuntime implements ChatActions {
         }
         ChatContracts.View currentView = current == null || current.controller == null ? idleView() : current.controller.view();
         boolean reuse = current != null && !current.deleting && !current.active && !current.requestStarting
+                && current.world.worldOrServer().equals(currentWorld.worldOrServer())
                 && (current.loading && current.creating || current.loaded && !currentView.active()
                 && currentView.conversation().turns().isEmpty());
         if (reuse) {
@@ -1107,16 +1111,18 @@ public final class AssistantRuntime implements ChatActions {
                         created.scope = creationScope;
                     }
                 }
-                RuntimeException creationFailure = initializationFailure instanceof RuntimeException runtimeFailure
-                        ? runtimeFailure : initializationFailure == null ? null : new IllegalStateException(initializationFailure);
-                if (creationFailure == null) {
+                CompletionStage<ChatContracts.Conversation> creation;
+                if (initializationFailure == null) {
                     try {
-                        created.controller.newChat(creationWorld, creationScope, true);
+                        creation = created.controller.newChatWithResult(creationWorld, creationScope, true);
                     } catch (RuntimeException failure) {
-                        creationFailure = failure;
+                        creation = CompletableFuture.failedFuture(failure);
                     }
+                } else {
+                    creation = CompletableFuture.failedFuture(initializationFailure);
                 }
-                if (creationFailure != null) {
+                creation.whenCompleteAsync((conversation, creationFailure) -> {
+                    if (creationFailure == null) return;
                     boolean publish;
                     long currentEpoch;
                     synchronized (stateLock) {
@@ -1135,7 +1141,7 @@ public final class AssistantRuntime implements ChatActions {
                         currentEpoch = worldEpoch;
                     }
                     if (publish) publishCurrentView(currentEpoch);
-                }
+                }, clientExecutor);
             }, clientExecutor);
         }
         publishCurrentView(epoch);
@@ -1398,12 +1404,14 @@ public final class AssistantRuntime implements ChatActions {
         }
         recorded.whenCompleteAsync((ignored, failure) -> {
             if (failure != null) {
-                synchronized (stateLock) {
-                    holder.errors.add("Completion state could not be saved: " + failureMessage(failure));
-                }
                 boolean publish;
                 long epoch;
                 synchronized (stateLock) {
+                    if (holder.deleting || holders.get(new HolderKey(holder.world.worldOrServer(), holder.id)) != holder) {
+                        holder.requestAuthEpochs.remove(turn.requestId());
+                        return;
+                    }
+                    holder.errors.add("Completion state could not be saved: " + failureMessage(failure));
                     publish = selected == holder;
                     epoch = worldEpoch;
                 }
@@ -1414,18 +1422,18 @@ public final class AssistantRuntime implements ChatActions {
                 boolean notify = false;
                 boolean publish;
                 long epoch;
-                if (summaryFailure != null) {
-                    synchronized (stateLock) {
+                ChatContracts.SessionSummary summary = summaryFailure == null ? summaries.stream()
+                        .filter(value -> value.world().worldOrServer().equals(holder.world.worldOrServer())
+                                && value.id().equals(holder.id)).findFirst().orElse(null) : null;
+                synchronized (stateLock) {
+                    if (holder.deleting || holders.get(new HolderKey(holder.world.worldOrServer(), holder.id)) != holder) {
+                        holder.requestAuthEpochs.remove(turn.requestId());
+                        return;
+                    }
+                    if (summaryFailure != null) {
                         holder.errors.add("Session list could not be refreshed: " + failureMessage(summaryFailure));
                         holder.requestAuthEpochs.remove(turn.requestId());
-                        publish = selected == holder;
-                        epoch = worldEpoch;
-                    }
-                } else {
-                    ChatContracts.SessionSummary summary = summaries.stream()
-                            .filter(value -> value.world().worldOrServer().equals(holder.world.worldOrServer())
-                                    && value.id().equals(holder.id)).findFirst().orElse(null);
-                    synchronized (stateLock) {
+                    } else {
                         Long requestAuthEpoch = holder.requestAuthEpochs.remove(turn.requestId());
                         if (summary != null && turn.requestId().equals(summary.unreadRequestId())) {
                             holder.unreadRequestId = turn.requestId();
@@ -1434,13 +1442,19 @@ public final class AssistantRuntime implements ChatActions {
                                     && world.worldOrServer().equals(holder.world.worldOrServer())
                                     && holder.notifiedCompletions.add(turn.requestId());
                         }
-                        publish = selected == holder;
-                        epoch = worldEpoch;
                     }
+                    publish = selected == holder;
+                    epoch = worldEpoch;
                 }
                 refreshSessionList();
                 if (publish) publishCurrentView(epoch);
-                if (notify) completionNotice.accept(turn);
+                if (notify) {
+                    synchronized (stateLock) {
+                        notify = !holder.deleting
+                                && holders.get(new HolderKey(holder.world.worldOrServer(), holder.id)) == holder;
+                    }
+                    if (notify) completionNotice.accept(turn);
+                }
             }, clientExecutor);
         }, clientExecutor);
     }
@@ -1475,8 +1489,8 @@ public final class AssistantRuntime implements ChatActions {
             ChatContracts.Conversation conversation = view.conversation();
             ChatContracts.SessionSummary base = summaries.get(new HolderKey(holder.world.worldOrServer(), holder.id));
             ChatContracts.Turn last = conversation.turns().isEmpty() ? null : conversation.turns().getLast();
-            String title = view.active() ? view.activeQuestion() : last == null
-                    ? base == null ? "New chat" : base.title() : last.question();
+            String title = last != null ? conversation.turns().getFirst().question() : view.active()
+                    ? view.activeQuestion() : base == null ? "New chat" : base.title();
             String lastMessage = view.active() ? view.streamingAnswer() : last == null
                     ? base == null ? "" : base.lastMessage() : last.answer();
             Instant updatedAt = view.active() && view.activeSentAt() != null ? view.activeSentAt()

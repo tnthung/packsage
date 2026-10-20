@@ -1530,8 +1530,8 @@ public final class AssistantScreen extends Screen {
         history = null;
         boolean loadingSession = next.activity().equals("Loading session...");
         if (!next.active() && !loadingSession) resendingRequest = null;
-        if (editingRequest != null && (next.active() || next.readOnly() || !loadingSession
-                && (next.conversation().turns().isEmpty()
+        if (editingRequest != null && (next.active() || !loadingSession
+                && (next.readOnly() || next.conversation().turns().isEmpty()
                 || !next.conversation().turns().getLast().requestId().equals(editingRequest)))) editingRequest = null;
         if (!loadingSession) {
             awaitingRequestView = false;

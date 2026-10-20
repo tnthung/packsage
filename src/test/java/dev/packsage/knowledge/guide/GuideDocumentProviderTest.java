@@ -409,6 +409,114 @@ class GuideDocumentProviderTest {
     }
 
     @Test
+    void positiveInsufficientLayoutBudgetReturnsResumableSearchCursor() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        for (int scenario = 0; scenario < 2; scenario++) {
+            manual.reset();
+            var id = "immersiveengineering:manual/relationship-budget-" + scenario;
+            var expectedItems = new java.util.ArrayList<String>();
+            blusunrize.lib.manual.PositionedItemStack[] cells;
+            if (scenario == 0) {
+                var items = List.of(net.minecraft.world.item.Items.IRON_INGOT,
+                        net.minecraft.world.item.Items.GOLD_INGOT, net.minecraft.world.item.Items.DIAMOND,
+                        net.minecraft.world.item.Items.EMERALD, net.minecraft.world.item.Items.COPPER_INGOT,
+                        net.minecraft.world.item.Items.REDSTONE, net.minecraft.world.item.Items.LAPIS_LAZULI,
+                        net.minecraft.world.item.Items.COAL, net.minecraft.world.item.Items.CHARCOAL,
+                        net.minecraft.world.item.Items.QUARTZ, net.minecraft.world.item.Items.AMETHYST_SHARD,
+                        net.minecraft.world.item.Items.PRISMARINE_SHARD, net.minecraft.world.item.Items.FLINT,
+                        net.minecraft.world.item.Items.STICK, net.minecraft.world.item.Items.OAK_PLANKS,
+                        net.minecraft.world.item.Items.GLASS, net.minecraft.world.item.Items.BUCKET,
+                        net.minecraft.world.item.Items.WATER_BUCKET, net.minecraft.world.item.Items.POTION,
+                        net.minecraft.world.item.Items.NETHER_STAR);
+                var alternatives = new java.util.ArrayList<net.minecraft.world.item.ItemStack>();
+                for (var item : items) {
+                    alternatives.add(new net.minecraft.world.item.ItemStack(item));
+                    expectedItems.add(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString());
+                }
+                cells = new blusunrize.lib.manual.PositionedItemStack[] {
+                        new blusunrize.lib.manual.PositionedItemStack(alternatives, 7, 11, "3"),
+                        new blusunrize.lib.manual.PositionedItemStack(List.of(
+                                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.PAPER)), 13, 17, "1")
+                };
+                expectedItems.add(net.minecraft.core.registries.BuiltInRegistries.ITEM
+                        .getKey(net.minecraft.world.item.Items.PAPER).toString());
+            } else {
+                cells = new blusunrize.lib.manual.PositionedItemStack[] {
+                        new blusunrize.lib.manual.PositionedItemStack(List.of(), 2, 3, "1"),
+                        new blusunrize.lib.manual.PositionedItemStack(List.of(), 4, 5, "2")
+                };
+            }
+            var entry = manual.addEntry(id, new blusunrize.lib.manual.ManualElementCrafting(
+                    new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{
+                            new blusunrize.lib.manual.utils.ManualRecipeRef(cells)}}));
+            entry.addSpecial("budget-anchor", 0);
+            var provider = new GuideDocumentProvider(new ImmersiveEngineeringGuideReader(), () -> SCOPE,
+                    Runnable::run);
+            var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+            arguments.put("query", new Evidence.JsonString(""));
+            arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("immersiveengineering"))));
+            arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(64)));
+            var firstBudget = new Toolbox.DocumentBudget();
+            int candidateBytes = id.length() * 6 + 1024;
+            assertTrue(firstBudget.bytes(firstBudget.remainingBytes() - candidateBytes - 64));
+
+            var first = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                    new Evidence.JsonObject(arguments), SCOPE), new Toolbox.Context(() -> SCOPE, Map.of(),
+                    new AdapterRegistry(), firstBudget, null)).toCompletableFuture().join();
+
+            assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
+            assertTrue(firstBudget.remainingBytes() > 0,
+                    "the source-work stop must be tested with positive shared bytes remaining");
+            assertNotNull(first.nextCursor(), "a local layout preflight stop must expose an external continuation");
+            assertTrue(firstBudget.exhausted(), "the layout preflight stop must signal the shared-budget boundary");
+            var relationshipEvidence = new StringBuilder();
+            for (var record : first.records()) {
+                if (record.payload().values().get("relationships") instanceof Evidence.JsonObject relationships)
+                    relationshipEvidence.append(Evidence.serialize(relationships));
+            }
+            var returnedCursors = new java.util.HashSet<String>();
+            assertTrue(returnedCursors.add(first.nextCursor()));
+            var cursor = first.nextCursor();
+            int continuations = 0;
+            while (cursor != null) {
+                int priorEvidenceLength = relationshipEvidence.length();
+                arguments.put("cursor", new Evidence.JsonString(cursor));
+                var continued = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                        new Evidence.JsonObject(arguments), SCOPE), new Toolbox.Context(() -> SCOPE, Map.of(),
+                        new AdapterRegistry(), new Toolbox.DocumentBudget(), null)).toCompletableFuture().join();
+                for (var record : continued.records()) {
+                    if (record.payload().values().get("relationships") instanceof Evidence.JsonObject relationships)
+                        relationshipEvidence.append(Evidence.serialize(relationships));
+                }
+                assertTrue(relationshipEvidence.length() > priorEvidenceLength,
+                        "each fresh-budget cursor must return additional native relationship evidence");
+                cursor = continued.nextCursor();
+                assertTrue(cursor == null || returnedCursors.add(cursor), "external search cursor repeated");
+                assertTrue(++continuations <= 8,
+                        "native layout relationships must finish within the bounded continuation count");
+            }
+            if (scenario == 0) {
+                for (var itemId : expectedItems) assertEquals(1,
+                        relationshipEvidence.toString().split("\"itemId\":\"" + itemId + "\"", -1).length - 1,
+                        "each native alternative and the following cell must be retained once: " + itemId);
+                assertTrue(relationshipEvidence.toString().contains("\"x\":7")
+                        && relationshipEvidence.toString().contains("\"y\":11")
+                        && relationshipEvidence.toString().contains("\"amount\":\"3\""));
+                assertTrue(relationshipEvidence.toString().contains("\"x\":13")
+                        && relationshipEvidence.toString().contains("\"y\":17")
+                        && relationshipEvidence.toString().contains("\"amount\":\"1\""));
+            } else {
+                assertEquals(1, relationshipEvidence.toString().split("\"amount\":\"1\"", -1).length - 1);
+                assertEquals(1, relationshipEvidence.toString().split("\"amount\":\"2\"", -1).length - 1);
+                assertTrue(relationshipEvidence.toString().contains("\"x\":2")
+                        && relationshipEvidence.toString().contains("\"y\":3")
+                        && relationshipEvidence.toString().contains("\"x\":4")
+                        && relationshipEvidence.toString().contains("\"y\":5"));
+            }
+        }
+    }
+
+    @Test
     void nativeUnavailableImmersiveEngineeringGroupRetainsTextAndOtherValuesOnSearchAndFreshRead() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();

@@ -424,6 +424,122 @@ class AssistantIntegrationTest {
     }
 
     @Test
+    void cancellingOneQueuedScreenshotCaptureLeavesTheOtherHolderCaptureRunning() throws Exception {
+        var backend = new RuntimeBackend();
+        var store = new ConversationStore(Files.createTempDirectory("packsage-independent-captures"), DIRECT);
+        var captureTasks = new ArrayDeque<Runnable>();
+        var captures = new ArrayList<GameplayContextCapture>();
+        var capturedFrames = new ArrayList<ChatContracts.RequestCapture>();
+        var runtime = new AssistantRuntime(store, backend, current -> {
+            int captureIndex = captures.size();
+            var capture = new GameplayContextCapture(
+                    () -> new GameplayContextCapture.Observation("held-" + captureIndex, "target", "overworld", "1,2,3", "plains", "1", "block"),
+                    request -> {
+                        capturedFrames.add(request);
+                        return new GameplayContextCapture.CapturedFrame("image/png", new byte[]{(byte) (captureIndex + 1)}, Instant.EPOCH);
+                    }, captureTasks::addLast, current);
+            captures.add(capture);
+            return capture;
+        }, DIRECT, DIRECT, current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                MODEL.contextTokens(), MODEL.outputTokens()));
+        runtime.openScreen();
+
+        runtime.send("Question A", true, false);
+        String conversationA = runtime.view().conversation().id();
+        runtime.newChat();
+        runtime.send("Question B", true, false);
+        String conversationB = runtime.view().conversation().id();
+        assertNotEquals(conversationA, conversationB);
+        assertEquals(2, captureTasks.size(), "both holders have queued capture work before either frame callback runs");
+        assertEquals(2, captures.size());
+        assertNotSame(captures.get(0), captures.get(1));
+
+        var sessionA = store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(conversationA)).findFirst().orElseThrow();
+        runtime.openSession(sessionA);
+        runtime.stop();
+        assertFalse(runtime.view().active());
+        while (!captureTasks.isEmpty()) captureTasks.removeFirst().run();
+
+        assertEquals(1, capturedFrames.size(), "A's cancelled queued capture cannot invoke its frame callback");
+        assertEquals(1, backend.requests.size(), "only B reaches the backend after capture work drains");
+        assertEquals(backend.requests.getFirst().requestId(), capturedFrames.getFirst().requestId().value());
+        var cancelledA = store.openConversation(WORLD, conversationA).toCompletableFuture().join().turns().getFirst();
+        assertEquals(ChatContracts.OutcomeStatus.CANCELLED, cancelledA.outcome().status());
+        var sessionB = store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(conversationB)).findFirst().orElseThrow();
+        runtime.openSession(sessionB);
+        assertTrue(runtime.view().active(), "B's exchange remains active after cancelling A's capture");
+        assertFalse(backend.cancelled.getFirst().get());
+    }
+
+    @Test
+    void steeringStoppingAndResendingAffectsOnlySelectedConversation() throws Exception {
+        var backend = new RuntimeBackend();
+        var store = new ConversationStore(Files.createTempDirectory("packsage-independent-controls"), DIRECT);
+        var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+                () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
+                DIRECT, DIRECT, current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                MODEL.contextTokens(), MODEL.outputTokens()));
+        runtime.openScreen();
+
+        runtime.send("Question A", false, false);
+        String conversationA = runtime.view().conversation().id();
+        runtime.newChat();
+        runtime.send("Question B", false, false);
+        String conversationB = runtime.view().conversation().id();
+        var sessions = store.sessions().toCompletableFuture().join();
+        var sessionA = sessions.stream().filter(summary -> summary.id().equals(conversationA)).findFirst().orElseThrow();
+        var sessionB = sessions.stream().filter(summary -> summary.id().equals(conversationB)).findFirst().orElseThrow();
+        var requestA = new ChatContracts.RequestId(backend.requests.get(0).requestId());
+        var requestB = new ChatContracts.RequestId(backend.requests.get(1).requestId());
+
+        runtime.openSession(sessionA);
+        assertTrue(runtime.steer("Steer A"));
+        assertEquals(1, backend.steered.get(0).size());
+        assertTrue(backend.steered.get(1).isEmpty(), "steering A does not send follow-up input to B");
+        assertEquals("Steer A", ((ModelBackend.TextContent) backend.steered.get(0).getFirst().content().getFirst()).text());
+        runtime.stop();
+        assertTrue(backend.cancelled.get(0).get());
+        assertFalse(backend.cancelled.get(1).get(), "stopping A leaves B active");
+        var stoppedA = store.openConversation(WORLD, conversationA).toCompletableFuture().join().turns().getFirst();
+        assertEquals(ChatContracts.OutcomeStatus.CANCELLED, stoppedA.outcome().status());
+        assertEquals("Steer A", stoppedA.steeringMessages().getFirst().text());
+
+        runtime.resend(requestA, "Replacement A", false, false);
+        assertEquals(3, backend.requests.size(), "resending A starts its own replacement while B keeps running");
+        assertFalse(backend.cancelled.get(1).get());
+        runtime.openSession(sessionB);
+        assertTrue(runtime.view().active());
+        runtime.resend(requestB, "Rejected resend B", false, false);
+        assertEquals(3, backend.requests.size(), "resend is rejected while selected B is active");
+        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("Only the latest exchange can be resent")));
+        assertFalse(backend.cancelled.get(1).get());
+
+        backend.listeners.get(2).accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                List.of(new ModelBackend.AssistantOutput("replacement-output", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER,
+                        List.of(new ModelBackend.OutputText("Replacement answer", List.of())))), null));
+        var replacedA = store.openConversation(WORLD, conversationA).toCompletableFuture().join();
+        assertEquals(1, replacedA.turns().size(), "A's resend replaces only A's latest cancelled turn");
+        assertEquals(backend.requests.get(2).requestId(), replacedA.turns().getFirst().requestId().value());
+        assertEquals("Replacement A", replacedA.turns().getFirst().question());
+        assertFalse(backend.cancelled.get(1).get(), "B remains active after A's replacement completes");
+        assertTrue(runtime.view().active());
+    }
+
+    @Test
     void markReadRequiresSelectedLoadedUnreadAndAnOldAcknowledgementCannotClearANewerCompletion() throws Exception {
         var storeRoot = Files.createTempDirectory("packsage-read-race");
         var setupStore = new ConversationStore(storeRoot, DIRECT);
@@ -714,6 +830,7 @@ class AssistantIntegrationTest {
         private final List<ToolResult> submitted = new ArrayList<>();
         private final List<java.util.function.Consumer<Event>> listeners = new ArrayList<>();
         private final List<java.util.concurrent.atomic.AtomicBoolean> cancelled = new ArrayList<>();
+        private final List<List<Message>> steered = new ArrayList<>();
         private java.util.function.Consumer<Event> events;
         private Runnable duringSignOut = () -> { };
 
@@ -722,13 +839,16 @@ class AssistantIntegrationTest {
         @Override public void signOut() { duringSignOut.run(); }
         @Override public CompletionStage<Capabilities> capabilities() { return catalog; }
         @Override public Exchange start(Request request, java.util.function.Consumer<Event> events) {
+            int requestIndex = requests.size();
             requests.add(request);
             this.events = events;
             listeners.add(events);
+            steered.add(new ArrayList<>());
             var wasCancelled = new java.util.concurrent.atomic.AtomicBoolean();
             cancelled.add(wasCancelled);
             return new Exchange() {
                 @Override public void submit(ToolResult result) { submitted.add(result); }
+                @Override public boolean steer(Message message) { steered.get(requestIndex).add(message); return true; }
                 @Override public void cancel() { wasCancelled.set(true); }
             };
         }

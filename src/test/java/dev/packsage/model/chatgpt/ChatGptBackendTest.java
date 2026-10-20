@@ -740,6 +740,8 @@ class ChatGptBackendTest {
         assertEquals(1, firstEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.CLIENT_TOOL_CALL).count());
         tasks.removeFirst().run();
         assertEquals(1, secondEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+        assertTrue(secondEvents.stream().anyMatch(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA
+                && "local answer".equals(event.text())));
         assertEquals(0, firstEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
 
         first.submit(new ModelBackend.ToolResult("call_a", "{\"found\":true}", false));
@@ -752,8 +754,12 @@ class ChatGptBackendTest {
         assertEquals("call_a", firstCompleted.replayItems().stream().filter(ModelBackend.ToolCall.class::isInstance)
                 .map(ModelBackend.ToolCall.class::cast).findFirst().orElseThrow().callId());
         assertTrue(firstCompleted.replayItems().contains(new ModelBackend.ToolResult("call_a", "{\"found\":true}", false)));
-        assertTrue(firstCompleted.replayItems().contains(new ModelBackend.OutputText("local answer", List.of())));
-        assertTrue(secondCompleted.replayItems().contains(new ModelBackend.OutputText("local answer", List.of())));
+        assertTrue(firstEvents.stream().anyMatch(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA
+                && "local answer".equals(event.text())));
+        assertTrue(firstCompleted.replayItems().contains(new ModelBackend.AssistantOutput("msg_1",
+                ModelBackend.OutputStatus.COMPLETED, null, List.of(new ModelBackend.OutputText("local answer", List.of())))));
+        assertTrue(secondCompleted.replayItems().contains(new ModelBackend.AssistantOutput("msg_1",
+                ModelBackend.OutputStatus.COMPLETED, null, List.of(new ModelBackend.OutputText("local answer", List.of())))));
         assertEquals(3, client.requests.size());
     }
 

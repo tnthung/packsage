@@ -424,6 +424,78 @@ class AssistantIntegrationTest {
     }
 
     @Test
+    void completionNoticesRequireCurrentScopeButSurviveNewChatSelection() throws Exception {
+        for (String transition : List.of("resource-invalidation", "disconnect-reenter", "new-chat")) {
+            var clientTasks = new ArrayDeque<Runnable>();
+            var notices = new ArrayList<ChatContracts.Turn>();
+            var backend = new RuntimeBackend();
+            var store = new ConversationStore(Files.createTempDirectory("packsage-notice-scope"), DIRECT);
+            var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+                    () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                    ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
+                    DIRECT, clientTasks::addLast, current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                    GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { }, notices::add);
+            runtime.enterWorld(WORLD, new Evidence.Scope("world-session", "resources", "team", "runtime", 0));
+            while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+            backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                    MODEL.contextTokens(), MODEL.outputTokens()));
+            runtime.signIn();
+            backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
+            while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+
+            runtime.send("Question A", false, false);
+            String conversationA = runtime.view().conversation().id();
+            while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+            runtime.newChat();
+            while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+            runtime.send("Question B", false, false);
+            String conversationB = runtime.view().conversation().id();
+            while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+            assertEquals(2, backend.requests.size(), transition);
+            var requestA = new ChatContracts.RequestId(backend.requests.get(0).requestId());
+            var requestB = new ChatContracts.RequestId(backend.requests.get(1).requestId());
+            for (int request = 0; request < 2; request++) {
+                backend.listeners.get(request).accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA,
+                        "Completed " + (request == 0 ? "A" : "B"), null, List.of(), List.of(), null));
+                backend.listeners.get(request).accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                        List.of(new ModelBackend.AssistantOutput("completed-" + request, ModelBackend.OutputStatus.COMPLETED,
+                                ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(
+                                "Completed " + (request == 0 ? "A" : "B"), List.of())))), null));
+            }
+            assertEquals(0, notices.size(), "completion notices are still queued before the lifecycle transition");
+
+            if (transition.equals("resource-invalidation")) {
+                runtime.invalidate(new Evidence.Scope("world-session", "resources-reloaded", "team", "runtime", 1));
+            } else if (transition.equals("disconnect-reenter")) {
+                runtime.disconnect();
+                runtime.enterWorld(WORLD, new Evidence.Scope("reconnected-session", "resources", "team", "runtime", 1));
+            } else {
+                runtime.newChat();
+            }
+            while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+
+            assertEquals(transition.equals("new-chat") ? 2 : 0, notices.size(), transition);
+            if (transition.equals("new-chat")) {
+                assertTrue(notices.stream().anyMatch(turn -> turn.requestId().equals(requestA)));
+                assertTrue(notices.stream().anyMatch(turn -> turn.requestId().equals(requestB)));
+            }
+            for (int request = 0; request < 2; request++) {
+                String conversation = request == 0 ? conversationA : conversationB;
+                var expectedRequest = request == 0 ? requestA : requestB;
+                var completed = store.openConversation(WORLD, conversation).toCompletableFuture().join().turns().getFirst();
+                assertEquals(expectedRequest, completed.requestId(), transition);
+                assertEquals(ChatContracts.OutcomeStatus.COMPLETED, completed.outcome().status(), transition);
+                assertEquals(expectedRequest, store.sessions().toCompletableFuture().join().stream()
+                        .filter(summary -> summary.id().equals(conversation)).findFirst().orElseThrow().unreadRequestId(), transition);
+            }
+            runtime.sessions().toCompletableFuture().join();
+            runtime.sessions().toCompletableFuture().join();
+            assertEquals(transition.equals("new-chat") ? 2 : 0, notices.size(),
+                    transition + " repeated summary refresh does not recreate or duplicate notices");
+        }
+    }
+
+    @Test
     void cancellingOneQueuedScreenshotCaptureLeavesTheOtherHolderCaptureRunning() throws Exception {
         var backend = new RuntimeBackend();
         var store = new ConversationStore(Files.createTempDirectory("packsage-independent-captures"), DIRECT);

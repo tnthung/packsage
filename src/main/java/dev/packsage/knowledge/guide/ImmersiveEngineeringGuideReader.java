@@ -497,7 +497,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                         Object rawDisplay = cellType.getMethod("displayList").invoke(cell);
                         if (!(rawDisplay instanceof List<?> displayList)) { opaque = true; partial = true; continue; }
                         if (resumePosition != null && compare(refPosition, cursorRef) == 0 && resumeStage == 1
-                                && nextCell == cellStart && !displayList.isEmpty() && variantStart >= displayList.size())
+                                && nextCell == cellStart && variantStart >= displayList.size()
+                                && (!displayList.isEmpty() || variantStart > 0))
                             throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                     "Immersive Engineering layout changed; restart the lookup");
                         var alternatives = new ArrayList<Evidence.JsonValue>();

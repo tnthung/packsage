@@ -862,6 +862,43 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void aConversationThatGrowsWhileAwayRestoresItsFollowBottomChoiceWithoutChangingOtherScrollState() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        screen.updateContentMetrics(1000, 200);
+
+        ChatContracts.View b = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT, false,
+                new ChatContracts.Conversation("b", actions.view.conversation().world(), List.of(),
+                        new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
+                actions.view.context(), List.of(), List.of(), List.of(), "", "");
+        screen.refresh(b);
+        screen.updateContentMetrics(1000, 200);
+        screen.mouseScrolled(400, 200, 0, 2);
+        int bOffset = screen.scrollOffset();
+        assertFalse(screen.followingBottom());
+
+        ChatContracts.Turn nextTurn = new ChatContracts.Turn(new ChatContracts.RequestId("next-request"), "next question",
+                "next answer", List.of(), actions.view.context(), actions.view.sources(), actions.view.navigationTargets(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 2, Instant.EPOCH);
+        screen.refresh(new ChatContracts.View(false, actions.view.signIn(), false,
+                new ChatContracts.Conversation("conversation", actions.view.conversation().world(),
+                        List.of(actions.view.conversation().turns().getFirst(), nextTurn),
+                        new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
+                actions.view.context(), actions.view.sources(), actions.view.navigationTargets(), List.of(), "", ""));
+        screen.updateContentMetrics(1400, 200);
+        assertEquals(1200, screen.scrollOffset());
+        assertTrue(screen.followingBottom());
+
+        screen.refresh(b);
+        screen.updateContentMetrics(1000, 200);
+        assertEquals(bOffset, screen.scrollOffset());
+        assertFalse(screen.followingBottom());
+    }
+
+    @Test
     void composerAndStopControlsFollowTheSelectedConversationView() {
         FakeActions actions = new FakeActions();
         AssistantScreen screen = new AssistantScreen(actions);

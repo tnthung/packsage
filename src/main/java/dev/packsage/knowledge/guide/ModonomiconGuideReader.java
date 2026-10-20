@@ -3,8 +3,14 @@ package dev.packsage.knowledge.guide;
 import com.klikli_dev.modonomicon.book.Book;
 import com.klikli_dev.modonomicon.book.BookCategory;
 import com.klikli_dev.modonomicon.book.BookTextHolder;
+import com.klikli_dev.modonomicon.book.ResolvedBookEntryParent;
+import com.klikli_dev.modonomicon.book.conditions.BookAndCondition;
+import com.klikli_dev.modonomicon.book.conditions.BookCondition;
+import com.klikli_dev.modonomicon.book.conditions.BookOrCondition;
 import com.klikli_dev.modonomicon.book.entries.BookEntry;
 import com.klikli_dev.modonomicon.book.page.BookPage;
+import com.klikli_dev.modonomicon.book.page.BookRecipePage;
+import com.klikli_dev.modonomicon.book.page.BookSpotlightPage;
 import com.klikli_dev.modonomicon.book.page.BookTextPage;
 import com.klikli_dev.modonomicon.bookstate.BookUnlockStateManager;
 import com.klikli_dev.modonomicon.data.BookDataManager;
@@ -12,29 +18,90 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.Toolbox;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.ComponentContents;
 import net.minecraft.network.chat.contents.PlainTextContents;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeType;
 
+import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
+import com.mojang.datafixers.util.Either;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 
 /** Bounded reads from the currently loaded Modonomicon books. */
-public final class ModonomiconGuideReader implements GuideDocumentReader {
+public class ModonomiconGuideReader implements GuideDocumentReader {
     private static final String SEPARATOR = "|";
+    private static final int MAX_RELATIONSHIP_RECORDS = 16;
+    private static final int MAX_FRAGMENT_BYTES = 8 * 1024;
+    private static final int MAX_RELATIONSHIP_BYTES = MAX_FRAGMENT_BYTES - 1024;
+    private static final int ITEMS_OPAQUE = 1;
+    private static final int RECIPES_OPAQUE = 2;
+    private static final int PREREQUISITES_OPAQUE = 4;
     private final String readerVersion;
 
     record LocalizedText(String text, boolean partial) { }
+    protected record SpotlightValue(ItemStack stack, Ingredient ingredient) { }
 
     ModonomiconGuideReader() { this("unknown"); }
 
     ModonomiconGuideReader(String version) { this.readerVersion = version; }
 
     public static KnowledgeProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor, String actualVersion) {
-        return new GuideDocumentProvider(new ModonomiconGuideReader(actualVersion), currentScope, clientExecutor);
+        var version = new DefaultArtifactVersion(actualVersion);
+        GuideDocumentReader reader = version.compareTo(new DefaultArtifactVersion("1.101.0")) < 0
+                ? new ModonomiconLegacyGuideReader(actualVersion)
+                : version.compareTo(new DefaultArtifactVersion("1.102.0")) < 0
+                ? new ModonomiconIntermediateGuideReader(actualVersion) : new ModonomiconGuideReader(actualVersion);
+        return new GuideDocumentProvider(reader, currentScope, clientExecutor);
+    }
+
+    protected SpotlightValue spotlightValue(BookSpotlightPage page) {
+        try {
+            var item = page.getClass().getMethod("getItem").invoke(page);
+            if (item instanceof Ingredient ingredient) return new SpotlightValue(null, ingredient);
+            if (item instanceof Either<?, ?> either) return either.map(
+                    stack -> stack instanceof ItemStack itemStack ? new SpotlightValue(itemStack, null) : null,
+                    value -> value instanceof Ingredient ingredient ? new SpotlightValue(null, ingredient) : null);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError unreadableSpotlight) {
+            return null;
+        }
+        return null;
+    }
+
+    protected String entryDisplayState(BookEntry entry, Player player) {
+        try {
+            return String.valueOf(entry.getClass().getMethod("getEntryDisplayState", Player.class).invoke(entry));
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailableDisplayState) {
+            return "HIDDEN";
+        }
+    }
+
+    protected static String legacyEntryDisplayState(BookEntry entry, Player player) {
+        var unlocks = BookUnlockStateManager.get();
+        var entryUnlocked = unlocks.isUnlockedFor(player, entry);
+        var anyParentUnlocked = false;
+        var allParentsUnlocked = true;
+        for (var parent : entry.getParents()) {
+            if (!(parent instanceof ResolvedBookEntryParent resolved) || resolved.getEntry() == null) return "HIDDEN";
+            var parentUnlocked = unlocks.isUnlockedFor(player, resolved.getEntry());
+            anyParentUnlocked |= parentUnlocked;
+            allParentsUnlocked &= parentUnlocked;
+        }
+        if (entry.showWhenAnyParentUnlocked() ? !anyParentUnlocked : !allParentsUnlocked) return "HIDDEN";
+        if (!entryUnlocked) return entry.hideWhileLocked() ? "HIDDEN" : "LOCKED";
+        return "UNLOCKED";
     }
 
     @Override public String providerId() { return "modonomicon"; }
@@ -101,7 +168,9 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
                         continue;
                     }
                     nextPosition = id;
-                    if (!unlocks.isUnlockedFor(player, category) || !unlocks.isUnlockedFor(player, entry)) continue;
+                    if (!unlocks.isUnlockedFor(player, category)) continue;
+                    var displayState = entryDisplayState(entry, player);
+                    if ("HIDDEN".equals(displayState)) continue;
                     if (!budget.bytes(id.length() * 6 + 2048)) {
                         if (candidates.isEmpty()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                                 "Modonomicon candidate metadata cannot fit the remaining byte budget");
@@ -144,21 +213,10 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
         } catch (RuntimeException invalidId) {
             throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "invalid Modonomicon entry identity");
         }
-        int pageIndex = 0;
-        int fieldIndex = 0;
-        int textOffset = 0;
-        if (fragmentPosition != null) {
-            var position = fragmentPosition.split(":", -1);
-            try {
-                if (position.length != 3) throw new NumberFormatException();
-                pageIndex = Integer.parseInt(position[0]);
-                fieldIndex = Integer.parseInt(position[1]);
-                textOffset = Integer.parseInt(position[2]);
-                if (pageIndex < 0 || fieldIndex < 0 || fieldIndex > 1 || textOffset < 0) throw new NumberFormatException();
-            } catch (NumberFormatException invalidPosition) {
-                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid Modonomicon text position");
-            }
-        }
+        var cursor = FragmentCursor.parse(fragmentPosition);
+        var pageIndex = cursor.pageIndex();
+        var fieldIndex = cursor.fieldIndex();
+        var textOffset = cursor.textOffset();
         var manager = BookDataManager.get();
         var book = manager.isLoaded() && manager.areBooksBuilt() ? manager.getBook(bookId) : null;
         var player = Minecraft.getInstance().player;
@@ -166,41 +224,85 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
         var category = book.getCategory(categoryId);
         var entry = category == null ? null : category.getEntry(entryId);
         var unlocks = BookUnlockStateManager.get();
-        if (entry == null || !unlocks.isUnlockedFor(player, category) || !unlocks.isUnlockedFor(player, entry)) {
+        if (entry == null || category == null || !unlocks.isUnlockedFor(player, category))
             throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "Modonomicon entry is missing or currently locked");
-        }
+        var displayState = entryDisplayState(entry, player);
+        if ("HIDDEN".equals(displayState)) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
+                "Modonomicon entry is missing or currently locked");
         var pages = entry.getPages();
-        if (fragmentPosition != null && pageIndex >= pages.size()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+        if (fragmentPosition != null && !cursor.textDone() && pageIndex >= pages.size()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                 "Modonomicon page no longer exists; restart the lookup");
+        if (!"LOCKED".equals(displayState) && pages.isEmpty()) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
+                "Modonomicon entry has no currently unlocked pages");
+        var relationships = new RelationshipCollector(cursor.relationshipPosition(), cursor.opaqueMask(), budget);
+        if (!"done".equals(cursor.relationshipPosition()))
+            readRelationships(entry, category, pages, player, displayState, unlocks, relationships);
+        var relationshipObject = relationships.jsonObject();
+        var relationshipBytes = relationships.jsonBytes();
+        if (!budget.bytes(relationshipBytes)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                "Modonomicon relationships exceed the live byte budget");
         var partial = false;
-        for (; pageIndex < pages.size(); pageIndex++, fieldIndex = 0, textOffset = 0) {
-            if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
-                    "Modonomicon page traversal reached its value budget");
-            BookPage page = pages.get(pageIndex);
-            if (!unlocks.isUnlockedFor(player, page)) continue;
-            if (!(page instanceof BookTextPage textPage)) {
-                partial = true;
-                continue;
-            }
-            for (; fieldIndex < 2; fieldIndex++, textOffset = 0) {
-                var holder = fieldIndex == 0 ? textPage.getTitle() : textPage.getText();
-                if (holder == null || !holder.hasComponent() && holder.isEmpty()) continue;
-                if (!budget.value() || !budget.bytes(64)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
-                        "Modonomicon text extraction reached its read budget");
-                var localized = localizedText(holder, Language.getInstance());
-                if (localized.text() == null) {
+        var text = "";
+        var textSourcePosition = pageIndex + ":" + fieldIndex + ":" + textOffset;
+        var textNextPosition = cursor.textDone() || "LOCKED".equals(displayState) ? null : textSourcePosition;
+        var textDone = cursor.textDone() || "LOCKED".equals(displayState);
+        var overlapChars = 0;
+        var textCoverage = Evidence.Coverage.COMPLETE;
+        String textDetail = null;
+        var foundTextFragment = false;
+        var textMaxChars = Math.max(0, Math.min(maxChars, (MAX_FRAGMENT_BYTES - relationshipBytes - 256) / 4));
+        if (textMaxChars > 0 && !textDone && !"LOCKED".equals(displayState)) {
+            for (; pageIndex < pages.size(); pageIndex++, fieldIndex = 0, textOffset = 0) {
+                if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                        "Modonomicon page traversal reached its value budget");
+                BookPage page = pages.get(pageIndex);
+                if (!unlocks.isUnlockedFor(player, page)) {
                     partial = true;
                     continue;
                 }
-                return textFragment(localized.text(), pageIndex, fieldIndex, textOffset, pages.size(), maxChars, budget,
-                        partial || localized.partial());
+                if (!(page instanceof BookTextPage textPage)) {
+                    partial = true;
+                    continue;
+                }
+                for (; fieldIndex < 2; fieldIndex++, textOffset = 0) {
+                    var holder = fieldIndex == 0 ? textPage.getTitle() : textPage.getText();
+                    if (holder == null || !holder.hasComponent() && holder.isEmpty()) continue;
+                    if (!budget.value() || !budget.bytes(64)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                            "Modonomicon text extraction reached its read budget");
+                    var localized = localizedText(holder, Language.getInstance());
+                    if (localized.text() == null) {
+                        partial = true;
+                        continue;
+                    }
+                    var textFragment = textFragment(localized.text(), pageIndex, fieldIndex, textOffset, pages.size(),
+                            textMaxChars, budget, partial || localized.partial());
+                    text = textFragment.text();
+                    textSourcePosition = textFragment.sourcePosition();
+                    textNextPosition = textFragment.nextPosition();
+                    overlapChars = textFragment.overlapChars();
+                    textCoverage = textFragment.coverage();
+                    textDetail = textFragment.detail();
+                    textDone = textNextPosition == null;
+                    foundTextFragment = true;
+                    break;
+                }
+                if (foundTextFragment || textNextPosition == null) break;
+            }
+            if (pageIndex >= pages.size()) {
+                textNextPosition = null;
+                textDone = true;
             }
         }
-        if (pageIndex == 0 && pages.isEmpty()) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
-                "Modonomicon entry has no currently unlocked pages");
-        return new Fragment("", pages.size() + ":0:0", 0, null,
-                partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                partial ? "non-text Modonomicon pages remain unread" : null);
+        var nextRelationship = relationships.nextPosition();
+        var nextPosition = nextRelationship != null ? FragmentCursor.encode(nextRelationship, relationships.opaqueMask(),
+                textDone ? "done" : textNextPosition)
+                : textNextPosition != null ? FragmentCursor.encode("done", relationships.opaqueMask(), textNextPosition) : null;
+        var relationshipPartial = relationships.coverage() != Evidence.Coverage.COMPLETE;
+        var coverage = relationshipPartial || textCoverage != Evidence.Coverage.COMPLETE || partial
+                ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
+        var detail = relationships.detail() != null ? relationships.detail() : textDetail != null ? textDetail
+                : partial ? "locked or non-text Modonomicon pages remain unread" : null;
+        return new Fragment(text, textSourcePosition, overlapChars, nextPosition, coverage, detail, relationshipObject);
     }
 
     @Override public ResolvedDocument resolve(String id, int maxChars, Toolbox.DocumentBudget budget) {
@@ -224,8 +326,8 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
         var category = book == null ? null : book.getCategory(categoryId);
         var entry = category == null ? null : category.getEntry(entryId);
         var unlocks = BookUnlockStateManager.get();
-        if (entry == null || player == null || !unlocks.isUnlockedFor(player, category)
-                || !unlocks.isUnlockedFor(player, entry)) {
+        if (entry == null || category == null || player == null || !unlocks.isUnlockedFor(player, category)
+                || "HIDDEN".equals(entryDisplayState(entry, player))) {
             throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "Modonomicon entry is unavailable or locked");
         }
         if (!budget.bytes(id.length() * 6 + 2048)) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
@@ -236,6 +338,474 @@ public final class ModonomiconGuideReader implements GuideDocumentReader {
         var candidate = new Candidate(id, title, id, List.of("modonomicon:book:" + bookId,
                 "modonomicon:category:" + categoryId), candidateCoverage);
         return new ResolvedDocument(candidate, readFragment(id, null, maxChars, budget));
+    }
+
+    private void readRelationships(BookEntry entry, BookCategory category, List<BookPage> pages, Player player,
+                                   String displayState, BookUnlockStateManager unlocks,
+                                   RelationshipCollector collector) {
+        collector.record("entry:state", "prerequisites", () -> {
+            var values = new LinkedHashMap<String, Evidence.JsonValue>();
+            values.put("kind", new Evidence.JsonString("state"));
+            values.put("scope", new Evidence.JsonString("entry"));
+            values.put("state", new Evidence.JsonString(displayState));
+            values.put("sourcePosition", new Evidence.JsonString("entry"));
+            return new Evidence.JsonObject(values);
+        });
+        if (collector.stopped()) return;
+        var parents = entry.getParents();
+        for (var index = 0; index < parents.size(); index++) {
+            var parentIndex = index;
+            var parent = parents.get(index);
+            collector.record("entry:parent:" + index, "prerequisites", () -> {
+                var values = new LinkedHashMap<String, Evidence.JsonValue>();
+                values.put("kind", new Evidence.JsonString("parent"));
+                values.put("scope", new Evidence.JsonString("entry"));
+                var parentId = resourceId(parent.getEntryId());
+                if (parentId != null) values.put("entryId", new Evidence.JsonString(parentId));
+                else collector.markOpaque("prerequisites", "a Modonomicon parent ID exceeded the identity bound");
+                values.put("sourcePosition", new Evidence.JsonString("parent:" + parentIndex));
+                return new Evidence.JsonObject(values);
+            });
+            if (collector.stopped()) return;
+        }
+        readCondition(entry.getCondition(), "entry", "root", 0, collector);
+        if (collector.stopped()) return;
+        readCondition(category.getCondition(), "category", "root", 0, collector);
+        if (collector.stopped()) return;
+        if ("LOCKED".equals(displayState)) {
+            collector.verifyResume();
+            return;
+        }
+        for (var pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
+            var currentPageIndex = pageIndex;
+            var page = pages.get(pageIndex);
+            var pageStart = "page:" + currentPageIndex + ":start";
+            if (!collector.traversePage(pageStart)) return;
+            var pageUnlocked = unlocks.isUnlockedFor(player, page);
+            if (!pageUnlocked) {
+                collector.markPartial("items", "locked Modonomicon pages were not inspected");
+                collector.markPartial("recipes", "locked Modonomicon pages were not inspected");
+                collector.markPartial("prerequisites", "locked page conditions were not inspected");
+                continue;
+            }
+            readCondition(page.getCondition(), "page", "page:" + currentPageIndex, 0, collector);
+            if (collector.stopped()) return;
+            if (page.getClass() == BookSpotlightPage.class) {
+                SpotlightValue selected;
+                try {
+                    selected = spotlightValue((BookSpotlightPage) page);
+                } catch (RuntimeException | LinkageError unreadableSpotlight) {
+                    selected = null;
+                }
+                if (selected == null) {
+                    collector.markOpaque("items", "a Modonomicon spotlight value could not be decoded");
+                } else if (selected.stack() != null) {
+                    var stack = selected.stack();
+                    if (!stack.isEmpty()) {
+                        var source = "page:" + currentPageIndex + ":spotlight:0";
+                        var decision = collector.begin(source, "items");
+                        if (decision == RelationshipCollector.Decision.STOP) return;
+                        if (decision == RelationshipCollector.Decision.PROCESS) {
+                            var itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+                    var id = resourceId(itemId);
+                    var values = new LinkedHashMap<String, Evidence.JsonValue>();
+                    values.put("kind", new Evidence.JsonString("spotlight"));
+                    values.put("sourcePosition", new Evidence.JsonString("page:" + currentPageIndex));
+                    if (id == null) {
+                        collector.markOpaque("items", "a Modonomicon spotlight item has no bounded registry identity");
+                        values.put("type", new Evidence.JsonString("opaque"));
+                    } else values.put("itemId", new Evidence.JsonString(id));
+                    collector.append(source, "items", new Evidence.JsonObject(values));
+                        }
+                    }
+                } else if (selected.ingredient() != null) {
+                    readIngredient(selected.ingredient(), currentPageIndex, collector);
+                } else {
+                    collector.markOpaque("items", "a Modonomicon spotlight value could not be decoded");
+                }
+            } else if (page instanceof BookRecipePage<?> recipePage) {
+                readRecipePage(recipePage, currentPageIndex, collector);
+            } else if (page.getClass() != BookTextPage.class) {
+                collector.markOpaque("items", "a custom Modonomicon page may declare unread item relationships");
+                collector.markOpaque("recipes", "a custom Modonomicon page may declare unread recipe relationships");
+            }
+            if (collector.stopped()) return;
+        }
+        collector.finishPages();
+        collector.verifyResume();
+    }
+
+    private static void readIngredient(Ingredient ingredient, int pageIndex, RelationshipCollector collector) {
+        if (ingredient.getClass() != Ingredient.class) {
+            collector.markOpaque("items", "a custom Modonomicon ingredient remains opaque");
+            return;
+        }
+        if (!collector.chargeExtraction("page:" + pageIndex + ":spotlight:0")) return;
+        Ingredient.Value[] alternatives;
+        try {
+            alternatives = ingredient.getValues();
+        } catch (RuntimeException | LinkageError unreadableValues) {
+            collector.markOpaque("items", "a Modonomicon ingredient alternatives list could not be read");
+            return;
+        }
+        if (alternatives.length == 0) {
+            collector.markOpaque("items", "a Modonomicon ingredient has no readable alternatives");
+            return;
+        }
+        for (var alternativeIndex = 0; alternativeIndex < alternatives.length; alternativeIndex++) {
+            var alternative = alternatives[alternativeIndex];
+            var source = "page:" + pageIndex + ":spotlight:" + alternativeIndex;
+            var decision = collector.begin(source, "items");
+            if (decision == RelationshipCollector.Decision.STOP) return;
+            if (decision == RelationshipCollector.Decision.SKIP) continue;
+            var values = new LinkedHashMap<String, Evidence.JsonValue>();
+            values.put("kind", new Evidence.JsonString("spotlight"));
+            values.put("sourcePosition", new Evidence.JsonString("page:" + pageIndex));
+            if (alternative instanceof Ingredient.ItemValue itemValue) {
+                var itemId = resourceId(BuiltInRegistries.ITEM.getKey(itemValue.item()));
+                if (itemId == null) {
+                    collector.markOpaque("items", "a Modonomicon ingredient item has no bounded registry identity");
+                    values.put("type", new Evidence.JsonString("opaque"));
+                } else values.put("itemId", new Evidence.JsonString(itemId));
+            } else if (alternative instanceof Ingredient.TagValue tagValue) {
+                var tagId = tagValue.tag() == null ? null : resourceId(tagValue.tag().location());
+                if (tagId == null) {
+                    collector.markOpaque("items", "a Modonomicon ingredient tag has no bounded registry identity");
+                    values.put("type", new Evidence.JsonString("opaque"));
+                } else values.put("tagId", new Evidence.JsonString(tagId));
+            } else {
+                collector.markOpaque("items", "a Modonomicon ingredient alternative type is unsupported");
+                values.put("type", new Evidence.JsonString("opaque"));
+            }
+            if (!collector.append(source, "items", new Evidence.JsonObject(values))) return;
+        }
+    }
+
+    private static void readRecipePage(BookRecipePage<?> page, int pageIndex, RelationshipCollector collector) {
+        try {
+            var first = (ResourceLocation) declaredField(BookRecipePage.class, "recipeId1", page);
+            var second = (ResourceLocation) declaredField(BookRecipePage.class, "recipeId2", page);
+            var recipeType = (RecipeType<?>) declaredField(BookRecipePage.class, "recipeType", page);
+            var typeId = recipeType == null ? null : BuiltInRegistries.RECIPE_TYPE.getKey(recipeType);
+            for (var slot = 0; slot < 2; slot++) {
+                var recipeId = slot == 0 ? first : second;
+                if (recipeId == null) continue;
+                var source = "page:" + pageIndex + ":recipe:" + slot;
+                var decision = collector.begin(source, "recipes");
+                if (decision == RelationshipCollector.Decision.STOP) return;
+                if (decision == RelationshipCollector.Decision.SKIP) continue;
+                var values = new LinkedHashMap<String, Evidence.JsonValue>();
+                values.put("kind", new Evidence.JsonString("recipe"));
+                values.put("sourcePosition", new Evidence.JsonString("page:" + pageIndex));
+                var recipeIdentity = resourceId(recipeId);
+                if (recipeIdentity != null) values.put("recipeId", new Evidence.JsonString(recipeIdentity));
+                else {
+                    collector.markOpaque("recipes", "a Modonomicon recipe ID exceeded the identity bound");
+                    values.put("type", new Evidence.JsonString("opaque"));
+                }
+                var recipeTypeIdentity = resourceId(typeId);
+                if (recipeTypeIdentity != null) values.put("recipeType", new Evidence.JsonString(recipeTypeIdentity));
+                else {
+                    collector.markOpaque("recipes", "a Modonomicon recipe type has no registry identity");
+                    values.putIfAbsent("type", new Evidence.JsonString("opaque"));
+                }
+                if (!collector.append(source, "recipes", new Evidence.JsonObject(values))) return;
+            }
+        } catch (ReflectiveOperationException | RuntimeException unreadableRecipePage) {
+            collector.markOpaque("recipes", "a Modonomicon recipe page declaration could not be read");
+        }
+    }
+
+    private static void readCondition(BookCondition condition, String scope, String path, int depth,
+                                      RelationshipCollector collector) {
+        if (condition == null || collector.stopped()) return;
+        var source = "condition:" + scope + ":" + path;
+        var decision = collector.begin(source, "prerequisites");
+        if (decision == RelationshipCollector.Decision.STOP) return;
+        BookCondition[] children = null;
+        var className = condition.getClass().getName();
+        if (condition.getClass() == BookAndCondition.class) children = ((BookAndCondition) condition).children();
+        else if (condition.getClass() == BookOrCondition.class) children = ((BookOrCondition) condition).children();
+        if (decision == RelationshipCollector.Decision.SKIP) {
+            if (children != null) for (var childIndex = 0; childIndex < children.length; childIndex++) {
+                readCondition(children[childIndex], scope, path + "." + childIndex, depth + 1, collector);
+                if (collector.stopped()) return;
+            }
+            return;
+        }
+        var values = new LinkedHashMap<String, Evidence.JsonValue>();
+        values.put("kind", new Evidence.JsonString("condition"));
+        values.put("scope", new Evidence.JsonString(scope));
+        values.put("path", new Evidence.JsonString(scope + ":" + path));
+        values.put("sourcePosition", new Evidence.JsonString(source));
+        ResourceLocation type = null;
+        try {
+            type = condition.getType();
+        } catch (RuntimeException | LinkageError unreadableType) {
+            collector.markOpaque("prerequisites", "a Modonomicon condition type could not be read");
+        }
+        var typeId = resourceId(type);
+        if (typeId == null) collector.markOpaque("prerequisites", "a Modonomicon condition type has no bounded identity");
+        values.put("type", new Evidence.JsonString(typeId == null ? "unknown" : typeId));
+        if (children != null) values.put("childCount", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(children.length)));
+        var fieldName = className.equals("com.klikli_dev.modonomicon.book.conditions.BookAdvancementCondition") ? "advancementId"
+                : className.equals("com.klikli_dev.modonomicon.book.conditions.BookEntryReadCondition")
+                || className.equals("com.klikli_dev.modonomicon.book.conditions.BookEntryUnlockedCondition") ? "entryId"
+                : className.equals("com.klikli_dev.modonomicon.book.conditions.BookModLoadedCondition") ? "modId"
+                : className.equals("com.klikli_dev.modonomicon.book.conditions.BookCategoryHasEntriesCondition")
+                || className.equals("com.klikli_dev.modonomicon.book.conditions.BookCategoryHasVisibleEntriesCondition")
+                ? "categoryId" : null;
+        if (fieldName != null) {
+            try {
+                var target = declaredField(condition.getClass(), fieldName, condition);
+                var targetText = target instanceof ResourceLocation id ? resourceId(id)
+                        : target instanceof String text && text.length() <= 256 ? text : null;
+                if (targetText != null) values.put(fieldName, new Evidence.JsonString(targetText));
+                else collector.markOpaque("prerequisites", "a Modonomicon condition target was unavailable");
+            } catch (ReflectiveOperationException | RuntimeException unreadableTarget) {
+                collector.markOpaque("prerequisites", "a Modonomicon condition target was unavailable");
+            }
+        } else if (children == null && !className.equals("com.klikli_dev.modonomicon.book.conditions.BookTrueCondition")
+                && !className.equals("com.klikli_dev.modonomicon.book.conditions.BookFalseCondition")
+                && !className.equals("com.klikli_dev.modonomicon.book.conditions.BookNoneCondition")) {
+            collector.markOpaque("prerequisites", "a custom Modonomicon condition remains opaque");
+        }
+        if (!collector.append(source, "prerequisites", new Evidence.JsonObject(values))) return;
+        if (children == null || children.length == 0) return;
+        if (depth >= 64) {
+            collector.markOpaque("prerequisites", "a Modonomicon condition tree exceeded depth 64");
+            return;
+        }
+        for (var childIndex = 0; childIndex < children.length; childIndex++) {
+            readCondition(children[childIndex], scope, path + "." + childIndex, depth + 1, collector);
+            if (collector.stopped()) return;
+        }
+    }
+
+    private static Object declaredField(Class<?> owner, String name, Object target) throws ReflectiveOperationException {
+        Field field = owner.getDeclaredField(name);
+        if (!field.trySetAccessible()) throw new IllegalAccessException(name);
+        return field.get(target);
+    }
+
+    private static String resourceId(ResourceLocation value) {
+        if (value == null || value.getNamespace().length() > 128 || value.getPath().length() > 256) return null;
+        return value.getNamespace() + ":" + value.getPath();
+    }
+
+    private record FragmentCursor(String relationshipPosition, int opaqueMask, int pageIndex, int fieldIndex,
+                                  int textOffset, boolean textDone) {
+        private static FragmentCursor parse(String value) {
+            if (value == null) return new FragmentCursor(null, 0, 0, 0, 0, false);
+            var encoded = value.split("\\|", -1);
+            try {
+                if (encoded.length == 4 && "v2".equals(encoded[0])) {
+                    var relationship = "^".equals(encoded[1]) ? null : encoded[1];
+                    var opaqueMask = Integer.parseInt(encoded[2]);
+                    if ("done".equals(encoded[3])) {
+                        if (opaqueMask < 0 || (opaqueMask & ~7) != 0) throw new NumberFormatException();
+                        return new FragmentCursor(relationship, opaqueMask, 0, 0, 0, true);
+                    }
+                    var text = encoded[3].split(":", -1);
+                    if (text.length != 3) throw new NumberFormatException();
+                    var pageIndex = Integer.parseInt(text[0]);
+                    var fieldIndex = Integer.parseInt(text[1]);
+                    var textOffset = Integer.parseInt(text[2]);
+                    if (opaqueMask < 0 || (opaqueMask & ~7) != 0 || pageIndex < 0 || fieldIndex < 0 || fieldIndex > 1
+                            || textOffset < 0) throw new NumberFormatException();
+                    return new FragmentCursor(relationship, opaqueMask, pageIndex, fieldIndex, textOffset, false);
+                }
+                var text = value.split(":", -1);
+                if (text.length != 3) throw new NumberFormatException();
+                var pageIndex = Integer.parseInt(text[0]);
+                var fieldIndex = Integer.parseInt(text[1]);
+                var textOffset = Integer.parseInt(text[2]);
+                if (pageIndex < 0 || fieldIndex < 0 || fieldIndex > 1 || textOffset < 0) throw new NumberFormatException();
+                return new FragmentCursor("done", 0, pageIndex, fieldIndex, textOffset, false);
+            } catch (NumberFormatException invalidPosition) {
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid Modonomicon fragment position");
+            }
+        }
+
+        private static String encode(String relationshipPosition, int opaqueMask, String textPosition) {
+            return "v2|" + (relationshipPosition == null ? "^" : relationshipPosition) + "|" + opaqueMask + "|" + textPosition;
+        }
+    }
+
+    private static final class RelationshipCollector {
+        private enum Decision { SKIP, PROCESS, STOP }
+
+        private final Toolbox.DocumentBudget budget;
+        private final String resumePosition;
+        private final boolean startsAtBeginning;
+        private final Map<String, List<Evidence.JsonObject>> values = new LinkedHashMap<>();
+        private final Map<String, Evidence.Coverage> coverage = new LinkedHashMap<>();
+        private final Map<String, String> details = new LinkedHashMap<>();
+        private String nextPosition;
+        private boolean started;
+        private boolean stopped;
+        private boolean sawPage;
+        private boolean pageGroupsApplicable;
+        private int opaqueMask;
+        private int outputRecords;
+        private int relationshipBytes;
+
+        private RelationshipCollector(String resumePosition, int opaqueMask, Toolbox.DocumentBudget budget) {
+            this.resumePosition = resumePosition;
+            this.startsAtBeginning = resumePosition == null;
+            this.started = startsAtBeginning;
+            this.opaqueMask = opaqueMask;
+            this.budget = budget;
+            if ((opaqueMask & ITEMS_OPAQUE) != 0) markOpaque("items", "earlier Modonomicon item declarations remain opaque");
+            if ((opaqueMask & RECIPES_OPAQUE) != 0) markOpaque("recipes", "earlier Modonomicon recipe declarations remain opaque");
+            if ((opaqueMask & PREREQUISITES_OPAQUE) != 0) markOpaque("prerequisites", "earlier Modonomicon prerequisite declarations remain opaque");
+        }
+
+        private Decision begin(String position, String group) {
+            if (stopped) return Decision.STOP;
+            if (!budget.value()) {
+                nextPosition = position;
+                stopped = true;
+                markPartial(group, "Modonomicon relationship extraction reached its value budget");
+                return Decision.STOP;
+            }
+            if (!started) {
+                if (!position.equals(resumePosition)) return Decision.SKIP;
+                started = true;
+            }
+            if (outputRecords >= MAX_RELATIONSHIP_RECORDS) {
+                nextPosition = position;
+                stopped = true;
+                markPartial(group, "Modonomicon relationship output reached its 16-record fragment bound");
+                markUnfinishedGroups(group);
+                return Decision.STOP;
+            }
+            return Decision.PROCESS;
+        }
+
+        private boolean record(String position, String group, Supplier<Evidence.JsonObject> value) {
+            var decision = begin(position, group);
+            return decision != Decision.PROCESS || append(position, group, value.get());
+        }
+
+        private boolean append(String position, String group, Evidence.JsonObject value) {
+            var groupValues = values.computeIfAbsent(group, ignored -> new ArrayList<>());
+            groupValues.add(value);
+            var previousBytes = relationshipBytes;
+            relationshipBytes = encodedBytes(jsonObject());
+            if (relationshipBytes > MAX_RELATIONSHIP_BYTES || relationshipBytes > budget.remainingBytes()) {
+                groupValues.removeLast();
+                relationshipBytes = previousBytes;
+                nextPosition = position;
+                stopped = true;
+                markPartial(group, "Modonomicon relationship output reached its byte bound");
+                return false;
+            }
+            outputRecords++;
+            return true;
+        }
+
+        private boolean traversePage(String position) {
+            if (stopped) return false;
+            if (!budget.value()) {
+                nextPosition = position;
+                stopped = true;
+                markPartial("items", "Modonomicon page traversal reached its value budget");
+                markPartial("recipes", "Modonomicon page traversal reached its value budget");
+                markPartial("prerequisites", "Modonomicon page traversal reached its value budget");
+                return false;
+            }
+            sawPage = true;
+            pageGroupsApplicable = true;
+            if (!started && position.equals(resumePosition)) started = true;
+            return true;
+        }
+
+        private boolean chargeExtraction(String position) {
+            if (budget.value()) return true;
+            nextPosition = position;
+            stopped = true;
+            markPartial("items", "Modonomicon ingredient extraction reached its value budget");
+            return false;
+        }
+
+        private void markPartial(String group, String detail) {
+            if (coverage.get(group) == Evidence.Coverage.OPAQUE) return;
+            coverage.put(group, Evidence.Coverage.PARTIAL);
+            details.put(group, detail);
+        }
+
+        private void markOpaque(String group, String detail) {
+            coverage.put(group, Evidence.Coverage.OPAQUE);
+            details.put(group, detail);
+            opaqueMask |= switch (group) {
+                case "items" -> ITEMS_OPAQUE;
+                case "recipes" -> RECIPES_OPAQUE;
+                default -> PREREQUISITES_OPAQUE;
+            };
+        }
+
+        private void markUnfinishedGroups(String group) {
+            if ("prerequisites".equals(group)) {
+                markPartial("items", "Modonomicon relationship continuation has not reached item pages");
+                markPartial("recipes", "Modonomicon relationship continuation has not reached recipe pages");
+            } else {
+                markPartial("items", "Modonomicon item declarations continue in a later fragment");
+                markPartial("recipes", "Modonomicon recipe declarations continue in a later fragment");
+            }
+        }
+
+        private void finishPages() {
+            if (startsAtBeginning && !stopped && pageGroupsApplicable) {
+                values.computeIfAbsent("items", ignored -> new ArrayList<>());
+                values.computeIfAbsent("recipes", ignored -> new ArrayList<>());
+            }
+            if (!stopped && resumePosition != null && !started)
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Modonomicon relationship source position no longer exists");
+        }
+
+        private void verifyResume() {
+            if (!stopped && resumePosition != null && !started)
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Modonomicon relationship source position no longer exists");
+        }
+
+        private Evidence.JsonObject jsonObject() {
+            var groups = new LinkedHashMap<String, Evidence.JsonValue>();
+            for (var group : List.of("items", "recipes", "prerequisites")) {
+                if (!values.containsKey(group) && !coverage.containsKey(group)) continue;
+                var groupValue = new LinkedHashMap<String, Evidence.JsonValue>();
+                var groupCoverage = coverage.getOrDefault(group, Evidence.Coverage.COMPLETE);
+                groupValue.put("coverage", new Evidence.JsonString(groupCoverage.name()));
+                var groupRecords = values.getOrDefault(group, List.of()).stream().map(value -> (Evidence.JsonValue) value).toList();
+                groupValue.put("values", new Evidence.JsonArray(groupRecords));
+                if (groupCoverage != Evidence.Coverage.COMPLETE)
+                    groupValue.put("detail", new Evidence.JsonString(details.getOrDefault(group,
+                            "Modonomicon relationship data remains incomplete")));
+                groups.put(group, new Evidence.JsonObject(groupValue));
+            }
+            return new Evidence.JsonObject(groups);
+        }
+
+        private int encodedBytes(Evidence.JsonObject value) {
+            return Evidence.serialize(value).getBytes(StandardCharsets.UTF_8).length;
+        }
+
+        private int jsonBytes() { return relationshipBytes = encodedBytes(jsonObject()); }
+
+        private Evidence.Coverage coverage() {
+            return coverage.values().stream().anyMatch(value -> value != Evidence.Coverage.COMPLETE)
+                    ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
+        }
+
+        private String detail() {
+            return details.values().stream().findFirst().orElse(null);
+        }
+
+        private String nextPosition() { return nextPosition; }
+
+        private int opaqueMask() { return opaqueMask; }
+
+        private boolean stopped() { return stopped; }
     }
 
     static Fragment textFragment(String text, int pageIndex, int fieldIndex, int textOffset, int pageCount,

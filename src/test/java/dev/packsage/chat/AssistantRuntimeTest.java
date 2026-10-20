@@ -2377,15 +2377,22 @@ class AssistantRuntimeTest {
 
         var newerSessions = runtime.sessions();
         while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
-        ChatContracts.SessionSummary newer = newerSessions.toCompletableFuture().join().stream()
+        List<ChatContracts.SessionSummary> newerValues = newerSessions.toCompletableFuture().join();
+        ChatContracts.SessionSummary newer = newerValues.stream()
                 .filter(session -> session.id().equals(conversationId)).findFirst().orElseThrow();
         assertEquals(new ChatContracts.RequestId(secondRequestId), newer.unreadRequestId());
-        runtime.openSession(newer);
-        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        screen.refreshSessions(newerValues);
         screen.refresh(runtime.view());
+        runtime.markRead(new ChatContracts.SessionSummary(newer.world(), newer.id(), newer.title(), newer.lastMessage(),
+                        newer.updatedAt(), newer.active(), new ChatContracts.RequestId(firstRequestId)),
+                new ChatContracts.RequestId(secondRequestId));
+        assertTrue(storeTasks.isEmpty(), "a rendered summary with a different unread ID must not authorize the expected ID");
         heldClientTasks.removeFirst().run();
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
         runtime.markRead(newer, new ChatContracts.RequestId(secondRequestId));
-        assertFalse(storeTasks.isEmpty(), "reopening the recovered newer completion should allow its durable acknowledgement");
+        assertFalse(storeTasks.isEmpty(), "the selected recovered completion should allow its durable acknowledgement without reopening");
+        storeTasks.removeFirst().run();
+        assertFalse(storeTasks.isEmpty(), "a successful acknowledgement should refresh sessions when the cached hint does not match");
         while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
         var durableSessions = store.sessions();
         while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();

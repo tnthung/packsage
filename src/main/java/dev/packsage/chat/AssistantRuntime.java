@@ -440,7 +440,7 @@ public final class AssistantRuntime implements ChatActions {
             if (holder == null || !holder.loaded || holder.loading || holder.deleting
                     || screen == null || !holder.id.equals(session.id())
                     || !holder.world.worldOrServer().equals(session.world().worldOrServer())
-                    || !expectedCompletion.equals(holder.unreadRequestId)) return;
+                    || !expectedCompletion.equals(session.unreadRequestId())) return;
             selectionGeneration = sessionSelectionGeneration;
         }
         ChatContracts.View displayed = holder.controller == null ? null : holder.controller.view();
@@ -449,7 +449,7 @@ public final class AssistantRuntime implements ChatActions {
                         && turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED)) return;
         synchronized (stateLock) {
             if (selected != holder || selectionGeneration != sessionSelectionGeneration || holder.loading || holder.deleting
-                    || currentScreen != screen || !expectedCompletion.equals(holder.unreadRequestId)) return;
+                    || currentScreen != screen) return;
             if (holder.readAttemptRequestId != null && holder.readAttemptRequestId.equals(expectedCompletion)
                     && holder.readAttemptSelectionGeneration == selectionGeneration
                     && holder.readAttemptScreen == screen) return;
@@ -473,8 +473,9 @@ public final class AssistantRuntime implements ChatActions {
                             && holder.readAttemptScreen == screen) {
                         holder.errors.add("Completion state could not be marked as read: " + failureMessage(failure));
                     }
-                } else if (!holder.deleting && expectedCompletion.equals(holder.unreadRequestId)) {
-                    holder.unreadRequestId = null;
+                } else if (!holder.deleting
+                        && holders.get(new HolderKey(holder.world.worldOrServer(), holder.id)) == holder) {
+                    if (expectedCompletion.equals(holder.unreadRequestId)) holder.unreadRequestId = null;
                     refresh = true;
                 }
                 publish = selected == holder;
@@ -1489,16 +1490,16 @@ public final class AssistantRuntime implements ChatActions {
             ChatContracts.Conversation conversation = view.conversation();
             ChatContracts.SessionSummary base = summaries.get(new HolderKey(holder.world.worldOrServer(), holder.id));
             ChatContracts.Turn last = conversation.turns().isEmpty() ? null : conversation.turns().getLast();
-            String title = last != null ? conversation.turns().getFirst().question() : view.active()
-                    ? view.activeQuestion() : base == null ? "New chat" : base.title();
-            String lastMessage = view.active() ? view.streamingAnswer() : last == null
-                    ? base == null ? "" : base.lastMessage() : last.answer();
-            Instant updatedAt = view.active() && view.activeSentAt() != null ? view.activeSentAt()
-                    : last != null && last.sentAt() != null ? last.sentAt() : base == null ? Instant.EPOCH : base.updatedAt();
-            ChatContracts.RequestId unread = holder.unreadRequestId == null && base != null
-                    ? base.unreadRequestId() : holder.unreadRequestId;
             summaries.put(new HolderKey(holder.world.worldOrServer(), holder.id), new ChatContracts.SessionSummary(
-                    holder.world, holder.id, title, lastMessage, updatedAt, view.active(), unread));
+                    holder.world, holder.id,
+                    last != null ? conversation.turns().getFirst().question() : view.active()
+                            ? view.activeQuestion() : base == null ? "New chat" : base.title(),
+                    view.active() ? view.streamingAnswer() : last == null
+                            ? base == null ? "" : base.lastMessage() : last.answer(),
+                    view.active() && view.activeSentAt() != null ? view.activeSentAt()
+                            : last != null && last.sentAt() != null ? last.sentAt()
+                            : base == null ? Instant.EPOCH : base.updatedAt(),
+                    view.active(), base == null ? null : base.unreadRequestId()));
         }
         return summaries.values().stream().sorted(java.util.Comparator.comparing(ChatContracts.SessionSummary::updatedAt).reversed())
                 .toList();

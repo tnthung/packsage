@@ -236,7 +236,12 @@ public final class ChatContracts {
         }
     }
 
-    public record SessionSummary(WorldIdentity world, String id, String title, String lastMessage, Instant updatedAt) {
+    public record SessionSummary(WorldIdentity world, String id, String title, String lastMessage, Instant updatedAt,
+                                boolean active, RequestId unreadRequestId) {
+        public SessionSummary(WorldIdentity world, String id, String title, String lastMessage, Instant updatedAt) {
+            this(world, id, title, lastMessage, updatedAt, false, null);
+        }
+
         public SessionSummary {
             Objects.requireNonNull(world);
             Objects.requireNonNull(id);

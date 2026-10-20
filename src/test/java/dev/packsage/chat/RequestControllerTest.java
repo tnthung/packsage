@@ -1,12 +1,21 @@
 package dev.packsage.chat;
 
+import dev.packsage.PackSageLog;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.ModelBackend;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.core.config.Property;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -17,8 +26,11 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -26,6 +38,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RequestControllerTest {
@@ -39,6 +53,214 @@ class RequestControllerTest {
 
     @TempDir
     Path temporaryDirectory;
+
+    @Test
+    void stopAtAcceptedLogSettlesBeforeTargetAndCaptureSetup() {
+        ConversationStore store = new ConversationStore(temporaryDirectory.resolve("accepted-stop"), DIRECT);
+        ChatContracts.Conversation seeded = store.newConversation(WORLD_A).toCompletableFuture().join();
+        FakeBackend backend = new FakeBackend();
+        List<ChatContracts.RequestId> cancelledCaptures = new ArrayList<>();
+        List<ChatContracts.Turn> completed = new ArrayList<>();
+        AtomicInteger captureCalls = new AtomicInteger();
+        AtomicInteger evidenceCalls = new AtomicInteger();
+        RequestController controller = new RequestController(store, backend, DIRECT, (capture, ignored) -> {
+            captureCalls.incrementAndGet();
+            return CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                    new ChatContracts.Context("fresh", null, capture.scope()), new byte[0]));
+        }, cancelledCaptures::add, capture -> {
+            evidenceCalls.incrementAndGet();
+            return new ChatContracts.EvidenceSelection(List.of(), List.of());
+        }, ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER,
+                                List.of(new ModelBackend.TextContent(prepared.submission().question())))), List.of(),
+                        prepared.submission().searchMode(), prepared.submission().requestId().value(),
+                        prepared.submission().outputBudget()), ignored -> { }, completed::add);
+        controller.showConversation(seeded, SCOPE_A);
+
+        LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
+        LoggerConfig loggerConfig = loggerContext.getConfiguration().getLoggerConfig(PackSageLog.LOGGER.getName());
+        Level originalLevel = loggerConfig.getLevel();
+        AtomicBoolean armed = new AtomicBoolean(true);
+        AtomicReference<Throwable> stopFailure = new AtomicReference<>();
+        AtomicReference<Thread> callbackThread = new AtomicReference<>();
+        AbstractAppender appender = new AbstractAppender("request-controller-accepted-stop", null, null, true,
+                Property.EMPTY_ARRAY) {
+            @Override
+            public void append(LogEvent event) {
+                if (event.getMessage().getFormattedMessage().contains("request=accepted-stop phase=accepted")
+                        && armed.compareAndSet(true, false)) {
+                    callbackThread.set(Thread.currentThread());
+                    try {
+                        controller.stop();
+                    } catch (Throwable failure) {
+                        stopFailure.set(failure);
+                    }
+                }
+            }
+        };
+        appender.start();
+        loggerConfig.setLevel(Level.INFO);
+        loggerConfig.addAppender(appender, Level.INFO, null);
+        loggerContext.updateLoggers();
+        CompletionStage<ChatContracts.RequestId> started;
+        try {
+            started = controller.begin(submission("accepted-stop", WORLD_A, SCOPE_A, false,
+                    new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096));
+        } finally {
+            loggerConfig.removeAppender(appender.getName());
+            loggerConfig.setLevel(originalLevel);
+            loggerContext.updateLoggers();
+            appender.stop();
+        }
+
+        assertFalse(armed.get(), "the accepted phase was intercepted exactly once");
+        assertSame(Thread.currentThread(), callbackThread.get(), "stop runs synchronously inside the accepted log callback");
+        assertNull(stopFailure.get(), "cancellation before target setup must not dereference missing request state");
+        assertTrue(started.toCompletableFuture().isCompletedExceptionally());
+        assertTrue(backend.requests.isEmpty());
+        assertEquals(0, captureCalls.get());
+        assertEquals(0, evidenceCalls.get());
+        assertEquals(List.of(new ChatContracts.RequestId("accepted-stop")), cancelledCaptures);
+        assertTrue(completed.isEmpty());
+        assertTimeoutPreemptively(Duration.ofSeconds(1), () -> controller.awaitPersistence().toCompletableFuture().join());
+    }
+
+    @Test
+    void stopDuringCaptureSetupCancelsALatePendingCaptureAndPersistsIntoSeededConversation() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory.resolve("capture-stop"), DIRECT);
+        ChatContracts.Conversation empty = store.newConversation(WORLD_A).toCompletableFuture().join();
+        ChatContracts.RequestId earlier = new ChatContracts.RequestId("seeded-earlier");
+        store.appendTurn(WORLD_A, SCOPE_A, empty.id(), new ChatContracts.Turn(earlier, "Earlier question", "Earlier answer", List.of(),
+                new ChatContracts.Context("seeded", null, SCOPE_A), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
+        ChatContracts.Conversation seeded = store.openConversation(WORLD_A, empty.id()).toCompletableFuture().join();
+        FakeBackend backend = new FakeBackend();
+        CountDownLatch captureEntered = new CountDownLatch(1);
+        CountDownLatch releaseCapture = new CountDownLatch(1);
+        CompletableFuture<ChatContracts.CapturedContext> captureStage = new CompletableFuture<>();
+        AtomicBoolean pendingCapture = new AtomicBoolean();
+        List<ChatContracts.Turn> completed = new ArrayList<>();
+        RequestController controller = new RequestController(store, backend, DIRECT, (capture, ignored) -> {
+            captureEntered.countDown();
+            try {
+                if (!releaseCapture.await(2, TimeUnit.SECONDS)) throw new IllegalStateException("capture release timed out");
+            } catch (InterruptedException failure) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("capture setup interrupted", failure);
+            }
+            pendingCapture.set(true);
+            return captureStage;
+        }, ignored -> {
+            pendingCapture.set(false);
+        }, capture -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER,
+                                List.of(new ModelBackend.TextContent(prepared.submission().question())))), List.of(),
+                        prepared.submission().searchMode(), prepared.submission().requestId().value(),
+                        prepared.submission().outputBudget()), ignored -> { }, completed::add);
+        controller.showConversation(seeded, SCOPE_A);
+
+        AtomicReference<CompletionStage<ChatContracts.RequestId>> started = new AtomicReference<>();
+        AtomicReference<Throwable> beginFailure = new AtomicReference<>();
+        Thread beginThread = new Thread(() -> {
+            try {
+                started.set(controller.begin(submission("capture-stop", WORLD_A, SCOPE_A, true,
+                        new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)));
+            } catch (Throwable failure) {
+                beginFailure.set(failure);
+            }
+        }, "request-controller-capture-stop");
+        beginThread.setDaemon(true);
+        beginThread.start();
+        assertTrue(captureEntered.await(2, TimeUnit.SECONDS), "the begin call reached the controlled capture seam");
+        controller.stop();
+        assertTrue(backend.requests.isEmpty());
+        releaseCapture.countDown();
+        beginThread.join(2_000);
+
+        assertFalse(beginThread.isAlive(), "begin returns after the paused capture setup is released");
+        assertNull(beginFailure.get());
+        assertTrue(started.get().toCompletableFuture().isCompletedExceptionally());
+        assertFalse(pendingCapture.get(), "no pending capture survives cancellation");
+        captureStage.completeExceptionally(new java.util.concurrent.CancellationException("fixture capture cancelled"));
+        assertTrue(backend.requests.isEmpty());
+        assertTrue(completed.isEmpty());
+        assertTimeoutPreemptively(Duration.ofSeconds(1), () -> controller.awaitPersistence().toCompletableFuture().join());
+
+        ChatContracts.Conversation persisted = store.openConversation(WORLD_A, seeded.id()).toCompletableFuture().join();
+        assertEquals(2, persisted.turns().size());
+        assertEquals(earlier, persisted.turns().getFirst().requestId());
+        assertEquals(new ChatContracts.RequestId("capture-stop"), persisted.turns().getLast().requestId());
+        assertEquals(ChatContracts.OutcomeStatus.CANCELLED, persisted.turns().getLast().outcome().status());
+    }
+
+    @Test
+    void rejectedActivationTokenHasNoEffectsAndDoesNotDisableFreshAdmission() {
+        ConversationStore store = new ConversationStore(temporaryDirectory.resolve("activation-token"), DIRECT);
+        ChatContracts.Conversation seeded = store.newConversation(WORLD_A).toCompletableFuture().join();
+        FakeBackend backend = new FakeBackend();
+        AtomicInteger captureCalls = new AtomicInteger();
+        AtomicInteger evidenceCalls = new AtomicInteger();
+        List<ChatContracts.Turn> completed = new ArrayList<>();
+        List<ChatContracts.View> published = new ArrayList<>();
+        RequestController controller = new RequestController(store, backend, DIRECT, (capture, ignored) -> {
+            captureCalls.incrementAndGet();
+            return CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                    new ChatContracts.Context("fresh", null, capture.scope()), new byte[0]));
+        }, ignored -> { }, capture -> {
+            evidenceCalls.incrementAndGet();
+            return new ChatContracts.EvidenceSelection(List.of(), List.of());
+        }, ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")),
+                ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()),
+                published::add, completed::add);
+        controller.showConversation(seeded, SCOPE_A);
+        ChatContracts.View initialView = controller.view();
+        int initialPublications = published.size();
+        AtomicBoolean stalePermission = new AtomicBoolean(false);
+        ChatContracts.Submission request = submission("activation-token", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096);
+
+        assertTrue(controller.begin(request, stalePermission::get).toCompletableFuture().isCompletedExceptionally());
+        assertEquals(initialView, controller.view());
+        assertEquals(initialPublications, published.size());
+        assertEquals(0, captureCalls.get());
+        assertEquals(0, evidenceCalls.get());
+        assertTrue(backend.requests.isEmpty());
+        assertTrue(completed.isEmpty());
+        assertTrue(store.openConversation(WORLD_A, seeded.id()).toCompletableFuture().join().turns().isEmpty());
+
+        AtomicBoolean freshPermission = new AtomicBoolean(true);
+        ChatContracts.Submission freshRequest = submission("fresh-activation", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096);
+        assertEquals(freshRequest.requestId(), controller.begin(freshRequest, freshPermission::get).toCompletableFuture().join());
+        assertEquals(1, captureCalls.get());
+        assertEquals(1, evidenceCalls.get());
+        assertEquals(1, backend.requests.size());
+        controller.stop();
+        controller.awaitPersistence().toCompletableFuture().join();
+        ChatContracts.View stoppedView = controller.view();
+        int effectsAfterStop = published.size();
+        int backendStartsAfterStop = backend.requests.size();
+        int capturesAfterStop = captureCalls.get();
+        int evidenceAfterStop = evidenceCalls.get();
+
+        assertTrue(controller.begin(submission("stale-after-stop", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096),
+                stalePermission::get).toCompletableFuture().isCompletedExceptionally());
+        assertEquals(stoppedView, controller.view());
+        assertEquals(effectsAfterStop, published.size());
+        assertEquals(backendStartsAfterStop, backend.requests.size());
+        assertEquals(capturesAfterStop, captureCalls.get());
+        assertEquals(evidenceAfterStop, evidenceCalls.get());
+        assertEquals(1, store.openConversation(WORLD_A, seeded.id()).toCompletableFuture().join().turns().size());
+        assertTrue(completed.isEmpty());
+    }
 
     @Test
     void completionListenerRunsOnceForAValidatedSuccessfulTurn() {
@@ -210,6 +432,48 @@ class RequestControllerTest {
         storeExecutor.drain();
         ChatContracts.Turn completed = saved.toCompletableFuture().join().turns().getFirst();
         assertEquals(sentAt, completed.sentAt());
+    }
+
+    @Test
+    void screenshotCompletionMarkerIsQueuedAfterItsCompletedTurnAppend() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        AtomicReference<String> conversationId = new AtomicReference<>();
+        List<ChatContracts.Turn> completionCallbacks = new ArrayList<>();
+        RequestController controller = new RequestController(store, backend, DIRECT,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", new ChatContracts.Screenshot("completion-order.png",
+                                "image/png", 3, Instant.EPOCH), capture.scope()), new byte[]{1, 2, 3})), ignored -> { },
+                ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")),
+                ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()), ignored -> { }, turn -> {
+                    completionCallbacks.add(turn);
+                    store.recordCompletion(WORLD_A, conversationId.get(), turn.requestId());
+                });
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        conversationId.set(opened.toCompletableFuture().join().id());
+        controller.begin(submission("screenshot-completion-order", WORLD_A, SCOPE_A, true,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        ModelBackend.Event completed = new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer", List.of())))), null);
+
+        backend.emit("screenshot-completion-order", completed);
+        backend.emit("screenshot-completion-order", completed);
+        storeExecutor.drain();
+        CompletionStage<List<ChatContracts.SessionSummary>> summaries = store.sessions();
+        storeExecutor.drain();
+
+        assertEquals(1, completionCallbacks.size());
+        assertEquals(ChatContracts.OutcomeStatus.COMPLETED, completionCallbacks.getFirst().outcome().status());
+        assertEquals(new ChatContracts.RequestId("screenshot-completion-order"), summaries.toCompletableFuture().join().getFirst()
+                .unreadRequestId());
     }
 
     @Test

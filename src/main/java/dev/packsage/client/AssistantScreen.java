@@ -71,6 +71,8 @@ public final class AssistantScreen extends Screen {
     private List<String> sourceTooltip = List.of();
     private final List<ActivityHit> activityHits = new ArrayList<>();
     private final Map<String, ActivityExpansion> activityExpansion = new LinkedHashMap<>();
+    private final Map<ConversationKey, ConversationUiState> conversationStates = new HashMap<>();
+    private final Set<ConversationKey> deletedConversationKeys = new HashSet<>();
     private final Map<ChatContracts.RequestId, CachedSourceLabels> sourceLabelCache = new HashMap<>();
     private final Set<String> expandedWorlds = new HashSet<>();
     private int sidebarScroll;
@@ -146,8 +148,13 @@ public final class AssistantScreen extends Screen {
                 else minecraft.execute(update);
             });
         } catch (RuntimeException failure) {
-            sessions = List.of();
+            if (generation == catalogGeneration) sessions = List.of();
         }
+    }
+
+    public void refreshSessions(List<ChatContracts.SessionSummary> next) {
+        catalogGeneration++;
+        sessions = List.copyOf(next);
     }
 
     @Override
@@ -181,6 +188,31 @@ public final class AssistantScreen extends Screen {
         drawPicker(graphics, mouseX, mouseY);
         drawToolbarTooltip(graphics, mouseX, mouseY);
         drawSourceTooltip(graphics, mouseX, mouseY);
+        acknowledgeRenderedUnread(minecraft != null && minecraft.screen == this);
+    }
+
+    @Override
+    public Component getNarrationMessage() {
+        List<String> unread = sessionRows().stream().filter(row -> row.session() != null
+                        && row.session().unreadRequestId() != null && row.top() + row.height() > 104
+                        && row.top() < Math.max(105, height - 56))
+                .map(row -> "Unread completed response in " + row.label()).toList();
+        if (unread.isEmpty()) return super.getNarrationMessage();
+        return Component.literal(super.getNarrationMessage().getString() + ". " + String.join(". ", unread));
+    }
+
+    private void acknowledgeRenderedUnread(boolean currentScreen) {
+        if (!currentScreen || view.active() || view.activity().equals("Loading session...")) return;
+        for (ChatContracts.SessionSummary session : sessions) {
+            ChatContracts.RequestId unreadRequestId = session.unreadRequestId();
+            if (unreadRequestId != null && !session.active()
+                    && session.world().worldOrServer().equals(view.conversation().world().worldOrServer())
+                    && session.id().equals(view.conversation().id())
+                    && view.conversation().turns().stream().anyMatch(turn -> turn.requestId().equals(unreadRequestId)
+                    && turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED)) {
+                actions.markRead(session, unreadRequestId);
+            }
+        }
     }
 
     void layout() {
@@ -302,7 +334,7 @@ public final class AssistantScreen extends Screen {
                         row.expand() ? 24 : 36, row.top() + (row.height() - font.lineHeight) / 2 + 1,
                         row.expand() || row.world().equals(view.activeWorld()) ? ModernUi.ACCENT : ModernUi.MUTED, false);
             } else {
-                if (row.session().equals(pendingDelete)) {
+                if (row.session().equals(pendingDelete) && !row.session().active()) {
                     graphics.drawString(font, Component.literal("Delete session?").withStyle(style -> style.withFont(ModernUi.FONT)),
                             24, row.top() + 1, ModernUi.TEXT, false);
                     for (int index = 0; index < 2; index++) {
@@ -329,7 +361,13 @@ public final class AssistantScreen extends Screen {
                 graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(row.session().lastMessage().replaceAll("\\s+", " "))
                                 .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, sidebarWidth - 72))),
                         24, row.top() + (34 - (ModernUi.MESSAGE_LINE_HEIGHT + font.lineHeight)) / 2 + 1 + ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.MUTED, false);
-                if (!view.active() && !awaitingRequestView && !deletingSession) {
+                if (row.session().unreadRequestId() != null) {
+                    int titleY = row.top() + (34 - (row.session().lastMessage().isBlank() ? font.lineHeight
+                            : ModernUi.MESSAGE_LINE_HEIGHT + font.lineHeight)) / 2 + 1;
+                    graphics.fill(16, titleY + (font.lineHeight - 4) / 2, 20,
+                            titleY + (font.lineHeight - 4) / 2 + 4, ModernUi.ACCENT);
+                }
+                if (!row.session().active() && !deletingSession) {
                     int x = sidebarWidth - 36;
                     ModernUi.surface(graphics, x, row.top() + 7, x + 20, row.top() + 27,
                             mouseX >= x && mouseX < x + 20 && mouseY >= row.top() + 7 && mouseY < row.top() + 27
@@ -1281,12 +1319,17 @@ public final class AssistantScreen extends Screen {
                         if (row.session().equals(pendingDelete)) {
                             if (mouseY >= row.top() + 15 && mouseY < row.top() + 32) {
                                 int confirmWidth = Math.max(1, Math.min(54, (sidebarWidth - 42) / 2));
-                                if (mouseX >= 18 && mouseX < 18 + confirmWidth && !view.active() && !awaitingRequestView && !deletingSession) {
+                                if (mouseX >= 18 && mouseX < 18 + confirmWidth && !row.session().active() && !deletingSession) {
                                     deletingSession = true;
+                                    ConversationKey deletedKey = new ConversationKey(row.session().world().worldOrServer(), row.session().id());
                                     actions.deleteSession(row.session()).whenComplete((ignored, failure) -> {
                                         Runnable update = () -> {
                                             deletingSession = false;
                                             pendingDelete = null;
+                                            if (failure == null) {
+                                                conversationStates.remove(deletedKey);
+                                                deletedConversationKeys.add(deletedKey);
+                                            }
                                             loadSessions();
                                         };
                                         if (minecraft == null) update.run();
@@ -1298,13 +1341,12 @@ public final class AssistantScreen extends Screen {
                         }
                         if (mouseX >= sidebarWidth - 36 && mouseX < sidebarWidth - 16
                                 && mouseY >= row.top() + 7 && mouseY < row.top() + 27) {
-                            if (!view.active() && !awaitingRequestView && !deletingSession) pendingDelete = row.session();
+                            if (!row.session().active() && !deletingSession) pendingDelete = row.session();
                             return true;
                         }
                         pendingDelete = null;
                         setFocused(null);
                         actions.openSession(row.session());
-                        scrollToBottom();
                         return true;
                     }
                 }
@@ -1429,27 +1471,74 @@ public final class AssistantScreen extends Screen {
         layout();
     }
 
-    public void refresh(ChatContracts.View next) {
+    private void saveConversationState(ConversationKey key) {
         if (inputEditor != null) input = inputEditor.value();
-        if (!view.conversation().id().equals(next.conversation().id()) || view.readOnly() != next.readOnly()
+        if (!deletedConversationKeys.contains(key)) conversationStates.put(key, new ConversationUiState(input, editingRequest,
+                resendingRequest, scrollOffset, followBottom, followOnCompletion, Map.copyOf(activityExpansion),
+                awaitingRequestView, pendingQuestion, pendingSentAt));
+    }
+
+    private void restoreConversationState(ConversationKey key) {
+        ConversationUiState state = conversationStates.get(key);
+        if (state == null) {
+            input = "";
+            editingRequest = null;
+            resendingRequest = null;
+            scrollOffset = 0;
+            followBottom = true;
+            followOnCompletion = true;
+            activityExpansion.clear();
+            awaitingRequestView = false;
+            pendingQuestion = "";
+            pendingSentAt = null;
+        } else {
+            input = state.input();
+            editingRequest = state.editingRequest();
+            resendingRequest = state.resendingRequest();
+            scrollOffset = state.scrollOffset();
+            followBottom = state.followBottom();
+            followOnCompletion = state.followOnCompletion();
+            activityExpansion.clear();
+            activityExpansion.putAll(state.activityExpansion());
+            awaitingRequestView = state.awaitingRequestView();
+            pendingQuestion = state.pendingQuestion();
+            pendingSentAt = state.pendingSentAt();
+        }
+        if (inputEditor != null) inputEditor.setValue(input);
+    }
+
+    public void refresh(ChatContracts.View next) {
+        Objects.requireNonNull(next);
+        if (inputEditor != null) input = inputEditor.value();
+        ConversationKey previousKey = new ConversationKey(view.conversation().world().worldOrServer(), view.conversation().id());
+        ConversationKey nextKey = new ConversationKey(next.conversation().world().worldOrServer(), next.conversation().id());
+        boolean selectionChanged = !previousKey.equals(nextKey);
+        if (selectionChanged || view.readOnly() != next.readOnly()
                 || !view.activeWorld().equals(next.activeWorld()) || !view.context().scope().equals(next.context().scope())) {
             showNavigationError(null);
         }
-        boolean completed = view.active() && !next.active();
-        boolean sessionsChanged = !view.conversation().id().equals(next.conversation().id()) || completed;
-        boolean historyLoaded = !view.conversation().id().equals(next.conversation().id())
+        if (selectionChanged) {
+            saveConversationState(previousKey);
+            restoreConversationState(nextKey);
+        }
+        boolean completed = !selectionChanged && view.active() && !next.active();
+        boolean sessionsChanged = selectionChanged || completed;
+        boolean historyLoaded = selectionChanged
                 || view.activity().equals("Loading session...") && !next.activity().equals("Loading session...");
-        if (!view.conversation().id().equals(next.conversation().id())) sourceLabelCache.clear();
-        view = Objects.requireNonNull(next);
+        if (selectionChanged) sourceLabelCache.clear();
+        view = next;
         history = null;
-        if (!next.active()) resendingRequest = null;
-        if (editingRequest != null && (next.active() || next.readOnly() || next.conversation().turns().isEmpty()
-                || !next.conversation().turns().getLast().requestId().equals(editingRequest))) editingRequest = null;
-        awaitingRequestView = false;
-        pendingQuestion = "";
-        if (!next.active()) pendingSentAt = null;
-        if (completed) followOnCompletion = followBottom;
-        if (historyLoaded) followOnCompletion = followBottom;
+        boolean loadingSession = next.activity().equals("Loading session...");
+        if (!next.active() && !loadingSession) resendingRequest = null;
+        if (editingRequest != null && (next.active() || !loadingSession
+                && (next.readOnly() || next.conversation().turns().isEmpty()
+                || !next.conversation().turns().getLast().requestId().equals(editingRequest)))) editingRequest = null;
+        if (!loadingSession) {
+            awaitingRequestView = false;
+            pendingQuestion = "";
+            if (!next.active()) pendingSentAt = null;
+        }
+        if (completed || historyLoaded) followOnCompletion = followBottom;
         layout();
         if (sessionsChanged) loadSessions();
     }
@@ -1535,7 +1624,7 @@ public final class AssistantScreen extends Screen {
     }
 
     public void stop() { actions.stop(); }
-    public void newChat() { sidebarScroll = 0; editingRequest = null; picker = null; actions.newChat(); scrollToBottom(); }
+    public void newChat() { sidebarScroll = 0; picker = null; actions.newChat(); }
     public void signIn() { actions.signIn(); }
     public void cancelSignIn() { actions.cancelSignIn(); }
     public void signOut() { actions.signOut(); }
@@ -1582,5 +1671,11 @@ public final class AssistantScreen extends Screen {
     private record WebLinkHit(String url, int left, int top, int right, int bottom) { }
     private record ActivityHit(String key, int left, int top, int right, int bottom) { }
     private record ActivityExpansion(ChatContracts.ActivityStatus status, boolean expanded) { }
+    private record ConversationKey(String worldOrServer, String id) { }
+    private record ConversationUiState(String input, ChatContracts.RequestId editingRequest,
+                                       ChatContracts.RequestId resendingRequest, int scrollOffset,
+                                       boolean followBottom, boolean followOnCompletion,
+                                       Map<String, ActivityExpansion> activityExpansion,
+                                       boolean awaitingRequestView, String pendingQuestion, Instant pendingSentAt) { }
     private record MessageAction(ChatContracts.Turn turn, boolean user, boolean edit, int x, int y, int width) { }
 }

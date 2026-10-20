@@ -20,6 +20,8 @@ public interface ChatActions {
 
     default void openSession(ChatContracts.SessionSummary session) { }
 
+    default void markRead(ChatContracts.SessionSummary session, ChatContracts.RequestId expectedCompletion) { }
+
     default CompletionStage<Void> deleteSession(ChatContracts.SessionSummary session) {
         return java.util.concurrent.CompletableFuture.failedFuture(new UnsupportedOperationException("session deletion is unavailable"));
     }

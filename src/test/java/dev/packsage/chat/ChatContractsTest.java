@@ -55,6 +55,21 @@ class ChatContractsTest {
     }
 
     @Test
+    void sessionSummaryDefaultsLegacyConstructionToInactiveAndRead() {
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        Instant updatedAt = Instant.parse("2026-10-20T00:00:00Z");
+
+        ChatContracts.SessionSummary legacy = new ChatContracts.SessionSummary(world, "session", "title", "answer", updatedAt);
+        ChatContracts.SessionSummary live = new ChatContracts.SessionSummary(world, "session", "title", "answer", updatedAt,
+                true, new ChatContracts.RequestId("request-1"));
+
+        assertEquals(false, legacy.active());
+        assertNull(legacy.unreadRequestId());
+        assertEquals(true, live.active());
+        assertEquals(new ChatContracts.RequestId("request-1"), live.unreadRequestId());
+    }
+
+    @Test
     void capturedContextOwnsScreenshotBytesAndRequiresMatchingMetadata() {
         byte[] bytes = {1, 2, 3};
         ChatContracts.CapturedContext captured = new ChatContracts.CapturedContext(new ChatContracts.Context("fresh",

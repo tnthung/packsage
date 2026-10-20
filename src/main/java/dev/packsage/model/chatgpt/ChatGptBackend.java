@@ -65,7 +65,7 @@ public final class ChatGptBackend implements ModelBackend {
     private final Map<String, Boolean> verifiedHostedSearch = new LinkedHashMap<>();
     private volatile Capabilities capabilities = new Capabilities(List.of(), null, null, null, null, null);
     private volatile CompletionStage<String> signOutStatus = CompletableFuture.completedFuture("Signed out");
-    private ExchangeImpl activeExchange;
+    private final Set<ExchangeImpl> activeExchanges = new LinkedHashSet<>();
     private long accountEpoch;
 
     public ChatGptBackend(ChatGptAuth auth, HttpClient client, Executor executor) {
@@ -82,16 +82,16 @@ public final class ChatGptBackend implements ModelBackend {
     public CompletionStage<AuthState> signIn() {
         return auth.signIn().thenApply(state -> {
             if (state.status() == AuthStatus.SIGNED_IN) {
-                ExchangeImpl previous;
+                List<ExchangeImpl> previous;
                 synchronized (exchangeLock) {
                     accountEpoch++;
                     verifiedImageInput.clear();
                     verifiedHostedSearch.clear();
-                    previous = activeExchange;
-                    activeExchange = null;
+                    previous = new ArrayList<>(activeExchanges);
+                    activeExchanges.clear();
                     capabilities = new Capabilities(List.of(), null, null, null, null, null);
                 }
-                if (previous != null) previous.cancel();
+                previous.forEach(ExchangeImpl::cancel);
             }
             return state;
         });
@@ -111,21 +111,21 @@ public final class ChatGptBackend implements ModelBackend {
 
     @Override
     public void signOut() {
-        ExchangeImpl previous;
+        List<ExchangeImpl> previous;
         CompletableFuture<String> outcome = null;
         synchronized (exchangeLock) {
             accountEpoch++;
             verifiedImageInput.clear();
             verifiedHostedSearch.clear();
-            previous = activeExchange;
-            activeExchange = null;
+            previous = new ArrayList<>(activeExchanges);
+            activeExchanges.clear();
             capabilities = new Capabilities(List.of(), null, null, null, null, null);
             if (signOutStatus.toCompletableFuture().isDone() || auth.credential() != null) {
                 outcome = new CompletableFuture<>();
                 signOutStatus = outcome;
             }
         }
-        if (previous != null) previous.cancel();
+        previous.forEach(ExchangeImpl::cancel);
         if (outcome != null) {
             CompletableFuture<String> result = outcome;
             try {
@@ -217,21 +217,15 @@ public final class ChatGptBackend implements ModelBackend {
                     effective.input(), request.tools(), SearchMode.DISABLED, request.requestId(), request.outputBudget(), request.reasoningEffort());
         }
         ExchangeImpl exchange = new ExchangeImpl(effective, events, requestAccountEpoch);
-        ExchangeImpl previous;
         boolean inactive;
         synchronized (exchangeLock) {
             inactive = accountEpoch != requestAccountEpoch;
-            previous = activeExchange;
-            if (!inactive) activeExchange = exchange;
+            if (!inactive) activeExchanges.add(exchange);
         }
         if (inactive) {
             exchange.cancel();
             events.accept(new Event(EventKind.FAILED, null, null, List.of(), "request belongs to an inactive account session"));
             return exchange;
-        }
-        if (previous != null) previous.cancel();
-        synchronized (exchangeLock) {
-            if (activeExchange != exchange) return exchange;
         }
         exchange.issue(effective.input(), "initial");
         return exchange;
@@ -1065,7 +1059,7 @@ public final class ChatGptBackend implements ModelBackend {
         private void clearIfFinished() {
             synchronized (exchangeLock) {
                 synchronized (lock) {
-                    if ((terminal || cancelled) && activeExchange == this) activeExchange = null;
+                    if (terminal || cancelled) activeExchanges.remove(this);
                 }
             }
         }

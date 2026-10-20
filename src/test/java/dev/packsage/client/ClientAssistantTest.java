@@ -1,23 +1,192 @@
 package dev.packsage.client;
 
 import dev.packsage.chat.ChatContracts;
+import dev.packsage.chat.AssistantRuntime;
+import dev.packsage.chat.ConversationStore;
+import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
+import dev.packsage.knowledge.Toolbox;
+import dev.packsage.model.GroundingInstructions;
+import dev.packsage.model.ModelBackend;
+import dev.packsage.knowledge.jei.JeiProvider;
 import dev.packsage.knowledge.jei.PackSageJeiPlugin;
+import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+import java.nio.file.Files;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertAll;
 
 class ClientAssistantTest {
+    @Test
+    void backgroundFailurePushesTerminalSessionActivityWithoutRefreshingOnTokens() throws Exception {
+        Executor direct = Runnable::run;
+        var model = new ModelBackend.ModelInfo("fixture-model", "Fixture Model", true, true, 16_000, 2_048);
+        class RuntimeBackend implements ModelBackend {
+            private final List<Request> requests = new ArrayList<>();
+            private final Map<String, Consumer<Event>> eventConsumers = new LinkedHashMap<>();
+
+            @Override
+            public CompletionStage<AuthState> signIn() {
+                return CompletableFuture.completedFuture(new AuthState(AuthStatus.SIGNED_IN, "fixture", null));
+            }
+
+            @Override
+            public void cancelSignIn() { }
+
+            @Override
+            public void signOut() { }
+
+            @Override
+            public CompletionStage<Capabilities> capabilities() {
+                return CompletableFuture.completedFuture(new Capabilities(List.of(model), model.id(), model.imageInput(),
+                        model.hostedSearch(), model.contextTokens(), model.outputTokens()));
+            }
+
+            @Override
+            public Exchange start(Request request, Consumer<Event> events) {
+                requests.add(request);
+                eventConsumers.put(request.requestId(), events);
+                return new Exchange() {
+                    @Override public void submit(ToolResult result) { }
+                    @Override public boolean steer(Message message) { return true; }
+                    @Override public void cancel() { }
+                };
+            }
+        }
+
+        var backend = new RuntimeBackend();
+        var runtime = new AssistantRuntime(new ConversationStore(Files.createTempDirectory("packsage-sidebar-activity"), direct),
+                backend, current -> new GameplayContextCapture(
+                () -> new GameplayContextCapture.Observation(null, null, "overworld", "0,0,0", "plains", "0", "unavailable"),
+                ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[0], Instant.EPOCH), direct, current),
+                direct, direct, current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(new ChatContracts.WorldIdentity("runtime-world", "Runtime World"),
+                new Evidence.Scope("world-session", "en_us", "player", "runtime", 1));
+        runtime.signIn();
+        var screen = runtime.openScreen();
+        screen.refreshSessions(runtime.sessions().toCompletableFuture().join());
+
+        runtime.send("Background A question", false, false);
+        String requestA = backend.requests.getLast().requestId();
+        String sessionA = runtime.view().conversation().id();
+        backend.eventConsumers.get(requestA).accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "A streamed text", null,
+                List.of(), null));
+        String tokenDeltaLastMessage = screen.sessionRows().stream().filter(row -> row.session() != null
+                && row.session().id().equals(sessionA)).findFirst().orElseThrow().session().lastMessage();
+
+        runtime.newChat();
+        String sessionB = runtime.view().conversation().id();
+        runtime.send("Selected B question", false, false);
+        String requestB = backend.requests.getLast().requestId();
+        backend.eventConsumers.get(requestB).accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "B remains active", null,
+                List.of(), null));
+        boolean backgroundActiveBeforeFailure = screen.sessionRows().stream().filter(row -> row.session() != null
+                && row.session().id().equals(sessionA)).findFirst().orElseThrow().session().active();
+        boolean selectedActiveBeforeFailure = screen.sessionRows().stream().filter(row -> row.session() != null
+                && row.session().id().equals(sessionB)).findFirst().orElseThrow().session().active();
+
+        backend.eventConsumers.get(requestA).accept(new ModelBackend.Event(ModelBackend.EventKind.FAILED, null, null, List.of(), "fixture failure"));
+        ChatContracts.SessionSummary backgroundAfterFailure = screen.sessionRows().stream().filter(row -> row.session() != null
+                && row.session().id().equals(sessionA)).findFirst().orElseThrow().session();
+        ChatContracts.SessionSummary selectedAfterFailure = screen.sessionRows().stream().filter(row -> row.session() != null
+                && row.session().id().equals(sessionB)).findFirst().orElseThrow().session();
+
+        assertAll(
+                () -> assertEquals("", tokenDeltaLastMessage, "streaming tokens do not reload the sidebar catalog"),
+                () -> assertTrue(backgroundActiveBeforeFailure),
+                () -> assertTrue(selectedActiveBeforeFailure),
+                () -> assertFalse(backgroundAfterFailure.active(), "a background terminal update refreshes its sidebar row"),
+                () -> assertTrue(selectedAfterFailure.active()),
+                () -> assertEquals(sessionB, runtime.view().conversation().id()),
+                () -> assertTrue(runtime.view().active()));
+    }
+
+    @Test
+    void sharedJeiProviderKeepsInterleavedRecipeEvidenceAndCursorsScoped() {
+        var scopeA = new Evidence.Scope("world", "en_us", "player", "jei-runtime", 1);
+        var scopeB = new Evidence.Scope("world", "en_us", "player", "jei-runtime", 2);
+        var openedJeiHandle = new AtomicReference<String>();
+        var sharedJeiProvider = new JeiProvider((scope, query, budget) -> new JeiProvider.Snapshot(scope,
+                scope.requestGeneration(), scope.requestGeneration(), scope.equals(scopeA) ? List.of(
+                new JeiProvider.Projection("fixture:category", "jei/1/1/fixture:category/recipe-0", null, "A one",
+                        List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
+                        Evidence.DecodingStatus.VERIFIED, null),
+                new JeiProvider.Projection("fixture:category", "jei/1/1/fixture:category/recipe-1", null, "A two",
+                        List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
+                        Evidence.DecodingStatus.VERIFIED, null)) : List.of(
+                new JeiProvider.Projection("fixture:category", "jei/2/2/fixture:category/recipe-0", null, "B one",
+                        List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
+                        Evidence.DecodingStatus.VERIFIED, null),
+                new JeiProvider.Projection("fixture:category", "jei/2/2/fixture:category/recipe-1", null, "B two",
+                        List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
+                        Evidence.DecodingStatus.VERIFIED, null)), openedJeiHandle::set, Evidence.Coverage.COMPLETE,
+                false, null), Runnable::run, () -> true);
+        var jei = new ClientAssistant.ReflectiveProvider(new ClientAssistant.OptionalStatus("jei", "jei",
+                "[19.27.0.340,20)", JeiProvider.VERSION, true, true, "supported"), () -> sharedJeiProvider);
+        var serviceA = new KnowledgeService(List.of(jei), () -> scopeA);
+        var serviceB = new KnowledgeService(List.of(jei), () -> scopeB);
+        var pageA = serviceA.execute(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of(
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"))),
+                "limit", new Evidence.JsonNumber(BigDecimal.ONE))), scopeA)).toCompletableFuture().join();
+        var sourceHandleA = pageA.records().getFirst().source().sourceHandle();
+        var handleA = "jei:" + sourceHandleA;
+        var targetA = pageA.records().getFirst().targets().getFirst();
+        var cursorA = pageA.nextCursor();
+
+        assertEquals(1, pageA.records().size());
+        assertEquals("jei/1/1/fixture:category/recipe-0", sourceHandleA);
+        assertEquals(sourceHandleA, targetA.targetId());
+        assertNotNull(cursorA);
+
+        var pageB = serviceB.execute(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of(
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"))),
+                "limit", new Evidence.JsonNumber(BigDecimal.ONE))), scopeB)).toCompletableFuture().join();
+
+        assertEquals("jei/2/2/fixture:category/recipe-0", pageB.records().getFirst().source().sourceHandle());
+        assertEquals(scopeB, pageB.records().getFirst().source().scope());
+        assertEquals(sourceHandleA, serviceA.execute(new PackSageTools.ReadRequest("read_evidence",
+                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString(handleA))))),
+                scopeA)).toCompletableFuture().join().records().getFirst().source().sourceHandle());
+        var continuedA = serviceA.execute(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of(
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"))),
+                "limit", new Evidence.JsonNumber(BigDecimal.ONE), "cursor", new Evidence.JsonString(cursorA))), scopeA))
+                .toCompletableFuture().join();
+        assertEquals("jei/1/1/fixture:category/recipe-1", continuedA.records().getFirst().source().sourceHandle());
+        assertEquals(scopeA, continuedA.records().getFirst().source().scope());
+        var refreshedTargetA = serviceA.refreshNavigation(targetA, scopeA).toCompletableFuture().join();
+        assertNotNull(refreshedTargetA);
+        assertEquals(targetA, refreshedTargetA);
+        assertEquals(Evidence.NavigationStatus.STALE, serviceB.open(targetA, scopeB).status());
+        assertEquals(Evidence.NavigationStatus.OPENED, serviceA.open(refreshedTargetA, scopeA).status());
+        assertEquals(sourceHandleA, openedJeiHandle.get());
+
+        var failure = assertThrows(Toolbox.Failure.class, () -> serviceB.execute(new PackSageTools.ReadRequest(
+                "read_evidence", new Evidence.JsonObject(Map.of("handles",
+                new Evidence.JsonArray(List.of(new Evidence.JsonString(handleA))))), scopeB)));
+        assertEquals(Toolbox.Code.INVALID_REFERENCE, failure.code());
+    }
+
     @Test
     void optionalProviderForwardsSavedDestinationResolutionToTheCurrentDelegate() {
         var scope = new Evidence.Scope("new-session", "new-resources", "player", "runtime-2", 2);

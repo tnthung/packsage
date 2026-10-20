@@ -742,10 +742,273 @@ class AssistantScreenStateTest {
         screen.mouseClicked(deleteX, row.top() + 17, 0);
         screen.mouseClicked(35, row.top() + 22, 0);
         assertEquals(List.of("delete:saved"), actions.calls);
+        actions.calls.clear();
+        var activeSaved = new ChatContracts.SessionSummary(actions.view.activeWorld(), "saved", "Saved chat", "",
+                Instant.EPOCH, true, null);
+        actions.sessions = CompletableFuture.completedFuture(List.of(activeSaved));
+        screen.refreshSessions(List.of(activeSaved));
         screen.refresh(active(actions, "", "Thinking..."));
         screen.mouseClicked(deleteX, row.top() + 17, 0);
-        screen.mouseClicked(35, row.top() + 22, 0);
-        assertEquals(1, actions.calls.stream().filter(call -> call.equals("delete:saved")).count());
+        assertFalse(actions.calls.contains("delete:saved"));
+    }
+
+    @Test
+    void sessionListPushRejectsAnOlderLoadWithoutReplacingTheSelectedView() throws Exception {
+        FakeActions actions = new FakeActions();
+        CompletableFuture<List<ChatContracts.SessionSummary>> olderLoad = new CompletableFuture<>();
+        actions.sessions = olderLoad;
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        ChatContracts.View selected = screen.view();
+        var pushed = new ChatContracts.SessionSummary(actions.view.activeWorld(), "live", "Live title", "Latest answer",
+                Instant.EPOCH, true, null);
+
+        AssistantScreen.class.getMethod("refreshSessions", List.class).invoke(screen, List.of(pushed));
+        olderLoad.complete(List.of(new ChatContracts.SessionSummary(actions.view.activeWorld(), "stale", "Stale title", "",
+                Instant.EPOCH)));
+
+        assertSame(selected, screen.view());
+        assertEquals(List.of("live"), screen.sessionRows().stream().filter(row -> row.session() != null)
+                .map(row -> row.session().id()).toList());
+    }
+
+    @Test
+    void inactiveSessionCanBeDeletedWhileAnotherRowIsActiveAndNewChatRemainsAvailable() {
+        FakeActions actions = new FakeActions();
+        var active = new ChatContracts.SessionSummary(actions.view.activeWorld(), "conversation", "Active", "Working",
+                Instant.EPOCH, true, null);
+        var inactive = new ChatContracts.SessionSummary(actions.view.activeWorld(), "saved", "Saved", "Done",
+                Instant.EPOCH, false, null);
+        actions.sessions = CompletableFuture.completedFuture(List.of(active, inactive));
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        screen.refresh(active(actions, "partial", "Writing answer…"));
+
+        screen.mouseClicked(20, 70, 0);
+        assertEquals(List.of("newChat"), actions.calls);
+        actions.calls.clear();
+        var savedRow = screen.sessionRows().stream().filter(row -> row.session() != null
+                && row.session().id().equals("saved")).findFirst().orElseThrow();
+        int deleteX = Math.min(ModernUi.SIDEBAR_WIDTH, 640 / 3) - 26;
+        screen.mouseClicked(deleteX, savedRow.top() + 17, 0);
+        screen.mouseClicked(35, savedRow.top() + 22, 0);
+        assertEquals(List.of("delete:saved"), actions.calls);
+
+        actions.calls.clear();
+        var activeRow = screen.sessionRows().stream().filter(row -> row.session() != null
+                && row.session().id().equals("conversation")).findFirst().orElseThrow();
+        screen.mouseClicked(deleteX, activeRow.top() + 17, 0);
+        screen.mouseClicked(35, activeRow.top() + 22, 0);
+        assertFalse(actions.calls.contains("delete:conversation"));
+    }
+
+    @Test
+    void conversationSwitchesRestoreSeparateDraftEditScrollFollowAndActivityState() throws Exception {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        assertTrue(screen.editLatest(new ChatContracts.RequestId("request")));
+        screen.setInput("A edited draft");
+        screen.updateContentMetrics(1000, 200);
+        screen.mouseScrolled(400, 200, 0, -100);
+        screen.mouseScrolled(400, 200, 0, 10);
+        int aOffset = screen.scrollOffset();
+        screen.updateActivityExpansion("request:request", ChatContracts.ActivityStatus.COMPLETED);
+        screen.toggleActivity("request:request");
+
+        ChatContracts.View b = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT, false,
+                new ChatContracts.Conversation("b", actions.view.conversation().world(), List.of(),
+                        new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
+                actions.view.context(), List.of(), List.of(), List.of(), "", "");
+        screen.refresh(b);
+        assertEquals("", screen.input());
+        screen.setInput("B draft");
+        screen.updateContentMetrics(1200, 200);
+        screen.mouseScrolled(400, 200, 0, -100);
+        screen.mouseScrolled(400, 200, 0, 5);
+        int bOffset = screen.scrollOffset();
+        screen.updateActivityExpansion("request:request", ChatContracts.ActivityStatus.RUNNING);
+        screen.toggleActivity("request:request");
+        assertFalse(screen.activityExpanded("request:request"));
+
+        AssistantScreen.class.getMethod("refreshSessions", List.class).invoke(screen, List.of(
+                new ChatContracts.SessionSummary(actions.view.activeWorld(), "conversation", "A", "Completed",
+                        Instant.EPOCH, true, null)));
+        assertSame(b, screen.view());
+        assertEquals("B draft", screen.input());
+        assertEquals(bOffset, screen.scrollOffset());
+        assertFalse(screen.followingBottom());
+        assertFalse(screen.activityExpanded("request:request"));
+
+        screen.refresh(actions.view);
+        assertEquals("A edited draft", screen.input());
+        assertEquals(aOffset, screen.scrollOffset());
+        assertFalse(screen.followingBottom());
+        assertTrue(screen.activityExpanded("request:request"));
+        screen.submit();
+        assertEquals("resend:request", actions.calls.getLast());
+        assertEquals("A edited draft", actions.sentQuestion);
+
+        screen.refresh(b);
+        assertEquals("B draft", screen.input());
+        assertEquals(bOffset, screen.scrollOffset());
+        assertFalse(screen.activityExpanded("request:request"));
+    }
+
+    @Test
+    void loadingReopenPreservesEditTargetUntilTheLoadedViewCanResend() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        assertTrue(screen.editLatest(new ChatContracts.RequestId("request")));
+        screen.setInput("Edited question while reopening");
+
+        screen.refresh(new ChatContracts.View(false, actions.view.signIn(), actions.view.paused(),
+                new ChatContracts.Conversation("other", actions.view.conversation().world(), List.of(),
+                        new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
+                actions.view.context(), List.of(), List.of(), List.of(), "", "", actions.view.activeWorld(), false));
+        screen.refresh(new ChatContracts.View(false, actions.view.signIn(), actions.view.paused(),
+                actions.view.conversation(), actions.view.context(), actions.view.sources(), actions.view.navigationTargets(),
+                actions.view.errors(), "", "Loading session...", actions.view.activeWorld(), true, "", null, List.of(), null, List.of()));
+
+        assertEquals("Edited question while reopening", screen.input());
+        screen.refresh(actions.view);
+        screen.submit();
+
+        assertEquals("resend:request", actions.calls.getLast());
+        assertEquals("Edited question while reopening", actions.sentQuestion);
+    }
+
+    @Test
+    void aConversationThatGrowsWhileAwayRestoresItsFollowBottomChoiceWithoutChangingOtherScrollState() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        screen.updateContentMetrics(1000, 200);
+
+        ChatContracts.View b = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT, false,
+                new ChatContracts.Conversation("b", actions.view.conversation().world(), List.of(),
+                        new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
+                actions.view.context(), List.of(), List.of(), List.of(), "", "");
+        screen.refresh(b);
+        screen.updateContentMetrics(1000, 200);
+        screen.mouseScrolled(400, 200, 0, 2);
+        int bOffset = screen.scrollOffset();
+        assertFalse(screen.followingBottom());
+
+        ChatContracts.Turn nextTurn = new ChatContracts.Turn(new ChatContracts.RequestId("next-request"), "next question",
+                "next answer", List.of(), actions.view.context(), actions.view.sources(), actions.view.navigationTargets(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 2, Instant.EPOCH);
+        screen.refresh(new ChatContracts.View(false, actions.view.signIn(), false,
+                new ChatContracts.Conversation("conversation", actions.view.conversation().world(),
+                        List.of(actions.view.conversation().turns().getFirst(), nextTurn),
+                        new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
+                actions.view.context(), actions.view.sources(), actions.view.navigationTargets(), List.of(), "", ""));
+        screen.updateContentMetrics(1400, 200);
+        assertEquals(1200, screen.scrollOffset());
+        assertTrue(screen.followingBottom());
+
+        screen.refresh(b);
+        screen.updateContentMetrics(1000, 200);
+        assertEquals(bOffset, screen.scrollOffset());
+        assertFalse(screen.followingBottom());
+    }
+
+    @Test
+    void composerAndStopControlsFollowTheSelectedConversationView() {
+        FakeActions actions = new FakeActions();
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        ChatContracts.View b = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT, false,
+                new ChatContracts.Conversation("b", actions.view.conversation().world(), List.of(),
+                        new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
+                actions.view.context(), List.of(), List.of(), List.of(), "", "");
+        screen.refresh(b);
+        screen.setInput("B question");
+        screen.submit();
+        assertEquals(List.of("send"), actions.calls);
+        assertEquals("B question", actions.sentQuestion);
+
+        screen.refresh(new ChatContracts.View(true, ChatContracts.SignInState.SIGNED_OUT, false, b.conversation(),
+                b.context(), b.sources(), b.navigationTargets(), List.of(), "partial", "Writing answer…"));
+        screen.setInput("B follow-up");
+        screen.submit();
+        screen.stop();
+        assertEquals(List.of("send", "steer", "stop"), actions.calls);
+        assertEquals("B follow-up", actions.sentQuestion);
+    }
+
+    @Test
+    void unreadAcknowledgementUsesTheExpectedRequestOnlyForDisplayedCompletedSelection() throws Exception {
+        FakeActions actions = new FakeActions();
+        var unread = new ChatContracts.SessionSummary(actions.view.activeWorld(), "conversation", "Finished title",
+                "Finished answer", Instant.EPOCH, false, new ChatContracts.RequestId("request"));
+        actions.sessions = CompletableFuture.completedFuture(List.of(unread));
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 240;
+        screen.height = 240;
+        ScreenTestHost.initialize(screen);
+        AssistantScreen.class.getMethod("refreshSessions", List.class).invoke(screen, List.of(unread));
+        var unreadRow = screen.sessionRows().stream().filter(row -> row.session() != null).findFirst().orElseThrow();
+        assertEquals("Finished title", unreadRow.label());
+        assertTrue(screen.getNarrationMessage().getString().contains("Finished title"));
+        assertTrue(screen.getNarrationMessage().getString().toLowerCase(java.util.Locale.ROOT).contains("unread"));
+        var acknowledge = AssistantScreen.class.getDeclaredMethod("acknowledgeRenderedUnread", boolean.class);
+        acknowledge.setAccessible(true);
+
+        acknowledge.invoke(screen, false);
+        assertEquals(List.of(), actions.readCalls);
+        screen.refresh(new ChatContracts.View(true, actions.view.signIn(), false, actions.view.conversation(),
+                actions.view.context(), actions.view.sources(), actions.view.navigationTargets(), List.of(), "partial", "Working"));
+        acknowledge.invoke(screen, true);
+        assertEquals(List.of(), actions.readCalls);
+        screen.refresh(new ChatContracts.View(false, actions.view.signIn(), false, actions.view.conversation(),
+                actions.view.context(), actions.view.sources(), actions.view.navigationTargets(), List.of(), "", "Loading session...",
+                actions.view.activeWorld(), false, ""));
+        acknowledge.invoke(screen, true);
+        assertEquals(List.of(), actions.readCalls);
+        screen.refresh(actions.view);
+        acknowledge.invoke(screen, true);
+        acknowledge.invoke(screen, true);
+        assertTrue(actions.readCalls.contains("conversation:request"));
+
+        var nextUnread = new ChatContracts.SessionSummary(unread.world(), unread.id(), unread.title(), unread.lastMessage(),
+                unread.updatedAt(), false, new ChatContracts.RequestId("next-request"));
+        AssistantScreen.class.getMethod("refreshSessions", List.class).invoke(screen, List.of(nextUnread));
+        acknowledge.invoke(screen, true);
+        assertFalse(actions.readCalls.contains("conversation:next-request"));
+
+        ChatContracts.Turn nextTurn = new ChatContracts.Turn(new ChatContracts.RequestId("next-request"), "next question",
+                "next answer", List.of(), actions.view.context(), actions.view.sources(), actions.view.navigationTargets(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1, Instant.EPOCH);
+        screen.refresh(new ChatContracts.View(false, actions.view.signIn(), false,
+                new ChatContracts.Conversation("conversation", actions.view.conversation().world(), List.of(nextTurn),
+                        new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
+                actions.view.context(), actions.view.sources(), actions.view.navigationTargets(), List.of(), "", ""));
+        acknowledge.invoke(screen, true);
+        assertTrue(actions.readCalls.contains("conversation:next-request"));
+
+        actions.sessions = CompletableFuture.completedFuture(List.of(nextUnread));
+        ChatContracts.View other = new ChatContracts.View(false, actions.view.signIn(), false,
+                new ChatContracts.Conversation("other", actions.view.conversation().world(), List.of(),
+                        new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
+                actions.view.context(), List.of(), List.of(), List.of(), "", "");
+        screen.refresh(other);
+        AssistantScreen.class.getMethod("refreshSessions", List.class).invoke(screen, List.of(nextUnread));
+        acknowledge.invoke(screen, true);
+        assertFalse(actions.readCalls.contains("other:next-request"));
     }
 
     @Test
@@ -1078,6 +1341,7 @@ class AssistantScreenStateTest {
         private final PackSageSettings settings = PackSageSettings.defaults();
         private java.util.Map<String, Boolean> availableAdapters = java.util.Map.of();
         private final List<String> calls = new ArrayList<>();
+        private final List<String> readCalls = new ArrayList<>();
         private String sentQuestion;
         private boolean steeringAccepted = true;
         private CompletionStage<List<ChatContracts.SessionSummary>> sessions = CompletableFuture.completedFuture(List.of());
@@ -1100,6 +1364,9 @@ class AssistantScreenStateTest {
         }
         @Override public CompletionStage<List<ChatContracts.SessionSummary>> sessions() { return sessions; }
         @Override public void openSession(ChatContracts.SessionSummary session) { calls.add("open:" + session.id()); }
+        @Override public void markRead(ChatContracts.SessionSummary session, ChatContracts.RequestId expectedCompletion) {
+            readCalls.add(session.id() + ":" + expectedCompletion.value());
+        }
         @Override public CompletionStage<Void> deleteSession(ChatContracts.SessionSummary session) {
             calls.add("delete:" + session.id());
             return CompletableFuture.completedFuture(null);

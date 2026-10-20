@@ -324,7 +324,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             if (!(rawRows instanceof Object[] rows)) { opaque = true; partial = true; continue; }
                             int rowStart = specialIndex == start[0] ? start[1] : 0;
                             if (rowStart > rows.length || rows.length > 0 && rowStart == rows.length
-                                    || specialIndex == start[0] && startStage == 1 && rowStart == rows.length)
+                                    || specialIndex == start[0] && startStage > 0 && rowStart == rows.length)
                                 throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                     "Immersive Engineering declarations changed; restart the lookup");
                             for (int rowIndex = rowStart; rowIndex < rows.length; rowIndex++) {
@@ -332,7 +332,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                                 if (!(rows[rowIndex] instanceof Object[] row)) { opaque = true; partial = true; continue; }
                                 int refStart = specialIndex == start[0] && rowIndex == start[1] ? start[2] : 0;
                                 if (refStart > row.length || row.length > 0 && refStart == row.length
-                                        || specialIndex == start[0] && rowIndex == start[1] && startStage == 1
+                                        || specialIndex == start[0] && rowIndex == start[1] && startStage > 0
                                         && refStart == row.length)
                                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                         "Immersive Engineering declarations changed; restart the lookup");
@@ -363,7 +363,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             if (!(rawRefs instanceof Object[] refs)) { opaque = true; partial = true; continue; }
                             int refStart = specialIndex == start[0] ? start[2] : 0;
                             if (refStart > refs.length || refs.length > 0 && refStart == refs.length
-                                    || specialIndex == start[0] && startStage == 1 && refStart == refs.length)
+                                    || specialIndex == start[0] && startStage > 0 && refStart == refs.length)
                                 throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                     "Immersive Engineering declarations changed; restart the lookup");
                             for (int refIndex = refStart; refIndex < refs.length; refIndex++) {
@@ -388,7 +388,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             if (!(rawFluids instanceof Object[] fluids)) { opaque = true; partial = true; continue; }
                             int fluidStart = specialIndex == start[0] ? start[2] : 0;
                             if (fluidStart > fluids.length || fluids.length > 0 && fluidStart == fluids.length
-                                    || specialIndex == start[0] && startStage == 1 && fluidStart == fluids.length)
+                                    || specialIndex == start[0] && startStage > 0 && fluidStart == fluids.length)
                                 throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                     "Immersive Engineering declarations changed; restart the lookup");
                             for (int fluidIndex = fluidStart; fluidIndex < fluids.length; fluidIndex++) {

@@ -273,7 +273,6 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     if (!initialized.getBoolean(currentManual)) {
                         unavailable = true;
                         partial = true;
-                        next = parseResume();
                         return;
                     }
                     Class<?> specialType = Class.forName("blusunrize.lib.manual.ManualEntry$SpecialElementData",
@@ -293,9 +292,12 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     if (!(rawSpecials instanceof List<?> specials)) { unavailable = true; partial = true; return; }
                     int[] start = parseResume();
                     boolean found = resumePosition == null;
+                    if (start[0] > specials.size()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                            "Immersive Engineering declarations changed; restart the lookup");
                     for (int specialIndex = start[0]; specialIndex < specials.size(); specialIndex++) {
                         if (!budget.value()) { partial = true; next = new int[] {specialIndex, 0, 0, 0, 0}; return; }
                         Object special = specials.get(specialIndex);
+                        if (specialIndex == start[0]) found = true;
                         if (!specialType.isInstance(special)) { opaque = true; partial = true; continue; }
                         if (!budget.value()) { partial = true; next = new int[] {specialIndex, 0, 0, 0, 0}; return; }
                         Object anchor = specialType.getMethod("getAnchor").invoke(special);
@@ -311,10 +313,14 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             Object rawRows = field.get(element);
                             if (!(rawRows instanceof Object[] rows)) { opaque = true; partial = true; continue; }
                             int rowStart = specialIndex == start[0] ? start[1] : 0;
+                            if (rowStart > rows.length) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                                    "Immersive Engineering declarations changed; restart the lookup");
                             for (int rowIndex = rowStart; rowIndex < rows.length; rowIndex++) {
                                 if (!budget.value()) { partial = true; next = new int[] {specialIndex, rowIndex, 0, 0, 0}; return; }
                                 if (!(rows[rowIndex] instanceof Object[] row)) { opaque = true; partial = true; continue; }
                                 int refStart = specialIndex == start[0] && rowIndex == start[1] ? start[2] : 0;
+                                if (refStart > row.length) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                                        "Immersive Engineering declarations changed; restart the lookup");
                                 for (int refIndex = refStart; refIndex < row.length; refIndex++) {
                                     int[] position = {specialIndex, rowIndex, refIndex, 0, 0};
                                     if (!found) {
@@ -341,6 +347,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             Object rawRefs = field.get(element);
                             if (!(rawRefs instanceof Object[] refs)) { opaque = true; partial = true; continue; }
                             int refStart = specialIndex == start[0] ? start[2] : 0;
+                            if (refStart > refs.length) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                                    "Immersive Engineering declarations changed; restart the lookup");
                             for (int refIndex = refStart; refIndex < refs.length; refIndex++) {
                                 int[] position = {specialIndex, 0, refIndex, 0, 0};
                                 if (!found) {
@@ -362,6 +370,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             Object rawFluids = field.get(element);
                             if (!(rawFluids instanceof Object[] fluids)) { opaque = true; partial = true; continue; }
                             int fluidStart = specialIndex == start[0] ? start[2] : 0;
+                            if (fluidStart > fluids.length) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                                    "Immersive Engineering declarations changed; restart the lookup");
                             for (int fluidIndex = fluidStart; fluidIndex < fluids.length; fluidIndex++) {
                                 int[] position = {specialIndex, 0, fluidIndex, 0, 0};
                                 if (!found) {
@@ -379,11 +389,13 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                                 if (fluidId == null || fluidId.toString().length() > 256) { opaque = true; partial = true; continue; }
                                 var value = new LinkedHashMap<String, Evidence.JsonValue>();
                                 value.put("kind", new Evidence.JsonString("fluid"));
-                                value.put("sourcePosition", new Evidence.JsonString(source(position)));
+                                String sourcePosition = source(position);
+                                value.put("sourcePosition", new Evidence.JsonString(sourcePosition));
                                 value.put("fluidId", new Evidence.JsonString(fluidId.toString()));
                                 int[] following = fluidIndex + 1 < fluids.length ? new int[] {specialIndex, 0, fluidIndex + 1, 0, 0}
                                         : new int[] {specialIndex + 1, 0, 0, 0, 0};
-                                if (!append(value, 1, 512 + id.length() * 6 + fluidId.toString().length() * 6,
+                                if (!append(value, 1, 512 + id.length() * 6 + sourcePosition.length() * 6
+                                        + fluidId.toString().length() * 6,
                                         position, following)) return;
                             }
                         } else { opaque = true; partial = true; }
@@ -400,8 +412,9 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     boolean output = (boolean) type.getMethod("isResult").invoke(ref);
                     boolean layout = (boolean) type.getMethod("isLayout").invoke(ref);
                     var value = new LinkedHashMap<String, Evidence.JsonValue>();
-                    value.put("sourcePosition", new Evidence.JsonString(source(position)));
-                    int estimate = 512 + id.length() * 6;
+                    String sourcePosition = source(position);
+                    value.put("sourcePosition", new Evidence.JsonString(sourcePosition));
+                    int estimate = 512 + id.length() * 6 + sourcePosition.length() * 6;
                     if (recipe) {
                         Object rawName = type.getMethod("getRecipeName").invoke(ref);
                         if (!(rawName instanceof ResourceLocation recipeId) || recipeId.toString().length() > 256) {
@@ -437,7 +450,12 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             "Immersive Engineering layout changed; restart the lookup");
                     var cellValues = new ArrayList<Evidence.JsonValue>();
                     int semanticCount = 1;
-                    int layoutEstimate = estimate + 256;
+                    int[] layoutPosition = {position[0], position[1], position[2], cellStart, variantStart};
+                    String layoutSourcePosition = source(layoutPosition);
+                    value.put("sourcePosition", new Evidence.JsonString(layoutSourcePosition));
+                    int layoutEstimate = 512 + id.length() * 6 + layoutSourcePosition.length() * 6 + 256;
+                    int recordCellStart = cellStart;
+                    int recordVariantStart = variantStart;
                     int nextCell = cellStart;
                     int nextVariant = variantStart;
                     for (; nextCell < cells.length; nextCell++, nextVariant = 0) {
@@ -451,8 +469,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                         if (!(amount instanceof String amountText) || amountText.length() > (MAX_RELATIONSHIP_BYTES - 1024) / 6) {
                             opaque = true;
                             partial = true;
-                            next = following;
-                            return true;
+                            continue;
                         }
                         int x = (int) cellType.getMethod("x").invoke(cell);
                         int y = (int) cellType.getMethod("y").invoke(cell);
@@ -493,12 +510,20 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                                 break;
                             }
                             alternatives.add(projected);
+                            if (cellValues.isEmpty() && alternatives.size() == 1) {
+                                recordCellStart = nextCell;
+                                recordVariantStart = variant;
+                            }
                             semanticCount++;
                             nextVariant = variant + 1;
                             layoutEstimate += alternativeEstimate;
                         }
                         if (chunkFull && alternatives.isEmpty()) break;
                         if (alternatives.isEmpty() && !displayList.isEmpty()) continue;
+                        if (cellValues.isEmpty() && alternatives.isEmpty()) {
+                            recordCellStart = nextCell;
+                            recordVariantStart = nextVariant;
+                        }
                         var cellValue = new LinkedHashMap<String, Evidence.JsonValue>();
                         cellValue.put("x", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(x)));
                         cellValue.put("y", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(y)));
@@ -523,8 +548,10 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     }
                     value.put("kind", new Evidence.JsonString("layout"));
                     value.put("cells", new Evidence.JsonArray(cellValues));
-                    int[] layoutPosition = {position[0], position[1], position[2], cellStart, variantStart};
-                    value.put("sourcePosition", new Evidence.JsonString(source(layoutPosition)));
+                    layoutPosition = new int[] {position[0], position[1], position[2], recordCellStart, recordVariantStart};
+                    String recordSourcePosition = source(layoutPosition);
+                    layoutEstimate += (recordSourcePosition.length() - layoutSourcePosition.length()) * 6;
+                    value.put("sourcePosition", new Evidence.JsonString(recordSourcePosition));
                     int[] afterLayout = nextCell < cells.length
                             ? new int[] {position[0], position[1], position[2], nextCell, nextVariant}
                             : following;

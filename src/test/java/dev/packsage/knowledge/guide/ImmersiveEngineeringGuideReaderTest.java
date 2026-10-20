@@ -253,6 +253,44 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void exhaustedByteBudgetStopsBeforeReadingUnreadLayoutSelector() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        int[] selectorReads = {0};
+        var displayList = new java.util.AbstractList<net.minecraft.world.item.ItemStack>() {
+            @Override public net.minecraft.world.item.ItemStack get(int index) {
+                selectorReads[0]++;
+                return new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_INGOT);
+            }
+
+            @Override public int size() { return 1; }
+        };
+        var layout = new blusunrize.lib.manual.utils.ManualRecipeRef(new blusunrize.lib.manual.PositionedItemStack[] {
+                new blusunrize.lib.manual.PositionedItemStack(displayList, 0, 0, "1")
+        });
+        var entry = manual.addEntry("immersiveengineering:manual/byte-budget-before-selector",
+                new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{layout}}));
+        entry.addSpecial("byte-budget-before-selector", 0);
+        var reader = new ImmersiveEngineeringGuideReader();
+        var exhausted = new Toolbox.DocumentBudget();
+        assertTrue(exhausted.bytes(exhausted.remainingBytes()));
+
+        var first = reader.readFragment("immersiveengineering:manual/byte-budget-before-selector", null, 64, exhausted);
+
+        assertNotNull(first.nextPosition(), "the unread selector must remain resumable");
+        assertEquals("0.0.0.0.0.1", first.nextPosition().split("\\|", -1)[1]);
+        assertEquals(0, selectorReads[0], "an exhausted byte budget must stop before fetching the selector");
+
+        var resumed = reader.readFragment("immersiveengineering:manual/byte-budget-before-selector",
+                first.nextPosition(), 64, new Toolbox.DocumentBudget());
+
+        assertTrue(Evidence.serialize(resumed.relationships()).contains("minecraft:iron_ingot"));
+        assertEquals(1, selectorReads[0]);
+        assertNull(resumed.nextPosition());
+    }
+
+    @Test
     void oversizedLayoutCellDoesNotHideFollowingValidCells() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();

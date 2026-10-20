@@ -461,6 +461,33 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void zeroCellLayoutAppendContinuationRetainsLayoutAndFollowingReference() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var emptyLayout = new blusunrize.lib.manual.utils.ManualRecipeRef(
+                new blusunrize.lib.manual.PositionedItemStack[0]);
+        var following = new blusunrize.lib.manual.utils.ManualRecipeRef(
+                net.minecraft.resources.ResourceLocation.parse("immersiveengineering:after_zero_cell_continuation"));
+        var entry = manual.addEntry("immersiveengineering:manual/zero-cell-continuation",
+                new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{emptyLayout, following}}));
+        entry.addSpecial("zero-cell-continuation", 0);
+        var nearlyExhausted = new Toolbox.DocumentBudget();
+        assertTrue(nearlyExhausted.bytes(nearlyExhausted.remainingBytes() - 1));
+        var reader = new ImmersiveEngineeringGuideReader();
+
+        var first = reader.readFragment("immersiveengineering:manual/zero-cell-continuation", null, 64, nearlyExhausted);
+        assertNotNull(first.nextPosition(), "the empty layout append must expose a continuation when its bytes do not fit");
+        var resumed = assertDoesNotThrow(() -> reader.readFragment("immersiveengineering:manual/zero-cell-continuation",
+                first.nextPosition(), 64, new Toolbox.DocumentBudget()));
+        var serialized = Evidence.serialize(resumed.relationships());
+
+        assertTrue(serialized.contains("\"cells\":[]"));
+        assertTrue(serialized.contains("immersiveengineering:after_zero_cell_continuation"));
+        assertNull(resumed.nextPosition());
+    }
+
+    @Test
     void clearedNonemptyLayoutRejectsItsPendingPositiveAlternativeCursor() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();
@@ -483,6 +510,41 @@ class ImmersiveEngineeringGuideReaderTest {
 
         var stale = assertThrows(Toolbox.Failure.class, () -> new ImmersiveEngineeringGuideReader().readFragment(
                 "immersiveengineering:manual/cleared-layout-alternatives", first.nextPosition(), 64,
+                new Toolbox.DocumentBudget()));
+        assertEquals(Toolbox.Code.INVALID_CURSOR, stale.code());
+    }
+
+    @Test
+    void clearedNonemptyLayoutRejectsItsPendingPositiveCellCursor() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var cells = new blusunrize.lib.manual.PositionedItemStack[16];
+        for (int index = 0; index < cells.length; index++) {
+            cells[index] = new blusunrize.lib.manual.PositionedItemStack(java.util.List.of(), index, 0,
+                    Integer.toString(index));
+        }
+        var entry = manual.addEntry("immersiveengineering:manual/cleared-layout-cell",
+                new blusunrize.lib.manual.ManualElementCrafting(new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{
+                        new blusunrize.lib.manual.utils.ManualRecipeRef(cells)
+                }}));
+        entry.addSpecial("cleared-layout-cell", 0);
+        var reader = new ImmersiveEngineeringGuideReader();
+
+        var first = reader.readFragment("immersiveengineering:manual/cleared-layout-cell", null, 64,
+                new Toolbox.DocumentBudget());
+        assertNotNull(first.nextPosition());
+        var coordinates = first.nextPosition().split("\\|", -1)[1].split("\\.", -1);
+        int pendingCell = Integer.parseInt(coordinates[3]);
+        assertTrue(pendingCell > 0, "the natural cursor must point at a pending cell");
+        var shorter = java.util.Arrays.copyOf(cells, pendingCell);
+        entry.setSpecials(java.util.List.of(new blusunrize.lib.manual.ManualEntry.SpecialElementData(
+                "cleared-layout-cell", 0, new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{
+                                new blusunrize.lib.manual.utils.ManualRecipeRef(shorter)
+                        }}))));
+
+        var stale = assertThrows(Toolbox.Failure.class, () -> reader.readFragment(
+                "immersiveengineering:manual/cleared-layout-cell", first.nextPosition(), 64,
                 new Toolbox.DocumentBudget()));
         assertEquals(Toolbox.Code.INVALID_CURSOR, stale.code());
     }

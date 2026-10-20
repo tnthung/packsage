@@ -280,6 +280,13 @@ class ModonomiconGuideReaderTest {
                     new BookTextPage(new BookTextHolder("Hidden title"), new BookTextHolder("Hidden body"), false, true, null, null)),
                     new BookTrueCondition(), List.of(lockedParent), null, false, true);
             fixture.unlock(visibleParent, List.of());
+            var player = fixture.fakeMinecraft.player;
+            var unlocks = BookUnlockStateManager.get();
+            assertTrue(unlocks.isUnlockedFor(player, visibleParent));
+            assertFalse(unlocks.isUnlockedFor(player, lockedParent));
+            assertFalse(unlocks.isUnlockedFor(player, visibleLocked));
+            assertEquals("LOCKED", visibleLocked.getEntryDisplayState(player).name());
+            assertEquals("HIDDEN", hidden.getEntryDisplayState(player).name());
 
             var candidates = new ModonomiconGuideReader("1.120.7").candidates(null, 16, new Toolbox.DocumentBudget());
             assertTrue(candidates.candidates().stream().anyMatch(candidate -> candidate.id().equals(fixture.identity(visibleLocked))));
@@ -427,7 +434,14 @@ class ModonomiconGuideReaderTest {
                     new BookEntryParent(parent.getId()), parent)).toList());
             category.getEntries().put(entry.getId(), entry);
             book.getEntries().put(entry.getId(), entry);
-            for (var index = 0; index < pages.size(); index++) pages.get(index).build(null, entry, index);
+            for (var index = 0; index < pages.size(); index++) {
+                var page = pages.get(index);
+                if (page instanceof BookRecipePage<?>) {
+                    setField(BookPage.class, "parentEntry", page, entry);
+                    setField(BookPage.class, "pageNumber", page, index);
+                    setField(BookPage.class, "book", page, book);
+                } else page.build(null, entry, index);
+            }
             return entry;
         }
 

@@ -314,6 +314,7 @@ class GuideDocumentProviderTest {
     @Test
     void relationshipOnlyFragmentMatchesDeclaredIdentity() {
         var reader = new FixtureReader();
+        reader.terminalFragment.set(true);
         reader.relationships.set(itemsRelationship("minecraft:diamond", Evidence.Coverage.COMPLETE));
         reader.firstText.set("");
         var result = search(reader, "minecraft:diamond");
@@ -352,14 +353,14 @@ class GuideDocumentProviderTest {
         reader.firstText.set("");
         var provider = new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run);
         var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
-        arguments.put("query", new Evidence.JsonString("minecraft:emerald"));
+        arguments.put("query", new Evidence.JsonString("needle"));
         arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("fixture_guide"))));
         arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
         var context = new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null);
 
         var first = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
                 new Evidence.JsonObject(arguments), SCOPE), context).toCompletableFuture().join();
-        assertTrue(first.records().isEmpty());
+        assertEquals(1, first.records().size());
         assertNotNull(first.nextCursor());
 
         reader.relationships.set(itemsRelationship("minecraft:emerald", Evidence.Coverage.COMPLETE));

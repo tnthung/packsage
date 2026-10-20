@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -310,6 +311,124 @@ class GuideDocumentProviderTest {
         assertEquals(new Evidence.JsonBoolean(false), result.records().getFirst().payload().values().get("complete"));
     }
 
+    @Test
+    void relationshipOnlyFragmentMatchesDeclaredIdentity() {
+        var reader = new FixtureReader();
+        reader.relationships.set(itemsRelationship("minecraft:diamond", Evidence.Coverage.COMPLETE));
+        reader.firstText.set("");
+        var result = search(reader, "minecraft:diamond");
+
+        assertEquals(1, result.records().size());
+        assertEquals(reader.relationships.get(), result.records().getFirst().payload().values().get("relationships"));
+    }
+
+    @Test
+    void relationshipCoverageIsNotSearchText() {
+        var reader = new FixtureReader();
+        reader.relationships.set(itemsRelationship("minecraft:diamond", Evidence.Coverage.COMPLETE));
+
+        assertTrue(search(reader, "COMPLETE").records().isEmpty());
+    }
+
+    @Test
+    void freshReadPreservesCurrentRelationships() {
+        var reader = new FixtureReader();
+        reader.relationships.set(itemsRelationship("minecraft:diamond", Evidence.Coverage.COMPLETE));
+        var provider = new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run);
+        reader.relationships.set(itemsRelationship("minecraft:emerald", Evidence.Coverage.COMPLETE));
+
+        var result = provider.query(new Evidence.Query(Evidence.Operation.GET,
+                new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("fixture:guide/entry"))), 1, null, null),
+                SCOPE).toCompletableFuture().join();
+
+        assertEquals(itemsRelationship("minecraft:emerald", Evidence.Coverage.COMPLETE),
+                result.records().getFirst().payload().values().get("relationships"));
+    }
+
+    @Test
+    void relationshipContinuationKeepsHandleAndReadsCurrentValues() {
+        var reader = new FixtureReader();
+        reader.relationships.set(itemsRelationship("minecraft:diamond", Evidence.Coverage.PARTIAL));
+        reader.firstText.set("");
+        var provider = new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run);
+        var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+        arguments.put("query", new Evidence.JsonString("minecraft:emerald"));
+        arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("fixture_guide"))));
+        arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
+        var context = new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null);
+
+        var first = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(arguments), SCOPE), context).toCompletableFuture().join();
+        assertTrue(first.records().isEmpty());
+        assertNotNull(first.nextCursor());
+
+        reader.relationships.set(itemsRelationship("minecraft:emerald", Evidence.Coverage.COMPLETE));
+        arguments.put("cursor", new Evidence.JsonString(first.nextCursor()));
+        var continued = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(arguments), SCOPE), context).toCompletableFuture().join();
+
+        assertEquals("fixture:guide/entry", continued.records().getFirst().source().sourceHandle());
+        assertEquals(reader.relationships.get(), continued.records().getFirst().payload().values().get("relationships"));
+    }
+
+    @Test
+    void textOnlyFragmentsKeepExistingPayloadShape() {
+        var result = search(new FixtureReader(), "needle");
+
+        assertFalse(result.records().getFirst().payload().values().containsKey("relationships"));
+    }
+
+    @Test
+    void absentEmptyPartialAndOpaqueRelationshipGroupsRemainDistinct() {
+        var absent = new FixtureReader();
+        assertFalse(search(absent, "diamond").records().getFirst().payload().values().containsKey("relationships"));
+
+        for (var coverage : List.of(Evidence.Coverage.COMPLETE, Evidence.Coverage.PARTIAL, Evidence.Coverage.OPAQUE)) {
+            var reader = new FixtureReader();
+            reader.relationships.set(itemsRelationship(null, coverage));
+            var record = search(reader, "needle").records().getFirst();
+            assertEquals(reader.relationships.get(), record.payload().values().get("relationships"));
+            assertEquals(new Evidence.JsonBoolean(coverage != Evidence.Coverage.COMPLETE), record.payload().values().get("complete"));
+        }
+    }
+
+    @Test
+    void malformedAndOversizedRelationshipGroupsAreRejected() {
+        var malformed = new FixtureReader();
+        malformed.relationships.set(new Evidence.JsonObject(Map.of("items", new Evidence.JsonObject(Map.of(
+                "coverage", new Evidence.JsonString("COMPLETE"), "values", new Evidence.JsonString("not-an-array"))))));
+        assertExtractionFailure(malformed);
+
+        var oversized = new FixtureReader();
+        oversized.relationships.set(new Evidence.JsonObject(Map.of("items", new Evidence.JsonObject(Map.of(
+                "coverage", new Evidence.JsonString("COMPLETE"), "values", new Evidence.JsonArray(
+                        java.util.Collections.nCopies(17, new Evidence.JsonString("minecraft:diamond"))))))));
+        assertExtractionFailure(oversized);
+    }
+
+    private static Evidence.Result search(FixtureReader reader, String query) {
+        var provider = new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run);
+        return provider.searchDocument(new PackSageTools.ReadRequest("search_document", new Evidence.JsonObject(Map.of(
+                "query", new Evidence.JsonString(query), "filter", new Evidence.JsonObject(Map.of(
+                        "provider", new Evidence.JsonString("fixture_guide")))), SCOPE),
+                new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null))
+                .toCompletableFuture().join();
+    }
+
+    private static void assertExtractionFailure(FixtureReader reader) {
+        var failure = assertThrows(CompletionException.class, () -> search(reader, "needle"));
+        assertEquals(Toolbox.Code.EXTRACTION_FAILED, ((Toolbox.Failure) failure.getCause()).code());
+    }
+
+    private static Evidence.JsonObject itemsRelationship(String itemId, Evidence.Coverage coverage) {
+        var values = itemId == null ? List.<Evidence.JsonValue>of() : List.<Evidence.JsonValue>of(
+                new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("associated"),
+                        "sourcePosition", new Evidence.JsonString("page:first"),
+                        "itemId", new Evidence.JsonString(itemId))));
+        return new Evidence.JsonObject(Map.of("items", new Evidence.JsonObject(Map.of(
+                "coverage", new Evidence.JsonString(coverage.name()), "values", new Evidence.JsonArray(values)))));
+    }
+
     private static final class FixtureReader implements GuideDocumentReader {
         private final String providerId;
         private final String candidateId;
@@ -327,6 +446,7 @@ class GuideDocumentProviderTest {
         private final AtomicBoolean manyCandidates = new AtomicBoolean();
         private final AtomicInteger inspectedCandidates = new AtomicInteger();
         private final AtomicBoolean partialTerminalFragment = new AtomicBoolean();
+        private final AtomicReference<Evidence.JsonObject> relationships = new AtomicReference<>(new Evidence.JsonObject(Map.of()));
 
         private FixtureReader() { this("fixture_guide", "fixture:guide/entry"); }
 
@@ -373,7 +493,7 @@ class GuideDocumentProviderTest {
         @Override
         public Fragment readFragment(String id, String fragmentPosition, int maxChars, Toolbox.DocumentBudget budget) {
             if (partialTerminalFragment.get()) return new Fragment("bounded text", "page:first", 0, null,
-                    Evidence.Coverage.PARTIAL, "truncated source text");
+                    Evidence.Coverage.PARTIAL, "truncated source text", relationships.get());
             if (fragmentPosition == null && exhaustFirstFragment.compareAndSet(true, false)
                     || fragmentPosition != null && exhaustSecondFragment.compareAndSet(true, false)) {
                 while (budget.value()) { }
@@ -381,9 +501,9 @@ class GuideDocumentProviderTest {
             }
             if (!budget.value()) return new Fragment("", "page:budget", 0, null, Evidence.Coverage.PARTIAL, "budget exhausted");
             if (fragmentPosition == null) return new Fragment(boundaryMode.get() ? "intro live " : firstText.get(),
-                    "page:first", 0, "page:second", Evidence.Coverage.COMPLETE, null);
+                    "page:first", 0, "page:second", Evidence.Coverage.COMPLETE, null, relationships.get());
             return new Fragment(boundaryMode.get() ? "live guide continuation" : secondText.get(), "page:second",
-                    boundaryMode.get() ? 5 : 0, null, Evidence.Coverage.COMPLETE, null);
+                    boundaryMode.get() ? 5 : 0, null, Evidence.Coverage.COMPLETE, null, relationships.get());
         }
 
         @Override

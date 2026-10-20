@@ -276,12 +276,11 @@ class AssistantRuntimeTest {
         FakeBackend backend = new FakeBackend();
         var delayedControllerTasks = new java.util.ArrayDeque<Runnable>();
         AtomicBoolean delaySettlement = new AtomicBoolean();
-        Executor controllerExecutor = task -> {
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-reserved-publication"), DIRECT);
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), task -> {
             if (delaySettlement.get() && backend.starts > 0) delayedControllerTasks.addLast(task);
             else task.run();
-        };
-        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-reserved-publication"), DIRECT);
-        var runtime = new AssistantRuntime(store, backend, captureFactory(), controllerExecutor, DIRECT,
+        }, DIRECT,
                 current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
                 prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
                         new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(

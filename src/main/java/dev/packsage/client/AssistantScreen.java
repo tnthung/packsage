@@ -1471,10 +1471,6 @@ public final class AssistantScreen extends Screen {
         layout();
     }
 
-    private ConversationKey conversationKey(ChatContracts.View candidate) {
-        return new ConversationKey(candidate.conversation().world().worldOrServer(), candidate.conversation().id());
-    }
-
     private void saveConversationState(ConversationKey key) {
         if (inputEditor != null) input = inputEditor.value();
         if (!deletedConversationKeys.contains(key)) conversationStates.put(key, new ConversationUiState(input, editingRequest,
@@ -1514,8 +1510,8 @@ public final class AssistantScreen extends Screen {
     public void refresh(ChatContracts.View next) {
         Objects.requireNonNull(next);
         if (inputEditor != null) input = inputEditor.value();
-        ConversationKey previousKey = conversationKey(view);
-        ConversationKey nextKey = conversationKey(next);
+        ConversationKey previousKey = new ConversationKey(view.conversation().world().worldOrServer(), view.conversation().id());
+        ConversationKey nextKey = new ConversationKey(next.conversation().world().worldOrServer(), next.conversation().id());
         boolean selectionChanged = !previousKey.equals(nextKey);
         if (selectionChanged || view.readOnly() != next.readOnly()
                 || !view.activeWorld().equals(next.activeWorld()) || !view.context().scope().equals(next.context().scope())) {

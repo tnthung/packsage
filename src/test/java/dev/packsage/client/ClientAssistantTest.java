@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -29,20 +30,21 @@ class ClientAssistantTest {
     void sharedJeiProviderKeepsInterleavedRecipeEvidenceAndCursorsScoped() {
         var scopeA = new Evidence.Scope("world", "en_us", "player", "jei-runtime", 1);
         var scopeB = new Evidence.Scope("world", "en_us", "player", "jei-runtime", 2);
+        var openedJeiHandle = new AtomicReference<String>();
         var sharedJeiProvider = new JeiProvider((scope, query, budget) -> new JeiProvider.Snapshot(scope,
                 scope.requestGeneration(), scope.requestGeneration(), scope.equals(scopeA) ? List.of(
-                new JeiProvider.Projection("fixture:category", "fixture:recipe/a-one", "fixture:a-one", "A one",
+                new JeiProvider.Projection("fixture:category", "jei/1/1/fixture:category/recipe-0", null, "A one",
                         List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
                         Evidence.DecodingStatus.VERIFIED, null),
-                new JeiProvider.Projection("fixture:category", "fixture:recipe/a-two", "fixture:a-two", "A two",
+                new JeiProvider.Projection("fixture:category", "jei/1/1/fixture:category/recipe-1", null, "A two",
                         List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
                         Evidence.DecodingStatus.VERIFIED, null)) : List.of(
-                new JeiProvider.Projection("fixture:category", "fixture:recipe/b-one", "fixture:b-one", "B one",
+                new JeiProvider.Projection("fixture:category", "jei/2/2/fixture:category/recipe-0", null, "B one",
                         List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
                         Evidence.DecodingStatus.VERIFIED, null),
-                new JeiProvider.Projection("fixture:category", "fixture:recipe/b-two", "fixture:b-two", "B two",
+                new JeiProvider.Projection("fixture:category", "jei/2/2/fixture:category/recipe-1", null, "B two",
                         List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
-                        Evidence.DecodingStatus.VERIFIED, null)), ignored -> { }, Evidence.Coverage.COMPLETE,
+                        Evidence.DecodingStatus.VERIFIED, null)), openedJeiHandle::set, Evidence.Coverage.COMPLETE,
                 false, null), Runnable::run, () -> true);
         var jei = new ClientAssistant.ReflectiveProvider(new ClientAssistant.OptionalStatus("jei", "jei",
                 "[19.27.0.340,20)", JeiProvider.VERSION, true, true, "supported"), () -> sharedJeiProvider);
@@ -53,28 +55,35 @@ class ClientAssistantTest {
                 "limit", new Evidence.JsonNumber(BigDecimal.ONE))), scopeA)).toCompletableFuture().join();
         var sourceHandleA = pageA.records().getFirst().source().sourceHandle();
         var handleA = "jei:" + sourceHandleA;
+        var targetA = pageA.records().getFirst().targets().getFirst();
         var cursorA = pageA.nextCursor();
 
         assertEquals(1, pageA.records().size());
-        assertEquals("fixture:recipe/a-one", sourceHandleA);
-        assertEquals("jei:fixture:recipe/a-one", handleA);
+        assertEquals("jei/1/1/fixture:category/recipe-0", sourceHandleA);
+        assertEquals(sourceHandleA, targetA.targetId());
         assertNotNull(cursorA);
 
         var pageB = serviceB.execute(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of(
                 "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"))),
                 "limit", new Evidence.JsonNumber(BigDecimal.ONE))), scopeB)).toCompletableFuture().join();
 
-        assertEquals("fixture:recipe/b-one", pageB.records().getFirst().source().sourceHandle());
+        assertEquals("jei/2/2/fixture:category/recipe-0", pageB.records().getFirst().source().sourceHandle());
         assertEquals(scopeB, pageB.records().getFirst().source().scope());
-        assertEquals("fixture:recipe/a-one", serviceA.execute(new PackSageTools.ReadRequest("read_evidence",
+        assertEquals(sourceHandleA, serviceA.execute(new PackSageTools.ReadRequest("read_evidence",
                 new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString(handleA))))),
                 scopeA)).toCompletableFuture().join().records().getFirst().source().sourceHandle());
         var continuedA = serviceA.execute(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of(
                 "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"))),
                 "limit", new Evidence.JsonNumber(BigDecimal.ONE), "cursor", new Evidence.JsonString(cursorA))), scopeA))
                 .toCompletableFuture().join();
-        assertEquals("fixture:recipe/a-two", continuedA.records().getFirst().source().sourceHandle());
+        assertEquals("jei/1/1/fixture:category/recipe-1", continuedA.records().getFirst().source().sourceHandle());
         assertEquals(scopeA, continuedA.records().getFirst().source().scope());
+        var refreshedTargetA = serviceA.refreshNavigation(targetA, scopeA).toCompletableFuture().join();
+        assertNotNull(refreshedTargetA);
+        assertEquals(targetA, refreshedTargetA);
+        assertEquals(Evidence.NavigationStatus.STALE, serviceB.open(targetA, scopeB).status());
+        assertEquals(Evidence.NavigationStatus.OPENED, serviceA.open(refreshedTargetA, scopeA).status());
+        assertEquals(sourceHandleA, openedJeiHandle.get());
 
         var failure = assertThrows(Toolbox.Failure.class, () -> serviceB.execute(new PackSageTools.ReadRequest(
                 "read_evidence", new Evidence.JsonObject(Map.of("handles",

@@ -64,6 +64,9 @@ public final class ConversationStore {
         }
     }
 
+    private record CompletionState(String latestCompletedRequestId, String acknowledgedRequestId) {
+    }
+
     private static final int HISTORY_MAX_ROOT_ENTRIES = 512;
     private static final int HISTORY_MAX_SESSIONS = 256;
     private static final int HISTORY_MAX_SCAN_BYTES = 8 * 1024 * 1024;
@@ -523,11 +526,19 @@ public final class ConversationStore {
                                 header.has("label") ? header.get("label").getAsString() : header.get("world").getAsString());
                         ChatContracts.Conversation conversation = readConversation(file, world);
                         if (conversation == null) continue;
+                        CompletionState completionState = readCompletionState(file);
+                        ChatContracts.Turn latestCompleted = conversation.turns().stream()
+                                .filter(turn -> turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED)
+                                .reduce((firstTurn, lastTurn) -> lastTurn).orElse(null);
+                        ChatContracts.RequestId unreadRequestId = latestCompleted != null
+                                && latestCompleted.requestId().value().equals(completionState.latestCompletedRequestId())
+                                && !latestCompleted.requestId().value().equals(completionState.acknowledgedRequestId())
+                                ? latestCompleted.requestId() : null;
                         ChatContracts.Turn first = conversation.turns().isEmpty() ? null : conversation.turns().getFirst();
                         ChatContracts.Turn last = conversation.turns().isEmpty() ? null : conversation.turns().getLast();
                         summaries.add(new ChatContracts.SessionSummary(world, conversation.id(),
                                 first == null ? "New chat" : first.question(), last == null ? "" : last.answer(),
-                                Instant.ofEpochMilli(modifiedAt(file))));
+                                Instant.ofEpochMilli(modifiedAt(file)), false, unreadRequestId));
                     } catch (IOException exception) {
                         report(exception);
                     } catch (RuntimeException ignored) { }
@@ -551,6 +562,11 @@ public final class ConversationStore {
                 if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || !safePath(file)
                         || !hasConversationHeader(file, world, conversationId)) {
                     throw new IOException("conversation does not belong to the requested world and id");
+                }
+                Path stateFile = completionStatePath(file);
+                if (!safePath(stateFile) || Files.exists(stateFile, LinkOption.NOFOLLOW_LINKS)
+                        && !Files.isRegularFile(stateFile, LinkOption.NOFOLLOW_LINKS)) {
+                    throw new IOException("conversation state path is unsafe");
                 }
                 boolean wasLatest = false;
                 if (Files.exists(latest, LinkOption.NOFOLLOW_LINKS)) {
@@ -581,6 +597,7 @@ public final class ConversationStore {
                         writeLatest(directory, conversation.id());
                     }
                 }
+                Files.deleteIfExists(stateFile);
                 Files.delete(file);
             } catch (IOException exception) {
                 report(exception);
@@ -664,6 +681,49 @@ public final class ConversationStore {
                 } finally {
                     Files.deleteIfExists(temporary);
                 }
+            } catch (IOException exception) {
+                report(exception);
+                throw new RuntimeException(exception);
+            }
+        });
+    }
+
+    public CompletionStage<Void> recordCompletion(ChatContracts.WorldIdentity world, String conversationId,
+                                                   ChatContracts.RequestId requestId) {
+        Objects.requireNonNull(requestId);
+        return enqueue(() -> {
+            Path file = findConversation(world, conversationId);
+            ChatContracts.Conversation conversation = readConversation(file, world);
+            ChatContracts.Turn latestCompleted = conversation == null ? null : conversation.turns().stream()
+                    .filter(turn -> turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED)
+                    .reduce((firstTurn, lastTurn) -> lastTurn).orElse(null);
+            if (latestCompleted == null || !latestCompleted.requestId().equals(requestId)) return;
+            CompletionState state = readCompletionState(file);
+            if (requestId.value().equals(state.latestCompletedRequestId())) return;
+            try {
+                writeCompletionState(file, new CompletionState(requestId.value(), state.acknowledgedRequestId()));
+            } catch (IOException exception) {
+                report(exception);
+                throw new RuntimeException(exception);
+            }
+        });
+    }
+
+    public CompletionStage<Void> markRead(ChatContracts.WorldIdentity world, String conversationId,
+                                          ChatContracts.RequestId expectedCompletion) {
+        Objects.requireNonNull(expectedCompletion);
+        return enqueue(() -> {
+            Path file = findConversation(world, conversationId);
+            ChatContracts.Conversation conversation = readConversation(file, world);
+            ChatContracts.Turn latestCompleted = conversation == null ? null : conversation.turns().stream()
+                    .filter(turn -> turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED)
+                    .reduce((firstTurn, lastTurn) -> lastTurn).orElse(null);
+            if (latestCompleted == null || !latestCompleted.requestId().equals(expectedCompletion)) return;
+            CompletionState state = readCompletionState(file);
+            if (!expectedCompletion.value().equals(state.latestCompletedRequestId())
+                    || expectedCompletion.value().equals(state.acknowledgedRequestId())) return;
+            try {
+                writeCompletionState(file, new CompletionState(state.latestCompletedRequestId(), expectedCompletion.value()));
             } catch (IOException exception) {
                 report(exception);
                 throw new RuntimeException(exception);
@@ -1174,6 +1234,57 @@ public final class ConversationStore {
 
     private Path latestPath(Path directory) {
         return directory.resolve("latest");
+    }
+
+    private Path completionStatePath(Path conversationFile) {
+        String fileName = conversationFile.getFileName().toString().replaceFirst("\\.jsonl$", ".state.json");
+        return conversationFile.resolveSibling(fileName);
+    }
+
+    private CompletionState readCompletionState(Path conversationFile) {
+        Path stateFile = completionStatePath(conversationFile);
+        try {
+            if (!Files.exists(stateFile, LinkOption.NOFOLLOW_LINKS)) return new CompletionState(null, null);
+            if (!safePath(stateFile) || !Files.isRegularFile(stateFile, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("conversation state file is unsafe");
+            }
+            JsonElement parsed = JsonParser.parseString(Files.readString(stateFile, StandardCharsets.UTF_8));
+            if (!parsed.isJsonObject()) throw new IOException("conversation state is malformed");
+            JsonObject value = parsed.getAsJsonObject();
+            if (!value.has("latestCompletedRequestId") || !value.has("acknowledgedRequestId")) {
+                throw new IOException("conversation state is malformed");
+            }
+            JsonElement latest = value.get("latestCompletedRequestId");
+            JsonElement acknowledged = value.get("acknowledgedRequestId");
+            if (!latest.isJsonNull() && (!latest.isJsonPrimitive() || !latest.getAsJsonPrimitive().isString())
+                    || !acknowledged.isJsonNull() && (!acknowledged.isJsonPrimitive()
+                    || !acknowledged.getAsJsonPrimitive().isString())) {
+                throw new IOException("conversation state is malformed");
+            }
+            return new CompletionState(latest.isJsonNull() ? null : latest.getAsString(),
+                    acknowledged.isJsonNull() ? null : acknowledged.getAsString());
+        } catch (IOException | RuntimeException exception) {
+            report(exception instanceof IOException ioException ? ioException
+                    : new IOException("conversation state is malformed", exception));
+            return new CompletionState(null, null);
+        }
+    }
+
+    private void writeCompletionState(Path conversationFile, CompletionState state) throws IOException {
+        Path stateFile = completionStatePath(conversationFile);
+        if (!safePath(stateFile)) throw new IOException("conversation state path escapes conversation root");
+        JsonObject value = new JsonObject();
+        value.addProperty("latestCompletedRequestId", state.latestCompletedRequestId());
+        value.addProperty("acknowledgedRequestId", state.acknowledgedRequestId());
+        Path temporary = stateFile.resolveSibling(stateFile.getFileName() + "-" + UUID.randomUUID() + ".tmp");
+        try {
+            Files.writeString(temporary, value.toString(), StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+            Files.move(temporary, stateFile, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
     }
 
     private void writeLatest(ChatContracts.WorldIdentity world, String conversationId) throws IOException {

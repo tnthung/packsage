@@ -666,6 +666,125 @@ class AssistantIntegrationTest {
                 () -> assertNull(store.sessions().toCompletableFuture().join().stream()
                         .filter(summary -> summary.id().equals(conversationId)).findFirst().orElseThrow().unreadRequestId(),
                         "the exact completed turn can still be acknowledged in persistent metadata"));
+        runtime.send("Follow-up after read", false, false);
+        assertEquals(2, backend.requests.size(), "a delayed active publication cannot strand the holder as active");
+        runtime.stop();
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+    }
+
+    @Test
+    void replacementUnreadMarkerSurvivesPendingVisibleSettlementAndOlderPublications() throws Exception {
+        var storeRoot = Files.createTempDirectory("packsage-pending-replacement-unread");
+        var queuedStoreTasks = new ArrayDeque<Runnable>();
+        var queuedControllerTasks = new ArrayDeque<Runnable>();
+        var queuedClientTasks = new ArrayDeque<Runnable>();
+        var holdStoreTasks = new AtomicBoolean();
+        var holdControllerTasks = new AtomicBoolean();
+        var storeExecutor = (Executor) task -> {
+            if (holdStoreTasks.get()) queuedStoreTasks.addLast(task);
+            else task.run();
+        };
+        var controllerExecutor = (Executor) task -> {
+            if (holdControllerTasks.get()) queuedControllerTasks.addLast(task);
+            else task.run();
+        };
+        var store = new ConversationStore(storeRoot, storeExecutor);
+        var seeded = store.newConversation(WORLD).toCompletableFuture().join();
+        var a1 = new ChatContracts.RequestId("replacement-a1");
+        store.appendTurn(WORLD, SCOPE, seeded.id(), new ChatContracts.Turn(a1, "Question A1", "Answer A1", List.of(),
+                new ChatContracts.Context("seeded", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
+        store.recordCompletion(WORLD, seeded.id(), a1).toCompletableFuture().join();
+        var backend = new RuntimeBackend();
+        var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+                () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
+                controllerExecutor, queuedClientTasks::addLast, current -> new KnowledgeService(List.of(), current),
+                ChatContracts.Turn::tokenCount, GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
+        while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
+        while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                MODEL.contextTokens(), MODEL.outputTokens()));
+        while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();
+        runtime.openScreen();
+        var a1Summary = store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(seeded.id())).findFirst().orElseThrow();
+        runtime.openSession(a1Summary);
+        while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();
+        ChatContracts.View olderA1Publication = runtime.view();
+        runtime.resend(a1, "Question A2", false, false);
+        ChatContracts.View activeA2Publication = runtime.view();
+        assertTrue(runtime.view().active());
+        assertEquals(a1, runtime.view().conversation().turns().getLast().requestId());
+        assertEquals(1, backend.requests.size());
+
+        holdStoreTasks.set(true);
+        holdControllerTasks.set(true);
+        backend.listeners.getFirst().accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Answer A2", null,
+                List.of(), List.of(), null));
+        backend.listeners.getFirst().accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                List.of(new ModelBackend.AssistantOutput("a2-output", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A2", List.of())))), null));
+        while (!queuedStoreTasks.isEmpty() || !queuedClientTasks.isEmpty()) {
+            while (!queuedStoreTasks.isEmpty()) queuedStoreTasks.removeFirst().run();
+            while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();
+        }
+        holdStoreTasks.set(false);
+        ChatContracts.RequestId a2 = new ChatContracts.RequestId(backend.requests.getFirst().requestId());
+        var a2Summary = store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(seeded.id())).findFirst().orElseThrow();
+        assertEquals(a2, a2Summary.unreadRequestId());
+        assertTrue(runtime.view().active(), "the pending replacement remains represented while its turn is not visible");
+        assertEquals(a2.value(), runtime.view().activeRequestId());
+        assertEquals(a1, runtime.view().conversation().turns().getLast().requestId());
+
+        var selectedField = AssistantRuntime.class.getDeclaredField("selected");
+        selectedField.setAccessible(true);
+        Object holder = selectedField.get(runtime);
+        var publish = AssistantRuntime.class.getDeclaredMethod("publishHolderView", holder.getClass(), ChatContracts.View.class);
+        publish.setAccessible(true);
+        publish.invoke(runtime, holder, olderA1Publication);
+        while (!queuedStoreTasks.isEmpty() || !queuedClientTasks.isEmpty()) {
+            while (!queuedStoreTasks.isEmpty()) queuedStoreTasks.removeFirst().run();
+            while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();
+        }
+        runtime.markRead(a2Summary, a2);
+        assertEquals(a2, store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(seeded.id())).findFirst().orElseThrow().unreadRequestId(),
+                "an A2 read is rejected until its replacement turn is visible");
+
+        holdControllerTasks.set(false);
+        while (!queuedControllerTasks.isEmpty()) queuedControllerTasks.removeFirst().run();
+        while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();
+        assertEquals(a2, runtime.view().conversation().turns().getLast().requestId());
+        runtime.markRead(a2Summary, a2);
+        while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();
+        assertNull(store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(seeded.id())).findFirst().orElseThrow().unreadRequestId());
+
+        runtime.send("Question A3", false, false);
+        assertEquals(2, backend.requests.size());
+        backend.listeners.get(1).accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Answer A3", null,
+                List.of(), List.of(), null));
+        backend.listeners.get(1).accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                List.of(new ModelBackend.AssistantOutput("a3-output", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A3", List.of())))), null));
+        while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();
+        ChatContracts.RequestId a3 = new ChatContracts.RequestId(backend.requests.get(1).requestId());
+        var a3Summary = store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(seeded.id())).findFirst().orElseThrow();
+        assertEquals(a3, a3Summary.unreadRequestId());
+        publish.invoke(runtime, holder, olderA1Publication);
+        publish.invoke(runtime, holder, activeA2Publication);
+        while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();
+        runtime.markRead(a3Summary, a3);
+        while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();
+        assertNull(store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(seeded.id())).findFirst().orElseThrow().unreadRequestId(),
+                "delayed A1/A2 publications cannot erase A3 before its exact read acknowledgement");
     }
 
     @Test

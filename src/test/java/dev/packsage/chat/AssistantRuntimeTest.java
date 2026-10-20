@@ -40,7 +40,7 @@ class AssistantRuntimeTest {
             null, null, 16_000, 2_048);
 
     @Test
-    void completionNoticeQueuesOnceWithoutAnOpenScreenAndDropsAfterNewChat() throws Exception {
+    void completionNoticeQueuesOnceWithoutAnOpenScreenAndSurvivesNewChat() throws Exception {
         java.util.ArrayDeque<Runnable> clientTasks = new java.util.ArrayDeque<>();
         List<ChatContracts.Turn> notices = new ArrayList<>();
         FakeBackend backend = new FakeBackend();
@@ -746,6 +746,44 @@ class AssistantRuntimeTest {
         assertEquals(unavailableAdapters, runtime.adapterAvailability());
         runtime.disconnect();
         assertEquals(unavailableAdapters, runtime.adapterAvailability());
+    }
+
+    @Test
+    void selectedHolderPublishesCurrentToolSourcesAndNavigationWhileTurnIsActive() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        AtomicReference<Evidence.Source> observedSource = new AtomicReference<>();
+        AtomicReference<Evidence.NavigationTarget> observedTarget = new AtomicReference<>();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
+                current -> new KnowledgeService(List.of(new Toolbox() {
+                    @Override public Metadata metadata() { return new Metadata("patchouli", List.of("guide"), false, List.of(), Map.of()); }
+                    @Override public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Context context) {
+                        Evidence.Scope scope = request.scope();
+                        Evidence.Source source = new Evidence.Source(scope, "patchouli", "fixture", "guide-id",
+                                scope.requestGeneration(), Instant.EPOCH, Evidence.Activity.ACTIVE,
+                                Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+                        Evidence.NavigationTarget target = new Evidence.NavigationTarget(scope, "patchouli", "guide-id", "guide-page");
+                        observedSource.set(source);
+                        observedTarget.set(target);
+                        return CompletableFuture.completedFuture(new Evidence.Result(List.of(new Evidence.Record(source,
+                                Evidence.RecordKind.GUIDE, "Fixture guide", new Evidence.JsonObject(Map.of()), List.of(target))),
+                                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
+                    }
+                }), current), DIRECT);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+
+        runtime.send("Find the guide", false, false);
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("guide", "search_document",
+                        "{\"query\":\"fixture\",\"filter\":{\"provider\":\"patchouli\",\"types\":[\"guide\"]}}"),
+                List.of(), null));
+
+        assertTrue(runtime.view().active());
+        assertTrue(runtime.view().sources().contains(observedSource.get()));
+        assertTrue(runtime.view().navigationTargets().contains(observedTarget.get()));
     }
 
     @Test

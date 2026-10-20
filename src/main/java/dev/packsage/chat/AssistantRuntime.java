@@ -436,12 +436,12 @@ public final class AssistantRuntime implements ChatActions {
             epoch = worldEpoch;
             holder = holders.get(new HolderKey(session.world().worldOrServer(), session.id()));
             if (holder == null) {
-                holder = new Holder(session.world(), session.id(),
-                        session.world().worldOrServer().equals(world.worldOrServer()) ? worldScope : EMPTY_SCOPE);
+                holder = new Holder(session.world(), session.id(), worldScope);
                 holder.unreadRequestId = session.unreadRequestId();
                 holders.put(new HolderKey(session.world().worldOrServer(), session.id()), holder);
             }
             if (holder.deleting) return;
+            holder.scope = worldScope;
             selected = holder;
             startLoad = !holder.loading && !holder.active && !holder.requestStarting;
             holder.loading = startLoad || !holder.loaded;
@@ -469,8 +469,7 @@ public final class AssistantRuntime implements ChatActions {
         store.openConversation(session.world(), session.id()).whenCompleteAsync((conversation, failure) -> {
             if (failure == null) {
                 synchronized (stateLock) {
-                    loadingHolder.scope = world != null && world.worldOrServer().equals(session.world().worldOrServer())
-                            ? worldScope : EMPTY_SCOPE;
+                    loadingHolder.scope = worldScope;
                 }
                 loadingHolder.controller.showConversation(conversation, loadingHolder.scope);
                 loadingHolder.loaded = true;
@@ -659,7 +658,7 @@ public final class AssistantRuntime implements ChatActions {
         if (holder == null || holder.controller == null) {
             String error;
             synchronized (stateLock) {
-                error = sessionLoading ? "World history is still loading"
+                error = sessionLoading ? "The world history is still loading"
                         : world == null ? "Cannot send without an active world" : "Cannot send without an active conversation";
             }
             addError(error);
@@ -903,15 +902,18 @@ public final class AssistantRuntime implements ChatActions {
         long epoch;
         long selectionGeneration;
         ChatContracts.WorldIdentity currentWorld;
+        Evidence.Scope currentScope;
         synchronized (stateLock) {
             navigationId = ++navigationGeneration;
             holder = selected;
             epoch = worldEpoch;
             selectionGeneration = sessionSelectionGeneration;
             currentWorld = world;
+            currentScope = holder == null ? worldScope : holder.scope;
         }
         showNavigationError(navigationId, null);
-        if (holder == null || currentWorld == null || !currentWorld.worldOrServer().equals(holder.world.worldOrServer())) {
+        if (holder == null || holder.controller == null || holder.knowledge == null
+                || currentWorld == null || !currentWorld.worldOrServer().equals(holder.world.worldOrServer())) {
             showNavigationError(navigationId, "Join this session's world before opening its sources");
             return;
         }
@@ -935,11 +937,11 @@ public final class AssistantRuntime implements ChatActions {
             return;
         }
         KnowledgeService currentKnowledge = holder.knowledge;
-        currentKnowledge.refreshNavigation(target, target.scope()).whenCompleteAsync((refreshed, failure) -> {
+        currentKnowledge.refreshNavigation(target, currentScope).whenCompleteAsync((refreshed, failure) -> {
             synchronized (stateLock) {
                 if (navigationId != navigationGeneration || epoch != worldEpoch
                         || selectionGeneration != sessionSelectionGeneration || selected != holder
-                        || currentKnowledge != holder.knowledge || world == null
+                        || currentKnowledge != holder.knowledge || !currentScope.equals(holder.scope) || world == null
                         || !world.worldOrServer().equals(holder.world.worldOrServer())) return;
             }
             if (failure != null) {
@@ -948,7 +950,7 @@ public final class AssistantRuntime implements ChatActions {
                 showNavigationError(navigationId, "Navigation target is no longer available");
             } else {
                 try {
-                    var result = currentKnowledge.open(refreshed, target.scope());
+                    var result = currentKnowledge.open(refreshed, currentScope);
                     if (result.status() != Evidence.NavigationStatus.OPENED) showNavigationError(navigationId,
                             "Navigation " + result.status().name().toLowerCase() + ": "
                                     + (result.detail() == null ? "target unavailable" : result.detail()));

@@ -1240,9 +1240,21 @@ public final class AssistantRuntime implements ChatActions {
         long epoch;
         long publication;
         boolean isSelected;
+        boolean sessionListChanged;
         synchronized (stateLock) {
+            boolean wasActive = holder.active;
+            boolean wasStarting = holder.requestStarting;
+            boolean wasLoaded = holder.loaded;
+            boolean wasLoading = holder.loading;
+            boolean wasCreating = holder.creating;
+            String oldId = holder.id;
+            ChatContracts.RequestId oldUnreadRequestId = holder.unreadRequestId;
             holder.active = view.active();
             holder.requestStarting = false;
+            if (holder.unreadRequestId != null && view.conversation().turns().stream()
+                    .noneMatch(turn -> turn.requestId().equals(holder.unreadRequestId))) {
+                holder.unreadRequestId = null;
+            }
             if (holder.id.startsWith("pending-world:") && !view.conversation().id().startsWith("pending")) {
                 holders.remove(new HolderKey(holder.world.worldOrServer(), holder.id));
                 holder.id = view.conversation().id();
@@ -1257,11 +1269,15 @@ public final class AssistantRuntime implements ChatActions {
                 holder.loaded = true;
                 holder.creating = false;
             }
+            sessionListChanged = wasActive != holder.active || wasStarting != holder.requestStarting
+                    || wasLoaded != holder.loaded || wasLoading != holder.loading || wasCreating != holder.creating
+                    || !oldId.equals(holder.id) || !java.util.Objects.equals(oldUnreadRequestId, holder.unreadRequestId);
             isSelected = selected == holder;
-            if (!isSelected) return;
-            epoch = worldEpoch;
-            publication = publicationEpoch;
+            epoch = isSelected ? worldEpoch : 0;
+            publication = isSelected ? publicationEpoch : 0;
         }
+        if (sessionListChanged) refreshSessionList();
+        if (!isSelected) return;
         clientExecutor.execute(() -> {
             AssistantScreen screen;
             synchronized (stateLock) {

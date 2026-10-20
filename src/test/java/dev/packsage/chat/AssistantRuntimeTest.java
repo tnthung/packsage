@@ -210,10 +210,10 @@ class AssistantRuntimeTest {
         assertEquals(preparedByRequest.get(secondRequestId).capturedContext().context().scope(),
                 savedB.turns().getLast().context().scope());
         assertEquals(secondConversationId, runtime.view().conversation().id());
-        assertEquals(firstRequestId, store.sessions().toCompletableFuture().join().stream()
-                .filter(summary -> summary.id().equals(firstConversation.id())).findFirst().orElseThrow().unreadRequestId().value());
-        assertEquals(secondRequestId, store.sessions().toCompletableFuture().join().stream()
-                .filter(summary -> summary.id().equals(secondConversationId)).findFirst().orElseThrow().unreadRequestId().value());
+        assertEquals(new ChatContracts.RequestId(firstRequestId), store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(firstConversation.id())).findFirst().orElseThrow().unreadRequestId());
+        assertEquals(new ChatContracts.RequestId(secondRequestId), store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(secondConversationId)).findFirst().orElseThrow().unreadRequestId());
     }
 
     @Test

@@ -892,6 +892,7 @@ class AssistantScreenStateTest {
         FakeActions actions = new FakeActions();
         var unread = new ChatContracts.SessionSummary(actions.view.activeWorld(), "conversation", "Finished title",
                 "Finished answer", Instant.EPOCH, false, new ChatContracts.RequestId("request"));
+        actions.sessions = CompletableFuture.completedFuture(List.of(unread));
         AssistantScreen screen = new AssistantScreen(actions);
         screen.width = 240;
         screen.height = 240;
@@ -936,6 +937,7 @@ class AssistantScreenStateTest {
         acknowledge.invoke(screen, true);
         assertTrue(actions.readCalls.contains("conversation:next-request"));
 
+        actions.sessions = CompletableFuture.completedFuture(List.of(nextUnread));
         ChatContracts.View other = new ChatContracts.View(false, actions.view.signIn(), false,
                 new ChatContracts.Conversation("other", actions.view.conversation().world(), List.of(),
                         new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),

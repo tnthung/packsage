@@ -250,8 +250,8 @@ class RequestControllerTest {
 
         assertEquals(1, completionCallbacks.size());
         assertEquals(ChatContracts.OutcomeStatus.COMPLETED, completionCallbacks.getFirst().outcome().status());
-        assertEquals("screenshot-completion-order", summaries.toCompletableFuture().join().getFirst()
-                .unreadRequestId().value());
+        assertEquals(new ChatContracts.RequestId("screenshot-completion-order"), summaries.toCompletableFuture().join().getFirst()
+                .unreadRequestId());
     }
 
     @Test

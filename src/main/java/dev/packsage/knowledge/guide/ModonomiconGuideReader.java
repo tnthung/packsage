@@ -234,7 +234,7 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
                 "Modonomicon page no longer exists; restart the lookup");
         if (!"LOCKED".equals(displayState) && pages.isEmpty()) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE,
                 "Modonomicon entry has no currently unlocked pages");
-        var relationships = new RelationshipCollector(cursor.relationshipPosition(), cursor.opaqueMask(), budget);
+        var relationships = new RelationshipCollector(cursor.relationshipPosition(), cursor.opaqueMask(), cursor.partialMask(), budget);
         if (!"done".equals(cursor.relationshipPosition()))
             readRelationships(entry, category, pages, player, displayState, unlocks, relationships);
         var relationshipObject = relationships.jsonObject();
@@ -251,7 +251,8 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
         String textDetail = null;
         var foundTextFragment = false;
         var textMaxChars = Math.max(0, Math.min(maxChars, (MAX_FRAGMENT_BYTES - relationshipBytes - 256) / 4));
-        if (textMaxChars > 0 && !textDone && !"LOCKED".equals(displayState)) {
+        if (textMaxChars > 0 && !textDone && !"LOCKED".equals(displayState)
+                && !relationships.valueBudgetExhausted()) {
             for (; pageIndex < pages.size(); pageIndex++, fieldIndex = 0, textOffset = 0) {
                 if (!budget.value()) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
                         "Modonomicon page traversal reached its value budget");
@@ -295,8 +296,9 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
         }
         var nextRelationship = relationships.nextPosition();
         var nextPosition = nextRelationship != null ? FragmentCursor.encode(nextRelationship, relationships.opaqueMask(),
-                textDone ? "done" : textNextPosition)
-                : textNextPosition != null ? FragmentCursor.encode("done", relationships.opaqueMask(), textNextPosition) : null;
+                relationships.partialMask(), textDone ? "done" : textNextPosition)
+                : textNextPosition != null ? FragmentCursor.encode("done", relationships.opaqueMask(),
+                relationships.partialMask(), textNextPosition) : null;
         var relationshipPartial = relationships.coverage() != Evidence.Coverage.COMPLETE;
         var coverage = relationshipPartial || textCoverage != Evidence.Coverage.COMPLETE || partial
                 ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
@@ -343,6 +345,7 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
     private void readRelationships(BookEntry entry, BookCategory category, List<BookPage> pages, Player player,
                                    String displayState, BookUnlockStateManager unlocks,
                                    RelationshipCollector collector) {
+        var position = collector.position();
         collector.record("entry:state", "prerequisites", () -> {
             var values = new LinkedHashMap<String, Evidence.JsonValue>();
             values.put("kind", new Evidence.JsonString("state"));
@@ -352,8 +355,23 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
             return new Evidence.JsonObject(values);
         });
         if (collector.stopped()) return;
+        collector.record("category:state", "prerequisites", () -> {
+            var values = new LinkedHashMap<String, Evidence.JsonValue>();
+            values.put("kind", new Evidence.JsonString("state"));
+            values.put("scope", new Evidence.JsonString("category"));
+            values.put("state", new Evidence.JsonString("UNLOCKED"));
+            values.put("sourcePosition", new Evidence.JsonString("category"));
+            return new Evidence.JsonObject(values);
+        });
+        if (collector.stopped()) return;
         var parents = entry.getParents();
-        for (var index = 0; index < parents.size(); index++) {
+        var parentStart = position != null && position.kind() == RelationshipKind.PARENT ? position.index()
+                : position == null || position.kind() == RelationshipKind.ENTRY_STATE
+                || position.kind() == RelationshipKind.CATEGORY_STATE ? 0 : parents.size();
+        if (position != null && position.kind() == RelationshipKind.PARENT && parentStart >= parents.size())
+            throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                "Modonomicon parent relationship no longer exists");
+        for (var index = parentStart; index < parents.size(); index++) {
             var parentIndex = index;
             var parent = parents.get(index);
             collector.record("entry:parent:" + index, "prerequisites", () -> {
@@ -368,28 +386,84 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
             });
             if (collector.stopped()) return;
         }
-        readCondition(entry.getCondition(), "entry", "root", 0, collector);
+
+        if (position == null || position.kind() == RelationshipKind.ENTRY_STATE
+                || position.kind() == RelationshipKind.CATEGORY_STATE || position.kind() == RelationshipKind.PARENT) {
+            readCondition(entry.getCondition(), "entry", "root", 0, null, collector);
+        } else if (position.kind() == RelationshipKind.CONDITION && "entry".equals(position.scope())) {
+            readCondition(entry.getCondition(), "entry", "root", 0, position.conditionPath(), collector);
+            if (!collector.started()) {
+                collector.verifyResume();
+                return;
+            }
+        }
         if (collector.stopped()) return;
-        readCondition(category.getCondition(), "category", "root", 0, collector);
+
+        if (position == null || position.kind() == RelationshipKind.ENTRY_STATE
+                || position.kind() == RelationshipKind.CATEGORY_STATE || position.kind() == RelationshipKind.PARENT
+                || position.kind() == RelationshipKind.CONDITION && "entry".equals(position.scope())) {
+            readCondition(category.getCondition(), "category", "root", 0, null, collector);
+        } else if (position.kind() == RelationshipKind.CONDITION && "category".equals(position.scope())) {
+            readCondition(category.getCondition(), "category", "root", 0, position.conditionPath(), collector);
+            if (!collector.started()) {
+                collector.verifyResume();
+                return;
+            }
+        }
         if (collector.stopped()) return;
         if ("LOCKED".equals(displayState)) {
             collector.verifyResume();
             return;
         }
-        for (var pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
+
+        var pageStart = position != null && position.isPagePosition() ? position.pageIndex() : 0;
+        if (pageStart > pages.size() || position != null && position.isPagePosition() && pageStart == pages.size())
+            throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "Modonomicon page relationship no longer exists");
+        for (var pageIndex = pageStart; pageIndex < pages.size(); pageIndex++) {
             var currentPageIndex = pageIndex;
             var page = pages.get(pageIndex);
-            var pageStart = "page:" + currentPageIndex + ":start";
-            if (!collector.traversePage(pageStart)) return;
-            var pageUnlocked = unlocks.isUnlockedFor(player, page);
+            var pageSource = "page:" + currentPageIndex + ":start";
+            collector.pageGroupsApplicable = true;
+            var pageStateDecision = collector.begin(pageSource, "prerequisites");
+            if (pageStateDecision == RelationshipCollector.Decision.STOP) return;
+            boolean pageUnlocked;
+            if (pageStateDecision == RelationshipCollector.Decision.PROCESS) {
+                pageUnlocked = unlocks.isUnlockedFor(player, page);
+                var values = new LinkedHashMap<String, Evidence.JsonValue>();
+                values.put("kind", new Evidence.JsonString("state"));
+                values.put("scope", new Evidence.JsonString("page"));
+                values.put("state", new Evidence.JsonString(pageUnlocked ? "UNLOCKED" : "LOCKED"));
+                values.put("sourcePosition", new Evidence.JsonString("page:" + currentPageIndex));
+                if (!collector.append(pageSource, "prerequisites", new Evidence.JsonObject(values))) return;
+            } else {
+                if (!collector.chargeTraversal(pageSource, "prerequisites")) return;
+                pageUnlocked = unlocks.isUnlockedFor(player, page);
+            }
             if (!pageUnlocked) {
-                collector.markPartial("items", "locked Modonomicon pages were not inspected");
-                collector.markPartial("recipes", "locked Modonomicon pages were not inspected");
-                collector.markPartial("prerequisites", "locked page conditions were not inspected");
+                collector.markPartial("items", "locked Modonomicon pages were not inspected", true);
+                collector.markPartial("recipes", "locked Modonomicon pages were not inspected", true);
+                collector.markPartial("prerequisites", "locked page conditions were not inspected", true);
+                if (position != null && position.pageIndex() == currentPageIndex
+                        && position.kind() != RelationshipKind.PAGE_START) {
+                    collector.verifyResume();
+                    return;
+                }
                 continue;
             }
-            readCondition(page.getCondition(), "page", "page:" + currentPageIndex, 0, collector);
-            if (collector.stopped()) return;
+            if (position == null || !position.isPagePosition() || currentPageIndex > position.pageIndex()
+                    || position.kind() == RelationshipKind.PAGE_START
+                    || position.kind() == RelationshipKind.CONDITION) {
+                var conditionPath = position != null && position.kind() == RelationshipKind.CONDITION
+                        && position.pageIndex() == currentPageIndex ? position.conditionPath() : null;
+                readCondition(page.getCondition(), "page", "page:" + currentPageIndex, 0,
+                        conditionPath, collector);
+                if (position != null && position.kind() == RelationshipKind.CONDITION
+                        && position.pageIndex() == currentPageIndex && !collector.started()) {
+                    collector.verifyResume();
+                    return;
+                }
+                if (collector.stopped()) return;
+            }
             if (page.getClass() == BookSpotlightPage.class) {
                 SpotlightValue selected;
                 try {
@@ -407,27 +481,37 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
                         if (decision == RelationshipCollector.Decision.STOP) return;
                         if (decision == RelationshipCollector.Decision.PROCESS) {
                             var itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
-                    var id = resourceId(itemId);
-                    var values = new LinkedHashMap<String, Evidence.JsonValue>();
-                    values.put("kind", new Evidence.JsonString("spotlight"));
-                    values.put("sourcePosition", new Evidence.JsonString("page:" + currentPageIndex));
-                    if (id == null) {
-                        collector.markOpaque("items", "a Modonomicon spotlight item has no bounded registry identity");
-                        values.put("type", new Evidence.JsonString("opaque"));
-                    } else values.put("itemId", new Evidence.JsonString(id));
-                    collector.append(source, "items", new Evidence.JsonObject(values));
+                            var id = resourceId(itemId);
+                            var values = new LinkedHashMap<String, Evidence.JsonValue>();
+                            values.put("kind", new Evidence.JsonString("spotlight"));
+                            values.put("sourcePosition", new Evidence.JsonString("page:" + currentPageIndex));
+                            if (id == null) {
+                                collector.markOpaque("items", "a Modonomicon spotlight item has no bounded registry identity");
+                                values.put("type", new Evidence.JsonString("opaque"));
+                            } else values.put("itemId", new Evidence.JsonString(id));
+                            collector.append(source, "items", new Evidence.JsonObject(values));
                         }
                     }
                 } else if (selected.ingredient() != null) {
-                    readIngredient(selected.ingredient(), currentPageIndex, collector);
+                    var alternativeStart = position != null && position.kind() == RelationshipKind.SPOTLIGHT
+                            && position.pageIndex() == currentPageIndex ? position.index() : 0;
+                    readIngredient(selected.ingredient(), currentPageIndex, alternativeStart, collector);
                 } else {
                     collector.markOpaque("items", "a Modonomicon spotlight value could not be decoded");
                 }
             } else if (page instanceof BookRecipePage<?> recipePage) {
-                readRecipePage(recipePage, currentPageIndex, collector);
+                var recipeStart = position != null && position.kind() == RelationshipKind.RECIPE
+                        && position.pageIndex() == currentPageIndex ? position.index() : 0;
+                readRecipePage(recipePage, currentPageIndex, recipeStart, collector);
             } else if (page.getClass() != BookTextPage.class) {
                 collector.markOpaque("items", "a custom Modonomicon page may declare unread item relationships");
                 collector.markOpaque("recipes", "a custom Modonomicon page may declare unread recipe relationships");
+            }
+            if (position != null && position.pageIndex() == currentPageIndex
+                    && (position.kind() == RelationshipKind.SPOTLIGHT || position.kind() == RelationshipKind.RECIPE)
+                    && !collector.started()) {
+                collector.verifyResume();
+                return;
             }
             if (collector.stopped()) return;
         }
@@ -435,12 +519,13 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
         collector.verifyResume();
     }
 
-    private static void readIngredient(Ingredient ingredient, int pageIndex, RelationshipCollector collector) {
+    private static void readIngredient(Ingredient ingredient, int pageIndex, int alternativeStart,
+                                      RelationshipCollector collector) {
         if (ingredient.getClass() != Ingredient.class) {
             collector.markOpaque("items", "a custom Modonomicon ingredient remains opaque");
             return;
         }
-        if (!collector.chargeExtraction("page:" + pageIndex + ":spotlight:0")) return;
+        if (!collector.chargeExtraction("page:" + pageIndex + ":spotlight:" + alternativeStart)) return;
         Ingredient.Value[] alternatives;
         try {
             alternatives = ingredient.getValues();
@@ -452,7 +537,8 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
             collector.markOpaque("items", "a Modonomicon ingredient has no readable alternatives");
             return;
         }
-        for (var alternativeIndex = 0; alternativeIndex < alternatives.length; alternativeIndex++) {
+        if (alternativeStart > alternatives.length) return;
+        for (var alternativeIndex = alternativeStart; alternativeIndex < alternatives.length; alternativeIndex++) {
             var alternative = alternatives[alternativeIndex];
             var source = "page:" + pageIndex + ":spotlight:" + alternativeIndex;
             var decision = collector.begin(source, "items");
@@ -481,13 +567,15 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
         }
     }
 
-    private static void readRecipePage(BookRecipePage<?> page, int pageIndex, RelationshipCollector collector) {
+    private static void readRecipePage(BookRecipePage<?> page, int pageIndex, int slotStart,
+                                       RelationshipCollector collector) {
         try {
             var first = (ResourceLocation) declaredField(BookRecipePage.class, "recipeId1", page);
             var second = (ResourceLocation) declaredField(BookRecipePage.class, "recipeId2", page);
             var recipeType = (RecipeType<?>) declaredField(BookRecipePage.class, "recipeType", page);
             var typeId = recipeType == null ? null : BuiltInRegistries.RECIPE_TYPE.getKey(recipeType);
-            for (var slot = 0; slot < 2; slot++) {
+            if (slotStart > 2) return;
+            for (var slot = slotStart; slot < 2; slot++) {
                 var recipeId = slot == 0 ? first : second;
                 if (recipeId == null) continue;
                 var source = "page:" + pageIndex + ":recipe:" + slot;
@@ -517,22 +605,31 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
     }
 
     private static void readCondition(BookCondition condition, String scope, String path, int depth,
-                                      RelationshipCollector collector) {
+                                      List<Integer> seekPath, RelationshipCollector collector) {
         if (condition == null || collector.stopped()) return;
         var source = "condition:" + scope + ":" + path;
-        var decision = collector.begin(source, "prerequisites");
-        if (decision == RelationshipCollector.Decision.STOP) return;
-        BookCondition[] children = null;
-        var className = condition.getClass().getName();
-        if (condition.getClass() == BookAndCondition.class) children = ((BookAndCondition) condition).children();
-        else if (condition.getClass() == BookOrCondition.class) children = ((BookOrCondition) condition).children();
-        if (decision == RelationshipCollector.Decision.SKIP) {
-            if (children != null) for (var childIndex = 0; childIndex < children.length; childIndex++) {
-                readCondition(children[childIndex], scope, path + "." + childIndex, depth + 1, collector);
+        if (seekPath != null && !collector.started() && depth < seekPath.size()) {
+            if (!collector.chargeConditionSeek()) return;
+            BookCondition[] children = null;
+            if (condition.getClass() == BookAndCondition.class) children = ((BookAndCondition) condition).children();
+            else if (condition.getClass() == BookOrCondition.class) children = ((BookOrCondition) condition).children();
+            var childIndex = seekPath.get(depth);
+            if (children == null || childIndex >= children.length) return;
+            readCondition(children[childIndex], scope, path + "." + childIndex, depth + 1, seekPath, collector);
+            if (collector.stopped()) return;
+            for (var siblingIndex = childIndex + 1; siblingIndex < children.length; siblingIndex++) {
+                readCondition(children[siblingIndex], scope, path + "." + siblingIndex, depth + 1, null, collector);
                 if (collector.stopped()) return;
             }
             return;
         }
+        var decision = collector.begin(source, "prerequisites");
+        if (decision == RelationshipCollector.Decision.STOP) return;
+        if (decision == RelationshipCollector.Decision.SKIP) return;
+        BookCondition[] children = null;
+        var className = condition.getClass().getName();
+        if (condition.getClass() == BookAndCondition.class) children = ((BookAndCondition) condition).children();
+        else if (condition.getClass() == BookOrCondition.class) children = ((BookOrCondition) condition).children();
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
         values.put("kind", new Evidence.JsonString("condition"));
         values.put("scope", new Evidence.JsonString(scope));
@@ -577,7 +674,7 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
             return;
         }
         for (var childIndex = 0; childIndex < children.length; childIndex++) {
-            readCondition(children[childIndex], scope, path + "." + childIndex, depth + 1, collector);
+            readCondition(children[childIndex], scope, path + "." + childIndex, depth + 1, null, collector);
             if (collector.stopped()) return;
         }
     }
@@ -593,18 +690,40 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
         return value.getNamespace() + ":" + value.getPath();
     }
 
-    private record FragmentCursor(String relationshipPosition, int opaqueMask, int pageIndex, int fieldIndex,
+    private record FragmentCursor(String relationshipPosition, int opaqueMask, int partialMask,
+                                  int pageIndex, int fieldIndex,
                                   int textOffset, boolean textDone) {
         private static FragmentCursor parse(String value) {
-            if (value == null) return new FragmentCursor(null, 0, 0, 0, 0, false);
+            if (value == null) return new FragmentCursor(null, 0, 0, 0, 0, 0, false);
+            if (value.length() > 2048) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                    "Modonomicon fragment position exceeds its metadata bound");
             var encoded = value.split("\\|", -1);
             try {
+                if (encoded.length == 5 && "v3".equals(encoded[0])) {
+                    var relationship = "^".equals(encoded[1]) ? null : encoded[1];
+                    var opaqueMask = Integer.parseInt(encoded[2]);
+                    var partialMask = Integer.parseInt(encoded[3]);
+                    if ("done".equals(encoded[4])) {
+                        if (opaqueMask < 0 || (opaqueMask & ~7) != 0 || partialMask < 0 || (partialMask & ~7) != 0)
+                            throw new NumberFormatException();
+                        return new FragmentCursor(relationship, opaqueMask, partialMask, 0, 0, 0, true);
+                    }
+                    var text = encoded[4].split(":", -1);
+                    if (text.length != 3) throw new NumberFormatException();
+                    var pageIndex = Integer.parseInt(text[0]);
+                    var fieldIndex = Integer.parseInt(text[1]);
+                    var textOffset = Integer.parseInt(text[2]);
+                    if (opaqueMask < 0 || (opaqueMask & ~7) != 0 || partialMask < 0 || (partialMask & ~7) != 0
+                            || pageIndex < 0 || fieldIndex < 0 || fieldIndex > 1 || textOffset < 0)
+                        throw new NumberFormatException();
+                    return new FragmentCursor(relationship, opaqueMask, partialMask, pageIndex, fieldIndex, textOffset, false);
+                }
                 if (encoded.length == 4 && "v2".equals(encoded[0])) {
                     var relationship = "^".equals(encoded[1]) ? null : encoded[1];
                     var opaqueMask = Integer.parseInt(encoded[2]);
                     if ("done".equals(encoded[3])) {
                         if (opaqueMask < 0 || (opaqueMask & ~7) != 0) throw new NumberFormatException();
-                        return new FragmentCursor(relationship, opaqueMask, 0, 0, 0, true);
+                        return new FragmentCursor(relationship, opaqueMask, 0, 0, 0, 0, true);
                     }
                     var text = encoded[3].split(":", -1);
                     if (text.length != 3) throw new NumberFormatException();
@@ -613,7 +732,7 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
                     var textOffset = Integer.parseInt(text[2]);
                     if (opaqueMask < 0 || (opaqueMask & ~7) != 0 || pageIndex < 0 || fieldIndex < 0 || fieldIndex > 1
                             || textOffset < 0) throw new NumberFormatException();
-                    return new FragmentCursor(relationship, opaqueMask, pageIndex, fieldIndex, textOffset, false);
+                    return new FragmentCursor(relationship, opaqueMask, 0, pageIndex, fieldIndex, textOffset, false);
                 }
                 var text = value.split(":", -1);
                 if (text.length != 3) throw new NumberFormatException();
@@ -621,14 +740,84 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
                 var fieldIndex = Integer.parseInt(text[1]);
                 var textOffset = Integer.parseInt(text[2]);
                 if (pageIndex < 0 || fieldIndex < 0 || fieldIndex > 1 || textOffset < 0) throw new NumberFormatException();
-                return new FragmentCursor("done", 0, pageIndex, fieldIndex, textOffset, false);
+                return new FragmentCursor("done", 0, 0, pageIndex, fieldIndex, textOffset, false);
             } catch (NumberFormatException invalidPosition) {
                 throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid Modonomicon fragment position");
             }
         }
 
-        private static String encode(String relationshipPosition, int opaqueMask, String textPosition) {
-            return "v2|" + (relationshipPosition == null ? "^" : relationshipPosition) + "|" + opaqueMask + "|" + textPosition;
+        private static String encode(String relationshipPosition, int opaqueMask, int partialMask, String textPosition) {
+            return "v3|" + (relationshipPosition == null ? "^" : relationshipPosition) + "|" + opaqueMask + "|"
+                    + partialMask + "|" + textPosition;
+        }
+    }
+
+    private enum RelationshipKind { DONE, ENTRY_STATE, CATEGORY_STATE, PARENT, CONDITION, PAGE_START, SPOTLIGHT, RECIPE }
+
+    private record RelationshipPosition(RelationshipKind kind, String scope, int pageIndex, int index,
+                                        List<Integer> conditionPath) {
+        private static RelationshipPosition parse(String source) {
+            if (source == null) return null;
+            if (source.length() > 1024) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                    "Modonomicon relationship position exceeds its metadata bound");
+            if ("done".equals(source)) return new RelationshipPosition(RelationshipKind.DONE, null, -1, -1, List.of());
+            if ("entry:state".equals(source)) return new RelationshipPosition(RelationshipKind.ENTRY_STATE, null, -1, -1, List.of());
+            if ("category:state".equals(source)) return new RelationshipPosition(RelationshipKind.CATEGORY_STATE, null, -1, -1, List.of());
+            try {
+                if (source.startsWith("entry:parent:")) {
+                    var encodedIndex = source.substring("entry:parent:".length());
+                    var index = Integer.parseInt(encodedIndex);
+                    if (index < 0 || !Integer.toString(index).equals(encodedIndex)) throw new NumberFormatException();
+                    return new RelationshipPosition(RelationshipKind.PARENT, null, -1, index, List.of());
+                }
+                if (source.startsWith("condition:")) {
+                    var encodedCondition = source.substring("condition:".length());
+                    var scopeDelimiter = encodedCondition.lastIndexOf(':');
+                    if (scopeDelimiter < 1) throw new NumberFormatException();
+                    var scope = encodedCondition.substring(0, scopeDelimiter);
+                    var encodedPath = encodedCondition.substring(scopeDelimiter + 1);
+                    var pageIndex = -1;
+                    if (scope.startsWith("page:")) {
+                        var encodedPage = scope.substring("page:".length());
+                        pageIndex = Integer.parseInt(encodedPage);
+                        if (pageIndex < 0 || !Integer.toString(pageIndex).equals(encodedPage)) throw new NumberFormatException();
+                    } else if (!"entry".equals(scope) && !"category".equals(scope)) throw new NumberFormatException();
+                    var pathParts = encodedPath.split("\\.", -1);
+                    if (pathParts.length == 0 || pathParts.length > 65 || !"root".equals(pathParts[0]))
+                        throw new NumberFormatException();
+                    var conditionPath = new ArrayList<Integer>();
+                    for (var pathIndex = 1; pathIndex < pathParts.length; pathIndex++) {
+                        var childIndex = Integer.parseInt(pathParts[pathIndex]);
+                        if (childIndex < 0 || !Integer.toString(childIndex).equals(pathParts[pathIndex]))
+                            throw new NumberFormatException();
+                        conditionPath.add(childIndex);
+                    }
+                    return new RelationshipPosition(RelationshipKind.CONDITION, scope, pageIndex, -1,
+                            List.copyOf(conditionPath));
+                }
+                if (source.startsWith("page:")) {
+                    var parts = source.split(":", -1);
+                    if (parts.length < 3 || parts.length > 4) throw new NumberFormatException();
+                    var pageIndex = Integer.parseInt(parts[1]);
+                    if (pageIndex < 0 || !Integer.toString(pageIndex).equals(parts[1])) throw new NumberFormatException();
+                    if (parts.length == 3 && "start".equals(parts[2]))
+                        return new RelationshipPosition(RelationshipKind.PAGE_START, null, pageIndex, -1, List.of());
+                    if (parts.length == 4 && ("spotlight".equals(parts[2]) || "recipe".equals(parts[2]))) {
+                        var index = Integer.parseInt(parts[3]);
+                        if (index < 0 || !Integer.toString(index).equals(parts[3])) throw new NumberFormatException();
+                        return new RelationshipPosition("spotlight".equals(parts[2])
+                                ? RelationshipKind.SPOTLIGHT : RelationshipKind.RECIPE, null, pageIndex, index, List.of());
+                    }
+                }
+            } catch (NumberFormatException invalidPosition) {
+                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid Modonomicon relationship position");
+            }
+            throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid Modonomicon relationship position");
+        }
+
+        private boolean isPagePosition() {
+            return kind == RelationshipKind.PAGE_START || kind == RelationshipKind.SPOTLIGHT
+                    || kind == RelationshipKind.RECIPE || kind == RelationshipKind.CONDITION && pageIndex >= 0;
         }
     }
 
@@ -637,6 +826,7 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
 
         private final Toolbox.DocumentBudget budget;
         private final String resumePosition;
+        private final RelationshipPosition position;
         private final boolean startsAtBeginning;
         private final Map<String, List<Evidence.JsonObject>> values = new LinkedHashMap<>();
         private final Map<String, Evidence.Coverage> coverage = new LinkedHashMap<>();
@@ -644,31 +834,32 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
         private String nextPosition;
         private boolean started;
         private boolean stopped;
-        private boolean sawPage;
         private boolean pageGroupsApplicable;
         private int opaqueMask;
+        private int partialMask;
         private int outputRecords;
         private int relationshipBytes;
+        private boolean valueBudgetExhausted;
 
-        private RelationshipCollector(String resumePosition, int opaqueMask, Toolbox.DocumentBudget budget) {
+        private RelationshipCollector(String resumePosition, int opaqueMask, int partialMask,
+                                      Toolbox.DocumentBudget budget) {
             this.resumePosition = resumePosition;
+            this.position = RelationshipPosition.parse(resumePosition);
             this.startsAtBeginning = resumePosition == null;
             this.started = startsAtBeginning;
             this.opaqueMask = opaqueMask;
+            this.partialMask = partialMask;
             this.budget = budget;
             if ((opaqueMask & ITEMS_OPAQUE) != 0) markOpaque("items", "earlier Modonomicon item declarations remain opaque");
             if ((opaqueMask & RECIPES_OPAQUE) != 0) markOpaque("recipes", "earlier Modonomicon recipe declarations remain opaque");
             if ((opaqueMask & PREREQUISITES_OPAQUE) != 0) markOpaque("prerequisites", "earlier Modonomicon prerequisite declarations remain opaque");
+            if ((partialMask & ITEMS_OPAQUE) != 0) markPartial("items", "earlier Modonomicon item pages remain unread", true);
+            if ((partialMask & RECIPES_OPAQUE) != 0) markPartial("recipes", "earlier Modonomicon recipe pages remain unread", true);
+            if ((partialMask & PREREQUISITES_OPAQUE) != 0) markPartial("prerequisites", "earlier Modonomicon page conditions remain unread", true);
         }
 
         private Decision begin(String position, String group) {
             if (stopped) return Decision.STOP;
-            if (!budget.value()) {
-                nextPosition = position;
-                stopped = true;
-                markPartial(group, "Modonomicon relationship extraction reached its value budget");
-                return Decision.STOP;
-            }
             if (!started) {
                 if (!position.equals(resumePosition)) return Decision.SKIP;
                 started = true;
@@ -676,8 +867,15 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
             if (outputRecords >= MAX_RELATIONSHIP_RECORDS) {
                 nextPosition = position;
                 stopped = true;
-                markPartial(group, "Modonomicon relationship output reached its 16-record fragment bound");
+                markPartial(group, "Modonomicon relationship output reached its 16-record fragment bound", false);
                 markUnfinishedGroups(group);
+                return Decision.STOP;
+            }
+            if (!budget.value()) {
+                nextPosition = position;
+                stopped = true;
+                valueBudgetExhausted = true;
+                markPartial(group, "Modonomicon relationship extraction reached its value budget", false);
                 return Decision.STOP;
             }
             return Decision.PROCESS;
@@ -698,26 +896,34 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
                 relationshipBytes = previousBytes;
                 nextPosition = position;
                 stopped = true;
-                markPartial(group, "Modonomicon relationship output reached its byte bound");
+                markPartial(group, "Modonomicon relationship output reached its byte bound", false);
                 return false;
             }
             outputRecords++;
             return true;
         }
 
-        private boolean traversePage(String position) {
+        private boolean chargeTraversal(String position, String group) {
             if (stopped) return false;
             if (!budget.value()) {
-                nextPosition = position;
+                nextPosition = started ? position : resumePosition;
                 stopped = true;
-                markPartial("items", "Modonomicon page traversal reached its value budget");
-                markPartial("recipes", "Modonomicon page traversal reached its value budget");
-                markPartial("prerequisites", "Modonomicon page traversal reached its value budget");
+                valueBudgetExhausted = true;
+                markPartial(group, "Modonomicon page visibility reached its value budget", false);
                 return false;
             }
-            sawPage = true;
-            pageGroupsApplicable = true;
-            if (!started && position.equals(resumePosition)) started = true;
+            return true;
+        }
+
+        private boolean chargeConditionSeek() {
+            if (stopped) return false;
+            if (!budget.value()) {
+                nextPosition = resumePosition;
+                stopped = true;
+                valueBudgetExhausted = true;
+                markPartial("prerequisites", "Modonomicon condition seeking reached its value budget", false);
+                return false;
+            }
             return true;
         }
 
@@ -725,33 +931,41 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
             if (budget.value()) return true;
             nextPosition = position;
             stopped = true;
-            markPartial("items", "Modonomicon ingredient extraction reached its value budget");
+            valueBudgetExhausted = true;
+            markPartial("items", "Modonomicon ingredient extraction reached its value budget", false);
             return false;
         }
 
-        private void markPartial(String group, String detail) {
+        private void markPartial(String group, String detail, boolean persist) {
             if (coverage.get(group) == Evidence.Coverage.OPAQUE) return;
             coverage.put(group, Evidence.Coverage.PARTIAL);
             details.put(group, detail);
-        }
-
-        private void markOpaque(String group, String detail) {
-            coverage.put(group, Evidence.Coverage.OPAQUE);
-            details.put(group, detail);
-            opaqueMask |= switch (group) {
+            if (persist) partialMask |= switch (group) {
                 case "items" -> ITEMS_OPAQUE;
                 case "recipes" -> RECIPES_OPAQUE;
                 default -> PREREQUISITES_OPAQUE;
             };
         }
 
+        private void markOpaque(String group, String detail) {
+            coverage.put(group, Evidence.Coverage.OPAQUE);
+            details.put(group, detail);
+            var groupMask = switch (group) {
+                case "items" -> ITEMS_OPAQUE;
+                case "recipes" -> RECIPES_OPAQUE;
+                default -> PREREQUISITES_OPAQUE;
+            };
+            opaqueMask |= groupMask;
+            partialMask &= ~groupMask;
+        }
+
         private void markUnfinishedGroups(String group) {
             if ("prerequisites".equals(group)) {
-                markPartial("items", "Modonomicon relationship continuation has not reached item pages");
-                markPartial("recipes", "Modonomicon relationship continuation has not reached recipe pages");
+                markPartial("items", "Modonomicon relationship continuation has not reached item pages", false);
+                markPartial("recipes", "Modonomicon relationship continuation has not reached recipe pages", false);
             } else {
-                markPartial("items", "Modonomicon item declarations continue in a later fragment");
-                markPartial("recipes", "Modonomicon recipe declarations continue in a later fragment");
+                markPartial("items", "Modonomicon item declarations continue in a later fragment", false);
+                markPartial("recipes", "Modonomicon recipe declarations continue in a later fragment", false);
             }
         }
 
@@ -801,11 +1015,19 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
             return details.values().stream().findFirst().orElse(null);
         }
 
+        private RelationshipPosition position() { return position; }
+
         private String nextPosition() { return nextPosition; }
 
         private int opaqueMask() { return opaqueMask; }
 
+        private int partialMask() { return partialMask; }
+
         private boolean stopped() { return stopped; }
+
+        private boolean started() { return started; }
+
+        private boolean valueBudgetExhausted() { return valueBudgetExhausted; }
     }
 
     static Fragment textFragment(String text, int pageIndex, int fieldIndex, int textOffset, int pageCount,

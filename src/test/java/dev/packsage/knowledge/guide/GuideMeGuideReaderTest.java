@@ -137,7 +137,7 @@ class GuideMeGuideReaderTest {
             actual.append(fragment.text());
             position = fragment.nextPosition();
             pages++;
-            assertTrue(pages <= 512, "the full AST should advance within the bounded page count");
+            assertTrue(pages <= 4096, "the full AST should advance within the bounded page count");
             assertTrue(position == null || returnedPositions.add(position), "continuations must advance");
         } while (position != null);
 

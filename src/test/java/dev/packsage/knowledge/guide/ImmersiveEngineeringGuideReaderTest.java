@@ -286,7 +286,12 @@ class ImmersiveEngineeringGuideReaderTest {
         var first = reader.readFragment("immersiveengineering:manual/removed-unread-ref", null, 64,
                 new Toolbox.DocumentBudget());
         assertTrue(first.nextPosition() != null);
-        rows[0] = java.util.Arrays.copyOf(rows[0], 16);
+        var cursorPosition = first.nextPosition().split("\\|", -1)[1].split("\\.", -1);
+        assertEquals("0", cursorPosition[0]);
+        assertEquals("0", cursorPosition[1]);
+        int pendingRef = Integer.parseInt(cursorPosition[2]);
+        assertTrue(pendingRef > 0, "the fixture needs a nonempty shortened row to test stale equality");
+        rows[0] = java.util.Arrays.copyOf(rows[0], pendingRef);
 
         var stale = assertThrows(Toolbox.Failure.class, () -> reader.readFragment(
                 "immersiveengineering:manual/removed-unread-ref", first.nextPosition(), 64,

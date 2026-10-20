@@ -726,6 +726,8 @@ class AssistantIntegrationTest {
         backend.listeners.getFirst().accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
                 List.of(new ModelBackend.AssistantOutput("a2-output", ModelBackend.OutputStatus.COMPLETED,
                         ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A2", List.of())))), null));
+        assertFalse(queuedControllerTasks.isEmpty(), "the queued persistence continuation starts replacement work");
+        queuedControllerTasks.removeFirst().run();
         while (!queuedStoreTasks.isEmpty() || !queuedClientTasks.isEmpty()) {
             while (!queuedStoreTasks.isEmpty()) queuedStoreTasks.removeFirst().run();
             while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();

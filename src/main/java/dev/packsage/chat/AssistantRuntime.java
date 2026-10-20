@@ -1517,6 +1517,7 @@ public final class AssistantRuntime implements ChatActions {
                 knowledgeUnavailable = true;
                 knowledgeError = "Knowledge providers could not be refreshed: " + failureMessage(failure);
             }
+            KnowledgeService initializedKnowledge = knowledge;
             HistoryAdapter historyAdapter = new HistoryAdapter(store, holder.world, () -> holder.scope);
             if (!knowledgeUnavailable) knowledge.register(historyAdapter);
             RequestController controller = new RequestController(store, backend, controllerExecutor,
@@ -1529,7 +1530,7 @@ public final class AssistantRuntime implements ChatActions {
                         }
                         return new ModelBackend.Request(request.modelId(), developerPrompt == null
                                 ? request.instructions() : developerPrompt, request.input(),
-                                PackSageTools.definitions(knowledge.metadata()), request.searchMode(), request.requestId(),
+                                PackSageTools.definitions(initializedKnowledge.metadata()), request.searchMode(), request.requestId(),
                                 request.outputBudget(), request.reasoningEffort());
                     }, view -> publishHolderView(holder, view), turn -> recordCompletion(holder, turn));
             synchronized (stateLock) {

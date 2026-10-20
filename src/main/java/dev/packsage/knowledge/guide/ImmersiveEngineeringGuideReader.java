@@ -540,22 +540,10 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     + (textNext == null ? "done" : textNext) : null;
             boolean partial = scan.partial || scan.unavailable || scan.opaque || relationshipFlags != 0
                     || relationshipMore || textFragment.coverage() != Evidence.Coverage.COMPLETE;
-            String detail = groupPartialDetail(relationshipValues, textFragment.detail());
+            String detail = textFragment.detail() != null ? textFragment.detail()
+                    : partial ? "Immersive Engineering manual relationships or localized text remain incomplete" : null;
             return new Fragment(textFragment.text(), textFragment.sourcePosition(), textFragment.overlapChars(), next,
                     partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, detail, relationshipObject);
-            var resourceManager = Minecraft.getInstance().getResourceManager();
-            String locale = Minecraft.getInstance().getLanguageManager().getSelected();
-            Object location = entry.getClass().getMethod("getLocation").invoke(entry);
-            String entryPath = (String) location.getClass().getMethod("getPath").invoke(location);
-            var resource = resourceManager.getResource(ResourceLocation.fromNamespaceAndPath("immersiveengineering",
-                    "manual/" + locale + "/" + entryPath + ".txt"));
-            if (resource.isEmpty()) resource = resourceManager.getResource(ResourceLocation.fromNamespaceAndPath(
-                    "immersiveengineering", "manual/en_us/" + entryPath + ".txt"));
-            if (resource.isEmpty()) return new Fragment("", id + "@" + offset, 0, null,
-                    Evidence.Coverage.PARTIAL, "localized manual text is missing");
-            try (var stream = resource.get().open(); Reader text = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
-                return readText(text, id, offset, maxChars, FRAGMENT_OVERLAP_CHARS, budget);
-            }
         } catch (Toolbox.Failure failure) {
             throw failure;
         } catch (ReflectiveOperationException | IOException | RuntimeException | LinkageError failure) {

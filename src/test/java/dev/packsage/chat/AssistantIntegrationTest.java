@@ -10,7 +10,9 @@ import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -419,6 +421,195 @@ class AssistantIntegrationTest {
                 assertEquals("partial " + (request == 0 ? "A" : "B"), turn.answer(), transition);
             }
         }
+    }
+
+    @Test
+    void markReadRequiresSelectedLoadedUnreadAndAnOldAcknowledgementCannotClearANewerCompletion() throws Exception {
+        var storeRoot = Files.createTempDirectory("packsage-read-race");
+        var setupStore = new ConversationStore(storeRoot, DIRECT);
+        var completedConversation = setupStore.newConversation(WORLD).toCompletableFuture().join();
+        var firstCompletion = new ChatContracts.RequestId("completion-a1");
+        setupStore.appendTurn(WORLD, SCOPE, completedConversation.id(), new ChatContracts.Turn(firstCompletion,
+                "Question A1", "Answer A1", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
+        setupStore.recordCompletion(WORLD, completedConversation.id(), firstCompletion).toCompletableFuture().join();
+        setupStore.newConversation(WORLD).toCompletableFuture().join();
+
+        var clientTasks = new ArrayDeque<Runnable>();
+        var backend = new RuntimeBackend();
+        var notices = new ArrayList<ChatContracts.Turn>();
+        var store = new ConversationStore(storeRoot, DIRECT);
+        var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+                () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
+                DIRECT, clientTasks::addLast, current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { }, notices::add);
+        runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                MODEL.contextTokens(), MODEL.outputTokens()));
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        runtime.openScreen();
+
+        var firstSummary = store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(completedConversation.id())).findFirst().orElseThrow();
+        assertEquals(firstCompletion, firstSummary.unreadRequestId());
+        runtime.markRead(firstSummary, firstCompletion);
+        assertEquals(firstCompletion, store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(completedConversation.id())).findFirst().orElseThrow().unreadRequestId(),
+                "an unselected summary cannot be acknowledged");
+
+        runtime.openSession(firstSummary);
+        runtime.markRead(firstSummary, firstCompletion);
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        assertEquals(firstSummary.id(), runtime.view().conversation().id());
+        assertTrue(runtime.view().conversation().turns().stream().anyMatch(turn -> turn.requestId().equals(firstCompletion)
+                && turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED));
+        runtime.markRead(firstSummary, new ChatContracts.RequestId("not-the-completion"));
+        assertEquals(firstCompletion, store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(completedConversation.id())).findFirst().orElseThrow().unreadRequestId(),
+                "loading and mismatched completion acknowledgements are ignored");
+
+        var unseenNewerCompletion = new ChatContracts.RequestId("unseen-newer-completion");
+        runtime.markRead(new ChatContracts.SessionSummary(WORLD, firstSummary.id(), firstSummary.title(), firstSummary.lastMessage(),
+                firstSummary.updatedAt(), false, unseenNewerCompletion), unseenNewerCompletion);
+        assertEquals(firstCompletion, store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(completedConversation.id())).findFirst().orElseThrow().unreadRequestId(),
+                "a newer summary-only completion absent from the displayed turn list cannot acknowledge A1");
+
+        runtime.markRead(firstSummary, firstCompletion);
+        assertEquals(1, clientTasks.size(), "one read acknowledgement is in flight");
+        runtime.markRead(firstSummary, firstCompletion);
+        assertEquals(1, clientTasks.size(), "repeated read acknowledgements coalesce");
+        Runnable delayedFirstAcknowledgement = clientTasks.removeFirst();
+
+        runtime.send("Question A2", false, false);
+        assertEquals(1, backend.requests.size());
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        runtime.newChat();
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        assertFalse(backend.cancelled.get(0).get(), "selection change leaves A2 running");
+        backend.listeners.get(0).accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                List.of(new ModelBackend.AssistantOutput("answer-a2", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A2", List.of())))), null));
+        while (!clientTasks.isEmpty()) clientTasks.removeLast().run();
+
+        var secondCompletion = new ChatContracts.RequestId(backend.requests.get(0).requestId());
+        assertEquals(secondCompletion, store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(completedConversation.id())).findFirst().orElseThrow().unreadRequestId());
+        assertEquals(1, notices.size(), "A2 completion reports once while another conversation is selected");
+        delayedFirstAcknowledgement.run();
+        assertEquals(secondCompletion, store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(completedConversation.id())).findFirst().orElseThrow().unreadRequestId(),
+                "the stale A1 acknowledgement cannot clear A2's marker");
+        assertEquals(secondCompletion, new ConversationStore(storeRoot, DIRECT).sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(completedConversation.id())).findFirst().orElseThrow().unreadRequestId(),
+                "the newer unread marker survives store reconstruction");
+        runtime.sessions().toCompletableFuture().join();
+        runtime.sessions().toCompletableFuture().join();
+        assertEquals(1, notices.size(), "repeated session refresh does not duplicate completion notice");
+
+        var secondSummary = runtime.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(completedConversation.id())).findFirst().orElseThrow();
+        runtime.openSession(secondSummary);
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        runtime.markRead(secondSummary, secondCompletion);
+        Runnable delayedSecondAcknowledgement = clientTasks.removeFirst();
+        var nextWorld = new ChatContracts.WorldIdentity("next-world", "Next World");
+        runtime.enterWorld(nextWorld, new Evidence.Scope("next-world", "resources", "team", "runtime", 0));
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        delayedSecondAcknowledgement.run();
+        assertEquals(nextWorld.worldOrServer(), runtime.view().conversation().world().worldOrServer(),
+                "a delayed read acknowledgement cannot republish the prior world's chat");
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        assertNull(new ConversationStore(storeRoot, DIRECT).sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(completedConversation.id())).findFirst().orElseThrow().unreadRequestId());
+        assertEquals(1, notices.size());
+    }
+
+    @Test
+    void failedReadPersistenceKeepsUnreadAndRowReopenAllowsRetry() throws Exception {
+        var storeRoot = Files.createTempDirectory("packsage-read-retry");
+        var setupStore = new ConversationStore(storeRoot, DIRECT);
+        var conversation = setupStore.newConversation(WORLD).toCompletableFuture().join();
+        var completion = new ChatContracts.RequestId("completion-read-retry");
+        setupStore.appendTurn(WORLD, SCOPE, conversation.id(), new ChatContracts.Turn(completion, "Question", "Answer", List.of(),
+                new ChatContracts.Context("context", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
+        setupStore.recordCompletion(WORLD, conversation.id(), completion).toCompletableFuture().join();
+        var backend = new RuntimeBackend();
+        var store = new ConversationStore(storeRoot, DIRECT);
+        var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+                () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
+                DIRECT, DIRECT, current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                MODEL.contextTokens(), MODEL.outputTokens()));
+        runtime.openScreen();
+        var summary = store.sessions().toCompletableFuture().join().stream()
+                .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow();
+        Path conversationFile;
+        try (var files = Files.walk(storeRoot)) {
+            conversationFile = files.filter(path -> path.getFileName().toString().endsWith(".jsonl")).findFirst().orElseThrow();
+        }
+        Path movedConversationFile = conversationFile.resolveSibling("temporarily-hidden.jsonl");
+        Files.move(conversationFile, movedConversationFile);
+        runtime.markRead(summary, completion);
+        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("could not be marked as read")));
+        var persistedErrors = store.errors().size();
+        Files.move(movedConversationFile, conversationFile);
+        assertEquals(completion, store.sessions().toCompletableFuture().join().stream()
+                .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId());
+        runtime.markRead(summary, completion);
+        assertEquals(persistedErrors, store.errors().size(), "failed per-frame retries are suppressed for the same row display");
+        runtime.openSession(summary);
+        runtime.markRead(summary, completion);
+        assertNull(store.sessions().toCompletableFuture().join().stream()
+                .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId());
+    }
+
+    @Test
+    void displayedForeignWorldCompletionCanBeReadButCannotStartARequest() throws Exception {
+        var foreignWorld = new ChatContracts.WorldIdentity("foreign", "Foreign World");
+        var foreignScope = new Evidence.Scope("foreign", "resources", "team", "runtime", 0);
+        var storeRoot = Files.createTempDirectory("packsage-foreign-read");
+        var setupStore = new ConversationStore(storeRoot, DIRECT);
+        var foreignConversation = setupStore.newConversation(foreignWorld).toCompletableFuture().join();
+        var completion = new ChatContracts.RequestId("foreign-completion");
+        setupStore.appendTurn(foreignWorld, foreignScope, foreignConversation.id(), new ChatContracts.Turn(completion,
+                "Old question", "Old answer", List.of(), new ChatContracts.Context("old context", null, foreignScope), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
+        setupStore.recordCompletion(foreignWorld, foreignConversation.id(), completion).toCompletableFuture().join();
+        setupStore.newConversation(WORLD).toCompletableFuture().join();
+
+        var backend = new RuntimeBackend();
+        var store = new ConversationStore(storeRoot, DIRECT);
+        var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+                () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
+                DIRECT, DIRECT, current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                MODEL.contextTokens(), MODEL.outputTokens()));
+        runtime.openScreen();
+        var foreignSummary = store.sessions().toCompletableFuture().join().stream()
+                .filter(value -> value.id().equals(foreignConversation.id())).findFirst().orElseThrow();
+        runtime.openSession(foreignSummary);
+        runtime.send("Should stay read only", false, false);
+        assertTrue(backend.requests.isEmpty());
+        runtime.markRead(foreignSummary, completion);
+        assertNull(store.sessions().toCompletableFuture().join().stream()
+                .filter(value -> value.id().equals(foreignConversation.id())).findFirst().orElseThrow().unreadRequestId());
     }
 
     private static Evidence.Record record(String provider, String handle, Evidence.Authority authority, String title) {

@@ -532,44 +532,83 @@ class AssistantIntegrationTest {
 
     @Test
     void failedReadPersistenceKeepsUnreadAndRowReopenAllowsRetry() throws Exception {
-        var storeRoot = Files.createTempDirectory("packsage-read-retry");
+        for (String retryPath : List.of("row-reopen", "screen-reopen")) {
+            var storeRoot = Files.createTempDirectory("packsage-read-retry");
+            var setupStore = new ConversationStore(storeRoot, DIRECT);
+            var conversation = setupStore.newConversation(WORLD).toCompletableFuture().join();
+            var completion = new ChatContracts.RequestId("completion-read-retry");
+            setupStore.appendTurn(WORLD, SCOPE, conversation.id(), new ChatContracts.Turn(completion, "Question", "Answer", List.of(),
+                    new ChatContracts.Context("context", null, SCOPE), List.of(),
+                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
+            setupStore.recordCompletion(WORLD, conversation.id(), completion).toCompletableFuture().join();
+            setupStore.newConversation(WORLD).toCompletableFuture().join();
+            var backend = new RuntimeBackend();
+            var store = new ConversationStore(storeRoot, DIRECT);
+            var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+                    () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                    ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
+                    DIRECT, DIRECT, current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                    GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+            runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
+            runtime.signIn();
+            backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
+            backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                    MODEL.contextTokens(), MODEL.outputTokens()));
+            runtime.openScreen();
+            var summary = store.sessions().toCompletableFuture().join().stream()
+                    .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow();
+            runtime.openSession(summary);
+            var conversationFile = store.conversationPath(WORLD, conversation.id());
+            Path movedConversationFile = conversationFile.resolveSibling("temporarily-hidden.jsonl");
+            Files.move(conversationFile, movedConversationFile);
+            runtime.markRead(summary, completion);
+            assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("could not be marked as read")), retryPath);
+            var persistedErrors = store.errors().size();
+            Files.move(movedConversationFile, conversationFile);
+            assertEquals(completion, store.sessions().toCompletableFuture().join().stream()
+                    .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId(), retryPath);
+            runtime.markRead(summary, completion);
+            assertEquals(persistedErrors, store.errors().size(), "failed per-frame retries are suppressed for the same row display");
+            assertEquals(completion, store.sessions().toCompletableFuture().join().stream()
+                    .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId(),
+                    "the same display does not retry persistence after the file is restored");
+            if (retryPath.equals("row-reopen")) runtime.openSession(summary);
+            else {
+                var oldScreen = runtime.openScreen();
+                assertNotSame(oldScreen, runtime.openScreen());
+            }
+            runtime.markRead(summary, completion);
+            assertNull(store.sessions().toCompletableFuture().join().stream()
+                    .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId(), retryPath);
+        }
+    }
+
+    @Test
+    void latestRestoredUnreadCompletionCanBeMarkedReadFromPersistedSummary() throws Exception {
+        var storeRoot = Files.createTempDirectory("packsage-restored-unread");
         var setupStore = new ConversationStore(storeRoot, DIRECT);
         var conversation = setupStore.newConversation(WORLD).toCompletableFuture().join();
-        var completion = new ChatContracts.RequestId("completion-read-retry");
+        var completion = new ChatContracts.RequestId("completion-restored-unread");
         setupStore.appendTurn(WORLD, SCOPE, conversation.id(), new ChatContracts.Turn(completion, "Question", "Answer", List.of(),
                 new ChatContracts.Context("context", null, SCOPE), List.of(),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
         setupStore.recordCompletion(WORLD, conversation.id(), completion).toCompletableFuture().join();
-        var backend = new RuntimeBackend();
+
         var store = new ConversationStore(storeRoot, DIRECT);
-        var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+        var runtime = new AssistantRuntime(store, new RuntimeBackend(), current -> new GameplayContextCapture(
                 () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
                 ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
                 DIRECT, DIRECT, current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
                 GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
         runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
-        runtime.signIn();
-        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
-        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
-                MODEL.contextTokens(), MODEL.outputTokens()));
         runtime.openScreen();
+
         var summary = store.sessions().toCompletableFuture().join().stream()
                 .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow();
-        Path conversationFile;
-        try (var files = Files.walk(storeRoot)) {
-            conversationFile = files.filter(path -> path.getFileName().toString().endsWith(".jsonl")).findFirst().orElseThrow();
-        }
-        Path movedConversationFile = conversationFile.resolveSibling("temporarily-hidden.jsonl");
-        Files.move(conversationFile, movedConversationFile);
-        runtime.markRead(summary, completion);
-        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("could not be marked as read")));
-        var persistedErrors = store.errors().size();
-        Files.move(movedConversationFile, conversationFile);
-        assertEquals(completion, store.sessions().toCompletableFuture().join().stream()
-                .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId());
-        runtime.markRead(summary, completion);
-        assertEquals(persistedErrors, store.errors().size(), "failed per-frame retries are suppressed for the same row display");
-        runtime.openSession(summary);
+        assertEquals(completion, summary.unreadRequestId());
+        assertEquals(conversation.id(), runtime.view().conversation().id());
+        assertTrue(runtime.view().conversation().turns().stream().anyMatch(turn -> turn.requestId().equals(completion)
+                && turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED));
         runtime.markRead(summary, completion);
         assertNull(store.sessions().toCompletableFuture().join().stream()
                 .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId());

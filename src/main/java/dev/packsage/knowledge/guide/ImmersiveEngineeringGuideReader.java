@@ -437,6 +437,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             "Immersive Engineering layout changed; restart the lookup");
                     var cellValues = new ArrayList<Evidence.JsonValue>();
                     int semanticCount = 1;
+                    int layoutEstimate = estimate + 256;
                     int nextCell = cellStart;
                     int nextVariant = variantStart;
                     for (; nextCell < cells.length; nextCell++, nextVariant = 0) {
@@ -446,35 +447,76 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                         if (cell == null) { opaque = true; partial = true; continue; }
                         var cellType = Class.forName("blusunrize.lib.manual.PositionedItemStack", false, getClass().getClassLoader());
                         if (!cellType.isInstance(cell)) { opaque = true; partial = true; continue; }
+                        Object amount = cellType.getMethod("amount").invoke(cell);
+                        if (!(amount instanceof String amountText) || amountText.length() > (MAX_RELATIONSHIP_BYTES - 1024) / 6) {
+                            opaque = true;
+                            partial = true;
+                            next = following;
+                            return true;
+                        }
+                        int x = (int) cellType.getMethod("x").invoke(cell);
+                        int y = (int) cellType.getMethod("y").invoke(cell);
+                        int cellEstimate = 128 + (amountText.length() + Integer.toString(x).length()
+                                + Integer.toString(y).length()) * 6;
                         Object rawDisplay = cellType.getMethod("displayList").invoke(cell);
                         if (!(rawDisplay instanceof List<?> displayList)) { opaque = true; partial = true; continue; }
                         var alternatives = new ArrayList<Evidence.JsonValue>();
-                        var available = MAX_RELATIONSHIP_RECORDS - semanticRecords - semanticCount - 1;
-                        int copyCount = Math.min(displayList.size() - nextVariant, Math.max(0, available));
-                        if (!displayList.isEmpty() && copyCount == 0) break;
-                        for (int variant = nextVariant; variant < nextVariant + copyCount; variant++) {
-                            if (!budget.value()) { partial = true; break; }
+                        boolean chunkFull = false;
+                        for (int variant = nextVariant; variant < displayList.size(); variant++) {
+                            if (semanticRecords + semanticCount + 2 > MAX_RELATIONSHIP_RECORDS) {
+                                chunkFull = true;
+                                break;
+                            }
+                            if (!budget.value()) { partial = true; nextVariant = variant; chunkFull = true; break; }
                             Object rawAlternative = displayList.get(variant);
-                            if (!(rawAlternative instanceof ItemStack stack)) { opaque = true; partial = true; continue; }
+                            if (!(rawAlternative instanceof ItemStack stack)) {
+                                opaque = true;
+                                partial = true;
+                                nextVariant = variant + 1;
+                                continue;
+                            }
                             var projected = stack(stack);
-                            if (projected == null) continue;
+                            if (projected == null) { nextVariant = variant + 1; continue; }
+                            int alternativeEstimate = Evidence.serialize(projected).length() * 6;
+                            int additionalEstimate = (alternatives.isEmpty() ? cellEstimate : 0) + alternativeEstimate;
+                            if (layoutEstimate + additionalEstimate > MAX_RELATIONSHIP_BYTES - bytes
+                                    || layoutEstimate + additionalEstimate > budget.remainingBytes()) {
+                                if (layoutEstimate + additionalEstimate - cellEstimate > MAX_RELATIONSHIP_BYTES
+                                        && alternatives.isEmpty() && cellValues.isEmpty()) {
+                                    opaque = true;
+                                    partial = true;
+                                    nextVariant = variant + 1;
+                                    continue;
+                                }
+                                nextVariant = variant;
+                                chunkFull = true;
+                                break;
+                            }
                             alternatives.add(projected);
                             semanticCount++;
+                            nextVariant = variant + 1;
+                            layoutEstimate += alternativeEstimate;
                         }
+                        if (chunkFull && alternatives.isEmpty()) break;
+                        if (alternatives.isEmpty() && !displayList.isEmpty()) continue;
                         var cellValue = new LinkedHashMap<String, Evidence.JsonValue>();
-                        cellValue.put("x", new Evidence.JsonNumber(java.math.BigDecimal.valueOf((int) cellType.getMethod("x").invoke(cell))));
-                        cellValue.put("y", new Evidence.JsonNumber(java.math.BigDecimal.valueOf((int) cellType.getMethod("y").invoke(cell))));
-                        Object amount = cellType.getMethod("amount").invoke(cell);
-                        if (amount instanceof String amountText) cellValue.put("amount", new Evidence.JsonString(amountText));
+                        cellValue.put("x", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(x)));
+                        cellValue.put("y", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(y)));
+                        cellValue.put("amount", new Evidence.JsonString(amountText));
                         cellValue.put("alternatives", new Evidence.JsonArray(alternatives));
                         cellValues.add(new Evidence.JsonObject(cellValue));
                         semanticCount++;
-                        if (nextVariant + copyCount < displayList.size()) {
-                            nextVariant += copyCount;
+                        layoutEstimate += cellEstimate;
+                        if (chunkFull || nextVariant < displayList.size()) {
                             break;
                         }
                     }
                     if (cellValues.isEmpty()) {
+                        if (nextCell >= cells.length) {
+                            next = following;
+                            partial = true;
+                            return true;
+                        }
                         next = new int[] {position[0], position[1], position[2], nextCell, nextVariant};
                         partial = true;
                         return false;
@@ -483,11 +525,10 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     value.put("cells", new Evidence.JsonArray(cellValues));
                     int[] layoutPosition = {position[0], position[1], position[2], cellStart, variantStart};
                     value.put("sourcePosition", new Evidence.JsonString(source(layoutPosition)));
-                    estimate += 256 + Evidence.serialize(new Evidence.JsonArray(cellValues)).length() * 6;
                     int[] afterLayout = nextCell < cells.length
                             ? new int[] {position[0], position[1], position[2], nextCell, nextVariant}
                             : following;
-                    boolean completed = append(value, semanticCount, estimate, layoutPosition, afterLayout);
+                    boolean completed = append(value, semanticCount, layoutEstimate, layoutPosition, afterLayout);
                     return completed && (nextCell >= cells.length);
                 }
             }

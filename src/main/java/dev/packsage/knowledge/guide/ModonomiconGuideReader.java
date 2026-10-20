@@ -82,7 +82,7 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
 
     protected String entryDisplayState(BookEntry entry, Player player) {
         try {
-            return String.valueOf(entry.getClass().getMethod("getEntryDisplayState", Player.class).invoke(entry));
+            return String.valueOf(entry.getClass().getMethod("getEntryDisplayState", Player.class).invoke(entry, player));
         } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailableDisplayState) {
             return "HIDDEN";
         }

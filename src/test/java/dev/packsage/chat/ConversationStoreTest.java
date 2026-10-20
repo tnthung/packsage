@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -530,6 +531,92 @@ class ConversationStoreTest {
         assertTrue(loaded.turns().getFirst().navigationTargets().isEmpty());
         assertEquals(null, loaded.turns().getFirst().sentAt());
         assertTrue(loaded.turns().getFirst().steeringMessages().isEmpty());
+    }
+
+    @Test
+    void completionStateSurvivesReopenAndOnlyAcknowledgesTheLatestCompletion() throws Exception {
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        ChatContracts.Turn first = simpleTurn("first completion");
+        ChatContracts.Turn latest = simpleTurn("latest completion");
+        store.appendTurn(world, SCOPE, conversation.id(), first).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), latest).toCompletableFuture().join();
+        Path conversationFile = store.conversationPath(world, conversation.id());
+        Path stateFile = conversationFile.resolveSibling(conversationFile.getFileName().toString().replace(".jsonl", ".state.json"));
+        byte[] turnsBefore = Files.readAllBytes(conversationFile);
+        Instant updatedAtBefore = store.sessions().toCompletableFuture().join().getFirst().updatedAt();
+
+        store.recordCompletion(world, conversation.id(), first.requestId()).toCompletableFuture().join();
+        store.recordCompletion(world, conversation.id(), latest.requestId()).toCompletableFuture().join();
+        store.recordCompletion(world, conversation.id(), first.requestId()).toCompletableFuture().join();
+
+        ConversationStore reopened = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.SessionSummary summary = reopened.sessions().toCompletableFuture().join().getFirst();
+        assertEquals(latest.requestId(), summary.unreadRequestId());
+        assertEquals(updatedAtBefore, summary.updatedAt());
+        assertTrue(Files.exists(stateFile));
+        assertTrue(Files.readString(stateFile).contains("\"latestCompletedRequestId\":\"latest completion\""));
+        assertTrue(Files.readString(stateFile).contains("\"acknowledgedRequestId\":null"));
+
+        reopened.markRead(world, conversation.id(), first.requestId()).toCompletableFuture().join();
+        assertEquals(latest.requestId(), reopened.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
+        reopened.markRead(world, conversation.id(), latest.requestId()).toCompletableFuture().join();
+        assertNull(reopened.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
+        byte[] acknowledgedState = Files.readAllBytes(stateFile);
+        reopened.markRead(world, conversation.id(), latest.requestId()).toCompletableFuture().join();
+
+        assertArrayEquals(acknowledgedState, Files.readAllBytes(stateFile));
+        assertArrayEquals(turnsBefore, Files.readAllBytes(conversationFile));
+        assertTrue(reopened.errors().isEmpty());
+    }
+
+    @Test
+    void failedAndReplacedTurnsCannotLeaveUnreadStateAndDeletionRemovesMetadata() throws Exception {
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        ChatContracts.Turn failed = new ChatContracts.Turn(new ChatContracts.RequestId("failed"), "question", "", List.of(),
+                new ChatContracts.Context("context", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, "failed"), 0);
+        store.appendTurn(world, SCOPE, conversation.id(), failed).toCompletableFuture().join();
+        store.recordCompletion(world, conversation.id(), failed.requestId()).toCompletableFuture().join();
+        assertNull(store.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
+
+        ChatContracts.Turn completed = simpleTurn("completed");
+        store.replaceLatestTurn(world, SCOPE, conversation.id(), failed.requestId(), completed).toCompletableFuture().join();
+        store.recordCompletion(world, conversation.id(), completed.requestId()).toCompletableFuture().join();
+        Path conversationFile = store.conversationPath(world, conversation.id());
+        Path stateFile = conversationFile.resolveSibling(conversationFile.getFileName().toString().replace(".jsonl", ".state.json"));
+        assertEquals(completed.requestId(), store.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
+
+        ChatContracts.Turn replacement = new ChatContracts.Turn(new ChatContracts.RequestId("replacement"), "edited", "answer", List.of(),
+                new ChatContracts.Context("context", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+        store.replaceLatestTurn(world, SCOPE, conversation.id(), completed.requestId(), replacement).toCompletableFuture().join();
+        assertNull(store.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
+
+        store.recordCompletion(world, conversation.id(), replacement.requestId()).toCompletableFuture().join();
+        assertTrue(Files.exists(stateFile));
+        store.deleteConversation(world, conversation.id()).toCompletableFuture().join();
+        assertFalse(Files.exists(stateFile));
+    }
+
+    @Test
+    void missingAndMalformedCompletionMetadataAreTreatedAsRead() throws Exception {
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World A");
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        ChatContracts.Turn completed = simpleTurn("completed");
+        store.appendTurn(world, SCOPE, conversation.id(), completed).toCompletableFuture().join();
+        assertNull(store.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
+
+        Path conversationFile = store.conversationPath(world, conversation.id());
+        Path stateFile = conversationFile.resolveSibling(conversationFile.getFileName().toString().replace(".jsonl", ".state.json"));
+        Files.writeString(stateFile, "{malformed", StandardCharsets.UTF_8);
+
+        assertNull(store.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
+        assertFalse(store.errors().isEmpty());
     }
 
     private static ChatContracts.Turn simpleTurn(String question) {

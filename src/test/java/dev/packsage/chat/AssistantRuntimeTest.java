@@ -144,6 +144,79 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void switchingToNewChatKeepsThePreviousRequestAndItsCapturedScopeAndHistory() throws Exception {
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-runtime-parallel"), DIRECT);
+        ChatContracts.Conversation firstConversation = store.newConversation(WORLD).toCompletableFuture().join();
+        ChatContracts.Turn previous = new ChatContracts.Turn(new ChatContracts.RequestId("previous-turn"), "Earlier question",
+                "Earlier answer", List.of(), new ChatContracts.Context("earlier context", null, SCOPE), List.of(), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+        store.appendTurn(WORLD, SCOPE, firstConversation.id(), previous).toCompletableFuture().join();
+
+        FakeBackend backend = new FakeBackend();
+        Map<String, ChatContracts.PreparedRequest> preparedByRequest = new java.util.LinkedHashMap<>();
+        var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+                () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                request -> new GameplayContextCapture.CapturedFrame("image/png",
+                        request.requestId().value().getBytes(java.nio.charset.StandardCharsets.UTF_8), Instant.EPOCH),
+                DIRECT, current), DIRECT, DIRECT, current -> new KnowledgeService(List.of(), current),
+                ChatContracts.Turn::tokenCount, prepared -> {
+                    preparedByRequest.put(prepared.submission().requestId().value(), prepared);
+                    return new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                            new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                    prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                            prepared.submission().requestId().value(), prepared.submission().outputBudget());
+                }, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+
+        runtime.send("Question for A", true, false);
+        String firstRequestId = backend.requests.getFirst().requestId();
+        String firstScopeWorldSession = preparedByRequest.get(firstRequestId).capturedContext().context().scope().worldSession();
+        long firstScopeGeneration = preparedByRequest.get(firstRequestId).capturedContext().context().scope().requestGeneration();
+        byte[] firstScreenshot = preparedByRequest.get(firstRequestId).capturedContext().screenshotBytes();
+
+        runtime.newChat();
+        String secondConversationId = runtime.view().conversation().id();
+        runtime.send("Question for B", true, false);
+        String secondRequestId = backend.requests.getLast().requestId();
+
+        assertEquals(2, backend.requests.size());
+        assertFalse(backend.cancelled.get(firstRequestId), "switching chats must leave A's backend request running");
+        assertFalse(firstConversation.id().equals(secondConversationId));
+        assertFalse(firstRequestId.equals(secondRequestId));
+        assertEquals(List.of(previous), preparedByRequest.get(firstRequestId).history().turns());
+        assertTrue(preparedByRequest.get(secondRequestId).history().turns().isEmpty());
+        assertEquals(firstScopeWorldSession, preparedByRequest.get(firstRequestId).capturedContext().context().scope().worldSession());
+        assertEquals(firstScopeGeneration, preparedByRequest.get(firstRequestId).capturedContext().context().scope().requestGeneration());
+        assertTrue(preparedByRequest.get(secondRequestId).capturedContext().context().scope().requestGeneration() > firstScopeGeneration);
+        assertEquals(firstRequestId, new String(firstScreenshot, java.nio.charset.StandardCharsets.UTF_8));
+        assertEquals(secondRequestId, new String(preparedByRequest.get(secondRequestId).capturedContext().screenshotBytes(),
+                java.nio.charset.StandardCharsets.UTF_8));
+
+        backend.emit(secondRequestId, new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer-b", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer B", List.of())))), null));
+        backend.emit(firstRequestId, new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer-a", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A", List.of())))), null));
+
+        ChatContracts.Conversation savedA = store.openConversation(WORLD, firstConversation.id()).toCompletableFuture().join();
+        ChatContracts.Conversation savedB = store.openConversation(WORLD, secondConversationId).toCompletableFuture().join();
+        assertEquals("Question for A", savedA.turns().getLast().question());
+        assertEquals(firstScopeGeneration, savedA.turns().getLast().context().scope().requestGeneration());
+        assertEquals("Question for B", savedB.turns().getLast().question());
+        assertEquals(preparedByRequest.get(secondRequestId).capturedContext().context().scope(),
+                savedB.turns().getLast().context().scope());
+        assertEquals(secondConversationId, runtime.view().conversation().id());
+        assertEquals(firstRequestId, store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(firstConversation.id())).findFirst().orElseThrow().unreadRequestId().value());
+        assertEquals(secondRequestId, store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(secondConversationId)).findFirst().orElseThrow().unreadRequestId().value());
+    }
+
+    @Test
     void sendInstallsNextScopeAndSnapshotsCatalogSettingsBeforeCapture() throws Exception {
         AtomicReference<Evidence.Scope> currentScope = new AtomicReference<>();
         AtomicReference<ModelBackend.Request> request = new AtomicReference<>();
@@ -1260,6 +1333,8 @@ class AssistantRuntimeTest {
         private final List<Request> requests = new ArrayList<>();
         private final List<ToolResult> results = new ArrayList<>();
         private final List<Message> steered = new ArrayList<>();
+        private final Map<String, java.util.function.Consumer<Event>> eventConsumers = new java.util.LinkedHashMap<>();
+        private final Map<String, Boolean> cancelled = new java.util.LinkedHashMap<>();
         private java.util.function.Consumer<Event> events;
         private int starts;
         private int submissions;
@@ -1295,15 +1370,21 @@ class AssistantRuntimeTest {
             starts++;
             requests.add(request);
             this.events = events;
+            eventConsumers.put(request.requestId(), events);
+            cancelled.put(request.requestId(), false);
             return new Exchange() {
                 @Override public void submit(ToolResult result) { submissions++; results.add(result); }
                 @Override public boolean steer(Message message) { steered.add(message); return true; }
-                @Override public void cancel() { }
+                @Override public void cancel() { cancelled.put(request.requestId(), true); }
             };
         }
 
         private void emit(Event event) {
             events.accept(event);
+        }
+
+        private void emit(String requestId, Event event) {
+            eventConsumers.get(requestId).accept(event);
         }
     }
 }

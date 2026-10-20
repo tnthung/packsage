@@ -213,6 +213,48 @@ class RequestControllerTest {
     }
 
     @Test
+    void screenshotCompletionMarkerIsQueuedAfterItsCompletedTurnAppend() {
+        ManualExecutor storeExecutor = new ManualExecutor();
+        ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);
+        FakeBackend backend = new FakeBackend();
+        AtomicReference<String> conversationId = new AtomicReference<>();
+        List<ChatContracts.Turn> completionCallbacks = new ArrayList<>();
+        RequestController controller = new RequestController(store, backend, DIRECT,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", new ChatContracts.Screenshot("completion-order.png",
+                                "image/png", 3, Instant.EPOCH), capture.scope()), new byte[]{1, 2, 3})), ignored -> { },
+                ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
+                ignored -> CompletableFuture.failedFuture(new IllegalStateException("no tools expected")),
+                ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()), ignored -> { }, turn -> {
+                    completionCallbacks.add(turn);
+                    store.recordCompletion(WORLD_A, conversationId.get(), turn.requestId());
+                });
+        CompletionStage<ChatContracts.Conversation> opened = controller.openWorld(WORLD_A, SCOPE_A);
+        storeExecutor.drain();
+        conversationId.set(opened.toCompletableFuture().join().id());
+        controller.begin(submission("screenshot-completion-order", WORLD_A, SCOPE_A, true,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096)).toCompletableFuture().join();
+        ModelBackend.Event completed = new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer", List.of())))), null);
+
+        backend.emit("screenshot-completion-order", completed);
+        backend.emit("screenshot-completion-order", completed);
+        storeExecutor.drain();
+        CompletionStage<List<ChatContracts.SessionSummary>> summaries = store.sessions();
+        storeExecutor.drain();
+
+        assertEquals(1, completionCallbacks.size());
+        assertEquals(ChatContracts.OutcomeStatus.COMPLETED, completionCallbacks.getFirst().outcome().status());
+        assertEquals("screenshot-completion-order", summaries.toCompletableFuture().join().getFirst()
+                .unreadRequestId().value());
+    }
+
+    @Test
     void stopBeforeCaptureAndStoreCompletionPersistsTheSubmittedWorldWithoutReplacingRetryView() {
         ManualExecutor storeExecutor = new ManualExecutor();
         ConversationStore store = new ConversationStore(temporaryDirectory, storeExecutor);

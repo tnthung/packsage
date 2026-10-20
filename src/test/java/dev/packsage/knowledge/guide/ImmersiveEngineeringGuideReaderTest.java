@@ -146,7 +146,7 @@ class ImmersiveEngineeringGuideReaderTest {
         manual.reset();
         var layout = new blusunrize.lib.manual.utils.ManualRecipeRef(new blusunrize.lib.manual.PositionedItemStack[] {
                 new blusunrize.lib.manual.PositionedItemStack(java.util.List.of(
-                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_INGOT)), 0, 0, "x".repeat(2000))
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_INGOT)), 0, 0, "x".repeat(9000))
         });
         var entry = manual.addEntry("immersiveengineering:manual/oversized-layout",
                 new blusunrize.lib.manual.ManualElementCrafting(

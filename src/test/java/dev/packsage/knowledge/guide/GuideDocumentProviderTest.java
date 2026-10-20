@@ -336,11 +336,17 @@ class GuideDocumentProviderTest {
         var reader = new FixtureReader();
         reader.relationships.set(itemsRelationship("minecraft:diamond", Evidence.Coverage.COMPLETE));
         var provider = new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run);
-        reader.relationships.set(itemsRelationship("minecraft:emerald", Evidence.Coverage.COMPLETE));
+        var context = new Toolbox.Context(() -> SCOPE, Map.of("observed", new Toolbox.Reference(
+                "fixture_guide", "fixture:guide/entry", Evidence.RecordKind.GUIDE, SCOPE)), new AdapterRegistry(),
+                new Toolbox.DocumentBudget(), null);
+        var request = new PackSageTools.ReadRequest("read_evidence", new Evidence.JsonObject(Map.of("handles",
+                new Evidence.JsonArray(List.of(new Evidence.JsonString("observed"))))), SCOPE);
 
-        var result = provider.query(new Evidence.Query(Evidence.Operation.GET,
-                new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("fixture:guide/entry"))), 1, null, null),
-                SCOPE).toCompletableFuture().join();
+        var first = provider.readEvidence(request, context).toCompletableFuture().join();
+        assertEquals(itemsRelationship("minecraft:diamond", Evidence.Coverage.COMPLETE),
+                first.records().getFirst().payload().values().get("relationships"));
+        reader.relationships.set(itemsRelationship("minecraft:emerald", Evidence.Coverage.COMPLETE));
+        var result = provider.readEvidence(request, context).toCompletableFuture().join();
 
         assertEquals(itemsRelationship("minecraft:emerald", Evidence.Coverage.COMPLETE),
                 result.records().getFirst().payload().values().get("relationships"));
@@ -391,7 +397,79 @@ class GuideDocumentProviderTest {
             var record = search(reader, "needle").records().getFirst();
             assertEquals(reader.relationships.get(), record.payload().values().get("relationships"));
             assertEquals(new Evidence.JsonBoolean(coverage == Evidence.Coverage.COMPLETE), record.payload().values().get("complete"));
+            assertEquals(coverage, record.source().coverage());
+            assertEquals(coverage, search(reader, "needle").coverage());
         }
+    }
+
+    @Test
+    void alternativesMetadataDoesNotMatchDeclaredIdentity() {
+        var reader = new FixtureReader();
+        reader.firstText.set("");
+        reader.terminalFragment.set(true);
+        reader.relationships.set(new Evidence.JsonObject(Map.of("items", relationshipGroup(Evidence.Coverage.COMPLETE,
+                List.of(new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("associated"),
+                        "sourcePosition", new Evidence.JsonString("diamond-page"),
+                        "itemId", new Evidence.JsonString("minecraft:emerald"),
+                        "alternatives", new Evidence.JsonArray(List.of(new Evidence.JsonObject(Map.of(
+                                "kind", new Evidence.JsonString("needle-kind"),
+                                "sourcePosition", new Evidence.JsonString("needle-position"),
+                                "detail", new Evidence.JsonString("needle explanation"),
+                                "itemId", new Evidence.JsonString("minecraft:gold_ingot"))))))))))));
+
+        assertTrue(search(reader, "needle").records().isEmpty());
+    }
+
+    @Test
+    void relationshipLimitCountsAllGroupsAndScalarAlternatives() {
+        var combined = new FixtureReader();
+        combined.relationships.set(new Evidence.JsonObject(Map.of(
+                "items", relationshipGroup(Evidence.Coverage.COMPLETE, relationshipValues(6)),
+                "recipes", relationshipGroup(Evidence.Coverage.COMPLETE, relationshipValues(6)),
+                "prerequisites", relationshipGroup(Evidence.Coverage.COMPLETE, relationshipValues(5)))));
+        assertExtractionFailure(combined);
+
+        var alternatives = new FixtureReader();
+        var alternativesValue = new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("associated"),
+                "itemId", new Evidence.JsonString("minecraft:diamond"),
+                "alternatives", new Evidence.JsonArray(java.util.Collections.nCopies(17,
+                        new Evidence.JsonString("minecraft:emerald")))));
+        alternatives.relationships.set(new Evidence.JsonObject(Map.of("items", relationshipGroup(
+                Evidence.Coverage.COMPLETE, List.of(alternativesValue)))));
+        assertExtractionFailure(alternatives);
+    }
+
+    @Test
+    void oversizedAndDeepRelationshipTreesAreRejectedBeforeUnboundedMaterialization() {
+        var oversized = new FixtureReader();
+        oversized.relationships.set(new Evidence.JsonObject(Map.of("items", relationshipGroup(Evidence.Coverage.COMPLETE,
+                List.of(new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("associated"),
+                        "itemId", new Evidence.JsonString("x".repeat(9000))))))));
+        assertExtractionFailure(oversized);
+
+        var deepValue = new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("condition")));
+        for (int index = 0; index < 10_000; index++) deepValue = new Evidence.JsonObject(Map.of("children",
+                new Evidence.JsonArray(List.of(deepValue))));
+        var deep = new FixtureReader();
+        deep.relationships.set(new Evidence.JsonObject(Map.of("prerequisites", relationshipGroup(
+                Evidence.Coverage.COMPLETE, List.of(deepValue)))));
+        assertExtractionFailure(deep);
+    }
+
+    private static List<Evidence.JsonValue> relationshipValues(int count) {
+        var values = new java.util.ArrayList<Evidence.JsonValue>();
+        for (int index = 0; index < count; index++) values.add(new Evidence.JsonObject(Map.of(
+                "kind", new Evidence.JsonString("condition"), "sourcePosition", new Evidence.JsonString("entry:" + index))));
+        return values;
+    }
+
+    private static Evidence.JsonObject relationshipGroup(Evidence.Coverage coverage, List<Evidence.JsonValue> values) {
+        var group = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+        group.put("coverage", new Evidence.JsonString(coverage.name()));
+        group.put("values", new Evidence.JsonArray(values));
+        if (coverage == Evidence.Coverage.PARTIAL || coverage == Evidence.Coverage.OPAQUE)
+            group.put("detail", new Evidence.JsonString("some relationship declarations remain undecoded"));
+        return new Evidence.JsonObject(group);
     }
 
     @Test
@@ -429,8 +507,7 @@ class GuideDocumentProviderTest {
                 new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("associated"),
                         "sourcePosition", new Evidence.JsonString("page:first"),
                         "itemId", new Evidence.JsonString(itemId))));
-        return new Evidence.JsonObject(Map.of("items", new Evidence.JsonObject(Map.of(
-                "coverage", new Evidence.JsonString(coverage.name()), "values", new Evidence.JsonArray(values)))));
+        return new Evidence.JsonObject(Map.of("items", relationshipGroup(coverage, values)));
     }
 
     private static final class FixtureReader implements GuideDocumentReader {

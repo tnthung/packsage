@@ -334,7 +334,7 @@ class AssistantIntegrationTest {
 
     @Test
     void accountAndWorldTransitionsCancelEveryConversationBeforeLateCallbacks() throws Exception {
-        for (String transition : List.of("sign-out", "disconnect", "scope-invalidation")) {
+        for (String transition : List.of("sign-out", "account-replacement", "disconnect", "scope-invalidation", "world-replacement")) {
             var backend = new RuntimeBackend();
             var notices = new ArrayList<ChatContracts.Turn>();
             var providerQueries = new AtomicInteger();
@@ -380,18 +380,31 @@ class AssistantIntegrationTest {
                     backend.listeners.get(request).accept(lateCompletion);
                 }
             };
-            if (transition.equals("sign-out")) {
+            if (transition.equals("sign-out") || transition.equals("account-replacement")) {
                 backend.duringSignOut = lateCallbacks;
                 runtime.signOut();
+                if (transition.equals("account-replacement")) {
+                    backend.signIn = new CompletableFuture<>();
+                    runtime.signIn();
+                    backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "replacement", null));
+                    assertEquals(ChatContracts.SignInState.SIGNED_IN, runtime.view().signIn(), transition);
+                    lateCallbacks.run();
+                }
             } else {
                 if (transition.equals("disconnect")) runtime.disconnect();
-                else runtime.invalidate(new Evidence.Scope("world", "resources-2", "team", "runtime", 1));
+                else if (transition.equals("scope-invalidation")) {
+                    runtime.invalidate(new Evidence.Scope("world", "resources-2", "team", "runtime", 1));
+                } else {
+                    runtime.enterWorld(new ChatContracts.WorldIdentity("world-next", "Next World"),
+                            new Evidence.Scope("world-next", "resources", "team", "runtime", 1));
+                }
                 lateCallbacks.run();
             }
 
             assertEquals(0, providerQueries.get(), transition + " must reject late client tool calls");
             assertTrue(notices.isEmpty(), transition + " must not issue completion notices");
-            var summaries = store.sessions().toCompletableFuture().join();
+            var summaries = store.sessions().toCompletableFuture().join().stream()
+                    .filter(summary -> summary.world().worldOrServer().equals(WORLD.worldOrServer())).toList();
             assertEquals(2, summaries.size(), transition);
             assertTrue(summaries.stream().allMatch(summary -> summary.unreadRequestId() == null), transition);
             for (int request = 0; request < 2; request++) {
@@ -465,7 +478,7 @@ class AssistantIntegrationTest {
     }
 
     private static final class RuntimeBackend implements ModelBackend {
-        private final CompletableFuture<AuthState> signIn = new CompletableFuture<>();
+        private CompletableFuture<AuthState> signIn = new CompletableFuture<>();
         private final CompletableFuture<Capabilities> catalog = new CompletableFuture<>();
         private final List<Request> requests = new ArrayList<>();
         private final List<ToolResult> submitted = new ArrayList<>();

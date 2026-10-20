@@ -13,6 +13,159 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ImmersiveEngineeringGuideReaderTest {
     @Test
+    void initializedManualExposesDistinctRecipeReferenceFormsWithEntryProvenance() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var name = blusunrize.lib.manual.utils.ManualRecipeRef.recipeName("immersiveengineering:hammering");
+        var result = blusunrize.lib.manual.utils.ManualRecipeRef.result(
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_INGOT));
+        var waterPotion = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.POTION);
+        waterPotion.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
+                new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.WATER));
+        var awkwardPotion = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.POTION);
+        awkwardPotion.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
+                new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.AWKWARD));
+        var layout = blusunrize.lib.manual.utils.ManualRecipeRef.layout(java.util.List.of(
+                new blusunrize.lib.manual.PositionedItemStack(java.util.List.of(waterPotion, awkwardPotion),
+                        23, 41, "2")));
+        var entry = manual.addEntry("immersiveengineering:manual/hammer", new blusunrize.lib.manual.ManualElementCrafting(
+                new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{name, result, layout}}));
+        entry.addSpecial("hammer-anchor", 17);
+
+        var fragment = new ImmersiveEngineeringGuideReader().readFragment("immersiveengineering:manual/hammer", null,
+                64, new Toolbox.DocumentBudget());
+
+        var serialized = Evidence.serialize(fragment.relationships());
+        assertTrue(serialized.contains("immersiveengineering:hammering"));
+        assertTrue(serialized.contains("minecraft:iron_ingot"));
+        assertTrue(serialized.contains("immersiveengineering:manual/hammer"));
+        assertTrue(serialized.contains("hammer-anchor"));
+        assertTrue(serialized.contains("sourcePosition") && serialized.contains("17"));
+        assertTrue(serialized.contains("23") && serialized.contains("41") && serialized.contains("2"));
+        assertTrue(serialized.contains("minecraft:water") && serialized.contains("minecraft:awkward"));
+        assertTrue(!serialized.contains("\"role\":\"input\"") && !serialized.contains("\"role\":\"output\""));
+        assertTrue(name.isRecipeName() && result.isResult() && layout.isLayout());
+        assertEquals(0, manual.forbiddenCalls());
+    }
+
+    @Test
+    void initializedManualProjectsBlueprintBottlingAndMixerSelectorsWithoutRecipeMatching() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var water = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.POTION);
+        water.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
+                new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.WATER));
+        var awkward = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.POTION);
+        awkward.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
+                new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.AWKWARD));
+        var refs = new blusunrize.lib.manual.utils.ManualRecipeRef[] {
+                blusunrize.lib.manual.utils.ManualRecipeRef.recipeName("immersiveengineering:blueprint"),
+                blusunrize.lib.manual.utils.ManualRecipeRef.result(water),
+                blusunrize.lib.manual.utils.ManualRecipeRef.result(awkward)
+        };
+        var blueprint = manual.addEntry("immersiveengineering:manual/blueprint",
+                new blusunrize.immersiveengineering.client.manual.ManualElementBlueprint(refs));
+        blueprint.addSpecial("blueprint-anchor", 0);
+        var mixer = manual.addEntry("immersiveengineering:manual/mixer",
+                new blusunrize.immersiveengineering.client.manual.ManualElementMixer(new net.minecraft.world.level.material.Fluid[] {
+                        net.minecraft.world.level.material.Fluids.WATER
+                }));
+        mixer.addSpecial("mixer-anchor", -8);
+        var bottling = manual.addEntry("immersiveengineering:manual/bottling",
+                new blusunrize.immersiveengineering.client.manual.ManualElementBottling(refs));
+        bottling.addSpecial("bottling-anchor", 4);
+        var fragment = new ImmersiveEngineeringGuideReader().readFragment("immersiveengineering:manual/blueprint", null,
+                64, new Toolbox.DocumentBudget());
+        var serialized = Evidence.serialize(fragment.relationships());
+        var bottlingFragment = new ImmersiveEngineeringGuideReader().readFragment("immersiveengineering:manual/bottling", null,
+                64, new Toolbox.DocumentBudget());
+        var mixerFragment = new ImmersiveEngineeringGuideReader().readFragment("immersiveengineering:manual/mixer", null,
+                64, new Toolbox.DocumentBudget());
+
+        assertTrue(serialized.contains("blueprint-anchor"));
+        assertTrue(serialized.contains("minecraft:water"));
+        assertTrue(serialized.contains("minecraft:awkward"));
+        assertTrue(Evidence.serialize(bottlingFragment.relationships()).contains("bottling-anchor"));
+        assertTrue(Evidence.serialize(mixerFragment.relationships()).contains("minecraft:water"));
+        assertTrue(Evidence.serialize(mixerFragment.relationships()).contains("mixer-anchor"));
+        assertEquals(0, manual.recipeMatchCalls());
+        assertEquals(0, manual.forbiddenCalls());
+    }
+
+    @Test
+    void uninitializedManualAndLazyElementAccessorsAreNeverUsed() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        manual.setInitialized(false);
+        var entry = manual.addEntry("immersiveengineering:manual/lazy", null);
+        entry.addLazySpecial("lazy-anchor", 0);
+
+        var fragment = new ImmersiveEngineeringGuideReader().readFragment("immersiveengineering:manual/lazy", null,
+                32, new Toolbox.DocumentBudget());
+
+        assertTrue(Evidence.serialize(fragment.relationships()).contains("recipes"));
+        assertTrue(Evidence.serialize(fragment.relationships()).contains("UNAVAILABLE")
+                || Evidence.serialize(fragment.relationships()).contains("PARTIAL"));
+        assertEquals(0, entry.specialDataCalls());
+        assertEquals(0, entry.elementAccessorCalls());
+        assertEquals(0, manual.forbiddenCalls());
+    }
+
+    @Test
+    void continuationUsesCurrentManualDeclarationsAndDoesNotRetainEarlierElementState() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var entry = manual.addEntry("immersiveengineering:manual/reloaded",
+                new blusunrize.lib.manual.ManualElementCrafting(new blusunrize.lib.manual.utils.ManualRecipeRef[][] {
+                        {blusunrize.lib.manual.utils.ManualRecipeRef.recipeName("immersiveengineering:old")}
+                }));
+        entry.addSpecial("anchor", 0);
+        var reader = new ImmersiveEngineeringGuideReader();
+        var first = reader.readFragment("immersiveengineering:manual/reloaded", null, 32, new Toolbox.DocumentBudget());
+        entry.setSpecials(java.util.List.of(new blusunrize.lib.manual.ManualEntry.SpecialElementData("new-anchor", 5,
+                new blusunrize.lib.manual.ManualElementCrafting(new blusunrize.lib.manual.utils.ManualRecipeRef[][] {
+                        {blusunrize.lib.manual.utils.ManualRecipeRef.recipeName("immersiveengineering:new")}
+                }))));
+
+        var next = reader.readFragment("immersiveengineering:manual/reloaded", first.nextPosition(), 32,
+                new Toolbox.DocumentBudget());
+
+        assertTrue(Evidence.serialize(next.relationships()).contains("immersiveengineering:new"));
+        assertTrue(Evidence.serialize(next.relationships()).contains("new-anchor"));
+        assertTrue(!Evidence.serialize(next.relationships()).contains("immersiveengineering:old"));
+    }
+
+    @Test
+    void boundedRowsAdvanceAndUnknownNativeElementsStayOpaque() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var rows = new blusunrize.lib.manual.utils.ManualRecipeRef[24][];
+        for (int row = 0; row < rows.length; row++) {
+            rows[row] = new blusunrize.lib.manual.utils.ManualRecipeRef[] {
+                    blusunrize.lib.manual.utils.ManualRecipeRef.recipeName("immersiveengineering:recipe_" + row)
+            };
+        }
+        var entry = manual.addEntry("immersiveengineering:manual/bounded", new blusunrize.lib.manual.ManualElementCrafting(rows));
+        entry.addSpecial("rows", 0);
+
+        var first = new ImmersiveEngineeringGuideReader().readFragment("immersiveengineering:manual/bounded", null,
+                64, new Toolbox.DocumentBudget());
+
+        assertTrue(first.nextPosition() != null);
+        assertTrue(Evidence.serialize(first.relationships()).contains("PARTIAL"));
+        assertTrue(Evidence.serialize(first.relationships()).contains("recipe_"));
+
+        manual.reset();
+        var opaque = manual.addEntry("immersiveengineering:manual/custom", new blusunrize.lib.manual.SpecialManualElement());
+        opaque.addSpecial("custom", 3);
+        var unknown = new ImmersiveEngineeringGuideReader().readFragment("immersiveengineering:manual/custom", null,
+                64, new Toolbox.DocumentBudget());
+        var serialized = Evidence.serialize(unknown.relationships());
+        assertTrue(serialized.contains("OPAQUE") || serialized.contains("PARTIAL"));
+        assertTrue(serialized.contains("detail"));
+    }
+
+    @Test
     void textContinuationIncludesOnlyTheBoundedSearchOverlap() {
         var text = "0123456789";
         var first = ImmersiveEngineeringGuideReader.readText(new StringReader(text), "immersiveengineering:manual/test",

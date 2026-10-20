@@ -274,6 +274,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                 int flags = initialRelationshipFlags;
                 int records;
                 int bytes;
+                int chargeSize;
                 boolean stopped;
 
                 int escapedLength(String value) {
@@ -296,7 +297,8 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                 boolean charge(String... values) {
                     int size = 144;
                     for (String value : values) size += escapedLength(value);
-                    if (bytes + size > 8 * 1024 || !budget.bytes(size)) return false;
+                    chargeSize = size;
+                    if (size > 8 * 1024 || bytes + size > 8 * 1024 || !budget.bytes(size)) return false;
                     bytes += size;
                     return true;
                 }
@@ -325,8 +327,8 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                         return;
                     }
                     for (int index = nextMetadata; index < values.size(); index++) {
-                        if (records >= 16) { nextMetadata = index; flags |= 4; return; }
-                        if (!budget.value()) { nextMetadata = index; flags |= 4; return; }
+                        if (records >= 16) { nextMetadata = index; return; }
+                        if (!budget.value()) { nextMetadata = index; return; }
                         Object declaration = values.get(index);
                         if (!(declaration instanceof String itemText) || itemText.isBlank() || itemText.length() > 512) {
                             flags |= 4;
@@ -342,7 +344,10 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                         String sourcePosition = "frontmatter:item_ids:" + index;
                         if (!charge("kind", "associated", "sourcePosition", sourcePosition,
                                 "itemId", itemId.toString())) {
-                            if (budget.exhausted()) { nextMetadata = index; flags |= 4; return; }
+                            if (budget.exhausted() || chargeSize <= 8 * 1024) {
+                                nextMetadata = index;
+                                return;
+                            }
                             flags |= 4;
                             nextMetadata = index + 1;
                             continue;
@@ -368,13 +373,16 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
 
                 List<Integer> successor(List<Integer> path, List<Object> ancestors) throws ReflectiveOperationException {
                     Object current = ancestors.getLast();
-                    if (path.size() < 64 && parentType.isInstance(current)) {
+                    if (parentType.isInstance(current)) {
                         if (!budget.value()) return null;
                         var values = (List<?>) parentType.getMethod("children").invoke(current);
                         if (!values.isEmpty()) {
-                            var childPath = new ArrayList<>(path);
-                            childPath.add(0);
-                            return childPath;
+                            if (path.size() < 64) {
+                                var childPath = new ArrayList<>(path);
+                                childPath.add(0);
+                                return childPath;
+                            }
+                            flags |= 2 | 8;
                         }
                     }
                     for (int depth = path.size() - 1; depth >= 0; depth--) {
@@ -433,7 +441,6 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                             flags |= 2;
                             if (records >= 16) {
                                 nextAst = path;
-                                flags |= 8;
                                 stopped = true;
                                 return;
                             }
@@ -505,7 +512,13 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                                         stopped = true;
                                         return;
                                     }
-                                    flags |= 8;
+                                    if (chargeSize > 8 * 1024) flags |= 8;
+                                    else {
+                                        nextAst = path;
+                                        flags |= 2;
+                                        stopped = true;
+                                        return;
+                                    }
                                 } else {
                                     var record = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
                                     record.put("kind", new Evidence.JsonString(kind));
@@ -531,7 +544,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                         relationships.flags |= 2;
                     }
                 } else {
-                    relationships.flags |= 2 | 8;
+                    relationships.flags |= 2;
                 }
             }
             if (relationships.nextAst != null) relationships.flags |= 2;

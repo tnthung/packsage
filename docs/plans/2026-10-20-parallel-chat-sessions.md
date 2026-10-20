@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use `superpowers:executing-plans` or `superpowers:subagent-driven-development` to implement this plan task by task. Keep one write owner for the shared runtime and UI files. Steps use checkboxes for tracking.
 
-**Status:** Implementation, automated checks and independent reviews complete via SDD on 2026-10-20. Minecraft acceptance is pending. Keep the feature branch separate; do not merge or push.
+**Status:** Implementation, automated checks and independent reviews complete via SDD on 2026-10-20. Merged locally into `feat/packsage-v1` with explicit non-fast-forward merge `13c1713` after user authorization; the merged build passed. Minecraft acceptance is pending. Nothing was pushed or installed.
 
 **Goal:** Let the player ask questions in several independent conversations, switch between them while replies continue, and return to completed answers with a primary-color dot before each unread conversation title.
 
@@ -43,7 +43,7 @@
 - Keep one runtime authority for each loaded conversation; reopening A must never create a second controller writing to A.
 - Do not hold runtime locks while calling controllers, providers, UI listeners or persistence callbacks. Selection generations reject stale UI loads; request/world generations reject stale work independently.
 - No formatting tools, dependency upgrades, prompt changes, new notification settings, request scheduler, cross-world background execution or unrelated refactoring.
-- The approved SDD execution includes worktree commits. Commit each written work step using the staged-index `$commit-message` workflow. Do not merge or push.
+- The approved SDD execution includes worktree commits. Commit each written work step using the staged-index `$commit-message` workflow. Merge only with explicit user authorization and `--no-ff`; do not push.
 
 ## Review focus
 
@@ -153,4 +153,4 @@
 
 ## Execution order
 
-Implement Task 1 alongside the store/contracts portion of Task 3 with disjoint file ownership. After those interfaces are reviewed, one worker owns Task 2 plus the runtime portion of Task 3, while another owns Task 4's screen and screen-state tests. The runtime worker owns `ClientAssistant`; the screen worker does not edit it. The parent serializes Git and Gradle operations, completes Task 5 and coordinates task reviews plus the final branch review. Installation, merge and push are outside this execution.
+Implement Task 1 alongside the store/contracts portion of Task 3 with disjoint file ownership. After those interfaces are reviewed, one worker owns Task 2 plus the runtime portion of Task 3, while another owns Task 4's screen and screen-state tests. The runtime worker owns `ClientAssistant`; the screen worker does not edit it. The parent serializes Git and Gradle operations, completes Task 5 and coordinates task reviews plus the final branch review. Installation and push remain outside this execution; the later user-authorized local merge is recorded above.

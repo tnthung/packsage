@@ -2,7 +2,7 @@
 
 Date: 2026-10-20
 
-Plan: [parallel chat sessions](../plans/2026-10-20-parallel-chat-sessions.md). Worktree branch: `feat/parallel-chat-sessions`, starting at local commit `221fe33`. Implementation, automated checks and independent reviews are complete. Minecraft acceptance is pending. The branch and worktree remain separate; nothing was merged, pushed or installed.
+Plan: [parallel chat sessions](../plans/2026-10-20-parallel-chat-sessions.md). Feature branch: `feat/parallel-chat-sessions`, starting at local commit `221fe33`. Implementation, automated checks and independent reviews are complete. The user subsequently authorized the local merge into `feat/packsage-v1`, recorded below. Minecraft acceptance is pending. Nothing was pushed or installed.
 
 ## Automated evidence
 
@@ -28,7 +28,7 @@ Plan: [parallel chat sessions](../plans/2026-10-20-parallel-chat-sessions.md). W
 
 - The first fix checkpoint `fceb017` passed all 200 focused tests, but self-review found a remaining stale-cache form of the unread-recovery defect. The extended case at `7fbef89` reproduced cached A1 masking durable A2 in 13 seconds. At final source/test checkpoint `27aa94e`, normal compilation and all **200 focused tests passed in 30 seconds**. This includes acknowledgement without reopening after recovery, summary/expected-ID mismatch rejection, the held A1 callback and successful acknowledgement refreshing the catalog when its cache hint differs.
 
-- At `27aa94e`, `./gradlew.bat test build --console=plain` passed in 29 seconds with Java 21: **697 tests, zero failures/errors and four existing skips**. The current artifact is `build/libs/packsage-0.1.0.jar`, SHA-256 `2BD868184DDCD940AB452F501B9500EEE6ED84EE004234ACECC67AE9B3ECF9F7`. It has not been installed. Every changed source, test and documentation file was inspected against existing style during task/whole-branch reviews, with the fix range checked again independently. No formatting tools were used; the final `git diff --check 221fe33..HEAD` passed.
+- At `27aa94e`, `./gradlew.bat test build --console=plain` passed in 29 seconds with Java 21: **697 tests, zero failures/errors and four existing skips**. The feature-worktree artifact is `build/libs/packsage-0.1.0.jar`, SHA-256 `2BD868184DDCD940AB452F501B9500EEE6ED84EE004234ACECC67AE9B3ECF9F7`. It has not been installed. Every changed source, test and documentation file was inspected against existing style during task/whole-branch reviews, with the fix range checked again independently. No formatting tools were used; the final `git diff --check 221fe33..HEAD` passed.
 
 ## Independent review
 
@@ -38,10 +38,16 @@ The fresh whole-branch Sol review at `cfc9e74` inspected every changed source, t
 
 The reviewer declined to claim actual Minecraft rendering, physical input, notices, shutdown/restart behavior, installed JEI initialization or private production render-frame timing from headless tests. Those remain pending live acceptance. The backend epoch-snapshot/registration interval also has no forced-interleaving test; the existing guard and retained-consumer coverage remain the documented boundary. None of these observations waives an acceptance requirement.
 
+## Local integration
+
+On 2026-10-20, the user authorized merging back to v1 without fast-forwarding. Merge commit `13c1713` joins target parent `221fe33` and feature parent `cef3867` on `feat/packsage-v1`. The merge had no conflicts, and its tree exactly matches the reviewed feature tree.
+
+In `D:/Project/packsage`, `./gradlew.bat test build --console=plain` passed on the merged commit in 32 seconds with the existing portable Java 21: 697 tests, zero failures/errors and four existing skips. The merged artifact is `D:/Project/packsage/build/libs/packsage-0.1.0.jar`, SHA-256 `46D8E9EB04E1BF93D1C17F6F737A46B1EE45312B738A4E32F2C156996562CD77`. The feature worktree is retained. No push, installation or live Minecraft verification was performed.
+
 ## Decisions during execution
 
 - Backend work and store/contracts work run in parallel, followed by runtime and screen work with disjoint ownership. The parent serializes Git and Gradle. Incorrect interface assumptions would require integration rework.
-- The user's SDD execution authorizes commits inside the feature worktree, superseding the earlier planning-only hold. The original checkout remains separate; merge and push are not authorized.
+- The user's SDD execution authorized commits inside the feature worktree, superseding the earlier planning-only hold. The original checkout remained separate during implementation; the later explicit merge authorization is recorded above. Push remains unauthorized.
 - Displaying a completed foreign-world conversation may acknowledge its unread UI metadata. It remains read-only for new model requests and retains navigation restrictions. A different interpretation would change acknowledgement policy without changing game authority.
 - Backend cancellation retains its existing weak callback contract. A terminal event accepted before an account transition may still reach the consumer afterward; this window predates the exchange-set change. Every affected runtime holder must invalidate before the backend account transition, and generation guards must reject late effects. Incorrect ordering could allow stale answers or notices.
 - The start-latch test did not force the private account-epoch snapshot/registration interval, so it was replaced with deterministic cleanup/account-replacement coverage. Retained per-request consumers provide the runtime's late-event test seam. The backend epoch-registration check remains; no callback-drain framework or test-only production hook is added. The narrow internal interval has no forced-interleaving test.

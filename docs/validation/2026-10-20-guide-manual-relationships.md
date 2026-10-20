@@ -2,7 +2,7 @@
 
 Date: 2026-10-20.
 
-Scope: six structured relationship capabilities added to the existing guide/manual document sources. This report separates source inspection, automated checks, and installed acceptance. All six features remain pending implementation and installed acceptance.
+Scope: six structured relationship capabilities added to the existing guide/manual document sources. This report separates source inspection, automated checks, and installed acceptance. Implementation and focused regression coverage are recorded below; final automated totals and all six installed acceptance results remain pending.
 
 ## Installed artifacts and source inspection
 
@@ -24,15 +24,15 @@ Admitted-floor artifacts inspected from official publisher sources:
 | Immersive Engineering | 12.0.0-182 author release JAR | `867B49C0969B0DC47B4CE50CED07D4F53171F459D9165C339271B88755A221DB` | JDK 21 `javap -p` checked against installed 12.4.2-194. |
 | Immersive Engineering | Matching 12.0.0-182.77 Maven source JAR | `B2F1958F2BD1CAE690AFFC5B03D528F31C0CF911A7D717548DC596B81FF84A7D` | Initial 1.21.1 source build; Maven binary SHA-256 `C6A2806DD35C28EF257F6B418DB3550AC53D1B27A6A29D527BF4502C8AB34772`. |
 
-Current reader source inspection establishes these access shapes, not native relationships or range-wide compatibility:
+Reader access shapes are supported by the current source and the compatibility evidence below; they do not establish installed extraction acceptance:
 
 | Source | Existing native access shape | Relationship work introduced here |
 |---|---|---|
-| Modonomicon | Existing reader uses current book/category/entry/page structures, localized text holders, and current unlock/visibility checks. Relationship source members: `BookContentEntry.getPages()`, `BookSpotlightPage.getItem()`, `BookRecipePage.getRecipeType()/getRecipeId1()/getRecipeId2()`, `BookEntry.getParents()/getCondition()`, parent `getEntryId()`, logical condition `children()`, built-in condition leaf payloads, and current display state. Floor members are checked at tagged 1.98.1; both 1.120.4 and 1.120.7 artifacts were checked for later forms. | Entry-to-item links, embedded recipe references, and prerequisite relationships remain pending implementation and automated/installed acceptance. |
-| GuideME | Current reader calls `guideme.Guides.getAll()`, accesses each guide's private `pages` and `developmentPages` fields, and invokes `getLanguage()` on parsed-page values. Relationship source members: `ParsedGuidePage.getFrontmatter().additionalProperties().get("item_ids")`; `MdxJsxElementFields.name()/attributes()/children()`; and `MdxJsxAttribute.hasStringValue()/getStringValue()` versus expression-value accessors. `MdxJsxFlowElement` and `MdxJsxTextElement` implement the interface at floor and current. | Page-to-item associations and `Recipe`/`RecipeFor`/`RecipesFor` relationships remain pending implementation and automated/installed acceptance. |
-| Immersive Engineering | Current reader calls `ManualHelper.getManual()`, reads `contentsByName`, invokes `showNodeInList` and `getTreeNode()`/`getTitle()`/`getLocation()`, then reads localized manual text resources. Floor and current relationship members match: private `ManualInstance.initialized`, `ManualEntry.getSpecialData()`, `SpecialElementData.getElement()/getAnchor()/getOffset()`, `ManualElementCrafting.recipeRows`, `ManualElementIECrafting.stacks`, `ManualElementMixer.fluids`, `ManualRecipeRef` name/result/layout selectors, and `PositionedItemStack.displayList()/x()/y()/amount()`. | Manual recipe references remain pending implementation and automated/installed acceptance. |
+| Modonomicon | The reader uses current book/category/entry/page structures, localized text holders, and current unlock/visibility checks. It now extracts spotlight associations, both declared recipe slots, parent edges, native condition trees, and visible/unlocked state through the listed source members. Floor members are checked at tagged 1.98.1; 1.120.4 and 1.120.7 artifacts were checked for current forms. | Implemented with bounded source-positioned relationships; custom page types and unknown condition leaves remain opaque. Focused regressions are present; final suite and installed acceptance are pending. |
+| GuideME | The reader uses parsed frontmatter `item_ids`, plus literal MDX names and string attributes on `MdxJsxElementFields`; expression-valued attributes are not executed. It preserves page associations and distinct `Recipe`, `RecipeFor` and `RecipesFor` declarations. `MdxJsxFlowElement` and `MdxJsxTextElement` implement the interface at floor and current. | Implemented from currently selected parsed pages; unsupported AST forms remain bounded/opaque. Focused regressions are present; final suite and installed acceptance are pending. |
+| Immersive Engineering | The reader checks `ManualInstance.initialized`, then reads loaded entry special data and native `ManualRecipeRef` name/result/layout selectors from crafting and IE crafting elements, plus mixer fluid selectors. It preserves bounded `PositionedItemStack` alternatives and components. | Implemented from the already-loaded manual; it does not open or reload it. A native-manual provider/common-read regression is present; final suite and installed acceptance are pending. |
 
-These shapes were inspected in the current PackSage readers and current installed artifacts, plus the exact GuideME and IE admitted-floor release artifacts described below. They establish the listed source members, not extraction implementation or runtime acceptance.
+These shapes were inspected in the current PackSage readers and current installed artifacts, plus the exact GuideME and IE admitted-floor release artifacts described below. Source inspection supports the implementation description; it does not establish installed extraction or answer-quality acceptance.
 
 ## Compatibility evidence
 
@@ -44,16 +44,16 @@ Modonomicon requires three reader ranges within the existing `[1.98.1,2.0.0)` fa
 | Middle | `[1.101.0,1.102.0)` | Returns `Ingredient` | Public `getEntryDisplayState(Player)` is present. |
 | Current | `[1.102.0,2.0.0)` | Returns `Either<ItemStack, Ingredient>` | Public `getEntryDisplayState(Player)` is present. |
 
-The exact release-tag sources establish both boundaries: `getEntryDisplayState` is absent at 1.100.0 and present at 1.101.0; spotlight `getItem()` returns `Ingredient` at 1.101.0 and `Either<ItemStack, Ingredient>` at 1.102.0. Installed Modonomicon 1.120.4 and 1.120.7 confirm the current form. The floor sources also expose `BookEntry.getCondition()/getParents()`, parent `getEntryId()`, `BookContentEntry.getPages()`, public `children()` on AND/OR conditions, and the supported known leaf payloads (`advancementId`, `entryId`, `modId`, `categoryId`) as protected fields. The custom category-has-entries leaf was found in floor source but not in 1.120.7; decode only when that exact runtime class exists.
+The exact release-tag sources establish both boundaries: `getEntryDisplayState` is absent at 1.100.0 and present at 1.101.0; spotlight `getItem()` returns `Ingredient` at 1.101.0 and `Either<ItemStack, Ingredient>` at 1.102.0. Installed Modonomicon 1.120.4 and 1.120.7 confirm the current form. The floor sources also expose `BookEntry.getCondition()/getParents()`, parent `getEntryId()`, `BookContentEntry.getPages()`, public `children()` on AND/OR conditions, and the supported known leaf payloads (`advancementId`, `entryId`, `modId`, `categoryId`) as protected fields. The custom category-has-entries leaf was found in floor source but not in 1.120.7; decode only when that exact runtime class exists. One logical `modonomicon` provider dispatches to early, intermediate, or current reader forms at these tagged cutovers.
 
-For `[1.98.1,1.101.0)`, the tagged `BookCategoryScreen.getEntryDisplayState(BookEntry)` decision preserves this order:
+For `[1.98.1,1.101.0)`, the tagged [`BookCategoryScreen.java` at 1.98.1](https://github.com/klikli-dev/modonomicon/blob/release/v1.21.1-1.98.1/common/src/main/java/com/klikli_dev/modonomicon/client/gui/book/BookCategoryScreen.java), method `getEntryDisplayState(BookEntry)`, decides visibility in this order:
 
 1. Query `BookUnlockStateManager.isUnlockedFor(player, entry)`.
 2. Iterate `entry.getParents()`, query each parent's current unlock state, and track whether any and all parents are unlocked.
 3. If `showWhenAnyParentUnlocked()` is true, hide the entry when no parent is unlocked; otherwise hide it when any parent is locked.
 4. If graph-visible but the entry itself is locked, return hidden when `hideWhileLocked()` is true and locked otherwise; if entry-unlocked, return unlocked.
 
-This is not equivalent to showing every old entry or to interpreting parent edges as the entry's condition. Continue to enforce category access and page unlock visibility with the unlock manager and `BookContentEntry.getUnlockedPagesFor(Player)`. Use the public method beginning at 1.101.0, whose logic preserves these semantics. Hidden entries and locked page bodies remain inaccessible; a visible locked entry may expose supported prerequisite declarations. Exact tagged sources and the separate evidence record are in [Modonomicon API cutovers and legacy visibility evidence](../../.superpowers/sdd/2026-10-20-guide-manual-relationships/modonomicon-cutovers-report.md).
+This is not equivalent to showing every old entry or to interpreting parent edges as the entry's condition. Continue to enforce category access and page unlock visibility with the unlock manager and `BookContentEntry.getUnlockedPagesFor(Player)`. At 1.101.0, the public [`BookEntry.java` implementation](https://github.com/klikli-dev/modonomicon/blob/release/v1.21.1-1.101.0/common/src/main/java/com/klikli_dev/modonomicon/book/entries/BookEntry.java) first returns `UNLOCKED` when the entry's own condition is satisfied, before checking parent visibility. The legacy UI checks parent visibility before its final locked/unlocked result, so those rules are not identical for an already-unlocked entry with locked parents. The implementation keeps the native public helper for releases that provide it and reproduces the tagged legacy UI ordering below 1.101.0. Hidden entries and locked page bodies remain inaccessible; a visible locked entry may expose supported prerequisite declarations. The compatibility report links the exact release-tag sources directly.
 
 GuideME's `[21.1.0,21.2.0)` floor was inspected in the author's exact 21.1.0 release JAR with JDK 21 `javap -p`; official tag source confirms the same declarations. `MdxJsxElementFields` has `name(): String`, `attributes(): List<MdxJsxAttributeNode>` and `children(): List<? extends MdAstAnyContent>`. Both flow and text elements implement it. `MdxJsxAttribute` distinguishes literal string values with `hasStringValue()/getStringValue()` from expression values with `hasExpressionValue()/getExpressionValue()`. `ParsedGuidePage.getFrontmatter()` and `Frontmatter.additionalProperties()` supply `item_ids`. These members match installed 21.1.19. See the official tagged [MDX interface](https://github.com/AppliedEnergistics/GuideME/blob/v21.1.0/src/main/java/guideme/libs/mdast/mdx/model/MdxJsxElementFields.java), [literal/expression attributes](https://github.com/AppliedEnergistics/GuideME/blob/v21.1.0/src/main/java/guideme/libs/mdast/mdx/model/MdxJsxAttribute.java), and [GuideME floor release metadata](https://api.modrinth.com/v2/version/MfzKuNeT).
 
@@ -65,17 +65,17 @@ Immersive Engineering's selected family is `[12.0.0-182,13.0.0)`; the official [
 
 | Feature | Source inspection | Automated result | Installed acceptance |
 |---|---|---|---|
-| Modonomicon entry-to-item relationships | Pending | Pending | Pending |
-| Modonomicon recipe references | Pending | Pending | Pending |
-| Modonomicon prerequisites | Pending | Pending | Pending |
-| GuideME page-to-item relationships | Pending | Pending | Pending |
-| GuideME recipe-tag relationships | Pending | Pending | Pending |
-| Immersive Engineering manual recipe references | Pending | Pending | Pending |
+| Modonomicon entry-to-item relationships | Implemented; source declarations and visibility gates inspected | Focused integration coverage added; final seven-class/full-build totals pending | Pending |
+| Modonomicon recipe references | Implemented; both native slots retain declared identity/type | Focused reader coverage added; final seven-class/full-build totals pending | Pending |
+| Modonomicon prerequisites | Implemented; graph parents, condition trees and current state remain distinct | Focused reader coverage added; final seven-class/full-build totals pending | Pending |
+| GuideME page-to-item relationships | Implemented from active parsed-page frontmatter | Focused reader/provider coverage added; final seven-class/full-build totals pending | Pending |
+| GuideME recipe-tag relationships | Implemented with separate tag semantics | Focused reader coverage added; final seven-class/full-build totals pending | Pending |
+| Immersive Engineering manual recipe references | Implemented from initialized native declarations | Provider search and fresh common `read_evidence` regression added; final seven-class/full-build totals pending | Pending |
 
 ## Automated checks
 
-Baseline only, before relationship implementation: Java 21 `gradlew.bat test --console=plain` succeeded with 644 tests, 0 failures, 0 errors, and 4 skipped. This does not validate any relationship feature.
+The Task 6 checkpoint run before the description change exercised 49 tests: the only failure was the intentionally red assertion requiring the new relationship-ID sentence; all other relationship/provider/fresh-read regressions passed. The description was then added. Parent-owned final focused seven-class run and `gradlew.bat test build --console=plain` are pending; insert their observed totals and failures here. The historical 644-test baseline predates relationship implementation and is not final validation.
 
 ## Installed acceptance
 
-No relationship extraction acceptance has been performed for these six features. Existing text search and fresh evidence-read checks for the guide/manual adapters do not establish structured relationship extraction. New guide navigation is outside this change's scope. Record each feature's observed source, returned relationship and completeness here only after an installed check.
+No relationship extraction acceptance has been performed for these six features. Existing text search and fresh evidence-read checks for the guide/manual adapters do not establish structured relationship extraction. New guide navigation is outside this change's scope. All six installed checks remain pending; record each observed source, returned relationship and completeness here only after a live check. A passing extraction read also does not establish that the assistant gave a correct ordinary-language explanation: inspect actual tool calls, payloads, returned evidence and reply separately.

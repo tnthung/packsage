@@ -217,6 +217,287 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void concurrentOpenOfInitializingHolderReturnsAndKeepsTheNewerSelection() throws Exception {
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-holder-init-open-race"), DIRECT);
+        ChatContracts.Conversation first = store.newConversation(WORLD).toCompletableFuture().join();
+        ChatContracts.Conversation second = store.newConversation(WORLD).toCompletableFuture().join();
+        ChatContracts.SessionSummary firstSummary = new ChatContracts.SessionSummary(WORLD, first.id(), "First", "", Instant.EPOCH);
+        ChatContracts.SessionSummary secondSummary = new ChatContracts.SessionSummary(WORLD, second.id(), "Second", "", Instant.EPOCH);
+        java.util.concurrent.ConcurrentLinkedQueue<Runnable> clientTasks = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        CountDownLatch factoryEntered = new CountDownLatch(1);
+        CountDownLatch releaseFactory = new CountDownLatch(1);
+        CountDownLatch secondOpenStarted = new CountDownLatch(1);
+        CountDownLatch secondOpenReturned = new CountDownLatch(1);
+        AtomicInteger captureCalls = new AtomicInteger();
+        AtomicInteger knowledgeCalls = new AtomicInteger();
+        AtomicReference<Throwable> firstFailure = new AtomicReference<>();
+        AtomicReference<Throwable> secondFailure = new AtomicReference<>();
+        FakeBackend backend = new FakeBackend();
+        var runtime = new AssistantRuntime(store, backend, scope -> {
+            if (captureCalls.incrementAndGet() == 1) {
+                factoryEntered.countDown();
+                try {
+                    if (!releaseFactory.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("capture factory release timed out");
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(exception);
+                }
+            }
+            return captureFactory().apply(scope);
+        }, DIRECT, clientTasks::add, scope -> {
+            knowledgeCalls.incrementAndGet();
+            return new KnowledgeService(List.of(), scope);
+        }, ChatContracts.Turn::tokenCount, GroundingInstructions::build,
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        Thread firstOpen = new Thread(() -> {
+            try { runtime.openSession(firstSummary); }
+            catch (Throwable failure) { firstFailure.set(failure); }
+        }, "packsage-first-holder-open");
+        Thread secondOpen = new Thread(() -> {
+            secondOpenStarted.countDown();
+            try { runtime.openSession(firstSummary); }
+            catch (Throwable failure) { secondFailure.set(failure); }
+            finally { secondOpenReturned.countDown(); }
+        }, "packsage-second-holder-open");
+        try {
+            firstOpen.start();
+            assertTrue(factoryEntered.await(5, TimeUnit.SECONDS));
+            secondOpen.start();
+            assertTrue(secondOpenStarted.await(5, TimeUnit.SECONDS));
+            assertTrue(secondOpenReturned.await(1, TimeUnit.SECONDS),
+                    "a second open must join initialization without waiting for the factory");
+            runtime.openSession(secondSummary);
+            assertEquals(second.id(), runtime.view().conversation().id());
+        } finally {
+            releaseFactory.countDown();
+            if (firstOpen.getState() != Thread.State.NEW) firstOpen.join(5_000);
+            if (secondOpen.getState() != Thread.State.NEW) secondOpen.join(5_000);
+            while (!clientTasks.isEmpty()) clientTasks.remove().run();
+        }
+
+        assertFalse(firstOpen.isAlive());
+        assertFalse(secondOpen.isAlive());
+        assertNull(firstFailure.get());
+        assertNull(secondFailure.get());
+        assertEquals(second.id(), runtime.view().conversation().id());
+        runtime.openSession(firstSummary);
+        while (!clientTasks.isEmpty()) clientTasks.remove().run();
+        assertEquals(first.id(), runtime.view().conversation().id());
+        assertEquals(2, captureCalls.get());
+        assertEquals(2, knowledgeCalls.get());
+
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        while (!clientTasks.isEmpty()) clientTasks.remove().run();
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        while (!clientTasks.isEmpty()) clientTasks.remove().run();
+        runtime.send("one controller request", false, false);
+        assertEquals(1, backend.starts);
+        runtime.openSession(firstSummary);
+        assertTrue(runtime.view().active());
+        assertEquals(1, backend.starts);
+    }
+
+    @Test
+    void captureFactoryReentrySharesEnterWorldInitializationForTheSameHolder() throws Exception {
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-holder-init-reentry"), DIRECT);
+        ChatContracts.Conversation conversation = store.newConversation(WORLD).toCompletableFuture().join();
+        ChatContracts.SessionSummary summary = new ChatContracts.SessionSummary(WORLD, conversation.id(), "Stored", "", Instant.EPOCH);
+        AtomicReference<AssistantRuntime> runtimeReference = new AtomicReference<>();
+        AtomicInteger captureCalls = new AtomicInteger();
+        AtomicInteger knowledgeCalls = new AtomicInteger();
+        AtomicBoolean reentered = new AtomicBoolean();
+        AtomicBoolean nestedCallReturned = new AtomicBoolean();
+        FakeBackend backend = new FakeBackend();
+        var runtime = new AssistantRuntime(store, backend, scope -> {
+            captureCalls.incrementAndGet();
+            if (reentered.compareAndSet(false, true)) {
+                runtimeReference.get().openSession(summary);
+                nestedCallReturned.set(true);
+            }
+            return captureFactory().apply(scope);
+        }, DIRECT, DIRECT, scope -> {
+            knowledgeCalls.incrementAndGet();
+            return new KnowledgeService(List.of(), scope);
+        }, ChatContracts.Turn::tokenCount, GroundingInstructions::build,
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtimeReference.set(runtime);
+
+        runtime.enterWorld(WORLD, SCOPE);
+
+        assertTrue(nestedCallReturned.get(), "same-key open from the factory must return while initialization is pending");
+        assertEquals(1, captureCalls.get());
+        assertEquals(1, knowledgeCalls.get());
+        assertEquals(conversation.id(), runtime.view().conversation().id());
+        assertFalse(runtime.view().loading());
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        runtime.send("request after reentry", false, false);
+        assertEquals(1, backend.starts);
+    }
+
+    @Test
+    void providerMetadataReentrySharesEnterWorldInitializationForTheSameHolder() throws Exception {
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-holder-metadata-reentry"), DIRECT);
+        ChatContracts.Conversation conversation = store.newConversation(WORLD).toCompletableFuture().join();
+        ChatContracts.SessionSummary summary = new ChatContracts.SessionSummary(WORLD, conversation.id(), "Stored", "", Instant.EPOCH);
+        AtomicReference<AssistantRuntime> runtimeReference = new AtomicReference<>();
+        AtomicInteger captureCalls = new AtomicInteger();
+        AtomicInteger knowledgeCalls = new AtomicInteger();
+        AtomicInteger metadataCalls = new AtomicInteger();
+        AtomicBoolean reentered = new AtomicBoolean();
+        AtomicBoolean nestedCallReturned = new AtomicBoolean();
+        FakeBackend backend = new FakeBackend();
+        Toolbox provider = new Toolbox() {
+            @Override public Metadata metadata() {
+                if (metadataCalls.incrementAndGet() == 3 && reentered.compareAndSet(false, true)) {
+                    runtimeReference.get().openSession(summary);
+                    nestedCallReturned.set(true);
+                }
+                return new Metadata("fixture", List.of(), false, List.of(), Map.of());
+            }
+        };
+        var runtime = new AssistantRuntime(store, backend, scope -> {
+            captureCalls.incrementAndGet();
+            return captureFactory().apply(scope);
+        }, DIRECT, DIRECT, scope -> {
+            knowledgeCalls.incrementAndGet();
+            return new KnowledgeService(List.of(provider), scope);
+        }, ChatContracts.Turn::tokenCount, GroundingInstructions::build,
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtimeReference.set(runtime);
+
+        runtime.enterWorld(WORLD, SCOPE);
+
+        assertTrue(nestedCallReturned.get(), "provider metadata must be able to reenter same-key open");
+        assertEquals(1, captureCalls.get());
+        assertEquals(1, knowledgeCalls.get());
+        assertEquals(conversation.id(), runtime.view().conversation().id());
+        assertFalse(runtime.view().loading());
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        runtime.send("request after metadata reentry", false, false);
+        assertEquals(1, backend.starts);
+    }
+
+    @Test
+    void staleNewChatInitializationDoesNotCreateAConversationAfterWorldSwitch() throws Exception {
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-stale-holder-creation"), DIRECT);
+        java.util.concurrent.ConcurrentLinkedQueue<Runnable> clientTasks = new java.util.concurrent.ConcurrentLinkedQueue<>();
+        CountDownLatch factoryEntered = new CountDownLatch(1);
+        CountDownLatch releaseFactory = new CountDownLatch(1);
+        AtomicInteger captureCalls = new AtomicInteger();
+        AtomicReference<Throwable> creationFailure = new AtomicReference<>();
+        ChatContracts.WorldIdentity nextWorld = new ChatContracts.WorldIdentity("next-world", "Next World");
+        Evidence.Scope nextScope = new Evidence.Scope("next-world", "resources", "team", "runtime", 0);
+        var runtime = new AssistantRuntime(store, new FakeBackend(), scope -> {
+            if (captureCalls.incrementAndGet() == 1) {
+                factoryEntered.countDown();
+                try {
+                    if (!releaseFactory.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("capture factory release timed out");
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(exception);
+                }
+            }
+            return captureFactory().apply(scope);
+        }, DIRECT, clientTasks::add, scope -> new KnowledgeService(List.of(), scope), ChatContracts.Turn::tokenCount,
+                ignored -> { throw new AssertionError("no model request expected"); }, ignored -> 512,
+                ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        long originalWorldSessions = store.sessions().toCompletableFuture().join().stream()
+                .filter(session -> session.world().worldOrServer().equals(WORLD.worldOrServer())).count();
+        Thread creation = new Thread(() -> {
+            try { runtime.newChat(); }
+            catch (Throwable failure) { creationFailure.set(failure); }
+        }, "packsage-stale-new-chat");
+        try {
+            creation.start();
+            assertTrue(factoryEntered.await(5, TimeUnit.SECONDS));
+            runtime.enterWorld(nextWorld, nextScope);
+        } finally {
+            releaseFactory.countDown();
+            if (creation.getState() != Thread.State.NEW) creation.join(5_000);
+            while (!clientTasks.isEmpty()) clientTasks.remove().run();
+        }
+
+        assertFalse(creation.isAlive());
+        assertNull(creationFailure.get());
+        assertEquals(originalWorldSessions, store.sessions().toCompletableFuture().join().stream()
+                .filter(session -> session.world().worldOrServer().equals(WORLD.worldOrServer())).count());
+        assertEquals(nextWorld.worldOrServer(), runtime.view().activeWorld().worldOrServer());
+        assertFalse(runtime.view().loading());
+    }
+
+    @Test
+    void failedCaptureInitializationSettlesAndCanBeRetried() throws Exception {
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-capture-init-retry"), DIRECT);
+        ChatContracts.Conversation conversation = store.newConversation(WORLD).toCompletableFuture().join();
+        ChatContracts.SessionSummary summary = new ChatContracts.SessionSummary(WORLD, conversation.id(), "Stored", "", Instant.EPOCH);
+        AtomicInteger captureCalls = new AtomicInteger();
+        var runtime = new AssistantRuntime(store, new FakeBackend(), scope -> {
+            if (captureCalls.incrementAndGet() == 1) throw new IllegalStateException("capture failed once");
+            return captureFactory().apply(scope);
+        }, DIRECT, DIRECT, scope -> new KnowledgeService(List.of(), scope), ChatContracts.Turn::tokenCount,
+                ignored -> { throw new AssertionError("no model request expected"); }, ignored -> 512,
+                ignored -> { }, ignored -> { });
+
+        runtime.enterWorld(WORLD, SCOPE);
+
+        assertFalse(runtime.view().loading());
+        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("capture failed once")));
+        assertFalse(conversation.id().equals(runtime.view().conversation().id()));
+        runtime.openSession(summary);
+
+        assertEquals(conversation.id(), runtime.view().conversation().id());
+        assertFalse(runtime.view().loading());
+        assertEquals(2, captureCalls.get());
+    }
+
+    @Test
+    void failedProviderRegistrationInitializationSettlesAndCanBeRetried() throws Exception {
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-metadata-init-retry"), DIRECT);
+        ChatContracts.Conversation conversation = store.newConversation(WORLD).toCompletableFuture().join();
+        ChatContracts.SessionSummary summary = new ChatContracts.SessionSummary(WORLD, conversation.id(), "Stored", "", Instant.EPOCH);
+        AtomicInteger captureCalls = new AtomicInteger();
+        AtomicInteger knowledgeCalls = new AtomicInteger();
+        AtomicInteger metadataCalls = new AtomicInteger();
+        AtomicBoolean failRegistration = new AtomicBoolean(true);
+        Toolbox provider = new Toolbox() {
+            @Override public Metadata metadata() {
+                if (metadataCalls.incrementAndGet() == 3 && failRegistration.compareAndSet(true, false)) {
+                    throw new IllegalStateException("metadata registration failed once");
+                }
+                return new Metadata("fixture", List.of(), false, List.of(), Map.of());
+            }
+        };
+        var runtime = new AssistantRuntime(store, new FakeBackend(), scope -> {
+            captureCalls.incrementAndGet();
+            return captureFactory().apply(scope);
+        }, DIRECT, DIRECT, scope -> {
+            knowledgeCalls.incrementAndGet();
+            return new KnowledgeService(List.of(provider), scope);
+        }, ChatContracts.Turn::tokenCount, ignored -> { throw new AssertionError("no model request expected"); },
+                ignored -> 512, ignored -> { }, ignored -> { });
+
+        runtime.enterWorld(WORLD, SCOPE);
+
+        assertFalse(runtime.view().loading());
+        assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("metadata registration failed once")));
+        assertFalse(conversation.id().equals(runtime.view().conversation().id()));
+        runtime.openSession(summary);
+
+        assertEquals(conversation.id(), runtime.view().conversation().id());
+        assertFalse(runtime.view().loading());
+        assertEquals(2, captureCalls.get());
+        assertEquals(2, knowledgeCalls.get());
+        assertTrue(metadataCalls.get() >= 6);
+    }
+
+    @Test
     void reopeningAnActiveHolderKeepsItsRequestScopeForToolCalls() throws Exception {
         FakeBackend backend = new FakeBackend();
         AtomicInteger toolCalls = new AtomicInteger();

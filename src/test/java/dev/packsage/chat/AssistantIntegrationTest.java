@@ -332,6 +332,82 @@ class AssistantIntegrationTest {
         assertThrows(java.util.concurrent.ExecutionException.class, () -> request.toCompletableFuture().get());
     }
 
+    @Test
+    void accountAndWorldTransitionsCancelEveryConversationBeforeLateCallbacks() throws Exception {
+        for (String transition : List.of("sign-out", "disconnect", "scope-invalidation")) {
+            var backend = new RuntimeBackend();
+            var notices = new ArrayList<ChatContracts.Turn>();
+            var providerQueries = new AtomicInteger();
+            var store = new ConversationStore(Files.createTempDirectory("packsage-lifecycle"), DIRECT);
+            var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+                    () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                    ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
+                    DIRECT, DIRECT, current -> new KnowledgeService(List.of(new Provider("native", List.of(), false) {
+                        @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                            providerQueries.incrementAndGet();
+                            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                                    Evidence.Outcome.COMPLETE, null));
+                        }
+                    }), current),
+                    turn -> turn.tokenCount(), GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { }, notices::add);
+            runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
+            runtime.signIn();
+            backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
+            backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                    MODEL.contextTokens(), MODEL.outputTokens()));
+
+            runtime.send("Question A", false, false);
+            backend.listeners.get(0).accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA,
+                    "partial A", null, List.of(), List.of(), null));
+            runtime.newChat();
+            runtime.send("Question B", false, false);
+            backend.listeners.get(1).accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA,
+                    "partial B", null, List.of(), List.of(), null));
+            assertEquals(2, backend.requests.size(), transition);
+            var toolCall = new ModelBackend.ToolCall("late-tool", "search_recipe",
+                    "{\"filter\":{\"provider\":\"native\",\"text\":\"torch\"}}");
+            var lateCompletion = new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                    List.of(new ModelBackend.AssistantOutput("late-answer", ModelBackend.OutputStatus.COMPLETED,
+                            ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("late", List.of())))), null);
+            Runnable lateCallbacks = () -> {
+                assertTrue(backend.cancelled.get(0).get(), "A must be cancelled before " + transition + " reaches the backend");
+                assertTrue(backend.cancelled.get(1).get(), "B must be cancelled before " + transition + " reaches the backend");
+                for (int request = 0; request < 2; request++) {
+                    backend.listeners.get(request).accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA,
+                            " late text", null, List.of(), List.of(), null));
+                    backend.listeners.get(request).accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL,
+                            null, toolCall, List.of(), List.of(), null));
+                    backend.listeners.get(request).accept(lateCompletion);
+                }
+            };
+            if (transition.equals("sign-out")) {
+                backend.duringSignOut = lateCallbacks;
+                runtime.signOut();
+            } else {
+                if (transition.equals("disconnect")) runtime.disconnect();
+                else runtime.invalidate(new Evidence.Scope("world", "resources-2", "team", "runtime", 1));
+                lateCallbacks.run();
+            }
+
+            assertEquals(0, providerQueries.get(), transition + " must reject late client tool calls");
+            assertTrue(notices.isEmpty(), transition + " must not issue completion notices");
+            var summaries = store.sessions().toCompletableFuture().join();
+            assertEquals(2, summaries.size(), transition);
+            assertTrue(summaries.stream().allMatch(summary -> summary.unreadRequestId() == null), transition);
+            for (int request = 0; request < 2; request++) {
+                String question = request == 0 ? "Question A" : "Question B";
+                var summary = summaries.stream().filter(value -> value.title().equals(question)).findFirst().orElseThrow();
+                var conversation = store.openConversation(WORLD, summary.id())
+                        .toCompletableFuture().join();
+                assertEquals(1, conversation.turns().size(), transition);
+                var turn = conversation.turns().getFirst();
+                assertEquals(backend.requests.get(request).requestId(), turn.requestId().value(), transition);
+                assertEquals(ChatContracts.OutcomeStatus.CANCELLED, turn.outcome().status(), transition);
+                assertEquals("partial " + (request == 0 ? "A" : "B"), turn.answer(), transition);
+            }
+        }
+    }
+
     private static Evidence.Record record(String provider, String handle, Evidence.Authority authority, String title) {
         return record(SCOPE, provider, handle, authority, title);
     }
@@ -393,18 +469,24 @@ class AssistantIntegrationTest {
         private final CompletableFuture<Capabilities> catalog = new CompletableFuture<>();
         private final List<Request> requests = new ArrayList<>();
         private final List<ToolResult> submitted = new ArrayList<>();
+        private final List<java.util.function.Consumer<Event>> listeners = new ArrayList<>();
+        private final List<java.util.concurrent.atomic.AtomicBoolean> cancelled = new ArrayList<>();
         private java.util.function.Consumer<Event> events;
+        private Runnable duringSignOut = () -> { };
 
         @Override public CompletionStage<AuthState> signIn() { return signIn; }
         @Override public void cancelSignIn() { signIn.cancel(false); }
-        @Override public void signOut() { }
+        @Override public void signOut() { duringSignOut.run(); }
         @Override public CompletionStage<Capabilities> capabilities() { return catalog; }
         @Override public Exchange start(Request request, java.util.function.Consumer<Event> events) {
             requests.add(request);
             this.events = events;
+            listeners.add(events);
+            var wasCancelled = new java.util.concurrent.atomic.AtomicBoolean();
+            cancelled.add(wasCancelled);
             return new Exchange() {
                 @Override public void submit(ToolResult result) { submitted.add(result); }
-                @Override public void cancel() { }
+                @Override public void cancel() { wasCancelled.set(true); }
             };
         }
 

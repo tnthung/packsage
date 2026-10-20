@@ -613,6 +613,62 @@ class AssistantIntegrationTest {
     }
 
     @Test
+    void delayedActivePublicationCannotLoseUnreadMarkerBeforeReadAcknowledgement() throws Exception {
+        var storeRoot = Files.createTempDirectory("packsage-delayed-unread-publication");
+        var clientTasks = new ArrayDeque<Runnable>();
+        var backend = new RuntimeBackend();
+        var store = new ConversationStore(storeRoot, DIRECT);
+        var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+                () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
+                DIRECT, clientTasks::addLast, current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                MODEL.contextTokens(), MODEL.outputTokens()));
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        runtime.openScreen();
+        runtime.send("Question", false, false);
+        String conversationId = runtime.view().conversation().id();
+        ChatContracts.View delayedActiveView = runtime.view();
+
+        backend.listeners.getFirst().accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Answer", null,
+                List.of(), List.of(), null));
+        backend.listeners.getFirst().accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                List.of(new ModelBackend.AssistantOutput("final-answer", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer", List.of())))), null));
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        ChatContracts.RequestId completion = new ChatContracts.RequestId(backend.requests.getFirst().requestId());
+        var completedSummary = store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(conversationId)).findFirst().orElseThrow();
+        assertEquals(completion, completedSummary.unreadRequestId());
+
+        var selectedField = AssistantRuntime.class.getDeclaredField("selected");
+        selectedField.setAccessible(true);
+        Object holder = selectedField.get(runtime);
+        var publish = AssistantRuntime.class.getDeclaredMethod("publishHolderView", holder.getClass(), ChatContracts.View.class);
+        publish.setAccessible(true);
+        publish.invoke(runtime, holder, delayedActiveView);
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+        runtime.markRead(completedSummary, completion);
+        while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
+
+        assertFalse(runtime.view().active(), "the controller remains terminal after the delayed active callback");
+        assertEquals(completion, runtime.view().conversation().turns().getLast().requestId());
+        assertAll(
+                () -> assertFalse(runtime.sessions().toCompletableFuture().join().stream()
+                        .filter(summary -> summary.id().equals(conversationId)).findFirst().orElseThrow().active(),
+                        "the runtime catalog reflects terminal activity after the delayed active callback"),
+                () -> assertNull(store.sessions().toCompletableFuture().join().stream()
+                        .filter(summary -> summary.id().equals(conversationId)).findFirst().orElseThrow().unreadRequestId(),
+                        "the exact completed turn can still be acknowledged in persistent metadata"));
+    }
+
+    @Test
     void markReadRequiresSelectedLoadedUnreadAndAnOldAcknowledgementCannotClearANewerCompletion() throws Exception {
         var storeRoot = Files.createTempDirectory("packsage-read-race");
         var setupStore = new ConversationStore(storeRoot, DIRECT);

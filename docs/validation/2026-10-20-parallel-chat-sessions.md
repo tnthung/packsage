@@ -2,7 +2,7 @@
 
 Date: 2026-10-20
 
-Plan: [parallel chat sessions](../plans/2026-10-20-parallel-chat-sessions.md). Worktree branch: `feat/parallel-chat-sessions`, starting at local commit `221fe33`. Implementation is in progress; this record distinguishes completed checks from remaining acceptance.
+Plan: [parallel chat sessions](../plans/2026-10-20-parallel-chat-sessions.md). Worktree branch: `feat/parallel-chat-sessions`, starting at local commit `221fe33`. Automated implementation and build checks pass. Independent review is in progress; Minecraft acceptance is pending.
 
 ## Automated evidence
 
@@ -16,7 +16,13 @@ Plan: [parallel chat sessions](../plans/2026-10-20-parallel-chat-sessions.md). W
 - At `cd532e4`, all 13 client tests passed, including interleaved JEI evidence reads, cursor continuation and refreshed navigation through the real reflective wrapper and shared fixture-backed provider. Two-holder lifecycle checks passed for sign-out, supported sign-out/sign-in account replacement, disconnect, scope invalidation and world replacement, including late callbacks after cancellation. The fixture does not initialize the installed JEI plugin.
 - At `93ca4d8`, normal compilation and all six focused runtime/controller/integration/capture/screen/client suites passed: 180 tests, zero failures/errors/skips. Deterministic regressions cover concurrent and reentrant initialization, stale world attachment, factory failure/retry, active reopening, initial persisted-unread hydration, delayed acknowledgements, failed-save retries, selected-only controls and independent queued screenshot captures. The final delayed-save/notification regressions also passed at `e0f28ae`: all 183 focused tests, zero failures/errors/skips, with normal compilation in 17 seconds. Those tests reproduced missing displayed turns during screenshot persistence and stale queued notices before the fixes; the inactive-target deletion test additionally confirms that B can steer, use tools and finish while A deletion waits only for A. Runtime and whole-branch reviews remain in progress. No automated result here establishes visible Minecraft behavior.
 
-- At source/test checkpoint `e0f28ae`, `./gradlew.bat test build --console=plain` passed in 25 seconds with Java 21: 680 tests, zero failures/errors and four existing skips. `git diff --check 221fe33..HEAD` passed. No formatting tools were used. The generated artifact is `build/libs/packsage-0.1.0.jar`, SHA-256 `6207A27024A0941552A8E8CDF8598B6FD28E7F9B5623D0577C22A0824B4EE8E2`. It has not been installed.
+- At source/test checkpoint `e0f28ae`, `./gradlew.bat test build --console=plain` passed in 25 seconds with Java 21: 680 tests, zero failures/errors and four existing skips. `git diff --check 221fe33..HEAD` passed. No formatting tools were used. This is the pre-review-fix result; the current artifact is recorded below.
+
+- At source/test checkpoint `0543ea9`, all 189 focused runtime/controller/integration/capture/screen/client tests passed in 19 seconds. `./gradlew.bat test build --console=plain` then passed in 27 seconds: **686 tests, zero failures/errors and four existing skips**. The current artifact is `build/libs/packsage-0.1.0.jar`, SHA-256 `B64E7B4B3BC049C845339D9E88CA1C5E84F0A011CC4EC4FF748625174FAD5692`. It has not been installed.
+
+## Independent review
+
+Backend and storage/contracts task reviews are clean after focused coverage corrections. UI review is clean after the cached-conversation follow-bottom fix. The runtime review found three Important defects: a removed answer could retain its unread marker after failed/cancelled resend; background failure could leave a sidebar row active; and a reserved send could activate after lifecycle invalidation. Deterministic regressions reproduced all three before their fixes. They also reproduced early cancellation's missing target and late capture cleanup, directly coupled to the admission ordering. All pass at `0543ea9`, including fresh/rejected/stale permission tokens and the selection-only positive control. Scoped runtime re-review and the final whole-branch review remain in progress.
 
 ## Decisions during execution
 

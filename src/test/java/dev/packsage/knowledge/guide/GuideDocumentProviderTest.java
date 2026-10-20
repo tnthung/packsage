@@ -353,7 +353,7 @@ class GuideDocumentProviderTest {
         reader.firstText.set("");
         var provider = new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run);
         var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
-        arguments.put("query", new Evidence.JsonString("needle"));
+        arguments.put("query", new Evidence.JsonString("minecraft:"));
         arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("fixture_guide"))));
         arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
         var context = new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null);
@@ -418,8 +418,10 @@ class GuideDocumentProviderTest {
     }
 
     private static void assertExtractionFailure(FixtureReader reader) {
-        var failure = assertThrows(CompletionException.class, () -> search(reader, "needle"));
-        assertEquals(Toolbox.Code.EXTRACTION_FAILED, ((Toolbox.Failure) failure.getCause()).code());
+        var result = search(reader, "needle");
+        assertTrue(result.records().isEmpty());
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertTrue(result.detail().contains("relationship"));
     }
 
     private static Evidence.JsonObject itemsRelationship(String itemId, Evidence.Coverage coverage) {

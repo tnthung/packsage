@@ -417,7 +417,8 @@ class GuideDocumentProviderTest {
             var expectedItems = new java.util.ArrayList<String>();
             blusunrize.lib.manual.PositionedItemStack[] cells;
             if (scenario == 0) {
-                var items = List.of(net.minecraft.world.item.Items.IRON_INGOT,
+                var alternatives = new java.util.ArrayList<net.minecraft.world.item.ItemStack>();
+                for (var item : List.of(net.minecraft.world.item.Items.IRON_INGOT,
                         net.minecraft.world.item.Items.GOLD_INGOT, net.minecraft.world.item.Items.DIAMOND,
                         net.minecraft.world.item.Items.EMERALD, net.minecraft.world.item.Items.COPPER_INGOT,
                         net.minecraft.world.item.Items.REDSTONE, net.minecraft.world.item.Items.LAPIS_LAZULI,
@@ -427,9 +428,7 @@ class GuideDocumentProviderTest {
                         net.minecraft.world.item.Items.STICK, net.minecraft.world.item.Items.OAK_PLANKS,
                         net.minecraft.world.item.Items.GLASS, net.minecraft.world.item.Items.BUCKET,
                         net.minecraft.world.item.Items.WATER_BUCKET, net.minecraft.world.item.Items.POTION,
-                        net.minecraft.world.item.Items.NETHER_STAR);
-                var alternatives = new java.util.ArrayList<net.minecraft.world.item.ItemStack>();
-                for (var item : items) {
+                        net.minecraft.world.item.Items.NETHER_STAR)) {
                     alternatives.add(new net.minecraft.world.item.ItemStack(item));
                     expectedItems.add(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString());
                 }
@@ -446,10 +445,9 @@ class GuideDocumentProviderTest {
                         new blusunrize.lib.manual.PositionedItemStack(List.of(), 4, 5, "2")
                 };
             }
-            var entry = manual.addEntry(id, new blusunrize.lib.manual.ManualElementCrafting(
+            manual.addEntry(id, new blusunrize.lib.manual.ManualElementCrafting(
                     new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{
                             new blusunrize.lib.manual.utils.ManualRecipeRef(cells)}}));
-            entry.addSpecial("budget-anchor", 0);
             var provider = new GuideDocumentProvider(new ImmersiveEngineeringGuideReader(), () -> SCOPE,
                     Runnable::run);
             var arguments = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
@@ -457,8 +455,7 @@ class GuideDocumentProviderTest {
             arguments.put("filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("immersiveengineering"))));
             arguments.put("limit", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(64)));
             var firstBudget = new Toolbox.DocumentBudget();
-            int candidateBytes = id.length() * 6 + 1024;
-            assertTrue(firstBudget.bytes(firstBudget.remainingBytes() - candidateBytes - 64));
+            assertTrue(firstBudget.bytes(firstBudget.remainingBytes() - id.length() * 6 - 1024 - 64));
 
             var first = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
                     new Evidence.JsonObject(arguments), SCOPE), new Toolbox.Context(() -> SCOPE, Map.of(),

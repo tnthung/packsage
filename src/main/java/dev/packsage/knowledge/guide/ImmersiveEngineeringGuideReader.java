@@ -539,8 +539,10 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             if (!budget.value()) { partial = true; nextVariant = variant; chunkFull = true; break; }
                             int candidateWorkBytes = 2 * layoutEstimate + 12 * (amountText.length() + 512
                                     + sourcePositionChars) + 256;
-                            if (budget.remainingBytes() < candidateWorkBytes + 3 * layoutEstimate
-                                    + 6 * sourcePositionChars || !budget.bytes(candidateWorkBytes)) {
+                            boolean sourceBudgetBlocked = budget.remainingBytes() < candidateWorkBytes
+                                    + 3 * layoutEstimate + 6 * sourcePositionChars;
+                            if (sourceBudgetBlocked) budget.bytes(budget.remainingBytes() + 1);
+                            if (sourceBudgetBlocked || !budget.bytes(candidateWorkBytes)) {
                                 nextVariant = variant;
                                 chunkFull = true;
                                 partial = true;
@@ -573,9 +575,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             candidateValue.put("sourcePosition", new Evidence.JsonString(source(candidatePosition)));
                             int candidateEstimate = Evidence.serialize(new Evidence.JsonObject(candidateValue))
                                     .getBytes(StandardCharsets.UTF_8).length + 256;
-                            if (candidateEstimate > MAX_RELATIONSHIP_BYTES - bytes
-                                    || candidateEstimate > budget.remainingBytes()
-                                    || budget.remainingBytes() < 3 * candidateEstimate + 6 * sourcePositionChars) {
+                            if (candidateEstimate > MAX_RELATIONSHIP_BYTES - bytes) {
                                 if (candidateEstimate - layoutEstimate > MAX_RELATIONSHIP_BYTES
                                         && alternatives.isEmpty() && cellValues.isEmpty()) {
                                     opaque = true;
@@ -585,6 +585,14 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                                 }
                                 nextVariant = variant;
                                 chunkFull = true;
+                                break;
+                            }
+                            if (candidateEstimate > budget.remainingBytes()
+                                    || budget.remainingBytes() < 3 * candidateEstimate + 6 * sourcePositionChars) {
+                                budget.bytes(budget.remainingBytes() + 1);
+                                nextVariant = variant;
+                                chunkFull = true;
+                                partial = true;
                                 break;
                             }
                             alternatives.add(projected);
@@ -604,17 +612,20 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             recordVariantStart = nextVariant;
                             layoutPosition = new int[] {position[0], position[1], position[2], recordCellStart, recordVariantStart};
                         }
-                        if (alternatives.isEmpty()
-                                && (budget.remainingBytes() < 2 * layoutEstimate + 12 * (amountText.length()
-                                + sourcePositionChars) + 256 + 3 * layoutEstimate + 6 * sourcePositionChars
-                                || !budget.bytes(2 * layoutEstimate + 12 * (amountText.length()
-                                + sourcePositionChars) + 256))) {
-                            next = new int[] {position[0], position[1], position[2], nextCell, nextVariant};
-                            nextStage = 1;
-                            partial = true;
-                            if (cellValues.isEmpty()) return false;
-                            chunkFull = true;
-                            break;
+                        if (alternatives.isEmpty()) {
+                            boolean sourceBudgetBlocked = budget.remainingBytes() < 2 * layoutEstimate
+                                    + 12 * (amountText.length() + sourcePositionChars) + 256
+                                    + 3 * layoutEstimate + 6 * sourcePositionChars;
+                            if (sourceBudgetBlocked) budget.bytes(budget.remainingBytes() + 1);
+                            if (sourceBudgetBlocked || !budget.bytes(2 * layoutEstimate
+                                    + 12 * (amountText.length() + sourcePositionChars) + 256)) {
+                                next = new int[] {position[0], position[1], position[2], nextCell, nextVariant};
+                                nextStage = 1;
+                                partial = true;
+                                if (cellValues.isEmpty()) return false;
+                                chunkFull = true;
+                                break;
+                            }
                         }
                         var cellValue = new LinkedHashMap<String, Evidence.JsonValue>();
                         cellValue.put("x", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(x)));
@@ -630,14 +641,22 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             candidateValue.put("sourcePosition", new Evidence.JsonString(source(layoutPosition)));
                             int candidateEstimate = Evidence.serialize(new Evidence.JsonObject(candidateValue))
                                     .getBytes(StandardCharsets.UTF_8).length + 256;
-                            if (candidateEstimate > MAX_RELATIONSHIP_BYTES - bytes
-                                    || candidateEstimate > budget.remainingBytes()
-                                    || budget.remainingBytes() < 3 * candidateEstimate + 6 * sourcePositionChars) {
+                            if (candidateEstimate > MAX_RELATIONSHIP_BYTES - bytes) {
                                 if (cellValues.isEmpty() && candidateEstimate > MAX_RELATIONSHIP_BYTES) {
                                     opaque = true;
                                     partial = true;
                                     continue;
                                 }
+                                next = new int[] {position[0], position[1], position[2], nextCell, nextVariant};
+                                nextStage = 1;
+                                partial = true;
+                                if (cellValues.isEmpty()) return false;
+                                chunkFull = true;
+                                break;
+                            }
+                            if (candidateEstimate > budget.remainingBytes()
+                                    || budget.remainingBytes() < 3 * candidateEstimate + 6 * sourcePositionChars) {
+                                budget.bytes(budget.remainingBytes() + 1);
                                 next = new int[] {position[0], position[1], position[2], nextCell, nextVariant};
                                 nextStage = 1;
                                 partial = true;

@@ -563,7 +563,7 @@ public final class ConversationStore {
                         || !hasConversationHeader(file, world, conversationId)) {
                     throw new IOException("conversation does not belong to the requested world and id");
                 }
-                Path stateFile = completionStatePath(file);
+                Path stateFile = file.resolveSibling(file.getFileName().toString().replaceFirst("\\.jsonl$", ".state.json"));
                 if (!safePath(stateFile) || Files.exists(stateFile, LinkOption.NOFOLLOW_LINKS)
                         && !Files.isRegularFile(stateFile, LinkOption.NOFOLLOW_LINKS)) {
                     throw new IOException("conversation state path is unsafe");
@@ -1236,13 +1236,9 @@ public final class ConversationStore {
         return directory.resolve("latest");
     }
 
-    private Path completionStatePath(Path conversationFile) {
-        String fileName = conversationFile.getFileName().toString().replaceFirst("\\.jsonl$", ".state.json");
-        return conversationFile.resolveSibling(fileName);
-    }
-
     private CompletionState readCompletionState(Path conversationFile) {
-        Path stateFile = completionStatePath(conversationFile);
+        Path stateFile = conversationFile.resolveSibling(conversationFile.getFileName().toString()
+                .replaceFirst("\\.jsonl$", ".state.json"));
         try {
             if (!Files.exists(stateFile, LinkOption.NOFOLLOW_LINKS)) return new CompletionState(null, null);
             if (!safePath(stateFile) || !Files.isRegularFile(stateFile, LinkOption.NOFOLLOW_LINKS)) {
@@ -1271,7 +1267,8 @@ public final class ConversationStore {
     }
 
     private void writeCompletionState(Path conversationFile, CompletionState state) throws IOException {
-        Path stateFile = completionStatePath(conversationFile);
+        Path stateFile = conversationFile.resolveSibling(conversationFile.getFileName().toString()
+                .replaceFirst("\\.jsonl$", ".state.json"));
         if (!safePath(stateFile)) throw new IOException("conversation state path escapes conversation root");
         JsonObject value = new JsonObject();
         value.addProperty("latestCompletedRequestId", state.latestCompletedRequestId());

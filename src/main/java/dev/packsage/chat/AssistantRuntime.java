@@ -463,23 +463,24 @@ public final class AssistantRuntime implements ChatActions {
             return;
         }
         publishCurrentView(epoch);
+        Holder loadingHolder = holder;
         store.openConversation(session.world(), session.id()).whenCompleteAsync((conversation, failure) -> {
             if (failure == null) {
                 synchronized (stateLock) {
-                    holder.scope = world != null && world.worldOrServer().equals(session.world().worldOrServer())
+                    loadingHolder.scope = world != null && world.worldOrServer().equals(session.world().worldOrServer())
                             ? worldScope : EMPTY_SCOPE;
                 }
-                holder.controller.showConversation(conversation, holder.scope);
-                holder.loaded = true;
+                loadingHolder.controller.showConversation(conversation, loadingHolder.scope);
+                loadingHolder.loaded = true;
             }
             long selectedEpoch;
             boolean selectedHolder;
             synchronized (stateLock) {
-                holder.loading = false;
-                selectedHolder = selected == holder;
+                loadingHolder.loading = false;
+                selectedHolder = selected == loadingHolder;
                 if (selectedHolder) sessionLoading = false;
                 if (failure != null) {
-                    holder.errors.add("Session could not be opened: " + failureMessage(failure));
+                    loadingHolder.errors.add("Session could not be opened: " + failureMessage(failure));
                 }
                 selectedEpoch = worldEpoch;
             }

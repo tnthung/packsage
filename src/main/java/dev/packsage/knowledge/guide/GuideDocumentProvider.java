@@ -618,13 +618,21 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
             throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned an over-deep relationship value");
         }
         if (value instanceof Evidence.JsonObject object) {
-            addRelationshipBytes(2, limits);
+            limits[0] += 2;
+            if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide reader returned oversized relationships");
             boolean first = true;
             for (var entry : object.values().entrySet()) {
-                if (!first) addRelationshipBytes(1, limits);
+                if (!first) {
+                    limits[0]++;
+                    if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                            "guide reader returned oversized relationships");
+                }
                 first = false;
                 addRelationshipStringBytes(entry.getKey(), limits);
-                addRelationshipBytes(1, limits);
+                limits[0]++;
+                if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                        "guide reader returned oversized relationships");
                 var nestedGroup = depth == 0 ? entry.getKey() : groupName;
                 boolean countElements = !inComponents && (entry.getKey().equals("values")
                         || entry.getKey().equals("alternatives")
@@ -636,12 +644,21 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
             if (countArrayElements && array.values().size() > MAX_RELATIONSHIP_RECORDS - limits[1]) {
                 throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned too many relationship records");
             }
-            addRelationshipBytes(2, limits);
+            limits[0] += 2;
+            if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide reader returned oversized relationships");
             boolean first = true;
             for (var nested : array.values()) {
-                if (!first) addRelationshipBytes(1, limits);
+                if (!first) {
+                    limits[0]++;
+                    if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                            "guide reader returned oversized relationships");
+                }
                 first = false;
-                if (countArrayElements) countSemanticRelationship(1, limits);
+                if (countArrayElements && ++limits[1] > MAX_RELATIONSHIP_RECORDS) {
+                    throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                            "guide reader returned too many relationship records");
+                }
                 validateRelationshipValue(nested, depth + 1, limits, groupName, false, inComponents);
             }
         } else if (value instanceof Evidence.JsonString string && string.value().length() > MAX_RELATIONSHIP_BYTES) {
@@ -654,45 +671,41 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
             if (estimatedLength > MAX_RELATIONSHIP_BYTES) {
                 throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned an oversized relationship number");
             }
-            addRelationshipBytes(decimal.toString().length(), limits);
+            limits[0] += decimal.toString().length();
+            if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide reader returned oversized relationships");
         } else if (value instanceof Evidence.JsonBoolean booleanValue) {
-            addRelationshipBytes(booleanValue.value() ? 4 : 5, limits);
+            limits[0] += booleanValue.value() ? 4 : 5;
+            if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide reader returned oversized relationships");
         } else if (value instanceof Evidence.JsonNull) {
-            addRelationshipBytes(4, limits);
-        }
-    }
-
-    private void countSemanticRelationship(int amount, int[] limits) {
-        limits[1] += amount;
-        if (limits[1] > MAX_RELATIONSHIP_RECORDS) {
-            throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned too many relationship records");
+            limits[0] += 4;
+            if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide reader returned oversized relationships");
         }
     }
 
     private void addRelationshipStringBytes(String value, int[] limits) {
-        addRelationshipBytes(2, limits);
+        limits[0] += 2;
+        if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                "guide reader returned oversized relationships");
         for (int index = 0; index < value.length(); index++) {
             char character = value.charAt(index);
             if (character == '"' || character == '\\' || character == '\b' || character == '\f'
                     || character == '\n' || character == '\r' || character == '\t'
                     || character <= 0x1f || character == '<' || character == '>' || character == '&'
                     || character == '=' || character == '\'' || character == '\u2028' || character == '\u2029') {
-                addRelationshipBytes(character <= 0x1f && character != '\b' && character != '\f'
-                        && character != '\n' && character != '\r' && character != '\t' ? 6 : 2, limits);
+                limits[0] += character == '"' || character == '\\' || character == '\b' || character == '\f'
+                        || character == '\n' || character == '\r' || character == '\t' ? 2 : 6;
             } else if (Character.isHighSurrogate(character) && index + 1 < value.length()
                     && Character.isLowSurrogate(value.charAt(index + 1))) {
-                addRelationshipBytes(4, limits);
+                limits[0] += 4;
                 index++;
-            } else if (character <= 0x7f) addRelationshipBytes(1, limits);
-            else if (character <= 0x7ff) addRelationshipBytes(2, limits);
-            else addRelationshipBytes(3, limits);
-        }
-    }
-
-    private void addRelationshipBytes(int amount, int[] limits) {
-        limits[0] += amount;
-        if (limits[0] > MAX_RELATIONSHIP_BYTES) {
-            throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned oversized relationships");
+            } else if (character <= 0x7f) limits[0]++;
+            else if (character <= 0x7ff) limits[0] += 2;
+            else limits[0] += 3;
+            if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide reader returned oversized relationships");
         }
     }
 
@@ -720,6 +733,10 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
                     }
                 } else if (!entry.getKey().equals("components")
                         && relationshipIdentityMatches(entry.getValue(), query)) return true;
+            }
+        } else if (value instanceof Evidence.JsonArray array) {
+            for (var nested : array.values()) {
+                if (nested instanceof Evidence.JsonObject && relationshipIdentityMatches(nested, query)) return true;
             }
         }
         return false;

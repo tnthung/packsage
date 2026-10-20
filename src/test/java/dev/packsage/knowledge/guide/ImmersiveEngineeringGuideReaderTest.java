@@ -326,6 +326,33 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void emptyNativeLayoutDisplayListResumesAfterSharedBudgetStop() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var layout = new blusunrize.lib.manual.utils.ManualRecipeRef(new blusunrize.lib.manual.PositionedItemStack[] {
+                new blusunrize.lib.manual.PositionedItemStack(java.util.List.of(), 19, 23, "4")
+        });
+        var entry = manual.addEntry("immersiveengineering:manual/empty-layout-cell",
+                new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{layout}}));
+        entry.addSpecial("empty-layout-cell", 0);
+        var exhaustedBeforeLayoutAppend = new Toolbox.DocumentBudget();
+        for (int value = 0; value < 2041; value++) assertTrue(exhaustedBeforeLayoutAppend.value());
+
+        var first = new ImmersiveEngineeringGuideReader().readFragment(
+                "immersiveengineering:manual/empty-layout-cell", null, 64, exhaustedBeforeLayoutAppend);
+        assertTrue(first.nextPosition() != null);
+        var resumed = new ImmersiveEngineeringGuideReader().readFragment(
+                "immersiveengineering:manual/empty-layout-cell", first.nextPosition(), 64,
+                new Toolbox.DocumentBudget());
+        var serialized = Evidence.serialize(resumed.relationships());
+
+        assertTrue(serialized.contains("\"x\":19") && serialized.contains("\"y\":23")
+                && serialized.contains("\"amount\":\"4\"") && serialized.contains("\"alternatives\":[]"));
+        assertNull(resumed.nextPosition());
+    }
+
+    @Test
     void uninitializedContinuationAfterCompletedTextIsTerminalPartial() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();

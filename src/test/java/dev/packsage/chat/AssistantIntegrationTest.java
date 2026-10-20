@@ -680,15 +680,10 @@ class AssistantIntegrationTest {
         var queuedClientTasks = new ArrayDeque<Runnable>();
         var holdStoreTasks = new AtomicBoolean();
         var holdControllerTasks = new AtomicBoolean();
-        var storeExecutor = (Executor) task -> {
+        var store = new ConversationStore(storeRoot, task -> {
             if (holdStoreTasks.get()) queuedStoreTasks.addLast(task);
             else task.run();
-        };
-        var controllerExecutor = (Executor) task -> {
-            if (holdControllerTasks.get()) queuedControllerTasks.addLast(task);
-            else task.run();
-        };
-        var store = new ConversationStore(storeRoot, storeExecutor);
+        });
         var seeded = store.newConversation(WORLD).toCompletableFuture().join();
         var a1 = new ChatContracts.RequestId("replacement-a1");
         store.appendTurn(WORLD, SCOPE, seeded.id(), new ChatContracts.Turn(a1, "Question A1", "Answer A1", List.of(),
@@ -699,7 +694,10 @@ class AssistantIntegrationTest {
         var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
                 () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
                 ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
-                controllerExecutor, queuedClientTasks::addLast, current -> new KnowledgeService(List.of(), current),
+                task -> {
+                    if (holdControllerTasks.get()) queuedControllerTasks.addLast(task);
+                    else task.run();
+                }, queuedClientTasks::addLast, current -> new KnowledgeService(List.of(), current),
                 ChatContracts.Turn::tokenCount, GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
         runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
         while (!queuedClientTasks.isEmpty()) queuedClientTasks.removeFirst().run();

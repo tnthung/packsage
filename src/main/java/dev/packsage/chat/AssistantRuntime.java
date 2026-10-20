@@ -126,6 +126,7 @@ public final class AssistantRuntime implements ChatActions {
                 previous = List.copyOf(holders.values());
                 sessionActivityChanged = previous.stream().anyMatch(holder -> holder.active || holder.requestStarting);
                 previous.forEach(holder -> {
+                    holder.viewReconciliationGeneration++;
                     holder.requestAuthEpochs.clear();
                     if (holder.requestActivation != null) holder.requestActivation.set(false);
                     holder.active = false;
@@ -285,6 +286,7 @@ public final class AssistantRuntime implements ChatActions {
             invalidate = List.copyOf(holders.values());
             sessionActivityChanged = invalidate.stream().anyMatch(holder -> holder.active || holder.requestStarting);
             invalidate.forEach(holder -> {
+                holder.viewReconciliationGeneration++;
                 holder.requestAuthEpochs.clear();
                 if (holder.requestActivation != null) holder.requestActivation.set(false);
                 holder.active = false;
@@ -313,6 +315,7 @@ public final class AssistantRuntime implements ChatActions {
                 disconnect = List.copyOf(holders.values());
                 sessionActivityChanged = disconnect.stream().anyMatch(holder -> holder.active || holder.requestStarting);
                 disconnect.forEach(holder -> {
+                    holder.viewReconciliationGeneration++;
                     holder.requestAuthEpochs.clear();
                     if (holder.requestActivation != null) holder.requestActivation.set(false);
                     holder.active = false;
@@ -761,6 +764,7 @@ public final class AssistantRuntime implements ChatActions {
             invalidate = List.copyOf(holders.values());
             sessionActivityChanged = invalidate.stream().anyMatch(holder -> holder.active || holder.requestStarting);
             invalidate.forEach(holder -> {
+                holder.viewReconciliationGeneration++;
                 holder.requestAuthEpochs.clear();
                 if (holder.requestActivation != null) holder.requestActivation.set(false);
                 holder.active = false;
@@ -911,6 +915,7 @@ public final class AssistantRuntime implements ChatActions {
                 submission = prepared;
                 if (prepared != null) {
                     activation = new AtomicBoolean(true);
+                    holder.viewReconciliationGeneration++;
                     holder.requestActivation = activation;
                     holder.scope = nextScope;
                     holder.active = true;
@@ -949,9 +954,12 @@ public final class AssistantRuntime implements ChatActions {
             holder.controller.begin(submission, requestActivation::get).whenCompleteAsync((ignored, failure) -> {
                 boolean publish = false;
                 boolean refreshSessions = false;
+                boolean reconcile = false;
                 synchronized (stateLock) {
                     if (failure != null) holder.requestAuthEpochs.remove(submission.requestId());
                     if (holder.requestActivation == requestActivation) {
+                        reconcile = true;
+                        holder.viewReconciliationGeneration++;
                         boolean wasActive = holder.active;
                         holder.requestStarting = false;
                         if (failure != null) holder.active = false;
@@ -966,14 +974,18 @@ public final class AssistantRuntime implements ChatActions {
                     }
                 }
                 if (refreshSessions) refreshSessionList();
+                if (reconcile) publishHolderView(holder, null);
                 if (publish) publishCurrentView(epoch);
             }, controllerExecutor);
         } catch (RuntimeException failure) {
             boolean publish = false;
             boolean refreshSessions = false;
+            boolean reconcile = false;
             synchronized (stateLock) {
                 holder.requestAuthEpochs.remove(submission.requestId());
                 if (holder.requestActivation == requestActivation) {
+                    reconcile = true;
+                    holder.viewReconciliationGeneration++;
                     boolean wasActive = holder.active;
                     holder.active = false;
                     holder.requestStarting = false;
@@ -986,6 +998,7 @@ public final class AssistantRuntime implements ChatActions {
                 }
             }
             if (refreshSessions) refreshSessionList();
+            if (reconcile) publishHolderView(holder, null);
             if (publish) publishCurrentView(epoch);
         }
         publishCurrentView(epoch);
@@ -1017,6 +1030,7 @@ public final class AssistantRuntime implements ChatActions {
             holder = selected;
             sessionActivityChanged = holder != null && (holder.active || holder.requestStarting);
             if (holder != null) {
+                holder.viewReconciliationGeneration++;
                 if (holder.requestActivation != null) holder.requestActivation.set(false);
                 holder.active = false;
                 holder.requestStarting = false;
@@ -1296,41 +1310,61 @@ public final class AssistantRuntime implements ChatActions {
         publishCurrentView(worldEpoch);
     }
 
-    private void publishHolderView(Holder holder, ChatContracts.View view) {
+    private void publishHolderView(Holder holder, ChatContracts.View ignored) {
+        long ticket;
+        ChatContracts.RequestId expectedUnread;
+        RequestController controller;
+        synchronized (stateLock) {
+            if (holder.deleting || holder.controller == null
+                    || holders.get(new HolderKey(holder.world.worldOrServer(), holder.id)) != holder) return;
+            ticket = ++holder.viewReconciliationGeneration;
+            expectedUnread = holder.unreadRequestId;
+            controller = holder.controller;
+        }
+        ChatContracts.View latest = controller.view();
+        reconcileHolderView(holder, latest, ticket, expectedUnread);
+    }
+
+    private void reconcileHolderView(Holder holder, ChatContracts.View latest, long ticket,
+                                     ChatContracts.RequestId expectedUnread) {
         long epoch;
         long publication;
         boolean isSelected;
         boolean sessionListChanged;
         synchronized (stateLock) {
+            if (holder.deleting || holder.viewReconciliationGeneration != ticket
+                    || holders.get(new HolderKey(holder.world.worldOrServer(), holder.id)) != holder) return;
             boolean wasActive = holder.active;
-            boolean wasStarting = holder.requestStarting;
             boolean wasLoaded = holder.loaded;
             boolean wasLoading = holder.loading;
             boolean wasCreating = holder.creating;
             String oldId = holder.id;
             ChatContracts.RequestId oldUnreadRequestId = holder.unreadRequestId;
-            holder.active = view.active();
-            holder.requestStarting = false;
-            if (holder.unreadRequestId != null && view.conversation().turns().stream()
-                    .noneMatch(turn -> turn.requestId().equals(holder.unreadRequestId))) {
-                holder.unreadRequestId = null;
-            }
-            if (holder.id.startsWith("pending-world:") && !view.conversation().id().startsWith("pending")) {
+            holder.active = latest.active() || holder.requestStarting;
+            if (holder.id.startsWith("pending-world:") && !latest.conversation().id().startsWith("pending")) {
                 holders.remove(new HolderKey(holder.world.worldOrServer(), holder.id));
-                holder.id = view.conversation().id();
-                holder.world = view.conversation().world();
+                holder.id = latest.conversation().id();
+                holder.world = latest.conversation().world();
                 holders.put(new HolderKey(holder.world.worldOrServer(), holder.id), holder);
                 holder.loaded = true;
                 holder.loading = false;
                 holder.creating = false;
                 if (selected == holder) sessionLoading = false;
             }
-            if (!view.conversation().id().startsWith("pending")) {
+            if (!latest.conversation().id().startsWith("pending")) {
                 holder.loaded = true;
                 holder.creating = false;
             }
-            sessionListChanged = wasActive != holder.active || wasStarting != holder.requestStarting
-                    || wasLoaded != holder.loaded || wasLoading != holder.loading || wasCreating != holder.creating
+            ChatContracts.Conversation conversation = latest.conversation();
+            boolean sameConversation = holder.id.equals(conversation.id())
+                    && holder.world.worldOrServer().equals(conversation.world().worldOrServer());
+            if (expectedUnread != null && Objects.equals(holder.unreadRequestId, expectedUnread) && sameConversation
+                    && conversation.turns().stream().noneMatch(turn -> turn.requestId().equals(expectedUnread))
+                    && !(latest.active() && expectedUnread.value().equals(latest.activeRequestId()))) {
+                holder.unreadRequestId = null;
+            }
+            sessionListChanged = wasActive != holder.active || wasLoaded != holder.loaded
+                    || wasLoading != holder.loading || wasCreating != holder.creating
                     || !oldId.equals(holder.id) || !Objects.equals(oldUnreadRequestId, holder.unreadRequestId);
             isSelected = selected == holder;
             epoch = isSelected ? worldEpoch : 0;
@@ -1344,11 +1378,11 @@ public final class AssistantRuntime implements ChatActions {
                 if (epoch != worldEpoch || publication != publicationEpoch || selected != holder || currentScreen == null) return;
                 screen = currentScreen;
             }
-            ChatContracts.View latest = view();
+            ChatContracts.View current = view();
             synchronized (stateLock) {
                 if (epoch != worldEpoch || publication != publicationEpoch || selected != holder || currentScreen != screen) return;
             }
-            screen.refresh(latest);
+            screen.refresh(current);
         });
     }
 
@@ -1694,6 +1728,7 @@ public final class AssistantRuntime implements ChatActions {
         private ChatContracts.RequestId readAttemptRequestId;
         private long readAttemptSelectionGeneration = -1;
         private AssistantScreen readAttemptScreen;
+        private long viewReconciliationGeneration;
 
         private Holder(ChatContracts.WorldIdentity world, String id, Evidence.Scope scope) {
             this.world = world;

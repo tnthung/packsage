@@ -478,13 +478,22 @@ class ImmersiveEngineeringGuideReaderTest {
 
         var first = reader.readFragment("immersiveengineering:manual/zero-cell-continuation", null, 64, nearlyExhausted);
         assertNotNull(first.nextPosition(), "the empty layout append must expose a continuation when its bytes do not fit");
+        String pendingEmptyLayout = first.nextPosition();
         var resumed = assertDoesNotThrow(() -> reader.readFragment("immersiveengineering:manual/zero-cell-continuation",
-                first.nextPosition(), 64, new Toolbox.DocumentBudget()));
+                pendingEmptyLayout, 64, new Toolbox.DocumentBudget()));
         var serialized = Evidence.serialize(resumed.relationships());
 
         assertTrue(serialized.contains("\"cells\":[]"));
         assertTrue(serialized.contains("immersiveengineering:after_zero_cell_continuation"));
         assertNull(resumed.nextPosition());
+
+        entry.setSpecials(java.util.List.of(new blusunrize.lib.manual.ManualEntry.SpecialElementData(
+                "zero-cell-continuation", 0, new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[0][]))));
+        var stale = assertThrows(Toolbox.Failure.class, () -> reader.readFragment(
+                "immersiveengineering:manual/zero-cell-continuation", pendingEmptyLayout, 64,
+                new Toolbox.DocumentBudget()));
+        assertEquals(Toolbox.Code.INVALID_CURSOR, stale.code());
     }
 
     @Test

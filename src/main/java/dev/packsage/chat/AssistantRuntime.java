@@ -123,6 +123,7 @@ public final class AssistantRuntime implements ChatActions {
                 sessionDeletionGeneration++;
                 previous = List.copyOf(holders.values());
                 previous.forEach(holder -> {
+                    holder.requestAuthEpochs.clear();
                     holder.loadGeneration++;
                     if (holder.loading) {
                         holder.loading = false;
@@ -274,6 +275,7 @@ public final class AssistantRuntime implements ChatActions {
                     .filter(holder -> holder.world.worldOrServer().equals(world.worldOrServer()))
                     .forEach(holder -> holder.scope = newScope);
             invalidate = List.copyOf(holders.values());
+            invalidate.forEach(holder -> holder.requestAuthEpochs.clear());
         }
         invalidate.forEach(holder -> { if (holder.controller != null) holder.controller.invalidate(newScope.worldSession()); });
         publishCurrentView(worldEpoch);
@@ -294,6 +296,7 @@ public final class AssistantRuntime implements ChatActions {
                 selected = null;
                 disconnect = List.copyOf(holders.values());
                 disconnect.forEach(holder -> {
+                    holder.requestAuthEpochs.clear();
                     holder.loadGeneration++;
                     if (holder.loading) {
                         holder.loading = false;
@@ -575,7 +578,16 @@ public final class AssistantRuntime implements ChatActions {
             }
             CompletionStage<ChatContracts.Conversation> opening;
             try {
-                opening = store.openConversation(session.world(), session.id());
+                opening = loadingHolder.controller.awaitPersistence().thenComposeAsync(ignored -> {
+                    synchronized (stateLock) {
+                        if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
+                                || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
+                                || loadingHolder.deleting || world == null) {
+                            return CompletableFuture.failedFuture(new IllegalStateException("session load is no longer current"));
+                        }
+                    }
+                    return store.openConversation(session.world(), session.id());
+                }, clientExecutor);
             } catch (RuntimeException failure) {
                 opening = CompletableFuture.failedFuture(failure);
             }
@@ -725,6 +737,7 @@ public final class AssistantRuntime implements ChatActions {
             signIn = ChatContracts.SignInState.SIGNED_OUT;
             capabilities = new ModelBackend.Capabilities(List.of(), null, null, null, null, null);
             invalidate = List.copyOf(holders.values());
+            invalidate.forEach(holder -> holder.requestAuthEpochs.clear());
         }
         invalidate.forEach(holder -> { if (holder.controller != null) holder.controller.invalidate("account signed out"); });
         try {

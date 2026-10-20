@@ -777,6 +777,7 @@ class AssistantRuntimeTest {
         assertTrue(runtime.view().active());
         assertTrue(runtime.deleteSession(secondSummary).toCompletableFuture().isCompletedExceptionally());
 
+        backend.emit(requestA, new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Answer A", null, List.of(), null));
         backend.emit(requestA, new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
                 new ModelBackend.AssistantOutput("answer-a", ModelBackend.OutputStatus.COMPLETED,
                         ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A", List.of())))), null));
@@ -801,6 +802,7 @@ class AssistantRuntimeTest {
         assertFalse(deletion.toCompletableFuture().isDone());
         assertFalse(storeTasks.isEmpty(), "the target delete is queued after A's persistence");
 
+        backend.emit(requestB, new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Answer B", null, List.of(), null));
         backend.emit(requestB, new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
                 new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("B follow-up"))),
                 toolCall, backend.results.getLast(), new ModelBackend.AssistantOutput("answer-b", ModelBackend.OutputStatus.COMPLETED,

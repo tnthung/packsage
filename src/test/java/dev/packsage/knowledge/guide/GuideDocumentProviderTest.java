@@ -381,14 +381,15 @@ class GuideDocumentProviderTest {
     @Test
     void absentEmptyPartialAndOpaqueRelationshipGroupsRemainDistinct() {
         var absent = new FixtureReader();
-        assertFalse(search(absent, "diamond").records().getFirst().payload().values().containsKey("relationships"));
+        assertFalse(search(absent, "needle").records().getFirst().payload().values().containsKey("relationships"));
 
         for (var coverage : List.of(Evidence.Coverage.COMPLETE, Evidence.Coverage.PARTIAL, Evidence.Coverage.OPAQUE)) {
             var reader = new FixtureReader();
+            reader.terminalFragment.set(true);
             reader.relationships.set(itemsRelationship(null, coverage));
             var record = search(reader, "needle").records().getFirst();
             assertEquals(reader.relationships.get(), record.payload().values().get("relationships"));
-            assertEquals(new Evidence.JsonBoolean(coverage != Evidence.Coverage.COMPLETE), record.payload().values().get("complete"));
+            assertEquals(new Evidence.JsonBoolean(coverage == Evidence.Coverage.COMPLETE), record.payload().values().get("complete"));
         }
     }
 
@@ -408,9 +409,9 @@ class GuideDocumentProviderTest {
 
     private static Evidence.Result search(FixtureReader reader, String query) {
         var provider = new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run);
-        return provider.searchDocument(new PackSageTools.ReadRequest("search_document", new Evidence.JsonObject(Map.of(
-                "query", new Evidence.JsonString(query), "filter", new Evidence.JsonObject(Map.of(
-                        "provider", new Evidence.JsonString("fixture_guide")))), SCOPE),
+        var arguments = new Evidence.JsonObject(Map.of("query", new Evidence.JsonString(query),
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("fixture_guide")))));
+        return provider.searchDocument(new PackSageTools.ReadRequest("search_document", arguments, SCOPE),
                 new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null))
                 .toCompletableFuture().join();
     }
@@ -446,6 +447,7 @@ class GuideDocumentProviderTest {
         private final AtomicBoolean manyCandidates = new AtomicBoolean();
         private final AtomicInteger inspectedCandidates = new AtomicInteger();
         private final AtomicBoolean partialTerminalFragment = new AtomicBoolean();
+        private final AtomicBoolean terminalFragment = new AtomicBoolean();
         private final AtomicReference<Evidence.JsonObject> relationships = new AtomicReference<>(new Evidence.JsonObject(Map.of()));
 
         private FixtureReader() { this("fixture_guide", "fixture:guide/entry"); }
@@ -501,7 +503,8 @@ class GuideDocumentProviderTest {
             }
             if (!budget.value()) return new Fragment("", "page:budget", 0, null, Evidence.Coverage.PARTIAL, "budget exhausted");
             if (fragmentPosition == null) return new Fragment(boundaryMode.get() ? "intro live " : firstText.get(),
-                    "page:first", 0, "page:second", Evidence.Coverage.COMPLETE, null, relationships.get());
+                    "page:first", 0, terminalFragment.get() ? null : "page:second", Evidence.Coverage.COMPLETE, null,
+                    relationships.get());
             return new Fragment(boundaryMode.get() ? "live guide continuation" : secondText.get(), "page:second",
                     boundaryMode.get() ? 5 : 0, null, Evidence.Coverage.COMPLETE, null, relationships.get());
         }

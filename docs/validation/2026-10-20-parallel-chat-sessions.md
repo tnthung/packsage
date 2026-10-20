@@ -2,7 +2,7 @@
 
 Date: 2026-10-20
 
-Plan: [parallel chat sessions](../plans/2026-10-20-parallel-chat-sessions.md). Worktree branch: `feat/parallel-chat-sessions`, starting at local commit `221fe33`. Automated implementation and build checks pass. Independent review is in progress; Minecraft acceptance is pending.
+Plan: [parallel chat sessions](../plans/2026-10-20-parallel-chat-sessions.md). Worktree branch: `feat/parallel-chat-sessions`, starting at local commit `221fe33`. The recorded automated build passes. Final review found defects; fixes and their verification are in progress. Minecraft acceptance is pending.
 
 ## Automated evidence
 
@@ -26,7 +26,11 @@ Plan: [parallel chat sessions](../plans/2026-10-20-parallel-chat-sessions.md). W
 
 ## Independent review
 
-Backend and storage/contracts task reviews are clean after focused coverage corrections. UI review is clean after the cached-conversation follow-bottom fix. The runtime review found three Important defects: a removed answer could retain its unread marker after failed/cancelled resend; background failure could leave a sidebar row active; and a reserved send could activate after lifecycle invalidation. Deterministic regressions reproduced all three before their fixes. They also reproduced early cancellation's missing target and late capture cleanup, directly coupled to the admission ordering. All pass at `0543ea9`, including fresh/rejected/stale permission tokens and the selection-only positive control; scoped re-review confirmed all three addressed. Its new stale-publication finding is fixed and covered at `3864523`. The second scoped runtime re-review confirmed it addressed with no new breakage. All task reviews are clean; the fresh whole-branch review remains in progress.
+Backend and storage/contracts task reviews are clean after focused coverage corrections. UI review is clean after the cached-conversation follow-bottom fix. The runtime review found three Important defects: a removed answer could retain its unread marker after failed/cancelled resend; background failure could leave a sidebar row active; and a reserved send could activate after lifecycle invalidation. Deterministic regressions reproduced all three before their fixes. They also reproduced early cancellation's missing target and late capture cleanup, directly coupled to the admission ordering. All pass at `0543ea9`, including fresh/rejected/stale permission tokens and the selection-only positive control; scoped re-review confirmed all three addressed. Its new stale-publication finding is fixed and covered at `3864523`. The second scoped runtime re-review confirmed it addressed with no new breakage.
+
+The fresh whole-branch Sol review at `cfc9e74` inspected every changed source, test and documentation file. It found no Critical issues, five Important defects and one Minor title regression: asynchronous New chat failure/cancellation can strand loading; empty foreign-world reuse can break holder identity; a temporary loading view can clear an edit target; a delayed completion-list snapshot can notify after deletion; failed completion-list hydration can leave a durable dot impossible to acknowledge; and the live overlay changes the established first-question title. One worker owns the consolidated fixes and deterministic regressions. The 690-test result above predates this fix wave. The earlier same-ID/different-world screen-test gap was judged nonblocking by inspection; the concrete foreign-empty reuse defect is included in the fixes.
+
+The reviewer declined to claim actual Minecraft rendering, physical input, notices, shutdown/restart behavior, installed JEI initialization or private production render-frame timing from headless tests. Those remain pending live acceptance. The backend epoch-snapshot/registration interval also has no forced-interleaving test; the existing guard and retained-consumer coverage remain the documented boundary. None of these observations waives an acceptance requirement.
 
 ## Decisions during execution
 

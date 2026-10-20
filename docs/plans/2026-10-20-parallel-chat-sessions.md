@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use `superpowers:executing-plans` or `superpowers:subagent-driven-development` to implement this plan task by task. Keep one write owner for the shared runtime and UI files. Steps use checkboxes for tracking.
 
-**Status:** Implementation and task reviews complete via SDD on 2026-10-20. Final whole-branch review is in progress; Minecraft acceptance is pending. Keep the feature branch separate; do not merge or push.
+**Status:** Implementation and task reviews complete via SDD on 2026-10-20. Final whole-branch review found defects; the consolidated fixes and verification are in progress. Minecraft acceptance is pending. Keep the feature branch separate; do not merge or push.
 
 **Goal:** Let the player ask questions in several independent conversations, switch between them while replies continue, and return to completed answers with a primary-color dot before each unread conversation title.
 

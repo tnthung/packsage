@@ -152,8 +152,10 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                 offset = cursor[3].equals("done") ? -1 : Integer.parseInt(cursor[3]);
                 if (relationshipPosition != null) {
                     var indices = relationshipPosition.split("\\.", -1);
-                    if (indices.length != 5) throw new NumberFormatException();
-                    for (String index : indices) if (Integer.parseInt(index) < 0) throw new NumberFormatException();
+                    if (indices.length != 5 && indices.length != 6) throw new NumberFormatException();
+                    for (int index = 0; index < 5; index++) if (Integer.parseInt(indices[index]) < 0) throw new NumberFormatException();
+                    if (indices.length == 6 && (Integer.parseInt(indices[5]) < 0 || Integer.parseInt(indices[5]) > 1))
+                        throw new NumberFormatException();
                 }
             } catch (NumberFormatException failure) {
                 throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid Immersive Engineering fragment position");
@@ -192,6 +194,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                 int semanticRecords;
                 int bytes;
                 int[] next;
+                int nextStage;
                 boolean partial;
                 boolean opaque;
                 boolean unavailable;
@@ -199,7 +202,14 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                 int currentOffset;
 
                 String encode(int[] position) {
-                    return position[0] + "." + position[1] + "." + position[2] + "." + position[3] + "." + position[4];
+                    return position[0] + "." + position[1] + "." + position[2] + "." + position[3] + "."
+                            + position[4] + "." + nextStage;
+                }
+
+                int resumeStage() {
+                    if (resumePosition == null) return 0;
+                    var strings = resumePosition.split("\\.", -1);
+                    return strings.length == 6 ? Integer.parseInt(strings[5]) : 0;
                 }
 
                 String source(int[] position) {
@@ -219,7 +229,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     if (resumePosition == null) return new int[] {0, 0, 0, 0, 0};
                     var strings = resumePosition.split("\\.", -1);
                     var result = new int[5];
-                    for (int index = 0; index < strings.length; index++) result[index] = Integer.parseInt(strings[index]);
+                    for (int index = 0; index < 5; index++) result[index] = Integer.parseInt(strings[index]);
                     return result;
                 }
 
@@ -227,6 +237,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     if (semanticRecords + count > MAX_RELATIONSHIP_RECORDS || bytes + estimate > MAX_RELATIONSHIP_BYTES
                             || !budget.value() || !budget.bytes(estimate)) {
                         next = current;
+                        nextStage = 1;
                         partial = true;
                         return false;
                     }
@@ -234,6 +245,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     semanticRecords += count;
                     bytes += estimate;
                     next = following;
+                    nextStage = 0;
                     return true;
                 }
 
@@ -291,6 +303,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     Object rawSpecials = currentEntry.getClass().getMethod("getSpecialData").invoke(currentEntry);
                     if (!(rawSpecials instanceof List<?> specials)) { unavailable = true; partial = true; return; }
                     int[] start = parseResume();
+                    int startStage = resumeStage();
                     boolean found = resumePosition == null;
                     if (start[0] > specials.size()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                             "Immersive Engineering declarations changed; restart the lookup");
@@ -313,13 +326,18 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             Object rawRows = field.get(element);
                             if (!(rawRows instanceof Object[] rows)) { opaque = true; partial = true; continue; }
                             int rowStart = specialIndex == start[0] ? start[1] : 0;
-                            if (rowStart > rows.length || rows.length > 0 && rowStart == rows.length) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                            if (rowStart > rows.length || rows.length > 0 && rowStart == rows.length
+                                    || specialIndex == start[0] && startStage == 1 && rowStart == rows.length)
+                                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                     "Immersive Engineering declarations changed; restart the lookup");
                             for (int rowIndex = rowStart; rowIndex < rows.length; rowIndex++) {
                                 if (!budget.value()) { partial = true; next = new int[] {specialIndex, rowIndex, 0, 0, 0}; return; }
                                 if (!(rows[rowIndex] instanceof Object[] row)) { opaque = true; partial = true; continue; }
                                 int refStart = specialIndex == start[0] && rowIndex == start[1] ? start[2] : 0;
-                                if (refStart > row.length || row.length > 0 && refStart == row.length) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                                if (refStart > row.length || row.length > 0 && refStart == row.length
+                                        || specialIndex == start[0] && rowIndex == start[1] && startStage == 1
+                                        && refStart == row.length)
+                                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                         "Immersive Engineering declarations changed; restart the lookup");
                                 for (int refIndex = refStart; refIndex < row.length; refIndex++) {
                                     int[] position = {specialIndex, rowIndex, refIndex, 0, 0};
@@ -332,7 +350,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                                                 "Immersive Engineering declarations changed; restart the lookup");
                                         found = true;
                                     }
-                                    if (!budget.value()) { partial = true; next = position; return; }
+                                    if (!budget.value()) { partial = true; next = position; nextStage = 1; return; }
                                     Object rawRef = row[refIndex];
                                     if (!recipeRefType.isInstance(rawRef)) { opaque = true; partial = true; continue; }
                                     int[] following = refIndex + 1 < row.length ? new int[] {specialIndex, rowIndex, refIndex + 1, 0, 0}
@@ -347,7 +365,9 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             Object rawRefs = field.get(element);
                             if (!(rawRefs instanceof Object[] refs)) { opaque = true; partial = true; continue; }
                             int refStart = specialIndex == start[0] ? start[2] : 0;
-                            if (refStart > refs.length || refs.length > 0 && refStart == refs.length) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                            if (refStart > refs.length || refs.length > 0 && refStart == refs.length
+                                    || specialIndex == start[0] && startStage == 1 && refStart == refs.length)
+                                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                     "Immersive Engineering declarations changed; restart the lookup");
                             for (int refIndex = refStart; refIndex < refs.length; refIndex++) {
                                 int[] position = {specialIndex, 0, refIndex, 0, 0};
@@ -359,7 +379,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                                             "Immersive Engineering declarations changed; restart the lookup");
                                     found = true;
                                 }
-                                if (!budget.value()) { partial = true; next = position; return; }
+                                if (!budget.value()) { partial = true; next = position; nextStage = 1; return; }
                                 int[] following = refIndex + 1 < refs.length ? new int[] {specialIndex, 0, refIndex + 1, 0, 0}
                                         : new int[] {specialIndex + 1, 0, 0, 0, 0};
                                 if (!readRef(refs[refIndex], recipeRefType, position, following)) return;
@@ -370,7 +390,9 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             Object rawFluids = field.get(element);
                             if (!(rawFluids instanceof Object[] fluids)) { opaque = true; partial = true; continue; }
                             int fluidStart = specialIndex == start[0] ? start[2] : 0;
-                            if (fluidStart > fluids.length || fluids.length > 0 && fluidStart == fluids.length) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                            if (fluidStart > fluids.length || fluids.length > 0 && fluidStart == fluids.length
+                                    || specialIndex == start[0] && startStage == 1 && fluidStart == fluids.length)
+                                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                     "Immersive Engineering declarations changed; restart the lookup");
                             for (int fluidIndex = fluidStart; fluidIndex < fluids.length; fluidIndex++) {
                                 int[] position = {specialIndex, 0, fluidIndex, 0, 0};
@@ -382,7 +404,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                                             "Immersive Engineering declarations changed; restart the lookup");
                                     found = true;
                                 }
-                                if (!budget.value()) { partial = true; next = position; return; }
+                                if (!budget.value()) { partial = true; next = position; nextStage = 1; return; }
                                 Object fluid = fluids[fluidIndex];
                                 var fluidId = fluid instanceof net.minecraft.world.level.material.Fluid value
                                         ? BuiltInRegistries.FLUID.getKey(value) : null;
@@ -477,6 +499,10 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                                 + Integer.toString(y).length()) * 6;
                         Object rawDisplay = cellType.getMethod("displayList").invoke(cell);
                         if (!(rawDisplay instanceof List<?> displayList)) { opaque = true; partial = true; continue; }
+                        if (resumePosition != null && compare(refPosition, cursorRef) == 0 && resumeStage() == 1
+                                && nextCell == cellStart && variantStart >= displayList.size())
+                            throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                                    "Immersive Engineering layout changed; restart the lookup");
                         var alternatives = new ArrayList<Evidence.JsonValue>();
                         boolean chunkFull = false;
                         for (int variant = nextVariant; variant < displayList.size(); variant++) {
@@ -543,6 +569,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             return true;
                         }
                         next = new int[] {position[0], position[1], position[2], nextCell, nextVariant};
+                        nextStage = 1;
                         partial = true;
                         return false;
                     }
@@ -556,6 +583,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             ? new int[] {position[0], position[1], position[2], nextCell, nextVariant}
                             : following;
                     boolean completed = append(value, semanticCount, layoutEstimate, layoutPosition, afterLayout);
+                    if (completed && nextCell < cells.length) nextStage = 1;
                     return completed && (nextCell >= cells.length);
                 }
             }

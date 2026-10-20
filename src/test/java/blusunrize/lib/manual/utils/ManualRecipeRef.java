@@ -1,56 +1,46 @@
 package blusunrize.lib.manual.utils;
 
+import blusunrize.immersiveengineering.api.ManualHelper;
 import blusunrize.lib.manual.PositionedItemStack;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Recipe;
+import net.minecraft.world.item.crafting.RecipeInput;
+import net.minecraft.world.item.crafting.RecipeType;
 
-import java.util.List;
+import java.util.function.Consumer;
 
-public sealed interface ManualRecipeRef permits ManualRecipeRef.RecipeName, ManualRecipeRef.Result, ManualRecipeRef.Layout {
-    boolean isRecipeName();
-    String getRecipeName();
-    boolean isResult();
-    ItemStack getResult();
-    boolean isLayout();
-    List<PositionedItemStack> getLayout();
+public class ManualRecipeRef {
+    private final ItemStack output;
+    private final PositionedItemStack[] layout;
+    private final ResourceLocation recipeName;
 
-    static ManualRecipeRef recipeName(String id) {
-        return new RecipeName(id);
+    public ManualRecipeRef(ItemStack output) {
+        this.output = output;
+        layout = null;
+        recipeName = null;
     }
 
-    static Result result(ItemStack item) {
-        return new Result(item);
+    public ManualRecipeRef(PositionedItemStack[] layout) {
+        output = null;
+        this.layout = layout;
+        recipeName = null;
     }
 
-    static ManualRecipeRef layout(List<PositionedItemStack> value) {
-        return new Layout(value);
+    public ManualRecipeRef(ResourceLocation recipeName) {
+        output = null;
+        layout = null;
+        this.recipeName = recipeName;
     }
 
-    record RecipeName(String id) implements ManualRecipeRef {
-        public boolean isRecipeName() { return true; }
-        public String getRecipeName() { return id; }
-        public boolean isResult() { return false; }
-        public ItemStack getResult() { return null; }
-        public boolean isLayout() { return false; }
-        public List<PositionedItemStack> getLayout() { return List.of(); }
-    }
+    public boolean isLayout() { return layout != null; }
+    public PositionedItemStack[] getLayout() { return layout; }
+    public boolean isResult() { return output != null; }
+    public ItemStack getResult() { return output; }
+    public boolean isRecipeName() { return recipeName != null; }
+    public ResourceLocation getRecipeName() { return recipeName; }
 
-    final class Result implements ManualRecipeRef {
-        private ItemStack item;
-        private Result(ItemStack item) { this.item = item; }
-        public boolean isRecipeName() { return false; }
-        public String getRecipeName() { return null; }
-        public boolean isResult() { return true; }
-        public ItemStack getResult() { return item; }
-        public boolean isLayout() { return false; }
-        public List<PositionedItemStack> getLayout() { return List.of(); }
-    }
-
-    record Layout(List<PositionedItemStack> cells) implements ManualRecipeRef {
-        public boolean isRecipeName() { return false; }
-        public String getRecipeName() { return null; }
-        public boolean isResult() { return false; }
-        public ItemStack getResult() { return null; }
-        public boolean isLayout() { return true; }
-        public List<PositionedItemStack> getLayout() { return cells; }
+    public <C extends RecipeInput, R extends Recipe<C>> void forEachMatchingRecipe(RecipeType<R> type, Consumer<R> action) {
+        ManualHelper.getManual().noteRecipeMatchCall();
     }
 }

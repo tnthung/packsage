@@ -40,7 +40,7 @@ public final class ManualEntry {
     public void addLazySpecial(String anchor, int offset) {
         specialData.add(new SpecialElementData(anchor, offset, () -> {
             elementAccessorCalls++;
-            return new ManualElementCrafting(new utils.ManualRecipeRef[0][]);
+            return new ManualElementCrafting(new blusunrize.lib.manual.utils.ManualRecipeRef[0][]);
         }));
     }
 

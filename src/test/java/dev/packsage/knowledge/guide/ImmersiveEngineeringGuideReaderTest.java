@@ -16,8 +16,9 @@ class ImmersiveEngineeringGuideReaderTest {
     void initializedManualExposesDistinctRecipeReferenceFormsWithEntryProvenance() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();
-        var name = blusunrize.lib.manual.utils.ManualRecipeRef.recipeName("immersiveengineering:hammering");
-        var result = blusunrize.lib.manual.utils.ManualRecipeRef.result(
+        var name = new blusunrize.lib.manual.utils.ManualRecipeRef(
+                net.minecraft.resources.ResourceLocation.parse("immersiveengineering:hammering"));
+        var result = new blusunrize.lib.manual.utils.ManualRecipeRef(
                 new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_INGOT));
         var waterPotion = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.POTION);
         waterPotion.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
@@ -25,9 +26,9 @@ class ImmersiveEngineeringGuideReaderTest {
         var awkwardPotion = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.POTION);
         awkwardPotion.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
                 new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.AWKWARD));
-        var layout = blusunrize.lib.manual.utils.ManualRecipeRef.layout(java.util.List.of(
-                new blusunrize.lib.manual.PositionedItemStack(java.util.List.of(waterPotion, awkwardPotion),
-                        23, 41, "2")));
+        var layout = new blusunrize.lib.manual.utils.ManualRecipeRef(new blusunrize.lib.manual.PositionedItemStack[] {
+                new blusunrize.lib.manual.PositionedItemStack(java.util.List.of(waterPotion, awkwardPotion), 23, 41, "2")
+        });
         var entry = manual.addEntry("immersiveengineering:manual/hammer", new blusunrize.lib.manual.ManualElementCrafting(
                 new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{name, result, layout}}));
         entry.addSpecial("hammer-anchor", 17);
@@ -59,9 +60,9 @@ class ImmersiveEngineeringGuideReaderTest {
         awkward.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
                 new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.AWKWARD));
         var refs = new blusunrize.lib.manual.utils.ManualRecipeRef[] {
-                blusunrize.lib.manual.utils.ManualRecipeRef.recipeName("immersiveengineering:blueprint"),
-                blusunrize.lib.manual.utils.ManualRecipeRef.result(water),
-                blusunrize.lib.manual.utils.ManualRecipeRef.result(awkward)
+                new blusunrize.lib.manual.utils.ManualRecipeRef(net.minecraft.resources.ResourceLocation.parse("immersiveengineering:blueprint")),
+                new blusunrize.lib.manual.utils.ManualRecipeRef(water),
+                new blusunrize.lib.manual.utils.ManualRecipeRef(awkward)
         };
         var blueprint = manual.addEntry("immersiveengineering:manual/blueprint",
                 new blusunrize.immersiveengineering.client.manual.ManualElementBlueprint(refs));
@@ -117,14 +118,16 @@ class ImmersiveEngineeringGuideReaderTest {
         manual.reset();
         var entry = manual.addEntry("immersiveengineering:manual/reloaded",
                 new blusunrize.lib.manual.ManualElementCrafting(new blusunrize.lib.manual.utils.ManualRecipeRef[][] {
-                        {blusunrize.lib.manual.utils.ManualRecipeRef.recipeName("immersiveengineering:old")}
+                        {new blusunrize.lib.manual.utils.ManualRecipeRef(
+                                net.minecraft.resources.ResourceLocation.parse("immersiveengineering:old"))}
                 }));
         entry.addSpecial("anchor", 0);
         var reader = new ImmersiveEngineeringGuideReader();
         var first = reader.readFragment("immersiveengineering:manual/reloaded", null, 32, new Toolbox.DocumentBudget());
         entry.setSpecials(java.util.List.of(new blusunrize.lib.manual.ManualEntry.SpecialElementData("new-anchor", 5,
                 new blusunrize.lib.manual.ManualElementCrafting(new blusunrize.lib.manual.utils.ManualRecipeRef[][] {
-                        {blusunrize.lib.manual.utils.ManualRecipeRef.recipeName("immersiveengineering:new")}
+                        {new blusunrize.lib.manual.utils.ManualRecipeRef(
+                                net.minecraft.resources.ResourceLocation.parse("immersiveengineering:new"))}
                 }))));
 
         var next = reader.readFragment("immersiveengineering:manual/reloaded", first.nextPosition(), 32,
@@ -142,7 +145,8 @@ class ImmersiveEngineeringGuideReaderTest {
         var rows = new blusunrize.lib.manual.utils.ManualRecipeRef[24][];
         for (int row = 0; row < rows.length; row++) {
             rows[row] = new blusunrize.lib.manual.utils.ManualRecipeRef[] {
-                    blusunrize.lib.manual.utils.ManualRecipeRef.recipeName("immersiveengineering:recipe_" + row)
+                    new blusunrize.lib.manual.utils.ManualRecipeRef(net.minecraft.resources.ResourceLocation.parse(
+                            "immersiveengineering:recipe_" + row))
             };
         }
         var entry = manual.addEntry("immersiveengineering:manual/bounded", new blusunrize.lib.manual.ManualElementCrafting(rows));

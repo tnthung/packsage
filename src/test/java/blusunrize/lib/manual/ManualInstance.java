@@ -60,4 +60,8 @@ public final class ManualInstance {
     public int recipeMatchCalls() {
         return recipeMatchCalls;
     }
+
+    public void noteRecipeMatchCall() {
+        recipeMatchCalls++;
+    }
 }

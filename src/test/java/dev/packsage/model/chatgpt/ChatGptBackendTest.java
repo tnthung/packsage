@@ -43,11 +43,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -782,6 +780,24 @@ class ChatGptBackendTest {
     }
 
     @Test
+    void terminalExchangeRemovalLeavesOtherExchangeRegisteredForSignOut() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(ANSWER_RESPONSE, ANSWER_RESPONSE));
+        ArrayDeque<Runnable> tasks = new ArrayDeque<>();
+        List<ModelBackend.Event> firstEvents = new ArrayList<>();
+        List<ModelBackend.Event> secondEvents = new ArrayList<>();
+        ChatGptBackend backend = new ChatGptBackend(signedInAuth(), client, tasks::add);
+        backend.start(searchRequest("parallel-signout-first", ModelBackend.SearchMode.DISABLED), firstEvents::add);
+        backend.start(searchRequest("parallel-signout-second", ModelBackend.SearchMode.DISABLED), secondEvents::add);
+
+        tasks.removeFirst().run();
+        assertEquals(1, firstEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+        backend.signOut();
+        tasks.removeFirst().run();
+
+        assertEquals(0, secondEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+    }
+
+    @Test
     void signOutCancelsEveryRegisteredExchangeBeforeTheirStreamsRun() {
         CapturingHttpClient client = new CapturingHttpClient(List.of(ANSWER_RESPONSE, ANSWER_RESPONSE));
         ArrayDeque<Runnable> tasks = new ArrayDeque<>();
@@ -799,29 +815,29 @@ class ChatGptBackendTest {
     }
 
     @Test
-    void exchangeRacingSignOutRegistrationCannotCompleteInTheOldAccountEpoch() throws Exception {
-        CapturingHttpClient client = new CapturingHttpClient(List.of(ANSWER_RESPONSE));
+    void successfulAccountReplacementCancelsEveryActiveExchange() {
+        CapturingHttpClient client = new CapturingHttpClient(List.of(ANSWER_RESPONSE, ANSWER_RESPONSE));
         ArrayDeque<Runnable> tasks = new ArrayDeque<>();
-        List<ModelBackend.Event> events = new ArrayList<>();
-        ChatGptBackend backend = new ChatGptBackend(signedInAuth(), client, tasks::add);
-        CountDownLatch startTogether = new CountDownLatch(1);
-        AtomicReference<ModelBackend.Exchange> exchange = new AtomicReference<>();
-        Thread starter = new Thread(() -> {
-            try {
-                startTogether.await();
-                exchange.set(backend.start(searchRequest("parallel-registration-race", ModelBackend.SearchMode.DISABLED), events::add));
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-            }
-        });
-        starter.start();
-        startTogether.countDown();
-        backend.signOut();
-        starter.join();
+        List<ModelBackend.Event> firstEvents = new ArrayList<>();
+        List<ModelBackend.Event> secondEvents = new ArrayList<>();
+        ChatGptAuth auth = new ChatGptAuth(temporaryDirectory.resolve("replacement-credentials.json"),
+                new ChatGptAuth.SignInFlow() {
+                    @Override public CompletionStage<ModelBackend.AuthState> start(ChatGptAuth ignored,
+                                                                                   CompletableFuture<ModelBackend.AuthState> cancellation) {
+                        return CompletableFuture.completedFuture(new ModelBackend.AuthState(
+                                ModelBackend.AuthStatus.SIGNED_IN, "replacement-subject", "signed in"));
+                    }
+                });
+        auth.saveCredential(credential("access-1", "refresh-1", Long.MAX_VALUE));
+        ChatGptBackend backend = new ChatGptBackend(auth, client, tasks::add);
+        backend.start(searchRequest("parallel-replacement-first", ModelBackend.SearchMode.DISABLED), firstEvents::add);
+        backend.start(searchRequest("parallel-replacement-second", ModelBackend.SearchMode.DISABLED), secondEvents::add);
+
+        assertEquals(ModelBackend.AuthStatus.SIGNED_IN, backend.signIn().toCompletableFuture().join().status());
         while (!tasks.isEmpty()) tasks.removeFirst().run();
 
-        assertTrue(exchange.get() != null);
-        assertEquals(0, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+        assertEquals(0, firstEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
+        assertEquals(0, secondEvents.stream().filter(event -> event.kind() == ModelBackend.EventKind.COMPLETED).count());
     }
 
     @Test

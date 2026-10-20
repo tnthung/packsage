@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Use `superpowers:executing-plans` or `superpowers:subagent-driven-development` to implement this plan task by task. Keep one write owner for the shared runtime and UI files. Steps use checkboxes for tracking.
 
-**Status:** Proposed for review. This document does not authorize implementation.
+**Status:** Approved for worktree implementation via SDD on 2026-10-20. Keep the feature branch separate; do not merge or push.
 
 **Goal:** Let the player ask questions in several independent conversations, switch between them while replies continue, and return to completed answers with a primary-color dot before each unread conversation title.
 
@@ -43,7 +43,7 @@
 - Keep one runtime authority for each loaded conversation; reopening A must never create a second controller writing to A.
 - Do not hold runtime locks while calling controllers, providers, UI listeners or persistence callbacks. Selection generations reject stale UI loads; request/world generations reject stale work independently.
 - No formatting tools, dependency upgrades, prompt changes, new notification settings, request scheduler, cross-world background execution or unrelated refactoring.
-- Keep this planning change uncommitted. Do not mutate Git without explicit authorization; use the staged-index `$commit-message` workflow when commits are authorized.
+- The approved SDD execution includes worktree commits. Commit each written work step using the staged-index `$commit-message` workflow. Do not merge or push.
 
 ## Review focus
 
@@ -144,4 +144,4 @@
 
 ## Execution order
 
-Implement Tasks 1–4 in order with one owner for `AssistantRuntime` and related contracts, then complete Task 5. Backend and storage tests can be investigated independently, but runtime/contracts/UI writes overlap and should not run concurrently. No product code, installation or Git mutation is part of writing this plan.
+Implement Task 1 alongside the store/contracts portion of Task 3 with disjoint file ownership. After those interfaces are reviewed, one worker owns Task 2 plus the runtime portion of Task 3, while another owns Task 4's screen and screen-state tests. The runtime worker owns `ClientAssistant`; the screen worker does not edit it. The parent serializes Git and Gradle operations, completes Task 5 and coordinates task reviews plus the final branch review. Installation, merge and push are outside this execution.

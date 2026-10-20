@@ -18,6 +18,7 @@ import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -127,12 +128,17 @@ class GuideMeGuideReaderTest {
         var reader = new GuideMeGuideReader();
         String position = null;
         var actual = new StringBuilder();
+        var returnedPositions = new HashSet<String>();
+        int pages = 0;
 
         do {
             var fragment = reader.readFragment("fixture:book#fixture:entry", position, 64,
                     new Toolbox.DocumentBudget());
             actual.append(fragment.text());
             position = fragment.nextPosition();
+            pages++;
+            assertTrue(pages <= 512, "the full AST should advance within the bounded page count");
+            assertTrue(position == null || returnedPositions.add(position), "continuations must advance");
         } while (position != null);
 
         assertEquals(expected.toString(), actual.toString());

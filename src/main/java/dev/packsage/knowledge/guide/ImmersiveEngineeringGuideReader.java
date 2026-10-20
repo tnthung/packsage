@@ -256,19 +256,19 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     projected.put("itemId", new Evidence.JsonString(itemId.toString()));
                     var components = new LinkedHashMap<String, Evidence.JsonValue>();
                     var patch = stack.getComponentsPatch();
-                    if (patch.size() > 16) partial = true;
+                    if (patch.size() > 16) partial = opaque = true;
                     else for (var component : patch.entrySet()) {
-                        if (!budget.value()) { partial = true; break; }
+                        if (!budget.value()) { partial = opaque = true; break; }
                         if (component.getKey() == DataComponents.POTION_CONTENTS
                                 && component.getValue().orElse(null) instanceof PotionContents potion
                                 && potion.potion().isPresent() && potion.customColor().isEmpty()
                                 && potion.customEffects().isEmpty()) {
                             var potionId = potion.potion().get().unwrapKey()
                                     .map(key -> key.location().toString()).orElse(null);
-                            if (potionId == null || potionId.length() > 256) partial = true;
+                            if (potionId == null || potionId.length() > 256) partial = opaque = true;
                             else components.put("minecraft:potion_contents", new Evidence.JsonObject(Map.of(
                                     "potion", new Evidence.JsonString(potionId))));
-                        } else partial = true;
+                        } else partial = opaque = true;
                     }
                     if (patch.size() > 16) components.put("encoding", new Evidence.JsonString("partial"));
                     if (!components.isEmpty()) projected.put("components", new Evidence.JsonObject(components));
@@ -356,7 +356,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                                     if (!readRef(rawRef, recipeRefType, position, following)) return;
                                 }
                             }
-                        } else if (ieCraftingType.isInstance(element)) {
+                        } else if (ieCraftingType.isInstance(element) && !mixerType.isInstance(element)) {
                             var field = ieCraftingType.getDeclaredField("stacks");
                             if (!field.trySetAccessible()) { opaque = true; partial = true; continue; }
                             Object rawRefs = field.get(element);
@@ -413,8 +413,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                                 value.put("fluidId", new Evidence.JsonString(fluidId.toString()));
                                 int[] following = fluidIndex + 1 < fluids.length ? new int[] {specialIndex, 0, fluidIndex + 1, 0, 0}
                                         : new int[] {specialIndex + 1, 0, 0, 0, 0};
-                                if (!append(value, 1, 512 + id.length() * 6 + sourcePosition.length() * 6
-                                        + fluidId.toString().length() * 6,
+                                if (!append(value, 1, Evidence.serialize(new Evidence.JsonObject(value))
+                                        .getBytes(StandardCharsets.UTF_8).length + 256,
                                         position, following)) return;
                             }
                         } else { opaque = true; partial = true; }
@@ -433,7 +433,6 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     var value = new LinkedHashMap<String, Evidence.JsonValue>();
                     String sourcePosition = source(position);
                     value.put("sourcePosition", new Evidence.JsonString(sourcePosition));
-                    int estimate = 512 + id.length() * 6 + sourcePosition.length() * 6;
                     if (recipe) {
                         Object rawName = type.getMethod("getRecipeName").invoke(ref);
                         if (!(rawName instanceof ResourceLocation recipeId) || recipeId.toString().length() > 256) {
@@ -443,8 +442,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                         }
                         value.put("kind", new Evidence.JsonString("recipe"));
                         value.put("recipeId", new Evidence.JsonString(recipeId.toString()));
-                        estimate += recipeId.toString().length() * 6;
-                        return append(value, 1, estimate, position, following);
+                        return append(value, 1, Evidence.serialize(new Evidence.JsonObject(value))
+                                .getBytes(StandardCharsets.UTF_8).length + 256, position, following);
                     }
                     if (output) {
                         Object rawStack = type.getMethod("getResult").invoke(ref);
@@ -454,8 +453,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                         value.put("kind", new Evidence.JsonString("output_item"));
                         value.put("itemId", projected.values().get("itemId"));
                         if (projected.values().containsKey("components")) value.put("components", projected.values().get("components"));
-                        estimate += Evidence.serialize(projected).length() * 6;
-                        return append(value, 1, estimate, position, following);
+                        return append(value, 1, Evidence.serialize(new Evidence.JsonObject(value))
+                                .getBytes(StandardCharsets.UTF_8).length + 256, position, following);
                     }
                     if (!layout) { opaque = true; partial = true; return true; }
                     Object rawCells = type.getMethod("getLayout").invoke(ref);
@@ -465,14 +464,16 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     int[] cursorRef = {resume[0], resume[1], resume[2], 0, 0};
                     int cellStart = resumePosition != null && compare(refPosition, cursorRef) == 0 ? resume[3] : 0;
                     int variantStart = resumePosition != null && compare(refPosition, cursorRef) == 0 ? resume[4] : 0;
-                    if (cellStart >= cells.length) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                    boolean resumeMatchesRef = resumePosition != null && compare(refPosition, cursorRef) == 0;
+                    if (cellStart > cells.length || cellStart == cells.length && (cells.length > 0 || resumeMatchesRef))
+                        throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                             "Immersive Engineering layout changed; restart the lookup");
                     var cellValues = new ArrayList<Evidence.JsonValue>();
                     int semanticCount = 1;
                     int[] layoutPosition = {position[0], position[1], position[2], cellStart, variantStart};
                     String layoutSourcePosition = source(layoutPosition);
                     value.put("sourcePosition", new Evidence.JsonString(layoutSourcePosition));
-                    int layoutEstimate = 512 + id.length() * 6 + layoutSourcePosition.length() * 6 + 256;
+                    int layoutEstimate = 0;
                     int recordCellStart = cellStart;
                     int recordVariantStart = variantStart;
                     int nextCell = cellStart;
@@ -492,11 +493,9 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                         }
                         int x = (int) cellType.getMethod("x").invoke(cell);
                         int y = (int) cellType.getMethod("y").invoke(cell);
-                        int cellEstimate = 128 + (amountText.length() + Integer.toString(x).length()
-                                + Integer.toString(y).length()) * 6;
                         Object rawDisplay = cellType.getMethod("displayList").invoke(cell);
                         if (!(rawDisplay instanceof List<?> displayList)) { opaque = true; partial = true; continue; }
-                        if (resumePosition != null && compare(refPosition, cursorRef) == 0 && resumeStage == 1
+                        if (resumeMatchesRef && resumeStage == 1
                                 && nextCell == cellStart && variantStart >= displayList.size()
                                 && (!displayList.isEmpty() || variantStart > 0))
                             throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
@@ -518,11 +517,27 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             }
                             var projected = stack(stack);
                             if (projected == null) { nextVariant = variant + 1; continue; }
-                            int alternativeEstimate = Evidence.serialize(projected).length() * 6;
-                            int additionalEstimate = (alternatives.isEmpty() ? cellEstimate : 0) + alternativeEstimate;
-                            if (layoutEstimate + additionalEstimate > MAX_RELATIONSHIP_BYTES - bytes
-                                    || layoutEstimate + additionalEstimate > budget.remainingBytes()) {
-                                if (layoutEstimate + additionalEstimate - cellEstimate > MAX_RELATIONSHIP_BYTES
+                            var candidateAlternatives = new ArrayList<Evidence.JsonValue>(alternatives);
+                            candidateAlternatives.add(projected);
+                            int[] candidatePosition = cellValues.isEmpty() && alternatives.isEmpty()
+                                    ? new int[] {position[0], position[1], position[2], nextCell, variant}
+                                    : layoutPosition;
+                            var candidateCell = new LinkedHashMap<String, Evidence.JsonValue>();
+                            candidateCell.put("x", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(x)));
+                            candidateCell.put("y", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(y)));
+                            candidateCell.put("amount", new Evidence.JsonString(amountText));
+                            candidateCell.put("alternatives", new Evidence.JsonArray(candidateAlternatives));
+                            var candidateCells = new ArrayList<Evidence.JsonValue>(cellValues);
+                            candidateCells.add(new Evidence.JsonObject(candidateCell));
+                            var candidateValue = new LinkedHashMap<String, Evidence.JsonValue>();
+                            candidateValue.put("kind", new Evidence.JsonString("layout"));
+                            candidateValue.put("cells", new Evidence.JsonArray(candidateCells));
+                            candidateValue.put("sourcePosition", new Evidence.JsonString(source(candidatePosition)));
+                            int candidateEstimate = Evidence.serialize(new Evidence.JsonObject(candidateValue))
+                                    .getBytes(StandardCharsets.UTF_8).length + 256;
+                            if (candidateEstimate > MAX_RELATIONSHIP_BYTES - bytes
+                                    || candidateEstimate > budget.remainingBytes()) {
+                                if (candidateEstimate - layoutEstimate > MAX_RELATIONSHIP_BYTES
                                         && alternatives.isEmpty() && cellValues.isEmpty()) {
                                     opaque = true;
                                     partial = true;
@@ -537,46 +552,75 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                             if (cellValues.isEmpty() && alternatives.size() == 1) {
                                 recordCellStart = nextCell;
                                 recordVariantStart = variant;
+                                layoutPosition = candidatePosition;
                             }
                             semanticCount++;
                             nextVariant = variant + 1;
-                            layoutEstimate += alternativeEstimate;
+                            layoutEstimate = candidateEstimate;
                         }
                         if (chunkFull && alternatives.isEmpty()) break;
                         if (alternatives.isEmpty() && !displayList.isEmpty()) continue;
                         if (cellValues.isEmpty() && alternatives.isEmpty()) {
                             recordCellStart = nextCell;
                             recordVariantStart = nextVariant;
+                            layoutPosition = new int[] {position[0], position[1], position[2], recordCellStart, recordVariantStart};
                         }
                         var cellValue = new LinkedHashMap<String, Evidence.JsonValue>();
                         cellValue.put("x", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(x)));
                         cellValue.put("y", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(y)));
                         cellValue.put("amount", new Evidence.JsonString(amountText));
                         cellValue.put("alternatives", new Evidence.JsonArray(alternatives));
+                        if (alternatives.isEmpty()) {
+                            var candidateCells = new ArrayList<Evidence.JsonValue>(cellValues);
+                            candidateCells.add(new Evidence.JsonObject(cellValue));
+                            var candidateValue = new LinkedHashMap<String, Evidence.JsonValue>();
+                            candidateValue.put("kind", new Evidence.JsonString("layout"));
+                            candidateValue.put("cells", new Evidence.JsonArray(candidateCells));
+                            candidateValue.put("sourcePosition", new Evidence.JsonString(source(layoutPosition)));
+                            int candidateEstimate = Evidence.serialize(new Evidence.JsonObject(candidateValue))
+                                    .getBytes(StandardCharsets.UTF_8).length + 256;
+                            if (candidateEstimate > MAX_RELATIONSHIP_BYTES - bytes
+                                    || candidateEstimate > budget.remainingBytes()) {
+                                if (cellValues.isEmpty() && candidateEstimate > MAX_RELATIONSHIP_BYTES) {
+                                    opaque = true;
+                                    partial = true;
+                                    continue;
+                                }
+                                next = new int[] {position[0], position[1], position[2], nextCell, nextVariant};
+                                nextStage = 1;
+                                partial = true;
+                                if (cellValues.isEmpty()) return false;
+                                chunkFull = true;
+                                break;
+                            }
+                            layoutEstimate = candidateEstimate;
+                        }
                         cellValues.add(new Evidence.JsonObject(cellValue));
                         semanticCount++;
-                        layoutEstimate += cellEstimate;
                         if (chunkFull || nextVariant < displayList.size()) {
                             break;
                         }
                     }
                     if (cellValues.isEmpty()) {
-                        if (nextCell >= cells.length) {
+                        if (nextCell >= cells.length && cells.length != 0) {
                             next = following;
                             partial = true;
                             return true;
                         }
-                        next = new int[] {position[0], position[1], position[2], nextCell, nextVariant};
-                        nextStage = 1;
-                        partial = true;
-                        return false;
+                        if (nextCell < cells.length) {
+                            next = new int[] {position[0], position[1], position[2], nextCell, nextVariant};
+                            nextStage = 1;
+                            partial = true;
+                            return false;
+                        }
                     }
                     value.put("kind", new Evidence.JsonString("layout"));
                     value.put("cells", new Evidence.JsonArray(cellValues));
                     layoutPosition = new int[] {position[0], position[1], position[2], recordCellStart, recordVariantStart};
                     String recordSourcePosition = source(layoutPosition);
-                    layoutEstimate += (recordSourcePosition.length() - layoutSourcePosition.length()) * 6;
                     value.put("sourcePosition", new Evidence.JsonString(recordSourcePosition));
+                    layoutEstimate = Evidence.serialize(new Evidence.JsonObject(value))
+                            .getBytes(StandardCharsets.UTF_8).length + 256;
                     int[] afterLayout = nextCell < cells.length
                             ? new int[] {position[0], position[1], position[2], nextCell, nextVariant}
                             : following;

@@ -263,6 +263,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
             Class<?> parentType = Class.forName("guideme.libs.mdast.model.MdAstParent", false, getClass().getClassLoader());
             Class<?> literalType = Class.forName("guideme.libs.mdast.model.MdAstLiteral", false, getClass().getClassLoader());
             Class<?> elementType = Class.forName("guideme.libs.mdast.mdx.model.MdxJsxElementFields", false, getClass().getClassLoader());
+            Class<?> attributeType = Class.forName("guideme.libs.mdast.mdx.model.MdxJsxAttribute", false, getClass().getClassLoader());
             int initialMetadataPosition = metadataPosition;
             List<Integer> initialAstRelationshipPath = astRelationshipPath;
             int initialRelationshipFlags = relationshipFlags;
@@ -303,11 +304,6 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                     return true;
                 }
 
-                ResourceLocation identity(String value) {
-                    String qualified = value.indexOf(':') < 0 ? pageResourceId.getNamespace() + ":" + value : value;
-                    return ResourceLocation.tryParse(qualified);
-                }
-
                 void readMetadata() throws ReflectiveOperationException {
                     if (nextMetadata < 0) return;
                     if (!budget.value()) return;
@@ -335,7 +331,8 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                             nextMetadata = index + 1;
                             continue;
                         }
-                        ResourceLocation itemId = identity(itemText);
+                        ResourceLocation itemId = ResourceLocation.tryParse(itemText.indexOf(':') < 0
+                                ? pageResourceId.getNamespace() + ":" + itemText : itemText);
                         if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) {
                             flags |= 4;
                             nextMetadata = index + 1;
@@ -462,7 +459,8 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                                         stopped = true;
                                         return;
                                     }
-                                    String name = String.valueOf(attribute.getClass().getMethod("name").invoke(attribute));
+                                    if (!attributeType.isInstance(attribute)) { malformed = true; continue; }
+                                    String name = String.valueOf(attribute.getClass().getField("name").get(attribute));
                                     if (!name.equals("id") && !name.equals("fallbackText")) { malformed = true; continue; }
                                     if (!attribute.getClass().getMethod("hasStringValue").invoke(attribute).equals(Boolean.TRUE)) {
                                         malformed = true;
@@ -485,7 +483,8 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                                 if (idValue == null || idValue.isBlank()) malformed = true;
                                 else if (idValue.length() > 512) malformed = true;
                                 else {
-                                    ResourceLocation target = identity(idValue);
+                                    ResourceLocation target = ResourceLocation.tryParse(idValue.indexOf(':') < 0
+                                            ? pageResourceId.getNamespace() + ":" + idValue : idValue);
                                     if (target == null) malformed = true;
                                     else if (tag.equals("Recipe")) {
                                         targetKey = "recipeId";

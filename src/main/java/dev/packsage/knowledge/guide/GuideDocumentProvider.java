@@ -587,7 +587,7 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
             } catch (IllegalArgumentException failure) {
                 throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned invalid relationship coverage");
             }
-            validateCoverage(groupCoverage);
+            if (groupCoverage == Evidence.Coverage.ERROR) validateCoverage(groupCoverage);
             if (object.values().containsKey("detail")
                     && (!(object.values().get("detail") instanceof Evidence.JsonString detail) || detail.value().length() > MAX_DETAIL_CHARS)) {
                 throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned invalid relationship detail");
@@ -606,7 +606,8 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
                     throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned a malformed relationship value");
                 }
             }
-            coverage = mergeCoverage(coverage, groupCoverage);
+            coverage = mergeCoverage(coverage, groupCoverage == Evidence.Coverage.UNAVAILABLE
+                    ? Evidence.Coverage.PARTIAL : groupCoverage);
         }
         validateRelationshipValue(relationships, 0, limits, null, false, false);
         return coverage;

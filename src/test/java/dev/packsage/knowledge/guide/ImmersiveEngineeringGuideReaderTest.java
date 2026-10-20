@@ -353,6 +353,33 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void clearedNonemptyLayoutRejectsItsPendingPositiveAlternativeCursor() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var alternatives = new java.util.ArrayList<net.minecraft.world.item.ItemStack>();
+        for (int index = 0; index < 20; index++)
+            alternatives.add(new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_INGOT));
+        var layout = new blusunrize.lib.manual.utils.ManualRecipeRef(new blusunrize.lib.manual.PositionedItemStack[] {
+                new blusunrize.lib.manual.PositionedItemStack(alternatives, 19, 23, "4")
+        });
+        manual.addEntry("immersiveengineering:manual/cleared-layout-alternatives",
+                new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{layout}}));
+
+        var first = new ImmersiveEngineeringGuideReader().readFragment(
+                "immersiveengineering:manual/cleared-layout-alternatives", null, 64, new Toolbox.DocumentBudget());
+        assertTrue(first.nextPosition() != null);
+        var coordinates = first.nextPosition().split("\\|", -1)[1].split("\\.", -1);
+        assertTrue(Integer.parseInt(coordinates[4]) > 0, "the natural cursor must point within the alternatives");
+        alternatives.clear();
+
+        var stale = assertThrows(Toolbox.Failure.class, () -> new ImmersiveEngineeringGuideReader().readFragment(
+                "immersiveengineering:manual/cleared-layout-alternatives", first.nextPosition(), 64,
+                new Toolbox.DocumentBudget()));
+        assertEquals(Toolbox.Code.INVALID_CURSOR, stale.code());
+    }
+
+    @Test
     void uninitializedContinuationAfterCompletedTextIsTerminalPartial() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();

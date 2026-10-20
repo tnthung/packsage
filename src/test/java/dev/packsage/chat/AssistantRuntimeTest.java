@@ -5,6 +5,8 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.knowledge.Toolbox;
+import dev.packsage.knowledge.guide.GuideDocumentProvider;
+import dev.packsage.knowledge.guide.GuideDocumentReader;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.GroundingInstructions;
@@ -548,6 +550,154 @@ class AssistantRuntimeTest {
                 .filter(summary -> summary.id().equals(firstConversation.id())).findFirst().orElseThrow().unreadRequestId());
         assertEquals(new ChatContracts.RequestId(secondRequestId), store.sessions().toCompletableFuture().join().stream()
                 .filter(summary -> summary.id().equals(secondConversationId)).findFirst().orElseThrow().unreadRequestId());
+    }
+
+    @Test
+    void parallelGuideDocumentToolsKeepEvidenceReplayAndCompletionWithTheirConversation() throws Exception {
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-parallel-guide-tools"), DIRECT);
+        ChatContracts.Conversation conversationA = store.newConversation(WORLD).toCompletableFuture().join();
+        ChatContracts.Turn previousA = new ChatContracts.Turn(new ChatContracts.RequestId("guide-history-a"),
+                "Earlier A question", "Earlier A answer", List.of(), new ChatContracts.Context("A context", null, SCOPE),
+                List.of(), List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+        store.appendTurn(WORLD, SCOPE, conversationA.id(), previousA).toCompletableFuture().join();
+
+        FakeBackend backend = new FakeBackend();
+        List<java.util.ArrayDeque<Runnable>> clientQueues = new ArrayList<>();
+        Map<String, ChatContracts.PreparedRequest> preparedByRequest = new java.util.LinkedHashMap<>();
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT, current -> {
+            String label = clientQueues.isEmpty() ? "A" : "B";
+            var queue = new java.util.ArrayDeque<Runnable>();
+            clientQueues.add(queue);
+            return new KnowledgeService(List.of(new GuideDocumentProvider(new GuideDocumentReader() {
+                @Override public String providerId() { return "guideme"; }
+                @Override public String version() { return "fixture-1"; }
+                @Override public String sourceIdentity(Evidence.Scope ignored) { return "source-" + label; }
+                @Override public CandidatePage candidates(String after, int limit, Toolbox.DocumentBudget budget) {
+                    return new CandidatePage(after == null ? List.of(new Candidate("guide-" + label, label + " guide manual",
+                            "entry-" + label, List.of("guide provenance " + label), Evidence.Coverage.COMPLETE)) : List.of(),
+                            after == null ? "entry-" + label : after, false, Evidence.Coverage.COMPLETE, null);
+                }
+                @Override public Fragment readFragment(String id, String position, int maxChars, Toolbox.DocumentBudget budget) {
+                    return new Fragment(label + " manual text", "entry-" + label, 0, null, Evidence.Coverage.COMPLETE, null,
+                            new Evidence.JsonObject(Map.of("items", new Evidence.JsonObject(Map.of(
+                                    "coverage", new Evidence.JsonString("COMPLETE"), "values", new Evidence.JsonArray(List.of(
+                                            new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("associated"),
+                                                    "sourcePosition", new Evidence.JsonString("entry-" + label),
+                                                    "itemId", new Evidence.JsonString("example:" + label.toLowerCase() + "_item"))))))))));
+                }
+                @Override public ResolvedDocument resolve(String id, int maxChars, Toolbox.DocumentBudget budget) {
+                    return new ResolvedDocument(new Candidate("guide-" + label, label + " guide manual", "entry-" + label,
+                            List.of("guide provenance " + label), Evidence.Coverage.COMPLETE),
+                            readFragment(id, "entry-" + label, maxChars, budget));
+                }
+                @Override public List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope requestScope, Candidate candidate) {
+                    return List.of(new Evidence.NavigationTarget(requestScope, "guideme", candidate.id(), "page-" + label));
+                }
+            }, current, queue::addLast)), current);
+        }, ChatContracts.Turn::tokenCount, prepared -> {
+            preparedByRequest.put(prepared.submission().requestId().value(), prepared);
+            return new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                    new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                            prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                    prepared.submission().requestId().value(), prepared.submission().outputBudget());
+        }, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+
+        runtime.send("Question for guide A", false, false);
+        String requestA = backend.requests.getLast().requestId();
+        var toolCallA = new ModelBackend.ToolCall("guide-a", "search_document",
+                "{\"query\":\"manual\",\"filter\":{\"provider\":\"guideme\",\"types\":[\"guide\"]}}");
+        backend.emit(requestA, new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                toolCallA, List.of(), null));
+        assertEquals(1, clientQueues.get(0).size(), "A's real guide search should remain queued");
+
+        runtime.newChat();
+        String conversationB = runtime.view().conversation().id();
+        runtime.send("Question for guide B", false, false);
+        String requestB = backend.requests.getLast().requestId();
+        assertNotEquals(preparedByRequest.get(requestA).capturedContext().context().scope(),
+                preparedByRequest.get(requestB).capturedContext().context().scope());
+        var toolCallB = new ModelBackend.ToolCall("guide-b", "search_document",
+                "{\"query\":\"manual\",\"filter\":{\"provider\":\"guideme\",\"types\":[\"guide\"]}}");
+        backend.emit(requestB, new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                toolCallB, List.of(), null));
+        assertEquals(1, clientQueues.get(1).size(), "B's real guide search should be independently queued");
+
+        clientQueues.get(1).removeFirst().run();
+        ModelBackend.ToolResult resultB = backend.results.stream().filter(result -> result.callId().equals("guide-b")).findFirst().orElseThrow();
+        assertFalse(resultB.error(), resultB.serializedResult());
+        assertTrue(resultB.serializedResult().contains("example:b_item"), resultB.serializedResult());
+        assertFalse(resultB.serializedResult().contains("example:a_item"), resultB.serializedResult());
+        assertTrue(resultB.serializedResult().contains("guide provenance B"), resultB.serializedResult());
+        var answerB = new ModelBackend.AssistantOutput("answer-b", ModelBackend.OutputStatus.COMPLETED,
+                ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer B", List.of())));
+        backend.emit(requestB, new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Answer B", null, List.of(), null));
+        backend.emit(requestB, new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                toolCallB, resultB, answerB), null));
+        assertEquals(1, clientQueues.get(0).size(), "A remains pending after B completes");
+
+        clientQueues.get(0).removeFirst().run();
+        ModelBackend.ToolResult resultA = backend.results.stream().filter(result -> result.callId().equals("guide-a")).findFirst().orElseThrow();
+        assertFalse(resultA.error(), resultA.serializedResult());
+        assertTrue(resultA.serializedResult().contains("example:a_item"), resultA.serializedResult());
+        assertFalse(resultA.serializedResult().contains("example:b_item"), resultA.serializedResult());
+        assertTrue(resultA.serializedResult().contains("guide provenance A"), resultA.serializedResult());
+        var answerA = new ModelBackend.AssistantOutput("answer-a", ModelBackend.OutputStatus.COMPLETED,
+                ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A", List.of())));
+        backend.emit(requestA, new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Answer A", null, List.of(), null));
+        backend.emit(requestA, new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                toolCallA, resultA, answerA), null));
+
+        ChatContracts.Conversation savedA = store.openConversation(WORLD, conversationA.id()).toCompletableFuture().join();
+        ChatContracts.Conversation savedB = store.openConversation(WORLD, conversationB).toCompletableFuture().join();
+        assertEquals(WORLD, savedA.world());
+        assertEquals(WORLD, savedB.world());
+        assertEquals(List.of(previousA, savedA.turns().getLast()), savedA.turns());
+        assertEquals(List.of(previousA), preparedByRequest.get(requestA).history().turns());
+        assertTrue(preparedByRequest.get(requestB).history().turns().isEmpty());
+        assertEquals("Question for guide A", savedA.turns().getLast().question());
+        assertEquals("Answer A", savedA.turns().getLast().answer());
+        assertEquals(ChatContracts.OutcomeStatus.COMPLETED, savedA.turns().getLast().outcome().status());
+        assertEquals(requestA, savedA.turns().getLast().requestId().value());
+        assertEquals(List.of(toolCallA, resultA, answerA),
+                savedA.turns().getLast().replayItems());
+        assertEquals(1, savedA.turns().getLast().sources().size());
+        assertEquals(List.of("guide provenance A"), savedA.turns().getLast().sources().getFirst().provenance());
+        assertEquals("guideme", savedA.turns().getLast().sources().getFirst().providerId());
+        assertEquals("guide-A", savedA.turns().getLast().sources().getFirst().sourceHandle());
+        assertEquals(Evidence.Authority.INSTALLED_DOCUMENTATION, savedA.turns().getLast().sources().getFirst().authority());
+        assertEquals(preparedByRequest.get(requestA).capturedContext().context().scope(),
+                savedA.turns().getLast().sources().getFirst().scope());
+        assertEquals(preparedByRequest.get(requestA).capturedContext().context().scope(), savedA.turns().getLast().context().scope());
+        assertEquals(List.of(new Evidence.NavigationTarget(savedA.turns().getLast().context().scope(), "guideme", "guide-A", "page-A")),
+                savedA.turns().getLast().navigationTargets());
+        assertEquals("Question for guide B", savedB.turns().getLast().question());
+        assertEquals(1, savedB.turns().size());
+        assertEquals("Answer B", savedB.turns().getLast().answer());
+        assertEquals(ChatContracts.OutcomeStatus.COMPLETED, savedB.turns().getLast().outcome().status());
+        assertEquals(requestB, savedB.turns().getLast().requestId().value());
+        assertEquals("guide-b", savedB.turns().getLast().replayItems().stream().filter(ModelBackend.ToolResult.class::isInstance)
+                .map(ModelBackend.ToolResult.class::cast).findFirst().orElseThrow().callId());
+        assertEquals(List.of(toolCallB, resultB, answerB), savedB.turns().getLast().replayItems());
+        assertEquals(List.of("guide provenance B"), savedB.turns().getLast().sources().getFirst().provenance());
+        assertEquals(1, savedB.turns().getLast().sources().size());
+        assertEquals("guide-B", savedB.turns().getLast().sources().getFirst().sourceHandle());
+        assertEquals(preparedByRequest.get(requestB).capturedContext().context().scope(),
+                savedB.turns().getLast().sources().getFirst().scope());
+        assertEquals(Evidence.Authority.INSTALLED_DOCUMENTATION, savedB.turns().getLast().sources().getFirst().authority());
+        assertEquals(preparedByRequest.get(requestB).capturedContext().context().scope(), savedB.turns().getLast().context().scope());
+        assertEquals(List.of(new Evidence.NavigationTarget(savedB.turns().getLast().context().scope(), "guideme", "guide-B", "page-B")),
+                savedB.turns().getLast().navigationTargets());
+        assertEquals(conversationB, runtime.view().conversation().id());
+        assertTrue(runtime.view().conversation().turns().stream().anyMatch(turn -> turn.answer().equals("Answer B")));
+        assertEquals(new ChatContracts.RequestId(requestA), store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(conversationA.id())).findFirst().orElseThrow().unreadRequestId());
+        assertEquals(new ChatContracts.RequestId(requestB), store.sessions().toCompletableFuture().join().stream()
+                .filter(summary -> summary.id().equals(conversationB)).findFirst().orElseThrow().unreadRequestId());
+        assertEquals(2, clientQueues.size());
     }
 
     @Test

@@ -6,7 +6,9 @@ import org.junit.jupiter.api.Test;
 
 import java.io.StringReader;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -141,6 +143,54 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void unknownSelectorComponentKeepsTerminalCoveragePartialAndPreservesNamedPotion() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var potion = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.POTION);
+        potion.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
+                new net.minecraft.world.item.alchemy.PotionContents(net.minecraft.world.item.alchemy.Potions.WATER));
+        potion.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                net.minecraft.network.chat.Component.literal("CUSTOM_NAME"));
+        var refs = new blusunrize.lib.manual.utils.ManualRecipeRef[18];
+        refs[0] = new blusunrize.lib.manual.utils.ManualRecipeRef(potion);
+        for (int index = 1; index < refs.length; index++) {
+            refs[index] = new blusunrize.lib.manual.utils.ManualRecipeRef(
+                    net.minecraft.resources.ResourceLocation.parse("immersiveengineering:component_recipe_" + index));
+        }
+        var entry = manual.addEntry("immersiveengineering:manual/unknown-selector-component",
+                new blusunrize.lib.manual.ManualElementCrafting(new blusunrize.lib.manual.utils.ManualRecipeRef[][] {refs}));
+        entry.addSpecial("unknown-component-anchor", 0);
+        var reader = new ImmersiveEngineeringGuideReader();
+        var returnedPositions = new java.util.HashSet<String>();
+        String cursor = null;
+        String allFragments = "";
+        GuideDocumentReader.Fragment terminal;
+        int fragments = 0;
+
+        do {
+            terminal = reader.readFragment("immersiveengineering:manual/unknown-selector-component", cursor, 64,
+                    new Toolbox.DocumentBudget());
+            String serialized = Evidence.serialize(terminal.relationships());
+            assertTrue(serialized.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 8 * 1024);
+            allFragments += serialized;
+            cursor = terminal.nextPosition();
+            fragments++;
+            assertTrue(fragments <= 8, "selector extraction must continue within its bounded reference count");
+            assertTrue(cursor == null || returnedPositions.add(cursor), "selector continuation cursor repeated");
+        } while (cursor != null);
+
+        assertTrue(allFragments.contains("minecraft:potion_contents"));
+        assertTrue(allFragments.contains("\"potion\":\"minecraft:water\""));
+        for (int index = 1; index < refs.length; index++)
+            assertTrue(allFragments.contains("immersiveengineering:component_recipe_" + index));
+        assertNotNull(terminal.relationships().values().get("recipes"), "the terminal fragment must retain recipe coverage");
+        var group = (Evidence.JsonObject) terminal.relationships().values().get("recipes");
+        String coverage = ((Evidence.JsonString) group.values().get("coverage")).value();
+        assertTrue(coverage.equals("PARTIAL") || coverage.equals("OPAQUE"));
+        assertTrue(((Evidence.JsonString) group.values().get("detail")).value().length() <= 512);
+    }
+
+    @Test
     void oversizedLayoutAmountIsPartialAndCannotRepeatItsCursor() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();
@@ -162,6 +212,44 @@ class ImmersiveEngineeringGuideReaderTest {
                     "immersiveengineering:manual/oversized-layout", cursor, 64, new Toolbox.DocumentBudget());
             assertNull(next.nextPosition(), "an indivisible oversized amount must be skipped as partial, not retried forever");
         }
+    }
+
+    @Test
+    void acceptedLargeLayoutAmountAdvancesAndRetainsFollowingCellsWithinByteBound() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        String amount = "x".repeat(1100);
+        var layout = new blusunrize.lib.manual.utils.ManualRecipeRef(new blusunrize.lib.manual.PositionedItemStack[] {
+                new blusunrize.lib.manual.PositionedItemStack(java.util.List.of(
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_INGOT)), 0, 0, amount),
+                new blusunrize.lib.manual.PositionedItemStack(java.util.List.of(
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GOLD_INGOT)), 3, 5, "2")
+        });
+        var entry = manual.addEntry("immersiveengineering:manual/fits",
+                new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{layout}}));
+        entry.addSpecial("", 0);
+        var reader = new ImmersiveEngineeringGuideReader();
+        var returnedPositions = new java.util.HashSet<String>();
+        String cursor = null;
+        String allFragments = "";
+        int fragments = 0;
+
+        do {
+            var fragment = reader.readFragment("immersiveengineering:manual/fits", cursor, 64,
+                    new Toolbox.DocumentBudget());
+            String serialized = Evidence.serialize(fragment.relationships());
+            assertTrue(serialized.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 8 * 1024);
+            allFragments += serialized;
+            cursor = fragment.nextPosition();
+            fragments++;
+            assertTrue(fragments <= 8, "an accepted amount must advance through the fixed-layout declaration");
+            assertTrue(cursor == null || returnedPositions.add(cursor), "large-amount cursor repeated");
+        } while (cursor != null);
+
+        assertTrue(allFragments.contains("\"amount\":\"" + amount + "\""));
+        assertTrue(allFragments.contains("minecraft:iron_ingot") && allFragments.contains("minecraft:gold_ingot"));
+        assertTrue(allFragments.contains("\"x\":3") && allFragments.contains("\"y\":5"));
     }
 
     @Test
@@ -326,6 +414,26 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void zeroCellNativeLayoutDoesNotAbortTheFollowingReferenceOrTextRead() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var emptyLayout = new blusunrize.lib.manual.utils.ManualRecipeRef(
+                new blusunrize.lib.manual.PositionedItemStack[0]);
+        var following = new blusunrize.lib.manual.utils.ManualRecipeRef(
+                net.minecraft.resources.ResourceLocation.parse("immersiveengineering:after_zero_cell_layout"));
+        var entry = manual.addEntry("immersiveengineering:manual/zero-cell-layout",
+                new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{emptyLayout, following}}));
+        entry.addSpecial("zero-cell-layout-anchor", 0);
+
+        var fragment = assertDoesNotThrow(() -> new ImmersiveEngineeringGuideReader().readFragment(
+                "immersiveengineering:manual/zero-cell-layout", null, 64, new Toolbox.DocumentBudget()),
+                "an empty native layout must not abort the rest of the entry read");
+
+        assertTrue(Evidence.serialize(fragment.relationships()).contains("immersiveengineering:after_zero_cell_layout"));
+    }
+
+    @Test
     void emptyNativeLayoutDisplayListResumesAfterSharedBudgetStop() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();
@@ -437,6 +545,47 @@ class ImmersiveEngineeringGuideReaderTest {
         assertTrue(Evidence.serialize(mixerFragment.relationships()).contains("mixer-anchor"));
         assertEquals(0, manual.recipeMatchCalls());
         assertEquals(0, manual.forbiddenCalls());
+    }
+
+    @Test
+    void mixerFluidSelectorsContinueFromCurrentNativeDeclarations() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var fluids = new net.minecraft.world.level.material.Fluid[17];
+        java.util.Arrays.fill(fluids, net.minecraft.world.level.material.Fluids.WATER);
+        var entry = manual.addEntry("immersiveengineering:manual/mixer-continuation",
+                new blusunrize.immersiveengineering.client.manual.ManualElementMixer(fluids));
+        entry.addSpecial("mixer-anchor", 2);
+        var reader = new ImmersiveEngineeringGuideReader();
+        var first = reader.readFragment("immersiveengineering:manual/mixer-continuation", null, 64,
+                new Toolbox.DocumentBudget());
+        String firstSerialized = Evidence.serialize(first.relationships());
+        assertTrue(firstSerialized.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 8 * 1024);
+        assertTrue(firstSerialized.contains("minecraft:water"));
+        assertTrue(first.nextPosition() != null, "the bounded mixer fluid chunk must expose a continuation");
+
+        var currentFluids = new net.minecraft.world.level.material.Fluid[17];
+        java.util.Arrays.fill(currentFluids, net.minecraft.world.level.material.Fluids.LAVA);
+        entry.setSpecials(java.util.List.of(new blusunrize.lib.manual.ManualEntry.SpecialElementData("mixer-anchor", 2,
+                new blusunrize.immersiveengineering.client.manual.ManualElementMixer(currentFluids))));
+        var returnedPositions = new java.util.HashSet<String>();
+        String cursor = first.nextPosition();
+        String allFragments = Evidence.serialize(first.relationships());
+        int fragments = 1;
+
+        while (cursor != null && fragments < 8) {
+            assertTrue(returnedPositions.add(cursor), "mixer fluid continuation cursor repeated");
+            var fragment = reader.readFragment("immersiveengineering:manual/mixer-continuation", cursor, 64,
+                    new Toolbox.DocumentBudget());
+            String serialized = Evidence.serialize(fragment.relationships());
+            assertTrue(serialized.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 8 * 1024);
+            allFragments += serialized;
+            cursor = fragment.nextPosition();
+            fragments++;
+        }
+
+        assertNull(cursor, "the bounded mixer fluid continuation must reach a terminal position");
+        assertTrue(allFragments.contains("minecraft:water") && allFragments.contains("minecraft:lava"));
     }
 
     @Test

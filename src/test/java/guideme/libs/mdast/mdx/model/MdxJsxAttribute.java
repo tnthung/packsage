@@ -1,21 +1,22 @@
 package guideme.libs.mdast.mdx.model;
 
-public final class MdxJsxAttribute implements MdxJsxAttributeNode {
-    private final String name;
-    private final String stringValue;
-    private final Object expressionValue;
+import guideme.libs.mdast.model.MdAstNode;
 
-    private MdxJsxAttribute(String name, String stringValue, Object expressionValue) {
+public class MdxJsxAttribute extends MdAstNode implements MdxJsxAttributeNode {
+    public String name;
+    private final String stringValue;
+    private final String expressionValue;
+
+    private MdxJsxAttribute(String name, String stringValue, String expressionValue) {
         this.name = name;
         this.stringValue = stringValue;
         this.expressionValue = expressionValue;
     }
 
     public static MdxJsxAttribute string(String name, String value) { return new MdxJsxAttribute(name, value, null); }
-    public static MdxJsxAttribute expression(String name, Object value) { return new MdxJsxAttribute(name, null, value); }
-    public String name() { return name; }
+    public static MdxJsxAttribute expression(String name, String value) { return new MdxJsxAttribute(name, null, value); }
     public boolean hasStringValue() { return stringValue != null; }
     public String getStringValue() { return stringValue; }
     public boolean hasExpressionValue() { return expressionValue != null; }
-    public Object getExpressionValue() { return expressionValue; }
+    public String getExpressionValue() { return expressionValue; }
 }

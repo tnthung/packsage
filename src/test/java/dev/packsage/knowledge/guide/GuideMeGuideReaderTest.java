@@ -10,6 +10,7 @@ import guideme.compiler.Frontmatter;
 import guideme.compiler.ParsedGuidePage;
 import guideme.compiler.tags.RecipeCompiler;
 import guideme.libs.mdast.mdx.model.MdxJsxAttribute;
+import guideme.libs.mdast.mdx.model.MdxJsxExpressionAttribute;
 import guideme.libs.mdast.mdx.model.MdxJsxFlowElement;
 import guideme.libs.mdast.mdx.model.MdxJsxTextElement;
 import guideme.libs.mdast.model.MdAstRoot;
@@ -205,22 +206,32 @@ class GuideMeGuideReaderTest {
     }
 
     @Test
-    void nativeRecipeTagsPreserveTheirDistinctIdentitiesAndExpressionAttributesStayOpaque() {
+    void nativeRecipeTagsAndSpreadAttributesPreserveItemsAndTextWithoutExecutingExpressions() {
         RecipeCompiler.setTagNamesForTest(Set.of("Recipe", "RecipeFor", "RecipesFor"));
         var root = new MdAstRoot();
-        root.add(new MdxJsxFlowElement("Recipe", List.of(MdxJsxAttribute.string("id", "fixture:iron_recipe"))));
+        root.add(new MdAstText("GuideME text survives native expression attributes"));
+        root.add(new MdxJsxFlowElement("Recipe", List.of(MdxJsxAttribute.string("id", "fixture:iron_recipe"),
+                new MdxJsxExpressionAttribute())));
         var inlineParent = new MdxJsxFlowElement("div", List.of());
         inlineParent.add(new MdxJsxTextElement("RecipeFor", List.of(
                 MdxJsxAttribute.string("id", "minecraft:diamond"),
-                MdxJsxAttribute.string("fallbackText", "Diamond recipe"))));
+                MdxJsxAttribute.string("fallbackText", "Diamond recipe"),
+                MdxJsxAttribute.expression("label", "unread-expression"))));
         root.add(inlineParent);
-        root.add(new MdxJsxFlowElement("RecipesFor", List.of(MdxJsxAttribute.string("id", "minecraft:bread"))));
-        root.add(new MdxJsxFlowElement("Recipe", List.of(MdxJsxAttribute.expression("id", new Object()))));
-        var page = new ParsedGuidePage(PAGE_ID, "en_us", root);
+        root.add(new MdxJsxFlowElement("RecipesFor", List.of(MdxJsxAttribute.string("id", "minecraft:bread"),
+                new MdxJsxExpressionAttribute())));
+        root.add(new MdxJsxFlowElement("Recipe", List.of(MdxJsxAttribute.expression("id", "unread-expression"))));
+        var page = new ParsedGuidePage(PAGE_ID, "en_us", root, new Frontmatter(Map.of(
+                "item_ids", List.of("minecraft:emerald"))));
         Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, List.of(page))));
 
         var fragment = new GuideMeGuideReader("21.1.19").readFragment("fixture:book#fixture:entry", null, 1024,
                 new Toolbox.DocumentBudget());
+        assertNotNull(fragment.relationships().values().get("recipes"),
+                "native spread attributes must not discard the page's recipe relationships");
+        assertNotNull(fragment.relationships().values().get("items"),
+                "native spread attributes must not discard parsed page item associations");
+        assertTrue(fragment.text().contains("GuideME text survives native expression attributes"));
         var group = (Evidence.JsonObject) fragment.relationships().values().get("recipes");
         var values = ((Evidence.JsonArray) group.values().get("values")).values().stream()
                 .filter(Evidence.JsonObject.class::isInstance).map(Evidence.JsonObject.class::cast).toList();
@@ -239,6 +250,9 @@ class GuideMeGuideReaderTest {
         assertEquals("minecraft:bread", ((Evidence.JsonString) recipesFor.values().get("itemId")).value());
         assertEquals("PARTIAL", ((Evidence.JsonString) group.values().get("coverage")).value());
         assertTrue(group.values().containsKey("detail"));
+        var itemGroup = (Evidence.JsonObject) fragment.relationships().values().get("items");
+        assertEquals("minecraft:emerald", ((Evidence.JsonString) ((Evidence.JsonObject)
+                ((Evidence.JsonArray) itemGroup.values().get("values")).values().getFirst()).values().get("itemId")).value());
     }
 
     @Test
@@ -362,6 +376,43 @@ class GuideMeGuideReaderTest {
         assertEquals(17, items.size());
         var group = (Evidence.JsonObject) terminal.relationships().values().get("items");
         assertEquals("COMPLETE", ((Evidence.JsonString) group.values().get("coverage")).value());
+    }
+
+    @Test
+    void astRecipeCapContinuesThroughAllIdentitiesAndEndsWithCompleteCoverage() {
+        RecipeCompiler.setTagNamesForTest(Set.of("Recipe", "RecipeFor", "RecipesFor"));
+        var root = new MdAstRoot();
+        for (int index = 0; index < 17; index++) {
+            root.add(new MdxJsxFlowElement("Recipe", List.of(MdxJsxAttribute.string("id", "fixture:recipe_" + index))));
+        }
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID,
+                List.of(new ParsedGuidePage(PAGE_ID, "en_us", root)))));
+        var reader = new GuideMeGuideReader();
+        var recipeIds = new HashSet<String>();
+        var returnedPositions = new HashSet<String>();
+        String position = null;
+        GuideDocumentReader.Fragment terminal;
+        int pages = 0;
+
+        do {
+            terminal = reader.readFragment("fixture:book#fixture:entry", position, 128,
+                    new Toolbox.DocumentBudget());
+            var group = terminal.relationships().values().get("recipes");
+            assertNotNull(group, "each relationship fragment must retain its recipe group");
+            ((Evidence.JsonArray) ((Evidence.JsonObject) group).values().get("values")).values().stream()
+                    .filter(Evidence.JsonObject.class::isInstance).map(Evidence.JsonObject.class::cast)
+                    .map(value -> (Evidence.JsonString) value.values().get("recipeId"))
+                    .map(Evidence.JsonString::value).forEach(recipeIds::add);
+            position = terminal.nextPosition();
+            pages++;
+            assertTrue(pages <= 8, "the AST declaration cap must advance within a bounded number of fragments");
+            assertTrue(position == null || returnedPositions.add(position), "AST recipe continuations must advance");
+        } while (position != null);
+
+        assertEquals(17, recipeIds.size());
+        for (int index = 0; index < 17; index++) assertTrue(recipeIds.contains("fixture:recipe_" + index));
+        var terminalGroup = (Evidence.JsonObject) terminal.relationships().values().get("recipes");
+        assertEquals("COMPLETE", ((Evidence.JsonString) terminalGroup.values().get("coverage")).value());
     }
 
     @Test

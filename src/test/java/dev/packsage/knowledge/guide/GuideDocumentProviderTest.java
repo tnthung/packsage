@@ -409,6 +409,70 @@ class GuideDocumentProviderTest {
     }
 
     @Test
+    void nativeUnavailableImmersiveEngineeringGroupRetainsTextAndOtherValuesOnSearchAndFreshRead() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        manual.setInitialized(false);
+        var recipe = new blusunrize.lib.manual.utils.ManualRecipeRef(
+                net.minecraft.resources.ResourceLocation.parse("immersiveengineering:unavailable_recipe"));
+        var entry = manual.addEntry("immersiveengineering:manual/unavailable-relationships",
+                new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{recipe}}));
+        entry.addSpecial("unavailable-anchor", 3);
+        var nativeReader = new ImmersiveEngineeringGuideReader();
+        GuideDocumentReader reader = new GuideDocumentReader() {
+            private Fragment retainAvailableEvidence(Fragment fragment) {
+                var relationships = new java.util.LinkedHashMap<>(fragment.relationships().values());
+                relationships.putAll(itemsRelationship("minecraft:emerald", Evidence.Coverage.COMPLETE).values());
+                return new Fragment("available manual text needle", fragment.sourcePosition(), 0,
+                        fragment.nextPosition(), fragment.coverage(), fragment.detail(), new Evidence.JsonObject(relationships));
+            }
+
+            @Override public String providerId() { return nativeReader.providerId(); }
+            @Override public String version() { return nativeReader.version(); }
+            @Override public String sourceIdentity(Evidence.Scope scope) { return nativeReader.sourceIdentity(scope); }
+            @Override public CandidatePage candidates(String afterPosition, int limit, Toolbox.DocumentBudget budget) {
+                return nativeReader.candidates(afterPosition, limit, budget);
+            }
+            @Override public Fragment readFragment(String id, String fragmentPosition, int maxChars,
+                                                   Toolbox.DocumentBudget budget) {
+                return retainAvailableEvidence(nativeReader.readFragment(id, fragmentPosition, maxChars, budget));
+            }
+            @Override public ResolvedDocument resolve(String id, int maxChars, Toolbox.DocumentBudget budget) {
+                var resolved = nativeReader.resolve(id, maxChars, budget);
+                return new ResolvedDocument(resolved.candidate(), retainAvailableEvidence(resolved.fragment()));
+            }
+        };
+        var service = new KnowledgeService(List.of(new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run)), () -> SCOPE);
+        var searchArguments = new Evidence.JsonObject(Map.of("query", new Evidence.JsonString("needle"),
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("immersiveengineering")))));
+        var found = service.execute(new PackSageTools.ReadRequest("search_document", searchArguments, SCOPE))
+                .toCompletableFuture().join();
+
+        assertEquals(1, found.records().size());
+        assertEquals(Evidence.Coverage.PARTIAL, found.coverage());
+        assertEquals(new Evidence.JsonString("available manual text needle"),
+                found.records().getFirst().payload().values().get("text"));
+        var relationships = (Evidence.JsonObject) found.records().getFirst().payload().values().get("relationships");
+        assertEquals("UNAVAILABLE", ((Evidence.JsonString) ((Evidence.JsonObject)
+                relationships.values().get("recipes")).values().get("coverage")).value());
+        assertTrue(Evidence.serialize((Evidence.JsonObject) relationships.values().get("items")).contains("minecraft:emerald"));
+
+        var handles = new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString(
+                "immersiveengineering:immersiveengineering:manual/unavailable-relationships")))));
+        var fresh = service.execute(new PackSageTools.ReadRequest("read_evidence", handles, SCOPE))
+                .toCompletableFuture().join();
+
+        assertEquals(Evidence.Coverage.PARTIAL, fresh.coverage());
+        assertEquals(new Evidence.JsonString("available manual text needle"),
+                fresh.records().getFirst().payload().values().get("text"));
+        var freshRelationships = (Evidence.JsonObject) fresh.records().getFirst().payload().values().get("relationships");
+        assertEquals("UNAVAILABLE", ((Evidence.JsonString) ((Evidence.JsonObject)
+                freshRelationships.values().get("recipes")).values().get("coverage")).value());
+        assertTrue(Evidence.serialize((Evidence.JsonObject) freshRelationships.values().get("items")).contains("minecraft:emerald"));
+    }
+
+    @Test
     void relationshipCoverageIsNotSearchText() {
         var reader = new FixtureReader();
         reader.relationships.set(itemsRelationship("minecraft:diamond", Evidence.Coverage.COMPLETE));

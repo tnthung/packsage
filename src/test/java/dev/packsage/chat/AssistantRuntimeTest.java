@@ -8,6 +8,12 @@ import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.GroundingInstructions;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.Logger;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Property;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -27,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -38,6 +45,141 @@ class AssistantRuntimeTest {
             true, true, 16_000, 2_048);
     private static final ModelBackend.ModelInfo UNKNOWN_MODEL = new ModelBackend.ModelInfo("unknown-model", "Unknown Model",
             null, null, 16_000, 2_048);
+
+    @Test
+    void reservedSendCannotCrossLifecycleTransitionsBeforeControllerActivation() throws Exception {
+        for (String transition : List.of("world", "invalidate", "disconnect", "signOut", "stop", "selection")) {
+            ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-runtime-dispatch"), DIRECT);
+            FakeBackend backend = new FakeBackend();
+            AtomicInteger captureObservations = new AtomicInteger();
+            List<ChatContracts.PreparedRequest> preparedRequests = new ArrayList<>();
+            List<ChatContracts.Turn> notices = new ArrayList<>();
+            var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(() -> {
+                captureObservations.incrementAndGet();
+                return new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block");
+            }, request -> new GameplayContextCapture.CapturedFrame("image/png",
+                    request.requestId().value().getBytes(java.nio.charset.StandardCharsets.UTF_8), Instant.EPOCH), DIRECT, current),
+                    DIRECT, DIRECT, current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                    prepared -> {
+                        preparedRequests.add(prepared);
+                        return new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                                new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                        prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                                prepared.submission().requestId().value(), prepared.submission().outputBudget());
+                    }, ignored -> 512, ignored -> { }, ignored -> { }, notices::add);
+            runtime.enterWorld(WORLD, SCOPE);
+            String originalSessionId = runtime.view().conversation().id();
+            runtime.signIn();
+            backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+            backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                    MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+
+            Runnable lifecycle = switch (transition) {
+                case "world" -> () -> {
+                    runtime.enterWorld(new ChatContracts.WorldIdentity("next-world", "Next World"),
+                            new Evidence.Scope("next-world", "next-resources", "next-team", "next-runtime", 0));
+                    runtime.send("new-world request", false, false);
+                };
+                case "invalidate" -> () -> {
+                    runtime.invalidate(new Evidence.Scope("world", "updated-resources", "team", "runtime", 1));
+                    runtime.send("replacement request", false, false);
+                };
+                case "disconnect" -> runtime::disconnect;
+                case "signOut" -> runtime::signOut;
+                case "stop" -> () -> {
+                    runtime.stop();
+                    runtime.send("replacement request", false, false);
+                };
+                case "selection" -> runtime::newChat;
+                default -> throw new IllegalStateException(transition);
+            };
+            AtomicBoolean armed = new AtomicBoolean(true);
+            AtomicInteger barrierHits = new AtomicInteger();
+            AtomicReference<Thread> barrierThread = new AtomicReference<>();
+            AtomicReference<Throwable> transitionFailure = new AtomicReference<>();
+            Logger logger = (Logger) LogManager.getLogger("PackSage");
+            Level previousLevel = logger.getLevel();
+            AbstractAppender appender = new AbstractAppender("runtime-dispatch-" + transition, null, null, true,
+                    Property.EMPTY_ARRAY) {
+                @Override
+                public void append(LogEvent event) {
+                    if (event.getMessage().getFormattedMessage().contains("phase=runtime_dispatch")
+                            && armed.compareAndSet(true, false)) {
+                        barrierHits.incrementAndGet();
+                        barrierThread.set(Thread.currentThread());
+                        try {
+                            lifecycle.run();
+                        } catch (Throwable failure) {
+                            transitionFailure.set(failure);
+                        }
+                    }
+                }
+            };
+            Thread sendThread = Thread.currentThread();
+            appender.start();
+            logger.addAppender(appender);
+            logger.setLevel(Level.INFO);
+            try {
+                runtime.send("reserved request", false, false);
+            } finally {
+                logger.removeAppender(appender);
+                appender.stop();
+                logger.setLevel(previousLevel);
+            }
+
+            assertEquals(1, barrierHits.get(), transition);
+            assertEquals(sendThread, barrierThread.get(), transition);
+            assertNull(transitionFailure.get(), transition);
+            assertTrue(store.openConversation(WORLD, originalSessionId).toCompletableFuture().join().turns().isEmpty(), transition);
+            assertTrue(notices.isEmpty(), transition);
+            assertTrue(runtime.sessions().toCompletableFuture().join().stream()
+                    .allMatch(session -> session.unreadRequestId() == null), transition);
+
+            if (transition.equals("selection")) {
+                assertEquals(1, backend.starts);
+                assertEquals(1, captureObservations.get());
+                assertEquals(1, preparedRequests.size());
+                String selectedBId = runtime.view().conversation().id();
+                assertNotEquals(originalSessionId, selectedBId);
+                Evidence.Scope scopeA = preparedRequests.getFirst().submission().scope();
+                runtime.send("request for B", false, false);
+                assertEquals(2, backend.starts);
+                assertEquals(2, captureObservations.get());
+                assertNotEquals(scopeA, preparedRequests.getLast().submission().scope());
+                assertTrue(runtime.view().active());
+                assertEquals(selectedBId, runtime.view().conversation().id());
+
+                List<ChatContracts.SessionSummary> sessions = runtime.sessions().toCompletableFuture().join();
+                ChatContracts.SessionSummary sessionA = sessions.stream().filter(session -> session.id().equals(originalSessionId))
+                        .findFirst().orElseThrow();
+                ChatContracts.SessionSummary sessionB = sessions.stream().filter(session -> session.id().equals(selectedBId))
+                        .findFirst().orElseThrow();
+                runtime.openSession(sessionA);
+                assertTrue(runtime.view().active());
+                runtime.stop();
+                assertTrue(backend.cancelled.get(preparedRequests.getFirst().submission().requestId().value()));
+                runtime.openSession(sessionB);
+                assertTrue(runtime.view().active());
+                assertFalse(backend.cancelled.get(preparedRequests.getLast().submission().requestId().value()));
+                runtime.stop();
+            } else if (transition.equals("world") || transition.equals("invalidate") || transition.equals("stop")) {
+                assertEquals(1, backend.starts, transition);
+                assertEquals(1, captureObservations.get(), transition);
+                assertEquals(1, preparedRequests.size(), transition);
+                String expectedQuestion = transition.equals("world") ? "new-world request" : "replacement request";
+                assertEquals(expectedQuestion, preparedRequests.getFirst().submission().question(), transition);
+                assertTrue(runtime.view().active(), transition);
+                assertEquals(preparedRequests.getFirst().submission().scope(), runtime.view().context().scope(), transition);
+                assertEquals(preparedRequests.getFirst().submission().requestId().value(), runtime.view().activeRequestId(), transition);
+                runtime.stop();
+            } else {
+                assertEquals(0, backend.starts, transition);
+                assertEquals(0, captureObservations.get(), transition);
+                assertFalse(runtime.view().active(), transition);
+                assertTrue(preparedRequests.isEmpty(), transition);
+            }
+        }
+    }
 
     @Test
     void completionNoticeQueuesOnceWithoutAnOpenScreenAndSurvivesNewChat() throws Exception {

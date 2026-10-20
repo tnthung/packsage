@@ -2,7 +2,7 @@
 
 Date: 2026-10-20.
 
-Scope: six structured relationship capabilities added to the existing guide/manual document sources. This report separates source inspection, automated checks, and installed acceptance. Implementation and focused regression coverage are recorded below; final automated totals and all six installed acceptance results remain pending.
+Scope: six structured relationship capabilities added to the existing guide/manual document sources. This report separates source inspection, automated checks, and installed acceptance. Implementation and automated checks are recorded below; all six installed acceptance results remain pending.
 
 ## Installed artifacts and source inspection
 
@@ -28,9 +28,9 @@ Reader access shapes are supported by the current source and the compatibility e
 
 | Source | Existing native access shape | Relationship work introduced here |
 |---|---|---|
-| Modonomicon | The reader uses current book/category/entry/page structures, localized text holders, and current unlock/visibility checks. It now extracts spotlight associations, both declared recipe slots, parent edges, native condition trees, and visible/unlocked state through the listed source members. Floor members are checked at tagged 1.98.1; 1.120.4 and 1.120.7 artifacts were checked for current forms. | Implemented with bounded source-positioned relationships; custom page types and unknown condition leaves remain opaque. Focused regressions are present; final suite and installed acceptance are pending. |
-| GuideME | The reader uses parsed frontmatter `item_ids`, plus literal MDX names and string attributes on `MdxJsxElementFields`; expression-valued attributes are not executed. It preserves page associations and distinct `Recipe`, `RecipeFor` and `RecipesFor` declarations. `MdxJsxFlowElement` and `MdxJsxTextElement` implement the interface at floor and current. | Implemented from currently selected parsed pages; unsupported AST forms remain bounded/opaque. Focused regressions are present; final suite and installed acceptance are pending. |
-| Immersive Engineering | The reader checks `ManualInstance.initialized`, then reads loaded entry special data and native `ManualRecipeRef` name/result/layout selectors from crafting and IE crafting elements, plus mixer fluid selectors. It preserves bounded `PositionedItemStack` alternatives and components. | Implemented from the already-loaded manual; it does not open or reload it. A native-manual provider/common-read regression is present; final suite and installed acceptance are pending. |
+| Modonomicon | The reader uses current book/category/entry/page structures, localized text holders, and current unlock/visibility checks. It now extracts spotlight associations, both declared recipe slots, parent edges, native condition trees, and visible/unlocked state through the listed source members. Floor members are checked at tagged 1.98.1; 1.120.4 and 1.120.7 artifacts were checked for current forms. | Implemented with bounded source-positioned relationships; custom page types and unknown condition leaves remain opaque. Automated checks pass; installed acceptance is pending. |
+| GuideME | The reader uses parsed frontmatter `item_ids`, plus literal MDX names and string attributes on `MdxJsxElementFields`; expression-valued attributes are not executed. It preserves page associations and distinct `Recipe`, `RecipeFor` and `RecipesFor` declarations. `MdxJsxFlowElement` and `MdxJsxTextElement` implement the interface at floor and current. | Implemented from currently selected parsed pages; unsupported AST forms remain bounded/opaque. Automated checks pass; installed acceptance is pending. |
+| Immersive Engineering | The reader checks `ManualInstance.initialized`, then reads loaded entry special data and native `ManualRecipeRef` name/result/layout selectors from crafting and IE crafting elements, plus mixer fluid selectors. It preserves bounded `PositionedItemStack` alternatives and components. | Implemented from the already-loaded manual; it does not open or reload it. Automated provider/common-read checks pass; installed acceptance is pending. |
 
 These shapes were inspected in the current PackSage readers and current installed artifacts, plus the exact GuideME and IE admitted-floor release artifacts described below. Source inspection supports the implementation description; it does not establish installed extraction or answer-quality acceptance.
 
@@ -65,17 +65,19 @@ Immersive Engineering's selected family is `[12.0.0-182,13.0.0)`; the official [
 
 | Feature | Source inspection | Automated result | Installed acceptance |
 |---|---|---|---|
-| Modonomicon entry-to-item relationships | Implemented; source declarations and visibility gates inspected | Focused integration coverage added; final seven-class/full-build totals pending | Pending |
-| Modonomicon recipe references | Implemented; both native slots retain declared identity/type | Focused reader coverage added; final seven-class/full-build totals pending | Pending |
-| Modonomicon prerequisites | Implemented; graph parents, condition trees and current state remain distinct | Focused reader coverage added; final seven-class/full-build totals pending | Pending |
-| GuideME page-to-item relationships | Implemented from active parsed-page frontmatter | Focused reader/provider coverage added; final seven-class/full-build totals pending | Pending |
-| GuideME recipe-tag relationships | Implemented with separate tag semantics | Focused reader coverage added; final seven-class/full-build totals pending | Pending |
-| Immersive Engineering manual recipe references | Implemented from initialized native declarations | Provider search and fresh common `read_evidence` regression added; final seven-class/full-build totals pending | Pending |
+| Modonomicon entry-to-item relationships | Implemented; source declarations and visibility gates inspected | Pass: focused reader/provider coverage and full build | Pending |
+| Modonomicon recipe references | Implemented; both native slots retain declared identity/type | Pass: focused reader coverage and full build | Pending |
+| Modonomicon prerequisites | Implemented; graph parents, condition trees and current state remain distinct | Pass: focused reader coverage and full build | Pending |
+| GuideME page-to-item relationships | Implemented from active parsed-page frontmatter | Pass: focused reader/provider coverage and full build | Pending |
+| GuideME recipe-tag relationships | Implemented with separate tag semantics | Pass: focused reader coverage and full build | Pending |
+| Immersive Engineering manual recipe references | Implemented from initialized native declarations | Pass: provider search and fresh common `read_evidence` regression, plus full build | Pending |
 
 ## Automated checks
 
-The Task 6 checkpoint run before the description change exercised 49 tests: the only failure was the intentionally red assertion requiring the new relationship-ID sentence; all other relationship/provider/fresh-read regressions passed. The description was then added. Parent-owned final focused seven-class run and `gradlew.bat test build --console=plain` are pending; insert their observed totals and failures here. The historical 644-test baseline predates relationship implementation and is not final validation.
+At revision `080b2c9`, the focused seven-class run used Java 21 and `./gradlew.bat test --tests dev.packsage.knowledge.guide.GuideDocumentProviderTest --tests dev.packsage.knowledge.guide.ModonomiconGuideReaderTest --tests dev.packsage.knowledge.guide.GuideMeGuideReaderTest --tests dev.packsage.knowledge.guide.ImmersiveEngineeringGuideReaderTest --tests dev.packsage.client.ClientAssistantTest --tests dev.packsage.knowledge.ToolboxTest --tests dev.packsage.model.PackSageToolsTest --console=plain`: BUILD SUCCESSFUL in 12 seconds, 115 tests, 0 failures, 0 errors, 0 skipped. The complete `./gradlew.bat test build --console=plain` run at that revision was BUILD SUCCESSFUL in 23 seconds: 696 tests, 0 failures, 0 errors, 4 skipped. Parent-recorded logs are `.superpowers/sdd/2026-10-20-guide-manual-relationships/task-6-focused-seven.log` and `task-6-full-build.log`; counts are in `task-6-focused-counts.txt` and `task-6-full-counts.json`. A review found an additional empty-layout cursor edge after these runs, so these results document revision `080b2c9`; refresh validation and candidate artifact details after that fix. The historical 644-test baseline predates relationship implementation and is not final validation.
 
 ## Installed acceptance
 
 No relationship extraction acceptance has been performed for these six features. Existing text search and fresh evidence-read checks for the guide/manual adapters do not establish structured relationship extraction. New guide navigation is outside this change's scope. All six installed checks remain pending; record each observed source, returned relationship and completeness here only after a live check. A passing extraction read also does not establish that the assistant gave a correct ordinary-language explanation: inspect actual tool calls, payloads, returned evidence and reply separately.
+
+Compatibility limit: automated Modonomicon tests used the available 1.120.4 fixture artifact; current 1.120.7 was inspected from the installed artifact for source/member shape, but was not exercised by these automated tests. Neither result is installed relationship acceptance.

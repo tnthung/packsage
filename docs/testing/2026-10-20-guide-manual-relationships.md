@@ -1,8 +1,8 @@
-﻿# Guide and manual relationship checks
+# Guide and manual relationship checks
 
 Date: 2026-10-20.
 
-Status: pending. These are installed-client checks for the candidate PackSage artifact supplied after the final automated build. They do not ask the player to run Gradle or Java. Close Minecraft before copying the supplied JAR into the test instance, verify the supplied artifact hash as directed, then launch the pack and confirm the reported Modonomicon, GuideME, and Immersive Engineering versions. Open the Immersive Engineering manual normally once if its entries are not loaded.
+Status: pending. The candidate built at revision `080b2c9` was `build/libs/packsage-0.1.0.jar` (SHA-256 `20FE701C73837D691B933BC83197374FDF9E6A604D60724C1E6D69E7490A0401`). A later review found an empty-layout cursor edge, so use the refreshed artifact path and hash recorded here after the fix is validated; do not install this earlier candidate as final. These checks do not ask the player to run Gradle or Java. Close Minecraft before copying the final supplied JAR into the test instance, verify the copied artifact hash, then launch the pack and confirm the reported Modonomicon, GuideME, and Immersive Engineering versions. Open the Immersive Engineering manual normally once if its entries are not loaded.
 
 For each check, preserve the actual tool calls, arguments, provider/source identity, returned handle, relationship payload, coverage, fresh-read result, and assistant reply. First judge extraction: did the current source return the declared relationship with correct provenance and completeness? Separately judge answer quality: did the assistant describe only what that evidence supports? A passing extraction does not by itself establish a correct ordinary-language answer.
 

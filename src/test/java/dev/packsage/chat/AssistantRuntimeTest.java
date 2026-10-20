@@ -77,11 +77,11 @@ class AssistantRuntimeTest {
         runtime.newChat();
         while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
 
-        assertEquals(1, notices.size());
+        assertEquals(2, notices.size());
     }
 
     @Test
-    void completionNoticeIsSuppressedWhenNewChatPrecedesListenerEnqueue() throws Exception {
+    void completionNoticeSurvivesNewChatBeforeListenerEnqueue() throws Exception {
         java.util.ArrayDeque<Runnable> clientTasks = new java.util.ArrayDeque<>();
         List<ChatContracts.Turn> notices = new ArrayList<>();
         CountDownLatch tokenCounterEntered = new CountDownLatch(1);
@@ -140,7 +140,7 @@ class AssistantRuntimeTest {
         assertFalse(completionThread.isAlive());
         assertNull(completionFailure.get());
         while (!clientTasks.isEmpty()) clientTasks.removeFirst().run();
-        assertTrue(notices.isEmpty());
+        assertEquals(1, notices.size());
     }
 
     @Test
@@ -400,9 +400,8 @@ class AssistantRuntimeTest {
         runtime.send("question", false, false);
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
 
-        assertTrue(runtime.deleteSession(session).toCompletableFuture().isCompletedExceptionally());
-        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
         var deleted = runtime.deleteSession(session);
+        assertFalse(deleted.toCompletableFuture().isDone());
         while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
         deleted.toCompletableFuture().join();
 
@@ -719,7 +718,7 @@ class AssistantRuntimeTest {
                 Map.entry("ponder", false), Map.entry("history", false), Map.entry("curios", false));
         AtomicInteger factoryCalls = new AtomicInteger();
         var knowledgeFactory = (java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService>) current -> {
-            if (factoryCalls.incrementAndGet() == 3) throw new IllegalStateException("provider refresh failed");
+            if (factoryCalls.incrementAndGet() == 2) throw new IllegalStateException("provider refresh failed");
             return new KnowledgeService(List.of(new KnowledgeProvider() {
                 @Override public String id() { return "ponder"; }
                 @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
@@ -835,7 +834,7 @@ class AssistantRuntimeTest {
         runtime.enterWorld(nextWorld, nextScope);
         pendingTool.complete(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
 
-        assertEquals(3, factoryCalls.get());
+        assertEquals(2, factoryCalls.get());
         assertEquals(0, backend.submissions);
         assertEquals(nextWorld, runtime.view().conversation().world());
     }

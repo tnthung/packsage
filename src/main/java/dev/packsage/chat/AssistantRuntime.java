@@ -27,12 +27,6 @@ import java.util.function.ToIntFunction;
 
 public final class AssistantRuntime implements ChatActions {
     private static final Evidence.Scope EMPTY_SCOPE = new Evidence.Scope("none", "none", "none", "none", 0);
-    private static final Map<String, Boolean> UNAVAILABLE_ADAPTERS = Map.ofEntries(Map.entry("native", false),
-            Map.entry("jei", false), Map.entry("curios", false), Map.entry("ftb_quests", false), Map.entry("config", false),
-            Map.entry("patchouli", false), Map.entry("modonomicon", false), Map.entry("guideme", false),
-            Map.entry("immersiveengineering", false), Map.entry("actuallyadditions", false),
-            Map.entry("relics", false), Map.entry("artifacts", false), Map.entry("ponder", false), Map.entry("history", false));
-
     private final ModelBackend backend;
     private final ConversationStore store;
     private final Function<Supplier<Evidence.Scope>, GameplayContextCapture> captureFactory;
@@ -233,7 +227,12 @@ public final class AssistantRuntime implements ChatActions {
             holder = selected;
             activeWorld = world != null && holder != null && holder.world.worldOrServer().equals(world.worldOrServer());
         }
-        if (!activeWorld || !holder.loaded || holder.knowledge == null) return UNAVAILABLE_ADAPTERS;
+        if (!activeWorld || !holder.loaded || holder.knowledge == null || holder.knowledgeUnavailable) return Map.ofEntries(
+                Map.entry("native", false), Map.entry("jei", false), Map.entry("curios", false),
+                Map.entry("ftb_quests", false), Map.entry("config", false), Map.entry("patchouli", false),
+                Map.entry("modonomicon", false), Map.entry("guideme", false), Map.entry("immersiveengineering", false),
+                Map.entry("actuallyadditions", false), Map.entry("relics", false), Map.entry("artifacts", false),
+                Map.entry("ponder", false), Map.entry("history", false));
         var availability = new java.util.LinkedHashMap<String, Boolean>();
         Map<String, Boolean> providers = holder.knowledge.adapterAvailability();
         for (String id : List.of("native", "jei", "curios", "ftb_quests", "config", "patchouli", "modonomicon",
@@ -389,7 +388,8 @@ public final class AssistantRuntime implements ChatActions {
                         new IllegalStateException("sessions cannot be deleted while the target chat is active or changing"));
             }
             if (holder != null) holder.deleting = true;
-            deletingSelected = holder != null && selected == holder;
+            deletingSelected = holder != null && selected == holder || holder == null && selected == null
+                    && sessionLoading && world.worldOrServer().equals(session.world().worldOrServer());
             sessionDeletion = true;
             deletionGeneration = ++sessionDeletionGeneration;
             epoch = worldEpoch;
@@ -401,13 +401,15 @@ public final class AssistantRuntime implements ChatActions {
                 .whenCompleteAsync((ignored, failure) -> {
                     boolean createChat = false;
                     synchronized (stateLock) {
-                        if (holder != null) {
-                            holder.deleting = false;
-                            if (failure == null) holders.remove(new HolderKey(holder.world.worldOrServer(), holder.id), holder);
-                            else holder.errors.add("Session could not be deleted: " + failureMessage(failure));
+                        Holder currentHolder = holders.get(new HolderKey(session.world().worldOrServer(), session.id()));
+                        if (currentHolder != null && (holder == null || currentHolder == holder)) {
+                            currentHolder.deleting = false;
+                            if (failure == null) holders.remove(new HolderKey(currentHolder.world.worldOrServer(), currentHolder.id), currentHolder);
+                            else currentHolder.errors.add("Session could not be deleted: " + failureMessage(failure));
                         }
                         if (deletionGeneration == sessionDeletionGeneration) sessionDeletion = false;
-                        if (failure == null && deletingSelected && selected == holder && epoch == worldEpoch && world != null) {
+                        if (failure == null && deletingSelected && epoch == worldEpoch && world != null
+                                && (holder == null ? selected == null || selected == currentHolder : selected == holder)) {
                             selected = null;
                             sessionLoading = false;
                             newChatPending = false;
@@ -441,8 +443,8 @@ public final class AssistantRuntime implements ChatActions {
             }
             if (holder.deleting) return;
             selected = holder;
-            startLoad = !holder.loaded && !holder.loading;
-            holder.loading = !holder.loaded;
+            startLoad = !holder.loading && !holder.active && !holder.requestStarting;
+            holder.loading = startLoad || !holder.loaded;
             sessionLoading = holder.loading;
             newChatPending = false;
         }
@@ -655,7 +657,12 @@ public final class AssistantRuntime implements ChatActions {
             return;
         }
         if (holder == null || holder.controller == null) {
-            addError("Cannot send without an active conversation");
+            String error;
+            synchronized (stateLock) {
+                error = sessionLoading ? "World history is still loading"
+                        : world == null ? "Cannot send without an active world" : "Cannot send without an active conversation";
+            }
+            addError(error);
             return;
         }
         if (holder.active || holder.requestStarting || holder.controller.view().active()) {
@@ -908,7 +915,7 @@ public final class AssistantRuntime implements ChatActions {
             showNavigationError(navigationId, "Join this session's world before opening its sources");
             return;
         }
-        ChatContracts.View current = holder.controller.view();
+        ChatContracts.View current = wrap(holder.controller.view(), holder);
         if (current.navigationTargets().stream().noneMatch(value -> value.equals(target))
                 || current.sources().stream().noneMatch(source -> source.scope().equals(target.scope())
                 && source.providerId().equals(target.providerId()) && source.sourceHandle().equals(target.sourceHandle()))) {
@@ -1319,9 +1326,15 @@ public final class AssistantRuntime implements ChatActions {
         synchronized (holder) {
             if (holder.controller != null) return;
             holder.capture = Objects.requireNonNull(captureFactory.apply(() -> holder.scope));
-            holder.knowledge = Objects.requireNonNull(knowledgeFactory.apply(() -> holder.scope));
+            try {
+                holder.knowledge = Objects.requireNonNull(knowledgeFactory.apply(() -> holder.scope));
+            } catch (RuntimeException failure) {
+                holder.knowledge = new KnowledgeService(List.of(), () -> holder.scope);
+                holder.knowledgeUnavailable = true;
+                holder.errors.add("Knowledge providers could not be refreshed: " + failureMessage(failure));
+            }
             holder.historyAdapter = new HistoryAdapter(store, holder.world, () -> holder.scope);
-            holder.knowledge.register(holder.historyAdapter);
+            if (!holder.knowledgeUnavailable) holder.knowledge.register(holder.historyAdapter);
             holder.controller = new RequestController(store, backend, controllerExecutor,
                     holder.capture::capture, holder.capture::cancel, ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
                     request -> executeTool(holder, request), historyCounter, prepared -> {
@@ -1383,6 +1396,7 @@ public final class AssistantRuntime implements ChatActions {
         private volatile boolean active;
         private volatile boolean requestStarting;
         private volatile boolean creating;
+        private volatile boolean knowledgeUnavailable;
         private final List<String> errors = new ArrayList<>();
         private final Map<ChatContracts.RequestId, Long> requestAuthEpochs = new java.util.LinkedHashMap<>();
         private final Set<ChatContracts.RequestId> notifiedCompletions = new java.util.LinkedHashSet<>();

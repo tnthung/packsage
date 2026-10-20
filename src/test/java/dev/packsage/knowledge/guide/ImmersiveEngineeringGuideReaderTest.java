@@ -50,6 +50,53 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void layoutAlternativeContinuationPreservesEveryBoundedCellAlternative() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var items = java.util.List.of(net.minecraft.world.item.Items.IRON_INGOT,
+                net.minecraft.world.item.Items.GOLD_INGOT, net.minecraft.world.item.Items.DIAMOND,
+                net.minecraft.world.item.Items.EMERALD, net.minecraft.world.item.Items.COPPER_INGOT,
+                net.minecraft.world.item.Items.REDSTONE, net.minecraft.world.item.Items.LAPIS_LAZULI,
+                net.minecraft.world.item.Items.COAL, net.minecraft.world.item.Items.CHARCOAL,
+                net.minecraft.world.item.Items.QUARTZ, net.minecraft.world.item.Items.AMETHYST_SHARD,
+                net.minecraft.world.item.Items.PRISMARINE_SHARD, net.minecraft.world.item.Items.FLINT,
+                net.minecraft.world.item.Items.STICK, net.minecraft.world.item.Items.OAK_PLANKS,
+                net.minecraft.world.item.Items.GLASS, net.minecraft.world.item.Items.BUCKET,
+                net.minecraft.world.item.Items.WATER_BUCKET, net.minecraft.world.item.Items.POTION,
+                net.minecraft.world.item.Items.NETHER_STAR);
+        var alternatives = new java.util.ArrayList<net.minecraft.world.item.ItemStack>();
+        for (var item : items) alternatives.add(new net.minecraft.world.item.ItemStack(item));
+        var layout = new blusunrize.lib.manual.utils.ManualRecipeRef(new blusunrize.lib.manual.PositionedItemStack[] {
+                new blusunrize.lib.manual.PositionedItemStack(alternatives, 7, 11, "3")
+        });
+        var entry = manual.addEntry("immersiveengineering:manual/layout-bounded",
+                new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{layout}}));
+        entry.addSpecial("layout-anchor", 2);
+
+        String cursor = null;
+        String allFragments = "";
+        var cursors = new java.util.HashSet<String>();
+        int fragments = 0;
+        do {
+            var fragment = new ImmersiveEngineeringGuideReader().readFragment(
+                    "immersiveengineering:manual/layout-bounded", cursor, 64, new Toolbox.DocumentBudget());
+            allFragments += Evidence.serialize(fragment.relationships());
+            cursor = fragment.nextPosition();
+            fragments++;
+            assertTrue(fragments <= 8, "layout alternatives must remain bounded and make progress");
+            if (cursor != null) assertTrue(cursors.add(cursor), "layout cursor repeated");
+        } while (cursor != null);
+
+        assertTrue(allFragments.contains("layout-anchor"));
+        assertTrue(allFragments.contains("\"x\":7") && allFragments.contains("\"y\":11")
+                && allFragments.contains("\"amount\":\"3\""));
+        for (var item : items) assertTrue(allFragments.contains(net.minecraft.core.registries.BuiltInRegistries.ITEM
+                .getKey(item).toString()));
+        assertEquals(0, manual.forbiddenCalls());
+    }
+
+    @Test
     void initializedManualProjectsBlueprintBottlingAndMixerSelectorsWithoutRecipeMatching() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();

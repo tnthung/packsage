@@ -193,7 +193,6 @@ class GuideMeGuideReaderTest {
         assertEquals("fr_fr", candidates.candidates().getFirst().provenance().getLast()
                 .substring("guideme:language:".length()));
         assertEquals("minecraft:bread", ((Evidence.JsonString) item.values().get("itemId")).value());
-        assertFalse("minecraft:diamond".equals(((Evidence.JsonString) item.values().get("itemId")).value()));
         assertFalse(reader.sourceIdentity(new Evidence.Scope("world", "en_us", "team", "runtime", 1))
                 .equals(reader.sourceIdentity(new Evidence.Scope("world", "fr_fr", "team", "runtime", 1))));
     }
@@ -272,7 +271,7 @@ class GuideMeGuideReaderTest {
         var fragments = new java.util.ArrayList<GuideDocumentReader.Fragment>();
 
         do {
-            var fragment = reader.readFragment("fixture:book#fixture:entry", position, 128,
+            var fragment = reader.readFragment("fixture:book#fixture:entry", position, 600,
                     new Toolbox.DocumentBudget());
             fragments.add(fragment);
             position = fragment.nextPosition();

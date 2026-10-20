@@ -583,8 +583,15 @@ class ConversationStoreTest {
         store.recordCompletion(world, conversation.id(), failed.requestId()).toCompletableFuture().join();
         assertNull(store.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
 
+        ChatContracts.Turn cancelled = new ChatContracts.Turn(new ChatContracts.RequestId("cancelled"), "question", "partial", List.of(),
+                new ChatContracts.Context("context", null, SCOPE), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.CANCELLED, "cancelled"), 0);
+        store.appendTurn(world, SCOPE, conversation.id(), cancelled).toCompletableFuture().join();
+        store.recordCompletion(world, conversation.id(), cancelled.requestId()).toCompletableFuture().join();
+        assertNull(store.sessions().toCompletableFuture().join().getFirst().unreadRequestId());
+
         ChatContracts.Turn completed = simpleTurn("completed");
-        store.replaceLatestTurn(world, SCOPE, conversation.id(), failed.requestId(), completed).toCompletableFuture().join();
+        store.replaceLatestTurn(world, SCOPE, conversation.id(), cancelled.requestId(), completed).toCompletableFuture().join();
         store.recordCompletion(world, conversation.id(), completed.requestId()).toCompletableFuture().join();
         Path conversationFile = store.conversationPath(world, conversation.id());
         Path stateFile = conversationFile.resolveSibling(conversationFile.getFileName().toString().replace(".jsonl", ".state.json"));

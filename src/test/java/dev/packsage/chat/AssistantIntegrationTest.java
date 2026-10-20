@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -768,6 +769,91 @@ class AssistantIntegrationTest {
             runtime.markRead(summary, completion);
             assertNull(store.sessions().toCompletableFuture().join().stream()
                     .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId(), retryPath);
+        }
+    }
+
+    @Test
+    void failedReadThenFailedOrCancelledResendClearsReplacedUnreadMarker() throws Exception {
+        for (String terminal : List.of("failed", "cancelled")) {
+            var storeRoot = Files.createTempDirectory("packsage-replace-unread");
+            var setupStore = new ConversationStore(storeRoot, DIRECT);
+            var conversation = setupStore.newConversation(WORLD).toCompletableFuture().join();
+            var completion = new ChatContracts.RequestId("completion-replace-unread");
+            setupStore.appendTurn(WORLD, SCOPE, conversation.id(), new ChatContracts.Turn(completion, "Original question", "Original answer",
+                    List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(),
+                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
+            setupStore.recordCompletion(WORLD, conversation.id(), completion).toCompletableFuture().join();
+            setupStore.newConversation(WORLD).toCompletableFuture().join();
+
+            var backend = new RuntimeBackend();
+            var notices = new ArrayList<ChatContracts.Turn>();
+            var pendingStoreTasks = new ArrayDeque<Runnable>();
+            var holdStoreTasks = new AtomicBoolean();
+            var store = new ConversationStore(storeRoot, task -> {
+                if (holdStoreTasks.get()) pendingStoreTasks.addLast(task);
+                else task.run();
+            });
+            var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+                    () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
+                    ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
+                    DIRECT, DIRECT, current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                    GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { }, notices::add);
+            runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
+            runtime.signIn();
+            backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "fixture", null));
+            backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(), MODEL.hostedSearch(),
+                    MODEL.contextTokens(), MODEL.outputTokens()));
+            runtime.openScreen();
+            var summary = store.sessions().toCompletableFuture().join().stream()
+                    .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow();
+            runtime.openSession(summary);
+
+            Path conversationFile = store.conversationPath(WORLD, conversation.id());
+            Path movedConversationFile = conversationFile.resolveSibling("temporarily-hidden.jsonl");
+            Files.move(conversationFile, movedConversationFile);
+            runtime.markRead(summary, completion);
+            assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("could not be marked as read")), terminal);
+            Files.move(movedConversationFile, conversationFile);
+            assertEquals(completion, store.sessions().toCompletableFuture().join().stream()
+                    .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId(), terminal);
+
+            runtime.resend(completion, "Replacement question", false, false);
+            assertEquals(1, backend.requests.size(), terminal);
+            assertEquals(completion, store.sessions().toCompletableFuture().join().stream()
+                    .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId(),
+                    "the old marker remains until the replacement settles");
+            assertEquals(completion, runtime.sessions().toCompletableFuture().join().stream()
+                    .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId(), terminal);
+
+            holdStoreTasks.set(true);
+            if (terminal.equals("failed")) {
+                backend.listeners.getFirst().accept(new ModelBackend.Event(ModelBackend.EventKind.FAILED, null, null,
+                        List.of(), List.of(), "fixture failure"));
+            } else {
+                runtime.stop();
+            }
+            assertEquals(completion, runtime.view().conversation().turns().getLast().requestId(),
+                    terminal + " prior completed answer remains visible while replacement persistence is pending");
+            assertEquals(ChatContracts.OutcomeStatus.COMPLETED,
+                    runtime.view().conversation().turns().getLast().outcome().status(),
+                    terminal + " prior completed outcome remains visible while replacement persistence is pending");
+            assertEquals(completion, new ConversationStore(storeRoot, DIRECT).sessions().toCompletableFuture().join().stream()
+                    .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId(),
+                    terminal + " independent store reader sees the original unread marker before queued replacement persistence");
+            assertFalse(pendingStoreTasks.isEmpty(), "replacement persistence remains queued until explicitly drained");
+            while (!pendingStoreTasks.isEmpty()) pendingStoreTasks.removeFirst().run();
+            holdStoreTasks.set(false);
+            var stored = store.sessions().toCompletableFuture().join().stream()
+                    .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow();
+            assertNull(stored.unreadRequestId(), terminal + " replacement removes the old persisted unread marker");
+            assertNull(runtime.sessions().toCompletableFuture().join().stream()
+                    .filter(value -> value.id().equals(conversation.id())).findFirst().orElseThrow().unreadRequestId(),
+                    terminal + " replacement is reflected in runtime session summaries");
+            var replacement = store.openConversation(WORLD, conversation.id()).toCompletableFuture().join().turns().getFirst();
+            assertEquals(backend.requests.getFirst().requestId(), replacement.requestId().value(), terminal);
+            assertEquals(terminal.equals("failed") ? ChatContracts.OutcomeStatus.FAILED : ChatContracts.OutcomeStatus.CANCELLED,
+                    replacement.outcome().status(), terminal);
+            assertTrue(notices.isEmpty(), terminal + " replacement does not issue a successful completion notice");
         }
     }
 

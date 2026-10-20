@@ -19,6 +19,8 @@ Plan: [parallel chat sessions](../plans/2026-10-20-parallel-chat-sessions.md). W
 - Displaying a completed foreign-world conversation may acknowledge its unread UI metadata. It remains read-only for new model requests and retains navigation restrictions. A different interpretation would change acknowledgement policy without changing game authority.
 - Backend cancellation retains its existing weak callback contract. A terminal event accepted before an account transition may still reach the consumer afterward; this window predates the exchange-set change. Every affected runtime holder must invalidate before the backend account transition, and generation guards must reject late effects. Incorrect ordering could allow stale answers or notices.
 - The start-latch test did not force the private account-epoch snapshot/registration interval, so it was replaced with deterministic cleanup/account-replacement coverage. Retained per-request consumers provide the runtime's late-event test seam. The backend epoch-registration check remains; no callback-drain framework or test-only production hook is added. The narrow internal interval has no forced-interleaving test.
+- The dot uses existing draw geometry without a geometry-only test seam. Headless checks cover row state, narration and controls; exact visible alignment remains Minecraft acceptance.
+- Read-attempt deduplication belongs to the runtime. The screen's void action may repeat while a marker remains; failed persistence keeps the marker and can retry on explicit reopen without disk writes every frame. Incorrect attempt identity could prevent a retry or cause redundant writes, so runtime checks cover that boundary.
 
 ## Minecraft acceptance
 

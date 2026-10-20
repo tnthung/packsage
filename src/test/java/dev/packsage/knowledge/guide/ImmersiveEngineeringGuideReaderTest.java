@@ -165,6 +165,127 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void oversizedLayoutCellDoesNotHideFollowingValidCells() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var layout = new blusunrize.lib.manual.utils.ManualRecipeRef(new blusunrize.lib.manual.PositionedItemStack[] {
+                new blusunrize.lib.manual.PositionedItemStack(java.util.List.of(
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_INGOT)), 0, 0, "x".repeat(9000)),
+                new blusunrize.lib.manual.PositionedItemStack(java.util.List.of(
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.GOLD_INGOT)), 3, 5, "2")
+        });
+        var entry = manual.addEntry("immersiveengineering:manual/layout-oversized-cell",
+                new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{layout}}));
+        entry.addSpecial("oversized-cell-anchor", 0);
+
+        var fragment = new ImmersiveEngineeringGuideReader().readFragment(
+                "immersiveengineering:manual/layout-oversized-cell", null, 64, new Toolbox.DocumentBudget());
+        var serialized = Evidence.serialize(fragment.relationships());
+
+        assertTrue(serialized.contains("PARTIAL"));
+        assertTrue(serialized.contains("minecraft:gold_ingot"));
+        assertTrue(serialized.contains("\"x\":3") && serialized.contains("\"y\":5")
+                && serialized.contains("\"amount\":\"2\""));
+    }
+
+    @Test
+    void escapedMaximumAnchorKeepsAllRowsWithinPerFragmentByteLimit() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var rows = new blusunrize.lib.manual.utils.ManualRecipeRef[16][];
+        for (int row = 0; row < rows.length; row++) {
+            rows[row] = new blusunrize.lib.manual.utils.ManualRecipeRef[] {
+                    new blusunrize.lib.manual.utils.ManualRecipeRef(net.minecraft.resources.ResourceLocation.parse(
+                            "immersiveengineering:quoted_anchor_recipe_" + row))
+            };
+        }
+        var entry = manual.addEntry("immersiveengineering:manual/quoted-anchor",
+                new blusunrize.lib.manual.ManualElementCrafting(rows));
+        entry.addSpecial("\"".repeat(256), 0);
+
+        String cursor = null;
+        String allFragments = "";
+        var cursors = new java.util.HashSet<String>();
+        int fragments = 0;
+        do {
+            var fragment = new ImmersiveEngineeringGuideReader().readFragment(
+                    "immersiveengineering:manual/quoted-anchor", cursor, 64, new Toolbox.DocumentBudget());
+            String serialized = Evidence.serialize(fragment.relationships());
+            assertTrue(serialized.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 8 * 1024);
+            allFragments += serialized;
+            cursor = fragment.nextPosition();
+            fragments++;
+            assertTrue(fragments <= 16, "escaped provenance must advance by source row");
+            if (cursor != null) assertTrue(cursors.add(cursor), "escaped-anchor cursor repeated");
+        } while (cursor != null);
+        for (int row = 0; row < rows.length; row++) {
+            assertTrue(allFragments.contains("quoted_anchor_recipe_" + row));
+        }
+    }
+
+    @Test
+    void freshBudgetResumesAfterAnEmptyRecipeRowAndOpaqueSpecialBoundary() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var emptyRowEntry = manual.addEntry("immersiveengineering:manual/empty-row-boundary",
+                new blusunrize.lib.manual.ManualElementCrafting(new blusunrize.lib.manual.utils.ManualRecipeRef[][] {
+                        {}, {new blusunrize.lib.manual.utils.ManualRecipeRef(
+                                net.minecraft.resources.ResourceLocation.parse("immersiveengineering:after_empty_row"))}
+                }));
+        emptyRowEntry.addSpecial("empty-row", 0);
+        var exhaustedAtEmptyRow = new Toolbox.DocumentBudget();
+        for (int value = 0; value < 2044; value++) assertTrue(exhaustedAtEmptyRow.value());
+        var emptyRowFirst = new ImmersiveEngineeringGuideReader().readFragment(
+                "immersiveengineering:manual/empty-row-boundary", null, 64, exhaustedAtEmptyRow);
+        assertTrue(emptyRowFirst.nextPosition() != null);
+        var emptyRowNext = new ImmersiveEngineeringGuideReader().readFragment(
+                "immersiveengineering:manual/empty-row-boundary", emptyRowFirst.nextPosition(), 64,
+                new Toolbox.DocumentBudget());
+        assertTrue(Evidence.serialize(emptyRowNext.relationships()).contains("immersiveengineering:after_empty_row"));
+        assertNull(emptyRowNext.nextPosition());
+
+        manual.reset();
+        var opaqueEntry = manual.addEntry("immersiveengineering:manual/opaque-boundary", null);
+        opaqueEntry.setSpecials(java.util.List.of(
+                new blusunrize.lib.manual.ManualEntry.SpecialElementData("opaque-before", 0,
+                        new blusunrize.lib.manual.SpecialManualElement()),
+                new blusunrize.lib.manual.ManualEntry.SpecialElementData("opaque-at-boundary", 1,
+                        new blusunrize.lib.manual.SpecialManualElement()),
+                new blusunrize.lib.manual.ManualEntry.SpecialElementData("valid-after", 2,
+                        new blusunrize.lib.manual.ManualElementCrafting(new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{
+                                new blusunrize.lib.manual.utils.ManualRecipeRef(
+                                        net.minecraft.resources.ResourceLocation.parse("immersiveengineering:after_opaque"))
+                        }}))));
+        var exhaustedAtOpaque = new Toolbox.DocumentBudget();
+        for (int value = 0; value < 2044; value++) assertTrue(exhaustedAtOpaque.value());
+        var opaqueFirst = new ImmersiveEngineeringGuideReader().readFragment(
+                "immersiveengineering:manual/opaque-boundary", null, 64, exhaustedAtOpaque);
+        assertTrue(opaqueFirst.nextPosition() != null);
+        var opaqueNext = new ImmersiveEngineeringGuideReader().readFragment(
+                "immersiveengineering:manual/opaque-boundary", opaqueFirst.nextPosition(), 64,
+                new Toolbox.DocumentBudget());
+        assertTrue(Evidence.serialize(opaqueNext.relationships()).contains("immersiveengineering:after_opaque"));
+        assertNull(opaqueNext.nextPosition());
+    }
+
+    @Test
+    void uninitializedContinuationAfterCompletedTextIsTerminalPartial() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        manual.setInitialized(false);
+        manual.addEntry("immersiveengineering:manual/uninitialized-completed-text", null);
+
+        var fragment = new ImmersiveEngineeringGuideReader().readFragment(
+                "immersiveengineering:manual/uninitialized-completed-text", "ie1|0.0.0.0.0|1|done", 64,
+                new Toolbox.DocumentBudget());
+
+        assertEquals(Evidence.Coverage.PARTIAL, fragment.coverage());
+        assertTrue(Evidence.serialize(fragment.relationships()).contains("UNAVAILABLE"));
+        assertNull(fragment.nextPosition());
+    }
+
+    @Test
     void initializedManualProjectsBlueprintBottlingAndMixerSelectorsWithoutRecipeMatching() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();

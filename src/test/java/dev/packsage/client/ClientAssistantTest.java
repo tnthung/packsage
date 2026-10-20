@@ -51,11 +51,13 @@ class ClientAssistantTest {
         var pageA = serviceA.execute(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of(
                 "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"))),
                 "limit", new Evidence.JsonNumber(BigDecimal.ONE))), scopeA)).toCompletableFuture().join();
-        var handleA = pageA.records().getFirst().source().sourceHandle();
+        var sourceHandleA = pageA.records().getFirst().source().sourceHandle();
+        var handleA = "jei:" + sourceHandleA;
         var cursorA = pageA.nextCursor();
 
         assertEquals(1, pageA.records().size());
-        assertEquals("fixture:recipe/a-one", handleA);
+        assertEquals("fixture:recipe/a-one", sourceHandleA);
+        assertEquals("jei:fixture:recipe/a-one", handleA);
         assertNotNull(cursorA);
 
         var pageB = serviceB.execute(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of(

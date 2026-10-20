@@ -1,11 +1,16 @@
 package dev.packsage.client;
 
 import dev.packsage.chat.ChatContracts;
+import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
+import dev.packsage.knowledge.Toolbox;
+import dev.packsage.knowledge.jei.JeiProvider;
 import dev.packsage.knowledge.jei.PackSageJeiPlugin;
+import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -15,9 +20,66 @@ import java.util.concurrent.CompletableFuture;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ClientAssistantTest {
+    @Test
+    void sharedJeiProviderKeepsInterleavedRecipeEvidenceAndCursorsScoped() {
+        var scopeA = new Evidence.Scope("world", "en_us", "player", "jei-runtime", 1);
+        var scopeB = new Evidence.Scope("world", "en_us", "player", "jei-runtime", 2);
+        var sharedJeiProvider = new JeiProvider((scope, query, budget) -> new JeiProvider.Snapshot(scope,
+                scope.requestGeneration(), scope.requestGeneration(), scope.equals(scopeA) ? List.of(
+                new JeiProvider.Projection("fixture:category", "fixture:recipe/a-one", "fixture:a-one", "A one",
+                        List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
+                        Evidence.DecodingStatus.VERIFIED, null),
+                new JeiProvider.Projection("fixture:category", "fixture:recipe/a-two", "fixture:a-two", "A two",
+                        List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
+                        Evidence.DecodingStatus.VERIFIED, null)) : List.of(
+                new JeiProvider.Projection("fixture:category", "fixture:recipe/b-one", "fixture:b-one", "B one",
+                        List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
+                        Evidence.DecodingStatus.VERIFIED, null),
+                new JeiProvider.Projection("fixture:category", "fixture:recipe/b-two", "fixture:b-two", "B two",
+                        List.of(), List.of(), List.of(), true, Evidence.Coverage.COMPLETE,
+                        Evidence.DecodingStatus.VERIFIED, null)), ignored -> { }, Evidence.Coverage.COMPLETE,
+                false, null), Runnable::run, () -> true);
+        var jei = new ClientAssistant.ReflectiveProvider(new ClientAssistant.OptionalStatus("jei", "jei",
+                "[19.27.0.340,20)", JeiProvider.VERSION, true, true, "supported"), () -> sharedJeiProvider);
+        var serviceA = new KnowledgeService(List.of(jei), () -> scopeA);
+        var serviceB = new KnowledgeService(List.of(jei), () -> scopeB);
+        var pageA = serviceA.execute(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of(
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"))),
+                "limit", new Evidence.JsonNumber(BigDecimal.ONE))), scopeA)).toCompletableFuture().join();
+        var handleA = pageA.records().getFirst().source().sourceHandle();
+        var cursorA = pageA.nextCursor();
+
+        assertEquals(1, pageA.records().size());
+        assertEquals("fixture:recipe/a-one", handleA);
+        assertNotNull(cursorA);
+
+        var pageB = serviceB.execute(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of(
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"))),
+                "limit", new Evidence.JsonNumber(BigDecimal.ONE))), scopeB)).toCompletableFuture().join();
+
+        assertEquals("fixture:recipe/b-one", pageB.records().getFirst().source().sourceHandle());
+        assertEquals(scopeB, pageB.records().getFirst().source().scope());
+        assertEquals("fixture:recipe/a-one", serviceA.execute(new PackSageTools.ReadRequest("read_evidence",
+                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString(handleA))))),
+                scopeA)).toCompletableFuture().join().records().getFirst().source().sourceHandle());
+        var continuedA = serviceA.execute(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of(
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("jei"))),
+                "limit", new Evidence.JsonNumber(BigDecimal.ONE), "cursor", new Evidence.JsonString(cursorA))), scopeA))
+                .toCompletableFuture().join();
+        assertEquals("fixture:recipe/a-two", continuedA.records().getFirst().source().sourceHandle());
+        assertEquals(scopeA, continuedA.records().getFirst().source().scope());
+
+        var failure = assertThrows(Toolbox.Failure.class, () -> serviceB.execute(new PackSageTools.ReadRequest(
+                "read_evidence", new Evidence.JsonObject(Map.of("handles",
+                new Evidence.JsonArray(List.of(new Evidence.JsonString(handleA))))), scopeB)));
+        assertEquals(Toolbox.Code.INVALID_REFERENCE, failure.code());
+    }
+
     @Test
     void optionalProviderForwardsSavedDestinationResolutionToTheCurrentDelegate() {
         var scope = new Evidence.Scope("new-session", "new-resources", "player", "runtime-2", 2);

@@ -462,7 +462,7 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
             values.put("kind", new Evidence.JsonString("spotlight"));
             values.put("sourcePosition", new Evidence.JsonString("page:" + pageIndex));
             if (alternative instanceof Ingredient.ItemValue itemValue) {
-                var itemId = resourceId(BuiltInRegistries.ITEM.getKey(itemValue.item()));
+                var itemId = resourceId(BuiltInRegistries.ITEM.getKey(itemValue.item().getItem()));
                 if (itemId == null) {
                     collector.markOpaque("items", "a Modonomicon ingredient item has no bounded registry identity");
                     values.put("type", new Evidence.JsonString("opaque"));

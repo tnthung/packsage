@@ -270,6 +270,31 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void removedUnreadRecipeAtCursorBoundaryIsRejectedAsStale() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var row = new blusunrize.lib.manual.utils.ManualRecipeRef[17];
+        for (int ref = 0; ref < row.length; ref++) {
+            row[ref] = new blusunrize.lib.manual.utils.ManualRecipeRef(net.minecraft.resources.ResourceLocation.parse(
+                    "immersiveengineering:cursor_recipe_" + ref));
+        }
+        var rows = new blusunrize.lib.manual.utils.ManualRecipeRef[][] {row};
+        var entry = manual.addEntry("immersiveengineering:manual/removed-unread-ref",
+                new blusunrize.lib.manual.ManualElementCrafting(rows));
+        entry.addSpecial("cursor-row", 0);
+        var reader = new ImmersiveEngineeringGuideReader();
+        var first = reader.readFragment("immersiveengineering:manual/removed-unread-ref", null, 64,
+                new Toolbox.DocumentBudget());
+        assertTrue(first.nextPosition() != null);
+        rows[0] = java.util.Arrays.copyOf(rows[0], 16);
+
+        var stale = assertThrows(Toolbox.Failure.class, () -> reader.readFragment(
+                "immersiveengineering:manual/removed-unread-ref", first.nextPosition(), 64,
+                new Toolbox.DocumentBudget()));
+        assertEquals(Toolbox.Code.INVALID_CURSOR, stale.code());
+    }
+
+    @Test
     void uninitializedContinuationAfterCompletedTextIsTerminalPartial() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();

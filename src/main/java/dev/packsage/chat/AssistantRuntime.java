@@ -644,7 +644,7 @@ public final class AssistantRuntime implements ChatActions {
         synchronized (stateLock) {
             holder = selected;
         }
-        return holder == null || holder.controller == null ? idleView() : wrap(holder.controller.view(), holder);
+        return holder == null ? idleView() : wrap(holder.controller == null ? idleView() : holder.controller.view(), holder);
     }
 
     @Override
@@ -1400,8 +1400,8 @@ public final class AssistantRuntime implements ChatActions {
             currentSignIn = signIn;
             paused = requestedPaused;
             errors = new ArrayList<>(view.errors());
-            errors.addAll(runtimeErrors);
-            if (holder != null) errors.addAll(holder.errors);
+            for (String error : runtimeErrors) if (!errors.contains(error)) errors.add(error);
+            if (holder != null) for (String error : holder.errors) if (!errors.contains(error)) errors.add(error);
             currentScope = holder == null ? worldScope : holder.scope;
             currentWorld = world;
             loading = sessionLoading || holder != null && holder.loading;
@@ -1481,7 +1481,8 @@ public final class AssistantRuntime implements ChatActions {
                     new ChatContracts.Context("", null, currentScope), sources, targets, errors, "",
                     loading ? "Loading session..." : "", activeWorld, true);
         }
-        return new ChatContracts.View(view.active(), currentSignIn, paused, view.conversation(), view.context(),
+        return new ChatContracts.View(view.active(), currentSignIn, paused, conversation,
+                holder == null || holder.loaded ? view.context() : new ChatContracts.Context("", null, currentScope),
                 sources, targets, errors, view.streamingAnswer(), view.activity(), activeWorld, false, view.activeQuestion(),
                 view.activeSentAt(), view.activities(), view.activeRequestId(), view.activeSteeringMessages());
     }

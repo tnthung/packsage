@@ -217,6 +217,43 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void reopeningAnActiveHolderKeepsItsRequestScopeForToolCalls() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        AtomicInteger toolCalls = new AtomicInteger();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
+                current -> new KnowledgeService(List.of(new Toolbox() {
+                    @Override public Metadata metadata() { return new Metadata("native", List.of(), true, List.of(), Map.of()); }
+                    @Override public CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Context context) {
+                        assertEquals(request.scope(), current.get());
+                        toolCalls.incrementAndGet();
+                        return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                                Evidence.Outcome.COMPLETE, null));
+                    }
+                }), current), DIRECT);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+
+        runtime.send("Question for A", false, false);
+        String requestId = backend.requests.getFirst().requestId();
+        String sessionId = runtime.view().conversation().id();
+        Evidence.Scope requestScope = runtime.view().context().scope();
+        runtime.newChat();
+        runtime.openSession(new ChatContracts.SessionSummary(WORLD, sessionId, "Question for A", "", Instant.EPOCH));
+        assertTrue(runtime.view().active());
+
+        backend.emit(requestId, new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("recipe", "plan_recipe", "{\"identity\":\"minecraft:torch\",\"quantity\":1}"),
+                List.of(), null));
+
+        assertEquals(1, toolCalls.get());
+        assertEquals(requestScope, runtime.view().context().scope());
+        assertFalse(backend.results.getFirst().error(), backend.results.getFirst().serializedResult());
+    }
+
+    @Test
     void sendInstallsNextScopeAndSnapshotsCatalogSettingsBeforeCapture() throws Exception {
         AtomicReference<Evidence.Scope> currentScope = new AtomicReference<>();
         AtomicReference<ModelBackend.Request> request = new AtomicReference<>();

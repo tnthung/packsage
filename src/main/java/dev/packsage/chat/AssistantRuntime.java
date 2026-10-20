@@ -1240,7 +1240,7 @@ public final class AssistantRuntime implements ChatActions {
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null));
         List<Evidence.Source> sources = new ArrayList<>();
         List<Evidence.NavigationTarget> targets = new ArrayList<>();
-        if (!loading && holder == null) {
+        if (!loading && !readOnly) {
             view.sources().forEach(source -> {
                 if (source.scope().equals(currentScope) && sources.stream().noneMatch(existing ->
                         existing.providerId().equals(source.providerId())

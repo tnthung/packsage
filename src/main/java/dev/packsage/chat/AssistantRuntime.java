@@ -578,7 +578,7 @@ public final class AssistantRuntime implements ChatActions {
             }
             CompletionStage<ChatContracts.Conversation> opening;
             try {
-                opening = loadingHolder.controller.awaitPersistence().thenComposeAsync(ignored -> {
+                opening = loadingHolder.controller.awaitPersistence().thenComposeAsync(persisted -> {
                     synchronized (stateLock) {
                         if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
                                 || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading

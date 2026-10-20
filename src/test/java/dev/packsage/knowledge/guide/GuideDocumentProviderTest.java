@@ -466,6 +466,18 @@ class GuideDocumentProviderTest {
                     "the source-work stop must be tested with positive shared bytes remaining");
             assertNotNull(first.nextCursor(), "a local layout preflight stop must expose an external continuation");
             assertTrue(firstBudget.exhausted(), "the layout preflight stop must signal the shared-budget boundary");
+            arguments.put("cursor", new Evidence.JsonString(first.nextCursor()));
+            var retryBudget = new Toolbox.DocumentBudget();
+            assertTrue(retryBudget.bytes(retryBudget.remainingBytes() - id.length() * 6 - 1024 - 64));
+            var underfundedRetry = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                    new Evidence.JsonObject(arguments), SCOPE), new Toolbox.Context(() -> SCOPE, Map.of(),
+                    new AdapterRegistry(), retryBudget, null)).toCompletableFuture().join();
+            assertEquals(Evidence.Coverage.PARTIAL, underfundedRetry.coverage());
+            assertTrue(retryBudget.remainingBytes() > 0,
+                    "a repeated source-work stop must retain positive shared bytes");
+            assertTrue(retryBudget.exhausted(), "the repeated source-work stop must signal the shared-budget boundary");
+            assertNotNull(underfundedRetry.nextCursor(),
+                    "a repeated positive-insufficient budget must preserve its external continuation");
             var relationshipEvidence = new StringBuilder();
             for (var record : first.records()) {
                 if (record.payload().values().get("relationships") instanceof Evidence.JsonObject relationships)
@@ -473,7 +485,7 @@ class GuideDocumentProviderTest {
             }
             var returnedCursors = new java.util.HashSet<String>();
             assertTrue(returnedCursors.add(first.nextCursor()));
-            var cursor = first.nextCursor();
+            var cursor = underfundedRetry.nextCursor();
             int continuations = 0;
             while (cursor != null) {
                 int priorEvidenceLength = relationshipEvidence.length();

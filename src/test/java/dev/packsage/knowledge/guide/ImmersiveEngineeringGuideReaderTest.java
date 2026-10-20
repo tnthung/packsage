@@ -300,6 +300,32 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void removedUnreadFirstRecipeAtZeroCursorIsRejectedWithoutBreakingEmptyRowBoundary() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var rows = new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{
+                new blusunrize.lib.manual.utils.ManualRecipeRef(
+                        net.minecraft.resources.ResourceLocation.parse("immersiveengineering:zero_cursor_recipe"))
+        }};
+        var entry = manual.addEntry("immersiveengineering:manual/removed-zero-ref",
+                new blusunrize.lib.manual.ManualElementCrafting(rows));
+        entry.addSpecial("zero-cursor-row", 0);
+        var exhaustedBeforeAppend = new Toolbox.DocumentBudget();
+        for (int value = 0; value < 2042; value++) assertTrue(exhaustedBeforeAppend.value());
+        var reader = new ImmersiveEngineeringGuideReader();
+        var first = reader.readFragment("immersiveengineering:manual/removed-zero-ref", null, 64,
+                exhaustedBeforeAppend);
+        assertTrue(first.nextPosition() != null);
+        assertEquals("0", first.nextPosition().split("\\|", -1)[1].split("\\.", -1)[2]);
+        rows[0] = new blusunrize.lib.manual.utils.ManualRecipeRef[0];
+
+        var stale = assertThrows(Toolbox.Failure.class, () -> reader.readFragment(
+                "immersiveengineering:manual/removed-zero-ref", first.nextPosition(), 64,
+                new Toolbox.DocumentBudget()));
+        assertEquals(Toolbox.Code.INVALID_CURSOR, stale.code());
+    }
+
+    @Test
     void uninitializedContinuationAfterCompletedTextIsTerminalPartial() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();

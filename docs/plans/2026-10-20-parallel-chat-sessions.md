@@ -79,6 +79,8 @@
 
 **Ownership:** Add a private nested conversation-state holder in `AssistantRuntime`: stored identity, controller, independently created `GameplayContextCapture`, current scope, `KnowledgeService` with its `HistoryAdapter`, request-local errors and completion identity. Track the selected key separately from the map. Keep shared account/settings/world state on the runtime.
 
+**Initialization:** Claim one shared initialization future per holder under the state lock, construct its capture, providers and controller outside runtime locks, then publish the controller last and complete the future outside locks. The three loading/creation paths continue without blocking on the client executor. A holder load generation and world/map checks reject stale work before controller attachment; selection controls only UI publication. Reentrant or concurrent opens share one attempt, and a failed attempt can retry on a later explicit open.
+
 - [ ] Add deterministic tests using manually completed futures: start A, switch/create B, start B, interleave capture and tools, then finish B before A. Assert both requests persist to their original conversation IDs, use their own histories and keep their original captured settings.
 - [ ] Add regressions for switching during A's final token counting and for two pending screenshot captures. Assert B does not invalidate A and cancelling A's capture leaves B's pending frame intact.
 - [ ] Construct each conversation's capture/service using a supplier for that holder's scope. Allocate unique request generations from the runtime, but update only the submitting conversation's scope. A session switch must not invalidate another holder's scope.

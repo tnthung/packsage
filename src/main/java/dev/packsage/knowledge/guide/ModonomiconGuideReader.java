@@ -772,25 +772,36 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
                 }
                 if (source.startsWith("condition:")) {
                     var encodedCondition = source.substring("condition:".length());
-                    var scopeDelimiter = encodedCondition.lastIndexOf(':');
+                    var scopeDelimiter = encodedCondition.indexOf(':');
                     if (scopeDelimiter < 1) throw new NumberFormatException();
                     var scope = encodedCondition.substring(0, scopeDelimiter);
                     var encodedPath = encodedCondition.substring(scopeDelimiter + 1);
                     var pageIndex = -1;
-                    if (scope.startsWith("page:")) {
-                        var encodedPage = scope.substring("page:".length());
+                    var conditionPath = new ArrayList<Integer>();
+                    if ("page".equals(scope)) {
+                        var pagePathParts = encodedPath.split("\\.", -1);
+                        if (pagePathParts.length == 0 || pagePathParts.length > 65
+                                || !pagePathParts[0].startsWith("page:")) throw new NumberFormatException();
+                        var encodedPage = pagePathParts[0].substring("page:".length());
                         pageIndex = Integer.parseInt(encodedPage);
                         if (pageIndex < 0 || !Integer.toString(pageIndex).equals(encodedPage)) throw new NumberFormatException();
-                    } else if (!"entry".equals(scope) && !"category".equals(scope)) throw new NumberFormatException();
-                    var pathParts = encodedPath.split("\\.", -1);
-                    if (pathParts.length == 0 || pathParts.length > 65 || !"root".equals(pathParts[0]))
-                        throw new NumberFormatException();
-                    var conditionPath = new ArrayList<Integer>();
-                    for (var pathIndex = 1; pathIndex < pathParts.length; pathIndex++) {
-                        var childIndex = Integer.parseInt(pathParts[pathIndex]);
-                        if (childIndex < 0 || !Integer.toString(childIndex).equals(pathParts[pathIndex]))
+                        for (var pathIndex = 1; pathIndex < pagePathParts.length; pathIndex++) {
+                            var childIndex = Integer.parseInt(pagePathParts[pathIndex]);
+                            if (childIndex < 0 || !Integer.toString(childIndex).equals(pagePathParts[pathIndex]))
+                                throw new NumberFormatException();
+                            conditionPath.add(childIndex);
+                        }
+                    } else {
+                        if (!"entry".equals(scope) && !"category".equals(scope)) throw new NumberFormatException();
+                        var pathParts = encodedPath.split("\\.", -1);
+                        if (pathParts.length == 0 || pathParts.length > 65 || !"root".equals(pathParts[0]))
                             throw new NumberFormatException();
-                        conditionPath.add(childIndex);
+                        for (var pathIndex = 1; pathIndex < pathParts.length; pathIndex++) {
+                            var childIndex = Integer.parseInt(pathParts[pathIndex]);
+                            if (childIndex < 0 || !Integer.toString(childIndex).equals(pathParts[pathIndex]))
+                                throw new NumberFormatException();
+                            conditionPath.add(childIndex);
+                        }
                     }
                     return new RelationshipPosition(RelationshipKind.CONDITION, scope, pageIndex, -1,
                             List.copyOf(conditionPath));

@@ -138,6 +138,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                 "Immersive Engineering fragment limit must be positive");
         String relationshipPosition = null;
         int relationshipFlags = 0;
+        int relationshipStage = 0;
         int offset = 0;
         boolean relationshipsRequested = fragmentPosition == null;
         if (fragmentPosition != null && fragmentPosition.startsWith("ie1|")) {
@@ -156,6 +157,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     for (int index = 0; index < 5; index++) if (Integer.parseInt(indices[index]) < 0) throw new NumberFormatException();
                     if (indices.length == 6 && (Integer.parseInt(indices[5]) < 0 || Integer.parseInt(indices[5]) > 1))
                         throw new NumberFormatException();
+                    if (indices.length == 6) relationshipStage = Integer.parseInt(indices[5]);
                 }
             } catch (NumberFormatException failure) {
                 throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid Immersive Engineering fragment position");
@@ -189,6 +191,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                         "Immersive Engineering manual entry is no longer visible");
             }
             final String resumePosition = relationshipPosition;
+            final int resumeStage = relationshipStage;
             class RelationshipScan {
                 final List<Evidence.JsonValue> values = new ArrayList<>();
                 int semanticRecords;
@@ -204,12 +207,6 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                 String encode(int[] position) {
                     return position[0] + "." + position[1] + "." + position[2] + "." + position[3] + "."
                             + position[4] + "." + nextStage;
-                }
-
-                int resumeStage() {
-                    if (resumePosition == null) return 0;
-                    var strings = resumePosition.split("\\.", -1);
-                    return strings.length == 6 ? Integer.parseInt(strings[5]) : 0;
                 }
 
                 String source(int[] position) {
@@ -303,7 +300,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     Object rawSpecials = currentEntry.getClass().getMethod("getSpecialData").invoke(currentEntry);
                     if (!(rawSpecials instanceof List<?> specials)) { unavailable = true; partial = true; return; }
                     int[] start = parseResume();
-                    int startStage = resumeStage();
+                    int startStage = resumeStage;
                     boolean found = resumePosition == null;
                     if (start[0] > specials.size()) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                             "Immersive Engineering declarations changed; restart the lookup");
@@ -499,8 +496,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                                 + Integer.toString(y).length()) * 6;
                         Object rawDisplay = cellType.getMethod("displayList").invoke(cell);
                         if (!(rawDisplay instanceof List<?> displayList)) { opaque = true; partial = true; continue; }
-                        if (resumePosition != null && compare(refPosition, cursorRef) == 0 && resumeStage() == 1
-                                && nextCell == cellStart && variantStart >= displayList.size())
+                        if (resumePosition != null && compare(refPosition, cursorRef) == 0 && resumeStage == 1
+                                && nextCell == cellStart && !displayList.isEmpty() && variantStart >= displayList.size())
                             throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
                                     "Immersive Engineering layout changed; restart the lookup");
                         var alternatives = new ArrayList<Evidence.JsonValue>();

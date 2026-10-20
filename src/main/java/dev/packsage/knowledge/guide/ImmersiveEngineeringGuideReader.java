@@ -223,10 +223,10 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     return result;
                 }
 
-                boolean append(Map<String, Evidence.JsonValue> value, int count, int estimate, int[] following) {
+                boolean append(Map<String, Evidence.JsonValue> value, int count, int estimate, int[] current, int[] following) {
                     if (semanticRecords + count > MAX_RELATIONSHIP_RECORDS || bytes + estimate > MAX_RELATIONSHIP_BYTES
                             || !budget.value() || !budget.bytes(estimate)) {
-                        next = following;
+                        next = current;
                         partial = true;
                         return false;
                     }
@@ -383,7 +383,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                                 value.put("fluidId", new Evidence.JsonString(fluidId.toString()));
                                 int[] following = fluidIndex + 1 < fluids.length ? new int[] {specialIndex, 0, fluidIndex + 1, 0, 0}
                                         : new int[] {specialIndex + 1, 0, 0, 0, 0};
-                                if (!append(value, 1, 512 + id.length() * 6 + fluidId.toString().length() * 6, following)) return;
+                                if (!append(value, 1, 512 + id.length() * 6 + fluidId.toString().length() * 6,
+                                        position, following)) return;
                             }
                         } else { opaque = true; partial = true; }
                     }
@@ -411,7 +412,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                         value.put("kind", new Evidence.JsonString("recipe"));
                         value.put("recipeId", new Evidence.JsonString(recipeId.toString()));
                         estimate += recipeId.toString().length() * 6;
-                        return append(value, 1, estimate, following);
+                        return append(value, 1, estimate, position, following);
                     }
                     if (output) {
                         Object rawStack = type.getMethod("getResult").invoke(ref);
@@ -422,7 +423,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                         value.put("itemId", projected.values().get("itemId"));
                         if (projected.values().containsKey("components")) value.put("components", projected.values().get("components"));
                         estimate += Evidence.serialize(projected).length() * 6;
-                        return append(value, 1, estimate, following);
+                        return append(value, 1, estimate, position, following);
                     }
                     if (!layout) { opaque = true; partial = true; return true; }
                     Object rawCells = type.getMethod("getLayout").invoke(ref);
@@ -450,6 +451,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                         var alternatives = new ArrayList<Evidence.JsonValue>();
                         var available = MAX_RELATIONSHIP_RECORDS - semanticRecords - semanticCount - 1;
                         int copyCount = Math.min(displayList.size() - nextVariant, Math.max(0, available));
+                        if (!displayList.isEmpty() && copyCount == 0) break;
                         for (int variant = nextVariant; variant < nextVariant + copyCount; variant++) {
                             if (!budget.value()) { partial = true; break; }
                             Object rawAlternative = displayList.get(variant);
@@ -479,11 +481,13 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     }
                     value.put("kind", new Evidence.JsonString("layout"));
                     value.put("cells", new Evidence.JsonArray(cellValues));
+                    int[] layoutPosition = {position[0], position[1], position[2], cellStart, variantStart};
+                    value.put("sourcePosition", new Evidence.JsonString(source(layoutPosition)));
                     estimate += 256 + Evidence.serialize(new Evidence.JsonArray(cellValues)).length() * 6;
                     int[] afterLayout = nextCell < cells.length
                             ? new int[] {position[0], position[1], position[2], nextCell, nextVariant}
                             : following;
-                    boolean completed = append(value, semanticCount, estimate, afterLayout);
+                    boolean completed = append(value, semanticCount, estimate, layoutPosition, afterLayout);
                     return completed && (nextCell >= cells.length);
                 }
             }

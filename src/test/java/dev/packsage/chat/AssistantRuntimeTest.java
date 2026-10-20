@@ -25,7 +25,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -2103,10 +2102,11 @@ class AssistantRuntimeTest {
 
     @Test
     void failedNewChatCreationSettlesLoadingAndCanRetryBeforeSending() throws Exception {
-        AtomicBoolean failNextStoreTask = new AtomicBoolean();
+        AtomicBoolean deferStoreTasks = new AtomicBoolean();
+        java.util.ArrayDeque<Runnable> storeTasks = new java.util.ArrayDeque<>();
         ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-new-chat-failure"), task -> {
-            if (failNextStoreTask.compareAndSet(true, false)) throw new RejectedExecutionException("controlled store failure");
-            task.run();
+            if (deferStoreTasks.get()) storeTasks.addLast(task);
+            else task.run();
         });
         ChatContracts.Conversation saved = store.newConversation(WORLD).toCompletableFuture().join();
         store.appendTurn(WORLD, SCOPE, saved.id(), new ChatContracts.Turn(new ChatContracts.RequestId("saved-turn"),
@@ -2127,14 +2127,25 @@ class AssistantRuntimeTest {
         backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
         backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
 
-        failNextStoreTask.set(true);
+        assertEquals(saved.id(), runtime.view().conversation().id());
+        deferStoreTasks.set(true);
         runtime.newChat();
+        assertFalse(storeTasks.isEmpty(), "new chat creation should be queued in the store executor");
+        java.nio.file.Path latest = store.conversationPath(WORLD, saved.id()).resolveSibling("latest");
+        Files.delete(latest);
+        Files.createDirectory(latest);
+        Files.writeString(latest.resolve("occupied"), "keep the target directory non-empty");
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
 
+        assertFalse(store.errors().isEmpty(), "the queued creation should fail while replacing the occupied latest marker");
         assertFalse(runtime.view().readOnly());
         assertFalse(runtime.view().activity().equals("Loading session..."));
         assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("New chat")));
         String failedHolderId = runtime.view().conversation().id();
 
+        Files.delete(latest.resolve("occupied"));
+        Files.delete(latest);
+        deferStoreTasks.set(false);
         runtime.newChat();
         assertFalse(runtime.view().readOnly());
         assertFalse(runtime.view().conversation().id().startsWith("pending"));
@@ -2172,6 +2183,7 @@ class AssistantRuntimeTest {
         backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
         backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
 
+        assertEquals(saved.id(), runtime.view().conversation().id());
         deferStoreTasks.set(true);
         runtime.newChat();
         assertEquals(1, storeTasks.size());
@@ -2220,12 +2232,10 @@ class AssistantRuntimeTest {
         worldField.setAccessible(true);
         var controllerField = holder.getClass().getDeclaredField("controller");
         controllerField.setAccessible(true);
-        RequestController controller = (RequestController) controllerField.get(holder);
-
         assertEquals(WORLD.worldOrServer(), view.conversation().world().worldOrServer());
         assertEquals(WORLD, worldField.get(holder));
         assertEquals(view.conversation().id(), idField.get(holder));
-        assertEquals(view.conversation().id(), controller.view().conversation().id());
+        assertEquals(view.conversation().id(), ((RequestController) controllerField.get(holder)).view().conversation().id());
         assertFalse(view.readOnly());
         runtime.send("send in new current-world chat", false, false);
         assertEquals(1, backend.starts);
@@ -2237,10 +2247,12 @@ class AssistantRuntimeTest {
         AtomicBoolean holdNextClientTask = new AtomicBoolean();
         java.util.ArrayDeque<Runnable> heldClientTasks = new java.util.ArrayDeque<>();
         ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-deleted-completion-snapshot"), storeTasks::addLast);
-        ChatContracts.Conversation first = store.newConversation(WORLD).toCompletableFuture().join();
+        var firstCreation = store.newConversation(WORLD);
         while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
-        ChatContracts.Conversation second = store.newConversation(WORLD).toCompletableFuture().join();
+        ChatContracts.Conversation first = firstCreation.toCompletableFuture().join();
+        var secondCreation = store.newConversation(WORLD);
         while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        ChatContracts.Conversation second = secondCreation.toCompletableFuture().join();
         ChatContracts.SessionSummary firstSummary = new ChatContracts.SessionSummary(WORLD, first.id(), "A", "", Instant.EPOCH);
         ChatContracts.SessionSummary secondSummary = new ChatContracts.SessionSummary(WORLD, second.id(), "B", "", Instant.EPOCH);
         FakeBackend backend = new FakeBackend();
@@ -2394,9 +2406,8 @@ class AssistantRuntimeTest {
         backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
         backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
 
-        ChatContracts.SessionSummary loaded = runtime.sessions().toCompletableFuture().join().stream()
-                .filter(session -> session.id().equals(saved.id())).findFirst().orElseThrow();
-        assertEquals("First question", loaded.title());
+        assertEquals("First question", runtime.sessions().toCompletableFuture().join().stream()
+                .filter(session -> session.id().equals(saved.id())).findFirst().orElseThrow().title());
 
         runtime.send("Follow-up question", false, false);
 

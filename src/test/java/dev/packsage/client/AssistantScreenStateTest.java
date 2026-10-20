@@ -871,15 +871,13 @@ class AssistantScreenStateTest {
         assertTrue(screen.editLatest(new ChatContracts.RequestId("request")));
         screen.setInput("Edited question while reopening");
 
-        ChatContracts.View other = new ChatContracts.View(false, actions.view.signIn(), actions.view.paused(),
+        screen.refresh(new ChatContracts.View(false, actions.view.signIn(), actions.view.paused(),
                 new ChatContracts.Conversation("other", actions.view.conversation().world(), List.of(),
                         new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
-                actions.view.context(), List.of(), List.of(), List.of(), "", "", actions.view.activeWorld(), false);
-        screen.refresh(other);
-        ChatContracts.View loading = new ChatContracts.View(false, actions.view.signIn(), actions.view.paused(),
+                actions.view.context(), List.of(), List.of(), List.of(), "", "", actions.view.activeWorld(), false));
+        screen.refresh(new ChatContracts.View(false, actions.view.signIn(), actions.view.paused(),
                 actions.view.conversation(), actions.view.context(), actions.view.sources(), actions.view.navigationTargets(),
-                actions.view.errors(), "", "Loading session...", actions.view.activeWorld(), true, "", null, List.of(), null, List.of());
-        screen.refresh(loading);
+                actions.view.errors(), "", "Loading session...", actions.view.activeWorld(), true, "", null, List.of(), null, List.of()));
 
         assertEquals("Edited question while reopening", screen.input());
         screen.refresh(actions.view);

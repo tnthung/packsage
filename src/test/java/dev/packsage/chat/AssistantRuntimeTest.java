@@ -330,7 +330,7 @@ class AssistantRuntimeTest {
         assertEquals(1, captureCalls.get());
         assertEquals(1, knowledgeCalls.get());
         assertEquals(conversation.id(), runtime.view().conversation().id());
-        assertFalse(runtime.view().loading());
+        assertFalse(runtime.view().activity().equals("Loading session..."));
         runtime.signIn();
         backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
         backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
@@ -375,7 +375,7 @@ class AssistantRuntimeTest {
         assertEquals(1, captureCalls.get());
         assertEquals(1, knowledgeCalls.get());
         assertEquals(conversation.id(), runtime.view().conversation().id());
-        assertFalse(runtime.view().loading());
+        assertFalse(runtime.view().activity().equals("Loading session..."));
         runtime.signIn();
         backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
         backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
@@ -429,7 +429,7 @@ class AssistantRuntimeTest {
         assertEquals(originalWorldSessions, store.sessions().toCompletableFuture().join().stream()
                 .filter(session -> session.world().worldOrServer().equals(WORLD.worldOrServer())).count());
         assertEquals(nextWorld.worldOrServer(), runtime.view().activeWorld().worldOrServer());
-        assertFalse(runtime.view().loading());
+        assertFalse(runtime.view().activity().equals("Loading session..."));
     }
 
     @Test
@@ -447,13 +447,13 @@ class AssistantRuntimeTest {
 
         runtime.enterWorld(WORLD, SCOPE);
 
-        assertFalse(runtime.view().loading());
+        assertFalse(runtime.view().activity().equals("Loading session..."));
         assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("capture failed once")));
         assertFalse(conversation.id().equals(runtime.view().conversation().id()));
         runtime.openSession(summary);
 
         assertEquals(conversation.id(), runtime.view().conversation().id());
-        assertFalse(runtime.view().loading());
+        assertFalse(runtime.view().activity().equals("Loading session..."));
         assertEquals(2, captureCalls.get());
     }
 
@@ -485,13 +485,13 @@ class AssistantRuntimeTest {
 
         runtime.enterWorld(WORLD, SCOPE);
 
-        assertFalse(runtime.view().loading());
+        assertFalse(runtime.view().activity().equals("Loading session..."));
         assertTrue(runtime.view().errors().stream().anyMatch(error -> error.contains("metadata registration failed once")));
         assertFalse(conversation.id().equals(runtime.view().conversation().id()));
         runtime.openSession(summary);
 
         assertEquals(conversation.id(), runtime.view().conversation().id());
-        assertFalse(runtime.view().loading());
+        assertFalse(runtime.view().activity().equals("Loading session..."));
         assertEquals(2, captureCalls.get());
         assertEquals(2, knowledgeCalls.get());
         assertTrue(metadataCalls.get() >= 6);

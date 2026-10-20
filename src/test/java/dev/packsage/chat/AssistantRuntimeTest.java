@@ -182,6 +182,199 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void holderReconciliationRejectsAnOldReadAndPreservesANewerUnreadIdentity() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-holder-reconcile-order"), DIRECT);
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()),
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        String conversationId = runtime.view().conversation().id();
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+
+        runtime.send("Question A1", false, false);
+        String firstRequest = backend.requests.getFirst().requestId();
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer-a1", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A1", List.of())))), null));
+
+        var holdersField = AssistantRuntime.class.getDeclaredField("holders");
+        holdersField.setAccessible(true);
+        Object holder = ((Map<?, ?>) holdersField.get(runtime)).values().iterator().next();
+        var generationField = holder.getClass().getDeclaredField("viewReconciliationGeneration");
+        generationField.setAccessible(true);
+        var unreadField = holder.getClass().getDeclaredField("unreadRequestId");
+        unreadField.setAccessible(true);
+        var activeField = holder.getClass().getDeclaredField("active");
+        activeField.setAccessible(true);
+        var controllerField = holder.getClass().getDeclaredField("controller");
+        controllerField.setAccessible(true);
+        RequestController controller = (RequestController) controllerField.get(holder);
+        var reconcile = AssistantRuntime.class.getDeclaredMethod("reconcileHolderView", holder.getClass(),
+                ChatContracts.View.class, long.class, ChatContracts.RequestId.class);
+        reconcile.setAccessible(true);
+        ChatContracts.RequestId firstUnread = (ChatContracts.RequestId) unreadField.get(holder);
+        assertEquals(new ChatContracts.RequestId(firstRequest), firstUnread);
+
+        runtime.send("Question A2", false, false);
+        ChatContracts.View oldActiveRead = controller.view();
+        long oldActiveTicket = generationField.getLong(holder);
+        assertTrue(oldActiveRead.active());
+        assertEquals(firstUnread, unreadField.get(holder));
+        String secondRequest = backend.requests.getLast().requestId();
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer-a2", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A2", List.of())))), null));
+        assertFalse(runtime.view().active());
+        assertEquals(new ChatContracts.RequestId(secondRequest), unreadField.get(holder));
+
+        reconcile.invoke(runtime, holder, oldActiveRead, oldActiveTicket, firstUnread);
+        assertFalse(runtime.view().active());
+        assertFalse(activeField.getBoolean(holder));
+        assertEquals(new ChatContracts.RequestId(secondRequest), unreadField.get(holder));
+        ChatContracts.SessionSummary afterOldRead = runtime.sessions().toCompletableFuture().join().stream()
+                .filter(session -> session.id().equals(conversationId)).findFirst().orElseThrow();
+        assertFalse(afterOldRead.active());
+        assertEquals(new ChatContracts.RequestId(secondRequest), afterOldRead.unreadRequestId());
+
+        ChatContracts.RequestId expectedBeforeThirdMetadata = (ChatContracts.RequestId) unreadField.get(holder);
+        assertEquals(new ChatContracts.RequestId(secondRequest), expectedBeforeThirdMetadata);
+        ChatContracts.View completedA2Read = controller.view();
+        long ticketBeforeThirdMetadata = generationField.getLong(holder);
+        ChatContracts.View staleA2Read = new ChatContracts.View(false, completedA2Read.signIn(), completedA2Read.paused(),
+                new ChatContracts.Conversation(conversationId, WORLD, completedA2Read.conversation().turns().stream()
+                        .filter(turn -> !turn.requestId().equals(expectedBeforeThirdMetadata)).toList(),
+                        completedA2Read.conversation().outcome()), completedA2Read.context(), completedA2Read.sources(),
+                completedA2Read.navigationTargets(), completedA2Read.errors(), "", completedA2Read.activity(),
+                completedA2Read.activeWorld(), false, "", null, completedA2Read.activities(), null, List.of());
+        ChatContracts.RequestId thirdRequest = new ChatContracts.RequestId("metadata-only-a3");
+        ChatContracts.Turn thirdTurn = new ChatContracts.Turn(thirdRequest, "Question A3", "Answer A3", List.of(),
+                new ChatContracts.Context("", null, SCOPE), List.of(), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0, Instant.EPOCH);
+        store.appendTurn(WORLD, SCOPE, conversationId, thirdTurn).toCompletableFuture().join();
+        var recordCompletion = AssistantRuntime.class.getDeclaredMethod("recordCompletion", holder.getClass(),
+                ChatContracts.Turn.class);
+        recordCompletion.setAccessible(true);
+        recordCompletion.invoke(runtime, holder, thirdTurn);
+        assertEquals(thirdRequest, unreadField.get(holder));
+        assertEquals(ticketBeforeThirdMetadata, generationField.getLong(holder));
+        reconcile.invoke(runtime, holder, staleA2Read, ticketBeforeThirdMetadata, expectedBeforeThirdMetadata);
+        assertEquals(thirdRequest, unreadField.get(holder));
+        assertEquals(thirdRequest, runtime.sessions().toCompletableFuture().join().stream()
+                .filter(session -> session.id().equals(conversationId)).findFirst().orElseThrow().unreadRequestId());
+    }
+
+    @Test
+    void reservedStartSurvivesAnOldIdlePublicationAndSettlesAfterEarlyCompletion() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        var delayedControllerTasks = new java.util.ArrayDeque<Runnable>();
+        AtomicBoolean delaySettlement = new AtomicBoolean();
+        Executor controllerExecutor = task -> {
+            if (delaySettlement.get() && backend.starts > 0) delayedControllerTasks.addLast(task);
+            else task.run();
+        };
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-reserved-publication"), DIRECT);
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), controllerExecutor, DIRECT,
+                current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()),
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), MODEL.imageInput(),
+                MODEL.hostedSearch(), MODEL.contextTokens(), MODEL.outputTokens()));
+
+        var holdersField = AssistantRuntime.class.getDeclaredField("holders");
+        holdersField.setAccessible(true);
+        Object holder = ((Map<?, ?>) holdersField.get(runtime)).values().iterator().next();
+        var generationField = holder.getClass().getDeclaredField("viewReconciliationGeneration");
+        generationField.setAccessible(true);
+        var activeField = holder.getClass().getDeclaredField("active");
+        activeField.setAccessible(true);
+        var startingField = holder.getClass().getDeclaredField("requestStarting");
+        startingField.setAccessible(true);
+        var controllerField = holder.getClass().getDeclaredField("controller");
+        controllerField.setAccessible(true);
+        RequestController controller = (RequestController) controllerField.get(holder);
+        ChatContracts.View oldIdleRead = controller.view();
+        long oldIdleTicket = generationField.getLong(holder);
+        var reconcile = AssistantRuntime.class.getDeclaredMethod("reconcileHolderView", holder.getClass(),
+                ChatContracts.View.class, long.class, ChatContracts.RequestId.class);
+        reconcile.setAccessible(true);
+        var publish = AssistantRuntime.class.getDeclaredMethod("publishHolderView", holder.getClass(),
+                ChatContracts.View.class);
+        publish.setAccessible(true);
+
+        AtomicBoolean armed = new AtomicBoolean(true);
+        AtomicInteger barrierHits = new AtomicInteger();
+        AtomicReference<Throwable> barrierFailure = new AtomicReference<>();
+        Logger logger = (Logger) LogManager.getLogger("PackSage");
+        Level previousLevel = logger.getLevel();
+        AbstractAppender appender = new AbstractAppender("reserved-publication-dispatch", null, null, true,
+                Property.EMPTY_ARRAY) {
+            @Override
+            public void append(LogEvent event) {
+                if (event.getMessage().getFormattedMessage().contains("phase=runtime_dispatch")
+                        && armed.compareAndSet(true, false)) {
+                    barrierHits.incrementAndGet();
+                    try {
+                        assertTrue(generationField.getLong(holder) > oldIdleTicket);
+                        reconcile.invoke(runtime, holder, oldIdleRead, oldIdleTicket, null);
+                        assertTrue(startingField.getBoolean(holder));
+                        assertTrue(activeField.getBoolean(holder));
+                        publish.invoke(runtime, holder, oldIdleRead);
+                        assertTrue(startingField.getBoolean(holder));
+                        assertTrue(activeField.getBoolean(holder));
+                    } catch (Throwable failure) {
+                        barrierFailure.set(failure);
+                    }
+                }
+            }
+        };
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.INFO);
+        delaySettlement.set(true);
+        try {
+            runtime.send("reserved completion", false, false);
+        } finally {
+            logger.removeAppender(appender);
+            appender.stop();
+            logger.setLevel(previousLevel);
+        }
+
+        assertEquals(1, barrierHits.get());
+        assertNull(barrierFailure.get());
+        assertEquals(1, backend.starts);
+        assertFalse(delayedControllerTasks.isEmpty());
+        String requestId = backend.requests.getFirst().requestId();
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("reserved-answer", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Finished early", List.of())))), null));
+        assertTrue(startingField.getBoolean(holder));
+        assertTrue(activeField.getBoolean(holder));
+
+        delaySettlement.set(false);
+        while (!delayedControllerTasks.isEmpty()) delayedControllerTasks.removeFirst().run();
+        assertFalse(startingField.getBoolean(holder));
+        assertFalse(activeField.getBoolean(holder));
+        assertFalse(runtime.view().active());
+        assertEquals(1, backend.starts);
+        assertEquals(new ChatContracts.RequestId(requestId), store.openConversation(WORLD,
+                runtime.view().conversation().id()).toCompletableFuture().join().turns().getLast().requestId());
+    }
+
+    @Test
     void completionNoticeQueuesOnceWithoutAnOpenScreenAndSurvivesNewChat() throws Exception {
         java.util.ArrayDeque<Runnable> clientTasks = new java.util.ArrayDeque<>();
         List<ChatContracts.Turn> notices = new ArrayList<>();

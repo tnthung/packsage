@@ -728,6 +728,151 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void deletingInactiveHolderWaitsForItsPersistenceWithoutBlockingSelectedHolder() throws Exception {
+        java.util.ArrayDeque<Runnable> storeTasks = new java.util.ArrayDeque<>();
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-delete-inactive-store"), storeTasks::addLast);
+        var firstCreation = store.newConversation(WORLD);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        ChatContracts.Conversation first = firstCreation.toCompletableFuture().join();
+        var secondCreation = store.newConversation(WORLD);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        ChatContracts.Conversation second = secondCreation.toCompletableFuture().join();
+        ChatContracts.SessionSummary firstSummary = new ChatContracts.SessionSummary(WORLD, first.id(), "A", "", Instant.EPOCH);
+        ChatContracts.SessionSummary secondSummary = new ChatContracts.SessionSummary(WORLD, second.id(), "B", "", Instant.EPOCH);
+        FakeBackend backend = new FakeBackend();
+        AtomicInteger toolCalls = new AtomicInteger();
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(new Toolbox() {
+                    @Override public Metadata metadata() { return new Metadata("native", List.of(), true, List.of(), Map.of()); }
+                    @Override public CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Context context) {
+                        toolCalls.incrementAndGet();
+                        return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                                Evidence.Outcome.COMPLETE, null));
+                    }
+                }), current), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget(),
+                        prepared.submission().reasoningEffort()),
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.setSettings(PackSageSettings.defaults());
+        runtime.enterWorld(WORLD, SCOPE);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        runtime.openSession(firstSummary);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+
+        runtime.send("Question for A", false, false);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        String requestA = backend.requests.getLast().requestId();
+        runtime.openSession(secondSummary);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        runtime.send("Question for B", false, false);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        String requestB = backend.requests.getLast().requestId();
+        assertEquals(second.id(), runtime.view().conversation().id());
+        assertTrue(runtime.view().active());
+        assertTrue(runtime.deleteSession(secondSummary).toCompletableFuture().isCompletedExceptionally());
+
+        backend.emit(requestA, new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer-a", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A", List.of())))), null));
+        var deletion = runtime.deleteSession(firstSummary);
+        assertFalse(deletion.toCompletableFuture().isDone());
+        assertEquals(second.id(), runtime.view().conversation().id());
+        assertTrue(runtime.view().active());
+        assertTrue(runtime.steer("B follow-up"));
+        assertEquals(1, backend.steered.size());
+
+        ModelBackend.ToolCall toolCall = new ModelBackend.ToolCall("recipe-b", "plan_recipe",
+                "{\"identity\":\"minecraft:torch\",\"quantity\":1}");
+        backend.emit(requestB, new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, toolCall, List.of(), null));
+        assertEquals(1, toolCalls.get());
+        assertEquals(1, backend.results.size());
+        assertFalse(backend.results.getLast().error(), backend.results.getLast().serializedResult());
+        assertFalse(storeTasks.isEmpty(), "A's queued append must remain pending behind the controlled store executor");
+        storeTasks.removeFirst().run();
+        assertFalse(deletion.toCompletableFuture().isDone());
+        assertFalse(storeTasks.isEmpty(), "A's completion metadata remains ahead of its delete");
+        storeTasks.removeFirst().run();
+        assertFalse(deletion.toCompletableFuture().isDone());
+        assertFalse(storeTasks.isEmpty(), "the target delete is queued after A's persistence");
+
+        backend.emit(requestB, new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent("B follow-up"))),
+                toolCall, backend.results.getLast(), new ModelBackend.AssistantOutput("answer-b", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer B", List.of())))), null));
+
+        assertEquals(second.id(), runtime.view().conversation().id());
+        assertEquals(1, runtime.view().conversation().turns().size());
+        assertEquals("Answer B", runtime.view().conversation().turns().getFirst().answer());
+        assertFalse(deletion.toCompletableFuture().isDone());
+        storeTasks.removeFirst().run();
+        deletion.toCompletableFuture().join();
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+
+        backend.emit(requestA, new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "late A", null, List.of(), null));
+        backend.emit(requestA, new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        assertEquals(second.id(), runtime.view().conversation().id());
+        assertTrue(runtime.view().conversation().turns().stream().anyMatch(turn -> turn.answer().equals("Answer B")));
+        var summaries = store.sessions();
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        assertFalse(summaries.toCompletableFuture().join().stream().anyMatch(summary -> summary.id().equals(first.id())));
+        assertTrue(summaries.toCompletableFuture().join().stream().anyMatch(summary -> summary.id().equals(second.id())));
+        var persistedB = store.openConversation(WORLD, second.id());
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        assertEquals(1, persistedB.toCompletableFuture().join().turns().size());
+        assertEquals("Answer B", persistedB.toCompletableFuture().join().turns().getFirst().answer());
+    }
+
+    @Test
+    void reopeningTerminalHolderDuringScreenshotSaveKeepsTheCompletedTurn() throws Exception {
+        java.util.ArrayDeque<Runnable> storeTasks = new java.util.ArrayDeque<>();
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-screenshot-reopen-store"), storeTasks::addLast);
+        var conversationCreation = store.newConversation(WORLD);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        ChatContracts.Conversation conversation = conversationCreation.toCompletableFuture().join();
+        ChatContracts.SessionSummary summary = new ChatContracts.SessionSummary(WORLD, conversation.id(), "Question A", "", Instant.EPOCH);
+        FakeBackend backend = new FakeBackend();
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget(),
+                        prepared.submission().reasoningEffort()),
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.setSettings(PackSageSettings.defaults());
+        runtime.enterWorld(WORLD, SCOPE);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        runtime.send("Question A", true, false);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        String requestId = backend.requests.getLast().requestId();
+        backend.emit(requestId, new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer-a", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A", List.of())))), null));
+
+        assertEquals(1, storeTasks.size(), "screenshot media is queued before its turn append");
+        runtime.openSession(summary);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+
+        assertEquals(conversation.id(), runtime.view().conversation().id());
+        assertEquals(1, runtime.view().conversation().turns().size(),
+                "reopening while screenshot persistence is pending must retain the completed turn");
+        assertEquals("Answer A", runtime.view().conversation().turns().getFirst().answer());
+        var persisted = store.openConversation(WORLD, conversation.id());
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+        assertEquals(1, persisted.toCompletableFuture().join().turns().size());
+        assertEquals("Answer A", persisted.toCompletableFuture().join().turns().getFirst().answer());
+    }
+
+    @Test
     void previewAndSendUseTheSameCounterAndClampKnownModelLimits() throws Exception {
         FakeBackend backend = new FakeBackend();
         PackSageSettings settings = new PackSageSettings(true, false, 2, 100_000);

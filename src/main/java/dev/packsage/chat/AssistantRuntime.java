@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -121,6 +122,13 @@ public final class AssistantRuntime implements ChatActions {
                 sessionDeletion = false;
                 sessionDeletionGeneration++;
                 previous = List.copyOf(holders.values());
+                previous.forEach(holder -> {
+                    holder.loadGeneration++;
+                    if (holder.loading) {
+                        holder.loading = false;
+                        holder.creating = false;
+                    }
+                });
             }
         }
         previous.forEach(holder -> { if (holder.controller != null) holder.controller.worldChanged(); });
@@ -139,34 +147,105 @@ public final class AssistantRuntime implements ChatActions {
                     if (publish) publishCurrentView(epoch);
                     return;
                 }
-                Holder holder = reserveHolder(conversation.world(), conversation.id(), scope);
-                try {
-                    initializeHolder(holder);
-                    holder.scope = scope;
-                    holder.controller.showConversation(conversation, scope);
-                    holder.loaded = true;
-                    holder.loading = false;
-                } catch (RuntimeException setupFailure) {
-                    boolean publish;
-                    synchronized (stateLock) {
-                        if (epoch == worldEpoch && selectionGeneration == sessionSelectionGeneration && selected == null) {
-                            sessionLoading = false;
-                            runtimeErrors.add("Knowledge providers could not be refreshed: " + failureMessage(setupFailure));
-                        }
-                        publish = selectionGeneration == sessionSelectionGeneration && selected == null;
-                    }
-                    if (publish) publishCurrentView(epoch);
-                    return;
-                }
+                Holder holder;
+                long loadGeneration;
                 synchronized (stateLock) {
                     if (epoch != worldEpoch || selectionGeneration != sessionSelectionGeneration || selected != null || this.world == null
                             || !this.world.worldOrServer().equals(conversation.world().worldOrServer())) return;
-                    selected = holder;
-                    sessionLoading = false;
-                    newChatPending = false;
+                    HolderKey key = new HolderKey(conversation.world().worldOrServer(), conversation.id());
+                    holder = holders.get(key);
+                    if (holder == null) {
+                        holder = new Holder(conversation.world(), conversation.id(), worldScope);
+                        holders.put(key, holder);
+                    }
+                    holder.scope = worldScope;
+                    holder.loading = true;
+                    holder.creating = false;
+                    loadGeneration = ++holder.loadGeneration;
                 }
-                publishCurrentView(epoch);
-                refreshSessionList();
+                CompletionStage<List<ChatContracts.SessionSummary>> summaries;
+                try {
+                    summaries = store.sessions();
+                } catch (RuntimeException ignored) {
+                    summaries = CompletableFuture.completedFuture(List.of());
+                }
+                Holder loadingHolder = holder;
+                long holderLoadGeneration = loadGeneration;
+                summaries.whenCompleteAsync((storedSessions, summaryFailure) -> {
+                    synchronized (stateLock) {
+                        if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
+                                || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
+                                || loadingHolder.deleting || world == null
+                                || !world.worldOrServer().equals(conversation.world().worldOrServer())) return;
+                        if (summaryFailure == null && storedSessions != null) {
+                            ChatContracts.SessionSummary summary = storedSessions.stream().filter(value ->
+                                    value.world().worldOrServer().equals(conversation.world().worldOrServer())
+                                            && value.id().equals(conversation.id())).findFirst().orElse(null);
+                            if (summary != null) loadingHolder.unreadRequestId = summary.unreadRequestId();
+                        }
+                    }
+                    initializeHolder(loadingHolder).whenCompleteAsync((ignored, initializationFailure) -> {
+                        Throwable setupFailure = initializationFailure;
+                        Evidence.Scope attachmentScope = null;
+                        if (setupFailure == null) {
+                            synchronized (stateLock) {
+                                if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
+                                        || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
+                                        || loadingHolder.deleting || world == null
+                                        || !world.worldOrServer().equals(conversation.world().worldOrServer())) return;
+                                attachmentScope = worldScope;
+                                loadingHolder.scope = attachmentScope;
+                            }
+                            try {
+                                loadingHolder.controller.showConversation(conversation, attachmentScope);
+                            } catch (RuntimeException attachFailure) {
+                                setupFailure = attachFailure;
+                            }
+                        }
+                        if (setupFailure != null) {
+                            boolean publish;
+                            long currentEpoch;
+                            synchronized (stateLock) {
+                                if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
+                                        || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
+                                        || loadingHolder.deleting || world == null
+                                        || !world.worldOrServer().equals(conversation.world().worldOrServer())) return;
+                                loadingHolder.loading = false;
+                                if (selected == loadingHolder || selected == null && selectionGeneration == sessionSelectionGeneration) {
+                                    sessionLoading = false;
+                                    runtimeErrors.add("Knowledge providers could not be refreshed: " + failureMessage(setupFailure));
+                                } else {
+                                    loadingHolder.errors.add("Knowledge providers could not be refreshed: " + failureMessage(setupFailure));
+                                }
+                                publish = selected == loadingHolder || selected == null && selectionGeneration == sessionSelectionGeneration;
+                                currentEpoch = worldEpoch;
+                            }
+                            if (publish) publishCurrentView(currentEpoch);
+                            return;
+                        }
+                        boolean publish;
+                        long currentEpoch;
+                        synchronized (stateLock) {
+                            if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
+                                    || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
+                                    || loadingHolder.deleting || world == null
+                                    || !world.worldOrServer().equals(conversation.world().worldOrServer())) return;
+                            loadingHolder.loaded = true;
+                            loadingHolder.loading = false;
+                            loadingHolder.creating = false;
+                            if (selected == loadingHolder) sessionLoading = false;
+                            else if (selectionGeneration == sessionSelectionGeneration && selected == null) {
+                                selected = loadingHolder;
+                                sessionLoading = false;
+                            }
+                            newChatPending = false;
+                            publish = selected == loadingHolder;
+                            currentEpoch = worldEpoch;
+                        }
+                        if (publish) publishCurrentView(currentEpoch);
+                        refreshSessionList();
+                    }, clientExecutor);
+                }, clientExecutor);
             }, clientExecutor);
         } catch (RuntimeException failure) {
             boolean publish;
@@ -214,6 +293,13 @@ public final class AssistantRuntime implements ChatActions {
                 sessionSelectionGeneration++;
                 selected = null;
                 disconnect = List.copyOf(holders.values());
+                disconnect.forEach(holder -> {
+                    holder.loadGeneration++;
+                    if (holder.loading) {
+                        holder.loading = false;
+                        holder.creating = false;
+                    }
+                });
             }
         }
         disconnect.forEach(holder -> { if (holder.controller != null) holder.controller.disconnect(); });
@@ -429,6 +515,7 @@ public final class AssistantRuntime implements ChatActions {
         Holder holder;
         boolean startLoad;
         long epoch;
+        long loadGeneration = -1;
         synchronized (stateLock) {
             if (world == null) return;
             sessionSelectionGeneration++;
@@ -441,23 +528,15 @@ public final class AssistantRuntime implements ChatActions {
                 holders.put(new HolderKey(session.world().worldOrServer(), session.id()), holder);
             }
             if (holder.deleting) return;
-            holder.scope = worldScope;
+            if (!holder.active && !holder.requestStarting) holder.scope = worldScope;
             selected = holder;
             startLoad = !holder.loading && !holder.active && !holder.requestStarting;
-            holder.loading = startLoad || !holder.loaded;
+            if (startLoad) {
+                holder.loading = true;
+                loadGeneration = ++holder.loadGeneration;
+            }
             sessionLoading = holder.loading;
             newChatPending = false;
-        }
-        try {
-            initializeHolder(holder);
-        } catch (RuntimeException failure) {
-            synchronized (stateLock) {
-                holder.loading = false;
-                if (selected == holder) sessionLoading = false;
-                holder.errors.add("Knowledge providers could not be refreshed: " + failureMessage(failure));
-            }
-            publishCurrentView(epoch);
-            return;
         }
         if (!startLoad) {
             publishCurrentView(epoch);
@@ -466,27 +545,75 @@ public final class AssistantRuntime implements ChatActions {
         }
         publishCurrentView(epoch);
         Holder loadingHolder = holder;
-        store.openConversation(session.world(), session.id()).whenCompleteAsync((conversation, failure) -> {
-            if (failure == null) {
+        long holderLoadGeneration = loadGeneration;
+        initializeHolder(loadingHolder).whenCompleteAsync((ignored, initializationFailure) -> {
+            if (initializationFailure != null) {
+                boolean publish;
+                long selectedEpoch;
                 synchronized (stateLock) {
-                    loadingHolder.scope = worldScope;
+                    if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
+                            || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
+                            || loadingHolder.deleting) return;
+                    loadingHolder.loading = false;
+                    if (selected == loadingHolder) {
+                        sessionLoading = false;
+                        runtimeErrors.add("Knowledge providers could not be refreshed: " + failureMessage(initializationFailure));
+                    } else {
+                        loadingHolder.errors.add("Knowledge providers could not be refreshed: " + failureMessage(initializationFailure));
+                    }
+                    publish = selected == loadingHolder;
+                    selectedEpoch = worldEpoch;
                 }
-                loadingHolder.controller.showConversation(conversation, loadingHolder.scope);
-                loadingHolder.loaded = true;
+                if (publish) publishCurrentView(selectedEpoch);
+                return;
             }
-            long selectedEpoch;
-            boolean selectedHolder;
             synchronized (stateLock) {
-                loadingHolder.loading = false;
-                selectedHolder = selected == loadingHolder;
-                if (selectedHolder) sessionLoading = false;
-                if (failure != null) {
-                    loadingHolder.errors.add("Session could not be opened: " + failureMessage(failure));
-                }
-                selectedEpoch = worldEpoch;
+                if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
+                        || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
+                        || loadingHolder.deleting || world == null) return;
+                loadingHolder.scope = worldScope;
             }
-            if (selectedHolder) publishCurrentView(selectedEpoch);
-            refreshSessionList();
+            CompletionStage<ChatContracts.Conversation> opening;
+            try {
+                opening = store.openConversation(session.world(), session.id());
+            } catch (RuntimeException failure) {
+                opening = CompletableFuture.failedFuture(failure);
+            }
+            opening.whenCompleteAsync((conversation, openFailure) -> {
+                Throwable loadFailure = openFailure;
+                Evidence.Scope attachmentScope = null;
+                synchronized (stateLock) {
+                    if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
+                            || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
+                            || loadingHolder.deleting || world == null) return;
+                    if (loadFailure == null) {
+                        attachmentScope = worldScope;
+                        loadingHolder.scope = attachmentScope;
+                    }
+                }
+                if (loadFailure == null) {
+                    try {
+                        loadingHolder.controller.showConversation(conversation, attachmentScope);
+                    } catch (RuntimeException attachFailure) {
+                        loadFailure = attachFailure;
+                    }
+                }
+                boolean selectedHolder;
+                long selectedEpoch;
+                synchronized (stateLock) {
+                    if (epoch != worldEpoch || holders.get(new HolderKey(loadingHolder.world.worldOrServer(), loadingHolder.id)) != loadingHolder
+                            || loadingHolder.loadGeneration != holderLoadGeneration || !loadingHolder.loading
+                            || loadingHolder.deleting) return;
+                    if (loadFailure == null) loadingHolder.loaded = true;
+                    else loadingHolder.errors.add("Session could not be opened: " + failureMessage(loadFailure));
+                    loadingHolder.loading = false;
+                    selectedHolder = selected == loadingHolder;
+                    if (selectedHolder) sessionLoading = false;
+                    selectedEpoch = worldEpoch;
+                }
+                if (selectedHolder) publishCurrentView(selectedEpoch);
+                refreshSessionList();
+            }, clientExecutor);
         }, clientExecutor);
     }
 
@@ -855,27 +982,74 @@ public final class AssistantRuntime implements ChatActions {
                 && (current.loading && current.creating || current.loaded && !currentView.active()
                 && currentView.conversation().turns().isEmpty());
         if (reuse) {
+            boolean startNewChat;
             synchronized (stateLock) {
                 if (world == null || epoch != worldEpoch || !currentWorld.worldOrServer().equals(world.worldOrServer())) return;
                 current.scope = currentScope;
                 selected = current;
                 sessionLoading = current.loading;
                 newChatPending = false;
+                startNewChat = current.controller != null && current.loaded && !current.loading && !current.creating;
             }
-            if (current.controller != null) current.controller.newChat(currentWorld, currentScope);
+            if (startNewChat) current.controller.newChat(currentWorld, currentScope);
         } else {
             Holder created = new Holder(currentWorld, "pending-world:" + UUID.randomUUID(), currentScope);
             created.loading = true;
             created.creating = true;
+            long loadGeneration;
             synchronized (stateLock) {
                 if (world == null || epoch != worldEpoch || !currentWorld.worldOrServer().equals(world.worldOrServer())) return;
                 holders.put(new HolderKey(created.world.worldOrServer(), created.id), created);
                 selected = created;
                 sessionLoading = true;
                 newChatPending = false;
+                loadGeneration = ++created.loadGeneration;
             }
-            initializeHolder(created);
-            created.controller.newChat(currentWorld, currentScope, true);
+            long holderLoadGeneration = loadGeneration;
+            initializeHolder(created).whenCompleteAsync((ignored, initializationFailure) -> {
+                ChatContracts.WorldIdentity creationWorld = null;
+                Evidence.Scope creationScope = null;
+                if (initializationFailure == null) {
+                    synchronized (stateLock) {
+                        if (epoch != worldEpoch || holders.get(new HolderKey(created.world.worldOrServer(), created.id)) != created
+                                || created.loadGeneration != holderLoadGeneration || !created.loading || !created.creating
+                                || created.deleting || world == null
+                                || !world.worldOrServer().equals(created.world.worldOrServer())) return;
+                        creationWorld = world;
+                        creationScope = worldScope;
+                        created.scope = creationScope;
+                    }
+                }
+                RuntimeException creationFailure = initializationFailure instanceof RuntimeException runtimeFailure
+                        ? runtimeFailure : initializationFailure == null ? null : new IllegalStateException(initializationFailure);
+                if (creationFailure == null) {
+                    try {
+                        created.controller.newChat(creationWorld, creationScope, true);
+                    } catch (RuntimeException failure) {
+                        creationFailure = failure;
+                    }
+                }
+                if (creationFailure != null) {
+                    boolean publish;
+                    long currentEpoch;
+                    synchronized (stateLock) {
+                        if (epoch != worldEpoch || holders.get(new HolderKey(created.world.worldOrServer(), created.id)) != created
+                                || created.loadGeneration != holderLoadGeneration || !created.loading || !created.creating
+                                || created.deleting) return;
+                        created.loading = false;
+                        created.creating = false;
+                        if (selected == created) {
+                            sessionLoading = false;
+                            runtimeErrors.add("New chat could not be created: " + failureMessage(creationFailure));
+                        } else {
+                            created.errors.add("New chat could not be created: " + failureMessage(creationFailure));
+                        }
+                        publish = selected == created;
+                        currentEpoch = worldEpoch;
+                    }
+                    if (publish) publishCurrentView(currentEpoch);
+                }
+            }, clientExecutor);
         }
         publishCurrentView(epoch);
         refreshSessionList();
@@ -1312,33 +1486,41 @@ public final class AssistantRuntime implements ChatActions {
                 view.activeSentAt(), view.activities(), view.activeRequestId(), view.activeSteeringMessages());
     }
 
-    private Holder reserveHolder(ChatContracts.WorldIdentity world, String conversationId, Evidence.Scope scope) {
+    private CompletionStage<Void> initializeHolder(Holder holder) {
+        CompletableFuture<Void> initialization;
+        boolean initialize = false;
+        boolean ready;
         synchronized (stateLock) {
-            HolderKey key = new HolderKey(world.worldOrServer(), conversationId);
-            Holder holder = holders.get(key);
-            if (holder == null) {
-                holder = new Holder(world, conversationId, scope);
-                holders.put(key, holder);
+            ready = holder.controller != null;
+            if (ready) {
+                initialization = null;
+            } else {
+                if (holder.initialization == null || holder.initialization.isCompletedExceptionally()) {
+                    holder.initialization = new CompletableFuture<>();
+                    initialize = true;
+                }
+                initialization = holder.initialization;
             }
-            return holder;
         }
-    }
+        if (ready) return CompletableFuture.completedFuture(null);
+        if (!initialize) return initialization;
 
-    private void initializeHolder(Holder holder) {
-        synchronized (holder) {
-            if (holder.controller != null) return;
-            holder.capture = Objects.requireNonNull(captureFactory.apply(() -> holder.scope));
+        try {
+            GameplayContextCapture capture = Objects.requireNonNull(captureFactory.apply(() -> holder.scope));
+            KnowledgeService knowledge;
+            boolean knowledgeUnavailable = false;
+            String knowledgeError = null;
             try {
-                holder.knowledge = Objects.requireNonNull(knowledgeFactory.apply(() -> holder.scope));
+                knowledge = Objects.requireNonNull(knowledgeFactory.apply(() -> holder.scope));
             } catch (RuntimeException failure) {
-                holder.knowledge = new KnowledgeService(List.of(), () -> holder.scope);
-                holder.knowledgeUnavailable = true;
-                holder.errors.add("Knowledge providers could not be refreshed: " + failureMessage(failure));
+                knowledge = new KnowledgeService(List.of(), () -> holder.scope);
+                knowledgeUnavailable = true;
+                knowledgeError = "Knowledge providers could not be refreshed: " + failureMessage(failure);
             }
-            holder.historyAdapter = new HistoryAdapter(store, holder.world, () -> holder.scope);
-            if (!holder.knowledgeUnavailable) holder.knowledge.register(holder.historyAdapter);
-            holder.controller = new RequestController(store, backend, controllerExecutor,
-                    holder.capture::capture, holder.capture::cancel, ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
+            HistoryAdapter historyAdapter = new HistoryAdapter(store, holder.world, () -> holder.scope);
+            if (!knowledgeUnavailable) knowledge.register(historyAdapter);
+            RequestController controller = new RequestController(store, backend, controllerExecutor,
+                    capture::capture, capture::cancel, ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
                     request -> executeTool(holder, request), historyCounter, prepared -> {
                         ModelBackend.Request request = requestBuilder.apply(prepared);
                         String developerPrompt;
@@ -1347,10 +1529,22 @@ public final class AssistantRuntime implements ChatActions {
                         }
                         return new ModelBackend.Request(request.modelId(), developerPrompt == null
                                 ? request.instructions() : developerPrompt, request.input(),
-                                PackSageTools.definitions(holder.knowledge.metadata()), request.searchMode(), request.requestId(),
+                                PackSageTools.definitions(knowledge.metadata()), request.searchMode(), request.requestId(),
                                 request.outputBudget(), request.reasoningEffort());
                     }, view -> publishHolderView(holder, view), turn -> recordCompletion(holder, turn));
+            synchronized (stateLock) {
+                holder.capture = capture;
+                holder.knowledge = knowledge;
+                holder.historyAdapter = historyAdapter;
+                holder.knowledgeUnavailable = knowledgeUnavailable;
+                if (knowledgeError != null) holder.errors.add(knowledgeError);
+                holder.controller = controller;
+            }
+            initialization.complete(null);
+        } catch (RuntimeException failure) {
+            initialization.completeExceptionally(failure);
         }
+        return initialization;
     }
 
     private ChatContracts.View idleView() {
@@ -1399,6 +1593,8 @@ public final class AssistantRuntime implements ChatActions {
         private volatile boolean requestStarting;
         private volatile boolean creating;
         private volatile boolean knowledgeUnavailable;
+        private CompletableFuture<Void> initialization;
+        private long loadGeneration;
         private final List<String> errors = new ArrayList<>();
         private final Map<ChatContracts.RequestId, Long> requestAuthEpochs = new java.util.LinkedHashMap<>();
         private final Set<ChatContracts.RequestId> notifiedCompletions = new java.util.LinkedHashSet<>();

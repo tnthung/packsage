@@ -1538,7 +1538,7 @@ public final class AssistantScreen extends Screen {
             pendingQuestion = "";
             if (!next.active()) pendingSentAt = null;
         }
-        if (!selectionChanged && (completed || historyLoaded)) followOnCompletion = followBottom;
+        if (completed || historyLoaded) followOnCompletion = followBottom;
         layout();
         if (sessionsChanged) loadSessions();
     }

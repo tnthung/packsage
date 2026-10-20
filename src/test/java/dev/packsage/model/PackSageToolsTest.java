@@ -79,6 +79,8 @@ class PackSageToolsTest {
         var definitions = PackSageTools.definitions();
         var document = definitions.stream().filter(value -> value.name().equals("search_document")).findFirst().orElseThrow().description();
         assertTrue(document.contains("one case-insensitive literal phrase"));
+        assertTrue(document.contains("Exact item or recipe IDs can find declared guide relationships"));
+        assertTrue(document.contains("for an item's Ponder scenes, use its exact registry ID as query with provider ponder"));
         assertTrue(document.contains("same query, filters and limit"));
         var recipe = definitions.stream().filter(value -> value.name().equals("search_recipe")).findFirst().orElseThrow().description();
         assertTrue(recipe.contains("outputItem without text"));

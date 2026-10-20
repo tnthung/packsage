@@ -2,11 +2,13 @@ package dev.packsage.knowledge.guide;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
@@ -185,11 +187,46 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
         if (split < 1 || split == id.length() - 1)
             throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "invalid GuideME page identity");
         try {
+            String textPosition = fragmentPosition;
+            int metadataPosition = 0;
+            List<Integer> astRelationshipPath = new ArrayList<>();
+            int relationshipFlags = 0;
+            boolean firstRelationshipRead = fragmentPosition == null;
+            boolean textDone = false;
+            if (fragmentPosition != null && fragmentPosition.startsWith("g~")) {
+                String[] cursor = fragmentPosition.split("~", -1);
+                if (cursor.length != 5 || fragmentPosition.length() > 2048)
+                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid GuideME fragment position");
+                try {
+                    metadataPosition = Integer.parseInt(cursor[1]);
+                    if (!cursor[2].equals("-")) {
+                        if (!cursor[2].isEmpty()) {
+                            for (String index : cursor[2].split("\\.")) {
+                                int childIndex = Integer.parseInt(index);
+                                if (childIndex < 0 || astRelationshipPath.size() >= 64)
+                                    throw new NumberFormatException();
+                                astRelationshipPath.add(childIndex);
+                            }
+                        }
+                    } else astRelationshipPath = null;
+                    relationshipFlags = Integer.parseInt(cursor[3]);
+                } catch (NumberFormatException failure) {
+                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid GuideME fragment position");
+                }
+                if (metadataPosition < -1 || relationshipFlags < 0 || relationshipFlags > 63)
+                    throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid GuideME fragment position");
+                textDone = cursor[4].equals("-");
+                textPosition = textDone ? null : cursor[4];
+            } else if (fragmentPosition != null) {
+                metadataPosition = -1;
+                astRelationshipPath = null;
+                firstRelationshipRead = false;
+            }
             String positionKind = null;
             String pathText = "";
             int offset = 0;
-            if (fragmentPosition != null) {
-                String[] position = fragmentPosition.split(":", -1);
+            if (textPosition != null) {
+                String[] position = textPosition.split(":", -1);
                 if (position.length < 2 || !List.of("s", "a", "l").contains(position[0]))
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid GuideME fragment position");
                 positionKind = position[0];
@@ -201,7 +238,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                 } else if (position.length != 2) {
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid GuideME fragment position");
                 }
-                if (offset < 0 || fragmentPosition.length() > 2048)
+                if (offset < 0 || textPosition.length() > 2048)
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid GuideME fragment position");
             }
             var requestedPath = new ArrayList<Integer>();
@@ -220,10 +257,322 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
             var page = guide.getClass().getMethod("getParsedPage", ResourceLocation.class).invoke(guide,
                     ResourceLocation.parse(id.substring(split + 1)));
             if (page == null) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "GuideME page is no longer loaded");
+            var pageResourceId = ResourceLocation.parse(id.substring(split + 1));
             Object root = Class.forName("guideme.compiler.ParsedGuidePage", false, getClass().getClassLoader())
                     .getMethod("getAstRoot").invoke(page);
             Class<?> parentType = Class.forName("guideme.libs.mdast.model.MdAstParent", false, getClass().getClassLoader());
             Class<?> literalType = Class.forName("guideme.libs.mdast.model.MdAstLiteral", false, getClass().getClassLoader());
+            Class<?> elementType = Class.forName("guideme.libs.mdast.mdx.model.MdxJsxElementFields", false, getClass().getClassLoader());
+            Class<?> attributeType = Class.forName("guideme.libs.mdast.mdx.model.MdxJsxAttribute", false, getClass().getClassLoader());
+            int initialMetadataPosition = metadataPosition;
+            List<Integer> initialAstRelationshipPath = astRelationshipPath;
+            int initialRelationshipFlags = relationshipFlags;
+            class Relationships {
+                final List<Evidence.JsonValue> items = new ArrayList<>();
+                final List<Evidence.JsonValue> recipes = new ArrayList<>();
+                int nextMetadata = initialMetadataPosition;
+                List<Integer> nextAst = initialAstRelationshipPath;
+                int flags = initialRelationshipFlags;
+                int records;
+                int bytes;
+                int chargeSize;
+                boolean stopped;
+
+                int escapedLength(String value) {
+                    int length = 2;
+                    for (int index = 0; index < value.length(); index++) {
+                        char character = value.charAt(index);
+                        length += character == '"' || character == '\\' || character == '\b' || character == '\f'
+                                || character == '\n' || character == '\r' || character == '\t' ? 2
+                                : character <= 0x1f || character == '<' || character == '>' || character == '&'
+                                || character == '=' || character == '\'' || character == '\u2028' || character == '\u2029' ? 6
+                                : Character.isHighSurrogate(character) && index + 1 < value.length()
+                                && Character.isLowSurrogate(value.charAt(index + 1)) ? 4
+                                : character <= 0x7f ? 1 : character <= 0x7ff ? 2 : 3;
+                        if (Character.isHighSurrogate(character) && index + 1 < value.length()
+                                && Character.isLowSurrogate(value.charAt(index + 1))) index++;
+                    }
+                    return length;
+                }
+
+                boolean charge(String... values) {
+                    int size = 144;
+                    for (String value : values) size += escapedLength(value);
+                    chargeSize = size;
+                    if (size > 8 * 1024 || bytes + size > 8 * 1024 || !budget.bytes(size)) return false;
+                    bytes += size;
+                    return true;
+                }
+
+                void readMetadata() throws ReflectiveOperationException {
+                    if (nextMetadata < 0) return;
+                    if (!budget.value()) return;
+                    Object frontmatter = page.getClass().getMethod("getFrontmatter").invoke(page);
+                    if (frontmatter == null) { nextMetadata = -1; return; }
+                    if (!budget.value()) return;
+                    Object additional = frontmatter.getClass().getMethod("additionalProperties").invoke(frontmatter);
+                    if (!(additional instanceof Map<?, ?> properties)) { nextMetadata = -1; return; }
+                    if (!budget.value()) return;
+                    if (!properties.containsKey("item_ids")) { nextMetadata = -1; return; }
+                    flags |= 1;
+                    if (!budget.value()) return;
+                    Object declarations = properties.get("item_ids");
+                    if (!(declarations instanceof List<?> values)) {
+                        flags |= 4;
+                        nextMetadata = -1;
+                        return;
+                    }
+                    for (int index = nextMetadata; index < values.size(); index++) {
+                        if (records >= 16) { nextMetadata = index; return; }
+                        if (!budget.value()) { nextMetadata = index; return; }
+                        Object declaration = values.get(index);
+                        if (!(declaration instanceof String itemText) || itemText.isBlank() || itemText.length() > 512) {
+                            flags |= 4;
+                            nextMetadata = index + 1;
+                            continue;
+                        }
+                        ResourceLocation itemId = ResourceLocation.tryParse(itemText.indexOf(':') < 0
+                                ? pageResourceId.getNamespace() + ":" + itemText : itemText);
+                        if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) {
+                            flags |= 4;
+                            nextMetadata = index + 1;
+                            continue;
+                        }
+                        String sourcePosition = "frontmatter:item_ids:" + index;
+                        if (!charge("kind", "associated", "sourcePosition", sourcePosition,
+                                "itemId", itemId.toString())) {
+                            if (budget.exhausted() || chargeSize <= 8 * 1024) {
+                                nextMetadata = index;
+                                return;
+                            }
+                            flags |= 4;
+                            nextMetadata = index + 1;
+                            continue;
+                        }
+                        items.add(new Evidence.JsonObject(Map.of(
+                                "kind", new Evidence.JsonString("associated"),
+                                "sourcePosition", new Evidence.JsonString(sourcePosition),
+                                "itemId", new Evidence.JsonString(itemId.toString()))));
+                        records++;
+                        nextMetadata = index + 1;
+                    }
+                    nextMetadata = -1;
+                }
+
+                String encodePath(List<Integer> path) {
+                    var encoded = new StringBuilder();
+                    for (int index : path) {
+                        if (!encoded.isEmpty()) encoded.append('.');
+                        encoded.append(index);
+                    }
+                    return encoded.toString();
+                }
+
+                List<Integer> successor(List<Integer> path, List<Object> ancestors) throws ReflectiveOperationException {
+                    Object current = ancestors.getLast();
+                    if (parentType.isInstance(current)) {
+                        if (!budget.value()) return null;
+                        var values = (List<?>) parentType.getMethod("children").invoke(current);
+                        if (!values.isEmpty()) {
+                            if (path.size() < 64) {
+                                var childPath = new ArrayList<>(path);
+                                childPath.add(0);
+                                return childPath;
+                            }
+                            flags |= 2 | 8;
+                        }
+                    }
+                    for (int depth = path.size() - 1; depth >= 0; depth--) {
+                        Object parent = ancestors.get(depth);
+                        if (!parentType.isInstance(parent) || !budget.value()) return null;
+                        var values = (List<?>) parentType.getMethod("children").invoke(parent);
+                        if (path.get(depth) + 1 < values.size()) {
+                            var siblingPath = new ArrayList<>(path.subList(0, depth));
+                            siblingPath.add(path.get(depth) + 1);
+                            return siblingPath;
+                        }
+                    }
+                    return List.of();
+                }
+
+                void scan() throws ReflectiveOperationException {
+                    while (nextAst != null) {
+                        var path = nextAst;
+                        var ancestors = new ArrayList<Object>();
+                        Object current = root;
+                        ancestors.add(root);
+                        for (int childIndex : path) {
+                            if (!parentType.isInstance(current) || !budget.value()) {
+                                flags |= 2;
+                                stopped = true;
+                                return;
+                            }
+                            var values = (List<?>) parentType.getMethod("children").invoke(current);
+                            if (childIndex >= values.size())
+                                throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR,
+                                        "GuideME page structure changed; restart the lookup");
+                            current = values.get(childIndex);
+                            ancestors.add(current);
+                        }
+                        if (!budget.value()) {
+                            flags |= 2;
+                            stopped = true;
+                            return;
+                        }
+                        boolean supported = parentType.isInstance(current) || literalType.isInstance(current)
+                                || elementType.isInstance(current);
+                        if (!supported) flags |= 2 | 8;
+                        List<Integer> following = successor(path, ancestors);
+                        if (following == null) {
+                            flags |= 2;
+                            stopped = true;
+                            return;
+                        }
+                        nextAst = following.isEmpty() ? null : following;
+                        if (!supported) continue;
+                        if (path.size() > 64) {
+                            flags |= 2 | 8;
+                            continue;
+                        }
+                        if (elementType.isInstance(current)) {
+                            flags |= 2;
+                            if (records >= 16) {
+                                nextAst = path;
+                                stopped = true;
+                                return;
+                            }
+                            String tag = String.valueOf(elementType.getMethod("name").invoke(current));
+                            Object nativeTagsObject = Class.forName("guideme.compiler.tags.RecipeCompiler", false,
+                                    getClass().getClassLoader()).getConstructor().newInstance();
+                            Object nativeTags = nativeTagsObject.getClass().getMethod("getTagNames").invoke(nativeTagsObject);
+                            if (!(nativeTags instanceof Set<?> tagSet) || !tagSet.contains(tag)) {
+                                flags |= 8;
+                            } else {
+                                var attributes = (List<?>) elementType.getMethod("attributes").invoke(current);
+                                String idValue = null;
+                                String fallbackText = null;
+                                boolean malformed = false;
+                                for (Object attribute : attributes) {
+                                    if (!budget.value()) {
+                                        nextAst = path;
+                                        flags |= 2;
+                                        stopped = true;
+                                        return;
+                                    }
+                                    if (!attributeType.isInstance(attribute)) { malformed = true; continue; }
+                                    String name = String.valueOf(attribute.getClass().getField("name").get(attribute));
+                                    if (!name.equals("id") && !name.equals("fallbackText")) { malformed = true; continue; }
+                                    if (!attribute.getClass().getMethod("hasStringValue").invoke(attribute).equals(Boolean.TRUE)) {
+                                        malformed = true;
+                                        continue;
+                                    }
+                                    String value = (String) attribute.getClass().getMethod("getStringValue").invoke(attribute);
+                                    if (value == null || value.length() > 2048) { malformed = true; continue; }
+                                    if (name.equals("id")) {
+                                        if (idValue != null) malformed = true;
+                                        else idValue = value;
+                                    } else {
+                                        if (fallbackText != null) malformed = true;
+                                        else fallbackText = value;
+                                    }
+                                }
+                                String kind = tag.equals("Recipe") ? "recipe" : "output_item";
+                                String sourcePosition = "ast:" + encodePath(path);
+                                String targetKey = null;
+                                String targetId = null;
+                                if (idValue == null || idValue.isBlank()) malformed = true;
+                                else if (idValue.length() > 512) malformed = true;
+                                else {
+                                    ResourceLocation target = ResourceLocation.tryParse(idValue.indexOf(':') < 0
+                                            ? pageResourceId.getNamespace() + ":" + idValue : idValue);
+                                    if (target == null) malformed = true;
+                                    else if (tag.equals("Recipe")) {
+                                        targetKey = "recipeId";
+                                        targetId = target.toString();
+                                    } else if (BuiltInRegistries.ITEM.containsKey(target)) {
+                                        targetKey = "itemId";
+                                        targetId = target.toString();
+                                    }
+                                    else malformed = true;
+                                }
+                                if (malformed) flags |= 8;
+                                boolean charged = targetKey == null
+                                        ? fallbackText == null ? charge("kind", kind, "sourcePosition", sourcePosition, "tag", tag)
+                                        : charge("kind", kind, "sourcePosition", sourcePosition, "tag", tag,
+                                        "fallbackText", fallbackText)
+                                        : fallbackText == null ? charge("kind", kind, "sourcePosition", sourcePosition,
+                                        "tag", tag, targetKey, targetId)
+                                        : charge("kind", kind, "sourcePosition", sourcePosition, "tag", tag,
+                                        "fallbackText", fallbackText, targetKey, targetId);
+                                if (!charged) {
+                                    if (budget.exhausted()) {
+                                        nextAst = path;
+                                        flags |= 2;
+                                        stopped = true;
+                                        return;
+                                    }
+                                    if (chargeSize > 8 * 1024) flags |= 8;
+                                    else {
+                                        nextAst = path;
+                                        flags |= 2;
+                                        stopped = true;
+                                        return;
+                                    }
+                                } else {
+                                    var record = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+                                    record.put("kind", new Evidence.JsonString(kind));
+                                    record.put("sourcePosition", new Evidence.JsonString(sourcePosition));
+                                    record.put("tag", new Evidence.JsonString(tag));
+                                    if (fallbackText != null) record.put("fallbackText", new Evidence.JsonString(fallbackText));
+                                    if (targetKey != null) record.put(targetKey, new Evidence.JsonString(targetId));
+                                    recipes.add(new Evidence.JsonObject(record));
+                                    records++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            var relationships = new Relationships();
+            if (relationships.nextMetadata >= 0) relationships.readMetadata();
+            if (relationships.nextMetadata < 0 && relationships.nextAst != null) {
+                if (relationships.records < 16) {
+                    relationships.scan();
+                    if (!relationships.stopped) {
+                        relationships.nextAst = null;
+                        relationships.flags |= 2;
+                    }
+                } else {
+                    relationships.flags |= 2;
+                }
+            }
+            if (relationships.nextAst != null) relationships.flags |= 2;
+            if (relationships.nextMetadata >= 0) relationships.flags |= 16;
+            else relationships.flags &= ~16;
+            if (relationships.nextAst != null) relationships.flags |= 32;
+            else relationships.flags &= ~32;
+            var relationshipValues = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+            if ((relationships.flags & 1) != 0 && (firstRelationshipRead || !relationships.items.isEmpty()
+                    || (relationships.flags & 20) != 0)) {
+                var group = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+                group.put("coverage", new Evidence.JsonString((relationships.flags & 20) != 0
+                        ? "PARTIAL" : "COMPLETE"));
+                group.put("values", new Evidence.JsonArray(relationships.items));
+                if ((relationships.flags & 20) != 0)
+                    group.put("detail", new Evidence.JsonString("GuideME item declarations were invalid, opaque or remain unread"));
+                relationshipValues.put("items", new Evidence.JsonObject(group));
+            }
+            if ((relationships.flags & 2) != 0 && (firstRelationshipRead || !relationships.recipes.isEmpty()
+                    || (relationships.flags & 40) != 0)) {
+                var group = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+                group.put("coverage", new Evidence.JsonString((relationships.flags & 40) != 0
+                        ? "PARTIAL" : "COMPLETE"));
+                group.put("values", new Evidence.JsonArray(relationships.recipes));
+                if ((relationships.flags & 40) != 0)
+                    group.put("detail", new Evidence.JsonString("GuideME recipe tags were unsupported, malformed or remain unread"));
+                relationshipValues.put("recipes", new Evidence.JsonObject(group));
+            }
+            var relationshipObject = new Evidence.JsonObject(relationshipValues);
             class Walker {
                 Object found;
                 List<Integer> foundPath;
@@ -302,13 +651,13 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                 }
             }
             var walker = new Walker();
-            if (fragmentPosition == null) walker.findFirst(root, new ArrayList<>(), 0);
-            else if (positionKind.equals("s")) {
+            if (!textDone && textPosition == null) walker.findFirst(root, new ArrayList<>(), 0);
+            else if (!textDone && positionKind.equals("s")) {
                 var ancestors = new ArrayList<Object>();
                 Object seed = walker.locate(root, requestedPath, ancestors);
                 if (walker.resumePath == null) walker.findFirst(seed, new ArrayList<>(requestedPath), requestedPath.size());
-            } else if (positionKind.equals("a")) walker.findNext(requestedPath);
-            else {
+            } else if (!textDone && positionKind.equals("a")) walker.findNext(requestedPath);
+            else if (!textDone) {
                 var ancestors = new ArrayList<Object>();
                 walker.found = walker.locate(root, requestedPath, ancestors);
                 walker.foundPath = List.copyOf(requestedPath);
@@ -316,10 +665,16 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "GuideME text node changed; restart the lookup");
             }
             if (walker.found == null) {
-                String next = walker.resumePath == null ? null : walker.encode("s", walker.resumePath, 0);
+                String textNext = walker.resumePath == null ? null : walker.encode("s", walker.resumePath, 0);
+                String next = relationships.nextMetadata >= 0 || relationships.nextAst != null || textNext != null
+                        ? "g~" + relationships.nextMetadata + "~"
+                        + (relationships.nextAst == null ? "-" : relationships.encodePath(relationships.nextAst))
+                        + "~" + relationships.flags
+                        + "~" + (textNext == null ? "-" : textNext) : null;
+                String detail = walker.partial ? "GuideME AST traversal reached its bound or an unsupported node" : null;
                 return new Fragment("", id + "|" + (fragmentPosition == null ? "first" : fragmentPosition), 0,
-                        next, walker.partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                        walker.partial ? "GuideME AST traversal reached its bound or an unsupported node" : null);
+                        next, walker.partial || relationships.nextMetadata >= 0 || relationships.nextAst != null
+                        ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, detail, relationshipObject);
             }
             String value = String.valueOf(literalType.getMethod("value").invoke(walker.found));
             int startOffset = positionKind != null && positionKind.equals("l") ? offset : 0;
@@ -339,14 +694,17 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
             if (!budget.bytes((copyEnd - copyStart) * 6))
                 throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "GuideME text fragment exceeds the remaining read budget");
             String text = value.substring(copyStart, copyEnd);
-            String nextPosition = copyEnd < value.length() ? walker.encode("l", walker.foundPath, copyEnd)
+            String textNext = copyEnd < value.length() ? walker.encode("l", walker.foundPath, copyEnd)
                     : walker.encode("a", walker.foundPath, 0);
+            String nextPosition = "g~" + relationships.nextMetadata + "~"
+                    + (relationships.nextAst == null ? "-" : relationships.encodePath(relationships.nextAst)) + "~"
+                    + relationships.flags + "~" + textNext;
             String detail = walker.overlap < expectedOverlap
                     ? "GuideME fragment overlap was shortened by the output or byte bound"
                     : walker.partial ? "GuideME AST contains unsupported nodes" : null;
             return new Fragment(text, id + "|" + walker.encode("l", walker.foundPath, startOffset),
                     walker.overlap, nextPosition, walker.partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                    detail);
+                    detail, relationshipObject);
         } catch (Toolbox.Failure failure) {
             throw failure;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) {

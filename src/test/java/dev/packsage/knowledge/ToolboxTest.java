@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -73,6 +74,59 @@ class ToolboxTest {
                     new Toolbox.Context(() -> SCOPE, Map.of(), registry, new Toolbox.DocumentBudget(), null)).toCompletableFuture().join());
             assertEquals(Toolbox.Code.NOT_HANDLED, ((Toolbox.Failure) failure.getCause()).code());
         }
+    }
+
+    @Test
+    void providerQualifiedRelationshipSearchAndFreshReadStayWithTheOwningAdapter() {
+        var relationships = new AtomicReference<>(Evidence.deserializeObject(
+                "{\"items\":{\"coverage\":\"COMPLETE\",\"values\":[{\"kind\":\"associated\",\"itemId\":\"minecraft:diamond\"}]}}"));
+        var registry = new AdapterRegistry();
+        registry.register(new Adapter("other_guide"));
+        registry.register(new Adapter("relationship_guide") {
+            @Override public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Context context) {
+                var source = new Evidence.Source(SCOPE, id, "fixture-1", "guide:entry", 1, java.time.Instant.EPOCH,
+                        Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+                return CompletableFuture.completedFuture(new Evidence.Result(List.of(new Evidence.Record(source,
+                        Evidence.RecordKind.GUIDE, "Entry", new Evidence.JsonObject(Map.of(
+                                "relationships", relationships.get())), List.of())), Evidence.Coverage.COMPLETE,
+                        Evidence.Outcome.COMPLETE, null));
+            }
+
+            @Override public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Context context) {
+                var reference = context.reference(request);
+                var source = new Evidence.Source(SCOPE, reference.providerId(), "fixture-1", reference.sourceHandle(), 1,
+                        java.time.Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                        Evidence.Authority.LOADED, List.of());
+                return CompletableFuture.completedFuture(new Evidence.Result(List.of(new Evidence.Record(source,
+                        reference.kind(), "Entry", new Evidence.JsonObject(Map.of("relationships", relationships.get())),
+                        List.of())), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
+            }
+        });
+        var context = new Toolbox.Context(() -> SCOPE, Map.of("relationship_guide:guide:entry", new Toolbox.Reference(
+                "relationship_guide", "guide:entry", Evidence.RecordKind.GUIDE, SCOPE)), registry,
+                new Toolbox.DocumentBudget(), null);
+        var searchArguments = new Evidence.JsonObject(Map.of("query", new Evidence.JsonString("minecraft:diamond"),
+                "filter", new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("relationship_guide")))));
+        var search = new PackSageTools.ReadRequest("search_document", searchArguments, SCOPE);
+
+        var found = registry.dispatch(search, context).toCompletableFuture().join();
+
+        assertEquals("relationship_guide", found.records().getFirst().source().providerId());
+        assertTrue(Evidence.serialize((Evidence.JsonObject) found.records().getFirst().payload().values().get("relationships"))
+                .contains("minecraft:diamond"));
+        relationships.set(Evidence.deserializeObject(
+                "{\"items\":{\"coverage\":\"COMPLETE\",\"values\":[{\"kind\":\"associated\",\"itemId\":\"minecraft:emerald\"}]}}"));
+        var read = new PackSageTools.ReadRequest("read_evidence", new Evidence.JsonObject(Map.of("handles",
+                new Evidence.JsonArray(List.of(new Evidence.JsonString("relationship_guide:guide:entry"))))), SCOPE);
+        var fresh = registry.dispatch(read, context).toCompletableFuture().join();
+
+        assertEquals("relationship_guide", fresh.records().getFirst().source().providerId());
+        assertTrue(Evidence.serialize((Evidence.JsonObject) fresh.records().getFirst().payload().values().get("relationships"))
+                .contains("minecraft:emerald"));
+        var invalid = new PackSageTools.ReadRequest("read_evidence", new Evidence.JsonObject(Map.of("handles",
+                new Evidence.JsonArray(List.of(new Evidence.JsonString("relationship_guide:guessed"))))), SCOPE);
+        var failure = assertThrows(CompletionException.class, () -> registry.dispatch(invalid, context).toCompletableFuture().join());
+        assertEquals(Toolbox.Code.INVALID_REFERENCE, ((Toolbox.Failure) failure.getCause()).code());
     }
 
     @Test

@@ -79,11 +79,17 @@ public interface GuideDocumentReader {
     }
 
     record Fragment(String text, String sourcePosition, int overlapChars, String nextPosition,
-                    Evidence.Coverage coverage, String detail) {
+                    Evidence.Coverage coverage, String detail, Evidence.JsonObject relationships) {
+        public Fragment(String text, String sourcePosition, int overlapChars, String nextPosition,
+                        Evidence.Coverage coverage, String detail) {
+            this(text, sourcePosition, overlapChars, nextPosition, coverage, detail, new Evidence.JsonObject(java.util.Map.of()));
+        }
+
         public Fragment {
             Objects.requireNonNull(text);
             Objects.requireNonNull(sourcePosition);
             Objects.requireNonNull(coverage);
+            Objects.requireNonNull(relationships);
             if (overlapChars < 0 || overlapChars > text.length()) throw new IllegalArgumentException("invalid fragment overlap");
         }
     }

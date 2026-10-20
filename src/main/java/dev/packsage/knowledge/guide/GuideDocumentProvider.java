@@ -36,6 +36,12 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
     private static final int MAX_PROVENANCE_ITEMS = 8;
     private static final int MAX_PROVENANCE_CHARS = 256;
     private static final int MAX_DETAIL_CHARS = 2048;
+    private static final int MAX_RELATIONSHIP_BYTES = 8 * 1024;
+    private static final int MAX_RELATIONSHIP_RECORDS = 16;
+    private static final int MAX_RELATIONSHIP_DEPTH = 64;
+    private static final java.util.Set<String> RELATIONSHIP_GROUPS = java.util.Set.of("items", "recipes", "prerequisites");
+    private static final java.util.Set<String> RELATIONSHIP_IDENTITIES = java.util.Set.of("itemId", "tagId", "recipeId",
+            "fluidId", "entryId", "advancementId", "categoryId", "modId");
     private static final int MAX_CURSORS = 128;
     private static final long CURSOR_TTL_NANOS = java.util.concurrent.TimeUnit.MINUTES.toNanos(5);
 
@@ -443,11 +449,12 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
                         stopped = true;
                         break;
                     }
-                    coverage = mergeCoverage(coverage, fragment.coverage());
+                    var fragmentCoverage = mergeCoverage(fragment.coverage(), validateRelationships(fragment.relationships()));
+                    coverage = mergeCoverage(coverage, fragmentCoverage);
                     if (fragment.detail() != null) details.add(boundedDetail(fragment.detail()));
                     var text = fragment.text();
                     var matches = titleMatches || query.isEmpty() || containsNewText(text.toLowerCase(Locale.ROOT), query,
-                            fragment.overlapChars());
+                            fragment.overlapChars()) || relationshipMatches(fragment.relationships(), query);
                     if (matches) {
                         var record = documentRecord(scope, candidate, fragment);
                         records.add(record);
@@ -506,7 +513,8 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
     private Evidence.Record documentRecord(Evidence.Scope scope, GuideDocumentReader.Candidate candidate,
                                            GuideDocumentReader.Fragment fragment) {
         validateCandidate(candidate);
-        var coverage = mergeCoverage(candidate.coverage(), fragment.coverage());
+        var coverage = mergeCoverage(candidate.coverage(),
+                mergeCoverage(fragment.coverage(), validateRelationships(fragment.relationships())));
         if (fragment.nextPosition() != null) coverage = mergeCoverage(coverage, Evidence.Coverage.PARTIAL);
         var title = boundedTitle(candidate.title(), new ArrayList<>());
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
@@ -514,6 +522,7 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
         payload.put("title", new Evidence.JsonString(title));
         payload.put("text", new Evidence.JsonString(fragment.text()));
         payload.put("fragment", new Evidence.JsonString(fragment.sourcePosition()));
+        if (!fragment.relationships().values().isEmpty()) payload.put("relationships", fragment.relationships());
         payload.put("complete", new Evidence.JsonBoolean(fragment.nextPosition() == null && coverage == Evidence.Coverage.COMPLETE));
         payload.put("provenance", new Evidence.JsonArray(candidate.provenance().stream().limit(MAX_PROVENANCE_ITEMS)
                 .map(value -> (Evidence.JsonValue) new Evidence.JsonString(value.length() > MAX_PROVENANCE_CHARS
@@ -554,6 +563,192 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
             throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned an invalid or unbounded fragment");
         }
         validateCoverage(fragment.coverage());
+        validateRelationships(fragment.relationships());
+    }
+
+    private Evidence.Coverage validateRelationships(Evidence.JsonObject relationships) {
+        if (relationships.values().isEmpty()) return Evidence.Coverage.COMPLETE;
+        if (relationships.values().keySet().stream().anyMatch(key -> !RELATIONSHIP_GROUPS.contains(key))) {
+            throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned an unknown relationship group");
+        }
+        int[] limits = {0, 0};
+        int valueCount = 0;
+        var coverage = Evidence.Coverage.COMPLETE;
+        for (var group : relationships.values().values()) {
+            if (!(group instanceof Evidence.JsonObject object)
+                    || !(object.values().get("coverage") instanceof Evidence.JsonString coverageValue)
+                    || !(object.values().get("values") instanceof Evidence.JsonArray values)
+                    || object.values().keySet().stream().anyMatch(key -> !java.util.Set.of("coverage", "values", "detail").contains(key))) {
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned a malformed relationship group");
+            }
+            Evidence.Coverage groupCoverage;
+            try {
+                groupCoverage = Evidence.Coverage.valueOf(coverageValue.value());
+            } catch (IllegalArgumentException failure) {
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned invalid relationship coverage");
+            }
+            if (groupCoverage == Evidence.Coverage.ERROR) validateCoverage(groupCoverage);
+            if (object.values().containsKey("detail")
+                    && (!(object.values().get("detail") instanceof Evidence.JsonString detail) || detail.value().length() > MAX_DETAIL_CHARS)) {
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned invalid relationship detail");
+            }
+            if ((groupCoverage == Evidence.Coverage.PARTIAL || groupCoverage == Evidence.Coverage.OPAQUE)
+                    && (!(object.values().get("detail") instanceof Evidence.JsonString detail) || detail.value().isBlank())) {
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                        "incomplete guide relationship group requires an explanation");
+            }
+            valueCount += values.values().size();
+            if (valueCount > MAX_RELATIONSHIP_RECORDS) {
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned too many relationship records");
+            }
+            for (var value : values.values()) {
+                if (!(value instanceof Evidence.JsonObject)) {
+                    throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned a malformed relationship value");
+                }
+            }
+            coverage = mergeCoverage(coverage, groupCoverage == Evidence.Coverage.UNAVAILABLE
+                    ? Evidence.Coverage.PARTIAL : groupCoverage);
+        }
+        validateRelationshipValue(relationships, 0, limits, null, false, false);
+        return coverage;
+    }
+
+    private void validateRelationshipValue(Evidence.JsonValue value, int depth, int[] limits,
+                                           String groupName, boolean countArrayElements, boolean inComponents) {
+        if (depth > MAX_RELATIONSHIP_DEPTH) {
+            throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned an over-deep relationship value");
+        }
+        if (value instanceof Evidence.JsonObject object) {
+            limits[0] += 2;
+            if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide reader returned oversized relationships");
+            boolean first = true;
+            for (var entry : object.values().entrySet()) {
+                if (!first) {
+                    limits[0]++;
+                    if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                            "guide reader returned oversized relationships");
+                }
+                first = false;
+                addRelationshipStringBytes(entry.getKey(), limits);
+                limits[0]++;
+                if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                        "guide reader returned oversized relationships");
+                var nestedGroup = depth == 0 ? entry.getKey() : groupName;
+                boolean countElements = !inComponents && (entry.getKey().equals("values")
+                        || entry.getKey().equals("alternatives")
+                        || nestedGroup.equals("prerequisites") && entry.getKey().equals("children"));
+                validateRelationshipValue(entry.getValue(), depth + 1, limits, nestedGroup, countElements,
+                        inComponents || entry.getKey().equals("components"));
+            }
+        } else if (value instanceof Evidence.JsonArray array) {
+            if (countArrayElements && array.values().size() > MAX_RELATIONSHIP_RECORDS - limits[1]) {
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned too many relationship records");
+            }
+            limits[0] += 2;
+            if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide reader returned oversized relationships");
+            boolean first = true;
+            for (var nested : array.values()) {
+                if (!first) {
+                    limits[0]++;
+                    if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                            "guide reader returned oversized relationships");
+                }
+                first = false;
+                if (countArrayElements && ++limits[1] > MAX_RELATIONSHIP_RECORDS) {
+                    throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                            "guide reader returned too many relationship records");
+                }
+                validateRelationshipValue(nested, depth + 1, limits, groupName, false, inComponents);
+            }
+        } else if (value instanceof Evidence.JsonString string && string.value().length() > MAX_RELATIONSHIP_BYTES) {
+            throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned an oversized relationship value");
+        } else if (value instanceof Evidence.JsonString string) {
+            addRelationshipStringBytes(string.value(), limits);
+        } else if (value instanceof Evidence.JsonNumber number) {
+            var decimal = number.value();
+            long estimatedLength = (long) decimal.precision() + Math.abs((long) decimal.scale()) + 16;
+            if (estimatedLength > MAX_RELATIONSHIP_BYTES) {
+                throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED, "guide reader returned an oversized relationship number");
+            }
+            limits[0] += decimal.toString().length();
+            if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide reader returned oversized relationships");
+        } else if (value instanceof Evidence.JsonBoolean booleanValue) {
+            limits[0] += booleanValue.value() ? 4 : 5;
+            if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide reader returned oversized relationships");
+        } else if (value instanceof Evidence.JsonNull) {
+            limits[0] += 4;
+            if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide reader returned oversized relationships");
+        }
+    }
+
+    private void addRelationshipStringBytes(String value, int[] limits) {
+        limits[0] += 2;
+        if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                "guide reader returned oversized relationships");
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            if (character == '"' || character == '\\' || character == '\b' || character == '\f'
+                    || character == '\n' || character == '\r' || character == '\t'
+                    || character <= 0x1f || character == '<' || character == '>' || character == '&'
+                    || character == '=' || character == '\'' || character == '\u2028' || character == '\u2029') {
+                limits[0] += character == '"' || character == '\\' || character == '\b' || character == '\f'
+                        || character == '\n' || character == '\r' || character == '\t' ? 2 : 6;
+            } else if (Character.isHighSurrogate(character) && index + 1 < value.length()
+                    && Character.isLowSurrogate(value.charAt(index + 1))) {
+                limits[0] += 4;
+                index++;
+            } else if (character <= 0x7f) limits[0]++;
+            else if (character <= 0x7ff) limits[0] += 2;
+            else limits[0] += 3;
+            if (limits[0] > MAX_RELATIONSHIP_BYTES) throw new Toolbox.Failure(Toolbox.Code.EXTRACTION_FAILED,
+                    "guide reader returned oversized relationships");
+        }
+    }
+
+    private boolean relationshipMatches(Evidence.JsonObject relationships, String query) {
+        for (var group : relationships.values().values()) {
+            var values = (Evidence.JsonArray) ((Evidence.JsonObject) group).values().get("values");
+            for (var value : values.values()) {
+                if (relationshipIdentityMatches(value, query)) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean relationshipIdentityMatches(Evidence.JsonValue value, String query) {
+        if (value instanceof Evidence.JsonObject object) {
+            for (var entry : object.values().entrySet()) {
+                if (RELATIONSHIP_IDENTITIES.contains(entry.getKey())) {
+                    if (identityValueMatches(entry.getValue(), query)) return true;
+                }
+                if (entry.getKey().equals("alternatives") && entry.getValue() instanceof Evidence.JsonArray alternatives) {
+                    for (var alternative : alternatives.values()) {
+                        if (alternative instanceof Evidence.JsonString string
+                                && string.value().toLowerCase(Locale.ROOT).contains(query)) return true;
+                        if (alternative instanceof Evidence.JsonObject && relationshipIdentityMatches(alternative, query)) return true;
+                    }
+                } else if (!entry.getKey().equals("components")
+                        && relationshipIdentityMatches(entry.getValue(), query)) return true;
+            }
+        } else if (value instanceof Evidence.JsonArray array) {
+            for (var nested : array.values()) {
+                if (nested instanceof Evidence.JsonObject && relationshipIdentityMatches(nested, query)) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean identityValueMatches(Evidence.JsonValue value, String query) {
+        if (value instanceof Evidence.JsonString string) return string.value().toLowerCase(Locale.ROOT).contains(query);
+        if (value instanceof Evidence.JsonArray array) {
+            for (var nested : array.values()) if (identityValueMatches(nested, query)) return true;
+        }
+        return false;
     }
 
     private void validateCoverage(Evidence.Coverage coverage) {

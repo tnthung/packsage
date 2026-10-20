@@ -10,6 +10,8 @@ import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.GroundingInstructions;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.knowledge.jei.JeiProvider;
+import dev.packsage.knowledge.guide.GuideDocumentProvider;
+import dev.packsage.knowledge.guide.ModonomiconGuideReader;
 import dev.packsage.knowledge.jei.PackSageJeiPlugin;
 import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
@@ -333,6 +335,27 @@ class ClientAssistantTest {
         assertFalse(ClientAssistant.versionMatches(ClientAssistant.MODONOMICON_VERSION, "1.120.7+mc1.20.1"));
         assertFalse(ClientAssistant.versionMatches(ClientAssistant.ARTIFACTS_VERSION, "13.2.5-FORGE"));
         assertFalse(ClientAssistant.versionMatches(ClientAssistant.RELICS_VERSION, "unknown"));
+    }
+
+    @Test
+    void modonomiconFactorySelectsExactlyOneReaderAcrossBothNativeApiCutovers() throws Exception {
+        var readerField = GuideDocumentProvider.class.getDeclaredField("reader");
+        readerField.setAccessible(true);
+        var versions = Map.of(
+                "1.98.1", "ModonomiconLegacyGuideReader",
+                "1.100.99", "ModonomiconLegacyGuideReader",
+                "1.101.0", "ModonomiconIntermediateGuideReader",
+                "1.101.99", "ModonomiconIntermediateGuideReader",
+                "1.102.0", "ModonomiconGuideReader",
+                "1.120.7", "ModonomiconGuideReader");
+
+        for (var version : versions.entrySet()) {
+            var provider = ModonomiconGuideReader.forMinecraft(() -> new Evidence.Scope("world", "en_us", "player",
+                    "runtime", 1), Runnable::run, version.getKey());
+            assertEquals("modonomicon", provider.id());
+            assertEquals(version.getKey(), provider.status().version());
+            assertEquals(version.getValue(), readerField.get(provider).getClass().getSimpleName(), version.getKey());
+        }
     }
 
     @Test

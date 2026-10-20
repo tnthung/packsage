@@ -64,6 +64,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -228,9 +229,15 @@ class ModonomiconGuideReaderTest {
             fixture.unlock(secondParent, List.of());
             fixture.unlock(entry, List.of(0));
 
-            var fragment = new ModonomiconGuideReader("1.120.7").readFragment(fixture.identity(entry), null, 1024,
-                    new Toolbox.DocumentBudget());
-            var prerequisites = relationshipValues(fragment, "prerequisites");
+            var reader = new ModonomiconGuideReader("1.120.7");
+            var fragment = reader.readFragment(fixture.identity(entry), null, 1024, new Toolbox.DocumentBudget());
+            var prerequisites = new ArrayList<>(relationshipValues(fragment, "prerequisites"));
+            for (var fragmentIndex = 0; fragment.nextPosition() != null && fragmentIndex < 10; fragmentIndex++) {
+                var nextPosition = fragment.nextPosition();
+                fragment = reader.readFragment(fixture.identity(entry), nextPosition, 1024, new Toolbox.DocumentBudget());
+                prerequisites.addAll(relationshipValues(fragment, "prerequisites"));
+            }
+            assertNull(fragment.nextPosition());
             var conditionValues = prerequisites.stream().filter(value -> "condition".equals(jsonString(value, "kind"))).toList();
             var childCounts = conditionValues.stream().map(value -> jsonNumber(value, "childCount")).filter(java.util.Objects::nonNull).toList();
             var conditionPaths = conditionValues.stream().map(value -> value.values().get("path")).toList();
@@ -328,15 +335,251 @@ class ModonomiconGuideReaderTest {
                     + relationshipValues(first, "prerequisites").size() <= 16);
             assertEquals("PARTIAL", jsonString((Evidence.JsonObject) first.relationships().values().get("items"), "coverage"));
             assertTrue(first.nextPosition() != null && !first.nextPosition().isBlank());
-            var second = reader.readFragment(fixture.identity(entry), first.nextPosition(), 1024, new Toolbox.DocumentBudget());
             var allValues = new ArrayList<Evidence.JsonObject>(firstValues);
-            allValues.addAll(relationshipValues(second, "items"));
+            var last = first;
+            for (var fragmentIndex = 0; last.nextPosition() != null && fragmentIndex < 8; fragmentIndex++) {
+                var nextPosition = last.nextPosition();
+                last = reader.readFragment(fixture.identity(entry), nextPosition, 1024, new Toolbox.DocumentBudget());
+                allValues.addAll(relationshipValues(last, "items"));
+            }
             var sourcePositions = allValues.stream().map(value -> jsonString(value, "sourcePosition")).toList();
 
             assertEquals(18, sourcePositions.size());
             assertEquals(18, new HashSet<>(sourcePositions).size());
-            assertEquals("COMPLETE", jsonString((Evidence.JsonObject) second.relationships().values().get("items"), "coverage"));
-            assertNull(second.nextPosition());
+            assertEquals("COMPLETE", jsonString((Evidence.JsonObject) last.relationships().values().get("items"), "coverage"));
+            assertNull(last.nextPosition());
+        }
+    }
+
+    @Test
+    void nativeRelationshipContinuationSeeksPastMoreThanThePerCallSourceBudgetWhileTextContinues() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var pages = new ArrayList<BookPage>();
+            var unlockedPages = new ArrayList<Integer>();
+            for (var index = 0; index < 1100; index++) {
+                pages.add(spotlight(new ItemStack(Items.BREAD)));
+                unlockedPages.add(index);
+            }
+            var longText = "0123456789abcdef".repeat(1024);
+            pages.add(new BookTextPage(new BookTextHolder(Component.literal(longText)), new BookTextHolder(""),
+                    false, true, null, null));
+            unlockedPages.add(1100);
+            var entry = fixture.entry("fixture:long_relationships", "Long relationships", pages,
+                    new BookTrueCondition(), List.of(), null, false, false);
+            fixture.unlock(entry, unlockedPages);
+            var reader = new ModonomiconGuideReader("1.120.7");
+            var itemPositions = new ArrayList<String>();
+            var text = new StringBuilder();
+            String position = null;
+
+            for (var fragmentIndex = 0; fragmentIndex < 220; fragmentIndex++) {
+                var previousPosition = position;
+                var fragment = reader.readFragment(fixture.identity(entry), position, 256, new Toolbox.DocumentBudget());
+                itemPositions.addAll(relationshipValues(fragment, "items").stream()
+                        .map(value -> jsonString(value, "sourcePosition")).toList());
+                text.append(fragment.text().substring(fragment.overlapChars()));
+                assertTrue(relationshipValues(fragment, "items").size()
+                        + relationshipValues(fragment, "recipes").size()
+                        + relationshipValues(fragment, "prerequisites").size() <= 16);
+                position = fragment.nextPosition();
+                if (position == null) break;
+                assertNotEquals(previousPosition, position, "each fresh fragment must advance its unread source position");
+            }
+
+            assertNull(position, "all relationship records and the pending text must finish within the bounded calls");
+            assertEquals(1100, itemPositions.size());
+            assertEquals(1100, new HashSet<>(itemPositions).size());
+            assertEquals(longText, text.toString());
+        }
+    }
+
+    @Test
+    void conditionDepthBoundAlsoAppliesWhenSeekingPastAnEarlierDeepSubtree() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            BookCondition deep = new BookTrueCondition();
+            for (var depth = 0; depth < 3000; depth++)
+                deep = new BookAndCondition(Component.literal("deep"), new BookCondition[]{deep});
+            var children = new BookCondition[18];
+            children[0] = deep;
+            for (var index = 1; index < children.length; index++) children[index] = new BookTrueCondition();
+            var page = new BookTextPage(new BookTextHolder(""), new BookTextHolder(""), false, true, null, null);
+            var entry = fixture.entry("fixture:deep_condition", "Deep condition", List.of(page),
+                    new BookAndCondition(Component.literal("root"), children), List.of(), null, false, false);
+            fixture.unlock(entry, List.of(0));
+            var reader = new ModonomiconGuideReader("1.120.7");
+            var sawOpaquePrerequisites = false;
+            String position = null;
+
+            for (var fragmentIndex = 0; fragmentIndex < 20; fragmentIndex++) {
+                var previousPosition = position;
+                var fragment = reader.readFragment(fixture.identity(entry), position, 128, new Toolbox.DocumentBudget());
+                var group = (Evidence.JsonObject) fragment.relationships().values().get("prerequisites");
+                if (group != null && "OPAQUE".equals(jsonString(group, "coverage"))) {
+                    sawOpaquePrerequisites = true;
+                    var detail = jsonString(group, "detail");
+                    assertTrue(detail != null && !detail.isBlank() && detail.length() <= 2048);
+                }
+                position = fragment.nextPosition();
+                if (position == null) break;
+                assertNotEquals(previousPosition, position);
+            }
+
+            assertTrue(sawOpaquePrerequisites, "the over-depth native subtree must stay conservatively opaque");
+            assertNull(position, "seeking the later native siblings must not recurse through the pruned subtree");
+        }
+    }
+
+    @Test
+    void nativeCategoryAndPageStatesRespectTheLockedPageContentGate() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var lockedText = new BookTextPage(new BookTextHolder("Secret title"), new BookTextHolder("Secret body"),
+                    false, true, null, new BookAdvancementCondition(Component.literal("locked page"),
+                    ResourceLocation.parse("fixture:locked_page_condition")));
+            var visibleSpotlight = spotlight(new ItemStack(Items.BREAD));
+            var lockedRecipe = new FixtureRecipePage(ResourceLocation.parse("fixture:hidden_recipe"), null);
+            var entry = fixture.entry("fixture:page_states", "Page states", List.of(lockedText, visibleSpotlight, lockedRecipe),
+                    new BookTrueCondition(), List.of(), null, false, false);
+            fixture.unlock(entry, List.of(1));
+            var player = fixture.fakeMinecraft.player;
+            var unlocks = BookUnlockStateManager.get();
+            assertTrue(unlocks.isUnlockedFor(player, fixture.category));
+            assertFalse(unlocks.isUnlockedFor(player, lockedText));
+            assertTrue(unlocks.isUnlockedFor(player, visibleSpotlight));
+            assertFalse(unlocks.isUnlockedFor(player, lockedRecipe));
+
+            var fragment = new ModonomiconGuideReader("1.120.7").readFragment(fixture.identity(entry), null, 512,
+                    new Toolbox.DocumentBudget());
+            var prerequisites = relationshipValues(fragment, "prerequisites");
+            var states = prerequisites.stream().filter(value -> "state".equals(jsonString(value, "kind"))).toList();
+            var pageStates = states.stream().filter(value -> "page".equals(jsonString(value, "scope")))
+                    .map(value -> jsonString(value, "state")).toList();
+
+            assertTrue(states.stream().anyMatch(value -> "category".equals(jsonString(value, "scope"))
+                    && "UNLOCKED".equals(jsonString(value, "state"))));
+            assertTrue(states.stream().anyMatch(value -> "entry".equals(jsonString(value, "scope"))
+                    && "UNLOCKED".equals(jsonString(value, "state"))));
+            assertEquals(List.of("LOCKED", "UNLOCKED", "LOCKED"), pageStates);
+            assertTrue(fragment.text().isEmpty());
+            assertFalse(fragment.text().contains("Secret"));
+            assertFalse(prerequisites.stream().anyMatch(value -> "condition".equals(jsonString(value, "kind"))
+                    && "page".equals(jsonString(value, "scope"))
+                    && "fixture:locked_page_condition".equals(jsonString(value, "advancementId"))));
+            assertFalse(relationshipValues(fragment, "items").stream()
+                    .anyMatch(value -> "page:0".equals(jsonString(value, "sourcePosition"))));
+            assertTrue(relationshipValues(fragment, "items").stream()
+                    .anyMatch(value -> "page:1".equals(jsonString(value, "sourcePosition"))));
+            assertTrue(relationshipValues(fragment, "recipes").isEmpty());
+            for (var groupName : List.of("items", "recipes", "prerequisites")) {
+                var group = (Evidence.JsonObject) fragment.relationships().values().get(groupName);
+                assertEquals("PARTIAL", jsonString(group, "coverage"));
+                var detail = jsonString(group, "detail");
+                assertTrue(detail != null && !detail.isBlank() && detail.length() <= 2048);
+            }
+        }
+    }
+
+    @Test
+    void lockedCategoryRejectsCandidatesAndFragmentsBeforeReadingEntryContent() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var entry = fixture.entry("fixture:locked_category", "Locked category", List.of(
+                    spotlight(new ItemStack(Items.NETHER_STAR))), new BookTrueCondition(), List.of(), null, false, false);
+            fixture.unlock(entry, List.of(0));
+            var unlockedCategories = fixture.unlockStates.unlockedCategories.get(ModonomiconFixture.BOOK_ID);
+            assertTrue(unlockedCategories.remove(ModonomiconFixture.CATEGORY_ID));
+            var reader = new ModonomiconGuideReader("1.120.7");
+            var candidates = reader.candidates(null, 16, new Toolbox.DocumentBudget());
+
+            assertFalse(candidates.candidates().stream().anyMatch(candidate -> candidate.id().equals(fixture.identity(entry))));
+            var failure = assertThrows(Toolbox.Failure.class, () -> reader.readFragment(fixture.identity(entry), null, 256,
+                    new Toolbox.DocumentBudget()));
+            assertEquals(Toolbox.Code.INVALID_REFERENCE, failure.code());
+        }
+    }
+
+    @Test
+    void freshReadObservesChangedParentsConditionsPagesAndUnlockStateForTheSameIdentity() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var firstParent = fixture.entry("fixture:first_parent", "First parent", List.of(), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            var secondParent = fixture.entry("fixture:second_parent", "Second parent", List.of(), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            fixture.unlock(firstParent, List.of());
+            fixture.unlock(secondParent, List.of());
+            var firstPage = new BookTextPage(new BookTextHolder("First title"), new BookTextHolder("First body"),
+                    false, true, null, new BookAdvancementCondition(Component.literal("first page"),
+                    ResourceLocation.parse("fixture:first_page_condition")));
+            var firstEntry = fixture.entry("fixture:fresh_entry", "Fresh entry", List.of(firstPage),
+                    new BookAdvancementCondition(Component.literal("first entry"), ResourceLocation.parse("fixture:first_entry_condition")),
+                    List.of(firstParent), null, false, false);
+            fixture.unlock(firstEntry, List.of());
+            var reader = new ModonomiconGuideReader("1.120.7");
+            var first = reader.readFragment(fixture.identity(firstEntry), null, 512, new Toolbox.DocumentBudget());
+            var firstRelationships = relationshipValues(first, "prerequisites");
+            assertTrue(firstRelationships.stream().anyMatch(value -> "fixture:first_parent".equals(jsonString(value, "entryId"))));
+            assertTrue(firstRelationships.stream().anyMatch(value -> "fixture:first_entry_condition".equals(jsonString(value, "advancementId"))));
+            assertFalse(firstRelationships.stream().anyMatch(value -> "fixture:first_page_condition".equals(jsonString(value, "advancementId"))));
+
+            var replacementPage = new BookTextPage(new BookTextHolder("Replacement title"), new BookTextHolder("Replacement body"),
+                    false, true, null, new BookAdvancementCondition(Component.literal("replacement page"),
+                    ResourceLocation.parse("fixture:replacement_page_condition")));
+            var replacement = fixture.entry("fixture:fresh_entry", "Fresh entry", List.of(replacementPage,
+                    spotlight(new ItemStack(Items.BREAD))), new BookAdvancementCondition(Component.literal("replacement entry"),
+                    ResourceLocation.parse("fixture:replacement_entry_condition")), List.of(secondParent), null, false, false);
+            fixture.unlock(replacement, List.of(0, 1));
+            var second = reader.readFragment(fixture.identity(replacement), null, 512, new Toolbox.DocumentBudget());
+            var secondRelationships = relationshipValues(second, "prerequisites");
+            var pageStates = secondRelationships.stream().filter(value -> "state".equals(jsonString(value, "kind"))
+                    && "page".equals(jsonString(value, "scope"))).map(value -> jsonString(value, "state")).toList();
+
+            assertFalse(secondRelationships.stream().anyMatch(value -> "fixture:first_parent".equals(jsonString(value, "entryId"))));
+            assertTrue(secondRelationships.stream().anyMatch(value -> "fixture:second_parent".equals(jsonString(value, "entryId"))));
+            assertFalse(secondRelationships.stream().anyMatch(value -> "fixture:first_entry_condition".equals(jsonString(value, "advancementId"))));
+            assertTrue(secondRelationships.stream().anyMatch(value -> "fixture:replacement_entry_condition".equals(jsonString(value, "advancementId"))));
+            assertTrue(secondRelationships.stream().anyMatch(value -> "fixture:replacement_page_condition".equals(jsonString(value, "advancementId"))));
+            assertEquals(List.of("UNLOCKED", "UNLOCKED"), pageStates);
+            assertTrue(relationshipValues(second, "items").stream()
+                    .anyMatch(value -> "minecraft:bread".equals(jsonString(value, "itemId"))));
+        }
+    }
+
+    @Test
+    void legacyVisibilityAndCurrentNativeApiSeamsHaveBehavioralCoverage() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var visibleParent = fixture.entry("fixture:visible_api_parent", "Visible parent", List.of(), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            var lockedParent = fixture.entry("fixture:locked_api_parent", "Locked parent", List.of(), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            var page = new BookTextPage(new BookTextHolder(""), new BookTextHolder(""), false, true, null, null);
+            var allParents = fixture.entry("fixture:all_parents", "All parents", List.of(page), new BookTrueCondition(),
+                    List.of(visibleParent, lockedParent), null, false, false);
+            var anyParent = fixture.entry("fixture:any_parent", "Any parent", List.of(page), new BookTrueCondition(),
+                    List.of(visibleParent, lockedParent), null, false, true);
+            var visibleLocked = fixture.entry("fixture:visible_api_locked", "Visible locked", List.of(page), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            var hiddenLocked = fixture.entry("fixture:hidden_api_locked", "Hidden locked", List.of(page), new BookTrueCondition(),
+                    List.of(), null, true, false);
+            fixture.unlock(visibleParent, List.of());
+            fixture.unlock(allParents, List.of(0));
+            fixture.unlock(anyParent, List.of(0));
+            var player = fixture.fakeMinecraft.player;
+            var legacy = new ModonomiconLegacyGuideReader("1.100.99");
+            var intermediate = new ModonomiconIntermediateGuideReader("1.101.0");
+            var modern = new ModonomiconGuideReader("1.102.0");
+
+            assertEquals("HIDDEN", legacy.entryDisplayState(allParents, player));
+            assertEquals("UNLOCKED", legacy.entryDisplayState(anyParent, player));
+            assertEquals("LOCKED", legacy.entryDisplayState(visibleLocked, player));
+            assertEquals("HIDDEN", legacy.entryDisplayState(hiddenLocked, player));
+            assertEquals(allParents.getEntryDisplayState(player).name(), intermediate.entryDisplayState(allParents, player));
+            assertEquals(anyParent.getEntryDisplayState(player).name(), modern.entryDisplayState(anyParent, player));
+            assertEquals(Either.class, BookSpotlightPage.class.getMethod("getItem").getReturnType());
+            var stackValue = modern.spotlightValue(spotlight(new ItemStack(Items.BREAD)));
+            var ingredient = Ingredient.of(TagKey.create(Registries.ITEM, ResourceLocation.parse("fixture:api_ingredient")));
+            var ingredientPage = new BookSpotlightPage(new BookTextHolder("Ingredient"), new BookTextHolder(""),
+                    Either.right(ingredient), null, null);
+            var ingredientValue = modern.spotlightValue(ingredientPage);
+            assertTrue(stackValue != null && stackValue.stack().is(Items.BREAD));
+            assertTrue(ingredientValue != null && ingredientValue.ingredient() == ingredient);
         }
     }
 

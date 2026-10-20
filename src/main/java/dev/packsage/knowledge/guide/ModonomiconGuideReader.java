@@ -14,6 +14,7 @@ import com.klikli_dev.modonomicon.book.page.BookSpotlightPage;
 import com.klikli_dev.modonomicon.book.page.BookTextPage;
 import com.klikli_dev.modonomicon.bookstate.BookUnlockStateManager;
 import com.klikli_dev.modonomicon.data.BookDataManager;
+import com.mojang.datafixers.util.Either;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.Toolbox;
@@ -28,6 +29,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeType;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
@@ -37,8 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
-import com.mojang.datafixers.util.Either;
-import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 
 /** Bounded reads from the currently loaded Modonomicon books. */
 public class ModonomiconGuideReader implements GuideDocumentReader {

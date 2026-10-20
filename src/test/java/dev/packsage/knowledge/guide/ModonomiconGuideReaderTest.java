@@ -272,6 +272,40 @@ class ModonomiconGuideReaderTest {
     }
 
     @Test
+    void pageConditionContinuationResumesFromTheNativePageScopedCursor() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var children = new BookCondition[20];
+            for (var index = 0; index < children.length; index++)
+                children[index] = new BookAdvancementCondition(Component.literal("page condition " + index),
+                        ResourceLocation.parse("fixture:page_condition_" + index));
+            var page = new BookTextPage(new BookTextHolder(""), new BookTextHolder(""), false, true, null,
+                    new BookAndCondition(Component.literal("page conditions"), children));
+            var entry = fixture.entry("fixture:page_condition_cursor", "Page condition cursor", List.of(page),
+                    new BookTrueCondition(), List.of(), null, false, false);
+            fixture.unlock(entry, List.of(0));
+            var reader = new ModonomiconGuideReader("1.120.7");
+            var conditionValues = new ArrayList<Evidence.JsonObject>();
+            var fragment = reader.readFragment(fixture.identity(entry), null, 256, new Toolbox.DocumentBudget());
+            conditionValues.addAll(relationshipValues(fragment, "prerequisites").stream()
+                    .filter(value -> "condition".equals(jsonString(value, "kind"))
+                            && "page".equals(jsonString(value, "scope"))).toList());
+            assertTrue(fragment.nextPosition() != null, "the native page condition tree exceeds the 16-record fragment cap");
+
+            for (var fragmentIndex = 0; fragment.nextPosition() != null && fragmentIndex < 4; fragmentIndex++) {
+                fragment = reader.readFragment(fixture.identity(entry), fragment.nextPosition(), 256,
+                        new Toolbox.DocumentBudget());
+                conditionValues.addAll(relationshipValues(fragment, "prerequisites").stream()
+                        .filter(value -> "condition".equals(jsonString(value, "kind"))
+                                && "page".equals(jsonString(value, "scope"))).toList());
+            }
+
+            assertNull(fragment.nextPosition(), "all native page-condition records should be reachable by continuation");
+            assertEquals(children.length, conditionValues.stream().filter(value -> value.values().containsKey("advancementId"))
+                    .map(value -> jsonString(value, "advancementId")).distinct().count());
+        }
+    }
+
+    @Test
     void visibleLockedEntriesExposePrerequisitesButNeverLockedPagesAndHiddenEntriesStayUnavailable() throws Exception {
         try (var fixture = new ModonomiconFixture()) {
             var visibleParent = fixture.entry("fixture:visible_parent", "Visible parent", List.of(), new BookTrueCondition(),

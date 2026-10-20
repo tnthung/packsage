@@ -2363,16 +2363,29 @@ class AssistantRuntimeTest {
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
                 new ModelBackend.AssistantOutput("answer-two", ModelBackend.OutputStatus.COMPLETED,
                         ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer two", List.of())))), null));
-        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
-        heldClientTasks.removeFirst().run();
+        assertFalse(storeTasks.isEmpty(), "the second completion turn should be persisted before its metadata");
+        storeTasks.removeFirst().run();
+        assertFalse(storeTasks.isEmpty(), "the second completion metadata should be persisted before its list snapshot");
+        storeTasks.removeFirst().run();
+        assertFalse(storeTasks.isEmpty(), "the second completion list snapshot should be queued");
+        Files.move(conversationFile, retainedConversationFile);
+        try {
+            storeTasks.removeFirst().run();
+        } finally {
+            Files.move(retainedConversationFile, conversationFile);
+        }
 
         var newerSessions = runtime.sessions();
         while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
         ChatContracts.SessionSummary newer = newerSessions.toCompletableFuture().join().stream()
                 .filter(session -> session.id().equals(conversationId)).findFirst().orElseThrow();
         assertEquals(new ChatContracts.RequestId(secondRequestId), newer.unreadRequestId());
+        runtime.openSession(newer);
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
         screen.refresh(runtime.view());
+        heldClientTasks.removeFirst().run();
         runtime.markRead(newer, new ChatContracts.RequestId(secondRequestId));
+        assertFalse(storeTasks.isEmpty(), "reopening the recovered newer completion should allow its durable acknowledgement");
         while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
         var durableSessions = store.sessions();
         while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();

@@ -421,6 +421,28 @@ class GuideDocumentProviderTest {
     }
 
     @Test
+    void nestedConditionIdentityMatchesAndGsonEscapedBytesAreBounded() {
+        var childCondition = new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("condition"),
+                "entryId", new Evidence.JsonString("packsage:entry/required")));
+        var condition = new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("condition"),
+                "type", new Evidence.JsonString("and"), "children", new Evidence.JsonArray(List.of(childCondition))));
+        var prerequisiteReader = new FixtureReader();
+        prerequisiteReader.firstText.set("");
+        prerequisiteReader.terminalFragment.set(true);
+        prerequisiteReader.relationships.set(new Evidence.JsonObject(Map.of("prerequisites", relationshipGroup(
+                Evidence.Coverage.COMPLETE, List.of(condition)))));
+
+        assertEquals(1, search(prerequisiteReader, "packsage:entry/required").records().size());
+
+        var escaped = new FixtureReader();
+        var escapedValue = new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("associated"),
+                "itemId", new Evidence.JsonString("<".repeat(1400))));
+        escaped.relationships.set(new Evidence.JsonObject(Map.of("items", relationshipGroup(
+                Evidence.Coverage.COMPLETE, List.of(escapedValue)))));
+        assertExtractionFailure(escaped);
+    }
+
+    @Test
     void relationshipLimitCountsAllGroupsAndScalarAlternatives() {
         var combined = new FixtureReader();
         combined.relationships.set(new Evidence.JsonObject(Map.of(

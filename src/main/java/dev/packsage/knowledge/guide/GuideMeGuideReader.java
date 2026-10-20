@@ -204,7 +204,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                 } catch (NumberFormatException failure) {
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid GuideME fragment position");
                 }
-                if (metadataPosition < -1 || astRelationshipPosition < -1 || relationshipFlags < 0 || relationshipFlags > 15)
+                if (metadataPosition < -1 || astRelationshipPosition < -1 || relationshipFlags < 0 || relationshipFlags > 63)
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "invalid GuideME fragment position");
                 textDone = cursor[4].equals("-");
                 textPosition = textDone ? null : cursor[4];
@@ -489,24 +489,28 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                 }
             }
             if (relationships.nextAst >= 0) relationships.flags |= 2;
+            if (relationships.nextMetadata >= 0) relationships.flags |= 16;
+            else relationships.flags &= ~16;
+            if (relationships.nextAst >= 0) relationships.flags |= 32;
+            else relationships.flags &= ~32;
             var relationshipValues = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
             if ((relationships.flags & 1) != 0 && (firstRelationshipRead || !relationships.items.isEmpty()
-                    || (relationships.flags & 4) != 0 || relationships.nextMetadata >= 0)) {
+                    || (relationships.flags & 20) != 0)) {
                 var group = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
-                group.put("coverage", new Evidence.JsonString((relationships.flags & 4) != 0 || relationships.nextMetadata >= 0
+                group.put("coverage", new Evidence.JsonString((relationships.flags & 20) != 0
                         ? "PARTIAL" : "COMPLETE"));
                 group.put("values", new Evidence.JsonArray(relationships.items));
-                if ((relationships.flags & 4) != 0 || relationships.nextMetadata >= 0)
+                if ((relationships.flags & 20) != 0)
                     group.put("detail", new Evidence.JsonString("GuideME item declarations were invalid, opaque or remain unread"));
                 relationshipValues.put("items", new Evidence.JsonObject(group));
             }
             if ((relationships.flags & 2) != 0 && (firstRelationshipRead || !relationships.recipes.isEmpty()
-                    || (relationships.flags & 8) != 0 || relationships.nextAst >= 0)) {
+                    || (relationships.flags & 40) != 0)) {
                 var group = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
-                group.put("coverage", new Evidence.JsonString((relationships.flags & 8) != 0 || relationships.nextAst >= 0
+                group.put("coverage", new Evidence.JsonString((relationships.flags & 40) != 0
                         ? "PARTIAL" : "COMPLETE"));
                 group.put("values", new Evidence.JsonArray(relationships.recipes));
-                if ((relationships.flags & 8) != 0 || relationships.nextAst >= 0)
+                if ((relationships.flags & 40) != 0)
                     group.put("detail", new Evidence.JsonString("GuideME recipe tags were unsupported, malformed or remain unread"));
                 relationshipValues.put("recipes", new Evidence.JsonObject(group));
             }

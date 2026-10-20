@@ -37,6 +37,9 @@ Backend and storage/contracts task reviews are clean after focused coverage corr
 
 - Fence reserved sends with a fresh atomic admission token, revoked by lifecycle changes or selected Stop and checked inside controller activation. Cleanup must match that token, and immediate cancellation must have safe target/evidence state. The architecture review specified this after tests reproduced a post-transition backend start, a null-target cancellation and a surviving late capture. Incorrect ordering could admit old-world work or corrupt a newer request; selection alone does not cancel and the weak callback contract remains unchanged.
 
+- Permit local test-only reflection to replay a captured view at the existing private runtime callback. There is no public injectable publication seam; a production hook or factory would enlarge this feature. The test remains coupled to that private callback shape and may need maintenance when it moves, while real completion/read persistence supplies the observable assertions.
+- Treat publications as wakeups and reconcile a fresh controller view outside runtime locks using a holder-local ticket and the unread identity captured before the read. Protect pending replacement metadata and reservation-owned starting state. A fresh read alone can be overtaken; incorrect guards could erase a newer completion or overwrite/strand activity. Verification requires delayed publication/read, replacement and reservation/settlement regressions for this bounded protocol.
+
 ## Minecraft acceptance
 
 Not run. This worktree has not been installed into a Minecraft profile. The [player checklist](../testing/2026-10-20-parallel-chat-sessions.md) covers concurrent A/B interaction, draft/scroll restoration, dot appearance and clearing, restart persistence, Stop/steering/deletion isolation, world changes, settings visibility and ding/toast behavior. These remain pending until observed in Minecraft.

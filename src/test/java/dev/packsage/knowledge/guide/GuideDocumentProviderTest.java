@@ -2,6 +2,7 @@ package dev.packsage.knowledge.guide;
 
 import dev.packsage.knowledge.AdapterRegistry;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
@@ -324,6 +325,90 @@ class GuideDocumentProviderTest {
     }
 
     @Test
+    void qualifiedAndCombinedSearchesPreserveRelationshipSourcesAndFreshReads() {
+        var firstReader = new FixtureReader("first_guide", "first:guide/entry");
+        firstReader.firstText.set("");
+        firstReader.terminalFragment.set(true);
+        firstReader.relationships.set(itemsRelationship("minecraft:diamond", Evidence.Coverage.COMPLETE));
+        var secondReader = new FixtureReader("second_guide", "second:guide/entry");
+        secondReader.firstText.set("");
+        secondReader.terminalFragment.set(true);
+        secondReader.relationships.set(itemsRelationship("minecraft:emerald", Evidence.Coverage.PARTIAL));
+        var service = new KnowledgeService(List.of(
+                new GuideDocumentProvider(firstReader, () -> SCOPE, Runnable::run),
+                new GuideDocumentProvider(secondReader, () -> SCOPE, Runnable::run)), () -> SCOPE);
+
+        var qualifiedFilter = new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("first_guide")));
+        var qualifiedArguments = new Evidence.JsonObject(Map.of("query", new Evidence.JsonString("minecraft:diamond"),
+                "filter", qualifiedFilter));
+        var qualified = service.execute(new PackSageTools.ReadRequest("search_document", qualifiedArguments, SCOPE))
+                .toCompletableFuture().join();
+        assertEquals(1, qualified.records().size());
+        assertEquals("first_guide", qualified.records().getFirst().source().providerId());
+        assertEquals("first:guide/entry", qualified.records().getFirst().source().sourceHandle());
+
+        var combinedArguments = new Evidence.JsonObject(Map.of("query", new Evidence.JsonString("minecraft:")));
+        var combined = service.execute(new PackSageTools.ReadRequest("search_document", combinedArguments, SCOPE))
+                .toCompletableFuture().join();
+        assertEquals(List.of("first_guide", "second_guide"), combined.records().stream()
+                .map(record -> record.source().providerId()).toList());
+        assertEquals(Evidence.Coverage.PARTIAL, combined.coverage());
+        var secondRelationships = (Evidence.JsonObject) combined.records().get(1).payload().values().get("relationships");
+        assertTrue(Evidence.serialize(secondRelationships).contains("minecraft:emerald"));
+        assertEquals(Evidence.Coverage.PARTIAL, combined.records().get(1).source().coverage());
+
+        firstReader.relationships.set(itemsRelationship("minecraft:gold_ingot", Evidence.Coverage.COMPLETE));
+        var fresh = service.execute(new PackSageTools.ReadRequest("read_evidence", new Evidence.JsonObject(Map.of("handles",
+                new Evidence.JsonArray(List.of(new Evidence.JsonString("first_guide:first:guide/entry"))))), SCOPE))
+                .toCompletableFuture().join();
+        assertEquals("first_guide", fresh.records().getFirst().source().providerId());
+        assertEquals("first:guide/entry", fresh.records().getFirst().source().sourceHandle());
+        assertEquals(itemsRelationship("minecraft:gold_ingot", Evidence.Coverage.COMPLETE),
+                fresh.records().getFirst().payload().values().get("relationships"));
+    }
+
+    @Test
+    void immersiveEngineeringRelationshipsSurviveSearchAndCommonFreshEvidenceRead() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var recipe = new blusunrize.lib.manual.utils.ManualRecipeRef(
+                net.minecraft.resources.ResourceLocation.parse("immersiveengineering:hammering"));
+        var entry = manual.addEntry("immersiveengineering:manual/relationship-integration",
+                new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{recipe}}));
+        entry.addSpecial("integration-anchor", 4);
+        var provider = new GuideDocumentProvider(new ImmersiveEngineeringGuideReader(), () -> SCOPE, Runnable::run);
+        var service = new KnowledgeService(List.of(provider), () -> SCOPE);
+
+        var filter = new Evidence.JsonObject(Map.of("provider", new Evidence.JsonString("immersiveengineering")));
+        var arguments = new Evidence.JsonObject(Map.of("query", new Evidence.JsonString("immersiveengineering:hammering"),
+                "filter", filter));
+        var found = service.execute(new PackSageTools.ReadRequest("search_document", arguments, SCOPE)).toCompletableFuture().join();
+
+        assertEquals(1, found.records().size());
+        assertEquals("immersiveengineering", found.records().getFirst().source().providerId());
+        assertEquals("immersiveengineering:manual/relationship-integration", found.records().getFirst().source().sourceHandle());
+        assertTrue(Evidence.serialize((Evidence.JsonObject) found.records().getFirst().payload().values().get("relationships"))
+                .contains("immersiveengineering:hammering"));
+        entry.setSpecials(List.of(new blusunrize.lib.manual.ManualEntry.SpecialElementData("updated-anchor", 5,
+                new blusunrize.lib.manual.ManualElementCrafting(new blusunrize.lib.manual.utils.ManualRecipeRef[][] {
+                        {new blusunrize.lib.manual.utils.ManualRecipeRef(
+                                net.minecraft.resources.ResourceLocation.parse("immersiveengineering:sawing"))}
+                }))));
+
+        var handles = new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString(
+                "immersiveengineering:immersiveengineering:manual/relationship-integration")))));
+        var fresh = service.execute(new PackSageTools.ReadRequest("read_evidence", handles, SCOPE)).toCompletableFuture().join();
+
+        assertEquals("immersiveengineering", fresh.records().getFirst().source().providerId());
+        assertEquals("immersiveengineering:manual/relationship-integration", fresh.records().getFirst().source().sourceHandle());
+        var current = Evidence.serialize((Evidence.JsonObject) fresh.records().getFirst().payload().values().get("relationships"));
+        assertTrue(current.contains("immersiveengineering:sawing"));
+        assertTrue(current.contains("updated-anchor"));
+        assertFalse(current.contains("immersiveengineering:hammering"));
+    }
+
+    @Test
     void relationshipCoverageIsNotSearchText() {
         var reader = new FixtureReader();
         reader.relationships.set(itemsRelationship("minecraft:diamond", Evidence.Coverage.COMPLETE));
@@ -418,6 +503,41 @@ class GuideDocumentProviderTest {
                                 "itemId", new Evidence.JsonString("minecraft:gold_ingot"))))))))))));
 
         assertTrue(search(reader, "needle").records().isEmpty());
+    }
+
+    @Test
+    void scalarAlternativeIdentityMatches() {
+        var reader = new FixtureReader();
+        reader.firstText.set("");
+        reader.terminalFragment.set(true);
+        reader.relationships.set(Evidence.deserializeObject(
+                "{\"items\":{\"coverage\":\"COMPLETE\",\"values\":[{\"kind\":\"associated\",\"itemId\":\"minecraft:diamond\",\"alternatives\":[\"minecraft:emerald\"]}]}}"));
+
+        var result = search(reader, "minecraft:emerald");
+
+        assertEquals(1, result.records().size());
+        assertTrue(Evidence.serialize((Evidence.JsonObject) result.records().getFirst().payload().values().get("relationships"))
+                .contains("minecraft:emerald"));
+    }
+
+    @Test
+    void partialAndOpaqueRelationshipGroupsRequireNonblankDetail() {
+        for (var coverage : List.of(Evidence.Coverage.PARTIAL, Evidence.Coverage.OPAQUE)) {
+            for (var detail : List.of("MISSING", "", "  ")) {
+                var group = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+                group.put("coverage", new Evidence.JsonString(coverage.name()));
+                group.put("values", new Evidence.JsonArray(List.of()));
+                if (!detail.equals("MISSING")) group.put("detail", new Evidence.JsonString(detail));
+                var reader = new FixtureReader();
+                reader.relationships.set(new Evidence.JsonObject(Map.of("items", new Evidence.JsonObject(group))));
+
+                var result = search(reader, "needle");
+
+                assertTrue(result.records().isEmpty());
+                assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+                assertTrue(result.detail().contains("relationship"));
+            }
+        }
     }
 
     @Test

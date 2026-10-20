@@ -16,6 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -94,6 +95,14 @@ public final class RequestController {
     }
 
     public CompletionStage<ChatContracts.RequestId> begin(ChatContracts.Submission submission) {
+        return begin(submission, () -> true);
+    }
+
+    /** The admission predicate must only perform a nonblocking atomic permission read. */
+    public CompletionStage<ChatContracts.RequestId> begin(ChatContracts.Submission submission,
+                                                           BooleanSupplier activationAllowed) {
+        Objects.requireNonNull(submission);
+        Objects.requireNonNull(activationAllowed);
         ActiveRequest request;
         boolean createNew;
         ChatContracts.Conversation reusableConversation;
@@ -109,8 +118,14 @@ public final class RequestController {
                     || !conversation.turns().getLast().requestId().equals(submission.replacing()))) {
                 return CompletableFuture.failedFuture(new IllegalStateException("latest exchange changed before resend"));
             }
-            generation++;
+            if (!activationAllowed.getAsBoolean()) {
+                return CompletableFuture.failedFuture(new IllegalStateException("request was cancelled before activation"));
+            }
             createNew = forceNew;
+            reusableConversation = !createNew
+                    && conversation.world().worldOrServer().equals(submission.world().worldOrServer())
+                    && !conversation.id().startsWith("pending") ? conversation : null;
+            generation++;
             forceNew = false;
             request = new ActiveRequest(submission, generation, Instant.now(), System.nanoTime());
             active = request;
@@ -121,9 +136,6 @@ public final class RequestController {
             context = new ChatContracts.Context("", null, submission.scope());
             sources = List.of();
             navigationTargets = List.of();
-            reusableConversation = !createNew
-                    && conversation.world().worldOrServer().equals(submission.world().worldOrServer())
-                    && !conversation.id().startsWith("pending") ? conversation : null;
             if (reusableConversation == null) {
                 conversation = new ChatContracts.Conversation("pending:" + submission.requestId().value(), submission.world(), List.of(),
                         new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null));
@@ -132,31 +144,79 @@ public final class RequestController {
         PackSageLog.LOGGER.info("PackSage timing request={} phase=accepted start_ns={} event_ns={} model={} effort={} screenshot={} search={}",
                 submission.requestId().value(), request.acceptedAtNanos, request.acceptedAtNanos,
                 submission.selectedModel().id(), submission.reasoningEffort(), submission.includeScreenshot(), submission.searchMode());
-        CompletableFuture<ChatContracts.Conversation> target;
-        try {
-            target = reusableConversation == null
-                    ? (createNew ? store.newConversation(submission.world()) : store.openLatest(submission.world()))
-                    .toCompletableFuture()
-                    : CompletableFuture.completedFuture(reusableConversation);
-        } catch (RuntimeException exception) {
-            failStart(request, exception);
-            return request.started;
+        request.target.whenCompleteAsync((loaded, failure) -> targetReady(request, loaded, failure), executor);
+        if (reusableConversation != null) {
+            request.target.complete(reusableConversation);
+        } else {
+            boolean current;
+            synchronized (stateLock) {
+                current = isCurrent(request);
+            }
+            if (!current) {
+                request.target.completeExceptionally(new IllegalStateException("request was cancelled before target creation"));
+                return request.started;
+            }
+            try {
+                CompletionStage<ChatContracts.Conversation> target = Objects.requireNonNull(createNew
+                        ? store.newConversation(submission.world()) : store.openLatest(submission.world()));
+                target.whenComplete((loaded, failure) -> {
+                    if (failure != null) request.target.completeExceptionally(failure);
+                    else if (loaded == null) request.target.completeExceptionally(
+                            new IllegalStateException("conversation target could not be loaded"));
+                    else request.target.complete(loaded);
+                });
+            } catch (RuntimeException exception) {
+                request.target.completeExceptionally(exception);
+            }
         }
-        request.target = target;
 
         ChatContracts.RequestCapture capture = new ChatContracts.RequestCapture(submission.requestId(), submission.world(),
                 submission.scope());
+        synchronized (stateLock) {
+            if (!isCurrent(request)) return request.started;
+        }
+        ChatContracts.EvidenceSelection evidence;
         try {
-            request.evidence = evidenceCapture.apply(capture);
-            request.capture = contextCapture.capture(capture, submission.includeScreenshot()).toCompletableFuture();
+            evidence = Objects.requireNonNull(evidenceCapture.apply(capture));
         } catch (RuntimeException exception) {
             failStart(request, exception);
             return request.started;
         }
+        boolean current;
+        synchronized (stateLock) {
+            current = isCurrent(request);
+            if (current) request.evidence = evidence;
+        }
+        if (!current) return request.started;
+        synchronized (stateLock) {
+            if (!isCurrent(request)) return request.started;
+        }
+        try {
+            CompletionStage<ChatContracts.CapturedContext> captured = Objects.requireNonNull(
+                    contextCapture.capture(capture, submission.includeScreenshot()));
+            CompletableFuture<ChatContracts.CapturedContext> capturedFuture = Objects.requireNonNull(captured.toCompletableFuture());
+            synchronized (stateLock) {
+                current = isCurrent(request);
+                if (current) request.capture = capturedFuture;
+            }
+            if (!current) {
+                captureCancellation.accept(submission.requestId());
+                return request.started;
+            }
+        } catch (RuntimeException exception) {
+            synchronized (stateLock) {
+                current = isCurrent(request);
+            }
+            if (!current) captureCancellation.accept(submission.requestId());
+            else failStart(request, exception);
+            return request.started;
+        }
+        synchronized (stateLock) {
+            if (!isCurrent(request)) return request.started;
+        }
         publish();
-        target.whenCompleteAsync((loaded, failure) -> targetReady(request, loaded, failure), executor);
         request.capture.whenCompleteAsync((captured, failure) -> captureReady(request, captured, failure), executor);
-        CompletableFuture.allOf(target, request.capture).whenCompleteAsync((ignored, failure) -> {
+        CompletableFuture.allOf(request.target, request.capture).whenCompleteAsync((ignored, failure) -> {
             if (failure == null) prepareAndStart(request);
         }, executor);
         return request.started;
@@ -789,6 +849,7 @@ public final class RequestController {
         ActiveRequest request;
         ModelBackend.Exchange exchange;
         ChatContracts.CapturedContext captured;
+        ChatContracts.EvidenceSelection evidence;
         synchronized (stateLock) {
             request = active;
             if (request == null) return;
@@ -800,6 +861,7 @@ public final class RequestController {
             captured = request.captured == null
                     ? new ChatContracts.CapturedContext(new ChatContracts.Context("", null, request.submission.scope()), new byte[0])
                     : request.captured;
+            evidence = request.evidence;
             if (visibleRequest != null && visibleRequest.equals(request.submission.requestId())) {
                 context = captured.context();
             }
@@ -825,8 +887,8 @@ public final class RequestController {
                 return;
             }
             ChatContracts.Turn turn = new ChatContracts.Turn(request.submission.requestId(), request.submission.question(),
-                    request.answer.toString(), List.copyOf(request.partialReplay), persisted.context(), request.evidence.sources(),
-                    request.evidence.navigationTargets(),
+                    request.answer.toString(), List.copyOf(request.partialReplay), persisted.context(), evidence.sources(),
+                    evidence.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.CANCELLED, detail), 0, request.sentAt,
                     List.copyOf(request.activities.values()), List.copyOf(request.steeringMessages));
             if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
@@ -1077,10 +1139,10 @@ public final class RequestController {
         private final Map<String, ChatContracts.ActivityStep> activities = new LinkedHashMap<>();
         private final List<ChatContracts.SteeringMessage> steeringMessages = new ArrayList<>();
         private final Set<String> submittedResults = new LinkedHashSet<>();
-        private CompletableFuture<ChatContracts.Conversation> target;
+        private final CompletableFuture<ChatContracts.Conversation> target = new CompletableFuture<>();
         private CompletableFuture<ChatContracts.CapturedContext> capture;
         private ChatContracts.CapturedContext captured;
-        private ChatContracts.EvidenceSelection evidence;
+        private ChatContracts.EvidenceSelection evidence = new ChatContracts.EvidenceSelection(List.of(), List.of());
         private ModelBackend.Exchange exchange;
         private boolean persistenceSettled;
         private boolean persistencePending;

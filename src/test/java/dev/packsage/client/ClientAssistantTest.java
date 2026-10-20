@@ -487,5 +487,4 @@ class ClientAssistantTest {
 
         assertTrue(PackSageJeiPlugin.runtimeGeneration() > before);
     }
-
 }

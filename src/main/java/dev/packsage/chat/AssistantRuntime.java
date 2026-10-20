@@ -21,6 +21,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -105,6 +106,7 @@ public final class AssistantRuntime implements ChatActions {
         long epoch;
         long selectionGeneration;
         List<Holder> previous;
+        boolean sessionActivityChanged;
         synchronized (sendLock) {
             synchronized (stateLock) {
                 epoch = ++worldEpoch;
@@ -122,8 +124,12 @@ public final class AssistantRuntime implements ChatActions {
                 sessionDeletion = false;
                 sessionDeletionGeneration++;
                 previous = List.copyOf(holders.values());
+                sessionActivityChanged = previous.stream().anyMatch(holder -> holder.active || holder.requestStarting);
                 previous.forEach(holder -> {
                     holder.requestAuthEpochs.clear();
+                    if (holder.requestActivation != null) holder.requestActivation.set(false);
+                    holder.active = false;
+                    holder.requestStarting = false;
                     holder.loadGeneration++;
                     if (holder.loading) {
                         holder.loading = false;
@@ -133,6 +139,7 @@ public final class AssistantRuntime implements ChatActions {
             }
         }
         previous.forEach(holder -> { if (holder.controller != null) holder.controller.worldChanged(); });
+        if (sessionActivityChanged) refreshSessionList();
         try {
             store.openLatest(world).whenCompleteAsync((conversation, failure) -> {
                 if (failure != null) {
@@ -264,6 +271,7 @@ public final class AssistantRuntime implements ChatActions {
     public void invalidate(Evidence.Scope newScope) {
         Objects.requireNonNull(newScope);
         List<Holder> invalidate;
+        boolean sessionActivityChanged;
         synchronized (stateLock) {
             publicationEpoch++;
             worldScope = newScope;
@@ -275,14 +283,22 @@ public final class AssistantRuntime implements ChatActions {
                     .filter(holder -> holder.world.worldOrServer().equals(world.worldOrServer()))
                     .forEach(holder -> holder.scope = newScope);
             invalidate = List.copyOf(holders.values());
-            invalidate.forEach(holder -> holder.requestAuthEpochs.clear());
+            sessionActivityChanged = invalidate.stream().anyMatch(holder -> holder.active || holder.requestStarting);
+            invalidate.forEach(holder -> {
+                holder.requestAuthEpochs.clear();
+                if (holder.requestActivation != null) holder.requestActivation.set(false);
+                holder.active = false;
+                holder.requestStarting = false;
+            });
         }
         invalidate.forEach(holder -> { if (holder.controller != null) holder.controller.invalidate(newScope.worldSession()); });
+        if (sessionActivityChanged) refreshSessionList();
         publishCurrentView(worldEpoch);
     }
 
     public void disconnect() {
         List<Holder> disconnect;
+        boolean sessionActivityChanged;
         synchronized (sendLock) {
             synchronized (stateLock) {
                 worldEpoch++;
@@ -295,8 +311,12 @@ public final class AssistantRuntime implements ChatActions {
                 sessionSelectionGeneration++;
                 selected = null;
                 disconnect = List.copyOf(holders.values());
+                sessionActivityChanged = disconnect.stream().anyMatch(holder -> holder.active || holder.requestStarting);
                 disconnect.forEach(holder -> {
                     holder.requestAuthEpochs.clear();
+                    if (holder.requestActivation != null) holder.requestActivation.set(false);
+                    holder.active = false;
+                    holder.requestStarting = false;
                     holder.loadGeneration++;
                     if (holder.loading) {
                         holder.loading = false;
@@ -306,6 +326,7 @@ public final class AssistantRuntime implements ChatActions {
             }
         }
         disconnect.forEach(holder -> { if (holder.controller != null) holder.controller.disconnect(); });
+        if (sessionActivityChanged) refreshSessionList();
     }
 
     @Override
@@ -732,14 +753,22 @@ public final class AssistantRuntime implements ChatActions {
     @Override
     public void signOut() {
         List<Holder> invalidate;
+        boolean sessionActivityChanged;
         synchronized (stateLock) {
             authEpoch++;
             signIn = ChatContracts.SignInState.SIGNED_OUT;
             capabilities = new ModelBackend.Capabilities(List.of(), null, null, null, null, null);
             invalidate = List.copyOf(holders.values());
-            invalidate.forEach(holder -> holder.requestAuthEpochs.clear());
+            sessionActivityChanged = invalidate.stream().anyMatch(holder -> holder.active || holder.requestStarting);
+            invalidate.forEach(holder -> {
+                holder.requestAuthEpochs.clear();
+                if (holder.requestActivation != null) holder.requestActivation.set(false);
+                holder.active = false;
+                holder.requestStarting = false;
+            });
         }
         invalidate.forEach(holder -> { if (holder.controller != null) holder.controller.invalidate("account signed out"); });
+        if (sessionActivityChanged) refreshSessionList();
         try {
             backend.signOut();
         } catch (RuntimeException failure) {
@@ -845,6 +874,7 @@ public final class AssistantRuntime implements ChatActions {
         ModelBackend.SearchMode searchMode = searchMode(selectedModel, currentSettings.automaticWebSearch(), explicitWebSearch);
         ChatContracts.Submission submission;
         Evidence.Scope previousScope;
+        AtomicBoolean activation;
         long epoch;
         String rejection = null;
         synchronized (stateLock) {
@@ -854,14 +884,17 @@ public final class AssistantRuntime implements ChatActions {
                         || !holder.loaded ? "Session is still loading" : "This session is read-only until its world is active";
                 submission = null;
                 previousScope = null;
+                activation = null;
             } else if (signIn != ChatContracts.SignInState.SIGNED_IN) {
                 rejection = "Sign in before sending a question";
                 submission = null;
                 previousScope = null;
+                activation = null;
             } else if (holder.active || holder.requestStarting) {
                 rejection = "Follow-up could not be accepted while the response is preparing or has finished";
                 submission = null;
                 previousScope = null;
+                activation = null;
             } else {
                 previousScope = holder.scope;
                 Evidence.Scope nextScope = new Evidence.Scope(worldScope.worldSession(), worldScope.resourcesLocale(),
@@ -877,11 +910,15 @@ public final class AssistantRuntime implements ChatActions {
                 }
                 submission = prepared;
                 if (prepared != null) {
+                    activation = new AtomicBoolean(true);
+                    holder.requestActivation = activation;
                     holder.scope = nextScope;
                     holder.active = true;
                     holder.requestStarting = true;
                     holder.requestAuthEpochs.put(submission.requestId(), authEpoch);
                     newChatPending = false;
+                } else {
+                    activation = null;
                 }
             }
             epoch = worldEpoch;
@@ -903,38 +940,53 @@ public final class AssistantRuntime implements ChatActions {
                 runtimeErrors.add("Screenshot omitted from the model request because image input is unsupported");
             }
         }
+        AtomicBoolean requestActivation = activation;
         long dispatchAtNanos = System.nanoTime();
         PackSageLog.LOGGER.info("PackSage timing request={} phase=runtime_dispatch start_ns={} event_ns={} elapsed_ms={}",
                 submission.requestId().value(), sendStartedAtNanos, dispatchAtNanos,
                 (dispatchAtNanos - sendStartedAtNanos) / 1_000_000);
         try {
-            holder.controller.begin(submission).whenCompleteAsync((ignored, failure) -> {
+            holder.controller.begin(submission, requestActivation::get).whenCompleteAsync((ignored, failure) -> {
                 boolean publish = false;
+                boolean refreshSessions = false;
                 synchronized (stateLock) {
-                    holder.requestStarting = false;
-                    if (failure != null) {
-                        holder.requestAuthEpochs.remove(submission.requestId());
-                        if (holder.scope.equals(submission.scope())) {
-                            holder.scope = previousScope;
-                            holder.active = false;
-                            holder.errors.add("Request could not start: " + failureMessage(failure));
-                            publish = true;
+                    if (failure != null) holder.requestAuthEpochs.remove(submission.requestId());
+                    if (holder.requestActivation == requestActivation) {
+                        boolean wasActive = holder.active;
+                        holder.requestStarting = false;
+                        if (failure != null) holder.active = false;
+                        refreshSessions = wasActive != holder.active;
+                        if (failure != null) {
+                            if (requestActivation.get() && Objects.equals(holder.scope, submission.scope())) {
+                                holder.scope = previousScope;
+                                holder.errors.add("Request could not start: " + failureMessage(failure));
+                                publish = true;
+                            }
                         }
                     }
                 }
+                if (refreshSessions) refreshSessionList();
                 if (publish) publishCurrentView(epoch);
             }, controllerExecutor);
         } catch (RuntimeException failure) {
+            boolean publish = false;
+            boolean refreshSessions = false;
             synchronized (stateLock) {
-                holder.requestStarting = false;
                 holder.requestAuthEpochs.remove(submission.requestId());
-                if (holder.scope.equals(submission.scope())) {
-                    holder.scope = previousScope;
+                if (holder.requestActivation == requestActivation) {
+                    boolean wasActive = holder.active;
                     holder.active = false;
-                    holder.errors.add("Request could not start: " + failureMessage(failure));
+                    holder.requestStarting = false;
+                    refreshSessions = wasActive;
+                    if (requestActivation.get() && Objects.equals(holder.scope, submission.scope())) {
+                        holder.scope = previousScope;
+                        holder.errors.add("Request could not start: " + failureMessage(failure));
+                        publish = true;
+                    }
                 }
             }
-            publishCurrentView(epoch);
+            if (refreshSessions) refreshSessionList();
+            if (publish) publishCurrentView(epoch);
         }
         publishCurrentView(epoch);
         refreshSessionList();
@@ -960,10 +1012,18 @@ public final class AssistantRuntime implements ChatActions {
     @Override
     public void stop() {
         Holder holder;
+        boolean sessionActivityChanged;
         synchronized (stateLock) {
             holder = selected;
+            sessionActivityChanged = holder != null && (holder.active || holder.requestStarting);
+            if (holder != null) {
+                if (holder.requestActivation != null) holder.requestActivation.set(false);
+                holder.active = false;
+                holder.requestStarting = false;
+            }
         }
         if (holder != null && holder.controller != null) holder.controller.stop();
+        if (sessionActivityChanged) refreshSessionList();
     }
 
     @Override
@@ -1271,7 +1331,7 @@ public final class AssistantRuntime implements ChatActions {
             }
             sessionListChanged = wasActive != holder.active || wasStarting != holder.requestStarting
                     || wasLoaded != holder.loaded || wasLoading != holder.loading || wasCreating != holder.creating
-                    || !oldId.equals(holder.id) || !java.util.Objects.equals(oldUnreadRequestId, holder.unreadRequestId);
+                    || !oldId.equals(holder.id) || !Objects.equals(oldUnreadRequestId, holder.unreadRequestId);
             isSelected = selected == holder;
             epoch = isSelected ? worldEpoch : 0;
             publication = isSelected ? publicationEpoch : 0;
@@ -1624,6 +1684,7 @@ public final class AssistantRuntime implements ChatActions {
         private volatile boolean requestStarting;
         private volatile boolean creating;
         private volatile boolean knowledgeUnavailable;
+        private AtomicBoolean requestActivation;
         private CompletableFuture<Void> initialization;
         private long loadGeneration;
         private final List<String> errors = new ArrayList<>();

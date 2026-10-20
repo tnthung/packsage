@@ -2,9 +2,14 @@ package dev.packsage.knowledge.guide;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
+import guideme.compiler.Frontmatter;
 import guideme.FixtureGuide;
 import guideme.Guides;
 import guideme.compiler.ParsedGuidePage;
+import guideme.compiler.tags.RecipeCompiler;
+import guideme.libs.mdast.mdx.model.MdxJsxAttribute;
+import guideme.libs.mdast.mdx.model.MdxJsxFlowElement;
+import guideme.libs.mdast.mdx.model.MdxJsxTextElement;
 import guideme.libs.mdast.model.MdAstRoot;
 import guideme.libs.mdast.model.MdAstText;
 import net.minecraft.resources.ResourceLocation;
@@ -12,6 +17,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -23,7 +30,10 @@ class GuideMeGuideReaderTest {
     private static final ResourceLocation PAGE_ID = ResourceLocation.parse("fixture:entry");
 
     @AfterEach
-    void clearGuides() { Guides.setForTest(List.of()); }
+    void clearGuides() {
+        Guides.setForTest(List.of());
+        RecipeCompiler.setTagNamesForTest(Set.of("Recipe", "RecipeFor", "RecipesFor"));
+    }
 
     @Test
     void candidatesExposeCurrentParsedPagesAndContinueAfterTheLastPosition() {
@@ -132,5 +142,158 @@ class GuideMeGuideReaderTest {
                 () -> new GuideMeGuideReader().readFragment("bad-page-id", null, 128, new Toolbox.DocumentBudget()));
 
         assertEquals(Toolbox.Code.INVALID_REFERENCE, failure.code());
+    }
+
+    @Test
+    void currentPageItemIdsResolveRelativeIdsAndKeepInvalidDeclarationsPartial() {
+        var pageId = ResourceLocation.parse("minecraft:entry");
+        var page = new ParsedGuidePage(pageId, "en_us", new MdAstRoot(), new Frontmatter(Map.of(
+                "item_ids", List.of("diamond", "minecraft:bread", "fixture:missing", 17))));
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, List.of(page))));
+
+        var fragment = new GuideMeGuideReader().readFragment("fixture:book#minecraft:entry", null, 1024,
+                new Toolbox.DocumentBudget());
+        var group = (Evidence.JsonObject) fragment.relationships().values().get("items");
+        var values = (Evidence.JsonArray) group.values().get("values");
+
+        assertEquals("PARTIAL", ((Evidence.JsonString) group.values().get("coverage")).value());
+        assertEquals(List.of("minecraft:diamond", "minecraft:bread"), values.values().stream()
+                .filter(Evidence.JsonObject.class::isInstance).map(Evidence.JsonObject.class::cast)
+                .map(value -> (Evidence.JsonString) value.values().get("itemId"))
+                .map(Evidence.JsonString::value).toList());
+        assertTrue(values.values().stream().filter(Evidence.JsonObject.class::isInstance)
+                .map(Evidence.JsonObject.class::cast).allMatch(value ->
+                        "associated".equals(((Evidence.JsonString) value.values().get("kind")).value())));
+    }
+
+    @Test
+    void emptyItemIdsAreCompleteAndDevelopmentOverridesSupplyCurrentMetadata() {
+        var emptyPage = new ParsedGuidePage(PAGE_ID, "en_us", new MdAstRoot(), new Frontmatter(Map.of("item_ids", List.of())));
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, List.of(emptyPage))));
+        var emptyFragment = new GuideMeGuideReader().readFragment("fixture:book#fixture:entry", null, 1024,
+                new Toolbox.DocumentBudget());
+        var emptyGroup = (Evidence.JsonObject) emptyFragment.relationships().values().get("items");
+        assertEquals("COMPLETE", ((Evidence.JsonString) emptyGroup.values().get("coverage")).value());
+        assertTrue(((Evidence.JsonArray) emptyGroup.values().get("values")).values().isEmpty());
+
+        var base = new ParsedGuidePage(PAGE_ID, "en_us", new MdAstRoot(), new Frontmatter(Map.of(
+                "item_ids", List.of("minecraft:diamond"))));
+        var development = new ParsedGuidePage(PAGE_ID, "fr_fr", new MdAstRoot(), new Frontmatter(Map.of(
+                "item_ids", List.of("minecraft:bread"))));
+        var guide = new FixtureGuide(GUIDE_ID, List.of(base), List.of(development));
+        Guides.setForTest(List.of(guide));
+        var reader = new GuideMeGuideReader();
+        var candidates = reader.candidates(null, 8, new Toolbox.DocumentBudget());
+        var fragment = reader.readFragment("fixture:book#fixture:entry", null, 1024, new Toolbox.DocumentBudget());
+        var itemGroup = (Evidence.JsonObject) fragment.relationships().values().get("items");
+        var item = (Evidence.JsonObject) ((Evidence.JsonArray) itemGroup.values().get("values")).values().getFirst();
+
+        assertEquals("fr_fr", candidates.candidates().getFirst().provenance().getLast()
+                .substring("guideme:language:".length()));
+        assertEquals("minecraft:bread", ((Evidence.JsonString) item.values().get("itemId")).value());
+        assertFalse("minecraft:diamond".equals(((Evidence.JsonString) item.values().get("itemId")).value()));
+        assertFalse(reader.sourceIdentity(new Evidence.Scope("world", "en_us", "team", "runtime", 1))
+                .equals(reader.sourceIdentity(new Evidence.Scope("world", "fr_fr", "team", "runtime", 1))));
+    }
+
+    @Test
+    void nativeRecipeTagsPreserveTheirDistinctIdentitiesAndExpressionAttributesStayOpaque() {
+        RecipeCompiler.setTagNamesForTest(Set.of("Recipe", "RecipeFor", "RecipesFor"));
+        var root = new MdAstRoot();
+        root.add(new MdxJsxFlowElement("Recipe", List.of(MdxJsxAttribute.string("id", "fixture:iron_recipe"))));
+        var inlineParent = new MdxJsxFlowElement("div", List.of());
+        inlineParent.add(new MdxJsxTextElement("RecipeFor", List.of(
+                MdxJsxAttribute.string("id", "minecraft:diamond"),
+                MdxJsxAttribute.string("fallbackText", "Diamond recipe"))));
+        root.add(inlineParent);
+        root.add(new MdxJsxFlowElement("RecipesFor", List.of(MdxJsxAttribute.string("id", "minecraft:bread"))));
+        root.add(new MdxJsxFlowElement("Recipe", List.of(MdxJsxAttribute.expression("id", new Object()))));
+        var page = new ParsedGuidePage(PAGE_ID, "en_us", root);
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, List.of(page))));
+
+        var fragment = new GuideMeGuideReader("21.1.19").readFragment("fixture:book#fixture:entry", null, 1024,
+                new Toolbox.DocumentBudget());
+        var group = (Evidence.JsonObject) fragment.relationships().values().get("recipes");
+        var values = ((Evidence.JsonArray) group.values().get("values")).values().stream()
+                .filter(Evidence.JsonObject.class::isInstance).map(Evidence.JsonObject.class::cast).toList();
+        var recipe = values.stream().filter(value -> "Recipe".equals(((Evidence.JsonString) value.values().get("tag")).value()))
+                .filter(value -> value.values().containsKey("recipeId")).findFirst().orElseThrow();
+        var recipeFor = values.stream().filter(value -> "RecipeFor".equals(((Evidence.JsonString) value.values().get("tag")).value()))
+                .findFirst().orElseThrow();
+        var recipesFor = values.stream().filter(value -> "RecipesFor".equals(((Evidence.JsonString) value.values().get("tag")).value()))
+                .findFirst().orElseThrow();
+
+        assertEquals("fixture:iron_recipe", ((Evidence.JsonString) recipe.values().get("recipeId")).value());
+        assertFalse(recipe.values().containsKey("itemId"), "recipe identities are not output selectors");
+        assertEquals("minecraft:diamond", ((Evidence.JsonString) recipeFor.values().get("itemId")).value());
+        assertFalse(recipeFor.values().containsKey("recipeId"), "output selectors are not recipe identities");
+        assertEquals("Diamond recipe", ((Evidence.JsonString) recipeFor.values().get("fallbackText")).value());
+        assertEquals("minecraft:bread", ((Evidence.JsonString) recipesFor.values().get("itemId")).value());
+        assertEquals("PARTIAL", ((Evidence.JsonString) group.values().get("coverage")).value());
+        assertTrue(group.values().containsKey("detail"));
+    }
+
+    @Test
+    void recipesForCapabilityFollowsTheActiveNativeTagSet() {
+        RecipeCompiler.setTagNamesForTest(Set.of("Recipe", "RecipeFor"));
+        var root = new MdAstRoot();
+        root.add(new MdxJsxFlowElement("RecipesFor", List.of(MdxJsxAttribute.string("id", "minecraft:bread"))));
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID,
+                List.of(new ParsedGuidePage(PAGE_ID, "en_us", root)))));
+
+        var floor = new GuideMeGuideReader("21.1.0").readFragment("fixture:book#fixture:entry", null, 1024,
+                new Toolbox.DocumentBudget());
+        var floorGroup = (Evidence.JsonObject) floor.relationships().values().get("recipes");
+        assertTrue(((Evidence.JsonArray) floorGroup.values().get("values")).values().isEmpty());
+        assertEquals("PARTIAL", ((Evidence.JsonString) floorGroup.values().get("coverage")).value());
+
+        RecipeCompiler.setTagNamesForTest(Set.of("Recipe", "RecipeFor", "RecipesFor"));
+        var current = new GuideMeGuideReader("21.1.19").readFragment("fixture:book#fixture:entry", null, 1024,
+                new Toolbox.DocumentBudget());
+        var currentGroup = (Evidence.JsonObject) current.relationships().values().get("recipes");
+        assertEquals("RecipesFor", ((Evidence.JsonString) ((Evidence.JsonObject)
+                ((Evidence.JsonArray) currentGroup.values().get("values")).values().getFirst()).values().get("tag")).value());
+        RecipeCompiler.setTagNamesForTest(Set.of("Recipe", "RecipeFor", "RecipesFor"));
+    }
+
+    @Test
+    void relationshipAndTextContinuationsRereadFreshMetadataAndAst() {
+        var itemIds = new java.util.ArrayList<String>();
+        for (int index = 0; index < 18; index++) itemIds.add("minecraft:diamond");
+        var root = new MdAstRoot();
+        root.add(new MdxJsxTextElement("RecipeFor", List.of(MdxJsxAttribute.string("id", "minecraft:bread"))));
+        root.add(new MdAstText("page text ".repeat(120)));
+        var page = new ParsedGuidePage(PAGE_ID, "en_us", root, new Frontmatter(Map.of("item_ids", itemIds)));
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, List.of(page))));
+        var reader = new GuideMeGuideReader();
+        String position = null;
+        var fragments = new java.util.ArrayList<GuideDocumentReader.Fragment>();
+
+        do {
+            var fragment = reader.readFragment("fixture:book#fixture:entry", position, 128,
+                    new Toolbox.DocumentBudget());
+            fragments.add(fragment);
+            position = fragment.nextPosition();
+            assertTrue(fragments.size() <= 64, "bounded continuation must make progress");
+        } while (position != null);
+
+        var itemValues = fragments.stream().map(GuideDocumentReader.Fragment::relationships)
+                .map(value -> value.values().get("items")).filter(Evidence.JsonObject.class::isInstance)
+                .map(Evidence.JsonObject.class::cast).flatMap(group -> ((Evidence.JsonArray) group.values().get("values"))
+                        .values().stream()).filter(Evidence.JsonObject.class::isInstance).map(Evidence.JsonObject.class::cast).toList();
+        assertEquals(18, itemValues.size());
+        assertTrue(fragments.stream().anyMatch(fragment -> fragment.text().contains("page text")));
+
+        var replacementRoot = new MdAstRoot();
+        replacementRoot.add(new MdAstText("fresh current text"));
+        var replacement = new ParsedGuidePage(PAGE_ID, "en_us", replacementRoot, new Frontmatter(Map.of(
+                "item_ids", List.of("minecraft:bread"))));
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, List.of(replacement))));
+        var fresh = reader.readFragment("fixture:book#fixture:entry", null, 128, new Toolbox.DocumentBudget());
+        var freshGroup = (Evidence.JsonObject) fresh.relationships().values().get("items");
+        var freshItem = (Evidence.JsonObject) ((Evidence.JsonArray) freshGroup.values().get("values")).values().getFirst();
+
+        assertEquals("minecraft:bread", ((Evidence.JsonString) freshItem.values().get("itemId")).value());
+        assertTrue(fresh.text().contains("fresh current text"));
     }
 }

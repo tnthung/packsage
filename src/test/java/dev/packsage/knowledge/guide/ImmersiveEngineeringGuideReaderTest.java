@@ -97,6 +97,74 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void namedPotionLayoutAlternativesContinueWithinByteBoundAndRetainComponents() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var alternatives = new java.util.ArrayList<net.minecraft.world.item.ItemStack>();
+        for (int index = 0; index < 20; index++) {
+            var potion = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.POTION);
+            potion.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS,
+                    new net.minecraft.world.item.alchemy.PotionContents(index % 2 == 0
+                            ? net.minecraft.world.item.alchemy.Potions.WATER
+                            : net.minecraft.world.item.alchemy.Potions.AWKWARD));
+            alternatives.add(potion);
+        }
+        var layout = new blusunrize.lib.manual.utils.ManualRecipeRef(new blusunrize.lib.manual.PositionedItemStack[] {
+                new blusunrize.lib.manual.PositionedItemStack(alternatives, 13, 17, "1")
+        });
+        var entry = manual.addEntry("immersiveengineering:manual/potion-layout",
+                new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{layout}}));
+        entry.addSpecial("potion-layout-anchor", 0);
+
+        String cursor = null;
+        String allFragments = "";
+        var cursors = new java.util.HashSet<String>();
+        int fragments = 0;
+        do {
+            var fragment = new ImmersiveEngineeringGuideReader().readFragment(
+                    "immersiveengineering:manual/potion-layout", cursor, 64, new Toolbox.DocumentBudget());
+            String serialized = Evidence.serialize(fragment.relationships());
+            assertTrue(serialized.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 8 * 1024);
+            allFragments += serialized;
+            cursor = fragment.nextPosition();
+            fragments++;
+            assertTrue(fragments <= 8, "named potion alternatives must advance within the byte bound");
+            if (cursor != null) assertTrue(cursors.add(cursor), "named potion layout cursor repeated");
+        } while (cursor != null);
+
+        assertEquals(20, allFragments.split("\"itemId\":\"minecraft:potion\"", -1).length - 1);
+        assertEquals(20, allFragments.split("minecraft:potion_contents", -1).length - 1);
+        assertTrue(allFragments.contains("potion-layout-anchor"));
+        assertTrue(allFragments.contains("\"x\":13") && allFragments.contains("\"y\":17")
+                && allFragments.contains("\"amount\":\"1\""));
+    }
+
+    @Test
+    void oversizedLayoutAmountIsPartialAndCannotRepeatItsCursor() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var layout = new blusunrize.lib.manual.utils.ManualRecipeRef(new blusunrize.lib.manual.PositionedItemStack[] {
+                new blusunrize.lib.manual.PositionedItemStack(java.util.List.of(
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_INGOT)), 0, 0, "x".repeat(2000))
+        });
+        var entry = manual.addEntry("immersiveengineering:manual/oversized-layout",
+                new blusunrize.lib.manual.ManualElementCrafting(
+                        new blusunrize.lib.manual.utils.ManualRecipeRef[][] {{layout}}));
+        entry.addSpecial("oversized-layout-anchor", 0);
+
+        var first = new ImmersiveEngineeringGuideReader().readFragment(
+                "immersiveengineering:manual/oversized-layout", null, 64, new Toolbox.DocumentBudget());
+        assertTrue(Evidence.serialize(first.relationships()).contains("PARTIAL"));
+        var cursor = first.nextPosition();
+        if (cursor != null) {
+            var next = new ImmersiveEngineeringGuideReader().readFragment(
+                    "immersiveengineering:manual/oversized-layout", cursor, 64, new Toolbox.DocumentBudget());
+            assertNull(next.nextPosition(), "an indivisible oversized amount must be skipped as partial, not retried forever");
+        }
+    }
+
+    @Test
     void initializedManualProjectsBlueprintBottlingAndMixerSelectorsWithoutRecipeMatching() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();

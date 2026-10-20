@@ -13,6 +13,7 @@ import guideme.libs.mdast.mdx.model.MdxJsxAttribute;
 import guideme.libs.mdast.mdx.model.MdxJsxFlowElement;
 import guideme.libs.mdast.mdx.model.MdxJsxTextElement;
 import guideme.libs.mdast.model.MdAstRoot;
+import guideme.libs.mdast.model.MdAstParent;
 import guideme.libs.mdast.model.MdAstText;
 import net.minecraft.resources.ResourceLocation;
 import org.junit.jupiter.api.AfterEach;
@@ -261,6 +262,128 @@ class GuideMeGuideReaderTest {
         assertEquals("RecipesFor", ((Evidence.JsonString) ((Evidence.JsonObject)
                 ((Evidence.JsonArray) currentGroup.values().get("values")).values().getFirst()).values().get("tag")).value());
         RecipeCompiler.setTagNamesForTest(Set.of("Recipe", "RecipeFor", "RecipesFor"));
+    }
+
+    @Test
+    void skippedDescendantsAtTheDepthLimitKeepRecipeCoveragePartial() {
+        var root = new MdAstRoot();
+        root.add(new MdxJsxFlowElement("RecipeFor", List.of(MdxJsxAttribute.string("id", "minecraft:diamond"))));
+        MdAstParent current = root;
+        for (int depth = 0; depth < 64; depth++) {
+            var nested = new MdAstParent() { };
+            current.add(nested);
+            current = nested;
+        }
+        current.add(new MdxJsxFlowElement("RecipeFor", List.of(MdxJsxAttribute.string("id", "minecraft:bread"))));
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID,
+                List.of(new ParsedGuidePage(PAGE_ID, "en_us", root)))));
+        var reader = new GuideMeGuideReader();
+        String position = null;
+        GuideDocumentReader.Fragment fragment;
+        int pages = 0;
+
+        do {
+            fragment = reader.readFragment("fixture:book#fixture:entry", position, 128,
+                    new Toolbox.DocumentBudget());
+            position = fragment.nextPosition();
+            pages++;
+            assertTrue(pages <= 32, "the bounded depth case should reach a terminal continuation");
+        } while (position != null);
+
+        var group = (Evidence.JsonObject) fragment.relationships().values().get("recipes");
+        assertEquals("PARTIAL", ((Evidence.JsonString) group.values().get("coverage")).value());
+        assertTrue(group.values().containsKey("detail"));
+    }
+
+    @Test
+    void localRelationshipByteLimitContinuesAtTheUnemittedRecipe() {
+        var root = new MdAstRoot();
+        for (int index = 0; index < 6; index++) {
+            root.add(new MdxJsxFlowElement("RecipeFor", List.of(
+                    MdxJsxAttribute.string("id", "minecraft:diamond"),
+                    MdxJsxAttribute.string("fallbackText", "record-" + index + ";" + "x".repeat(1300)))));
+        }
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID,
+                List.of(new ParsedGuidePage(PAGE_ID, "en_us", root)))));
+        var reader = new GuideMeGuideReader();
+        String position = null;
+        var returnedPositions = new HashSet<String>();
+        var records = new java.util.ArrayList<Evidence.JsonObject>();
+        int pages = 0;
+
+        do {
+            var fragment = reader.readFragment("fixture:book#fixture:entry", position, 128,
+                    new Toolbox.DocumentBudget());
+            position = fragment.nextPosition();
+            pages++;
+            assertTrue(pages <= 8, "a locally full fragment must continue within a bounded number of pages");
+            assertTrue(position == null || returnedPositions.add(position), "continuations must advance");
+            var group = fragment.relationships().values().get("recipes");
+            if (group instanceof Evidence.JsonObject object)
+                ((Evidence.JsonArray) object.values().get("values")).values().stream()
+                        .filter(Evidence.JsonObject.class::isInstance).map(Evidence.JsonObject.class::cast)
+                        .forEach(records::add);
+        } while (position != null);
+
+        assertEquals(6, records.size());
+        var sixth = records.stream().filter(record -> "record-5;".concat("x".repeat(1300)).equals(
+                ((Evidence.JsonString) record.values().get("fallbackText")).value())).findFirst().orElseThrow();
+        assertTrue(((Evidence.JsonString) sixth.values().get("sourcePosition")).value().startsWith("ast:"));
+    }
+
+    @Test
+    void recordLimitIsPendingUntilAllValidPageAssociationsAreEmitted() {
+        var itemIds = new java.util.ArrayList<String>();
+        for (int index = 0; index < 17; index++) itemIds.add("minecraft:diamond");
+        var page = new ParsedGuidePage(PAGE_ID, "en_us", new MdAstRoot(),
+                new Frontmatter(Map.of("item_ids", itemIds)));
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, List.of(page))));
+        var reader = new GuideMeGuideReader();
+        String position = null;
+        var returnedPositions = new HashSet<String>();
+        var items = new java.util.ArrayList<Evidence.JsonObject>();
+        GuideDocumentReader.Fragment terminal;
+        int pages = 0;
+
+        do {
+            terminal = reader.readFragment("fixture:book#fixture:entry", position, 128,
+                    new Toolbox.DocumentBudget());
+            position = terminal.nextPosition();
+            pages++;
+            assertTrue(pages <= 8, "the remaining declaration should be emitted promptly");
+            assertTrue(position == null || returnedPositions.add(position), "continuations must advance");
+            var group = terminal.relationships().values().get("items");
+            if (group instanceof Evidence.JsonObject object)
+                ((Evidence.JsonArray) object.values().get("values")).values().stream()
+                        .filter(Evidence.JsonObject.class::isInstance).map(Evidence.JsonObject.class::cast)
+                        .forEach(items::add);
+        } while (position != null);
+
+        assertEquals(17, items.size());
+        var group = (Evidence.JsonObject) terminal.relationships().values().get("items");
+        assertEquals("COMPLETE", ((Evidence.JsonString) group.values().get("coverage")).value());
+    }
+
+    @Test
+    void relationshipReadUsesTheCurrentlySelectedLocalizedPage() {
+        var english = new ParsedGuidePage(PAGE_ID, "en_us", new MdAstRoot(), new Frontmatter(Map.of(
+                "item_ids", List.of("minecraft:diamond"))));
+        var french = new ParsedGuidePage(PAGE_ID, "fr_fr", new MdAstRoot(), new Frontmatter(Map.of(
+                "item_ids", List.of("minecraft:bread"))));
+        var reader = new GuideMeGuideReader();
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, List.of(english))));
+        var englishRead = reader.readFragment("fixture:book#fixture:entry", null, 128,
+                new Toolbox.DocumentBudget());
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, List.of(french))));
+        var frenchRead = reader.readFragment("fixture:book#fixture:entry", null, 128,
+                new Toolbox.DocumentBudget());
+
+        var englishGroup = (Evidence.JsonObject) englishRead.relationships().values().get("items");
+        var frenchGroup = (Evidence.JsonObject) frenchRead.relationships().values().get("items");
+        assertEquals("minecraft:diamond", ((Evidence.JsonString) ((Evidence.JsonObject)
+                ((Evidence.JsonArray) englishGroup.values().get("values")).values().getFirst()).values().get("itemId")).value());
+        assertEquals("minecraft:bread", ((Evidence.JsonString) ((Evidence.JsonObject)
+                ((Evidence.JsonArray) frenchGroup.values().get("values")).values().getFirst()).values().get("itemId")).value());
     }
 
     @Test

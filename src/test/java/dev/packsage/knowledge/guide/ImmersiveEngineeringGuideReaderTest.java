@@ -843,6 +843,35 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void textHandoffWithFourOrFiveBytesLeftExhaustsWithoutRepeatingCursor() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        manual.setInitialized(true);
+        var id = "immersiveengineering:manual/text-handoff-budget";
+        manual.addEntry(id, null);
+        var reader = new ImmersiveEngineeringGuideReader();
+        var cursor = "ie1|done|0|0";
+
+        for (int remainingBytes : new int[] {4, 5}) {
+            var budget = new Toolbox.DocumentBudget();
+            assertTrue(budget.bytes(budget.remainingBytes() - remainingBytes));
+
+            var failure = assertThrows(Toolbox.Failure.class,
+                    () -> reader.readFragment(id, cursor, 64, budget));
+
+            assertEquals(Toolbox.Code.EXTRACTION_FAILED, failure.code());
+            assertTrue(budget.exhausted(), "the provider must be able to retain this continuation");
+        }
+
+        var freshBudget = new Toolbox.DocumentBudget();
+        var fresh = reader.readFragment(id, cursor, 64, freshBudget);
+
+        assertTrue(fresh.nextPosition() == null || !fresh.nextPosition().equals(cursor),
+                "sufficient budget must advance past the same source position");
+        assertTrue(!freshBudget.exhausted());
+    }
+
+    @Test
     void continuationShortensOverlapWhenTheFragmentLimitRequiresIt() {
         var fragment = ImmersiveEngineeringGuideReader.readText(new StringReader("0123456789"), "manual/test", 5,
                 2, 2, new Toolbox.DocumentBudget());

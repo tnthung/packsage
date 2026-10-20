@@ -744,6 +744,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                     null, Evidence.Coverage.PARTIAL,
                     "localized manual text could not be read");
             try {
+                if (offset >= 0 && budget.remainingBytes() < 6) budget.bytes(6);
                 if (offset < 0) textFragment = new Fragment("", id + "@done", 0, null,
                         Evidence.Coverage.COMPLETE, null);
                 else if (budget.remainingBytes() < 6 || budget.exhausted()) textFragment = new Fragment("", id + "@" + offset,

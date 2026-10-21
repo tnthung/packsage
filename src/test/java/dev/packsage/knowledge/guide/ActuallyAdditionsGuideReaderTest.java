@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -157,5 +158,137 @@ class ActuallyAdditionsGuideReaderTest {
         } finally {
             configField.set(null, originalConfig);
         }
+    }
+
+    private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "solo", "client", 1);
+    private static final String INTRO = "actuallyadditions:intro";
+
+    @Test
+    void navigationTargetsUseEntryIdentity() {
+        var reader = new ActuallyAdditionsGuideReader(() -> FakeBook.of(new FakeEntry(INTRO, false, false)), "1.3.26",
+                new RecordingOpener());
+
+        assertEquals(List.of(new Evidence.NavigationTarget(SCOPE, "actuallyadditions", INTRO, INTRO)),
+                reader.navigationTargets(SCOPE, new GuideDocumentReader.Candidate(INTRO, "Intro", "0|" + INTRO,
+                        List.of(), Evidence.Coverage.COMPLETE)));
+    }
+
+    @Test
+    void savedEntryResolvesAfterContentsRebuild() {
+        var current = new java.util.concurrent.atomic.AtomicReference<Object>(FakeBook.of(new FakeEntry(INTRO, false, false)));
+        var opener = new RecordingOpener();
+        var reader = new ActuallyAdditionsGuideReader(current::get, "1.3.26", opener);
+        var saved = new Evidence.NavigationTarget(SCOPE, "actuallyadditions", "old", INTRO);
+        current.set(FakeBook.of(new FakeEntry(INTRO, false, false)));
+
+        var refreshed = reader.refreshNavigation(saved, SCOPE);
+
+        assertEquals(new Evidence.NavigationTarget(SCOPE, "actuallyadditions", INTRO, INTRO), refreshed);
+        assertEquals(Evidence.NavigationStatus.OPENED, reader.open(refreshed, SCOPE).status());
+        assertEquals(List.of(List.of("actuallyadditions:booklet", INTRO, 0)), opener.calls);
+    }
+
+    @Test
+    void removedEntryIsUnavailableWithoutNativeCall() {
+        var current = new java.util.concurrent.atomic.AtomicReference<Object>(FakeBook.of(new FakeEntry(INTRO, false, false)));
+        var opener = new RecordingOpener();
+        var reader = new ActuallyAdditionsGuideReader(current::get, "1.3.26", opener);
+        var refreshed = reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "actuallyadditions", "old", INTRO), SCOPE);
+        current.set(FakeBook.of(new FakeEntry("actuallyadditions:other", false, false)));
+
+        assertNull(reader.refreshNavigation(refreshed, SCOPE));
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, reader.open(refreshed, SCOPE).status());
+        current.set(null);
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, reader.open(refreshed, SCOPE).status());
+        current.set(new FakeBook(new FakeContents(true, java.util.Map.of())));
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, reader.open(refreshed, SCOPE).status());
+        assertEquals(List.of(), opener.calls);
+    }
+
+    @Test
+    void refreshRejectsMalformedWrongProviderHiddenAndLockedEntries() {
+        var opener = new RecordingOpener();
+        var reader = new ActuallyAdditionsGuideReader(() -> FakeBook.of(new FakeEntry(INTRO, false, false),
+                new FakeEntry("actuallyadditions:hidden", true, false), new FakeEntry("actuallyadditions:locked", false, true)),
+                "1.3.26", opener);
+
+        for (var targetId : List.of("not a resource id", "actuallyadditions:booklet#" + INTRO + "#0", INTRO + "#0",
+                "actuallyadditions:hidden", "actuallyadditions:locked", "actuallyadditions:missing")) {
+            assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "actuallyadditions", "old", targetId), SCOPE),
+                    targetId);
+        }
+        assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "patchouli", "old", INTRO), SCOPE));
+        assertEquals(List.of(), opener.calls);
+    }
+
+    @Test
+    void openReportsStaleScopeOffThreadChangedHandleAndError() {
+        var opener = new RecordingOpener();
+        var reader = new ActuallyAdditionsGuideReader(() -> FakeBook.of(new FakeEntry(INTRO, false, false)), "1.3.26", opener);
+        var current = new Evidence.NavigationTarget(SCOPE, "actuallyadditions", INTRO, INTRO);
+
+        assertEquals(Evidence.NavigationStatus.STALE, reader.open(current,
+                new Evidence.Scope("other", "en_us", "solo", "client", 1)).status());
+        opener.clientThread = false;
+        assertEquals(Evidence.NavigationStatus.UNSUPPORTED, reader.open(current, SCOPE).status());
+        opener.clientThread = true;
+        assertEquals(Evidence.NavigationStatus.STALE, reader.open(new Evidence.NavigationTarget(SCOPE, "actuallyadditions",
+                "actuallyadditions:other", INTRO), SCOPE).status());
+        assertEquals(List.of(), opener.calls);
+        opener.failure = new NullPointerException("entry");
+        assertEquals(Evidence.NavigationStatus.ERROR, reader.open(current, SCOPE).status());
+    }
+
+    private static final class RecordingOpener implements ActuallyAdditionsGuideReader.EntryOpener {
+        private final List<List<Object>> calls = new java.util.ArrayList<>();
+        private boolean clientThread = true;
+        private RuntimeException failure;
+
+        @Override public boolean isClientThread() { return clientThread; }
+
+        @Override public void openEntry(ResourceLocation book, ResourceLocation entry, int page) {
+            if (failure != null) throw failure;
+            calls.add(List.of(book.toString(), entry.toString(), page));
+        }
+    }
+
+    public record FakeBook(FakeContents contents) {
+        static FakeBook of(FakeEntry... entries) {
+            var map = new java.util.LinkedHashMap<ResourceLocation, FakeEntry>();
+            for (var entry : entries) map.put(entry.getId(), entry);
+            return new FakeBook(new FakeContents(false, map));
+        }
+
+        public FakeContents getContents() { return contents; }
+    }
+
+    public static final class FakeContents {
+        public final java.util.Map<ResourceLocation, FakeEntry> entries;
+        private final boolean errored;
+
+        FakeContents(boolean errored, java.util.Map<ResourceLocation, FakeEntry> entries) {
+            this.errored = errored;
+            this.entries = entries;
+        }
+
+        public boolean isErrored() { return errored; }
+    }
+
+    public static final class FakeEntry {
+        private final ResourceLocation id;
+        private final boolean hidden;
+        private final boolean locked;
+
+        FakeEntry(String id, boolean hidden, boolean locked) {
+            this.id = ResourceLocation.parse(id);
+            this.hidden = hidden;
+            this.locked = locked;
+        }
+
+        public ResourceLocation getId() { return id; }
+
+        public boolean shouldHide() { return hidden; }
+
+        public boolean isLocked() { return locked; }
     }
 }

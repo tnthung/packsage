@@ -2,6 +2,7 @@ package dev.packsage.knowledge.guide;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
+import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 
 import java.lang.reflect.Method;
@@ -19,14 +20,42 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
     private static final ResourceLocation BOOK_ID = ResourceLocation.parse("actuallyadditions:booklet");
     private final Supplier<Object> bookSource;
     private final String readerVersion;
+    private final EntryOpener opener;
+
+    /** Client-side effects of opening a booklet entry; replaced in tests. */
+    interface EntryOpener {
+        EntryOpener MINECRAFT = new EntryOpener() {
+            @Override public boolean isClientThread() { return Minecraft.getInstance().isSameThread(); }
+
+            @Override public void openEntry(ResourceLocation book, ResourceLocation entry, int page) {
+                try {
+                    var api = Class.forName("vazkii.patchouli.api.PatchouliAPI").getMethod("get").invoke(null);
+                    Class.forName("vazkii.patchouli.api.PatchouliAPI$IPatchouliAPI")
+                            .getMethod("openBookEntry", ResourceLocation.class, ResourceLocation.class, int.class)
+                            .invoke(api, book, entry, page);
+                } catch (ReflectiveOperationException failure) {
+                    throw new IllegalStateException("Patchouli booklet navigation is unavailable", failure);
+                }
+            }
+        };
+
+        boolean isClientThread();
+
+        void openEntry(ResourceLocation book, ResourceLocation entry, int page);
+    }
 
     public ActuallyAdditionsGuideReader() { this(ActuallyAdditionsGuideReader::liveBook, VERSION); }
 
     ActuallyAdditionsGuideReader(Supplier<Object> bookSource) { this(bookSource, VERSION); }
 
     ActuallyAdditionsGuideReader(Supplier<Object> bookSource, String version) {
+        this(bookSource, version, EntryOpener.MINECRAFT);
+    }
+
+    ActuallyAdditionsGuideReader(Supplier<Object> bookSource, String version, EntryOpener opener) {
         this.bookSource = Objects.requireNonNull(bookSource);
         this.readerVersion = version;
+        this.opener = Objects.requireNonNull(opener);
     }
 
     public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> scope, Executor clientExecutor, String actualVersion) {
@@ -212,6 +241,55 @@ public final class ActuallyAdditionsGuideReader implements GuideDocumentReader {
             throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "Actually Additions booklet entry is no longer available");
         }
         return new ResolvedDocument(candidate, readFragment(id, null, maxChars, budget));
+    }
+
+    @Override
+    public List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope scope, Candidate candidate) {
+        return availableEntry(candidate.id()) == null ? List.of()
+                : List.of(new Evidence.NavigationTarget(scope, providerId(), candidate.id(), candidate.id()));
+    }
+
+    @Override
+    public Evidence.NavigationTarget refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!providerId().equals(target.providerId()) || availableEntry(target.targetId()) == null) return null;
+        return new Evidence.NavigationTarget(scope, providerId(), target.targetId(), target.targetId());
+    }
+
+    @Override
+    public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!scope.equals(target.scope())) return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
+                "Actually Additions target is outside the active scope");
+        if (!opener.isClientThread()) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,
+                "Actually Additions navigation requires the client thread");
+        var entryId = availableEntry(target.targetId());
+        if (entryId == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE,
+                "Actually Additions booklet entry is missing, hidden or locked");
+        if (!target.targetId().equals(target.sourceHandle())) return new Evidence.NavigationResult(
+                Evidence.NavigationStatus.STALE, "Actually Additions booklet entry identity changed");
+        try {
+            opener.openEntry(BOOK_ID, entryId, 0);
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "Actually Additions booklet entry opened");
+        } catch (RuntimeException | LinkageError failure) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, failure.toString());
+        }
+    }
+
+    /** Resolves a durable entry ID against the current booklet contents when visible and unlocked, or null. */
+    private ResourceLocation availableEntry(String entryId) {
+        var location = ResourceLocation.tryParse(entryId);
+        if (location == null || !location.toString().equals(entryId)) return null;
+        try {
+            var book = bookSource.get();
+            if (book == null) return null;
+            var contents = book.getClass().getMethod("getContents").invoke(book);
+            if (contents == null || (boolean) contents.getClass().getMethod("isErrored").invoke(contents)) return null;
+            var entry = ((Map<?, ?>) contents.getClass().getField("entries").get(contents)).get(location);
+            if (entry == null || (boolean) entry.getClass().getMethod("shouldHide").invoke(entry)
+                    || (boolean) entry.getClass().getMethod("isLocked").invoke(entry)) return null;
+            return location;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
+            return null;
+        }
     }
 
     private static Object liveBook() {

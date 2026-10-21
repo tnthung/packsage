@@ -359,10 +359,12 @@ final class NativeRegistryReader {
         var effects = NativeEnchantmentReader.effects(value, access);
         payload.put("levels", levels.values());
         if (levels.bounded()) payload.put("levelsStatus", new Evidence.JsonString("bounded"));
+        var mechanics = NativeEnchantmentReader.mechanics(value);
         payload.put("effects", effects);
-        payload.put("effectsStatus", new Evidence.JsonString("registered_components_not_interpreted"));
+        payload.put("effectMechanics", mechanics.values());
+        payload.put("effectsStatus", new Evidence.JsonString("built_in_components_decoded"));
         boolean partial = supported.size() > MAX_MEMBERS || primary.size() > MAX_MEMBERS || exclusive.size() > MAX_MEMBERS || levels.bounded()
-                || effects.values().containsKey("status");
+                || effects.values().containsKey("status") || mechanics.partial();
         return record("enchantment", identity, Evidence.RecordKind.OTHER, value.description().getString(), payload,
                 partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, List.of("client-registry:enchantment"), scope);
     }

@@ -1,6 +1,8 @@
 package dev.packsage.knowledge.nativegame;
 
 import dev.packsage.knowledge.Evidence;
+import net.minecraft.ChatFormatting;
+import net.minecraft.locale.Language;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 
@@ -15,6 +17,8 @@ import java.util.Locale;
 import java.util.Map;
 
 final class NativeEffectReader {
+    private static final int MAX_DESCRIPTION = 1024;
+
     private NativeEffectReader() {
     }
 
@@ -33,6 +37,7 @@ final class NativeEffectReader {
         payload.put("showIcon", new Evidence.JsonBoolean(instance.showIcon()));
         var modifiers = contained(instance.getEffect().value(), instance.getAmplifier(), instance.getAmplifier());
         payload.put("attributeModifiers", modifiers);
+        describe(payload, instance.getEffect().value(), Language.getInstance());
         var source = new Evidence.Source(scope, "native", "1.21.1", "active_effect:" + effectId,
                 scope.requestGeneration(), Instant.now(), Evidence.Activity.ACTIVE,
                 modifiers instanceof Evidence.JsonObject ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
@@ -68,6 +73,27 @@ final class NativeEffectReader {
 
     private static String effectId(MobEffectInstance instance) {
         return instance.getEffect().unwrapKey().map(key -> key.location().toString()).orElse("unknown:effect");
+    }
+
+    /** Reads the optional {@code <descriptionId>.description} translation shipped by some mods. */
+    static void describe(Map<String, Evidence.JsonValue> payload, MobEffect effect, Language language) {
+        try {
+            var key = effect.getDescriptionId() + ".description";
+            if (!language.has(key)) {
+                payload.put("descriptionStatus", new Evidence.JsonString("not_provided"));
+                return;
+            }
+            var text = ChatFormatting.stripFormatting(language.getOrDefault(key));
+            if (text == null) text = "";
+            boolean bounded = text.length() > MAX_DESCRIPTION;
+            payload.put("description", new Evidence.JsonString(bounded ? text.substring(0, MAX_DESCRIPTION) : text));
+            payload.put("descriptionSource", new Evidence.JsonString("language:" + key));
+            if (bounded) payload.put("descriptionStatus", new Evidence.JsonString("bounded"));
+        } catch (RuntimeException failure) {
+            payload.remove("description");
+            payload.remove("descriptionSource");
+            payload.put("descriptionStatus", new Evidence.JsonString("unknown"));
+        }
     }
 
     /** Modifiers, or {status:"unknown"} when mod code throws while creating them. */

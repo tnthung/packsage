@@ -52,6 +52,91 @@ class NativeEffectReaderTest {
         assertEquals(Evidence.Coverage.PARTIAL, record.source().coverage());
     }
 
+    private static net.minecraft.locale.Language language(String key, String text) {
+        return new net.minecraft.locale.Language() {
+            @Override
+            public String getOrDefault(String candidate, String fallback) {
+                return candidate.equals(key) ? text : fallback;
+            }
+
+            @Override
+            public boolean has(String candidate) {
+                return candidate.equals(key);
+            }
+
+            @Override
+            public boolean isDefaultRightToLeft() {
+                return false;
+            }
+
+            @Override
+            public net.minecraft.util.FormattedCharSequence getVisualOrder(net.minecraft.network.chat.FormattedText text) {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
+    private static java.util.Map<String, Evidence.JsonValue> describe(net.minecraft.world.effect.MobEffect effect, String text) {
+        var payload = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+        NativeEffectReader.describe(payload, effect, language("effect.minecraft.luck.description", text));
+        return payload;
+    }
+
+    @Test
+    void providedDescriptionIsReadWithSource() {
+        var payload = describe(MobEffects.LUCK.value(), "Improves loot.");
+        assertEquals(new Evidence.JsonString("Improves loot."), payload.get("description"));
+        assertEquals(new Evidence.JsonString("language:effect.minecraft.luck.description"), payload.get("descriptionSource"));
+        assertFalse(payload.containsKey("descriptionStatus"));
+    }
+
+    @Test
+    void missingDescriptionIsNotProvided() {
+        var payload = describe(MobEffects.MOVEMENT_SPEED.value(), "Improves loot.");
+        assertEquals(new Evidence.JsonString("not_provided"), payload.get("descriptionStatus"));
+        assertFalse(payload.containsKey("description"));
+    }
+
+    @Test
+    void longDescriptionIsBounded() {
+        var payload = describe(MobEffects.LUCK.value(), "x".repeat(2000));
+        assertEquals(1024, ((Evidence.JsonString) payload.get("description")).value().length());
+        assertEquals(new Evidence.JsonString("bounded"), payload.get("descriptionStatus"));
+    }
+
+    @Test
+    void formattingCodesAreStripped() {
+        var payload = describe(MobEffects.LUCK.value(), "§aGood §lluck");
+        assertEquals(new Evidence.JsonString("Good luck"), payload.get("description"));
+    }
+
+    @Test
+    void throwingLanguageIsUnknown() {
+        var payload = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+        NativeEffectReader.describe(payload, MobEffects.LUCK.value(), new net.minecraft.locale.Language() {
+            @Override
+            public String getOrDefault(String key, String fallback) {
+                throw new IllegalStateException("boom");
+            }
+
+            @Override
+            public boolean has(String key) {
+                throw new IllegalStateException("boom");
+            }
+
+            @Override
+            public boolean isDefaultRightToLeft() {
+                return false;
+            }
+
+            @Override
+            public net.minecraft.util.FormattedCharSequence getVisualOrder(net.minecraft.network.chat.FormattedText text) {
+                throw new UnsupportedOperationException();
+            }
+        });
+        assertEquals(new Evidence.JsonString("unknown"), payload.get("descriptionStatus"));
+    }
+
     private static net.minecraft.world.effect.MobEffect throwingEffect() {
         return new net.minecraft.world.effect.MobEffect(net.minecraft.world.effect.MobEffectCategory.NEUTRAL, 0) {
             @Override

@@ -204,9 +204,13 @@ public final class NativeInventoryReader implements InventoryReader {
         payload.put("slotReference", new Evidence.JsonString("native:" + sourceHandle));
         var instance = relics == null ? null : relics.read(client.player, stack);
         if (instance != null) payload.put("relicInstance", instance);
+        var eligibility = NativeEnchantmentEligibility.read(stack,
+                client.level.registryAccess().registryOrThrow(Registries.ENCHANTMENT));
+        payload.put("enchantmentEligibility", eligibility);
         var source = current.source();
         var coverage = instance != null && (!(instance.values().get("coverage") instanceof Evidence.JsonString coverageValue)
-                || !coverageValue.value().equals("COMPLETE")) ? Evidence.Coverage.PARTIAL : source.coverage();
+                || !coverageValue.value().equals("COMPLETE")) || !NativeEnchantmentEligibility.complete(eligibility)
+                ? Evidence.Coverage.PARTIAL : source.coverage();
         return new Evidence.Record(new Evidence.Source(scope, source.providerId(), source.providerVersion(), sourceHandle,
                 scope.requestGeneration(), Instant.now(), source.activity(), coverage, source.authority(),
                 source.provenance()), current.kind(), current.title(), new Evidence.JsonObject(payload), current.targets());

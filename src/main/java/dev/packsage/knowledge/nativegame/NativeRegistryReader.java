@@ -93,7 +93,9 @@ final class NativeRegistryReader {
                 var registry = client.level.registryAccess().registryOrThrow(Registries.ITEM);
                 if (!registry.containsKey(key)) yield null;
                 var value = registry.get(key);
-                yield value == null ? null : entry(selectedRegistry, value, registry, client, scope);
+                if (value == null) yield null;
+                yield withEnchantmentEligibility(entry(selectedRegistry, value, registry, client, scope), new ItemStack(value),
+                        client.level.registryAccess().registryOrThrow(Registries.ENCHANTMENT));
             }
             case "block" -> {
                 var registry = client.level.registryAccess().registryOrThrow(Registries.BLOCK);
@@ -234,6 +236,19 @@ final class NativeRegistryReader {
         if (value instanceof Enchantment enchantment) return enchantment.description().getString();
         if (value instanceof MobEffect effect) return effect.getDisplayName().getString();
         return value instanceof Potion ? value.toString() : "";
+    }
+
+    private static Evidence.Record withEnchantmentEligibility(Evidence.Record record, ItemStack stack,
+                                                              Registry<Enchantment> enchantments) {
+        var eligibility = NativeEnchantmentEligibility.read(stack, enchantments);
+        var payload = new LinkedHashMap<>(record.payload().values());
+        payload.put("enchantmentEligibility", eligibility);
+        var source = record.source();
+        var coverage = NativeEnchantmentEligibility.complete(eligibility) ? source.coverage() : Evidence.Coverage.PARTIAL;
+        return new Evidence.Record(new Evidence.Source(source.scope(), source.providerId(), source.providerVersion(),
+                source.sourceHandle(), source.observedGeneration(), source.observedAt(), source.activity(), coverage,
+                source.authority(), source.provenance()), record.kind(), record.title(), new Evidence.JsonObject(payload),
+                record.targets(), record.recipePayload());
     }
 
     private static <T> Evidence.Record entry(String selectedRegistry, T value, Registry<T> registry,

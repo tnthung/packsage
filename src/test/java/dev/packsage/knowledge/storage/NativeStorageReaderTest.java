@@ -394,7 +394,7 @@ class NativeStorageReaderTest {
         shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(ItemStack.EMPTY, pickaxe)));
         var bundle = new ItemStack(Items.BUNDLE);
         bundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(List.of(new ItemStack(Items.EMERALD, 3))));
-        var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+        var registries = net.minecraft.data.registries.VanillaRegistries.createLookup();
         var observation = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false, shulker),
                 "native:inventory:fixture:main:5", FIRST, registries, Instant.EPOCH, 0);
 
@@ -453,9 +453,26 @@ class NativeStorageReaderTest {
         assertEquals("storage-entry:item:native:inventory:fixture:main:5", first.source().sourceHandle());
         var eligibility = (Evidence.JsonObject) first.payload().values().get("enchantmentEligibility");
         assertNotNull(eligibility);
-        assertTrue(eligibility.values().containsKey("status"));
+        assertEquals(new Evidence.JsonString("complete"), eligibility.values().get("status"));
+        assertEquals(Evidence.Coverage.COMPLETE, first.source().coverage());
+        assertEquals(Evidence.Coverage.COMPLETE, observation.coverage());
         var owner = (Evidence.JsonObject) ((Evidence.JsonArray) observation.details().get("owners")).values().getFirst();
         assertEquals(new Evidence.JsonString("none"), owner.values().get("storageStatus"));
+    }
+
+    @Test
+    void selectedItemWithoutEnchantmentRegistryIsPartialAndNamesTheGap() {
+        var observation = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false,
+                        new ItemStack(Items.DIAMOND_PICKAXE)),
+                "native:inventory:fixture:main:5", FIRST, RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY),
+                Instant.EPOCH, 0);
+
+        var first = observation.entries().getFirst();
+        var eligibility = (Evidence.JsonObject) first.payload().values().get("enchantmentEligibility");
+        assertEquals(new Evidence.JsonString("unavailable"), eligibility.values().get("status"));
+        assertEquals(new Evidence.JsonString("enchantment registry unavailable"), eligibility.values().get("detail"));
+        assertEquals(Evidence.Coverage.PARTIAL, first.source().coverage());
+        assertEquals(Evidence.Coverage.PARTIAL, observation.coverage());
     }
 
     @Test
@@ -478,7 +495,7 @@ class NativeStorageReaderTest {
         nested.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.DIAMOND))));
         var held = new ItemStack(Items.SHULKER_BOX);
         held.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(nested)));
-        var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+        var registries = net.minecraft.data.registries.VanillaRegistries.createLookup();
         var observation = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false, held),
                 "native:inventory:fixture:main:5", FIRST, registries, Instant.EPOCH, 0);
         assertEquals(2, observation.entries().size());
@@ -639,7 +656,7 @@ class NativeStorageReaderTest {
     @Test
     void recognizedEmptyComponentDiffersFromUnsupportedAndEmptySlots() {
         var shulker = new ItemStack(Items.SHULKER_BOX);
-        var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+        var registries = net.minecraft.data.registries.VanillaRegistries.createLookup();
         var recognizedEmpty = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false, shulker),
                 "native:inventory:fixture:main:5", FIRST, registries, Instant.EPOCH, 0);
         assertEquals(Evidence.Coverage.COMPLETE, recognizedEmpty.coverage());
@@ -675,7 +692,7 @@ class NativeStorageReaderTest {
                     resolved.add(reference);
                     assertEquals(FIRST, scope);
                     return new NativeInventoryReader.LocatedItem("main", 5, null, false, shulker);
-                }, () -> RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
+                }, () -> net.minecraft.data.registries.VanillaRegistries.createLookup());
         var first = reader.read(new StorageReader.Request(StorageReader.Target.ITEM,
                 "native:inventory:fixture:main:5", null, List.of(), 1, null, FIRST)).toCompletableFuture().join();
         assertEquals(Evidence.Coverage.COMPLETE, first.coverage());

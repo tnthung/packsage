@@ -2,14 +2,70 @@ package dev.packsage.knowledge.nativegame;
 
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectInstance;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 final class NativeEffectReader {
     private NativeEffectReader() {
+    }
+
+    static Evidence.Record activeRecord(MobEffectInstance instance, Evidence.Scope scope) {
+        var effectId = effectId(instance);
+        var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+        payload.put("registry", new Evidence.JsonString("active_effect"));
+        payload.put("id", new Evidence.JsonString(effectId));
+        payload.put("identity", new Evidence.JsonString(effectId));
+        payload.put("effect", new Evidence.JsonString(effectId));
+        payload.put("durationTicks", new Evidence.JsonNumber(BigDecimal.valueOf(instance.getDuration())));
+        payload.put("infinite", new Evidence.JsonBoolean(instance.isInfiniteDuration()));
+        payload.put("amplifier", new Evidence.JsonNumber(BigDecimal.valueOf(instance.getAmplifier())));
+        payload.put("ambient", new Evidence.JsonBoolean(instance.isAmbient()));
+        payload.put("visible", new Evidence.JsonBoolean(instance.isVisible()));
+        payload.put("showIcon", new Evidence.JsonBoolean(instance.showIcon()));
+        payload.put("attributeModifiers", attributeModifiers(instance.getEffect().value(), instance.getAmplifier(), instance.getAmplifier()));
+        var source = new Evidence.Source(scope, "native", "1.21.1", "active_effect:" + effectId,
+                scope.requestGeneration(), Instant.now(), Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of("client-player:active-effects"));
+        return new Evidence.Record(source, Evidence.RecordKind.OTHER, instance.getEffect().value().getDisplayName().getString(),
+                new Evidence.JsonObject(payload), List.of());
+    }
+
+    static NativeRegistryReader.Page searchActive(Collection<MobEffectInstance> active, String text, List<String> ids,
+                                                  List<String> tags, int offset, int limit, Evidence.Scope scope) {
+        var matches = new ArrayList<MobEffectInstance>();
+        for (var instance : active) {
+            var effectId = effectId(instance);
+            if (!ids.isEmpty() && !ids.contains(effectId)) continue;
+            if (!tags.isEmpty() && instance.getEffect().tags().map(tag -> tag.location().toString()).noneMatch(tags::contains)) continue;
+            if (text != null && !(effectId + " " + instance.getEffect().value().getDisplayName().getString())
+                    .toLowerCase(Locale.ROOT).contains(text.toLowerCase(Locale.ROOT))) continue;
+            matches.add(instance);
+        }
+        matches.sort(Comparator.comparing(NativeEffectReader::effectId));
+        int start = Math.min(Math.max(offset, 0), matches.size());
+        int end = Math.min(matches.size(), start + limit);
+        var records = matches.subList(start, end).stream().map(instance -> activeRecord(instance, scope)).toList();
+        return new NativeRegistryReader.Page(records, end, end == matches.size(), false, matches.size());
+    }
+
+    static Evidence.Record readActive(Collection<MobEffectInstance> active, String effectId, Evidence.Scope scope) {
+        for (var instance : active) {
+            if (effectId(instance).equals(effectId)) return activeRecord(instance, scope);
+        }
+        return null;
+    }
+
+    private static String effectId(MobEffectInstance instance) {
+        return instance.getEffect().unwrapKey().map(key -> key.location().toString()).orElse("unknown:effect");
     }
 
     static Evidence.JsonArray attributeModifiers(MobEffect effect, int fromAmplifier, int toAmplifier) {

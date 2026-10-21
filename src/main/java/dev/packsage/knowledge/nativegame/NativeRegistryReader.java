@@ -70,6 +70,11 @@ final class NativeRegistryReader {
                     scope, value -> entry(selectedRegistry, value, BuiltInRegistries.MOB_EFFECT, client, scope));
             case "potion" -> searchEntries(BuiltInRegistries.POTION, selectedRegistry, text, ids, tags, offset, limit,
                     scope, value -> entry(selectedRegistry, value, BuiltInRegistries.POTION, client, scope));
+            case "active_effect" -> {
+                if (client.player == null) throw new dev.packsage.knowledge.Toolbox.Failure(
+                        dev.packsage.knowledge.Toolbox.Code.UNAVAILABLE, "client player unavailable");
+                yield NativeEffectReader.searchActive(client.player.getActiveEffects(), text, ids, tags, offset, limit, scope);
+            }
             case "dimension_type" -> {
                 var registry = client.level.registryAccess().registryOrThrow(Registries.DIMENSION_TYPE);
                 yield searchEntries(registry, selectedRegistry, text, ids, tags, offset, limit, scope,
@@ -117,6 +122,8 @@ final class NativeRegistryReader {
                 var value = BuiltInRegistries.POTION.get(key);
                 yield value == null ? null : entry(selectedRegistry, value, BuiltInRegistries.POTION, client, scope);
             }
+            case "active_effect" -> client.player == null ? null
+                    : NativeEffectReader.readActive(client.player.getActiveEffects(), identity, scope);
             case "dimension_type" -> {
                 var registry = client.level.registryAccess().registryOrThrow(Registries.DIMENSION_TYPE);
                 if (!registry.containsKey(key)) yield null;

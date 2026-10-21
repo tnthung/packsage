@@ -501,7 +501,8 @@ class NativeStorageReaderTest {
         crafting.slots.add(new ResultSlot(null, craftingInput, craftingOutput, 0, 0, 0));
         var craftingCapture = NativeStorageReader.openedEntries(crafting, playerInventory, FIRST, Instant.EPOCH, registries);
         assertTrue(craftingCapture.entries().isEmpty());
-        assertEquals(Evidence.Coverage.PARTIAL, craftingCapture.coverage());
+        assertEquals(Evidence.Coverage.COMPLETE, craftingCapture.coverage());
+        assertEquals(List.of("0=recipe_preview"), craftingCapture.projections());
     }
 
     @Test

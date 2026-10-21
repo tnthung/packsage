@@ -4,6 +4,9 @@
 
 ### 2026-10-21
 
+- Completed the Minecraft adapter's remaining reads. The assistant can now read enchanting-power costs at every level, loaded enchantment effects and decoded built-in mechanics (such as Sharpness damage), declared attribute modifiers for status effects, your active effects with remaining time, the contents of potion, lingering potion and tipped arrow items, which enchantments suit a held item, and brewing facts under localized names. Donkey, mule and native chest-boat inventories now report saddle and cargo sections, and a continuation from a previous mount is rejected after you switch mounts. Each read is fresh, and a record cut by a size bound is marked partial.
+
+  The [validation record](docs/validation/2026-10-21-minecraft-adapter-completion.md) records 822 automated tests and installed checks. Accepted: enchantment costs and mechanics, declared modifiers, active effects, potion items, component-distinct item variants, targeted mule and chest-boat contents, ridden donkey, mule and chest-boat contents, and mount switching. Not accepted: applicable enchantments for an item, recipe previews excluded from stored quantities, localized potion-name matching, brewing batch presentation and the targeted donkey question, because the assistant skipped the right tool or chose the wrong one; the readers returned the expected evidence when called. The roadmap tracks this prompt and tool-selection follow-up.
 - Added clickable links from Modonomicon, GuideME, Immersive Engineering and Actually Additions citations into each mod's own viewer:
   - Modonomicon book entries;
   - GuideME pages, plus the cited plain-text heading within a page;

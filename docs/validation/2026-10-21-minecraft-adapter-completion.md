@@ -74,7 +74,7 @@ Reader observations worth keeping:
 | 8b | Assistant tool selection | No `plan_recipe` call; the reply stated a three-bottle batch without plan evidence. |
 | 10 (donkey) | Assistant tool selection | The model answered from the screenshot without a tool call for the targeted donkey. |
 
-None of these is a reader defect: where the right call was made, the reader returned the expected evidence. Fixing them needs prompt and tool-description work, which this repository requires to be iterated in the in-game editor with live validation. It is tracked as a new item in the [tool roadmap](../roadmap/2026-10-13-todo.md).
+These failures are in the assistant's tool choice, but they leave the affected readers unverified in game: eligibility and opened-menu preview exclusion were never called, so only their automated tests support them. Fixing them needs prompt and tool-description work, which this repository requires to be iterated in the in-game editor with live validation. It is tracked as a new item in the [tool roadmap](../roadmap/2026-10-13-todo.md).
 
 ## Acceptance limits and follow-up
 

@@ -96,7 +96,9 @@ class PackSageToolsTest {
         assertTrue(inventory.contains("Target opened reads the open menu named by openedMenu when it is a supported vanilla menu"));
         var registry = definitions.stream().filter(value -> value.name().equals("search_registry")).findFirst().orElseThrow().description();
         assertTrue(registry.contains("active_effect lists the player's current effect instances"));
+        assertTrue(registry.contains("(durationTicks, amplifier, ambient, attributeModifiers)"));
         assertTrue(registry.contains("with description when the mod provides one"));
+        assertTrue(registry.contains("descriptionStatus reports not_provided, unknown, or bounded"));
         assertTrue(registry.contains("player_attribute lists current attribute base and value with modifiers whose IDs name their sources"));
         var plan = definitions.stream().filter(value -> value.name().equals("plan_recipe")).findFirst().orElseThrow().description();
         assertTrue(plan.contains("including brewing routes"));

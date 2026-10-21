@@ -12,13 +12,21 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-final class NativeEnchantmentEligibility {
+public final class NativeEnchantmentEligibility {
     static final int MAX_ENCHANTMENTS = 512;
 
     private NativeEnchantmentEligibility() {
     }
 
-    static Evidence.JsonObject read(ItemStack stack, Registry<Enchantment> enchantments) {
+    public static Evidence.JsonObject read(ItemStack stack, Registry<Enchantment> enchantments) {
+        return read(stack, (Iterable<Holder.Reference<Enchantment>>) enchantments.holders()::iterator);
+    }
+
+    public static Evidence.JsonObject read(ItemStack stack, net.minecraft.core.HolderLookup.RegistryLookup<Enchantment> enchantments) {
+        return read(stack, (Iterable<Holder.Reference<Enchantment>>) enchantments.listElements()::iterator);
+    }
+
+    private static Evidence.JsonObject read(ItemStack stack, Iterable<Holder.Reference<Enchantment>> holders) {
         int failures = 0;
         net.minecraft.world.item.enchantment.ItemEnchantments current;
         try {
@@ -30,7 +38,7 @@ final class NativeEnchantmentEligibility {
         var supported = new ArrayList<Evidence.JsonValue>();
         int inspected = 0;
         boolean bounded = false;
-        for (var holder : (Iterable<Holder.Reference<Enchantment>>) enchantments.holders()::iterator) {
+        for (var holder : holders) {
             if (inspected >= MAX_ENCHANTMENTS) {
                 bounded = true;
                 break;
@@ -71,7 +79,7 @@ final class NativeEnchantmentEligibility {
         return new Evidence.JsonObject(values);
     }
 
-    static boolean complete(Evidence.JsonObject eligibility) {
+    public static boolean complete(Evidence.JsonObject eligibility) {
         return new Evidence.JsonString("complete").equals(eligibility.values().get("status"));
     }
 }

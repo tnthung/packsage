@@ -439,6 +439,39 @@ class NativeStorageReaderTest {
     }
 
     @Test
+    void nonContainerSelectedItemReturnsItsOwnRecordWithEligibility() {
+        var observation = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false,
+                        new ItemStack(Items.DIAMOND_PICKAXE)),
+                "native:inventory:fixture:main:5", FIRST, net.minecraft.data.registries.VanillaRegistries.createLookup(),
+                Instant.EPOCH, 0);
+
+        assertNotEquals(Evidence.Coverage.UNAVAILABLE, observation.coverage());
+        var first = observation.entries().getFirst();
+        assertEquals(new Evidence.JsonString("item"), first.payload().values().get("section"));
+        assertEquals(new Evidence.JsonString("minecraft:diamond_pickaxe"), first.payload().values().get("id"));
+        assertEquals("storage-entry:item:native:inventory:fixture:main:5", first.source().handle());
+        var eligibility = (Evidence.JsonObject) first.payload().values().get("enchantmentEligibility");
+        assertNotNull(eligibility);
+        assertTrue(eligibility.values().containsKey("status"));
+        var owner = (Evidence.JsonObject) ((Evidence.JsonArray) observation.details().get("owners")).values().getFirst();
+        assertEquals(new Evidence.JsonString("none"), owner.values().get("storageStatus"));
+    }
+
+    @Test
+    void containerItemKeepsContentsAfterItsOwnRecord() {
+        var shulker = new ItemStack(Items.SHULKER_BOX);
+        shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.DIAMOND, 2))));
+        var observation = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false, shulker),
+                "native:inventory:fixture:main:5", FIRST, net.minecraft.data.registries.VanillaRegistries.createLookup(),
+                Instant.EPOCH, 0);
+
+        assertEquals(2, observation.entries().size());
+        assertEquals(new Evidence.JsonString("item"), observation.entries().getFirst().payload().values().get("section"));
+        assertEquals(new Evidence.JsonString("minecraft:shulker_box"), observation.entries().getFirst().payload().values().get("id"));
+        assertEquals(new Evidence.JsonString("minecraft:diamond"), observation.entries().get(1).payload().values().get("id"));
+    }
+
+    @Test
     void storageMetadataDoesNotSerializeNestedContainerContents() {
         var nested = new ItemStack(Items.SHULKER_BOX);
         nested.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.DIAMOND))));

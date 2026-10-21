@@ -4,25 +4,19 @@ Updated: 2026-10-21.
 
 Feature-grouped summary of the [tool roadmap](2026-10-13-todo.md). A mod can appear under multiple features. Unchecked items include missing implementation and implemented features still awaiting the stated live acceptance. Detailed contracts, evidence and acceptance limits remain in the tool roadmap and its linked reports.
 
+Features whose implementation and acceptance criteria are both met leave this list; the Minecraft status-effect and potion-item inspection features are accepted and appear checked in the tool roadmap.
+
 Generic JEI displays or GuideME documentation do not establish dedicated mechanics or storage adapter coverage. Reliquified Artifacts shares the existing Artifacts logical integration.
 
 ## 1. Has adapter, not fully implemented
 
 ### Inventory and equipment inspection
 
-- [ ] Minecraft — remaining entity cargo/equipment fixtures, mount switching and inventory-result semantics. Mule, chest-boat, chest-minecart and ridden-entity change handling are implemented and await live fixture acceptance.
+- [ ] Minecraft — opened-path entity-menu checks and stored quantities that exclude recipe previews (implemented; automated checks pass; installed acceptance pending or failed: the opened target was not exercised, and the assistant chose `targeted` instead of `opened` while the crafting and stonecutter menus were open). Targeted, ridden and mount-switch fixtures passed; see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md).
 
 ### Enchantment mechanics
 
-- [ ] Minecraft — per-level costs, effect payloads, effect decoding and item eligibility.
-
-### Status-effect inspection
-
-- [ ] Minecraft — attribute modifiers and active player effects.
-
-### Potion-item inspection
-
-- [ ] Minecraft — decode actual potion contents and additional custom effects. Inventory reads already return the raw component.
+- [ ] Minecraft — applicable enchantments for an item (implemented; automated checks pass; installed acceptance failed: the assistant made no `read_evidence` call, so `enchantmentEligibility` was never read; see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md)). Per-level costs, effect payloads and built-in effect decoding passed installed acceptance.
 
 ### Ability definitions and attributes
 
@@ -69,7 +63,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 ### Brewing discovery, recipe reads and planning
 
-- [ ] Minecraft — localized potion-name matching, empty-page progress and brewing batch presentation.
+- [ ] Minecraft — localized potion-name matching and empty-page progress (implemented; automated checks pass; installed acceptance failed: the reader returned localized titles and progress text, but the model searched `strength` rather than the localized phrase), and planner brewing batch presentation (installed acceptance failed: no `plan_recipe` call, and the reply stated a three-bottle batch without plan evidence); see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md).
 - [ ] Actually Additions — investigate the native laser recipe read that returned no inputs.
 - [ ] PackSage planner — investigate the empty Powah partial plans, then add other verified transformation semantics to bounded route planning.
 
@@ -95,8 +89,8 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 This is PackSage core work, rather than a missing third-party mod adapter.
 
-- [ ] PackSage — freshness/continuation audits, version dispatch, coverage diagnostics, latency, citations, source presentation, search behavior and remaining parallel-chat checks.
-- [ ] PackSage — adapter query execution through each provider's own live search and paging, and target references that keep their registered type.
+- [ ] PackSage — assistant tool selection for eligibility reads, opened versus targeted menus, targeted entities and brewing plans (see the [tool roadmap](2026-10-13-todo.md)), plus freshness/continuation audits, version dispatch, coverage diagnostics, latency, citations, source presentation, search behavior and remaining parallel-chat checks.
+- [ ] PackSage — adapter query execution through each provider's own live search and paging, and target references that keep their registered type. The Minecraft part of component-variant preservation passed installed acceptance ([validation record](../validation/2026-10-21-minecraft-adapter-completion.md)); provider aggregates remain pending.
 - [ ] PackSage — installed recheck of the merged adapter-popup width and scrollbar.
 
 ## 2. Does not have an adapter at all

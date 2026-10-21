@@ -294,6 +294,38 @@ class GuideDocumentProviderTest {
     }
 
     @Test
+    void recordTargetsReceiveTheFragmentTheRecordCites() {
+        var reader = new FixtureReader();
+        reader.fragmentNavigation.set(true);
+        var provider = new GuideDocumentProvider(reader, () -> SCOPE, Runnable::run);
+        var registry = new AdapterRegistry();
+        registry.register(provider);
+        var context = new Toolbox.Context(() -> SCOPE, Map.of(), registry, new Toolbox.DocumentBudget(), null);
+        var arguments = Map.<String, Evidence.JsonValue>of(
+                "query", new Evidence.JsonString("needle"),
+                "filter", new Evidence.JsonObject(Map.of(
+                        "provider", new Evidence.JsonString("fixture_guide"),
+                        "types", new Evidence.JsonArray(List.of(new Evidence.JsonString("guide"))))),
+                "limit", new Evidence.JsonNumber(java.math.BigDecimal.ONE));
+        var first = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(arguments), SCOPE), context).toCompletableFuture().join();
+        var continuedArguments = new java.util.LinkedHashMap<>(arguments);
+        continuedArguments.put("cursor", new Evidence.JsonString(first.nextCursor()));
+        var continued = provider.searchDocument(new PackSageTools.ReadRequest("search_document",
+                new Evidence.JsonObject(continuedArguments), SCOPE), context).toCompletableFuture().join();
+        var read = provider.query(new Evidence.Query(Evidence.Operation.GET,
+                new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("fixture:guide/entry"))), 1, null, null),
+                SCOPE).toCompletableFuture().join();
+
+        assertEquals(List.of(new Evidence.NavigationTarget(SCOPE, "fixture_guide", "fixture:guide/entry", "page:first")),
+                first.records().getFirst().targets());
+        assertEquals(List.of(new Evidence.NavigationTarget(SCOPE, "fixture_guide", "fixture:guide/entry", "page:second")),
+                continued.records().getFirst().targets());
+        assertEquals(List.of(new Evidence.NavigationTarget(SCOPE, "fixture_guide", "fixture:guide/entry", "page:first")),
+                read.records().getFirst().targets());
+    }
+
+    @Test
     void defaultGuideReadersKeepNavigationUnsupported() {
         var provider = new GuideDocumentProvider(new FixtureReader(), () -> SCOPE, Runnable::run);
         assertEquals(Evidence.NavigationStatus.UNSUPPORTED, provider.open(new Evidence.NavigationTarget(
@@ -847,6 +879,7 @@ class GuideDocumentProviderTest {
         private final AtomicBoolean exhaustFirstFragment = new AtomicBoolean();
         private final AtomicBoolean exhaustSecondFragment = new AtomicBoolean();
         private final AtomicBoolean navigationEnabled = new AtomicBoolean();
+        private final AtomicBoolean fragmentNavigation = new AtomicBoolean();
         private final AtomicInteger opens = new AtomicInteger();
         private final AtomicBoolean manyCandidates = new AtomicBoolean();
         private final AtomicInteger inspectedCandidates = new AtomicInteger();
@@ -923,6 +956,12 @@ class GuideDocumentProviderTest {
         public List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope scope, Candidate candidate) {
             return navigationEnabled.get() ? List.of(new Evidence.NavigationTarget(scope, providerId,
                     candidate.id(), candidate.id())) : List.of();
+        }
+
+        @Override
+        public List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope scope, Candidate candidate, Fragment fragment) {
+            return fragmentNavigation.get() ? List.of(new Evidence.NavigationTarget(scope, providerId,
+                    candidate.id(), fragment.sourcePosition())) : navigationTargets(scope, candidate);
         }
 
         @Override

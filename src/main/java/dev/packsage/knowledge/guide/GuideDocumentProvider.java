@@ -531,7 +531,7 @@ public final class GuideDocumentProvider implements KnowledgeProvider {
                 Instant.now(), Evidence.Activity.ACTIVE, coverage, Evidence.Authority.INSTALLED_DOCUMENTATION,
                 candidate.provenance().stream().limit(MAX_PROVENANCE_ITEMS)
                         .map(value -> value.length() > MAX_PROVENANCE_CHARS ? value.substring(0, MAX_PROVENANCE_CHARS) : value).toList());
-        var targets = reader.navigationTargets(scope, candidate);
+        var targets = reader.navigationTargets(scope, candidate, fragment);
         if (targets == null || targets.size() > 16 || targets.stream().anyMatch(target -> target == null
                 || !scope.equals(target.scope()) || !id().equals(target.providerId())
                 || !candidate.id().equals(target.sourceHandle()) || target.targetId().isBlank()

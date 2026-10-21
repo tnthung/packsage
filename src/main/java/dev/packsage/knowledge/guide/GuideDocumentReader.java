@@ -42,6 +42,11 @@ public interface GuideDocumentReader {
         return List.of();
     }
 
+    /** Returns destinations for a record citing this fragment; readers without fragment-specific targets use the candidate. */
+    default List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope scope, Candidate candidate, Fragment fragment) {
+        return navigationTargets(scope, candidate);
+    }
+
     /** Rebinds a durable destination to its current source identity, or returns null when unsupported or unavailable. */
     default Evidence.NavigationTarget refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
         return null;

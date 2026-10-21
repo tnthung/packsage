@@ -33,6 +33,8 @@ Commit `b50de3f` fixed both, and a re-review accepted the fix. One Minor issue i
 
 Run by an agent driving the real client through computer use (GPT-6-Luna, reasoning extra high) as the player, in world "New World" on the Packsage profile (Minecraft 1.21.1, NeoForge). PackSage's own assistant model was GPT-6-Sol at medium effort, with the developer prompt override empty. The installed JAR hash matched the artifact above before launch and again in round 2. Full per-check evidence and saved-conversation paths are in the working notes `.superpowers/sdd/2026-10-21-minecraft-adapter-completion/live-results.md`.
 
+The testing document was corrected between rounds: the Cargo setup now fits the 256-character chat limit, and the `plan_recipe` criterion moved from check 8 to the new check 8b. Check 9 opened each animal's inventory, but the assistant read it through `targeted`, so it is not an `opened`-target pass.
+
 Round 1 ran checks 1 to 13 (8 pass, 4 fail, 1 blocked by the 256-character chat limit on the setup command). After the testing document was corrected, round 2 ran checks 8b and 13.
 
 | Check | Observation (request ID) | Result |
@@ -46,7 +48,7 @@ Round 1 ran checks 1 to 13 (8 pass, 4 fail, 1 blocked by the 256-character chat 
 | 7. Recipe previews | Crafting table (`b6022633-1d82-4f42-9427-0b2906956499`) and stonecutter (`9c6f0fd6-62d0-4522-818b-5bbc89f6be90`): the assistant chose `target: targeted` while PackSage kept the menu open, got `UNAVAILABLE` with "target block inventory is unsupported", and never read the opened menu. | Fail |
 | 8. Brewing by name | `Potion of Strength` (`9248b573-c1ee-4270-87cf-15b9825afdaa`): 24 `search_recipe` calls in about 2 min 20 s, no `plan_recipe`. Localized titles and `names` were returned and the brewing steps were correct. | Fail (plan part) |
 | 8b. Brewing plan | Plan three Potions of Strength (`7a425403-74a3-4132-a1d2-3c44d1db7925`): 16 calls in 72 s, no `plan_recipe`. The reply stated "one three-bottle batch" without plan evidence. | Fail |
-| 9. Opened donkey and mule | Donkey (`d9fee5fe-4c6e-4993-80f8-13ee8f3b460b`) and mule (`876b8d2c-ce67-4be9-9f3d-7f2ab1d8ec64`): `COMPLETE` with `saddle` and `cargo` sections (5 diamonds; 7 iron ingots). | Pass |
+| 9. Donkey and mule, menu open, read via `targeted` | Donkey (`d9fee5fe-4c6e-4993-80f8-13ee8f3b460b`) and mule (`876b8d2c-ce67-4be9-9f3d-7f2ab1d8ec64`): `COMPLETE` with `saddle` and `cargo` sections (5 diamonds; 7 iron ingots). | Pass |
 | 10. Targeted donkey and mule | Donkey (`1f010b67-1796-4ece-a7ae-903b821221cf`): targeted in context, but no tool call; the reply came from the screenshot. Mule (`0bf151c3-2643-486f-b67a-87e0b6ac4e7c`): `COMPLETE`, saddle and 7 iron ingots. | Fail (donkey), pass (mule) |
 | 11. Ridden donkey and mule | Donkey (`128888b2-268e-40c1-987c-c63366307e78`) and mule (`09fd1aec-474d-4fa0-b1ea-b564b15e6c65`) after natural right-click mounting: `ridden` target `COMPLETE`, equipment and cargo sections. | Pass |
 | 12. Native chest boat | Targeted (`5aebc435-8057-44b4-9900-e30cc9371b97`) and ridden (`9f939b19-6be1-4a7e-a272-4a39daa124f8`): `COMPLETE`, 3 diamonds and 4 emeralds. | Pass |
@@ -76,7 +78,7 @@ None of these is a reader defect: where the right call was made, the reader retu
 
 ## Acceptance limits and follow-up
 
-- Accepted: enchantment per-level costs, loaded effect payloads, decoded built-in effect mechanics, declared attribute modifiers, active player effects (installed default prompt, override cleared), actual potion-item contents, targeted donkey and mule cargo and saddle fixtures, native chest-boat targeted and ridden contents, ridden horse and mule fixtures, and the mount-switch lifecycle.
+- Accepted: enchantment per-level costs, loaded effect payloads, decoded built-in effect mechanics, declared attribute modifiers, active player effects (installed default prompt, override cleared), actual potion-item contents, targeted donkey and mule cargo and saddle fixtures, native chest-boat targeted and ridden contents, ridden donkey and mule fixtures, and the mount-switch lifecycle.
 - Not accepted: applicable enchantments for an item (check 2), stored quantities excluding recipe previews (check 7), localized potion-name matching and empty-page progress (check 8), planner brewing batch presentation (check 8b) and the opened-path entity-menu checks, because the opened target was not exercised.
 - Shared cross-adapter lines (result normalization preserving variants, and adapter query execution) stay open. The Minecraft part of variant preservation passed in check 6.
 - The expired-handle `read_evidence` path for active effects and instant-effect scaling for potions were not directly exercised.

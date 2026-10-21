@@ -10,7 +10,8 @@ Generic JEI displays or GuideME documentation do not establish dedicated mechani
 
 ### Inventory and equipment inspection
 
-- [ ] Minecraft — opened-path entity-menu checks and stored quantities that exclude recipe previews (implemented; automated checks pass; installed acceptance pending or failed: the opened target was not exercised, and the assistant chose `targeted` instead of `opened` while the crafting and stonecutter menus were open). Targeted, ridden and mount-switch fixtures passed; see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md).
+- [ ] Minecraft — opened-path entity-menu checks (implemented; automated checks pass; installed acceptance pending: the opened target was not exercised). Targeted, ridden and mount-switch fixtures passed; see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md).
+- [ ] Minecraft — stored quantities that exclude recipe previews (implemented; automated checks pass; installed acceptance failed: the assistant chose `targeted` instead of `opened` while the crafting and stonecutter menus were open); see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md).
 
 ### Enchantment mechanics
 
@@ -69,7 +70,8 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 ### Brewing discovery, recipe reads and planning
 
-- [ ] Minecraft — localized potion-name matching and empty-page progress (implemented; automated checks pass; installed acceptance failed: the reader returned localized titles and progress text, but the model searched `strength` rather than the localized phrase), and planner brewing batch presentation (installed acceptance failed: no `plan_recipe` call, and the reply stated a three-bottle batch without plan evidence); see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md).
+- [ ] Minecraft — localized potion-name matching and empty-page progress (implemented; automated checks pass; installed acceptance failed: the reader returned localized titles and progress text, but the model searched `strength` rather than the localized phrase); see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md).
+- [ ] Minecraft — planner brewing batch presentation (implemented; automated checks pass; installed acceptance failed: no `plan_recipe` call, and the reply stated a three-bottle batch without plan evidence); see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md).
 - [ ] Actually Additions — investigate the native laser recipe read that returned no inputs.
 - [ ] PackSage planner — investigate the empty Powah partial plans, then add other verified transformation semantics to bounded route planning.
 

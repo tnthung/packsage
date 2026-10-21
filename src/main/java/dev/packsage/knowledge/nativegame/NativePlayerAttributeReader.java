@@ -20,8 +20,31 @@ final class NativePlayerAttributeReader {
     private NativePlayerAttributeReader() {
     }
 
+    /** A JSON number for finite values, otherwise the string "non_finite". */
+    static Evidence.JsonValue number(double value) {
+        return Double.isFinite(value) ? new Evidence.JsonNumber(BigDecimal.valueOf(value)) : new Evidence.JsonString("non_finite");
+    }
+
+    private static Evidence.Record safeRecord(AttributeInstance instance, Evidence.Scope scope) {
+        try {
+            return record(instance, scope);
+        } catch (RuntimeException failure) {
+            var attributeId = attributeId(instance);
+            var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+            payload.put("registry", new Evidence.JsonString("player_attribute"));
+            payload.put("id", new Evidence.JsonString(attributeId));
+            payload.put("identity", new Evidence.JsonString(attributeId));
+            payload.put("status", new Evidence.JsonString("unknown"));
+            var source = new Evidence.Source(scope, "native", "1.21.1", "player_attribute:" + attributeId,
+                    scope.requestGeneration(), Instant.now(), Evidence.Activity.ACTIVE, Evidence.Coverage.PARTIAL,
+                    Evidence.Authority.LOADED, List.of("client-player:attributes"));
+            return new Evidence.Record(source, Evidence.RecordKind.OTHER, attributeId, new Evidence.JsonObject(payload), List.of());
+        }
+    }
+
     static Evidence.Record record(AttributeInstance instance, Evidence.Scope scope) {
         var attributeId = attributeId(instance);
+        boolean finite = true;
         var name = name(instance);
         boolean syncable = instance.getAttribute().value().isClientSyncable();
         var sorted = new ArrayList<>(instance.getModifiers());
@@ -31,7 +54,8 @@ final class NativePlayerAttributeReader {
         for (var modifier : sorted.subList(0, Math.min(sorted.size(), MAX_MODIFIERS))) {
             var fields = new LinkedHashMap<String, Evidence.JsonValue>();
             fields.put("id", new Evidence.JsonString(modifier.id().toString()));
-            fields.put("amount", new Evidence.JsonNumber(BigDecimal.valueOf(modifier.amount())));
+            fields.put("amount", number(modifier.amount()));
+            finite &= Double.isFinite(modifier.amount());
             fields.put("operation", new Evidence.JsonString(modifier.operation().getSerializedName()));
             modifiers.add(new Evidence.JsonObject(fields));
         }
@@ -42,13 +66,15 @@ final class NativePlayerAttributeReader {
         payload.put("attribute", new Evidence.JsonString(attributeId));
         payload.put("name", new Evidence.JsonString(name));
         payload.put("syncable", new Evidence.JsonBoolean(syncable));
-        payload.put("base", new Evidence.JsonNumber(BigDecimal.valueOf(instance.getBaseValue())));
-        payload.put("value", new Evidence.JsonNumber(BigDecimal.valueOf(instance.getValue())));
+        payload.put("base", number(instance.getBaseValue()));
+        double total = instance.getValue();
+        payload.put("value", number(total));
+        finite &= Double.isFinite(instance.getBaseValue()) && Double.isFinite(total);
         payload.put("modifiers", new Evidence.JsonArray(modifiers));
         if (bounded) payload.put("modifiersStatus", new Evidence.JsonString("bounded"));
         var source = new Evidence.Source(scope, "native", "1.21.1", "player_attribute:" + attributeId,
                 scope.requestGeneration(), Instant.now(), Evidence.Activity.ACTIVE,
-                syncable && !bounded ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
+                syncable && !bounded && finite ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
                 Evidence.Authority.LOADED, List.of("client-player:attributes"));
         return new Evidence.Record(source, Evidence.RecordKind.OTHER, name, new Evidence.JsonObject(payload), List.of());
     }
@@ -67,13 +93,13 @@ final class NativePlayerAttributeReader {
         matches.sort(Comparator.comparing(NativePlayerAttributeReader::attributeId));
         int start = Math.min(Math.max(offset, 0), matches.size());
         int end = Math.min(matches.size(), start + limit);
-        var records = matches.subList(start, end).stream().map(instance -> record(instance, scope)).toList();
+        var records = matches.subList(start, end).stream().map(instance -> safeRecord(instance, scope)).toList();
         return new NativeRegistryReader.Page(records, end, end == matches.size(), false, matches.size());
     }
 
     static Evidence.Record read(Collection<AttributeInstance> instances, String id, Evidence.Scope scope) {
         for (var instance : instances) {
-            if (attributeId(instance).equals(id)) return record(instance, scope);
+            if (attributeId(instance).equals(id)) return safeRecord(instance, scope);
         }
         return null;
     }

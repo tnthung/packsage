@@ -122,7 +122,7 @@ final class NativeEffectReader {
                 });
                 var amount = new LinkedHashMap<String, Evidence.JsonValue>();
                 amount.put("amplifier", new Evidence.JsonNumber(BigDecimal.valueOf(current)));
-                amount.put("amount", new Evidence.JsonNumber(BigDecimal.valueOf(modifier.amount())));
+                amount.put("amount", NativePlayerAttributeReader.number(modifier.amount()));
                 @SuppressWarnings("unchecked")
                 var amounts = (ArrayList<Evidence.JsonValue>) entry.get("amounts");
                 amounts.add(new Evidence.JsonObject(amount));

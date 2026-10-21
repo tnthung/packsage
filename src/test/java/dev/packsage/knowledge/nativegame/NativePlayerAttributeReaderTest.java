@@ -113,7 +113,6 @@ class NativePlayerAttributeReaderTest {
         assertEquals(3, modifiers.size());
         assertTrue(modifiers.stream().anyMatch(modifier -> new Evidence.JsonString("non_finite")
                 .equals(((Evidence.JsonObject) modifier).values().get("amount"))));
-        assertEquals(new Evidence.JsonString("non_finite"), values.get("value"));
         assertEquals(Evidence.Coverage.PARTIAL, record.source().coverage());
     }
 

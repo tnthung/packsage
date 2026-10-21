@@ -91,6 +91,16 @@ class PackSageToolsTest {
         assertTrue(inventory.contains("functional Curios equipment"));
         assertTrue(inventory.contains("cosmetic slots are excluded"));
         assertTrue(inventory.contains("curios:<type>"));
+        assertTrue(inventory.contains("selected item's own record first, in section item"));
+        assertTrue(inventory.contains("enchantmentEligibility"));
+        assertTrue(inventory.contains("menu named by the gameplay context's openedMenu"));
+        var registry = definitions.stream().filter(value -> value.name().equals("search_registry")).findFirst().orElseThrow().description();
+        assertTrue(registry.contains("active_effect lists the player's current effect instances"));
+        assertTrue(registry.contains("with description when the mod provides one"));
+        assertTrue(registry.contains("player_attribute lists current attribute base and value with modifiers whose IDs name their sources"));
+        var plan = definitions.stream().filter(value -> value.name().equals("plan_recipe")).findFirst().orElseThrow().description();
+        assertTrue(plan.contains("including brewing routes"));
+        assertTrue(plan.contains("Brewing routes withhold operation counts"));
         for (var name : List.of("read_evidence", "read_progress")) {
             var description = definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow().description();
             assertTrue(description.contains("returned record references only"));

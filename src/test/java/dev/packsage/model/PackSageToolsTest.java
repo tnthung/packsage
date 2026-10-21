@@ -367,4 +367,9 @@ class PackSageToolsTest {
         var registry = PackSageTools.definitions().stream().filter(tool -> tool.name().equals("search_registry")).findFirst().orElseThrow();
         assertTrue(registry.serializedSchema().contains("\"active_effect\""));
     }
+
+    @Test void registrySchemaOffersPlayerAttribute() {
+        var registry = PackSageTools.definitions().stream().filter(tool -> tool.name().equals("search_registry")).findFirst().orElseThrow();
+        assertTrue(registry.serializedSchema().contains("\"player_attribute\""));
+    }
 }

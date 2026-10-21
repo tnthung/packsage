@@ -85,7 +85,7 @@ public final class NativeProvider implements KnowledgeProvider {
 
     @Override
     public Toolbox.Metadata metadata() {
-        return new Toolbox.Metadata(id(), List.of(), true, List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion", "active_effect",
+        return new Toolbox.Metadata(id(), List.of(), true, List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion", "active_effect", "player_attribute",
                 "dimension", "dimension_type"),
                 PackSageTools.NATIVE_INVENTORY_TARGETS);
     }
@@ -399,7 +399,7 @@ public final class NativeProvider implements KnowledgeProvider {
         }
         if (source.startsWith("item:") || source.startsWith("block:") || source.startsWith("tag:")
                 || source.startsWith("enchantment:") || source.startsWith("mob_effect:") || source.startsWith("potion:")
-                || source.startsWith("active_effect:") || source.startsWith("dimension_type:")) {
+                || source.startsWith("active_effect:") || source.startsWith("player_attribute:") || source.startsWith("dimension_type:")) {
             int separator = source.indexOf(':');
             var registry = source.substring(0, separator).equals("tag") ? "item_tag" : source.substring(0, separator);
             var identity = source.substring(separator + 1);

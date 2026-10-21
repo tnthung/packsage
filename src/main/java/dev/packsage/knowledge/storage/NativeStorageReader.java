@@ -185,6 +185,7 @@ public final class NativeStorageReader implements StorageReader {
             payload.put("components", metadataTruncated
                     ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated")))
                     : encodedComponents);
+            dev.packsage.knowledge.nativegame.NativeItemFacts.enrich(payload, stack, registries);
             if (metadataTruncated) payload.put("metadataStatus", new Evidence.JsonString("unknown_truncated"));
             if (!metadataTruncated && Evidence.serialize(new Evidence.JsonObject(payload)).getBytes(StandardCharsets.UTF_8).length
                     > MAX_ENTRY_METADATA) {
@@ -464,6 +465,7 @@ public final class NativeStorageReader implements StorageReader {
         owner.put("contentsStatus", new Evidence.JsonString("complete"));
         owner.put("components", ownerMetadataTruncated
                 ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))) : ownerComponents);
+        dev.packsage.knowledge.nativegame.NativeItemFacts.enrich(owner, ownerStack, registries);
         if (ownerMetadataTruncated) owner.put("metadataStatus", new Evidence.JsonString("unknown_truncated"));
         if (!ownerMetadataTruncated && Evidence.serialize(new Evidence.JsonObject(owner)).getBytes(StandardCharsets.UTF_8).length
                 > MAX_ENTRY_METADATA) {
@@ -539,6 +541,7 @@ public final class NativeStorageReader implements StorageReader {
         payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
         payload.put("components", metadataTruncated
                 ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))) : components);
+        dev.packsage.knowledge.nativegame.NativeItemFacts.enrich(payload, stack, registries);
         var partial = metadataTruncated || nameTruncated && !filter.names().isEmpty();
         if (nameTruncated) payload.put("nameStatus", new Evidence.JsonString("truncated"));
         if (!filter.tags().isEmpty()) {

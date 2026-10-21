@@ -457,8 +457,8 @@ public final class NativeStorageReader implements StorageReader {
             owner.put("ownerName", new Evidence.JsonString(ownerName));
             owner.put("ownerCount", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
             owner.put("storageStatus", new Evidence.JsonString(stack.isEmpty() ? "unknown" : "none"));
-            owner.put("storageType", new Evidence.JsonString("unknown"));
-            owner.put("contentsStatus", new Evidence.JsonString("unknown"));
+            owner.put("storageType", new Evidence.JsonString(stack.isEmpty() ? "unknown" : "none"));
+            owner.put("contentsStatus", new Evidence.JsonString(stack.isEmpty() ? "unknown" : "none"));
             owners.add(new Evidence.JsonObject(owner));
         }
         if (container != null) {

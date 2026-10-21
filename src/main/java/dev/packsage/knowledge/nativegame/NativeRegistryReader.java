@@ -13,6 +13,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -75,6 +76,11 @@ final class NativeRegistryReader {
                         dev.packsage.knowledge.Toolbox.Code.UNAVAILABLE, "client player unavailable");
                 yield NativeEffectReader.searchActive(client.player.getActiveEffects(), text, ids, tags, offset, limit, scope);
             }
+            case "player_attribute" -> {
+                if (client.player == null) throw new dev.packsage.knowledge.Toolbox.Failure(
+                        dev.packsage.knowledge.Toolbox.Code.UNAVAILABLE, "client player unavailable");
+                yield NativePlayerAttributeReader.search(playerAttributes(client), text, ids, tags, offset, limit, scope);
+            }
             case "dimension_type" -> {
                 var registry = client.level.registryAccess().registryOrThrow(Registries.DIMENSION_TYPE);
                 yield searchEntries(registry, selectedRegistry, text, ids, tags, offset, limit, scope,
@@ -126,6 +132,8 @@ final class NativeRegistryReader {
             }
             case "active_effect" -> client.player == null ? null
                     : NativeEffectReader.readActive(client.player.getActiveEffects(), identity, scope);
+            case "player_attribute" -> client.player == null ? null
+                    : NativePlayerAttributeReader.read(playerAttributes(client), identity, scope);
             case "dimension_type" -> {
                 var registry = client.level.registryAccess().registryOrThrow(Registries.DIMENSION_TYPE);
                 if (!registry.containsKey(key)) yield null;
@@ -134,6 +142,15 @@ final class NativeRegistryReader {
             }
             default -> null;
         };
+    }
+
+    private static List<AttributeInstance> playerAttributes(Minecraft client) {
+        var attributes = client.player.getAttributes();
+        var instances = new ArrayList<AttributeInstance>();
+        for (var attribute : BuiltInRegistries.ATTRIBUTE.holders().toList()) {
+            if (attributes.hasAttribute(attribute)) instances.add(attributes.getInstance(attribute));
+        }
+        return instances;
     }
 
     static <T> Page searchEntries(Registry<T> registry, String selectedRegistry, String text,

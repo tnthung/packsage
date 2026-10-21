@@ -22,7 +22,7 @@ public final class PackSageTools {
             "targeted", "{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"targeted\"}},\"required\":[\"type\"],\"additionalProperties\":false}",
             "ridden", "{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"ridden\"}},\"required\":[\"type\"],\"additionalProperties\":false}",
             "item", "{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"item\"},\"slot\":{\"type\":\"string\",\"enum\":[\"mainhand\",\"offhand\"]},\"slotReference\":{\"type\":\"string\",\"maxLength\":1024}},\"required\":[\"type\"],\"additionalProperties\":false}");
-    private static final List<String> NATIVE_REGISTRIES = List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion", "active_effect", "dimension", "dimension_type");
+    private static final List<String> NATIVE_REGISTRIES = List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion", "active_effect", "player_attribute", "dimension", "dimension_type");
     private static final com.google.gson.Gson JSON = new com.google.gson.GsonBuilder().serializeNulls()
             .registerTypeAdapter(Instant.class, (com.google.gson.JsonSerializer<Instant>) (value, type, context) -> new com.google.gson.JsonPrimitive(value.toString()))
             .registerTypeHierarchyAdapter(Evidence.JsonValue.class, (com.google.gson.JsonSerializer<Evidence.JsonValue>) (value, type, context) -> JsonParser.parseString(Evidence.serialize(value)))

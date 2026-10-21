@@ -43,12 +43,12 @@ class NativePlayerAttributeReaderTest {
     @Test
     void luckRecordListsSortedModifiersAndIsComplete() {
         var record = NativePlayerAttributeReader.record(luck(), SCOPE);
-        assertEquals("player_attribute:minecraft:luck", record.source().sourceHandle());
+        assertEquals("player_attribute:minecraft:generic.luck", record.source().sourceHandle());
         assertEquals(Evidence.Coverage.COMPLETE, record.source().coverage());
         assertEquals(List.of("client-player:attributes"), record.source().provenance());
         var values = payload(record).values();
         assertEquals(new Evidence.JsonString("player_attribute"), values.get("registry"));
-        assertEquals(new Evidence.JsonString("minecraft:luck"), values.get("id"));
+        assertEquals(new Evidence.JsonString("minecraft:generic.luck"), values.get("id"));
         assertEquals(new Evidence.JsonBoolean(true), values.get("syncable"));
         assertEquals(0, new java.math.BigDecimal(13).compareTo(((Evidence.JsonNumber) values.get("value")).value()));
         assertEquals(0, java.math.BigDecimal.ZERO.compareTo(((Evidence.JsonNumber) values.get("base")).value()));
@@ -89,14 +89,14 @@ class NativePlayerAttributeReaderTest {
         var armor = new AttributeInstance(Attributes.ARMOR, ignored -> { });
         var all = List.of(luck(), armor);
         var page = NativePlayerAttributeReader.search(all, null, List.of(), List.of(), 0, 16, SCOPE);
-        assertEquals(List.of("player_attribute:minecraft:armor", "player_attribute:minecraft:luck"),
+        assertEquals(List.of("player_attribute:minecraft:generic.armor", "player_attribute:minecraft:generic.luck"),
                 page.records().stream().map(record -> record.source().sourceHandle()).toList());
         var first = NativePlayerAttributeReader.search(all, null, List.of(), List.of(), 0, 1, SCOPE);
         assertEquals(1, first.nextOffset());
         assertFalse(first.exhausted());
-        assertEquals(List.of("player_attribute:minecraft:luck"), NativePlayerAttributeReader.search(all, null,
+        assertEquals(List.of("player_attribute:minecraft:generic.luck"), NativePlayerAttributeReader.search(all, null,
                 List.of(), List.of(), first.nextOffset(), 1, SCOPE).records().stream().map(r -> r.source().sourceHandle()).toList());
-        assertEquals(1, NativePlayerAttributeReader.search(all, null, List.of("minecraft:luck"), List.of(), 0, 16, SCOPE)
+        assertEquals(1, NativePlayerAttributeReader.search(all, null, List.of("minecraft:generic.luck"), List.of(), 0, 16, SCOPE)
                 .records().size());
         assertEquals(1, NativePlayerAttributeReader.search(all, "LUC", List.of(), List.of(), 0, 16, SCOPE).records().size());
         assertTrue(NativePlayerAttributeReader.search(all, "nothing-here", List.of(), List.of(), 0, 16, SCOPE).records().isEmpty());
@@ -104,7 +104,7 @@ class NativePlayerAttributeReaderTest {
 
     @Test
     void readReturnsNullForAbsentAttribute() {
-        assertNull(NativePlayerAttributeReader.read(List.of(), "minecraft:luck", SCOPE));
-        assertNotNull(NativePlayerAttributeReader.read(List.of(luck()), "minecraft:luck", SCOPE));
+        assertNull(NativePlayerAttributeReader.read(List.of(), "minecraft:generic.luck", SCOPE));
+        assertNotNull(NativePlayerAttributeReader.read(List.of(luck()), "minecraft:generic.luck", SCOPE));
     }
 }

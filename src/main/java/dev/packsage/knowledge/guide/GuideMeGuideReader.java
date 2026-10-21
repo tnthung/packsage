@@ -2,8 +2,10 @@ package dev.packsage.knowledge.guide;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,10 +19,68 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
     public static final String ID = "guideme";
     public static final String VERSION = "21.1.19";
     private final String readerVersion;
+    private final PageOpener opener;
+
+    /** Client-side effects of opening a guide page; replaced in tests. */
+    interface PageOpener {
+        PageOpener MINECRAFT = new PageOpener() {
+            @Override public boolean isClientThread() { return Minecraft.getInstance().isSameThread(); }
+
+            @Override public boolean anchorExists(ResourceLocation guide, ResourceLocation page, String anchor) {
+                try {
+                    var loader = GuideMeGuideReader.class.getClassLoader();
+                    var current = Class.forName("guideme.Guides", false, loader).getMethod("getById", ResourceLocation.class)
+                            .invoke(null, guide);
+                    if (current == null) return false;
+                    var compiled = Class.forName("guideme.PageCollection", false, loader)
+                            .getMethod("getPage", ResourceLocation.class).invoke(current, page);
+                    if (compiled == null) return false;
+                    var document = Class.forName("guideme.GuidePage", false, loader).getMethod("document").invoke(compiled);
+                    var indexerType = Class.forName("guideme.compiler.AnchorIndexer", false, loader);
+                    var indexer = indexerType.getConstructor(Class.forName("guideme.document.block.LytDocument", false, loader))
+                            .newInstance(document);
+                    return indexerType.getMethod("get", String.class).invoke(indexer, anchor) != null;
+                } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailableAnchor) {
+                    return false;
+                }
+            }
+
+            @Override public void openGuide(ResourceLocation guide, ResourceLocation page, String anchor) {
+                try {
+                    var loader = GuideMeGuideReader.class.getClassLoader();
+                    var anchorType = Class.forName("guideme.PageAnchor", false, loader);
+                    var pageAnchor = anchor == null ? anchorType.getMethod("page", ResourceLocation.class).invoke(null, page)
+                            : anchorType.getConstructor(ResourceLocation.class, String.class).newInstance(page, anchor);
+                    Class.forName("guideme.GuidesCommon", false, loader)
+                            .getMethod("openGuide", Player.class, ResourceLocation.class, anchorType)
+                            .invoke(null, Minecraft.getInstance().player, guide, pageAnchor);
+                } catch (ReflectiveOperationException failure) {
+                    throw new IllegalStateException("GuideME navigation is unavailable", failure);
+                }
+            }
+        };
+
+        boolean isClientThread();
+
+        boolean anchorExists(ResourceLocation guide, ResourceLocation page, String anchor);
+
+        /** A null anchor opens the page itself. */
+        void openGuide(ResourceLocation guide, ResourceLocation page, String anchor);
+    }
 
     public GuideMeGuideReader() { this(VERSION); }
 
-    GuideMeGuideReader(String version) { this.readerVersion = version; }
+    GuideMeGuideReader(String version) { this(version, PageOpener.MINECRAFT); }
+
+    GuideMeGuideReader(String version, PageOpener opener) {
+        this.readerVersion = version;
+        this.opener = opener;
+    }
+
+    /** GuideME heading anchor normalization: lowercase, trimmed, whitespace runs joined by '-'. */
+    static String anchorFor(String headingText) {
+        return headingText.toLowerCase(java.util.Locale.ROOT).trim().replaceAll("\\s+", "-");
+    }
 
     public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> scope, Executor clientExecutor, String actualVersion) {
         return new GuideDocumentProvider(new GuideMeGuideReader(actualVersion), scope, clientExecutor);
@@ -720,5 +780,152 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                 split < 0 ? List.of("guideme") : List.of("guideme:guide:" + id.substring(0, split)),
                 Evidence.Coverage.COMPLETE);
         return new ResolvedDocument(candidate, readFragment(id, null, maxChars, budget));
+    }
+
+    @Override
+    public List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope scope, Candidate candidate) {
+        var destination = Destination.parse(candidate.id());
+        if (destination == null || destination.anchor() != null || parsedPage(destination) == null) return List.of();
+        return List.of(new Evidence.NavigationTarget(scope, providerId(), candidate.id(), destination.targetId()));
+    }
+
+    @Override
+    public List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope scope, Candidate candidate, Fragment fragment) {
+        var targets = navigationTargets(scope, candidate);
+        if (targets.isEmpty()) return targets;
+        var anchor = citedHeadingAnchor(candidate.id(), fragment.sourcePosition());
+        if (anchor == null) return targets;
+        return List.of(targets.getFirst(), new Evidence.NavigationTarget(scope, providerId(), candidate.id(),
+                candidate.id() + "#" + anchor));
+    }
+
+    @Override
+    public Evidence.NavigationTarget refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!providerId().equals(target.providerId())) return null;
+        var destination = currentDestination(target.targetId());
+        return destination == null ? null
+                : new Evidence.NavigationTarget(scope, providerId(), destination.candidateId(), destination.targetId());
+    }
+
+    @Override
+    public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!scope.equals(target.scope())) return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
+                "GuideME target is outside the active scope");
+        if (!opener.isClientThread()) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,
+                "GuideME navigation requires the client thread");
+        var destination = currentDestination(target.targetId());
+        if (destination == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE,
+                "GuideME page or heading is no longer available");
+        if (!destination.candidateId().equals(target.sourceHandle())) return new Evidence.NavigationResult(
+                Evidence.NavigationStatus.STALE, "GuideME page identity changed");
+        try {
+            opener.openGuide(destination.guide(), destination.page(), destination.anchor());
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "GuideME page opened");
+        } catch (RuntimeException | LinkageError failure) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, failure.toString());
+        }
+    }
+
+    private record Destination(ResourceLocation guide, ResourceLocation page, String anchor) {
+        static Destination parse(String targetId) {
+            var parts = targetId.split("#", -1);
+            if (parts.length < 2 || parts.length > 3) return null;
+            var guide = ResourceLocation.tryParse(parts[0]);
+            var page = ResourceLocation.tryParse(parts[1]);
+            if (guide == null || page == null || !guide.toString().equals(parts[0]) || !page.toString().equals(parts[1]))
+                return null;
+            if (parts.length == 3 && (parts[2].isEmpty() || parts[2].length() > 256)) return null;
+            return new Destination(guide, page, parts.length == 3 ? parts[2] : null);
+        }
+
+        String candidateId() { return guide + "#" + page; }
+
+        String targetId() { return anchor == null ? candidateId() : candidateId() + "#" + anchor; }
+    }
+
+    private Object parsedPage(Destination destination) {
+        try {
+            var guide = Class.forName("guideme.Guides", false, getClass().getClassLoader())
+                    .getMethod("getById", ResourceLocation.class).invoke(null, destination.guide());
+            return guide == null ? null : guide.getClass().getMethod("getParsedPage", ResourceLocation.class)
+                    .invoke(guide, destination.page());
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
+            return null;
+        }
+    }
+
+    /** Resolves a durable page or heading destination against current GuideME content, or null. */
+    private Destination currentDestination(String targetId) {
+        var destination = Destination.parse(targetId);
+        if (destination == null || parsedPage(destination) == null) return null;
+        if (destination.anchor() != null && !opener.anchorExists(destination.guide(), destination.page(), destination.anchor()))
+            return null;
+        return destination;
+    }
+
+    /** Returns the anchor of the last plain-text heading at or before the cited text node, or null. */
+    private String citedHeadingAnchor(String candidateId, String sourcePosition) {
+        var prefix = candidateId + "|l:";
+        if (!sourcePosition.startsWith(prefix)) return null;
+        var position = sourcePosition.substring(prefix.length());
+        int offsetSplit = position.lastIndexOf(':');
+        if (offsetSplit < 0) return null;
+        var cited = new ArrayList<Integer>();
+        try {
+            if (offsetSplit > 0) for (String index : position.substring(0, offsetSplit).split("\\.")) cited.add(Integer.parseInt(index));
+        } catch (NumberFormatException invalid) {
+            return null;
+        }
+        var destination = Destination.parse(candidateId);
+        var page = destination == null ? null : parsedPage(destination);
+        if (page == null) return null;
+        try {
+            var loader = getClass().getClassLoader();
+            Object root = Class.forName("guideme.compiler.ParsedGuidePage", false, loader).getMethod("getAstRoot").invoke(page);
+            Class<?> parentType = Class.forName("guideme.libs.mdast.model.MdAstParent", false, loader);
+            Class<?> headingType = Class.forName("guideme.libs.mdast.model.MdAstHeading", false, loader);
+            Class<?> textType = Class.forName("guideme.libs.mdast.model.MdAstText", false, loader);
+            class HeadingFinder {
+                Object heading;
+                int visited;
+
+                /** Visits nodes in document order; returns false once past the cited node or the visit bound. */
+                boolean visit(Object node, List<Integer> path) throws ReflectiveOperationException {
+                    if (++visited > 4096 || comparePaths(path, cited) > 0) return false;
+                    if (headingType.isInstance(node)) heading = node;
+                    if (!parentType.isInstance(node)) return true;
+                    var children = (List<?>) parentType.getMethod("children").invoke(node);
+                    for (int index = 0; index < children.size(); index++) {
+                        path.add(index);
+                        boolean more = visit(children.get(index), path);
+                        path.removeLast();
+                        if (!more) return false;
+                    }
+                    return true;
+                }
+            }
+            var finder = new HeadingFinder();
+            finder.visit(root, new ArrayList<>());
+            if (finder.heading == null) return null;
+            var children = (List<?>) parentType.getMethod("children").invoke(finder.heading);
+            var text = new StringBuilder();
+            for (var child : children) {
+                if (!textType.isInstance(child)) return null;
+                text.append(textType.getMethod("value").invoke(child));
+            }
+            var anchor = anchorFor(text.toString());
+            return anchor.isEmpty() || anchor.length() > 256 ? null : anchor;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
+            return null;
+        }
+    }
+
+    /** Document-order comparison of AST paths; an ancestor precedes its descendants. */
+    private static int comparePaths(List<Integer> first, List<Integer> second) {
+        for (int index = 0; index < Math.min(first.size(), second.size()); index++) {
+            int compared = Integer.compare(first.get(index), second.get(index));
+            if (compared != 0) return compared;
+        }
+        return Integer.compare(first.size(), second.size());
     }
 }

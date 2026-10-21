@@ -13,6 +13,7 @@ import guideme.libs.mdast.mdx.model.MdxJsxAttribute;
 import guideme.libs.mdast.mdx.model.MdxJsxExpressionAttribute;
 import guideme.libs.mdast.mdx.model.MdxJsxFlowElement;
 import guideme.libs.mdast.mdx.model.MdxJsxTextElement;
+import guideme.libs.mdast.model.MdAstHeading;
 import guideme.libs.mdast.model.MdAstRoot;
 import guideme.libs.mdast.model.MdAstParent;
 import guideme.libs.mdast.model.MdAstText;
@@ -28,16 +29,165 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GuideMeGuideReaderTest {
     private static final ResourceLocation GUIDE_ID = ResourceLocation.parse("fixture:book");
     private static final ResourceLocation PAGE_ID = ResourceLocation.parse("fixture:entry");
 
+    private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
+    private static final String PAGE_TARGET = "fixture:book#fixture:entry";
+    private static final String ANCHOR_TARGET = "fixture:book#fixture:entry#charging-items";
+
     @AfterEach
     void clearGuides() {
         Guides.setForTest(List.of());
         RecipeCompiler.setTagNamesForTest(Set.of("Recipe", "RecipeFor", "RecipesFor"));
+    }
+
+    @Test
+    void anchorForMatchesGuideMeNormalization() {
+        assertEquals("charging-items", GuideMeGuideReader.anchorFor("  Charging  Items "));
+        assertEquals("a-b", GuideMeGuideReader.anchorFor("A\t\nB"));
+    }
+
+    @Test
+    void recordsOfferPageTargetAndCitedHeadingAnchor() {
+        installHeadingPage(new MdAstText("Charging Items"));
+        var reader = new GuideMeGuideReader("21.1.19", new RecordingOpener());
+        var candidate = candidate();
+
+        assertEquals(List.of(new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, PAGE_TARGET),
+                        new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, ANCHOR_TARGET)),
+                reader.navigationTargets(SCOPE, candidate, fragment("l:2:0")));
+        assertEquals(List.of(new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, PAGE_TARGET),
+                        new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, ANCHOR_TARGET)),
+                reader.navigationTargets(SCOPE, candidate, fragment("l:1.0:3")));
+        assertEquals(List.of(new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, PAGE_TARGET)),
+                reader.navigationTargets(SCOPE, candidate, fragment("l:0:0")));
+        assertEquals(List.of(new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, PAGE_TARGET)),
+                reader.navigationTargets(SCOPE, candidate, new GuideDocumentReader.Fragment("", PAGE_TARGET + "|first",
+                        0, null, Evidence.Coverage.COMPLETE, null)));
+    }
+
+    @Test
+    void formattedHeadingYieldsNoAnchorTarget() {
+        installHeadingPage(new MdAstText("Charging "), new MdxJsxTextElement("ItemLink", List.of()));
+        var reader = new GuideMeGuideReader("21.1.19", new RecordingOpener());
+
+        assertEquals(List.of(new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, PAGE_TARGET)),
+                reader.navigationTargets(SCOPE, candidate(), fragment("l:2:0")));
+    }
+
+    @Test
+    void savedPageAndAnchorResolveAfterGuideReload() {
+        installHeadingPage(new MdAstText("Charging Items"));
+        var opener = new RecordingOpener();
+        opener.anchors.add("charging-items");
+        var reader = new GuideMeGuideReader("21.1.19", opener);
+        var savedPage = new Evidence.NavigationTarget(SCOPE, "guideme", "old", PAGE_TARGET);
+        var savedAnchor = new Evidence.NavigationTarget(SCOPE, "guideme", "old", ANCHOR_TARGET);
+        installHeadingPage(new MdAstText("Charging Items"));
+
+        var page = reader.refreshNavigation(savedPage, SCOPE);
+        var anchor = reader.refreshNavigation(savedAnchor, SCOPE);
+
+        assertEquals(new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, PAGE_TARGET), page);
+        assertEquals(new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, ANCHOR_TARGET), anchor);
+        assertEquals(Evidence.NavigationStatus.OPENED, reader.open(page, SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.OPENED, reader.open(anchor, SCOPE).status());
+        assertEquals(List.of(java.util.Arrays.asList("fixture:book", "fixture:entry", null),
+                java.util.Arrays.asList("fixture:book", "fixture:entry", "charging-items")), opener.calls);
+    }
+
+    @Test
+    void missingAnchorLeavesPageTargetWorking() {
+        installHeadingPage(new MdAstText("Charging Items"));
+        var opener = new RecordingOpener();
+        var reader = new GuideMeGuideReader("21.1.19", opener);
+        var anchor = new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, ANCHOR_TARGET);
+
+        assertNull(reader.refreshNavigation(anchor, SCOPE));
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, reader.open(anchor, SCOPE).status());
+        assertEquals(List.of(), opener.calls);
+        assertEquals(Evidence.NavigationStatus.OPENED, reader.open(
+                new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, PAGE_TARGET), SCOPE).status());
+    }
+
+    @Test
+    void refreshRejectsMalformedWrongProviderMissingGuideAndPage() {
+        installHeadingPage(new MdAstText("Charging Items"));
+        var opener = new RecordingOpener();
+        opener.anchors.add("charging-items");
+        var reader = new GuideMeGuideReader("21.1.19", opener);
+
+        for (var targetId : List.of("fixture:book#fixture:entry#charging-items#extra", "bad id#fixture:entry",
+                "fixture:book#", "fixture:book#fixture:entry#", "fixture:book", "fixture:missing#fixture:entry",
+                "fixture:book#fixture:missing")) {
+            assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "guideme", "old", targetId), SCOPE), targetId);
+        }
+        assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "modonomicon", "old", PAGE_TARGET), SCOPE));
+        assertEquals(List.of(), opener.calls);
+    }
+
+    @Test
+    void openReportsStaleScopeOffThreadChangedHandleAndError() {
+        installHeadingPage(new MdAstText("Charging Items"));
+        var opener = new RecordingOpener();
+        var reader = new GuideMeGuideReader("21.1.19", opener);
+        var current = new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, PAGE_TARGET);
+
+        assertEquals(Evidence.NavigationStatus.STALE, reader.open(current,
+                new Evidence.Scope("other", "en_us", "team", "runtime", 1)).status());
+        opener.clientThread = false;
+        assertEquals(Evidence.NavigationStatus.UNSUPPORTED, reader.open(current, SCOPE).status());
+        opener.clientThread = true;
+        assertEquals(Evidence.NavigationStatus.STALE, reader.open(
+                new Evidence.NavigationTarget(SCOPE, "guideme", "fixture:book#fixture:other", PAGE_TARGET), SCOPE).status());
+        assertEquals(List.of(), opener.calls);
+        opener.failure = new IllegalStateException("screen failed");
+        assertEquals(Evidence.NavigationStatus.ERROR, reader.open(current, SCOPE).status());
+    }
+
+    /** Installs a page shaped as [intro text, heading(children), body text]. */
+    private static void installHeadingPage(guideme.libs.mdast.model.MdAstNode... headingChildren) {
+        var root = new MdAstRoot();
+        root.add(new MdAstText("Intro"));
+        var heading = new MdAstHeading();
+        heading.depth = 2;
+        for (var child : headingChildren) heading.add(child);
+        root.add(heading);
+        root.add(new MdAstText("Body"));
+        Guides.setForTest(List.of(new FixtureGuide(GUIDE_ID, List.of(new ParsedGuidePage(PAGE_ID, "en_us", root)))));
+    }
+
+    private static GuideDocumentReader.Candidate candidate() {
+        return new GuideDocumentReader.Candidate(PAGE_TARGET, "fixture:entry", PAGE_TARGET + "|base", List.of(),
+                Evidence.Coverage.COMPLETE);
+    }
+
+    private static GuideDocumentReader.Fragment fragment(String textPosition) {
+        return new GuideDocumentReader.Fragment("text", PAGE_TARGET + "|" + textPosition, 0, null,
+                Evidence.Coverage.COMPLETE, null);
+    }
+
+    private static final class RecordingOpener implements GuideMeGuideReader.PageOpener {
+        private final List<List<String>> calls = new java.util.ArrayList<>();
+        private final Set<String> anchors = new HashSet<>();
+        private boolean clientThread = true;
+        private RuntimeException failure;
+
+        @Override public boolean isClientThread() { return clientThread; }
+
+        @Override public boolean anchorExists(ResourceLocation guide, ResourceLocation page, String anchor) {
+            return anchors.contains(anchor);
+        }
+
+        @Override public void openGuide(ResourceLocation guide, ResourceLocation page, String anchor) {
+            if (failure != null) throw failure;
+            calls.add(java.util.Arrays.asList(guide.toString(), page.toString(), anchor));
+        }
     }
 
     @Test

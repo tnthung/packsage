@@ -90,10 +90,10 @@ Primary references: [manual initialization](https://github.com/BluSunrize/Immers
 
 **Consumes:** The source contracts and payload design above. **Produces:** One authoritative description of structured guide evidence, search matching, visibility and completeness; a capability-by-capability evidence record.
 
-- [ ] Add the structured-guide result contract to the existing document-search section, preserving callable signatures and source ownership. Link this plan rather than duplicating execution steps in the spec.
-- [ ] Record installed artifact versions/hashes and the exact new members checked. Check a representative admitted floor for each new native surface; record actual differences and select a compatible implementation split only where necessary.
-- [ ] Resolve the confirmed Modonomicon spotlight-return and display-state transitions from release/tag evidence and inspect the older native visibility behavior. Record exact nonoverlapping version ranges for the necessary reader variants. If the two transitions differ, retain an intermediate variant. This is a required prerequisite to Task 3, not an optional compatibility follow-up.
-- [ ] Record all six features as pending. Separate source inspection, automated results and installed acceptance throughout the report.
+- [x] Add the structured-guide result contract to the existing document-search section, preserving callable signatures and source ownership. Link this plan rather than duplicating execution steps in the spec.
+- [x] Record installed artifact versions/hashes and the exact new members checked. Check a representative admitted floor for each new native surface; record actual differences and select a compatible implementation split only where necessary.
+- [x] Resolve the confirmed Modonomicon spotlight-return and display-state transitions from release/tag evidence and inspect the older native visibility behavior. Record exact nonoverlapping version ranges for the necessary reader variants. If the two transitions differ, retain an intermediate variant. This is a required prerequisite to Task 3, not an optional compatibility follow-up.
+- [x] Record all six features as pending. Separate source inspection, automated results and installed acceptance throughout the report.
 
 ## Task 2: Carry and discover structured guide fragments
 
@@ -101,11 +101,11 @@ Primary references: [manual initialization](https://github.com/BluSunrize/Immers
 
 **Consumes:** Task 1's contract. **Produces:** `Fragment(String text, String sourcePosition, int overlapChars, String nextPosition, Evidence.Coverage coverage, String detail, Evidence.JsonObject relationships)` plus its compatible six-argument constructor; structured payload transport and literal identity matching.
 
-- [ ] Add failing provider regressions `relationshipOnlyFragmentMatchesDeclaredIdentity`, `freshReadPreservesCurrentRelationships` and `relationshipCoverageIsNotSearchText`: querying `minecraft:diamond` returns the fixture's association despite empty text; querying `COMPLETE` does not match that association; a changed item ID appears on reread. Assert the exact group payload survives and text-only fixtures retain their current payloads.
-- [ ] Add failing bounded-continuation regressions: a large relationship collection produces advancing metadata-only cursors with the same document handle; a later current value changes before continuation/read; absent, complete-empty, partial and opaque groups remain distinguishable; oversized or malformed reader output is rejected.
-- [ ] Run `.\gradlew.bat test --tests dev.packsage.knowledge.guide.GuideDocumentProviderTest --console=plain` with Java 21 and confirm the new regressions fail for the missing behavior.
-- [ ] Implement the additive fragment component, shared payload validation and matching. Keep native decoding and source positions inside each reader. Keep other readers on the compatible constructor.
-- [ ] Rerun that focused test class; require zero failures and unchanged text/overlap, cursor and fresh-read behavior.
+- [x] Add failing provider regressions `relationshipOnlyFragmentMatchesDeclaredIdentity`, `freshReadPreservesCurrentRelationships` and `relationshipCoverageIsNotSearchText`: querying `minecraft:diamond` returns the fixture's association despite empty text; querying `COMPLETE` does not match that association; a changed item ID appears on reread. Assert the exact group payload survives and text-only fixtures retain their current payloads.
+- [x] Add failing bounded-continuation regressions: a large relationship collection produces advancing metadata-only cursors with the same document handle; a later current value changes before continuation/read; absent, complete-empty, partial and opaque groups remain distinguishable; oversized or malformed reader output is rejected.
+- [x] Run `.\gradlew.bat test --tests dev.packsage.knowledge.guide.GuideDocumentProviderTest --console=plain` with Java 21 and confirm the new regressions fail for the missing behavior.
+- [x] Implement the additive fragment component, shared payload validation and matching. Keep native decoding and source positions inside each reader. Keep other readers on the compatible constructor.
+- [x] Rerun that focused test class; require zero failures and unchanged text/overlap, cursor and fresh-read behavior.
 
 ## Task 3: Complete all three Modonomicon capabilities
 
@@ -113,13 +113,13 @@ Primary references: [manual initialization](https://github.com/BluSunrize/Immers
 
 **Consumes:** Task 1's proven API ranges and Task 2's fragment payload. **Produces:** All three Modonomicon groups through the existing `candidates`, `readFragment` and `resolve` methods, using version-specific native access under one logical provider.
 
-- [ ] Add failing native-page fixtures: spotlight stack and ingredient/tag alternatives, both recipe slots, recipe subclasses, missing referenced recipes and text alongside relationships. Assert exact IDs, source pages and relationship kinds; entry icons must not create associations.
-- [ ] Add failing prerequisite fixtures: multiple parent edges, nested AND/OR, known advancement/entry-read/entry-unlocked/mod/category leaves, true/false/none and a custom opaque condition. Assert topology, scoped conditions and parent edges remain distinct. Include depth/output bounds and resumption without changing logical meaning.
-- [ ] Add failing access fixtures: unlocked entry, visible locked entry, hidden entry, locked category/page and a parent that must not reveal its title/body. Visible locked entries yield prerequisite metadata and permitted identifying labels only; hidden entries and locked content are not read. Preserve the prior unlocked text behavior.
-- [ ] Add API-family regressions for the legacy Ingredient getter, modern Either getter and each native visibility path. Test representative versions and both sides of every researched split boundary; no version selects two variants. Preserve one `modonomicon` entry in status and the adapter list, with its actual loaded version.
-- [ ] Run `.\gradlew.bat test --tests dev.packsage.knowledge.guide.ModonomiconGuideReaderTest --console=plain` and confirm meaningful failures.
-- [ ] Extend the current traversal with native spotlight/recipe handling and a scoped condition walker. Select exactly one reader variant using Task 1's ranges; share unchanged traversal and isolate changed native API calls, including any newer-only return types. Use `getEntryDisplayState` where available and the verified older native UI visibility policy in legacy variants. Retain category access/page unlock gates and use a whitelist of inspected built-in leaf fields. Custom types must not trigger generic reflective dumping or arbitrary evaluation callbacks.
-- [ ] Rerun the reader and shared provider tests. Verify a changed parent/condition/page or unlock state is observed on fresh read, and API-access failures retain text or decoded relationships with explicit partial/opaque coverage.
+- [x] Add failing native-page fixtures: spotlight stack and ingredient/tag alternatives, both recipe slots, recipe subclasses, missing referenced recipes and text alongside relationships. Assert exact IDs, source pages and relationship kinds; entry icons must not create associations.
+- [x] Add failing prerequisite fixtures: multiple parent edges, nested AND/OR, known advancement/entry-read/entry-unlocked/mod/category leaves, true/false/none and a custom opaque condition. Assert topology, scoped conditions and parent edges remain distinct. Include depth/output bounds and resumption without changing logical meaning.
+- [x] Add failing access fixtures: unlocked entry, visible locked entry, hidden entry, locked category/page and a parent that must not reveal its title/body. Visible locked entries yield prerequisite metadata and permitted identifying labels only; hidden entries and locked content are not read. Preserve the prior unlocked text behavior.
+- [x] Add API-family regressions for the legacy Ingredient getter, modern Either getter and each native visibility path. Test representative versions and both sides of every researched split boundary; no version selects two variants. Preserve one `modonomicon` entry in status and the adapter list, with its actual loaded version.
+- [x] Run `.\gradlew.bat test --tests dev.packsage.knowledge.guide.ModonomiconGuideReaderTest --console=plain` and confirm meaningful failures.
+- [x] Extend the current traversal with native spotlight/recipe handling and a scoped condition walker. Select exactly one reader variant using Task 1's ranges; share unchanged traversal and isolate changed native API calls, including any newer-only return types. Use `getEntryDisplayState` where available and the verified older native UI visibility policy in legacy variants. Retain category access/page unlock gates and use a whitelist of inspected built-in leaf fields. Custom types must not trigger generic reflective dumping or arbitrary evaluation callbacks.
+- [x] Rerun the reader and shared provider tests. Verify a changed parent/condition/page or unlock state is observed on fresh read, and API-access failures retain text or decoded relationships with explicit partial/opaque coverage.
 
 ## Task 4: Complete both GuideME capabilities
 
@@ -127,12 +127,12 @@ Primary references: [manual initialization](https://github.com/BluSunrize/Immers
 
 **Consumes:** Task 2's fragment payload. **Produces:** Page associations and recipe-tag declarations from the currently selected parsed page.
 
-- [ ] Add failing mapping fixtures for multiple `item_ids`, namespace-relative IDs, invalid/non-string/unknown items, an empty complete list, locale changes and a development page overriding base metadata.
-- [ ] Add failing AST fixtures for `Recipe`, `RecipeFor` and `RecipesFor`, including inline/flow elements, nested/multiple tags, relative IDs, absent/malformed IDs, expression attributes and `fallbackText`. Assert recipe identities remain distinct from output-item selectors; no implicit scan resolves every output selector.
-- [ ] Add a work-bound continuation case across metadata, MDX and text; change frontmatter/AST before fresh read and assert the current values appear. Unsupported nodes/attributes remain partial rather than silently empty.
-- [ ] Run `.\gradlew.bat test --tests dev.packsage.knowledge.guide.GuideMeGuideReaderTest --console=plain` and confirm meaningful failures.
-- [ ] Extend the current page and AST walkers. Preserve base/development selection, active localization, native namespace rules and optional classloading isolation. Do not compile/render a whole guide or execute MDX expressions.
-- [ ] Rerun the reader and shared provider tests; verify a query for an associated item ID finds the page even when that ID is absent from its visible prose.
+- [x] Add failing mapping fixtures for multiple `item_ids`, namespace-relative IDs, invalid/non-string/unknown items, an empty complete list, locale changes and a development page overriding base metadata.
+- [x] Add failing AST fixtures for `Recipe`, `RecipeFor` and `RecipesFor`, including inline/flow elements, nested/multiple tags, relative IDs, absent/malformed IDs, expression attributes and `fallbackText`. Assert recipe identities remain distinct from output-item selectors; no implicit scan resolves every output selector.
+- [x] Add a work-bound continuation case across metadata, MDX and text; change frontmatter/AST before fresh read and assert the current values appear. Unsupported nodes/attributes remain partial rather than silently empty.
+- [x] Run `.\gradlew.bat test --tests dev.packsage.knowledge.guide.GuideMeGuideReaderTest --console=plain` and confirm meaningful failures.
+- [x] Extend the current page and AST walkers. Preserve base/development selection, active localization, native namespace rules and optional classloading isolation. Do not compile/render a whole guide or execute MDX expressions.
+- [x] Rerun the reader and shared provider tests; verify a query for an associated item ID finds the page even when that ID is absent from its visible prose.
 
 ## Task 5: Complete IE manual recipe references
 
@@ -140,12 +140,12 @@ Primary references: [manual initialization](https://github.com/BluSunrize/Immers
 
 **Consumes:** Task 2's fragment payload. **Produces:** Bounded recipe declarations with entry/anchor/offset provenance, retaining existing localized manual text.
 
-- [ ] Add failing initialized-manual fixtures for crafting rows, multiple alternatives, blueprint/bottling refs, mixer fluids and all three `ManualRecipeRef` forms. Assert recipe IDs, output selectors and fixed layouts remain distinct; layout alternatives retain explicit coordinates/amounts without inventing input/output roles.
-- [ ] Include two same-item potion selectors with different potion components. Assert those remain distinct and undecoded components are partial.
-- [ ] Add failing no-side-effect fixtures: initialization is false, an element accessor would trigger lazy work, a field/API is absent and the source reloads before continuation. Require no call to manual open/reload, recipe recalculation, full recipe matching or rendering. Test bounded rows/layout alternatives and an opaque custom element.
-- [ ] Run `.\gradlew.bat test --tests dev.packsage.knowledge.guide.ImmersiveEngineeringGuideReaderTest --console=plain` and confirm meaningful failures.
-- [ ] Gate live-special reads on the inspected initialized state, then read cached declarations with exact-class field access and public reference accessors. Continue by special/row/alternative/cell position. Preserve text fallback and report unavailable structural access explicitly.
-- [ ] Rerun the reader and shared provider tests. Require fresh declaration reads, advancing continuations and no eager native recipe scan.
+- [x] Add failing initialized-manual fixtures for crafting rows, multiple alternatives, blueprint/bottling refs, mixer fluids and all three `ManualRecipeRef` forms. Assert recipe IDs, output selectors and fixed layouts remain distinct; layout alternatives retain explicit coordinates/amounts without inventing input/output roles.
+- [x] Include two same-item potion selectors with different potion components. Assert those remain distinct and undecoded components are partial.
+- [x] Add failing no-side-effect fixtures: initialization is false, an element accessor would trigger lazy work, a field/API is absent and the source reloads before continuation. Require no call to manual open/reload, recipe recalculation, full recipe matching or rendering. Test bounded rows/layout alternatives and an opaque custom element.
+- [x] Run `.\gradlew.bat test --tests dev.packsage.knowledge.guide.ImmersiveEngineeringGuideReaderTest --console=plain` and confirm meaningful failures.
+- [x] Gate live-special reads on the inspected initialized state, then read cached declarations with exact-class field access and public reference accessors. Continue by special/row/alternative/cell position. Preserve text fallback and report unavailable structural access explicitly.
+- [x] Rerun the reader and shared provider tests. Require fresh declaration reads, advancing continuations and no eager native recipe scan.
 
 ## Task 6: Verify the complete section and record acceptance
 
@@ -153,16 +153,16 @@ Primary references: [manual initialization](https://github.com/BluSunrize/Immers
 
 **Consumes:** All three completed reader extensions. **Produces:** Six individually evidenced capabilities through the unchanged public tools, with remaining limits recorded separately.
 
-- [ ] Add focused integration regressions through provider-qualified and combined `search_document`, returned handles and fresh `read_evidence`. Assert structured-only matches, same-source provenance, mixed partial results and existing stale/invalid error behavior. Keep the callable schemas unchanged.
-- [ ] Review the system prompt and tool descriptions together. Extend the existing document-search description to say that exact item/recipe IDs can find declared guide relationships, retaining compact literal queries, Ponder's existing item query and continuation tied to a remaining evidence gap. Do not append scenario rules or change the broader search policy. Description/schema assertions establish the contract only; live calls establish model behavior.
-- [ ] Run the seven focused test classes from Tasks 2-6, including `ClientAssistantTest`, then one `.\gradlew.bat test build --console=plain` with Java 21. Record actual totals and failures; do not describe prior build results as verification of this work.
-- [ ] Write six focused installed checks with source/result expectations. Use real content first, with a small isolated authored fixture only for built-in forms missing from the installed pack. Include a second read after an ordinary source/progress change and an existing text-search regression check.
-- [ ] For Modonomicon, use NeoVitae's `dungeons/demon_crafting` spotlight pages, `utility/incense_altar` pages with both recipe slots and `alchemy_arrays/crafting_array` with parent/read prerequisite `alchemy_arrays/arcane_ash`, where current native visibility permits. Include a hidden-content negative check; custom opaque conditions cannot become a complete explanation. A mod-specific page subclassing `BookRecipePage` must retain its native recipe references.
-- [ ] For GuideME, use AE2's patterns page (`ae2:processing_pattern` is one associated item) and the certus-growth page's `RecipeFor` target `ae2:damaged_budding_quartz`; separately exercise direct `Recipe` and plural `RecipesFor`. Confirm the parsed live pages, not just bundled Markdown resources, supplied the returned facts.
-- [ ] For IE, open the manual normally once if necessary. Verify the hammer/wirecutter crafting references and a blueprint/bottling selector, including distinct named-potion variants; use a focused fixture for fixed layouts/fluid selectors if the installed content does not exercise them.
-- [ ] Inspect actual tool calls, payloads and assistant replies. A passing reader call does not by itself establish a correct ordinary-language answer; record extraction acceptance and answer-quality failures separately. Builds, source inspection and bundled resources are not live proof.
-- [ ] Check off each of the six roadmap boxes only after its implementation, automated checks and installed extraction acceptance are recorded. If live checks cannot run, record implemented/automated-pass status with installed acceptance pending and leave that box open. Update the changelog with delivered behavior and explicit limits.
-- [ ] Perform a manual style pass and finish with `git diff --check`. Do not run a formatter or broaden the work into unrelated guide, prompt, planner or navigation fixes.
+- [x] Add focused integration regressions through provider-qualified and combined `search_document`, returned handles and fresh `read_evidence`. Assert structured-only matches, same-source provenance, mixed partial results and existing stale/invalid error behavior. Keep the callable schemas unchanged.
+- [x] Review the system prompt and tool descriptions together. Extend the existing document-search description to say that exact item/recipe IDs can find declared guide relationships, retaining compact literal queries, Ponder's existing item query and continuation tied to a remaining evidence gap. Do not append scenario rules or change the broader search policy. Description/schema assertions establish the contract only; live calls establish model behavior.
+- [x] Run the seven focused test classes from Tasks 2-6, including `ClientAssistantTest`, then one `.\gradlew.bat test build --console=plain` with Java 21. Record actual totals and failures; do not describe prior build results as verification of this work.
+- [x] Write six focused installed checks with source/result expectations. Use real content first, with a small isolated authored fixture only for built-in forms missing from the installed pack. Include a second read after an ordinary source/progress change and an existing text-search regression check.
+- [x] For Modonomicon, use NeoVitae's `dungeons/demon_crafting` spotlight pages, `utility/incense_altar` pages with both recipe slots and `alchemy_arrays/crafting_array` with parent/read prerequisite `alchemy_arrays/arcane_ash`, where current native visibility permits. Include a hidden-content negative check; custom opaque conditions cannot become a complete explanation. A mod-specific page subclassing `BookRecipePage` must retain its native recipe references.
+- [ ] For GuideME, use AE2's patterns page (`ae2:processing_pattern` is one associated item) and the certus-growth page's `RecipeFor` target `ae2:damaged_budding_quartz`; separately exercise direct `Recipe` and plural `RecipesFor`. Confirm the parsed live pages, not just bundled Markdown resources, supplied the returned facts. (Not run: AE2 is not installed in the test profile; the installed check used an authored GuideME fixture instead.)
+- [x] For IE, open the manual normally once if necessary. Verify the hammer/wirecutter crafting references and a blueprint/bottling selector, including distinct named-potion variants; use a focused fixture for fixed layouts/fluid selectors if the installed content does not exercise them.
+- [x] Inspect actual tool calls, payloads and assistant replies. A passing reader call does not by itself establish a correct ordinary-language answer; record extraction acceptance and answer-quality failures separately. Builds, source inspection and bundled resources are not live proof.
+- [x] Check off each of the six roadmap boxes only after its implementation, automated checks and installed extraction acceptance are recorded. If live checks cannot run, record implemented/automated-pass status with installed acceptance pending and leave that box open. Update the changelog with delivered behavior and explicit limits.
+- [x] Perform a manual style pass and finish with `git diff --check`. Do not run a formatter or broaden the work into unrelated guide, prompt, planner or navigation fixes.
 
 ## Execution order and ownership
 

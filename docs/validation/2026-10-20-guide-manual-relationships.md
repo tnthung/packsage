@@ -2,7 +2,7 @@
 
 Date: 2026-10-20.
 
-Scope: six structured relationship capabilities added to the existing guide/manual document sources. This report separates source inspection, automated checks, and installed acceptance. Implementation and automated checks are recorded below; all six installed acceptance results remain pending.
+Scope: six structured relationship capabilities added to the existing guide/manual document sources. This report separates source inspection, automated checks, and installed acceptance. Implementation and automated checks are recorded below. This report predates installed testing. The later [merged validation record](2026-10-20-merged-guide-parallel-chats.md) records partial installed observations for all six features, so it supersedes this report's pending installed status.
 
 ## Installed artifacts and source inspection
 

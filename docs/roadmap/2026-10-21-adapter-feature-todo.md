@@ -63,10 +63,16 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 - [ ] Immersive Engineering — model reads find no manual entries until the manual has been opened in the session. Navigation clicks already load it.
 
-### Brewing discovery and recipe planning
+### Brewing discovery, recipe reads and planning
 
 - [ ] Minecraft — localized potion-name matching, empty-page progress and brewing batch presentation.
-- [ ] JEI — observed missing-input/partial-plan cases and additional verified planning semantics.
+- [ ] Actually Additions — investigate the native laser recipe read that returned no inputs.
+- [ ] PackSage planner — investigate the empty Powah partial plans, then add other verified transformation semantics to bounded route planning.
+
+### Guide search reliability
+
+- [ ] Modonomicon — investigate the title-only and budget failures in guide search.
+- [ ] Artifacts — investigate an empty partial tooltip result returned without a cursor.
 
 ### Construction geometry
 
@@ -86,6 +92,8 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 This is PackSage core work, rather than a missing third-party mod adapter.
 
 - [ ] PackSage — freshness/continuation audits, version dispatch, coverage diagnostics, latency, citations, source presentation, search behavior and remaining parallel-chat checks.
+- [ ] PackSage — adapter query execution through each provider's own live search and paging, and target references that keep their registered type.
+- [ ] PackSage — installed recheck of the merged adapter-popup width and scrollbar.
 
 ## 2. Does not have an adapter at all
 

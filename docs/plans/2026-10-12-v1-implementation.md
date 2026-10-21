@@ -8,6 +8,8 @@
 
 **Tech stack:** Minecraft 1.21.1, Java 21, one pinned NeoForge 21.1.x build, the official matching MDK/Gradle wrapper, JVM tests and direct documented ChatGPT sign-in/inference. Pin compatible JEI, FTB Quests/Library/Teams and Patchouli artifacts during Task 1; do not invent version compatibility from the research examples.
 
+**Execution status:** v1 was delivered (see the 2026-10-12 to 2026-10-14 `CHANGELOG.md` entries). The step checkboxes below were not maintained during execution, so they do not indicate open work. Later plans replaced parts of this plan; for example, the [behavior-driven toolbox plan](2026-10-14-behavior-driven-toolbox.md) replaced `search_pack`. Current open work is tracked in the [tool roadmap](../roadmap/2026-10-13-todo.md).
+
 **Spec:** [V1 specification](../specs/2026-10-12-v1.md). Supporting evidence: [feasibility research](../research/2026-10-12-feasibility.md), [test pack selection](../research/2026-10-12-test-pack-selection.md), [guide framework coverage](../research/2026-10-12-guide-framework-coverage.md), [glossary](../../GLOSSARY.md).
 
 ## Global constraints

@@ -147,7 +147,7 @@
 - [x] Run `./gradlew.bat test build` once the focused suites pass. Check every changed file against existing style manually and finish with `git diff --check`; never run a formatter. Record actual results, not planned results.
 - [x] Write the player-facing live checklist: start A, create B while A runs, ask in B, return to A while it runs, leave A, and observe A's completed-unread dot before its title. Open A and confirm the dot clears and the answer remains available for a follow-up.
 - [ ] Cover two responses completing while chat is closed; A completing while B remains visible; independent Stop and steering; draft/scroll restoration; inactive deletion during another request; and foreign-world read-only behavior.
-- [ ] Close/reopen chat and restart Minecraft after a background answer has saved. Confirm its unread dot survives until the completed conversation is opened, then remains cleared after another restart. Confirm unfinished requests are not resumed on reconnect.
+- [x] Close/reopen chat and restart Minecraft after a background answer has saved. Confirm its unread dot survives until the completed conversation is opened, then remains cleared after another restart. Confirm unfinished requests are not resumed on reconnect.
 - [ ] Confirm existing off-chat ding/toast behavior, actual accent-dot position and narrow-window clicks in Minecraft. The assistant runs all automated commands; the player's manual JAR-copying workflow applies only to live checks.
 - [x] Record passing automated checks and remaining live acceptance separately. This feature is accepted only when independent A/B requests, saved return/read state and the actual unread-dot UI all pass their corresponding checks.
 

@@ -430,6 +430,12 @@ public final class NativeStorageReader implements StorageReader {
         if (ownerName.length() > 256) ownerName = ownerName.substring(0, 256);
         var container = stack.get(DataComponents.CONTAINER);
         var bundle = stack.get(DataComponents.BUNDLE_CONTENTS);
+        var selectedPartial = false;
+        if (!stack.isEmpty()) {
+            var selected = selectedItemRecord(stack, ownerIdentity, location, slotReference, scope, registries, capturedAt);
+            entries.add(selected);
+            selectedPartial = selected.source().coverage() == Evidence.Coverage.PARTIAL;
+        }
         if (container == null && bundle == null) {
             var owner = new LinkedHashMap<String, Evidence.JsonValue>();
             owner.put("slotReference", new Evidence.JsonString(slotReference));
@@ -438,7 +444,7 @@ public final class NativeStorageReader implements StorageReader {
             owner.put("ownerId", new Evidence.JsonString(ownerIdentity));
             owner.put("ownerName", new Evidence.JsonString(ownerName));
             owner.put("ownerCount", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
-            owner.put("storageStatus", new Evidence.JsonString("unknown"));
+            owner.put("storageStatus", new Evidence.JsonString(stack.isEmpty() ? "unknown" : "none"));
             owner.put("storageType", new Evidence.JsonString("unknown"));
             owner.put("contentsStatus", new Evidence.JsonString("unknown"));
             owners.add(new Evidence.JsonObject(owner));
@@ -453,7 +459,8 @@ public final class NativeStorageReader implements StorageReader {
             truncated |= addItemComponent(entries, owners, stack, ownerIdentity, ownerName, location, slotReference, "bundle",
                     null, bundle, scope, registries, capturedAt, filter, player, level);
         }
-        var coverage = supported ? truncated ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE
+        truncated |= selectedPartial;
+        var coverage = supported || !stack.isEmpty() ? truncated ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE
                 : Evidence.Coverage.UNAVAILABLE;
         var details = new LinkedHashMap<String, Evidence.JsonValue>();
         details.put("observation", new Evidence.JsonString("inventory_item_storage"));
@@ -467,6 +474,55 @@ public final class NativeStorageReader implements StorageReader {
         if (truncated) details.put("truncated", new Evidence.JsonBoolean(true));
         return new Observation(entries, scope, capturedAt, capturedNanos, "Item storage", details, coverage,
                 List.of("synchronized-item-components", location.section() + ":" + location.slot()));
+    }
+
+    private static Evidence.Record selectedItemRecord(ItemStack stack, String identity, NativeInventoryReader.LocatedItem location,
+                                                      String slotReference, Evidence.Scope scope,
+                                                      net.minecraft.core.HolderLookup.Provider registries, Instant capturedAt) {
+        Evidence.JsonObject components;
+        try {
+            components = net.minecraft.core.component.DataComponentMap.CODEC.encodeStart(
+                    registries.createSerializationContext(JsonOps.INSTANCE), stack.getComponents().filter(type ->
+                            type != DataComponents.CONTAINER && type != DataComponents.BUNDLE_CONTENTS))
+                    .result().filter(com.google.gson.JsonElement::isJsonObject)
+                    .map(value -> Evidence.deserializeObject(value.toString())).orElseGet(() ->
+                            new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown"))));
+        } catch (RuntimeException ignored) {
+            components = new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown")));
+        }
+        var metadataTruncated = components.values().containsKey("status")
+                || Evidence.serialize(components).getBytes(StandardCharsets.UTF_8).length > MAX_ENTRY_METADATA;
+        var itemName = stack.getHoverName().getString();
+        if (itemName.length() > 256) itemName = itemName.substring(0, 256);
+        var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+        payload.put("id", new Evidence.JsonString(identity));
+        payload.put("section", new Evidence.JsonString("item"));
+        payload.put("inventorySection", new Evidence.JsonString(location.section()));
+        payload.put("slot", new Evidence.JsonNumber(BigDecimal.valueOf(location.slot())));
+        if (location.equipmentSlot() != null) payload.put("equipmentSlot", new Evidence.JsonString(location.equipmentSlot()));
+        payload.put("name", new Evidence.JsonString(itemName));
+        payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
+        payload.put("components", metadataTruncated
+                ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))) : components);
+        var partial = dev.packsage.knowledge.nativegame.NativeItemFacts.enrich(payload, stack, registries) || metadataTruncated;
+        Evidence.JsonObject eligibility;
+        try {
+            eligibility = dev.packsage.knowledge.nativegame.NativeEnchantmentEligibility.read(stack,
+                    registries.lookupOrThrow(net.minecraft.core.registries.Registries.ENCHANTMENT));
+            partial |= !dev.packsage.knowledge.nativegame.NativeEnchantmentEligibility.complete(eligibility);
+        } catch (RuntimeException failure) {
+            eligibility = new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unavailable")));
+        }
+        payload.put("enchantmentEligibility", eligibility);
+        if (stack.has(DataComponents.CONTAINER) || stack.has(DataComponents.BUNDLE_CONTENTS)) {
+            payload.put("nestedStorageContentsOmitted", new Evidence.JsonBoolean(true));
+        }
+        if (metadataTruncated) payload.put("metadataStatus", new Evidence.JsonString("unknown_truncated"));
+        var source = new Evidence.Source(scope, "native", "1.21.1", "storage-entry:item:" + slotReference,
+                scope.requestGeneration(), capturedAt, Evidence.Activity.ACTIVE,
+                partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                Evidence.Authority.VIEWER, List.of("synchronized-item-components"));
+        return new Evidence.Record(source, Evidence.RecordKind.ITEM, identity, new Evidence.JsonObject(payload), List.of());
     }
 
     private static boolean addItemComponent(List<Evidence.Record> entries, List<Evidence.JsonValue> owners,

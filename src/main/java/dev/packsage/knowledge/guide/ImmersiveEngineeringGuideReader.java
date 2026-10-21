@@ -39,6 +39,27 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
         ManualOpener MINECRAFT = new ManualOpener() {
             @Override public boolean isClientThread() { return Minecraft.getInstance().isSameThread(); }
 
+            @Override public void ensureLoaded(Object manual) {
+                try {
+                    var initialized = findField(manual.getClass(), "initialized");
+                    if (initialized != null && initialized.getBoolean(manual)) return;
+                    manual.getClass().getMethod("getGui").invoke(manual);
+                } catch (ReflectiveOperationException failure) {
+                    throw new IllegalStateException("Immersive Engineering manual could not be loaded", failure);
+                }
+            }
+
+            private static java.lang.reflect.Field findField(Class<?> type, String name) {
+                for (var current = type; current != null; current = current.getSuperclass()) {
+                    try {
+                        var field = current.getDeclaredField(name);
+                        field.setAccessible(true);
+                        return field;
+                    } catch (NoSuchFieldException ignored) { }
+                }
+                return null;
+            }
+
             @Override public boolean openEntry(Object manual, Object entry) {
                 try {
                     var gui = manual.getClass().getMethod("getGui").invoke(manual);
@@ -58,6 +79,9 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
         };
 
         boolean isClientThread();
+
+        /** Loads manual entries the way using the manual item does; called only when the player navigates. */
+        void ensureLoaded(Object manual);
 
         /** Shows the manual at the entry's first page; false when the manual screen is unavailable. */
         boolean openEntry(Object manual, Object entry);
@@ -949,7 +973,8 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
 
     @Override
     public Evidence.NavigationTarget refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
-        if (!providerId().equals(target.providerId()) || visibleEntry(target.targetId()) == null) return null;
+        if (!providerId().equals(target.providerId()) || !loadForNavigation() || visibleEntry(target.targetId()) == null)
+            return null;
         return new Evidence.NavigationTarget(scope, providerId(), target.targetId(), target.targetId());
     }
 
@@ -959,7 +984,7 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
                 "Immersive Engineering target is outside the active scope");
         if (!opener.isClientThread()) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,
                 "Immersive Engineering navigation requires the client thread");
-        var found = visibleEntry(target.targetId());
+        var found = loadForNavigation() ? visibleEntry(target.targetId()) : null;
         if (found == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE,
                 "Immersive Engineering manual entry is missing or hidden");
         if (!target.targetId().equals(target.sourceHandle())) return new Evidence.NavigationResult(
@@ -974,6 +999,17 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
     }
 
     private record ManualEntryRef(Object manual, Object entry) { }
+
+    /** A player click may load the manual, as using the manual item would; model reads never do. */
+    private boolean loadForNavigation() {
+        try {
+            var helper = Class.forName(MANUAL_HELPER, false, ImmersiveEngineeringGuideReader.class.getClassLoader());
+            opener.ensureLoaded(helper.getMethod("getManual").invoke(null));
+            return true;
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
+            return false;
+        }
+    }
 
     /** Resolves a durable entry ID against the current manual when the entry is shown, or null. */
     private ManualEntryRef visibleEntry(String entryId) {

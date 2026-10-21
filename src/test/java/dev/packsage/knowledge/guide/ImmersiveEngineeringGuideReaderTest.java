@@ -942,6 +942,25 @@ class ImmersiveEngineeringGuideReaderTest {
     }
 
     @Test
+    void savedEntryLoadsAnUninitializedManualOnlyWhenThePlayerNavigates() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        var opener = new RecordingOpener();
+        opener.onLoad = () -> manual.addEntry(HAMMER, null);
+        var reader = new ImmersiveEngineeringGuideReader("12.4.2-194", opener);
+
+        assertEquals(java.util.List.of(), reader.navigationTargets(SCOPE, new GuideDocumentReader.Candidate(HAMMER, "Hammer",
+                HAMMER, java.util.List.of(), Evidence.Coverage.COMPLETE)));
+        assertEquals(0, opener.loads);
+        var refreshed = reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "immersiveengineering", "old", HAMMER), SCOPE);
+
+        assertEquals(new Evidence.NavigationTarget(SCOPE, "immersiveengineering", HAMMER, HAMMER), refreshed);
+        assertEquals(Evidence.NavigationStatus.OPENED, reader.open(refreshed, SCOPE).status());
+        assertEquals(1, opener.calls.size());
+        assertTrue(opener.loads >= 1);
+    }
+
+    @Test
     void unavailableManualScreenIsReportedWithoutException() {
         var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
         manual.reset();
@@ -1004,8 +1023,16 @@ class ImmersiveEngineeringGuideReaderTest {
         private boolean clientThread = true;
         private boolean screenAvailable = true;
         private RuntimeException failure;
+        private Runnable onLoad = () -> { };
+        private int loads;
 
         @Override public boolean isClientThread() { return clientThread; }
+
+        @Override public void ensureLoaded(Object manual) {
+            loads++;
+            onLoad.run();
+            onLoad = () -> { };
+        }
 
         @Override public boolean openEntry(Object manual, Object entry) {
             if (failure != null) throw failure;

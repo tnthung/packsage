@@ -215,12 +215,18 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         constraints.add("remainders=unknown");
         Evidence.JsonValue shape = null;
         if (recipe instanceof net.minecraft.world.item.crafting.ShapedRecipe shaped) {
-            constraints.add("shape=" + shaped.getWidth() + "x" + shaped.getHeight());
-            constraints.add("slot-index=row*width+column");
-            var shapeValues = new LinkedHashMap<String, Evidence.JsonValue>();
-            shapeValues.put("width", new Evidence.JsonNumber(BigDecimal.valueOf(shaped.getWidth())));
-            shapeValues.put("height", new Evidence.JsonNumber(BigDecimal.valueOf(shaped.getHeight())));
-            shape = new Evidence.JsonObject(shapeValues);
+            try {
+                int width = shaped.getWidth();
+                int height = shaped.getHeight();
+                var shapeValues = new LinkedHashMap<String, Evidence.JsonValue>();
+                shapeValues.put("width", new Evidence.JsonNumber(BigDecimal.valueOf(width)));
+                shapeValues.put("height", new Evidence.JsonNumber(BigDecimal.valueOf(height)));
+                shape = new Evidence.JsonObject(shapeValues);
+                constraints.add("shape=" + width + "x" + height);
+                constraints.add("slot-index=row*width+column");
+            } catch (RuntimeException ignored) {
+                shape = null;
+            }
         } else if (recipe instanceof net.minecraft.world.item.crafting.ShapelessRecipe) {
             constraints.add("shape=shapeless");
             shape = new Evidence.JsonString("shapeless");

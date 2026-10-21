@@ -118,6 +118,36 @@ class NativeRecipeReaderTest {
     }
 
     @Test
+    void shapedRecipeWithEmptyCellsNumbersSlotsByRowTimesWidthPlusColumn() {
+        var pattern = net.minecraft.world.item.crafting.ShapedRecipePattern.of(java.util.Map.of(
+                'P', Ingredient.of(Items.OAK_PLANKS), 'I', Ingredient.of(Items.IRON_INGOT)), " P ", "PIP", " P ");
+        var shaped = new net.minecraft.world.item.crafting.ShapedRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                pattern, new ItemStack(Items.PISTON));
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:plus"), shaped),
+                registries, ITEMS, null, SCOPE, null);
+        assertEquals(List.of("slot-1", "slot-3", "slot-4", "slot-5", "slot-7"),
+                record.recipePayload().inputs().stream().map(Evidence.RecipeSlot::groupId).toList());
+        assertTrue(record.recipePayload().constraints().contains("shape=3x3"));
+    }
+
+    @Test
+    void throwingShapedRecipeKeepsRecordWithoutShape() {
+        var pattern = net.minecraft.world.item.crafting.ShapedRecipePattern.of(java.util.Map.of(
+                'P', Ingredient.of(Items.OAK_PLANKS)), "PP", "PP");
+        var shaped = new net.minecraft.world.item.crafting.ShapedRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                pattern, new ItemStack(Items.CRAFTING_TABLE)) {
+            @Override public int getWidth() {
+                throw new IllegalStateException("broken");
+            }
+        };
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:broken"), shaped),
+                registries, ITEMS, null, SCOPE, null);
+        assertEquals(4, record.recipePayload().inputs().size());
+        assertTrue(record.recipePayload().constraints().stream().noneMatch(c -> c.startsWith("shape=") || c.startsWith("slot-index=")));
+        assertFalse(record.payload().values().containsKey("shape"));
+    }
+
+    @Test
     void shapelessRecipeReportsShapelessConstraintAndPayload() {
         var shapeless = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
                 new ItemStack(Items.STICK), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.OAK_PLANKS)));

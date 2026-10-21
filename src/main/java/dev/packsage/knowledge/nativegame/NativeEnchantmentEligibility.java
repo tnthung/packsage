@@ -86,7 +86,10 @@ public final class NativeEnchantmentEligibility {
             }
             var entry = entries.get(index);
             entry.put("exclusiveWith", new Evidence.JsonArray(ids));
-            if (exclusive.size() > MAX_EXCLUSIVE) entry.put("exclusiveWithStatus", new Evidence.JsonString("bounded"));
+            if (exclusive.size() > MAX_EXCLUSIVE) {
+                entry.put("exclusiveWithStatus", new Evidence.JsonString("bounded"));
+                bounded = true;
+            }
             supported.add(new Evidence.JsonObject(entry));
         }
         var values = new LinkedHashMap<String, Evidence.JsonValue>();

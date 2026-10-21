@@ -83,6 +83,30 @@ class NativeEnchantmentEligibilityTest {
         assertEquals(List.of(), exclusive(entry(bow, "packsage:bow_only")));
     }
 
+    @Test
+    void exclusiveListIsCappedAndMakesStatusBoundedNotComplete() {
+        var big = new MappedRegistry<Enchantment>(Registries.ENCHANTMENT, Lifecycle.stable());
+        var others = new java.util.ArrayList<Holder<Enchantment>>();
+        for (int i = 0; i < 40; i++) {
+            var id = ResourceLocation.fromNamespaceAndPath("packsage", "e" + String.format("%02d", i));
+            others.add(big.register(ResourceKey.create(Registries.ENCHANTMENT, id), Enchantment.enchantment(Enchantment.definition(
+                    HolderSet.direct(Items.DIAMOND_SWORD.builtInRegistryHolder()),
+                    10, 1, Enchantment.dynamicCost(1, 10), Enchantment.dynamicCost(21, 10), 1, EquipmentSlotGroup.MAINHAND)).build(id),
+                    RegistrationInfo.BUILT_IN));
+        }
+        var hubId = ResourceLocation.fromNamespaceAndPath("packsage", "hub");
+        big.register(ResourceKey.create(Registries.ENCHANTMENT, hubId), Enchantment.enchantment(Enchantment.definition(
+                HolderSet.direct(Items.DIAMOND_SWORD.builtInRegistryHolder()),
+                10, 1, Enchantment.dynamicCost(1, 10), Enchantment.dynamicCost(21, 10), 1, EquipmentSlotGroup.MAINHAND))
+                .exclusiveWith(HolderSet.direct(others)).build(hubId), RegistrationInfo.BUILT_IN);
+        var result = NativeEnchantmentEligibility.read(new ItemStack(Items.DIAMOND_SWORD), big);
+        var hub = entry(result, "packsage:hub");
+        assertEquals(32, exclusive(hub).size());
+        assertEquals(new Evidence.JsonString("bounded"), hub.values().get("exclusiveWithStatus"));
+        assertEquals(new Evidence.JsonString("bounded"), result.values().get("status"));
+        org.junit.jupiter.api.Assertions.assertFalse(NativeEnchantmentEligibility.complete(result));
+    }
+
     private static List<String> exclusive(Evidence.JsonObject entry) {
         return ((Evidence.JsonArray) entry.values().get("exclusiveWith")).values().stream()
                 .map(value -> ((Evidence.JsonString) value).value()).toList();

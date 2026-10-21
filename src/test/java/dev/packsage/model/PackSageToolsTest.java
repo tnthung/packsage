@@ -93,7 +93,7 @@ class PackSageToolsTest {
         assertTrue(inventory.contains("curios:<type>"));
         assertTrue(inventory.contains("selected item's own record first, in section item"));
         assertTrue(inventory.contains("enchantmentEligibility"));
-        assertTrue(inventory.contains("menu named by the gameplay context's openedMenu"));
+        assertTrue(inventory.contains("Target opened reads the open menu named by openedMenu when it is a supported vanilla menu"));
         var registry = definitions.stream().filter(value -> value.name().equals("search_registry")).findFirst().orElseThrow().description();
         assertTrue(registry.contains("active_effect lists the player's current effect instances"));
         assertTrue(registry.contains("with description when the mod provides one"));

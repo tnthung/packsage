@@ -10,16 +10,32 @@ Generic JEI displays or GuideME documentation do not establish dedicated mechani
 
 ### Inventory and equipment inspection
 
-- [ ] Minecraft — opened-path entity-menu checks (implemented; automated checks pass; installed acceptance pending: the opened target was not exercised). Targeted, ridden and mount-switch fixtures passed; see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md).
-- [ ] Minecraft — stored quantities that exclude recipe previews (implemented; automated checks pass; installed acceptance failed: the assistant chose `targeted` instead of `opened` while the crafting and stonecutter menus were open); see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md).
+- [ ] Minecraft — opened-path entity-menu checks (implemented; automated checks pass; installed acceptance pending: the opened target was not exercised for donkey or mule screens, and the reachability re-test again used the targeted path; see the [completion record](../validation/2026-10-21-minecraft-adapter-completion.md) and the [validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)). Targeted, ridden and mount-switch fixtures passed.
+- [x] Minecraft — stored quantities that exclude recipe previews; installed acceptance passed: the assistant read `opened` for the crafting and stonecutter menus and the output preview was not counted ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
+
+### Held and selected item facts
+
+- [x] Minecraft — the item target returns the selected item's own record, including `enchantmentEligibility`, before contents, and an empty selection is reported as such; installed acceptance passed ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
+
+### Open-menu context
+
+- [x] Minecraft — gameplay context `openedMenu` with an optional plain title and a pointer from targeted-unsupported results to `target: opened`; installed acceptance passed for the crafting table and stonecutter ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)). Modded menus are unsupported by `target: opened`.
 
 ### Enchantment mechanics
 
-- [ ] Minecraft — applicable enchantments for an item (implemented; automated checks pass; installed acceptance failed: the assistant made no `read_evidence` call, so `enchantmentEligibility` was never read; see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md)). Per-level costs, effect payloads and built-in effect decoding passed installed acceptance.
+- [x] Minecraft — applicable enchantments for an item, including supported enchantments each one conflicts with (`exclusiveWith`); installed acceptance passed for a held pickaxe and sword ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)). Per-level costs, effect payloads and built-in effect decoding passed installed acceptance earlier ([completion record](../validation/2026-10-21-minecraft-adapter-completion.md)).
 
 ### Status-effect inspection
 
 - [x] Minecraft — attribute modifiers and active player effects; installed acceptance passed ([validation record](../validation/2026-10-21-minecraft-adapter-completion.md)).
+
+### Effect descriptions from language keys
+
+- [ ] Minecraft — effect `description` from `<descriptionId>.description` keys, otherwise `descriptionStatus` `not_provided`, `bounded` or `unknown` (implemented; automated checks pass; installed acceptance covers only the description-absent case, and the present case needs a pack with description text, for example ATM10; see the [validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
+
+### Player attribute values and modifier sources
+
+- [x] Minecraft — `player_attribute` base, value and modifiers; installed acceptance passed for a Luck effect plus equipped helmet and for the helmet alone ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)). Minecraft does not record what applied an effect.
 
 ### Potion-item inspection
 
@@ -70,10 +86,14 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 ### Brewing discovery, recipe reads and planning
 
-- [ ] Minecraft — localized potion-name matching and empty-page progress (implemented; automated checks pass; installed acceptance failed: the reader returned localized titles and progress text, but the model searched `strength` rather than the localized phrase); see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md).
-- [ ] Minecraft — planner brewing batch presentation (implemented; automated checks pass; installed acceptance failed: no `plan_recipe` call, and the reply stated a three-bottle batch without plan evidence); see the [validation record](../validation/2026-10-21-minecraft-adapter-completion.md).
+- [x] Minecraft — localized potion-name matching and empty-page progress; installed acceptance passed: the potion was searched by name, the empty page was continued and the localized transformation was found in 2 recipe searches ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
+- [x] Minecraft — planner brewing batch presentation; installed acceptance passed: `plan_recipe` was called and the reply stated the batch semantics and derived totals under a stated grouping ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [ ] Actually Additions — investigate the native laser recipe read that returned no inputs.
 - [ ] PackSage planner — investigate the empty Powah partial plans, then add other verified transformation semantics to bounded route planning.
+
+### Native crafting grid layout
+
+- [x] Minecraft — shaped recipes report `shape=WxH` with slot-index constraints and shapeless recipes report `shape=shapeless`; installed acceptance passed for a piston's 3x3 placement ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 
 ### Guide search reliability
 
@@ -97,7 +117,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 This is PackSage core work, rather than a missing third-party mod adapter.
 
-- [ ] PackSage — assistant tool selection for eligibility reads, opened versus targeted menus, targeted entities and brewing plans (see the [tool roadmap](2026-10-13-todo.md)), plus freshness/continuation audits, version dispatch, coverage diagnostics, latency, citations, source presentation, search behavior and remaining parallel-chat checks.
+- [ ] PackSage — remaining assistant behaviour: prompt wording for the refreshing short-duration effect-source cue, which needs two reads (see the [tool roadmap](2026-10-13-todo.md)); freshness/continuation audits, version dispatch, coverage diagnostics, latency, citations, source presentation, search behavior and remaining parallel-chat checks. The eligibility, opened-menu, targeted-entity and brewing-plan tool-selection items passed ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [ ] PackSage — adapter query execution through each provider's own live search and paging, and target references that keep their registered type.
 - [ ] PackSage — installed recheck of the merged adapter-popup width and scrollbar.
 

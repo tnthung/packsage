@@ -100,6 +100,33 @@ class NativeRecipeReaderTest {
         assertEquals(1, resultReads.get());
     }
 
+    @Test
+    void shapedRecipeReportsGridShapeConstraintsAndPayload() {
+        var pattern = net.minecraft.world.item.crafting.ShapedRecipePattern.of(java.util.Map.of(
+                'P', Ingredient.of(Items.OAK_PLANKS), 'C', Ingredient.of(Items.COBBLESTONE),
+                'I', Ingredient.of(Items.IRON_INGOT), 'R', Ingredient.of(Items.REDSTONE)), "PPP", "CIC", "CRC");
+        var shaped = new net.minecraft.world.item.crafting.ShapedRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                pattern, new ItemStack(Items.PISTON));
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:piston"), shaped),
+                registries, ITEMS, null, SCOPE, null);
+        var constraints = record.recipePayload().constraints();
+        assertTrue(constraints.contains("shape=3x3"));
+        assertTrue(constraints.contains("slot-index=row*width+column"));
+        var shape = (Evidence.JsonObject) record.payload().values().get("shape");
+        assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(3)), shape.values().get("width"));
+        assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(3)), shape.values().get("height"));
+    }
+
+    @Test
+    void shapelessRecipeReportsShapelessConstraintAndPayload() {
+        var shapeless = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                new ItemStack(Items.STICK), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.OAK_PLANKS)));
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:stick"), shapeless),
+                registries, ITEMS, null, SCOPE, null);
+        assertTrue(record.recipePayload().constraints().contains("shape=shapeless"));
+        assertEquals(new Evidence.JsonString("shapeless"), record.payload().values().get("shape"));
+    }
+
     private static RecipeHolder<?> recipe(String id, AtomicReference<Item> output, AtomicInteger resultReads,
                                           boolean failIngredients) {
         var value = (Recipe<?>) Proxy.newProxyInstance(Recipe.class.getClassLoader(), new Class<?>[] {Recipe.class},

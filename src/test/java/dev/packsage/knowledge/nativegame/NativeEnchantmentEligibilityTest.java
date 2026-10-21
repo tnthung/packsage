@@ -74,6 +74,20 @@ class NativeEnchantmentEligibilityTest {
         assertEquals(List.of(), ids(NativeEnchantmentEligibility.read(new ItemStack(Items.STICK), registry)));
     }
 
+    @Test
+    void exclusiveEntriesListEachOtherAndConflictFreeEntryIsEmpty() {
+        var sword = NativeEnchantmentEligibility.read(new ItemStack(Items.DIAMOND_SWORD), registry);
+        assertEquals(List.of("packsage:sword_exclusive"), exclusive(entry(sword, "packsage:sword_only")));
+        assertEquals(List.of("packsage:sword_only"), exclusive(entry(sword, "packsage:sword_exclusive")));
+        var bow = NativeEnchantmentEligibility.read(new ItemStack(Items.BOW), registry);
+        assertEquals(List.of(), exclusive(entry(bow, "packsage:bow_only")));
+    }
+
+    private static List<String> exclusive(Evidence.JsonObject entry) {
+        return ((Evidence.JsonArray) entry.values().get("exclusiveWith")).values().stream()
+                .map(value -> ((Evidence.JsonString) value).value()).toList();
+    }
+
     private static List<String> ids(Evidence.JsonObject result) {
         return ((Evidence.JsonArray) result.values().get("supported")).values().stream()
                 .map(value -> ((Evidence.JsonString) ((Evidence.JsonObject) value).values().get("id")).value()).toList();

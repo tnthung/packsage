@@ -88,6 +88,35 @@ class RecipePlannerTest {
         assertTrue(result.records().stream().anyMatch(record -> record.source().provenance().contains("bounded-depth")));
     }
 
+    @Test
+    void brewingRoutesWithholdBatchCounts() {
+        var index = new KnowledgeIndex();
+        index.replace(new dev.packsage.knowledge.nativegame.NativeSnapshot(SCOPE, List.of(brewingRecord())));
+
+        var result = new RecipePlanner(index).plan("minecraft:potion", 3, SCOPE, 1);
+
+        var payload = result.records().getFirst().payload().values();
+        assertEquals(new Evidence.JsonNull(), payload.get("batches"));
+        assertEquals(new Evidence.JsonNull(), payload.get("producedQuantity"));
+        assertEquals(new Evidence.JsonString("brewing: up to 3 bottles per operation, one reagent per operation; "
+                + "operation count depends on bottle grouping and is not computed"), payload.get("operationSemantics"));
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+    }
+
+    private static Evidence.Record brewingRecord() {
+        var components = new Evidence.JsonObject(Map.of("minecraft:potion_contents", new Evidence.JsonString("minecraft:strength")));
+        var record = record("minecraft:potion", new Evidence.RecipePayload("minecraft:potion", List.of(new Evidence.RecipeSlot("input",
+                List.of(new Evidence.RecipeAlternative("item", "minecraft:potion", new Evidence.JsonObject(Map.of()), 1,
+                        Evidence.Consumption.CONSUMED)))), List.of(new Evidence.RecipeOutput("item", "minecraft:potion", components, 1)),
+                List.of(), List.of(), List.of("brewing-batch=up-to-3-bottles; reagent=one-per-operation; fuel=unknown-per-operation; remainders=unknown"),
+                Evidence.DecodingStatus.PARTIAL));
+        var source = record.source();
+        return new Evidence.Record(new Evidence.Source(source.scope(), source.providerId(), source.providerVersion(),
+                source.sourceHandle(), source.observedGeneration(), source.observedAt(), source.activity(),
+                Evidence.Coverage.PARTIAL, source.authority(), source.provenance()), record.kind(), record.title(),
+                record.payload(), record.targets(), record.recipePayload());
+    }
+
     private static Evidence.Record recipe() {
         return record("mod:lantern", new Evidence.RecipePayload("mod:lantern", List.of(
                 new Evidence.RecipeSlot("metal", List.of(new Evidence.RecipeAlternative("item", "minecraft:iron_ingot", new Evidence.JsonObject(Map.of()), 2, Evidence.Consumption.CONSUMED),

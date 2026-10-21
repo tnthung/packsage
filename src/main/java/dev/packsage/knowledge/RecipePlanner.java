@@ -38,8 +38,8 @@ public final class RecipePlanner {
             if (!cycle.isEmpty() && state.nodes++ < MAX_NODES) {
                 var candidate = cycle.getFirst();
                 var output = candidate.recipePayload().outputs().stream().filter(value -> itemIdentity.equals(value.comparisonIdentity())).findFirst().orElse(null);
-                state.routes.add(planned(candidate, quantity, output == null ? null : output.quantity(), output == null || output.quantity() == null ? null
-                        : batches(quantity, output.quantity()), "bounded-depth"));
+                state.routes.add(planned(candidate, quantity, output == null ? null : output.quantity(), output == null || output.quantity() == null
+                        || sharedBatch(candidate) ? null : batches(quantity, output.quantity()), "bounded-depth"));
             }
             return false;
         }
@@ -60,7 +60,7 @@ public final class RecipePlanner {
             }
             var output = candidate.recipePayload().outputs().stream().filter(value -> itemIdentity.equals(value.comparisonIdentity())
                     && (components.values().isEmpty() || components.equals(value.components()))).findFirst().orElse(null);
-            var batches = output == null || output.quantity() == null ? null : batches(quantity, output.quantity());
+            var batches = output == null || output.quantity() == null || sharedBatch(candidate) ? null : batches(quantity, output.quantity());
             boolean candidateComplete = output != null && batches != null
                     && candidate.source().coverage() == Evidence.Coverage.COMPLETE;
             Evidence.Record planned = planned(candidate, quantity, output == null ? null : output.quantity(), batches, depth <= 0 ? "bounded-depth" : null);
@@ -150,6 +150,10 @@ public final class RecipePlanner {
         var payload = new LinkedHashMap<>(record.payload().values());
         payload.put("requestedQuantity", new Evidence.JsonNumber(BigDecimal.valueOf(requestedQuantity)));
         payload.put("batches", batches == null ? new Evidence.JsonNull() : new Evidence.JsonNumber(BigDecimal.valueOf(batches)));
+        if (sharedBatch(record)) {
+            payload.put("operationSemantics", new Evidence.JsonString("brewing: up to 3 bottles per operation, one reagent per operation; "
+                    + "operation count depends on bottle grouping and is not computed"));
+        }
         if (batches != null && outputQuantity != null) {
             var produced = multiply(batches, outputQuantity);
             payload.put("producedQuantity", produced == null ? new Evidence.JsonNull() : new Evidence.JsonNumber(BigDecimal.valueOf(produced)));
@@ -161,6 +165,10 @@ public final class RecipePlanner {
                 record.source().activity(), Evidence.Coverage.PARTIAL, record.source().authority(),
                 Stream.concat(record.source().provenance().stream(), Stream.of(bound)).toList());
         return new Evidence.Record(source, record.kind(), record.title(), new Evidence.JsonObject(payload), record.targets(), record.recipePayload());
+    }
+
+    private static boolean sharedBatch(Evidence.Record record) {
+        return record.recipePayload() != null && record.recipePayload().constraints().stream().anyMatch(value -> value.startsWith("brewing-batch="));
     }
 
     private static Long batches(long quantity, int outputQuantity) {

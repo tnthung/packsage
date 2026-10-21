@@ -1182,6 +1182,27 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void evidenceInvalidationDuringWorldEntryKeepsTheConversationSelection() throws Exception {
+        java.util.ArrayDeque<Runnable> storeTasks = new java.util.ArrayDeque<>();
+        Executor storeExecutor = storeTasks::addLast;
+        var runtime = runtime(new FakeBackend(), captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
+                current -> new KnowledgeService(List.of(), current), storeExecutor);
+
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.invalidate(new Evidence.Scope("world", "updated-resources", "team", "runtime", 1));
+        runtime.invalidate(new Evidence.Scope("world", "updated-tags", "team", "runtime", 2));
+        while (!storeTasks.isEmpty()) storeTasks.removeFirst().run();
+
+        assertFalse(runtime.view().readOnly(), "view must not remain in the loading state");
+        assertEquals(WORLD.worldOrServer(), runtime.view().conversation().world().worldOrServer());
+        assertFalse(runtime.view().conversation().id().isBlank());
+        runtime.send("question", false, false);
+        assertFalse(runtime.view().errors().stream().anyMatch(error -> error.contains("Cannot send without an active conversation")),
+                runtime.view().errors().toString());
+    }
+
+    @Test
     void deletionWaitsForAnOrdinaryTurnAppendToSettle() throws Exception {
         java.util.ArrayDeque<Runnable> storeTasks = new java.util.ArrayDeque<>();
         Executor storeExecutor = storeTasks::addLast;

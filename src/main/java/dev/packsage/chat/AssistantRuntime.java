@@ -278,8 +278,6 @@ public final class AssistantRuntime implements ChatActions {
             worldScope = newScope;
             requestGeneration = Math.max(requestGeneration, newScope.requestGeneration());
             newChatPending = false;
-            sessionLoading = false;
-            sessionSelectionGeneration++;
             if (world != null) holders.values().stream()
                     .filter(holder -> holder.world.worldOrServer().equals(world.worldOrServer()))
                     .forEach(holder -> holder.scope = newScope);

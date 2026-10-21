@@ -107,7 +107,7 @@ class PackSageToolsTest {
             assertTrue(description.contains("Do not pass search cursors"));
         }
         var evidence = definitions.stream().filter(value -> value.name().equals("read_evidence")).findFirst().orElseThrow().description();
-        assertTrue(evidence.contains("slotReference reads that item's current record, including enchantmentEligibility"));
+        assertTrue(evidence.contains("An inventory slot record's reference rereads that item's current record, including enchantmentEligibility"));
     }
 
     @Test

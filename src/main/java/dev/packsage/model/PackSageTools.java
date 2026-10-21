@@ -152,7 +152,7 @@ public final class PackSageTools {
                 case "read_config" -> "Read a discovered config key or section at call time. A file value is not necessarily the effective server setting; preserve returned authority and scope.";
                 case "plan_recipe" -> "Plan recipe routes for an item identity and quantity, including brewing routes, with unresolved dependencies and coverage. It does not read owned materials or establish affordability. Brewing routes withhold operation counts (batches null); state only what their operationSemantics supports.";
                 case "read_progress" -> "Read current evidence for returned record references only. Do not pass search cursors, labels or guessed references.";
-                case "read_evidence" -> "Read current evidence for returned record references only. Do not pass search cursors, labels or guessed references. An inventory slotReference reads that item's current record, including enchantmentEligibility.";
+                case "read_evidence" -> "Read current evidence for returned record references only. Do not pass search cursors, labels or guessed references. An inventory slot record's reference rereads that item's current record, including enchantmentEligibility.";
                 default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
             }, schema.toString()));
         }

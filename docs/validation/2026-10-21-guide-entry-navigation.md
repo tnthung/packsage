@@ -49,4 +49,25 @@ GPT-6.1-Sol then ran the [player checks](../testing/2026-10-21-guide-entry-navig
 | Actually Additions | The reply linked "Crystals and Reconstructor" (`actuallyadditions:crystals`). The link opened the entry before the restart and reopened it after. | Pass |
 | Locked Modonomicon entry | Neo Vitae's own viewer refused the entry with "Requires read Entry: The Anima". The PackSage reply named the locked entry but offered no link to it, only links to the unlocked prerequisite. | Pass |
 
-Approximate reply times were 35 to 120 seconds. No link opened a wrong destination or a "not found" page. The case where a saved link's destination later becomes locked was not exercised. An unrelated "Social Interactions are only available in Multiplayer worlds" toast appeared twice; its cause was not established.
+### Immersive Engineering retests
+
+Sol reran the IE check on build `ECD76026…`, after opening the manual once by hand:
+- The reply linked "Open Basic Tools manual entry". With an empty main hand, the link opened Basic Tools page 1.
+- After a full restart, the saved link reported "Navigation target is no longer available" until the manual had been opened by hand. After that, it opened Basic Tools page 1 again.
+
+Saved links therefore did not survive a restart. IE fills `contentsByName` only when the manual is first opened.
+
+Commit `5f5757d` lets the player's click load an uninitialized manual through IE's own `getGui()` path. Model reads still do not load it. The regression `savedEntryLoadsAnUninitializedManualOnlyWhenThePlayerNavigates` failed first and then passed. The full test and build passed with 790 tests. The spec was updated in `9e612bf`, and build `1AA7CB5AE6400C2ECD962385F6611A5CD24FD1F3849F4197479225D8050FD7EE` was installed.
+
+Sol's cold-session retest, with Minecraft freshly launched and the manual never opened by hand:
+- The saved link opened Basic Tools page 1, and a repeated click opened it again.
+- A new question about Treated Wood then produced "Open Manual: Treated Wood", which opened Treated Wood page 1.
+- No "no longer available" message appeared.
+
+The Treated Wood question came after the link click had already loaded the manual. Model reads before any manual load still find no entries; that pre-existing limitation is tracked separately in the roadmap.
+
+| Check | Result |
+|---|---|
+| Immersive Engineering, including a saved link opened after a restart without the manual held | Pass |
+
+Approximate reply times were 35 seconds to 3 minutes. No link opened a wrong destination or a "not found" page. The case where a saved link's destination later becomes locked was not exercised. An unrelated "Social Interactions are only available in Multiplayer worlds" toast appeared twice; its cause was not established.

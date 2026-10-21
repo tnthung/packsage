@@ -10,7 +10,7 @@ Generic JEI displays or GuideME documentation do not establish dedicated mechani
 
 ### Inventory and equipment inspection
 
-- [ ] Minecraft — remaining entity cargo/equipment fixtures, mount switching and inventory-result semantics.
+- [ ] Minecraft — remaining entity cargo/equipment fixtures, mount switching and inventory-result semantics. Mule, chest-boat, chest-minecart and ridden-entity change handling are implemented and await live fixture acceptance.
 
 ### Enchantment mechanics
 
@@ -22,11 +22,11 @@ Generic JEI displays or GuideME documentation do not establish dedicated mechani
 
 ### Potion-item inspection
 
-- [ ] Minecraft — actual potion contents and additional custom effects.
+- [ ] Minecraft — decode actual potion contents and additional custom effects. Inventory reads already return the raw component.
 
 ### Ability definitions and attributes
 
-- [ ] Artifacts — ability components and item-specific attribute modifiers.
+- [ ] Artifacts — decode ability components and item-specific attribute modifiers. Inventory reads already return raw item components.
 - [ ] Reliquified Artifacts — effective definitions and bridge-supplied ability overrides through the Artifacts integration.
 
 ### Ability cooldowns
@@ -34,9 +34,13 @@ Generic JEI displays or GuideME documentation do not establish dedicated mechani
 - [ ] Relics.
 - [ ] Artifacts.
 
+### Item rank and upgrade points
+
+- [ ] Relics — rank, relic points and per-ability upgrade levels are implemented; nonzero values await live acceptance.
+
 ### Item upgrade state
 
-- [ ] Relics.
+- [ ] Relics — upgrade costs and availability beyond rank, points and per-ability levels.
 
 ### Guide item relationships
 

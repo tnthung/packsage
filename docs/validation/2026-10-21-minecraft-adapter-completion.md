@@ -84,3 +84,5 @@ These failures are in the assistant's tool choice, but they leave the affected r
 - The expired-handle `read_evidence` path for active effects and instant-effect scaling for potions were not directly exercised.
 - Native brewing search remains slow: about 2 min 20 s with 24 calls (check 8) and 72 s with 16 calls (check 8b).
 - Follow-up: prompt and tool-description work for the four tool-selection behaviours above, rerun live in the in-game editor, followed by the unparked Minor brewing-title guard.
+
+Follow-up (2026-10-21): checks 2, 7, 8, 8b and 10 were re-tested on the installed default and pass; see the [reachability validation record](2026-10-21-minecraft-adapter-reachability.md). The opened-path entity-menu checks remain unaccepted.

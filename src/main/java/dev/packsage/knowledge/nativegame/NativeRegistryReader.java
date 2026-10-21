@@ -328,8 +328,8 @@ final class NativeRegistryReader {
                 truncated ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, List.of("client-registry:item-tag"), scope);
     }
 
-    private static Evidence.Record enchantment(Enchantment value, String identity,
-                                                net.minecraft.core.HolderLookup.Provider access, Evidence.Scope scope) {
+    static Evidence.Record enchantment(Enchantment value, String identity,
+                                        net.minecraft.core.HolderLookup.Provider access, Evidence.Scope scope) {
         var definition = value.definition();
         var supported = definition.supportedItems().stream().limit(MAX_MEMBERS + 1L)
                 .map(holder -> holder.unwrapKey().map(key -> key.location().toString()).orElse("unknown:item")).toList();
@@ -355,8 +355,14 @@ final class NativeRegistryReader {
                 .map(item -> (Evidence.JsonValue) item).toList()));
         payload.put("exclusiveSet", new Evidence.JsonArray(exclusive.stream().limit(MAX_MEMBERS).map(Evidence.JsonString::new)
                 .map(item -> (Evidence.JsonValue) item).toList()));
+        var levels = NativeEnchantmentReader.levels(value);
+        var effects = NativeEnchantmentReader.effects(value, access);
+        payload.put("levels", levels.values());
+        if (levels.bounded()) payload.put("levelsStatus", new Evidence.JsonString("bounded"));
+        payload.put("effects", effects);
         payload.put("effectsStatus", new Evidence.JsonString("registered_components_not_interpreted"));
-        boolean partial = supported.size() > MAX_MEMBERS || primary.size() > MAX_MEMBERS || exclusive.size() > MAX_MEMBERS;
+        boolean partial = supported.size() > MAX_MEMBERS || primary.size() > MAX_MEMBERS || exclusive.size() > MAX_MEMBERS || levels.bounded()
+                || effects.values().containsKey("status");
         return record("enchantment", identity, Evidence.RecordKind.OTHER, value.description().getString(), payload,
                 partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, List.of("client-registry:enchantment"), scope);
     }

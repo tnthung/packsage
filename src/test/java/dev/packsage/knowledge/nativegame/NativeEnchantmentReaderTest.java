@@ -62,7 +62,12 @@ class NativeEnchantmentReaderTest {
 
     @Test
     void enchantmentRecordAddsLevelsAndEffectsWithoutReplacingExistingFields() {
-        var record = NativeRegistryReader.enchantment(enchantment(Enchantments.PROTECTION), "minecraft:protection", lookup, SCOPE);
+        var protection = enchantment(Enchantments.PROTECTION);
+        // Vanilla definitions reference tags that are unbound in the bootstrap lookup, so rebuild with direct holder sets.
+        var definition = Enchantment.definition(HolderSet.direct(), 10, 4, Enchantment.dynamicCost(1, 11),
+                Enchantment.dynamicCost(12, 11), 1, EquipmentSlotGroup.ARMOR);
+        var bound = new Enchantment(protection.description(), definition, HolderSet.direct(), protection.effects());
+        var record = NativeRegistryReader.enchantment(bound, "minecraft:protection", lookup, SCOPE);
         var payload = record.payload().values();
         assertTrue(payload.containsKey("minCost"));
         assertTrue(payload.containsKey("maxCost"));

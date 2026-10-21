@@ -44,6 +44,10 @@ final class NativeBrewingReader {
 
     private NativeBrewingReader() { }
 
+    static int candidateCount(PotionBrewing brewing, RegistryAccess registries) {
+        return source(brewing, registries).count();
+    }
+
     static Page searchCandidates(PotionBrewing brewing, RegistryAccess registries,
                                  Registry<Item> itemRegistry, ResourceManager resourceManager,
                                  String outputItem, String text, int offset, int limit, Evidence.Scope scope) {

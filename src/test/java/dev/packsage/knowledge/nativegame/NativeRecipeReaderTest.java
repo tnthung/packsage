@@ -26,6 +26,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NativeRecipeReaderTest {
+    @Test void progressDetailNamesTheRangePhaseAndEmptyContinuation() {
+        assertEquals("scanned=0-512 of 1300 (ordinary recipes 1200, brewing candidates 100); phase=ordinary; matches=0; "
+                + "no matches in this range; continue with the cursor to scan the rest",
+                NativeRecipeReader.progressDetail(0, 512, 1200, 100, 0, true));
+        assertEquals("scanned=1200-1300 of 1300 (ordinary recipes 1200, brewing candidates 100); phase=brewing; matches=3",
+                NativeRecipeReader.progressDetail(1200, 1300, 1200, 100, 3, false));
+    }
+
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "native", 1);
     private static RegistryAccess registries;
     private static final Registry<Item> ITEMS = BuiltInRegistries.ITEM;

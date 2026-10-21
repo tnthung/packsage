@@ -70,6 +70,11 @@ final class NativeRegistryReader {
                     scope, value -> entry(selectedRegistry, value, BuiltInRegistries.MOB_EFFECT, client, scope));
             case "potion" -> searchEntries(BuiltInRegistries.POTION, selectedRegistry, text, ids, tags, offset, limit,
                     scope, value -> entry(selectedRegistry, value, BuiltInRegistries.POTION, client, scope));
+            case "active_effect" -> {
+                if (client.player == null) throw new dev.packsage.knowledge.Toolbox.Failure(
+                        dev.packsage.knowledge.Toolbox.Code.UNAVAILABLE, "client player unavailable");
+                yield NativeEffectReader.searchActive(client.player.getActiveEffects(), text, ids, tags, offset, limit, scope);
+            }
             case "dimension_type" -> {
                 var registry = client.level.registryAccess().registryOrThrow(Registries.DIMENSION_TYPE);
                 yield searchEntries(registry, selectedRegistry, text, ids, tags, offset, limit, scope,
@@ -119,6 +124,8 @@ final class NativeRegistryReader {
                 var value = BuiltInRegistries.POTION.get(key);
                 yield value == null ? null : entry(selectedRegistry, value, BuiltInRegistries.POTION, client, scope);
             }
+            case "active_effect" -> client.player == null ? null
+                    : NativeEffectReader.readActive(client.player.getActiveEffects(), identity, scope);
             case "dimension_type" -> {
                 var registry = client.level.registryAccess().registryOrThrow(Registries.DIMENSION_TYPE);
                 if (!registry.containsKey(key)) yield null;
@@ -376,7 +383,7 @@ final class NativeRegistryReader {
                 partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, List.of("client-registry:enchantment"), scope);
     }
 
-    private static Evidence.Record effect(MobEffect value, String identity, Evidence.Scope scope) {
+    static Evidence.Record effect(MobEffect value, String identity, Evidence.Scope scope) {
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("registry", new Evidence.JsonString("mob_effect"));
         payload.put("id", new Evidence.JsonString(identity));
@@ -384,6 +391,7 @@ final class NativeRegistryReader {
         payload.put("descriptionKey", new Evidence.JsonString(value.getDescriptionId()));
         payload.put("category", new Evidence.JsonString(value.getCategory().name()));
         payload.put("color", new Evidence.JsonNumber(BigDecimal.valueOf(value.getColor())));
+        payload.put("attributeModifiers", NativeEffectReader.attributeModifiers(value, 0, 3));
         payload.put("mechanicsStatus", new Evidence.JsonString("callbacks_not_interpreted"));
         return record("mob_effect", identity, Evidence.RecordKind.OTHER, value.getDisplayName().getString(), payload,
                 Evidence.Coverage.PARTIAL, List.of("client-registry:mob-effect"), scope);

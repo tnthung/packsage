@@ -20,7 +20,7 @@ class NativeProviderTest {
     void advertisesAllNativeRegistryKinds() {
         var provider = new NativeProvider(() -> new NativeSnapshot(SCOPE, List.of()), Runnable::run);
 
-        assertEquals(List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion", "dimension", "dimension_type"),
+        assertEquals(List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion", "active_effect", "dimension", "dimension_type"),
                 provider.metadata().registries());
     }
 

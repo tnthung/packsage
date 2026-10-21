@@ -362,4 +362,9 @@ class PackSageToolsTest {
         assertTrue(error.result().serializedResult().contains("INVALID_CURSOR"));
         assertTrue(error.result().serializedResult().contains("repeat lookup"));
     }
+
+    @Test void registrySchemaOffersActiveEffect() {
+        var registry = PackSageTools.definitions().stream().filter(tool -> tool.name().equals("search_registry")).findFirst().orElseThrow();
+        assertTrue(registry.serializedSchema().contains("\"active_effect\""));
+    }
 }

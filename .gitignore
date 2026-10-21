@@ -1,6 +1,7 @@
 GLOSSARY.md
 CONTEXT.md
 AGENTS.md
+CLAUDE.md
 .*
 !.gitignore
 build/

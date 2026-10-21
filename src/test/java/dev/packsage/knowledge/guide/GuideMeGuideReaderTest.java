@@ -81,6 +81,15 @@ class GuideMeGuideReaderTest {
     }
 
     @Test
+    void headingWithHashYieldsNoUnopenableAnchorTarget() {
+        installHeadingPage(new MdAstText("Tier #2"));
+        var reader = new GuideMeGuideReader("21.1.19", new RecordingOpener());
+
+        assertEquals(List.of(new Evidence.NavigationTarget(SCOPE, "guideme", PAGE_TARGET, PAGE_TARGET)),
+                reader.navigationTargets(SCOPE, candidate(), fragment("l:2:0")));
+    }
+
+    @Test
     void savedPageAndAnchorResolveAfterGuideReload() {
         installHeadingPage(new MdAstText("Charging Items"));
         var opener = new RecordingOpener();

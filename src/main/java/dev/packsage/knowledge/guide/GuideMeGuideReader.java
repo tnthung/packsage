@@ -914,7 +914,7 @@ public final class GuideMeGuideReader implements GuideDocumentReader {
                 text.append(textType.getMethod("value").invoke(child));
             }
             var anchor = anchorFor(text.toString());
-            return anchor.isEmpty() || anchor.length() > 256 ? null : anchor;
+            return anchor.isEmpty() || anchor.length() > 256 || anchor.indexOf('#') >= 0 ? null : anchor;
         } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
             return null;
         }

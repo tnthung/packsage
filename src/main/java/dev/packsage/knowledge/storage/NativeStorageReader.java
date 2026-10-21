@@ -11,14 +11,27 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.Container;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.inventory.BlastFurnaceMenu;
 import net.minecraft.world.inventory.BrewingStandMenu;
+import net.minecraft.world.inventory.CartographyTableMenu;
+import net.minecraft.world.inventory.CrafterMenu;
+import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.FurnaceMenu;
 import net.minecraft.world.inventory.FurnaceFuelSlot;
 import net.minecraft.world.inventory.FurnaceResultSlot;
+import net.minecraft.world.inventory.GrindstoneMenu;
 import net.minecraft.world.inventory.HorseInventoryMenu;
+import net.minecraft.world.inventory.ItemCombinerMenu;
+import net.minecraft.world.inventory.LoomMenu;
+import net.minecraft.world.inventory.MerchantMenu;
+import net.minecraft.world.inventory.MerchantResultSlot;
+import net.minecraft.world.inventory.NonInteractiveResultSlot;
+import net.minecraft.world.inventory.ResultSlot;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.inventory.SmithingMenu;
 import net.minecraft.world.inventory.SmokerMenu;
+import net.minecraft.world.inventory.StonecutterMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.item.component.ItemContainerContents;
@@ -102,10 +115,17 @@ public final class NativeStorageReader implements StorageReader {
         var entries = new ArrayList<Evidence.Record>();
         var truncated = false;
         var coverage = Evidence.Coverage.COMPLETE;
+        var projections = new ArrayList<String>();
+        var combinerResultSlot = menu instanceof ItemCombinerMenu combiner ? combiner.getResultSlot() : -1;
         for (int index = 0; index < menu.slots.size(); index++) {
             Slot slot = menu.slots.get(index);
             var slotType = slot.getClass();
             if (slot.container == playerInventory) continue;
+            var projection = projectionKind(menu.getClass(), slotType, index, combinerResultSlot);
+            if (projection != null) {
+                projections.add(index + "=" + projection);
+                continue;
+            }
             if (slotType != Slot.class && !supportedStockSlot(menu.getClass(), slot)) {
                 coverage = Evidence.Coverage.PARTIAL;
                 continue;
@@ -202,7 +222,18 @@ public final class NativeStorageReader implements StorageReader {
             entries.add(new Evidence.Record(source, Evidence.RecordKind.ITEM,
                     id == null ? "unknown:item" : id.toString(), new Evidence.JsonObject(payload), List.of()));
         }
-        return new OpenedEntries(entries, truncated, coverage);
+        return new OpenedEntries(entries, truncated, coverage, projections);
+    }
+
+    static String projectionKind(Class<?> menuType, Class<?> slotType, int menuSlot, int combinerResultSlot) {
+        if (slotType == ResultSlot.class || slotType == NonInteractiveResultSlot.class) return "recipe_preview";
+        if (slotType == MerchantResultSlot.class) return "trade_preview";
+        if (menuType == GrindstoneMenu.class && menuSlot == 2 || menuType == StonecutterMenu.class && menuSlot == 1
+                || menuType == LoomMenu.class && menuSlot == 3 || menuType == CartographyTableMenu.class && menuSlot == 2
+                || (menuType == AnvilMenu.class || menuType == SmithingMenu.class) && menuSlot == combinerResultSlot) {
+            return "recipe_preview";
+        }
+        return null;
     }
 
     static boolean supportedStockSlot(Class<?> menuType, Slot slot) {
@@ -338,11 +369,17 @@ public final class NativeStorageReader implements StorageReader {
             }
             var identity = client.level.dimension().location() + ":" + client.player.getUUID() + ":" + menuType + ":"
                     + menu.containerId + ":" + openedMenuIdentity;
+            var openedDetails = new LinkedHashMap<String, Evidence.JsonValue>();
+            openedDetails.put("observation", new Evidence.JsonString("live_opened_menu"));
+            openedDetails.put("completeness", new Evidence.JsonString(captured.coverage().name().toLowerCase(java.util.Locale.ROOT)));
+            openedDetails.put("menuType", new Evidence.JsonString(menuType));
+            openedDetails.put("ownerIdentity", new Evidence.JsonString(identity));
+            if (!captured.projections().isEmpty()) {
+                openedDetails.put("excludedProjections", new Evidence.JsonArray(captured.projections().stream()
+                        .<Evidence.JsonValue>map(Evidence.JsonString::new).toList()));
+            }
             return new Observation(captured.entries(), scope, capturedAt, capturedNanos, "Opened inventory",
-                    Map.of("observation", new Evidence.JsonString("live_opened_menu"), "completeness",
-                            new Evidence.JsonString(captured.coverage().name().toLowerCase(java.util.Locale.ROOT)),
-                            "menuType", new Evidence.JsonString(menuType),
-                            "ownerIdentity", new Evidence.JsonString(identity)), captured.coverage(),
+                    openedDetails, captured.coverage(),
                     List.of("current-client-menu-slots"));
         }
         if (fixtureOpened == null) return null;
@@ -774,9 +811,15 @@ public final class NativeStorageReader implements StorageReader {
         }
     }
 
-    record OpenedEntries(List<Evidence.Record> entries, boolean truncated, Evidence.Coverage coverage) {
+    record OpenedEntries(List<Evidence.Record> entries, boolean truncated, Evidence.Coverage coverage,
+                         List<String> projections) {
         OpenedEntries {
             entries = List.copyOf(entries);
+            projections = List.copyOf(projections);
+        }
+
+        OpenedEntries(List<Evidence.Record> entries, boolean truncated, Evidence.Coverage coverage) {
+            this(entries, truncated, coverage, List.of());
         }
     }
 

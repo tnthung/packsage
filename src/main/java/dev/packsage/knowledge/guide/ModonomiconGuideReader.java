@@ -7,12 +7,14 @@ import com.klikli_dev.modonomicon.book.ResolvedBookEntryParent;
 import com.klikli_dev.modonomicon.book.conditions.BookAndCondition;
 import com.klikli_dev.modonomicon.book.conditions.BookCondition;
 import com.klikli_dev.modonomicon.book.conditions.BookOrCondition;
+import com.klikli_dev.modonomicon.book.entries.BookContentEntry;
 import com.klikli_dev.modonomicon.book.entries.BookEntry;
 import com.klikli_dev.modonomicon.book.page.BookPage;
 import com.klikli_dev.modonomicon.book.page.BookRecipePage;
 import com.klikli_dev.modonomicon.book.page.BookSpotlightPage;
 import com.klikli_dev.modonomicon.book.page.BookTextPage;
 import com.klikli_dev.modonomicon.bookstate.BookUnlockStateManager;
+import com.klikli_dev.modonomicon.client.gui.BookGuiManager;
 import com.klikli_dev.modonomicon.data.BookDataManager;
 import com.mojang.datafixers.util.Either;
 import dev.packsage.knowledge.Evidence;
@@ -50,13 +52,34 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
     private static final int RECIPES_OPAQUE = 2;
     private static final int PREREQUISITES_OPAQUE = 4;
     private final String readerVersion;
+    private final EntryOpener opener;
 
     record LocalizedText(String text, boolean partial) { }
     protected record SpotlightValue(ItemStack stack, Ingredient ingredient) { }
 
+    /** Client-side effects of opening a book entry; replaced in tests. */
+    interface EntryOpener {
+        EntryOpener MINECRAFT = new EntryOpener() {
+            @Override public boolean isClientThread() { return Minecraft.getInstance().isSameThread(); }
+
+            @Override public void openEntry(ResourceLocation book, ResourceLocation category, ResourceLocation entry, int page) {
+                BookGuiManager.get().openEntry(book, category, entry, page);
+            }
+        };
+
+        boolean isClientThread();
+
+        void openEntry(ResourceLocation book, ResourceLocation category, ResourceLocation entry, int page);
+    }
+
     ModonomiconGuideReader() { this("unknown"); }
 
-    ModonomiconGuideReader(String version) { this.readerVersion = version; }
+    ModonomiconGuideReader(String version) { this(version, EntryOpener.MINECRAFT); }
+
+    ModonomiconGuideReader(String version, EntryOpener opener) {
+        this.readerVersion = version;
+        this.opener = opener;
+    }
 
     public static KnowledgeProvider forMinecraft(Supplier<Evidence.Scope> currentScope, Executor clientExecutor, String actualVersion) {
         var version = new DefaultArtifactVersion(actualVersion);
@@ -341,6 +364,66 @@ public class ModonomiconGuideReader implements GuideDocumentReader {
         var candidate = new Candidate(id, title, id, List.of("modonomicon:book:" + bookId,
                 "modonomicon:category:" + categoryId), candidateCoverage);
         return new ResolvedDocument(candidate, readFragment(id, null, maxChars, budget));
+    }
+
+    @Override public List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope scope, Candidate candidate) {
+        var parts = candidate.id().split("\\|", -1);
+        if (parts.length != 3) return List.of();
+        var destination = unlockedDestination(parts[0] + SEPARATOR + parts[2]);
+        if (destination == null || !destination.candidateId().equals(candidate.id())) return List.of();
+        return List.of(new Evidence.NavigationTarget(scope, providerId(), candidate.id(), destination.targetId()));
+    }
+
+    @Override public Evidence.NavigationTarget refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!providerId().equals(target.providerId())) return null;
+        var destination = unlockedDestination(target.targetId());
+        return destination == null ? null
+                : new Evidence.NavigationTarget(scope, providerId(), destination.candidateId(), destination.targetId());
+    }
+
+    @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!scope.equals(target.scope())) return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
+                "Modonomicon target is outside the active scope");
+        if (!opener.isClientThread()) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,
+                "Modonomicon navigation requires the client thread");
+        var destination = unlockedDestination(target.targetId());
+        if (destination == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE,
+                "Modonomicon entry is missing, hidden or locked");
+        if (!destination.candidateId().equals(target.sourceHandle())) return new Evidence.NavigationResult(
+                Evidence.NavigationStatus.STALE, "Modonomicon entry location changed");
+        try {
+            opener.openEntry(destination.bookId(), destination.categoryId(), destination.entryId(), 0);
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "Modonomicon entry opened");
+        } catch (RuntimeException | LinkageError failure) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, failure.toString());
+        }
+    }
+
+    private record Destination(ResourceLocation bookId, ResourceLocation categoryId, ResourceLocation entryId) {
+        String candidateId() { return bookId + SEPARATOR + categoryId + SEPARATOR + entryId; }
+
+        String targetId() { return bookId + SEPARATOR + entryId; }
+    }
+
+    /** Resolves a durable book|entry destination to a currently unlocked content entry, or null. */
+    private Destination unlockedDestination(String targetId) {
+        var parts = targetId.split("\\|", -1);
+        if (parts.length != 2) return null;
+        var bookId = ResourceLocation.tryParse(parts[0]);
+        var entryId = ResourceLocation.tryParse(parts[1]);
+        if (bookId == null || entryId == null || !bookId.toString().equals(parts[0]) || !entryId.toString().equals(parts[1]))
+            return null;
+        var manager = BookDataManager.get();
+        var player = Minecraft.getInstance().player;
+        var book = manager.isLoaded() && manager.areBooksBuilt() ? manager.getBook(bookId) : null;
+        if (book == null || player == null) return null;
+        if (!(book.getEntries().get(entryId) instanceof BookContentEntry entry)) return null;
+        var category = entry.getCategory();
+        if (category == null || book.getCategory(category.getId()) != category
+                || category.getEntry(entryId) != entry
+                || !BookUnlockStateManager.get().isUnlockedFor(player, category)
+                || !"UNLOCKED".equals(entryDisplayState(entry, player))) return null;
+        return new Destination(bookId, category.getId(), entryId);
     }
 
     private void readRelationships(BookEntry entry, BookCategory category, List<BookPage> pages, Player player,

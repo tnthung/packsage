@@ -65,6 +65,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -618,6 +619,166 @@ class ModonomiconGuideReaderTest {
         }
     }
 
+    @Test
+    void navigationTargetsUseBookAndEntryIdentity() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var entry = fixture.entry("fixture:navigable", "Navigable", List.of(textPage()), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            fixture.unlock(entry, List.of(0));
+            var reader = new ModonomiconGuideReader("1.120.7", new RecordingOpener());
+
+            assertEquals(List.of(new Evidence.NavigationTarget(SCOPE, "modonomicon", fixture.identity(entry),
+                    "fixture:book|fixture:navigable")), reader.navigationTargets(SCOPE, candidate(fixture.identity(entry))));
+        }
+    }
+
+    @Test
+    void savedEntryResolvesAfterBookRebuildAndCategoryMove() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var entry = fixture.entry("fixture:navigable", "Navigable", List.of(textPage()), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            fixture.unlock(entry, List.of(0));
+            var opener = new RecordingOpener();
+            var reader = new ModonomiconGuideReader("1.120.7", opener);
+            var saved = new Evidence.NavigationTarget(SCOPE, "modonomicon", "fixture:book|fixture:old|fixture:navigable",
+                    "fixture:book|fixture:navigable");
+            fixture.moveToNewCategory(entry, "fixture:moved");
+
+            var refreshed = reader.refreshNavigation(saved, SCOPE);
+
+            assertEquals(new Evidence.NavigationTarget(SCOPE, "modonomicon", "fixture:book|fixture:moved|fixture:navigable",
+                    "fixture:book|fixture:navigable"), refreshed);
+            assertEquals(Evidence.NavigationStatus.OPENED, reader.open(refreshed, SCOPE).status());
+            assertEquals(List.of(List.of("fixture:book", "fixture:moved", "fixture:navigable", 0)), opener.calls);
+        }
+    }
+
+    @Test
+    void refreshRejectsMalformedWrongProviderMissingHiddenLockedAndLockedCategory() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var visible = fixture.entry("fixture:visible", "Visible", List.of(textPage()), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            fixture.unlock(visible, List.of(0));
+            fixture.entry("fixture:locked", "Locked", List.of(textPage()), new BookTrueCondition(), List.of(), null, false, false);
+            fixture.entry("fixture:hidden", "Hidden", List.of(textPage()), new BookTrueCondition(), List.of(), null, true, false);
+            var opener = new RecordingOpener();
+            var reader = new ModonomiconGuideReader("1.120.7", opener);
+
+            for (var targetId : List.of("fixture:book|fixture:category|fixture:visible", "no colon|fixture:visible",
+                    "fixture:book|", "fixture:book|fixture:missing", "fixture:book|fixture:locked", "fixture:book|fixture:hidden",
+                    "fixture:missing_book|fixture:visible")) {
+                assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "modonomicon", "old", targetId), SCOPE),
+                        targetId);
+            }
+            assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "guideme", "old",
+                    "fixture:book|fixture:visible"), SCOPE));
+            assertNotNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "modonomicon", "old",
+                    "fixture:book|fixture:visible"), SCOPE));
+            fixture.lockCategory();
+            assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "modonomicon", "old",
+                    "fixture:book|fixture:visible"), SCOPE));
+            assertEquals(List.of(), opener.calls);
+        }
+    }
+
+    @Test
+    void openRefusesWhenEntryBecameLockedOrBooksUnbuilt() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var entry = fixture.entry("fixture:navigable", "Navigable", List.of(textPage()), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            fixture.unlock(entry, List.of(0));
+            var opener = new RecordingOpener();
+            var reader = new ModonomiconGuideReader("1.120.7", opener);
+            var refreshed = reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "modonomicon", "old",
+                    "fixture:book|fixture:navigable"), SCOPE);
+
+            fixture.unlockStates.unlockedEntries.get(ModonomiconFixture.BOOK_ID).remove(entry.getId());
+            assertEquals(Evidence.NavigationStatus.UNAVAILABLE, reader.open(refreshed, SCOPE).status());
+            fixture.unlock(entry, List.of(0));
+            fixture.unbuildBooks();
+            assertEquals(Evidence.NavigationStatus.UNAVAILABLE, reader.open(refreshed, SCOPE).status());
+            assertEquals(List.of(), opener.calls);
+        }
+    }
+
+    @Test
+    void openReportsStaleScopeOffThreadAndChangedSourceHandle() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var entry = fixture.entry("fixture:navigable", "Navigable", List.of(textPage()), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            fixture.unlock(entry, List.of(0));
+            var opener = new RecordingOpener();
+            var reader = new ModonomiconGuideReader("1.120.7", opener);
+            var current = new Evidence.NavigationTarget(SCOPE, "modonomicon", fixture.identity(entry),
+                    "fixture:book|fixture:navigable");
+
+            assertEquals(Evidence.NavigationStatus.STALE, reader.open(current,
+                    new Evidence.Scope("other", "en_us", "team", "runtime", 1)).status());
+            opener.clientThread = false;
+            assertEquals(Evidence.NavigationStatus.UNSUPPORTED, reader.open(current, SCOPE).status());
+            opener.clientThread = true;
+            assertEquals(Evidence.NavigationStatus.STALE, reader.open(new Evidence.NavigationTarget(SCOPE, "modonomicon",
+                    "fixture:book|fixture:old|fixture:navigable", "fixture:book|fixture:navigable"), SCOPE).status());
+            assertEquals(List.of(), opener.calls);
+        }
+    }
+
+    @Test
+    void openMapsNativeFailureToError() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var entry = fixture.entry("fixture:navigable", "Navigable", List.of(textPage()), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            fixture.unlock(entry, List.of(0));
+            var opener = new RecordingOpener();
+            var reader = new ModonomiconGuideReader("1.120.7", opener);
+            var current = new Evidence.NavigationTarget(SCOPE, "modonomicon", fixture.identity(entry),
+                    "fixture:book|fixture:navigable");
+
+            opener.failure = new IllegalArgumentException("missing book");
+            assertEquals(Evidence.NavigationStatus.ERROR, reader.open(current, SCOPE).status());
+            opener.failure = new NoSuchMethodError("openEntry");
+            assertEquals(Evidence.NavigationStatus.ERROR, reader.open(current, SCOPE).status());
+        }
+    }
+
+    @Test
+    void legacyAndIntermediateReadersShareNavigation() throws Exception {
+        try (var fixture = new ModonomiconFixture()) {
+            var entry = fixture.entry("fixture:navigable", "Navigable", List.of(textPage()), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            fixture.unlock(entry, List.of(0));
+            for (var reader : List.<ModonomiconGuideReader>of(new ModonomiconLegacyGuideReader("1.100.99", new RecordingOpener()),
+                    new ModonomiconIntermediateGuideReader("1.101.5", new RecordingOpener()))) {
+                var target = reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "modonomicon", "old",
+                        "fixture:book|fixture:navigable"), SCOPE);
+                assertEquals(fixture.identity(entry), target.sourceHandle());
+                assertEquals(Evidence.NavigationStatus.OPENED, reader.open(target, SCOPE).status());
+            }
+        }
+    }
+
+    private static BookTextPage textPage() {
+        return new BookTextPage(new BookTextHolder("Title"), new BookTextHolder("Body"), false, true, null, null);
+    }
+
+    private static GuideDocumentReader.Candidate candidate(String id) {
+        return new GuideDocumentReader.Candidate(id, "Navigable", id, List.of(), Evidence.Coverage.COMPLETE);
+    }
+
+    private static final class RecordingOpener implements ModonomiconGuideReader.EntryOpener {
+        private final List<List<Object>> calls = new ArrayList<>();
+        private boolean clientThread = true;
+        private Throwable failure;
+
+        @Override public boolean isClientThread() { return clientThread; }
+
+        @Override public void openEntry(ResourceLocation book, ResourceLocation category, ResourceLocation entry, int page) {
+            if (failure instanceof RuntimeException runtime) throw runtime;
+            if (failure instanceof Error error) throw error;
+            calls.add(List.of(book.toString(), category.toString(), entry.toString(), page));
+        }
+    }
+
     private static BookSpotlightPage spotlight(ItemStack stack) {
         return new BookSpotlightPage(new BookTextHolder("Spotlight"), new BookTextHolder(""), Either.left(stack), null, null);
     }
@@ -728,6 +889,35 @@ class ModonomiconGuideReaderTest {
             unlockStates.unlockedEntries.computeIfAbsent(BOOK_ID, ignored -> new HashSet<>()).add(entry.getId());
             unlockStates.unlockedPages.computeIfAbsent(BOOK_ID, ignored -> new LinkedHashMap<>())
                     .put(entry.getId(), new HashSet<>(pages));
+        }
+
+        private BookContentEntry moveToNewCategory(BookContentEntry entry, String categoryId) throws Exception {
+            var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            var unsafe = unsafeField.get(null);
+            var moved = (BookCategory) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, BookCategory.class);
+            var movedId = ResourceLocation.parse(categoryId);
+            setField(BookCategory.class, "id", moved, movedId);
+            setField(BookCategory.class, "book", moved, book);
+            setField(BookCategory.class, "entries", moved, new LinkedHashMap<ResourceLocation, BookEntry>());
+            book.getCategories().put(movedId, moved);
+            unlockStates.unlockedCategories.get(BOOK_ID).add(movedId);
+            category.getEntries().remove(entry.getId());
+            book.getEntries().remove(entry.getId());
+            var replacement = entry(entry.getId().toString(), entry.getName(), entry.getPages(), new BookTrueCondition(),
+                    List.of(), null, false, false);
+            category.getEntries().remove(replacement.getId());
+            setField(BookEntry.class, "category", replacement, moved);
+            moved.getEntries().put(replacement.getId(), replacement);
+            return replacement;
+        }
+
+        private void lockCategory() {
+            unlockStates.unlockedCategories.get(BOOK_ID).remove(CATEGORY_ID);
+        }
+
+        private void unbuildBooks() throws Exception {
+            setField(BookDataManager.class, "booksBuilt", bookManager, false);
         }
 
         private void categoryCondition(BookCondition condition) throws Exception {

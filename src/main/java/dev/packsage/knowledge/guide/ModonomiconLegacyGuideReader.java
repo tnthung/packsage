@@ -9,6 +9,8 @@ import net.minecraft.world.item.crafting.Ingredient;
 class ModonomiconLegacyGuideReader extends ModonomiconGuideReader {
     ModonomiconLegacyGuideReader(String version) { super(version); }
 
+    ModonomiconLegacyGuideReader(String version, EntryOpener opener) { super(version, opener); }
+
     @Override protected SpotlightValue spotlightValue(BookSpotlightPage page) {
         try {
             var item = page.getClass().getMethod("getItem").invoke(page);

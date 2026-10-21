@@ -400,6 +400,7 @@ final class NativeRegistryReader {
         payload.put("category", new Evidence.JsonString(value.getCategory().name()));
         payload.put("color", new Evidence.JsonNumber(BigDecimal.valueOf(value.getColor())));
         payload.put("attributeModifiers", NativeEffectReader.contained(value, 0, 3));
+        NativeEffectReader.describe(payload, value, net.minecraft.locale.Language.getInstance());
         payload.put("mechanicsStatus", new Evidence.JsonString("callbacks_not_interpreted"));
         return record("mob_effect", identity, Evidence.RecordKind.OTHER, value.getDisplayName().getString(), payload,
                 Evidence.Coverage.PARTIAL, List.of("client-registry:mob-effect"), scope);

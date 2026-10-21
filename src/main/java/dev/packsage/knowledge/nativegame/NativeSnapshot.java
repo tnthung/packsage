@@ -141,6 +141,7 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         payload.put("name", new Evidence.JsonString(stack.getHoverName().getString()));
         payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
         payload.put("components", components);
+        NativeItemFacts.enrich(payload, stack, registries);
         if (stack.has(DataComponents.CONTAINER) || stack.has(DataComponents.BUNDLE_CONTENTS)) {
             payload.put("nestedStorageContentsOmitted", new Evidence.JsonBoolean(true));
         }

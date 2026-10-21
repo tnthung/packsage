@@ -42,9 +42,10 @@ Minecraft does not record which item, block or mod applied an effect, so there i
 These changes follow the repository's prompt rules. Iterate them in the in-game editor, validate them live, promote them to the code default, then verify the default with the override cleared. They extend the existing whole-prompt policy:
 
 - An item question names a selected or held item: read it with the `item` target, or `read_evidence` on its inventory slot record's reference, before answering. Enchantment suitability comes from `enchantmentEligibility`.
+- If the gameplay context or the item read shows nothing held or selected, say so first, before answering about a matching carried item.
 - `openedMenu` in the gameplay context means its contents are read with target `opened`.
 - Inventory and contents questions need an inventory tool read, even when the screenshot shows the entity or container.
-- A plan, quantity or "how many" request for a known output uses `plan_recipe`. Brewing operation counts are not stated beyond the plan's `operationSemantics`.
+- A plan, quantity or "how many" request for a known output uses `plan_recipe`. Totals may be derived from the plan's `operationSemantics` only when the assumed grouping is stated. Planner batches are never presented as operation counts.
 - Effect questions:
   - read `active_effect`;
   - use `description` when present before external sources;

@@ -103,6 +103,40 @@ class NativePlayerAttributeReaderTest {
     }
 
     @Test
+    void nonFiniteModifierAmountIsMarkedAndPartial() {
+        var instance = luck();
+        instance.addPermanentModifier(new AttributeModifier(ResourceLocation.parse("packsage:nan"), Double.NaN,
+                AttributeModifier.Operation.ADD_VALUE));
+        var record = NativePlayerAttributeReader.record(instance, SCOPE);
+        var values = payload(record).values();
+        var modifiers = ((Evidence.JsonArray) values.get("modifiers")).values();
+        assertEquals(3, modifiers.size());
+        assertTrue(modifiers.stream().anyMatch(modifier -> new Evidence.JsonString("non_finite")
+                .equals(((Evidence.JsonObject) modifier).values().get("amount"))));
+        assertEquals(new Evidence.JsonString("non_finite"), values.get("value"));
+        assertEquals(Evidence.Coverage.PARTIAL, record.source().coverage());
+    }
+
+    @Test
+    void searchKeepsOtherRecordsWhenOneAttributeThrows() {
+        var broken = new AttributeInstance(Attributes.ARMOR, ignored -> { }) {
+            @Override
+            public double getValue() {
+                throw new IllegalStateException("boom");
+            }
+        };
+        var page = NativePlayerAttributeReader.search(List.of(luck(), broken), null, List.of(), List.of(), 0, 16, SCOPE);
+        assertEquals(2, page.records().size());
+        var stub = page.records().getFirst();
+        assertEquals(Evidence.Coverage.PARTIAL, stub.source().coverage());
+        assertEquals(new Evidence.JsonString("unknown"), payload(stub).values().get("status"));
+        assertEquals(new Evidence.JsonString("minecraft:generic.armor"), payload(stub).values().get("id"));
+        assertEquals(Evidence.Coverage.COMPLETE, page.records().getLast().source().coverage());
+        var read = NativePlayerAttributeReader.read(List.of(broken), "minecraft:generic.armor", SCOPE);
+        assertEquals(new Evidence.JsonString("unknown"), payload(read).values().get("status"));
+    }
+
+    @Test
     void readReturnsNullForAbsentAttribute() {
         assertNull(NativePlayerAttributeReader.read(List.of(), "minecraft:generic.luck", SCOPE));
         assertNotNull(NativePlayerAttributeReader.read(List.of(luck()), "minecraft:generic.luck", SCOPE));

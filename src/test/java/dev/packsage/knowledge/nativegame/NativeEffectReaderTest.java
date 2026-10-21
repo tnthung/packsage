@@ -156,6 +156,30 @@ class NativeEffectReaderTest {
     }
 
     @Test
+    void nonFiniteModifierAmountKeepsOtherModifiers() {
+        var effect = new net.minecraft.world.effect.MobEffect(net.minecraft.world.effect.MobEffectCategory.NEUTRAL, 0) {
+            @Override
+            public void createModifiers(int amplifier, java.util.function.BiConsumer<net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute>,
+                    net.minecraft.world.entity.ai.attributes.AttributeModifier> output) {
+                output.accept(Attributes.LUCK, new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                        net.minecraft.resources.ResourceLocation.parse("test:good"), 1,
+                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE));
+                output.accept(Attributes.ARMOR, new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                        net.minecraft.resources.ResourceLocation.parse("test:bad"), Double.POSITIVE_INFINITY,
+                        net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.ADD_VALUE));
+            }
+        };
+        var modifiers = NativeEffectReader.contained(effect, 0, 0);
+        assertTrue(modifiers instanceof Evidence.JsonArray);
+        var list = ((Evidence.JsonArray) modifiers).values();
+        assertEquals(2, list.size());
+        var amounts = ((Evidence.JsonArray) ((Evidence.JsonObject) list.get(1)).values().get("amounts")).values();
+        assertEquals(new Evidence.JsonString("non_finite"), ((Evidence.JsonObject) amounts.getFirst()).values().get("amount"));
+        var good = ((Evidence.JsonArray) ((Evidence.JsonObject) list.get(0)).values().get("amounts")).values();
+        assertEquals(0, BigDecimal.ONE.compareTo(amount(good.getFirst())));
+    }
+
+    @Test
     void throwingActiveEffectStillReturnsPartialPage() {
         var active = List.of(new MobEffectInstance(net.minecraft.core.Holder.direct(throwingEffect()), 100, 0),
                 new MobEffectInstance(MobEffects.NIGHT_VISION, 100, 0));

@@ -458,6 +458,8 @@ class NativeStorageReaderTest {
         assertEquals(Evidence.Coverage.COMPLETE, observation.coverage());
         var owner = (Evidence.JsonObject) ((Evidence.JsonArray) observation.details().get("owners")).values().getFirst();
         assertEquals(new Evidence.JsonString("none"), owner.values().get("storageStatus"));
+        assertEquals(new Evidence.JsonString("none"), owner.values().get("storageType"));
+        assertEquals(new Evidence.JsonString("none"), owner.values().get("contentsStatus"));
     }
 
     @Test

@@ -39,8 +39,15 @@ class NativeEnchantmentReaderTest {
         assertEquals(4, levels.values().values().size());
         var first = (Evidence.JsonObject) levels.values().values().getFirst();
         var last = (Evidence.JsonObject) levels.values().values().getLast();
-        assertEquals("{\"level\":1,\"minCost\":1,\"maxCost\":12}", Evidence.serialize(first));
-        assertEquals("{\"level\":4,\"minCost\":34,\"maxCost\":45}", Evidence.serialize(last));
+        // Evidence.JsonObject copies into an immutable map, so key order is not stable; compare values.
+        assertLevel(first, 1, 1, 12);
+        assertLevel(last, 4, 34, 45);
+    }
+
+    private static void assertLevel(Evidence.JsonObject entry, int level, int minCost, int maxCost) {
+        assertEquals(level, ((Evidence.JsonNumber) entry.values().get("level")).value().intValueExact());
+        assertEquals(minCost, ((Evidence.JsonNumber) entry.values().get("minCost")).value().intValueExact());
+        assertEquals(maxCost, ((Evidence.JsonNumber) entry.values().get("maxCost")).value().intValueExact());
     }
 
     @Test

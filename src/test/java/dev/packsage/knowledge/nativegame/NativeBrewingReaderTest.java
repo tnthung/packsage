@@ -13,6 +13,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.alchemy.PotionBrewing;
+import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.alchemy.Potions;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.neoforged.neoforge.common.brewing.BrewingRecipe;
@@ -39,6 +40,31 @@ class NativeBrewingReaderTest {
         Bootstrap.bootStrap();
         registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
         items = registries.registryOrThrow(Registries.ITEM);
+    }
+
+    @Test
+    void localizedPotionNameFindsTheBrewingRecord() {
+        var brewing = new PotionBrewing.Builder(FeatureFlags.DEFAULT_FLAGS);
+        PotionBrewing.addVanillaMixes(brewing);
+        var built = brewing.build();
+        var name = PotionContents.createItemStack(Items.POTION, Potions.STRENGTH).getHoverName().getString();
+
+        var matches = new java.util.ArrayList<Evidence.Record>();
+        int offset = 0;
+        while (true) {
+            var page = NativeBrewingReader.searchCandidates(built, registries, items, null, null, name, offset, 64, SCOPE);
+            matches.addAll(page.records());
+            if (page.exhausted()) break;
+            offset = page.nextOffset();
+        }
+
+        assertFalse(matches.isEmpty());
+        var record = matches.stream().filter(candidate -> candidate.title().equals(name + " brewing transformation"))
+                .findFirst().orElseThrow();
+        var names = (Evidence.JsonObject) record.payload().values().get("names");
+        assertTrue(names.values().containsKey("reagents"));
+        assertTrue(names.values().containsKey("input"));
+        assertTrue(names.values().containsKey("output"));
     }
 
     @Test

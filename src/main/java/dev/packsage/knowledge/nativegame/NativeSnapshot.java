@@ -213,6 +213,18 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         constraints.add("serializer=" + recipe.getSerializer());
         constraints.add("catalysts=unknown");
         constraints.add("remainders=unknown");
+        Evidence.JsonValue shape = null;
+        if (recipe instanceof net.minecraft.world.item.crafting.ShapedRecipe shaped) {
+            constraints.add("shape=" + shaped.getWidth() + "x" + shaped.getHeight());
+            constraints.add("slot-index=row*width+column");
+            var shapeValues = new LinkedHashMap<String, Evidence.JsonValue>();
+            shapeValues.put("width", new Evidence.JsonNumber(BigDecimal.valueOf(shaped.getWidth())));
+            shapeValues.put("height", new Evidence.JsonNumber(BigDecimal.valueOf(shaped.getHeight())));
+            shape = new Evidence.JsonObject(shapeValues);
+        } else if (recipe instanceof net.minecraft.world.item.crafting.ShapelessRecipe) {
+            constraints.add("shape=shapeless");
+            shape = new Evidence.JsonString("shapeless");
+        }
         if (decoding == Evidence.DecodingStatus.VERIFIED) decoding = Evidence.DecodingStatus.PARTIAL;
         var provenance = new ArrayList<String>();
         provenance.add("client-recipe-manager");
@@ -229,6 +241,11 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         var source = new Evidence.Source(scope, "native", "1.21.1", holder.id().toString(), scope.requestGeneration(), Instant.now(),
                 Evidence.Activity.ACTIVE, coverage, Evidence.Authority.LOADED, provenance);
         var payload = recipePayloadJson(holder.id().toString(), slots, outputs, List.of(), List.of(), constraints, decoding, tags);
+        if (shape != null) {
+            var withShape = new LinkedHashMap<>(payload.values());
+            withShape.put("shape", shape);
+            payload = new Evidence.JsonObject(withShape);
+        }
         var typed = new Evidence.RecipePayload(holder.id().toString(), slots, outputs, List.of(), List.of(), constraints, decoding);
         return new Evidence.Record(source, Evidence.RecordKind.RECIPE, holder.id().toString(), payload, List.of(), typed);
     }

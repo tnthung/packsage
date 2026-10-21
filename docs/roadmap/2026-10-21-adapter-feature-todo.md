@@ -55,10 +55,13 @@ Generic JEI displays or GuideME documentation do not establish dedicated mechani
 
 ### Guide navigation
 
-- [ ] Modonomicon — installed opening and restart checks.
-- [ ] GuideME — installed opening, heading-anchor and restart checks.
-- [ ] Immersive Engineering — installed opening and restart checks.
-- [ ] Actually Additions — installed opening and restart checks.
+Entry and page opening, including after a full restart, is accepted for Modonomicon, GuideME, Immersive Engineering and Actually Additions.
+
+- [ ] GuideME — installed scrolling to a heading below the top of a page; the installed Powah pages have only a top title heading.
+
+### Guide reading before first use
+
+- [ ] Immersive Engineering — model reads find no manual entries until the manual has been opened in the session. Navigation clicks already load it.
 
 ### Brewing discovery and recipe planning
 

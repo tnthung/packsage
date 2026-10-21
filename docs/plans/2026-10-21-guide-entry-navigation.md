@@ -50,11 +50,11 @@
 **Interfaces:**
 - Produces: `default List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope scope, Candidate candidate, Fragment fragment)` in `GuideDocumentReader`. It delegates to the existing two-argument method. `GuideDocumentProvider.documentRecord` calls the three-argument form with the fragment it is building the record from. The existing target validation (at most 16 targets, same scope, same provider, `sourceHandle == candidate.id()`, non-blank `targetId` of at most 1024 characters) is unchanged.
 
-- [ ] **Step 1: Write the failing test** `recordTargetsReceiveTheFragmentTheRecordCites`. Use a fixture reader that overrides only the three-argument overload and returns `targetId = fragment.sourcePosition()`. Run a search and then a `read_evidence` GET. Assert that each record's single target has `targetId` equal to that record's fragment `sourcePosition` and `sourceHandle` equal to the candidate ID.
-- [ ] **Step 2: Run** `.\gradlew.bat test --tests "dev.packsage.knowledge.guide.GuideDocumentProviderTest"`. Expected: FAIL, because records carry no target.
-- [ ] **Step 3: Implement** the default overload and switch `documentRecord` to call it.
-- [ ] **Step 4: Run** the same command. Expected: PASS, including the existing Ponder-backed tests.
-- [ ] **Step 5: Commit.**
+- [x] **Step 1: Write the failing test** `recordTargetsReceiveTheFragmentTheRecordCites`. Use a fixture reader that overrides only the three-argument overload and returns `targetId = fragment.sourcePosition()`. Run a search and then a `read_evidence` GET. Assert that each record's single target has `targetId` equal to that record's fragment `sourcePosition` and `sourceHandle` equal to the candidate ID.
+- [x] **Step 2: Run** `.\gradlew.bat test --tests "dev.packsage.knowledge.guide.GuideDocumentProviderTest"`. Expected: FAIL, because records carry no target.
+- [x] **Step 3: Implement** the default overload and switch `documentRecord` to call it.
+- [x] **Step 4: Run** the same command. Expected: PASS, including the existing Ponder-backed tests.
+- [x] **Step 5: Commit.**
 
 ### Task 2: Modonomicon entry navigation
 
@@ -76,7 +76,7 @@
   - New constructors: `ModonomiconGuideReader(String version, EntryOpener opener)`, plus the same signature on the legacy and intermediate subclasses. The existing `(String)` constructors delegate with `EntryOpener.MINECRAFT`.
   - `forMinecraft` is unchanged.
 
-- [ ] **Step 1: Write the failing tests.** Use `ModonomiconFixture` and a recording `EntryOpener` that counts calls and stores the last arguments.
+- [x] **Step 1: Write the failing tests.** Use `ModonomiconFixture` and a recording `EntryOpener` that counts calls and stores the last arguments.
   - `navigationTargetsUseBookAndEntryIdentity`: for an unlocked content entry, `navigationTargets(SCOPE, candidate)` returns exactly one `NavigationTarget(SCOPE, "modonomicon", "<book>|<category>|<entry>", "<book>|<entry>")`.
   - `savedEntryResolvesAfterBookRebuildAndCategoryMove`: a saved target with a stale source handle refreshes to the current candidate ID after the fixture rebuilds the book with the entry in a different category. `open` returns `OPENED` with one call `(book, newCategory, entry, 0)`.
   - `refreshRejectsMalformedWrongProviderMissingHiddenLockedAndLockedCategory`: each case returns `null` with zero opener calls. Cover `"a|b|c"`, `"no colon|x:y"`, provider `"guideme"`, a removed entry, a hidden entry, a locked visible entry and an entry in a locked category.
@@ -84,15 +84,15 @@
   - `openReportsStaleScopeOffThreadAndChangedSourceHandle`: the results are `STALE`, `UNSUPPORTED` and `STALE` respectively, each with zero calls.
   - `openMapsNativeFailureToError`: an opener throwing `IllegalArgumentException` gives `ERROR`, and one throwing `NoSuchMethodError` gives `ERROR`.
   - `legacyAndIntermediateReadersShareNavigation`: repeat the first test through `ModonomiconLegacyGuideReader` and `ModonomiconIntermediateGuideReader`.
-- [ ] **Step 2: Run** `.\gradlew.bat test --tests "dev.packsage.knowledge.guide.ModonomiconGuideReaderTest"`. Expected: the new tests FAIL.
-- [ ] **Step 3: Implement** `navigationTargets`, `refreshNavigation` and `open`.
+- [x] **Step 2: Run** `.\gradlew.bat test --tests "dev.packsage.knowledge.guide.ModonomiconGuideReaderTest"`. Expected: the new tests FAIL.
+- [x] **Step 3: Implement** `navigationTargets`, `refreshNavigation` and `open`.
   - Reuse the existing category-unlock and `entryDisplayState` checks that `resolve` uses.
   - Accept only `BookContentEntry` destinations.
   - Resolve the current category through `book.getEntry(entryId).getCategoryId()`.
   - Require `BookDataManager.get().isLoaded()` and `areBooksBuilt()` before opening.
   - Always pass page `0`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit.**
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit.**
 
 ### Task 3: GuideME page and anchor navigation
 
@@ -118,7 +118,7 @@
   - New constructor: `GuideMeGuideReader(String version, PageOpener opener)`. The existing constructors delegate with `PageOpener.MINECRAFT`.
   - Package-private `static String anchorFor(String headingText)`: lowercase with `Locale.ROOT`, trim, then replace each whitespace run with `-`.
 
-- [ ] **Step 1: Write the failing tests.** Use `Guides.setForTest`, `FixtureGuide` and a recording `PageOpener` whose `anchorExists` returns true only for a configured set.
+- [x] **Step 1: Write the failing tests.** Use `Guides.setForTest`, `FixtureGuide` and a recording `PageOpener` whose `anchorExists` returns true only for a configured set.
   - `anchorForMatchesGuideMeNormalization`: `anchorFor("  Charging  Items ")` equals `"charging-items"`.
   - `recordsOfferPageTargetAndCitedHeadingAnchor`: a page has a plain-text heading "Charging Items" followed by a paragraph. A fragment read from inside that paragraph gets targets `guide#page` and `guide#page#charging-items`. A fragment before any heading gets only `guide#page`.
   - `formattedHeadingYieldsNoAnchorTarget`: a heading containing a non-text child gives only the page target.
@@ -126,13 +126,13 @@
   - `missingAnchorLeavesPageTargetWorking`: when `anchorExists` is false (the language-change case), the anchor refresh returns `null` and the anchor open returns `UNAVAILABLE` with zero calls. The page target still opens.
   - `refreshRejectsMalformedWrongProviderMissingGuideAndPage`: each case returns `null`. Cover `"a#b#c#d"`, `"bad id#x:y"`, provider `"modonomicon"`, an unknown guide and an unknown page.
   - `openReportsStaleScopeOffThreadChangedHandleAndError`: the results are `STALE`, `UNSUPPORTED` and `STALE` with zero calls, and a throwing opener gives `ERROR`.
-- [ ] **Step 2: Run** `.\gradlew.bat test --tests "dev.packsage.knowledge.guide.GuideMeGuideReaderTest"`. Expected: the new tests FAIL.
-- [ ] **Step 3: Implement.**
+- [x] **Step 2: Run** `.\gradlew.bat test --tests "dev.packsage.knowledge.guide.GuideMeGuideReaderTest"`. Expected: the new tests FAIL.
+- [x] **Step 3: Implement.**
   - Anchor derivation: find the last `MdAstHeading` in document order at or before the fragment's AST path (the `l:<path>:<offset>` position).
   - Derive an anchor only when every child of that heading is `MdAstText`.
   - Check page existence with `getParsedPage(page) != null` on the guide found through `Guides.getById`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit.**
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit.**
 
 ### Task 4: Immersive Engineering manual navigation
 
@@ -156,17 +156,17 @@
     4. Return true.
   - New constructor: `ImmersiveEngineeringGuideReader(String version, ManualOpener opener)`. The existing constructors delegate with `ManualOpener.MINECRAFT`.
 
-- [ ] **Step 1: Write the failing tests.** Use the fake `ManualHelper.getManual()` and a recording `ManualOpener`.
+- [x] **Step 1: Write the failing tests.** Use the fake `ManualHelper.getManual()` and a recording `ManualOpener`.
   - `navigationTargetsUseEntryIdentity`: one target `NavigationTarget(SCOPE, "immersiveengineering", "immersiveengineering:manual/hammer", "immersiveengineering:manual/hammer")`.
   - `savedEntryResolvesAfterManualReload`: clear and re-add `contentsByName` with a new `ManualEntry` for the same ID. The refresh succeeds, and `open` returns `OPENED` with exactly one call whose entry argument is the new object.
   - `unavailableManualScreenIsReportedWithoutException`: when the opener returns false, the result is `UNAVAILABLE`.
   - `refreshRejectsMalformedWrongProviderMissingAndHiddenEntries`: each case returns `null` with zero calls.
   - `openReportsStaleScopeOffThreadChangedHandleAndError`: the results are `STALE`, `UNSUPPORTED` and `STALE` with zero calls, and a throwing opener gives `ERROR`.
   - Assert that `manual.forbiddenCalls()` is unchanged in every navigation test.
-- [ ] **Step 2: Run** `.\gradlew.bat test --tests "dev.packsage.knowledge.guide.ImmersiveEngineeringGuideReaderTest"`. Expected: the new tests FAIL.
-- [ ] **Step 3: Implement** using the reader's existing reflective `contentsByName`, `getTreeNode` and `showNodeInList` access. Do not call `getGui`, `reload` or `getPageCount` outside the opener.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit.**
+- [x] **Step 2: Run** `.\gradlew.bat test --tests "dev.packsage.knowledge.guide.ImmersiveEngineeringGuideReaderTest"`. Expected: the new tests FAIL.
+- [x] **Step 3: Implement** using the reader's existing reflective `contentsByName`, `getTreeNode` and `showNodeInList` access. Do not call `getGui`, `reload` or `getPageCount` outside the opener.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit.**
 
 ### Task 5: Actually Additions booklet navigation
 
@@ -185,16 +185,16 @@
   - Default `EntryOpener.MINECRAFT` uses `Minecraft.getInstance().isSameThread()` and the reflective client `PatchouliAPI.get().openBookEntry(book, entry, page)`.
   - New constructor: `ActuallyAdditionsGuideReader(Supplier<Object> bookSource, String version, EntryOpener opener)`. The existing constructors delegate with `EntryOpener.MINECRAFT`.
 
-- [ ] **Step 1: Write the failing tests.** Use the existing real Patchouli `Book` fixture and a recording opener.
+- [x] **Step 1: Write the failing tests.** Use the existing real Patchouli `Book` fixture and a recording opener.
   - `navigationTargetsUseEntryIdentity`: one target with `sourceHandle` and `targetId` both `actuallyadditions:intro`.
   - `savedEntryResolvesAfterContentsRebuild`: the `bookSource` supplier returns a newly built book with the same entry. `open` returns `OPENED` with one call `(actuallyadditions:booklet, actuallyadditions:intro, 0)`.
   - `removedEntryIsUnavailableWithoutNativeCall`: when the rebuilt book lacks the entry, refresh returns `null` and `open` on the previously refreshed target returns `UNAVAILABLE` with zero calls.
   - `refreshRejectsMalformedWrongProviderHiddenAndLockedEntries`: each case returns `null` with zero calls.
   - `openReportsStaleScopeOffThreadChangedHandleAndError`: the results are `STALE`, `UNSUPPORTED` and `STALE` with zero calls, and a throwing opener gives `ERROR`.
-- [ ] **Step 2: Run** `.\gradlew.bat test --tests "dev.packsage.knowledge.guide.ActuallyAdditionsGuideReaderTest"`. Expected: the new tests FAIL.
-- [ ] **Step 3: Implement** by reusing the reader's existing live-book lookup and its `shouldHide()`/`isLocked()` filtering. Reject a null or errored book.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit.**
+- [x] **Step 2: Run** `.\gradlew.bat test --tests "dev.packsage.knowledge.guide.ActuallyAdditionsGuideReaderTest"`. Expected: the new tests FAIL.
+- [x] **Step 3: Implement** by reusing the reader's existing live-book lookup and its `shouldHide()`/`isLocked()` filtering. Reject a null or errored book.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit.**
 
 ### Task 6: Full verification, records and installed acceptance
 
@@ -204,13 +204,21 @@
 - Modify: `CHANGELOG.md` (new `### 2026-10-21` entry under `## Unreleased`)
 - Modify: `docs/roadmap/2026-10-13-todo.md` ("Player-click navigation from evidence" section)
 
-- [ ] **Step 1: Run** `.\gradlew.bat test build` and `git diff --check`. Expected: BUILD SUCCESSFUL with zero test failures, and no whitespace errors. Fix any failure in its own commit.
-- [ ] **Step 2: Write the validation record** with the exact test count and build result. Write the CHANGELOG entry and the player test instructions:
+- [x] **Step 1: Run** `.\gradlew.bat test build` and `git diff --check`. Expected: BUILD SUCCESSFUL with zero test failures, and no whitespace errors. Fix any failure in its own commit.
+- [x] **Step 2: Write the validation record** with the exact test count and build result. Write the CHANGELOG entry and the player test instructions:
   - Ask one question per provider that cites a Modonomicon entry, a GuideME heading, an IE manual entry and an Actually Additions entry.
   - Click each link.
   - Fully restart Minecraft, reopen the same chat and click each link again.
   - Click a link to a locked Modonomicon entry.
 
   Mark the roadmap items as implemented with automated checks passing. Leave them unchecked until installed acceptance. Commit.
-- [ ] **Step 3: Install** with the project install action for the Packsage profile. Run the installed checks through the in-game client, keeping Minecraft open between questions where possible. Record observed results, including any failures, separately from automated results in the validation record.
-- [ ] **Step 4: Update** the roadmap checkboxes only for providers whose links opened the intended destination both before and after the restart. Commit.
+- [x] **Step 3: Install** with the project install action for the Packsage profile. Run the installed checks through the in-game client, keeping Minecraft open between questions where possible. Record observed results, including any failures, separately from automated results in the validation record.
+- [x] **Step 4: Update** the roadmap checkboxes only for providers whose links opened the intended destination both before and after the restart. Commit.
+
+## Execution notes
+
+All tasks are complete. Fixes after the plan:
+- `123ac3c`: the final review found that a GuideME heading containing `#` produced an anchor that can never open; such anchors are now omitted.
+- `5f5757d` and `9e612bf`: installed checks found that a saved Immersive Engineering link failed after a restart until the manual had been opened, so the click now loads the manual.
+
+The [validation record](../validation/2026-10-21-guide-entry-navigation.md) has the results. Heading scrolling below the top of a page remains unverified.

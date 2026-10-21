@@ -12,7 +12,7 @@
 
   Saved links use stable book, page and entry identities and are checked against current content before opening. Missing, hidden or locked destinations, including Modonomicon entries that its own viewer would open anyway, report an unavailable link instead of opening a substitute. Clicking an Immersive Engineering link loads the manual if it hasn't been opened yet. Headings containing `#` get no heading link.
 
-  The [validation record](docs/validation/2026-10-21-guide-entry-navigation.md) records 790 automated tests and installed checks. Entry and page links opened for all four mods before and after a full restart, and locked Modonomicon entries offered no link. Scrolling to a heading below the top of a page remains unverified.
+  The [validation record](docs/validation/2026-10-21-guide-entry-navigation.md) records 790 automated tests and installed checks. Entry and page links opened for all four mods before and after a full restart, and locked Modonomicon entries offered no link. Scrolling to a heading below the top of a page remains unverified. The assistant still can't read the Immersive Engineering manual until it has been opened once in the session; this is tracked in the roadmap.
 
 ### 2026-10-20
 

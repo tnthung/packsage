@@ -351,10 +351,15 @@ final class NativeBrewingReader {
 
     private static Evidence.JsonObject brewingNames(ItemStack input, Ingredient reagentIngredient, ItemStack output) {
         var names = new LinkedHashMap<String, Evidence.JsonValue>();
-        names.put("input", input == null || input.isEmpty() ? new Evidence.JsonNull()
-                : new Evidence.JsonString(input.getHoverName().getString()));
-        var reagentNames = new ArrayList<Evidence.JsonValue>();
         boolean bounded = false;
+        Evidence.JsonValue inputName = new Evidence.JsonNull();
+        try {
+            if (input != null && !input.isEmpty()) inputName = new Evidence.JsonString(input.getHoverName().getString());
+        } catch (RuntimeException unreadableName) {
+            bounded = true;
+        }
+        names.put("input", inputName);
+        var reagentNames = new ArrayList<Evidence.JsonValue>();
         try {
             var stacks = reagentIngredient == null ? new ItemStack[0] : reagentIngredient.getItems();
             for (var stack : stacks) {
@@ -368,7 +373,13 @@ final class NativeBrewingReader {
             bounded = true;
         }
         names.put("reagents", new Evidence.JsonArray(reagentNames));
-        names.put("output", new Evidence.JsonString(output.getHoverName().getString()));
+        Evidence.JsonValue outputName = new Evidence.JsonNull();
+        try {
+            outputName = new Evidence.JsonString(output.getHoverName().getString());
+        } catch (RuntimeException unreadableName) {
+            bounded = true;
+        }
+        names.put("output", outputName);
         names.put("namesStatus", new Evidence.JsonString(bounded ? "bounded" : "complete"));
         return new Evidence.JsonObject(names);
     }

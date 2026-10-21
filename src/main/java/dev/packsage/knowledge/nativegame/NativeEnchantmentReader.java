@@ -64,10 +64,15 @@ final class NativeEnchantmentReader {
     }
 
     static Evidence.JsonObject effects(Enchantment value, HolderLookup.Provider access) {
-        var encoded = EnchantmentEffectComponents.CODEC
-                .encodeStart(access.createSerializationContext(JsonOps.INSTANCE), value.effects())
-                .result().filter(com.google.gson.JsonElement::isJsonObject)
-                .map(element -> Evidence.deserializeObject(element.toString()));
+        java.util.Optional<Evidence.JsonObject> encoded;
+        try {
+            encoded = EnchantmentEffectComponents.CODEC
+                    .encodeStart(access.createSerializationContext(JsonOps.INSTANCE), value.effects())
+                    .result().filter(com.google.gson.JsonElement::isJsonObject)
+                    .map(element -> Evidence.deserializeObject(element.toString()));
+        } catch (RuntimeException failure) {
+            return status("unknown");
+        }
         if (encoded.isEmpty()) return status("unknown");
         var effects = encoded.get();
         if (Evidence.serialize(effects).getBytes(StandardCharsets.UTF_8).length > MAX_EFFECT_BYTES) return status("unknown_truncated");
@@ -138,7 +143,7 @@ final class NativeEnchantmentReader {
                     effects.add(decoded.value());
                     partial |= decoded.partial();
                 } else {
-                    effects.add(behaviorEffect(effect, conditional));
+                    effects.add(behaviorEffect(id, effect, conditional));
                 }
             }
         } else {
@@ -217,8 +222,8 @@ final class NativeEnchantmentReader {
         return new Evidence.JsonObject(result);
     }
 
-    private static Evidence.JsonObject behaviorEffect(Object effect, boolean conditional) {
-        String type = effect.getClass().getSimpleName();
+    private static Evidence.JsonObject behaviorEffect(String componentId, Object effect, boolean conditional) {
+        String type = componentId;
         if (effect instanceof EnchantmentEntityEffect entity) {
             var key = BuiltInRegistries.ENCHANTMENT_ENTITY_EFFECT_TYPE.getKey(entity.codec());
             if (key != null) type = key.toString();

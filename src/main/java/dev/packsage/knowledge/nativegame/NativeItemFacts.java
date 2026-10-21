@@ -31,15 +31,23 @@ public final class NativeItemFacts {
     private NativeItemFacts() {
     }
 
-    public static void enrich(Map<String, Evidence.JsonValue> payload, ItemStack stack, HolderLookup.Provider registries) {
+    /** Returns true when the enriched payload is partial: bounded effects or an unavailable fingerprint. */
+    public static boolean enrich(Map<String, Evidence.JsonValue> payload, ItemStack stack, HolderLookup.Provider registries) {
+        var partial = false;
         var fingerprint = componentFingerprint(stack, registries);
         if (fingerprint == null) {
             payload.put("componentFingerprint", new Evidence.JsonNull());
             payload.put("variantDetail", new Evidence.JsonString("unavailable"));
+            partial = true;
         } else {
             payload.put("componentFingerprint", new Evidence.JsonString(fingerprint));
         }
-        if (stack.has(DataComponents.POTION_CONTENTS)) payload.put("potionContents", potionContents(stack));
+        if (stack.has(DataComponents.POTION_CONTENTS)) {
+            var potion = potionContents(stack);
+            payload.put("potionContents", potion);
+            if (potion.values().containsKey("effectsStatus")) partial = true;
+        }
+        return partial;
     }
 
     static String componentFingerprint(ItemStack stack, HolderLookup.Provider registries) {

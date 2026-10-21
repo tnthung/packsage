@@ -141,14 +141,14 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         payload.put("name", new Evidence.JsonString(stack.getHoverName().getString()));
         payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
         payload.put("components", components);
-        NativeItemFacts.enrich(payload, stack, registries);
+        var factsPartial = NativeItemFacts.enrich(payload, stack, registries);
         if (stack.has(DataComponents.CONTAINER) || stack.has(DataComponents.BUNDLE_CONTENTS)) {
             payload.put("nestedStorageContentsOmitted", new Evidence.JsonBoolean(true));
         }
         if (equipmentSlot != null) payload.put("equipmentSlot", new Evidence.JsonString(equipmentSlot));
         var source = new Evidence.Source(scope, "native", "1.21.1", "inventory:" + section + ":" + slot,
                 scope.requestGeneration(), Instant.now(), Evidence.Activity.ACTIVE,
-                components.values().containsKey("encoding") ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                factsPartial || components.values().containsKey("encoding") ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
                 Evidence.Authority.LOADED, List.of("player-inventory", section + ":" + slot));
         return new Evidence.Record(source, Evidence.RecordKind.ITEM, identity, new Evidence.JsonObject(payload), List.of());
     }

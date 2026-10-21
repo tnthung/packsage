@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -59,6 +60,36 @@ class NativeItemFactsTest {
         NativeItemFacts.enrich(payload, PotionContents.createItemStack(Items.POTION, Potions.STRENGTH), registries);
         payload.put("components", new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))));
         assertTrue(payload.get("componentFingerprint") instanceof Evidence.JsonString);
+    }
+
+    private static ItemStack potionWithCustomEffects(int count) {
+        var stack = new ItemStack(Items.POTION);
+        var contents = new PotionContents(java.util.Optional.empty(), java.util.Optional.empty(),
+                java.util.stream.IntStream.range(0, count).mapToObj(index -> new MobEffectInstance(MobEffects.JUMP, 20 + index, 0)).toList());
+        stack.set(DataComponents.POTION_CONTENTS, contents);
+        return stack;
+    }
+
+    @Test
+    void enrichReportsPartialOnlyWhenEffectsAreBounded() {
+        var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+        assertTrue(NativeItemFacts.enrich(payload, potionWithCustomEffects(33), registries));
+        var contents = ((Evidence.JsonObject) payload.get("potionContents")).values();
+        assertEquals(new Evidence.JsonString("bounded"), contents.get("effectsStatus"));
+        assertEquals(32, ((Evidence.JsonArray) contents.get("effects")).values().size());
+        assertFalse(NativeItemFacts.enrich(new LinkedHashMap<>(), potionWithCustomEffects(32), registries));
+        assertFalse(NativeItemFacts.enrich(new LinkedHashMap<>(), new ItemStack(Items.DIAMOND), registries));
+    }
+
+    @Test
+    void inventoryRecordWithBoundedPotionEffectsIsPartial() {
+        var scope = new Evidence.Scope("world", "en_us", "team", "native", 1);
+        var record = NativeSnapshot.inventoryRecord(scope, potionWithCustomEffects(33), BuiltInRegistries.ITEM, registries,
+                "main", 0, null, false);
+        assertEquals(Evidence.Coverage.PARTIAL, record.source().coverage());
+        var plain = NativeSnapshot.inventoryRecord(scope, new ItemStack(Items.DIAMOND), BuiltInRegistries.ITEM, registries,
+                "main", 0, null, false);
+        assertEquals(Evidence.Coverage.COMPLETE, plain.source().coverage());
     }
 
     @Test

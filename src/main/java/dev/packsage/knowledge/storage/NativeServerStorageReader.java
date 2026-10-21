@@ -349,7 +349,7 @@ final class NativeServerStorageReader {
                 || Evidence.serialize(components).getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 12 * 1024;
         boolean partial = metadataTruncated || nameTruncated && !filter.names().isEmpty();
         payload.put("components", metadataTruncated ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))) : components);
-        dev.packsage.knowledge.nativegame.NativeItemFacts.enrich(payload, stack, registries);
+        if (dev.packsage.knowledge.nativegame.NativeItemFacts.enrich(payload, stack, registries)) partial = true;
         if (metadataTruncated) payload.put("metadataStatus", new Evidence.JsonString("unknown_truncated"));
         if (nameTruncated) payload.put("nameStatus", new Evidence.JsonString("truncated"));
         if (!filter.tags().isEmpty()) {

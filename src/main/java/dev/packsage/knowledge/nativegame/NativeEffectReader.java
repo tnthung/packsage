@@ -31,9 +31,11 @@ final class NativeEffectReader {
         payload.put("ambient", new Evidence.JsonBoolean(instance.isAmbient()));
         payload.put("visible", new Evidence.JsonBoolean(instance.isVisible()));
         payload.put("showIcon", new Evidence.JsonBoolean(instance.showIcon()));
-        payload.put("attributeModifiers", attributeModifiers(instance.getEffect().value(), instance.getAmplifier(), instance.getAmplifier()));
+        var modifiers = contained(instance.getEffect().value(), instance.getAmplifier(), instance.getAmplifier());
+        payload.put("attributeModifiers", modifiers);
         var source = new Evidence.Source(scope, "native", "1.21.1", "active_effect:" + effectId,
-                scope.requestGeneration(), Instant.now(), Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                scope.requestGeneration(), Instant.now(), Evidence.Activity.ACTIVE,
+                modifiers instanceof Evidence.JsonObject ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
                 Evidence.Authority.LOADED, List.of("client-player:active-effects"));
         return new Evidence.Record(source, Evidence.RecordKind.OTHER, instance.getEffect().value().getDisplayName().getString(),
                 new Evidence.JsonObject(payload), List.of());
@@ -66,6 +68,15 @@ final class NativeEffectReader {
 
     private static String effectId(MobEffectInstance instance) {
         return instance.getEffect().unwrapKey().map(key -> key.location().toString()).orElse("unknown:effect");
+    }
+
+    /** Modifiers, or {status:"unknown"} when mod code throws while creating them. */
+    static Evidence.JsonValue contained(MobEffect effect, int fromAmplifier, int toAmplifier) {
+        try {
+            return attributeModifiers(effect, fromAmplifier, toAmplifier);
+        } catch (RuntimeException failure) {
+            return new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown")));
+        }
     }
 
     static Evidence.JsonArray attributeModifiers(MobEffect effect, int fromAmplifier, int toAmplifier) {

@@ -19,10 +19,16 @@ final class NativeEnchantmentEligibility {
     }
 
     static Evidence.JsonObject read(ItemStack stack, Registry<Enchantment> enchantments) {
-        var current = stack.getTagEnchantments();
+        int failures = 0;
+        net.minecraft.world.item.enchantment.ItemEnchantments current;
+        try {
+            current = stack.getTagEnchantments();
+        } catch (RuntimeException exception) {
+            current = net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY;
+            failures++;
+        }
         var supported = new ArrayList<Evidence.JsonValue>();
         int inspected = 0;
-        int failures = 0;
         boolean bounded = false;
         for (var holder : (Iterable<Holder.Reference<Enchantment>>) enchantments.holders()::iterator) {
             if (inspected >= MAX_ENCHANTMENTS) {
@@ -50,7 +56,14 @@ final class NativeEnchantmentEligibility {
             }
         }
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
-        values.put("enchantable", new Evidence.JsonBoolean(stack.isEnchantable()));
+        Evidence.JsonValue enchantable;
+        try {
+            enchantable = new Evidence.JsonBoolean(stack.isEnchantable());
+        } catch (RuntimeException exception) {
+            enchantable = new Evidence.JsonNull();
+            failures++;
+        }
+        values.put("enchantable", enchantable);
         values.put("supported", new Evidence.JsonArray(supported));
         values.put("inspected", new Evidence.JsonNumber(new BigDecimal(inspected)));
         if (failures > 0) values.put("failures", new Evidence.JsonNumber(new BigDecimal(failures)));

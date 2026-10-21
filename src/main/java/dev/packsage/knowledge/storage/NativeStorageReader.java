@@ -15,8 +15,6 @@ import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.inventory.BlastFurnaceMenu;
 import net.minecraft.world.inventory.BrewingStandMenu;
 import net.minecraft.world.inventory.CartographyTableMenu;
-import net.minecraft.world.inventory.CrafterMenu;
-import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.inventory.FurnaceMenu;
 import net.minecraft.world.inventory.FurnaceFuelSlot;
 import net.minecraft.world.inventory.FurnaceResultSlot;
@@ -24,7 +22,6 @@ import net.minecraft.world.inventory.GrindstoneMenu;
 import net.minecraft.world.inventory.HorseInventoryMenu;
 import net.minecraft.world.inventory.ItemCombinerMenu;
 import net.minecraft.world.inventory.LoomMenu;
-import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.inventory.MerchantResultSlot;
 import net.minecraft.world.inventory.NonInteractiveResultSlot;
 import net.minecraft.world.inventory.ResultSlot;
@@ -205,7 +202,10 @@ public final class NativeStorageReader implements StorageReader {
             payload.put("components", metadataTruncated
                     ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated")))
                     : encodedComponents);
-            dev.packsage.knowledge.nativegame.NativeItemFacts.enrich(payload, stack, registries);
+            if (dev.packsage.knowledge.nativegame.NativeItemFacts.enrich(payload, stack, registries)) {
+                entryPartial = true;
+                coverage = Evidence.Coverage.PARTIAL;
+            }
             if (metadataTruncated) payload.put("metadataStatus", new Evidence.JsonString("unknown_truncated"));
             if (!metadataTruncated && Evidence.serialize(new Evidence.JsonObject(payload)).getBytes(StandardCharsets.UTF_8).length
                     > MAX_ENTRY_METADATA) {
@@ -502,7 +502,7 @@ public final class NativeStorageReader implements StorageReader {
         owner.put("contentsStatus", new Evidence.JsonString("complete"));
         owner.put("components", ownerMetadataTruncated
                 ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))) : ownerComponents);
-        dev.packsage.knowledge.nativegame.NativeItemFacts.enrich(owner, ownerStack, registries);
+        var ownerFactsPartial = dev.packsage.knowledge.nativegame.NativeItemFacts.enrich(owner, ownerStack, registries);
         if (ownerMetadataTruncated) owner.put("metadataStatus", new Evidence.JsonString("unknown_truncated"));
         if (!ownerMetadataTruncated && Evidence.serialize(new Evidence.JsonObject(owner)).getBytes(StandardCharsets.UTF_8).length
                 > MAX_ENTRY_METADATA) {
@@ -511,7 +511,7 @@ public final class NativeStorageReader implements StorageReader {
             owner.put("components", new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))));
             owner.put("metadataStatus", new Evidence.JsonString("unknown_truncated"));
         }
-        var partial = ownerMetadataTruncated;
+        var partial = ownerMetadataTruncated || ownerFactsPartial;
         if (container != null) {
             for (int slot = 0; slot < container.getSlots(); slot++) {
                 var stack = container.getStackInSlot(slot);
@@ -578,8 +578,8 @@ public final class NativeStorageReader implements StorageReader {
         payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
         payload.put("components", metadataTruncated
                 ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))) : components);
-        dev.packsage.knowledge.nativegame.NativeItemFacts.enrich(payload, stack, registries);
-        var partial = metadataTruncated || nameTruncated && !filter.names().isEmpty();
+        var factsPartial = dev.packsage.knowledge.nativegame.NativeItemFacts.enrich(payload, stack, registries);
+        var partial = factsPartial || metadataTruncated || nameTruncated && !filter.names().isEmpty();
         if (nameTruncated) payload.put("nameStatus", new Evidence.JsonString("truncated"));
         if (!filter.tags().isEmpty()) {
             try {

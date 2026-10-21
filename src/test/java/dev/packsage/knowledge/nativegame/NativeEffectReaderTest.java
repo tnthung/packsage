@@ -52,6 +52,34 @@ class NativeEffectReaderTest {
         assertEquals(Evidence.Coverage.PARTIAL, record.source().coverage());
     }
 
+    private static net.minecraft.world.effect.MobEffect throwingEffect() {
+        return new net.minecraft.world.effect.MobEffect(net.minecraft.world.effect.MobEffectCategory.NEUTRAL, 0) {
+            @Override
+            public void createModifiers(int amplifier, java.util.function.BiConsumer<net.minecraft.core.Holder<net.minecraft.world.entity.ai.attributes.Attribute>,
+                    net.minecraft.world.entity.ai.attributes.AttributeModifier> output) {
+                throw new IllegalStateException("template failure");
+            }
+        };
+    }
+
+    @Test
+    void throwingModifierCreationIsReportedUnknownAndRecordStaysBuilt() {
+        var record = NativeRegistryReader.effect(throwingEffect(), "test:broken", SCOPE);
+        assertEquals(new Evidence.JsonObject(java.util.Map.of("status", new Evidence.JsonString("unknown"))),
+                record.payload().values().get("attributeModifiers"));
+        assertEquals(Evidence.Coverage.PARTIAL, record.source().coverage());
+    }
+
+    @Test
+    void throwingActiveEffectStillReturnsPartialPage() {
+        var active = List.of(new MobEffectInstance(net.minecraft.core.Holder.direct(throwingEffect()), 100, 0),
+                new MobEffectInstance(MobEffects.NIGHT_VISION, 100, 0));
+        var page = NativeEffectReader.searchActive(active, null, List.of(), List.of(), 0, 16, SCOPE);
+        assertEquals(2, page.records().size());
+        assertTrue(page.records().stream().anyMatch(record -> record.source().coverage() == Evidence.Coverage.PARTIAL
+                && record.payload().values().get("attributeModifiers") instanceof Evidence.JsonObject));
+    }
+
     @Test
     void activeEffectsAreSortedFilteredAndPaged() {
         var active = List.of(new MobEffectInstance(MobEffects.MOVEMENT_SPEED, 600, 1),

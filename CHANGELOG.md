@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### 2026-10-21
+
+- Added clickable links from Modonomicon, GuideME, Immersive Engineering and Actually Additions citations into each mod's own viewer:
+  - Modonomicon book entries;
+  - GuideME pages, plus the cited plain-text heading within a page;
+  - Immersive Engineering manual entries, opened without holding the manual;
+  - Actually Additions booklet entries.
+
+  Saved links use stable book, page and entry identities and are checked against current content before opening. Missing, hidden or locked destinations, including Modonomicon entries that its own viewer would open anyway, report an unavailable link instead of opening a substitute. The [validation record](docs/validation/2026-10-21-guide-entry-navigation.md) covers 788 automated tests. Installed and restart checks are pending.
+
 ### 2026-10-20
 
 - Fixed Immersive Engineering manual continuation when four or five bytes remain before reading localized text: the reader now signals budget exhaustion so document search retains a retry cursor instead of rejecting a repeated fragment position. The [merged validation record](docs/validation/2026-10-20-merged-guide-parallel-chats.md) tracks the regression and installed follow-up.

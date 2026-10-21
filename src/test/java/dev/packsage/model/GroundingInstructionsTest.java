@@ -13,6 +13,21 @@ class GroundingInstructionsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 2);
 
     @Test
+    void defaultInstructionsRouteCurrentStateEffectsAndPlans() {
+        var text = GroundingInstructions.defaultInstructions();
+        assertTrue(text.contains("Use the screenshot and gameplay observation only when relevant."));
+        assertTrue(text.contains("read its own record with search_inventory target item"));
+        assertTrue(text.contains("shows nothing held or selected, say so first, before answering about a matching carried item"));
+        assertTrue(text.contains("openedMenu is not none, read it with target opened"));
+        assertTrue(text.contains("say that Minecraft does not record what applied an effect"));
+        assertTrue(text.contains("call plan_recipe with that ID and quantity"));
+        assertTrue(text.contains("Do not state planner batches as operation counts."));
+        assertTrue(text.contains("derive operations and input totals from those semantics and state the grouping you assumed"));
+        assertTrue(text.contains("Request independent reads together in one turn"));
+        assertTrue(text.contains("By default, include relevant navigation"));
+    }
+
+    @Test
     void visualGroundingDistinguishesMissedTargetsAndThirdPersonViews() {
         var submission = new ChatContracts.Submission(new ChatContracts.RequestId("missed-target"),
                 new ChatContracts.WorldIdentity("world", "World"), SCOPE, "check again", false,

@@ -3,14 +3,17 @@ package blusunrize.lib.manual;
 import blusunrize.lib.manual.Tree.AbstractNode;
 import net.minecraft.resources.ResourceLocation;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 public final class ManualInstance {
     public final Map<ResourceLocation, ManualEntry> contentsByName = new LinkedHashMap<>();
     private boolean initialized = true;
     private int forbiddenCalls;
     private int recipeMatchCalls;
+    private final Set<AbstractNode> hiddenNodes = new HashSet<>();
 
     public ManualEntry addEntry(String id, SpecialManualElement element) {
         var entry = new ManualEntry(element);
@@ -18,8 +21,12 @@ public final class ManualInstance {
         return entry;
     }
 
+    public void hide(String id) {
+        hiddenNodes.add(contentsByName.get(ResourceLocation.parse(id)).getTreeNode());
+    }
+
     public boolean showNodeInList(AbstractNode node) {
-        return true;
+        return !hiddenNodes.contains(node);
     }
 
     public void reload() {
@@ -44,6 +51,7 @@ public final class ManualInstance {
 
     public void reset() {
         contentsByName.clear();
+        hiddenNodes.clear();
         initialized = true;
         forbiddenCalls = 0;
         recipeMatchCalls = 0;

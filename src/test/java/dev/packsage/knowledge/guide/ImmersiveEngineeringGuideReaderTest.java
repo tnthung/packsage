@@ -904,4 +904,114 @@ class ImmersiveEngineeringGuideReaderTest {
         assertEquals(Evidence.Coverage.PARTIAL, fragment.coverage());
         assertEquals("manual formatting tokens are preserved without expansion", fragment.detail());
     }
+
+    private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
+    private static final String HAMMER = "immersiveengineering:manual/hammer";
+
+    @Test
+    void navigationTargetsUseEntryIdentity() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        manual.addEntry(HAMMER, null);
+        var reader = new ImmersiveEngineeringGuideReader("12.4.2-194", new RecordingOpener());
+
+        assertEquals(java.util.List.of(new Evidence.NavigationTarget(SCOPE, "immersiveengineering", HAMMER, HAMMER)),
+                reader.navigationTargets(SCOPE, new GuideDocumentReader.Candidate(HAMMER, "Hammer", HAMMER,
+                        java.util.List.of(), Evidence.Coverage.COMPLETE)));
+        assertEquals(0, manual.forbiddenCalls());
+    }
+
+    @Test
+    void savedEntryResolvesAfterManualReload() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        manual.addEntry(HAMMER, null);
+        var opener = new RecordingOpener();
+        var reader = new ImmersiveEngineeringGuideReader("12.4.2-194", opener);
+        var saved = new Evidence.NavigationTarget(SCOPE, "immersiveengineering", "old", HAMMER);
+        manual.reset();
+        var reloaded = manual.addEntry(HAMMER, null);
+
+        var refreshed = reader.refreshNavigation(saved, SCOPE);
+
+        assertEquals(new Evidence.NavigationTarget(SCOPE, "immersiveengineering", HAMMER, HAMMER), refreshed);
+        assertEquals(Evidence.NavigationStatus.OPENED, reader.open(refreshed, SCOPE).status());
+        assertEquals(1, opener.calls.size());
+        assertTrue(opener.calls.getFirst() == reloaded);
+        assertEquals(0, manual.forbiddenCalls());
+    }
+
+    @Test
+    void unavailableManualScreenIsReportedWithoutException() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        manual.addEntry(HAMMER, null);
+        var opener = new RecordingOpener();
+        opener.screenAvailable = false;
+        var reader = new ImmersiveEngineeringGuideReader("12.4.2-194", opener);
+
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, reader.open(
+                new Evidence.NavigationTarget(SCOPE, "immersiveengineering", HAMMER, HAMMER), SCOPE).status());
+    }
+
+    @Test
+    void refreshRejectsMalformedWrongProviderMissingAndHiddenEntries() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        manual.addEntry(HAMMER, null);
+        manual.addEntry("immersiveengineering:manual/hidden", null);
+        manual.hide("immersiveengineering:manual/hidden");
+        var opener = new RecordingOpener();
+        var reader = new ImmersiveEngineeringGuideReader("12.4.2-194", opener);
+
+        for (var targetId : java.util.List.of("not a resource id", HAMMER + "#0", "immersiveengineering:manual/missing",
+                "immersiveengineering:manual/hidden")) {
+            assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "immersiveengineering", "old", targetId),
+                    SCOPE), targetId);
+            assertEquals(Evidence.NavigationStatus.UNAVAILABLE, reader.open(new Evidence.NavigationTarget(SCOPE,
+                    "immersiveengineering", targetId, targetId), SCOPE).status(), targetId);
+        }
+        assertNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "guideme", "old", HAMMER), SCOPE));
+        assertNotNull(reader.refreshNavigation(new Evidence.NavigationTarget(SCOPE, "immersiveengineering", "old", HAMMER), SCOPE));
+        assertEquals(0, opener.calls.size());
+        assertEquals(0, manual.forbiddenCalls());
+    }
+
+    @Test
+    void openReportsStaleScopeOffThreadChangedHandleAndError() {
+        var manual = blusunrize.immersiveengineering.api.ManualHelper.getManual();
+        manual.reset();
+        manual.addEntry(HAMMER, null);
+        var opener = new RecordingOpener();
+        var reader = new ImmersiveEngineeringGuideReader("12.4.2-194", opener);
+        var current = new Evidence.NavigationTarget(SCOPE, "immersiveengineering", HAMMER, HAMMER);
+
+        assertEquals(Evidence.NavigationStatus.STALE, reader.open(current,
+                new Evidence.Scope("other", "en_us", "team", "runtime", 1)).status());
+        opener.clientThread = false;
+        assertEquals(Evidence.NavigationStatus.UNSUPPORTED, reader.open(current, SCOPE).status());
+        opener.clientThread = true;
+        assertEquals(Evidence.NavigationStatus.STALE, reader.open(new Evidence.NavigationTarget(SCOPE,
+                "immersiveengineering", "immersiveengineering:manual/other", HAMMER), SCOPE).status());
+        assertEquals(0, opener.calls.size());
+        opener.failure = new IllegalStateException("screen failed");
+        assertEquals(Evidence.NavigationStatus.ERROR, reader.open(current, SCOPE).status());
+        assertEquals(0, manual.forbiddenCalls());
+    }
+
+    private static final class RecordingOpener implements ImmersiveEngineeringGuideReader.ManualOpener {
+        private final java.util.List<Object> calls = new java.util.ArrayList<>();
+        private boolean clientThread = true;
+        private boolean screenAvailable = true;
+        private RuntimeException failure;
+
+        @Override public boolean isClientThread() { return clientThread; }
+
+        @Override public boolean openEntry(Object manual, Object entry) {
+            if (failure != null) throw failure;
+            if (!screenAvailable) return false;
+            calls.add(entry);
+            return true;
+        }
+    }
 }

@@ -32,10 +32,45 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
     private static final int MAX_RELATIONSHIP_BYTES = 8 * 1024;
     private static final String MANUAL_INSTANCE = "blusunrize.lib.manual.ManualInstance";
     private final String readerVersion;
+    private final ManualOpener opener;
+
+    /** Client-side effects of showing the manual at an entry; replaced in tests. */
+    interface ManualOpener {
+        ManualOpener MINECRAFT = new ManualOpener() {
+            @Override public boolean isClientThread() { return Minecraft.getInstance().isSameThread(); }
+
+            @Override public boolean openEntry(Object manual, Object entry) {
+                try {
+                    var gui = manual.getClass().getMethod("getGui").invoke(manual);
+                    if (gui == null) return false;
+                    Minecraft.getInstance().setScreen((net.minecraft.client.gui.screens.Screen) gui);
+                    var abstractNode = Class.forName("blusunrize.lib.manual.Tree$AbstractNode", false,
+                            ImmersiveEngineeringGuideReader.class.getClassLoader());
+                    gui.getClass().getMethod("setCurrentNode", abstractNode).invoke(gui,
+                            entry.getClass().getMethod("getTreeNode").invoke(entry));
+                    gui.getClass().getField("page").setInt(gui, 0);
+                    gui.getClass().getMethod("fullInit").invoke(gui);
+                    return true;
+                } catch (ReflectiveOperationException failure) {
+                    throw new IllegalStateException("Immersive Engineering manual navigation is unavailable", failure);
+                }
+            }
+        };
+
+        boolean isClientThread();
+
+        /** Shows the manual at the entry's first page; false when the manual screen is unavailable. */
+        boolean openEntry(Object manual, Object entry);
+    }
 
     public ImmersiveEngineeringGuideReader() { this(VERSION); }
 
-    ImmersiveEngineeringGuideReader(String version) { this.readerVersion = version; }
+    ImmersiveEngineeringGuideReader(String version) { this(version, ManualOpener.MINECRAFT); }
+
+    ImmersiveEngineeringGuideReader(String version, ManualOpener opener) {
+        this.readerVersion = version;
+        this.opener = opener;
+    }
 
     public static GuideDocumentProvider forMinecraft(Supplier<Evidence.Scope> scopeSource, Executor clientExecutor, String actualVersion) {
         return new GuideDocumentProvider(new ImmersiveEngineeringGuideReader(actualVersion), scopeSource, clientExecutor);
@@ -906,4 +941,57 @@ public final class ImmersiveEngineeringGuideReader implements GuideDocumentReade
         }
     }
 
+    @Override
+    public List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope scope, Candidate candidate) {
+        return visibleEntry(candidate.id()) == null ? List.of()
+                : List.of(new Evidence.NavigationTarget(scope, providerId(), candidate.id(), candidate.id()));
+    }
+
+    @Override
+    public Evidence.NavigationTarget refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!providerId().equals(target.providerId()) || visibleEntry(target.targetId()) == null) return null;
+        return new Evidence.NavigationTarget(scope, providerId(), target.targetId(), target.targetId());
+    }
+
+    @Override
+    public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!scope.equals(target.scope())) return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE,
+                "Immersive Engineering target is outside the active scope");
+        if (!opener.isClientThread()) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED,
+                "Immersive Engineering navigation requires the client thread");
+        var found = visibleEntry(target.targetId());
+        if (found == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE,
+                "Immersive Engineering manual entry is missing or hidden");
+        if (!target.targetId().equals(target.sourceHandle())) return new Evidence.NavigationResult(
+                Evidence.NavigationStatus.STALE, "Immersive Engineering manual entry identity changed");
+        try {
+            return opener.openEntry(found.manual(), found.entry())
+                    ? new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "Immersive Engineering manual entry opened")
+                    : new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "Immersive Engineering manual is unavailable");
+        } catch (RuntimeException | LinkageError failure) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, failure.toString());
+        }
+    }
+
+    private record ManualEntryRef(Object manual, Object entry) { }
+
+    /** Resolves a durable entry ID against the current manual when the entry is shown, or null. */
+    private ManualEntryRef visibleEntry(String entryId) {
+        var location = ResourceLocation.tryParse(entryId);
+        if (location == null || !location.toString().equals(entryId)) return null;
+        try {
+            var helper = Class.forName(MANUAL_HELPER, false, ImmersiveEngineeringGuideReader.class.getClassLoader());
+            var manual = helper.getMethod("getManual").invoke(null);
+            var entry = ((Map<?, ?>) manual.getClass().getField("contentsByName").get(manual)).get(location);
+            if (entry == null) return null;
+            var node = entry.getClass().getMethod("getTreeNode").invoke(entry);
+            var abstractNode = Class.forName("blusunrize.lib.manual.Tree$AbstractNode", false,
+                    ImmersiveEngineeringGuideReader.class.getClassLoader());
+            if (node == null || !(boolean) manual.getClass().getMethod("showNodeInList", abstractNode).invoke(manual, node))
+                return null;
+            return new ManualEntryRef(manual, entry);
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
+            return null;
+        }
+    }
 }

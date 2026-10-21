@@ -1616,6 +1616,8 @@ public final class AssistantScreen extends Screen {
 
     public void setContainerScreen(net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> screen) { containerScreen = screen; }
 
+    net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> containerScreen() { return containerScreen; }
+
     @Override
     public void onClose() {
         if (minecraft != null && containerScreen != null && minecraft.player != null

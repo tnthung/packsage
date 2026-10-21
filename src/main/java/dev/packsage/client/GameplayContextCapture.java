@@ -11,6 +11,8 @@ import net.minecraft.client.Screenshot;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
@@ -29,6 +31,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class GameplayContextCapture {
+    private static final int OPENED_MENU_TITLE_LIMIT = 64;
+
     @FunctionalInterface
     public interface ObservationSource {
         Observation capture();
@@ -45,12 +49,18 @@ public final class GameplayContextCapture {
     }
 
     public record Observation(String hovered, String held, String targeted, String dimension, String position,
-                              String biome, String time, String focusKind, String cameraPerspective) {
+                              String biome, String time, String focusKind, String cameraPerspective,
+                              String openedMenu, String openedMenuTitle) {
         public Observation {
             if ("miss".equals(focusKind)) {
                 hovered = null;
                 targeted = null;
             }
+        }
+
+        public Observation(String hovered, String held, String targeted, String dimension, String position,
+                           String biome, String time, String focusKind, String cameraPerspective) {
+            this(hovered, held, targeted, dimension, position, biome, time, focusKind, cameraPerspective, null, null);
         }
 
         public Observation(String hovered, String held, String targeted, String dimension, String position,
@@ -161,10 +171,18 @@ public final class GameplayContextCapture {
             String position = player.blockPosition().toString();
             String biome = level.getBiome(player.blockPosition()).unwrapKey()
                     .map(key -> key.location().toString()).orElse(null);
+            String openedMenu = openedMenuKey(player.containerMenu, player.inventoryMenu);
+            String openedMenuTitle = null;
+            if (!"none".equals(openedMenu)) {
+                var screen = minecraft.screen;
+                if (screen instanceof AssistantScreen assistant) screen = assistant.containerScreen();
+                if (screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> container
+                        && container.getMenu() == player.containerMenu) openedMenuTitle = openedMenuTitle(container.getTitle());
+            }
             return new Observation(targeted, stack.isEmpty() ? null : heldItem(stack, level.registryAccess()),
                     targeted, dimension, position, biome,
                     Long.toString(level.getGameTime()), focusKind,
-                    minecraft.options.getCameraType().name().toLowerCase(Locale.ROOT));
+                    minecraft.options.getCameraType().name().toLowerCase(Locale.ROOT), openedMenu, openedMenuTitle);
         };
         AsyncFrameCapture frame = request -> {
             CompletableFuture<CapturedFrame> result = new CompletableFuture<>();
@@ -366,6 +384,24 @@ public final class GameplayContextCapture {
         }
     }
 
+    static String openedMenuKey(AbstractContainerMenu menu, AbstractContainerMenu inventoryMenu) {
+        if (menu == null || menu == inventoryMenu) return "none";
+        try {
+            var type = menu.getType();
+            var key = type == null ? null : BuiltInRegistries.MENU.getKey(type);
+            return key == null ? "unknown" : key.toString();
+        } catch (RuntimeException ignored) {
+            return "unknown";
+        }
+    }
+
+    static String openedMenuTitle(Component title) {
+        if (title == null || !(title.getContents() instanceof net.minecraft.network.chat.contents.PlainTextContents)
+                || !title.getSiblings().isEmpty()) return null;
+        String text = title.getString();
+        return text.isEmpty() || text.length() > OPENED_MENU_TITLE_LIMIT ? null : text;
+    }
+
     static String heldItem(ItemStack stack, RegistryAccess registries) {
         String components;
         try {
@@ -398,6 +434,8 @@ public final class GameplayContextCapture {
         json.addProperty("time", observation.time() == null ? "unavailable" : observation.time());
         json.addProperty("focusKind", observation.focusKind() == null ? "unavailable" : observation.focusKind());
         json.addProperty("cameraPerspective", observation.cameraPerspective() == null ? "unavailable" : observation.cameraPerspective());
+        json.addProperty("openedMenu", observation.openedMenu() == null ? "none" : observation.openedMenu());
+        if (observation.openedMenuTitle() != null) json.addProperty("openedMenuTitle", observation.openedMenuTitle());
         if (capturedAt != null) json.addProperty("capturedAt", capturedAt.toString());
         return new ChatContracts.Context(json.toString(), screenshot, currentScope);
     }

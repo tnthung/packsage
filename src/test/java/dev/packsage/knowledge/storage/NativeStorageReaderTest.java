@@ -603,6 +603,22 @@ class NativeStorageReaderTest {
     }
 
     @Test
+    void targetedUnsupportedDetailPointsToTheOpenedMenuOnlyWhenOneIsLive() {
+        var unsupported = new NativeStorageReader.Observation(List.of(), FIRST, Instant.EPOCH, 0, "target",
+                Map.of("status", new Evidence.JsonString("unavailable"),
+                        "detail", new Evidence.JsonString("target block inventory is unsupported")),
+                Evidence.Coverage.UNAVAILABLE, List.of());
+        var hinted = NativeStorageReader.withOpenedMenuHint(unsupported, true);
+        assertEquals("target block inventory is unsupported; an opened menu is available; use target opened for its contents",
+                ((Evidence.JsonString) hinted.details().get("detail")).value());
+        assertEquals(unsupported, NativeStorageReader.withOpenedMenuHint(unsupported, false));
+        var other = new NativeStorageReader.Observation(List.of(), FIRST, Instant.EPOCH, 0, "target",
+                Map.of("detail", new Evidence.JsonString("target chunk is not loaded")),
+                Evidence.Coverage.UNAVAILABLE, List.of());
+        assertEquals(other, NativeStorageReader.withOpenedMenuHint(other, true));
+    }
+
+    @Test
     void recognizedEmptyComponentDiffersFromUnsupportedAndEmptySlots() {
         var shulker = new ItemStack(Items.SHULKER_BOX);
         var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);

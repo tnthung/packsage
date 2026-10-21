@@ -395,7 +395,19 @@ public final class NativeStorageReader implements StorageReader {
     }
 
     private CompletionStage<Observation> captureTargeted(Request request, Evidence.Scope scope) {
-        return NativeServerStorageReader.read(client, request, scope, monotonicClock, currentScope);
+        boolean openedLive = client != null && client.player != null ? client.player.containerMenu != client.player.inventoryMenu
+                : validOpened(scope, request.filter()) != null;
+        return NativeServerStorageReader.read(client, request, scope, monotonicClock, currentScope)
+                .thenApply(observation -> withOpenedMenuHint(observation, openedLive));
+    }
+
+    static Observation withOpenedMenuHint(Observation observation, boolean openedLive) {
+        if (!openedLive || observation == null || !(observation.details().get("detail") instanceof Evidence.JsonString detail)
+                || !detail.value().equals("target block inventory is unsupported")) return observation;
+        var details = new LinkedHashMap<>(observation.details());
+        details.put("detail", new Evidence.JsonString(detail.value() + "; an opened menu is available; use target opened for its contents"));
+        return new Observation(observation.entries(), observation.scope(), observation.capturedAt(), observation.createdNanos(),
+                observation.title(), details, observation.coverage(), observation.provenance());
     }
 
     private Observation captureItem(Request request, Evidence.Scope scope) {

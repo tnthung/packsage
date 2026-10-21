@@ -98,6 +98,57 @@ class ContextCaptureTest {
         assertEquals("first_person", hit.get("cameraPerspective").getAsString());
     }
 
+    private static final class MenuStub extends net.minecraft.world.inventory.AbstractContainerMenu {
+        private MenuStub(net.minecraft.world.inventory.MenuType<?> type) {
+            super(type, 1);
+        }
+
+        @Override
+        public ItemStack quickMoveStack(net.minecraft.world.entity.player.Player player, int index) {
+            return ItemStack.EMPTY;
+        }
+
+        @Override
+        public boolean stillValid(net.minecraft.world.entity.player.Player player) {
+            return true;
+        }
+    }
+
+    @Test
+    void openedMenuDefaultsToNoneAndReportsTheMenuTypeKey() {
+        var observation = new AtomicReference<>(new GameplayContextCapture.Observation("held", "target", "overworld",
+                "1,2,3", "plains", "1", "block"));
+        var capture = new GameplayContextCapture(observation::get,
+                request -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH),
+                Runnable::run, () -> SCOPE);
+        var none = JsonParser.parseString(capture.preview().serializedGameplayContext()).getAsJsonObject();
+        assertEquals("none", none.get("openedMenu").getAsString());
+        assertFalse(none.has("openedMenuTitle"));
+
+        observation.set(new GameplayContextCapture.Observation(null, "held", "target", "overworld", "1,2,3", "plains",
+                "1", "block", null, "minecraft:crafting", "Crafting"));
+        var open = JsonParser.parseString(capture.preview().serializedGameplayContext()).getAsJsonObject();
+        assertEquals("minecraft:crafting", open.get("openedMenu").getAsString());
+        assertEquals("Crafting", open.get("openedMenuTitle").getAsString());
+    }
+
+    @Test
+    void openedMenuKeyNeverReadsTheTypeOfThePlayerInventoryMenu() {
+        var inventoryMenu = new MenuStub(null);
+        assertEquals("none", GameplayContextCapture.openedMenuKey(inventoryMenu, inventoryMenu));
+        assertEquals("unknown", GameplayContextCapture.openedMenuKey(new MenuStub(null), inventoryMenu));
+        assertEquals("minecraft:crafting", GameplayContextCapture.openedMenuKey(
+                new MenuStub(net.minecraft.world.inventory.MenuType.CRAFTING), inventoryMenu));
+    }
+
+    @Test
+    void openedMenuTitleIsPlainTextWithinTheBound() {
+        assertEquals("Crafting", GameplayContextCapture.openedMenuTitle(Component.literal("Crafting")));
+        assertEquals("x".repeat(64), GameplayContextCapture.openedMenuTitle(Component.literal("x".repeat(64))));
+        assertNull(GameplayContextCapture.openedMenuTitle(Component.literal("x".repeat(65))));
+        assertNull(GameplayContextCapture.openedMenuTitle(null));
+    }
+
     @Test
     void cancellingAnOldRequestCannotCancelANewerCapture() {
         var queued = new java.util.ArrayDeque<Runnable>();

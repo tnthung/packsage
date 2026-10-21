@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -265,7 +266,7 @@ final class NativeBrewingReader {
                     + (inputs.complete() ? "" : "|opaque-input:" + System.identityHashCode(input))
                     + (reagents.complete() ? "" : "|opaque-reagent:" + System.identityHashCode(ingredient));
             var identity = "brewing:custom:" + ruleIndex + ":0:" + digest(fingerprint);
-            return record("custom", identity, inputs.values(), reagents.values(), output, outputComponents,
+            return record("custom", identity, null, ingredient, inputs.values(), reagents.values(), output, outputComponents,
                     itemRegistry, scope);
         } catch (RuntimeException unreadableRecipe) {
             return opaqueProjection("custom", ruleIndex, 0, recipe, scope);
@@ -298,7 +299,7 @@ final class NativeBrewingReader {
                     + (reagents.complete() ? "" : "|opaque-reagent:" + System.identityHashCode(reagent));
             var identity = "brewing:container:" + ruleIndex + ":" + variantIndex + ":" + digest(fingerprint);
             var bottles = List.of(new Fact("item", NativeSnapshot.itemIdentity(input, itemRegistry), inputComponents.value()));
-            return record("container", identity, bottles, reagents.values(), output, outputComponents,
+            return record("container", identity, input, reagent, bottles, reagents.values(), output, outputComponents,
                     itemRegistry, scope);
         } catch (ReflectiveOperationException | RuntimeException unreadableMix) {
             return opaqueProjection("container", ruleIndex, variantIndex, mix, scope);
@@ -337,14 +338,39 @@ final class NativeBrewingReader {
                     + (reagents.complete() ? "" : "|opaque-reagent:" + System.identityHashCode(reagent));
             var identity = "brewing:potion:" + ruleIndex + ":" + variantIndex + ":" + digest(fingerprint);
             var bottles = List.of(new Fact("item", bottleId, inputComponents.value()));
-            return record("potion", identity, bottles, reagents.values(), output, outputComponents,
+            return record("potion", identity, input, reagent, bottles, reagents.values(), output, outputComponents,
                     itemRegistry, scope);
         } catch (ReflectiveOperationException | RuntimeException unreadableMix) {
             return opaqueProjection("potion", ruleIndex, variantIndex, mix, scope);
         }
     }
 
-    private static Projection record(String kind, String identity, List<Fact> bottles, List<Fact> reagents,
+    private static Evidence.JsonObject brewingNames(ItemStack input, Ingredient reagentIngredient, ItemStack output) {
+        var names = new LinkedHashMap<String, Evidence.JsonValue>();
+        names.put("input", input == null || input.isEmpty() ? new Evidence.JsonNull()
+                : new Evidence.JsonString(input.getHoverName().getString()));
+        var reagentNames = new ArrayList<Evidence.JsonValue>();
+        boolean bounded = false;
+        try {
+            var stacks = reagentIngredient == null ? new ItemStack[0] : reagentIngredient.getItems();
+            for (var stack : stacks) {
+                if (reagentNames.size() == MAX_ALTERNATIVES) {
+                    bounded = true;
+                    break;
+                }
+                if (!stack.isEmpty()) reagentNames.add(new Evidence.JsonString(stack.getHoverName().getString()));
+            }
+        } catch (RuntimeException unreadableIngredient) {
+            bounded = true;
+        }
+        names.put("reagents", new Evidence.JsonArray(reagentNames));
+        names.put("output", new Evidence.JsonString(output.getHoverName().getString()));
+        names.put("namesStatus", new Evidence.JsonString(bounded ? "bounded" : "complete"));
+        return new Evidence.JsonObject(names);
+    }
+
+    private static Projection record(String kind, String identity, ItemStack input, Ingredient reagentIngredient,
+                                     List<Fact> bottles, List<Fact> reagents,
                                      ItemStack output, ComponentCopy outputComponents,
                                      Registry<Item> itemRegistry, Evidence.Scope scope) {
         var slots = new ArrayList<Evidence.RecipeSlot>();
@@ -378,14 +404,19 @@ final class NativeBrewingReader {
         var outputs = List.of(recipeOutput);
         var payload = NativeSnapshot.recipePayloadJson(null, slots, outputs, List.of(), List.of(), constraints,
                 decoding, new LinkedHashSet<>());
+        String title = "Opaque brewing transformation";
+        if (outputKnown) {
+            var payloadValues = new LinkedHashMap<>(payload.values());
+            payloadValues.put("names", brewingNames(input, reagentIngredient, output));
+            payload = new Evidence.JsonObject(payloadValues);
+            title = output.getHoverName().getString() + " brewing transformation";
+        }
         var typed = new Evidence.RecipePayload(null, slots, outputs, List.of(), List.of(), constraints, decoding);
         var source = new Evidence.Source(scope, "native", "1.21.1", identity, scope.requestGeneration(), Instant.now(),
                 Evidence.Activity.ACTIVE, opaque ? Evidence.Coverage.OPAQUE : Evidence.Coverage.PARTIAL,
                 Evidence.Authority.LOADED, List.of("client-potion-brewing", kind + "-brewing-rule"));
         return new Projection(identity,
-                new Evidence.Record(source, Evidence.RecordKind.RECIPE,
-                        outputKnown ? outputItem + " brewing transformation" : "Opaque brewing transformation",
-                        payload, List.of(), typed),
+                new Evidence.Record(source, Evidence.RecordKind.RECIPE, title, payload, List.of(), typed),
                 outputKnown, outputItem, outputComponents.bounded() || opaque);
     }
 

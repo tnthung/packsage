@@ -449,7 +449,7 @@ class NativeStorageReaderTest {
         var first = observation.entries().getFirst();
         assertEquals(new Evidence.JsonString("item"), first.payload().values().get("section"));
         assertEquals(new Evidence.JsonString("minecraft:diamond_pickaxe"), first.payload().values().get("id"));
-        assertEquals("storage-entry:item:native:inventory:fixture:main:5", first.source().handle());
+        assertEquals("storage-entry:item:native:inventory:fixture:main:5", first.source().sourceHandle());
         var eligibility = (Evidence.JsonObject) first.payload().values().get("enchantmentEligibility");
         assertNotNull(eligibility);
         assertTrue(eligibility.values().containsKey("status"));

@@ -16,6 +16,18 @@ import net.minecraft.world.entity.animal.horse.Horse;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.AnvilMenu;
+import net.minecraft.world.inventory.CartographyTableMenu;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.CrafterMenu;
+import net.minecraft.world.inventory.CraftingMenu;
+import net.minecraft.world.inventory.EnchantmentMenu;
+import net.minecraft.world.inventory.GrindstoneMenu;
+import net.minecraft.world.inventory.LoomMenu;
+import net.minecraft.world.inventory.MerchantMenu;
+import net.minecraft.world.inventory.MerchantResultSlot;
+import net.minecraft.world.inventory.NonInteractiveResultSlot;
+import net.minecraft.world.inventory.StonecutterMenu;
 import net.minecraft.world.inventory.FurnaceFuelSlot;
 import net.minecraft.world.inventory.FurnaceMenu;
 import net.minecraft.world.inventory.FurnaceResultSlot;
@@ -105,6 +117,37 @@ class NativeStorageReaderTest {
         assertEquals("minecraft:stone", ((Evidence.JsonString) ((captured.entries().get(1).payload()).values().get("id"))).value());
         assertNotEquals(captured.entries().getFirst().source().sourceHandle(),
                 captured.entries().get(1).source().sourceHandle());
+    }
+
+    @Test
+    void projectionKindRecognizesVanillaResultSlots() {
+        assertEquals("recipe_preview", NativeStorageReader.projectionKind(CraftingMenu.class, ResultSlot.class, 0, -1));
+        assertEquals("recipe_preview", NativeStorageReader.projectionKind(CrafterMenu.class, NonInteractiveResultSlot.class, 45, -1));
+        assertEquals("trade_preview", NativeStorageReader.projectionKind(MerchantMenu.class, MerchantResultSlot.class, 2, -1));
+        assertEquals("recipe_preview", NativeStorageReader.projectionKind(GrindstoneMenu.class, Slot.class, 2, -1));
+        assertEquals("recipe_preview", NativeStorageReader.projectionKind(StonecutterMenu.class, Slot.class, 1, -1));
+        assertEquals("recipe_preview", NativeStorageReader.projectionKind(LoomMenu.class, Slot.class, 3, -1));
+        assertEquals("recipe_preview", NativeStorageReader.projectionKind(CartographyTableMenu.class, Slot.class, 2, -1));
+        assertEquals("recipe_preview", NativeStorageReader.projectionKind(AnvilMenu.class, Slot.class, 2, 2));
+        assertNull(NativeStorageReader.projectionKind(GrindstoneMenu.class, Slot.class, 0, -1));
+        assertNull(NativeStorageReader.projectionKind(EnchantmentMenu.class, Slot.class, 0, -1));
+        assertNull(NativeStorageReader.projectionKind(ChestMenu.class, Slot.class, 2, -1));
+    }
+
+    @Test
+    void openedCaptureExcludesPreviewSlotsWithoutLosingCompleteCoverage() {
+        var menu = new TestMenu();
+        var stock = new SimpleContainer(1);
+        stock.setItem(0, new ItemStack(Items.OAK_PLANKS, 4));
+        var result = new SimpleContainer(1);
+        result.setItem(0, new ItemStack(Items.CRAFTING_TABLE));
+        menu.slots.add(new Slot(stock, 0, 0, 0));
+        menu.slots.add(new NonInteractiveResultSlot(result, 0, 0, 0));
+        var captured = NativeStorageReader.openedEntries(menu, new SimpleContainer(1), FIRST, Instant.EPOCH,
+                RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY));
+        assertEquals(List.of("minecraft:oak_planks"), captured.entries().stream().map(Evidence.Record::title).toList());
+        assertEquals(List.of("1=recipe_preview"), captured.projections());
+        assertEquals(Evidence.Coverage.COMPLETE, captured.coverage());
     }
 
     @Test

@@ -36,9 +36,13 @@ final class NativeRecipeReader {
                 : new Page(List.of(), recipeCount, true, 0, false);
         if (!readableRecipes) ordinary = new Page(ordinary.records(), ordinary.nextOffset(), ordinary.exhausted(),
                 ordinary.scanned(), true);
-        if (!ordinary.exhausted()) return ordinary;
+        int brewingCount = NativeBrewingReader.candidateCount(client.level.potionBrewing(), client.level.registryAccess());
+        if (!ordinary.exhausted()) return new Page(ordinary.records(), ordinary.nextOffset(), false, ordinary.scanned(),
+                ordinary.partial(), progressDetail(startOffset, ordinary.nextOffset(), recipeCount, brewingCount,
+                ordinary.records().size(), true));
         if (ordinary.records().size() == limit) return new Page(ordinary.records(), recipeCount, false,
-                ordinary.scanned(), ordinary.partial());
+                ordinary.scanned(), ordinary.partial(), progressDetail(startOffset, recipeCount, recipeCount, brewingCount,
+                ordinary.records().size(), true));
         var brewing = NativeBrewingReader.searchCandidates(client.level.potionBrewing(), client.level.registryAccess(),
                 itemRegistry, client.getResourceManager(), outputItem, text, Math.max(0, startOffset - recipeCount),
                 limit - ordinary.records().size(), scope);
@@ -46,7 +50,16 @@ final class NativeRecipeReader {
         combined.addAll(brewing.records());
         int nextOffset = recipeCount + brewing.nextOffset();
         return new Page(combined, nextOffset, brewing.exhausted(), ordinary.scanned() + brewing.scanned(),
-                ordinary.partial() || brewing.partial());
+                ordinary.partial() || brewing.partial(), progressDetail(startOffset, nextOffset, recipeCount, brewingCount,
+                combined.size(), !brewing.exhausted()));
+    }
+
+    static String progressDetail(int startOffset, int nextOffset, int ordinaryCount, int brewingCount, int matches,
+                                 boolean hasContinuation) {
+        return "scanned=" + startOffset + "-" + nextOffset + " of " + (ordinaryCount + brewingCount)
+                + " (ordinary recipes " + ordinaryCount + ", brewing candidates " + brewingCount + "); phase="
+                + (nextOffset <= ordinaryCount ? "ordinary" : "brewing") + "; matches=" + matches
+                + (matches == 0 && hasContinuation ? "; no matches in this range; continue with the cursor to scan the rest" : "");
     }
 
     static Page searchCandidates(List<?> orderedRecipes, HolderLookup.Provider registries,
@@ -102,13 +115,18 @@ final class NativeRecipeReader {
         return new PlanPage(List.copyOf(result), recipes.size() > MAX_CANDIDATES || brewing.partial() || !brewing.exhausted());
     }
 
-    record Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, int scanned, boolean partial) {
+    record Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, int scanned, boolean partial,
+                String detail) {
         Page {
             records = List.copyOf(records);
         }
 
+        Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, int scanned, boolean partial) {
+            this(records, nextOffset, exhausted, scanned, partial, null);
+        }
+
         Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, int scanned) {
-            this(records, nextOffset, exhausted, scanned, false);
+            this(records, nextOffset, exhausted, scanned, false, null);
         }
     }
 

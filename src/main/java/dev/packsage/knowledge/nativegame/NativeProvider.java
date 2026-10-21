@@ -321,7 +321,7 @@ public final class NativeProvider implements KnowledgeProvider {
                 boolean partial = page.partial() || !page.exhausted()
                         || page.records().stream().anyMatch(record -> record.source().coverage() != Evidence.Coverage.COMPLETE);
                 var result = new Evidence.Result(page.records(), partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                        partial ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE, next);
+                        partial ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE, next, page.detail());
                 return publish(result, request.scope());
             });
         } catch (Toolbox.Failure failure) {

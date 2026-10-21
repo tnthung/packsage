@@ -399,8 +399,9 @@ class NativeStorageReaderTest {
                 "native:inventory:fixture:main:5", FIRST, registries, Instant.EPOCH, 0);
 
         assertEquals(Evidence.Coverage.COMPLETE, observation.coverage());
-        assertEquals(1, observation.entries().size());
-        var containerEntry = observation.entries().getFirst();
+        assertEquals(2, observation.entries().size());
+        assertEquals(new Evidence.JsonString("item"), observation.entries().getFirst().payload().values().get("section"));
+        var containerEntry = observation.entries().get(1);
         var containerPayload = containerEntry.payload();
         assertEquals("native:inventory:fixture:main:5", ((Evidence.JsonString) containerPayload.values().get("slotReference")).value());
         assertEquals("container", ((Evidence.JsonString) ((containerPayload).values().get("storageType"))).value());
@@ -413,7 +414,7 @@ class NativeStorageReaderTest {
         var bundleObservation = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("offhand", 0, "offhand", false, bundle),
                 "native:inventory:fixture:offhand:0", FIRST, registries, Instant.EPOCH, 0);
         assertEquals(Evidence.Coverage.COMPLETE, bundleObservation.coverage());
-        var bundlePayload = bundleObservation.entries().getFirst().payload();
+        var bundlePayload = bundleObservation.entries().get(1).payload();
         assertEquals("native:inventory:fixture:offhand:0", ((Evidence.JsonString) bundlePayload.values().get("slotReference")).value());
         assertEquals(0, ((Evidence.JsonNumber) ((bundlePayload).values().get("componentSlot"))).value().intValueExact());
         assertEquals(3, ((Evidence.JsonNumber) ((bundlePayload).values().get("count"))).value().intValueExact());
@@ -424,7 +425,7 @@ class NativeStorageReaderTest {
         var changedContents = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false, shulker),
                 "native:inventory:fixture:main:5", FIRST, registries, Instant.EPOCH, 0);
         assertEquals(observation.details().get("ownerIdentity"), changedContents.details().get("ownerIdentity"));
-        assertEquals(new Evidence.JsonString("minecraft:diamond"), changedContents.entries().getFirst().payload().values().get("id"));
+        assertEquals(new Evidence.JsonString("minecraft:diamond"), changedContents.entries().get(1).payload().values().get("id"));
 
         var owners = ((Evidence.JsonArray) ((new Evidence.JsonObject(observation.details())).values().get("owners")));
         assertTrue(((Evidence.JsonObject) (owners.values().getFirst())).values().containsKey("components"));
@@ -480,7 +481,7 @@ class NativeStorageReaderTest {
         var registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
         var observation = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false, held),
                 "native:inventory:fixture:main:5", FIRST, registries, Instant.EPOCH, 0);
-        assertEquals(1, observation.entries().size());
+        assertEquals(2, observation.entries().size());
         assertFalse(((Evidence.JsonObject) observation.entries().getFirst().payload().values().get("components"))
                 .values().containsKey("minecraft:container"));
 
@@ -642,7 +643,7 @@ class NativeStorageReaderTest {
         var recognizedEmpty = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false, shulker),
                 "native:inventory:fixture:main:5", FIRST, registries, Instant.EPOCH, 0);
         assertEquals(Evidence.Coverage.COMPLETE, recognizedEmpty.coverage());
-        assertTrue(recognizedEmpty.entries().isEmpty());
+        assertEquals(1, recognizedEmpty.entries().size());
         var ownerDetails = new Evidence.JsonObject(recognizedEmpty.details());
         var ownerStatuses = ((Evidence.JsonArray) ((ownerDetails).values().get("owners"))).values().stream()
                 .map(value -> ((Evidence.JsonString) ((((Evidence.JsonObject) (value))).values().get("storageStatus"))).value()).toList();
@@ -652,14 +653,15 @@ class NativeStorageReaderTest {
         var unsupported = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false, new ItemStack(Items.STONE)),
                 "native:inventory:fixture:main:5", FIRST,
                 registries, Instant.EPOCH, 0);
-        assertEquals(Evidence.Coverage.UNAVAILABLE, unsupported.coverage());
-        assertEquals(List.of(), unsupported.entries());
-        assertEquals(Evidence.Outcome.UNKNOWN, NativeStorageReader.pageRecords(unsupported.entries(),
-                new StorageReader.Request(StorageReader.Target.ITEM, "native:inventory:fixture:main:5", null, List.of(), 1, null, FIRST), 0, "held",
-                unsupported.coverage(), Instant.EPOCH).outcome());
+        assertEquals(Evidence.Coverage.COMPLETE, unsupported.coverage());
+        assertEquals(1, unsupported.entries().size());
         var empty = NativeStorageReader.itemObservation(new NativeInventoryReader.LocatedItem("main", 5, null, false, ItemStack.EMPTY),
                 "native:inventory:fixture:main:5", FIRST, registries, Instant.EPOCH, 0);
         assertEquals(Evidence.Coverage.UNAVAILABLE, empty.coverage());
+        assertEquals(List.of(), empty.entries());
+        assertEquals(Evidence.Outcome.UNKNOWN, NativeStorageReader.pageRecords(empty.entries(),
+                new StorageReader.Request(StorageReader.Target.ITEM, "native:inventory:fixture:main:5", null, List.of(), 1, null, FIRST), 0, "held",
+                empty.coverage(), Instant.EPOCH).outcome());
     }
 
     @Test
@@ -686,13 +688,16 @@ class NativeStorageReaderTest {
         var wrong = reader.read(new StorageReader.Request(StorageReader.Target.ITEM,
                 "native:inventory:other:main:5", null, List.of(), 1, first.nextCursor(), FIRST)).toCompletableFuture().join();
         assertEquals(Evidence.Outcome.UNKNOWN, wrong.outcome());
-        var next = reader.read(new StorageReader.Request(StorageReader.Target.ITEM,
+        var second = reader.read(new StorageReader.Request(StorageReader.Target.ITEM,
                 "native:inventory:fixture:main:5", null, List.of(), 1, first.nextCursor(), FIRST)).toCompletableFuture().join();
+        assertNotNull(second.nextCursor());
+        var next = reader.read(new StorageReader.Request(StorageReader.Target.ITEM,
+                "native:inventory:fixture:main:5", null, List.of(), 1, second.nextCursor(), FIRST)).toCompletableFuture().join();
         assertEquals(Evidence.Coverage.COMPLETE, next.coverage());
         assertNull(next.nextCursor());
         var entry = (Evidence.JsonObject) ((Evidence.JsonArray) next.records().getFirst().payload().values().get("entries")).values().getFirst();
         assertEquals("minecraft:stone", ((Evidence.JsonString) ((Evidence.JsonObject) entry.values().get("payload")).values().get("id")).value());
-        assertEquals(2, resolved.size());
+        assertEquals(3, resolved.size());
     }
 
     @Test

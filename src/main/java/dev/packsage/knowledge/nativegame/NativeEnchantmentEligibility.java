@@ -14,6 +14,7 @@ import java.util.Map;
 
 public final class NativeEnchantmentEligibility {
     static final int MAX_ENCHANTMENTS = 512;
+    static final int MAX_EXCLUSIVE = 32;
 
     private NativeEnchantmentEligibility() {
     }
@@ -36,6 +37,8 @@ public final class NativeEnchantmentEligibility {
             failures++;
         }
         var supported = new ArrayList<Evidence.JsonValue>();
+        var entries = new ArrayList<LinkedHashMap<String, Evidence.JsonValue>>();
+        var supportedHolders = new ArrayList<Holder.Reference<Enchantment>>();
         int inspected = 0;
         boolean bounded = false;
         for (var holder : holders) {
@@ -58,10 +61,33 @@ public final class NativeEnchantmentEligibility {
                 entry.put("primary", new Evidence.JsonBoolean(stack.isPrimaryItemFor(holder)));
                 entry.put("compatibleWithCurrent", new Evidence.JsonBoolean(compatible));
                 entry.put("currentLevel", new Evidence.JsonNumber(new BigDecimal(current.getLevel(holder))));
-                supported.add(new Evidence.JsonObject(entry));
+                entries.add(entry);
+                supportedHolders.add(holder);
             } catch (RuntimeException exception) {
                 failures++;
             }
+        }
+        for (int index = 0; index < entries.size(); index++) {
+            var exclusive = new java.util.TreeSet<String>();
+            for (int other = 0; other < supportedHolders.size(); other++) {
+                if (other == index) continue;
+                try {
+                    if (!Enchantment.areCompatible(supportedHolders.get(index), supportedHolders.get(other))) {
+                        exclusive.add(supportedHolders.get(other).key().location().toString());
+                    }
+                } catch (RuntimeException exception) {
+                    failures++;
+                }
+            }
+            var ids = new ArrayList<Evidence.JsonValue>();
+            for (var id : exclusive) {
+                if (ids.size() >= MAX_EXCLUSIVE) break;
+                ids.add(new Evidence.JsonString(id));
+            }
+            var entry = entries.get(index);
+            entry.put("exclusiveWith", new Evidence.JsonArray(ids));
+            if (exclusive.size() > MAX_EXCLUSIVE) entry.put("exclusiveWithStatus", new Evidence.JsonString("bounded"));
+            supported.add(new Evidence.JsonObject(entry));
         }
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
         Evidence.JsonValue enchantable;

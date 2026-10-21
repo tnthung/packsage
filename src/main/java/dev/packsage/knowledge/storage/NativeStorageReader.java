@@ -511,7 +511,9 @@ public final class NativeStorageReader implements StorageReader {
                     registries.lookupOrThrow(net.minecraft.core.registries.Registries.ENCHANTMENT));
             partial |= !dev.packsage.knowledge.nativegame.NativeEnchantmentEligibility.complete(eligibility);
         } catch (RuntimeException failure) {
-            eligibility = new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unavailable")));
+            eligibility = new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unavailable"),
+                    "detail", new Evidence.JsonString("enchantment registry unavailable")));
+            partial = true;
         }
         payload.put("enchantmentEligibility", eligibility);
         if (stack.has(DataComponents.CONTAINER) || stack.has(DataComponents.BUNDLE_CONTENTS)) {

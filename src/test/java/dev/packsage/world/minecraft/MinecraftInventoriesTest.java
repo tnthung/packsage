@@ -117,6 +117,16 @@ class MinecraftInventoriesTest {
         assertNull(facts.get("customName"));
     }
 
+    @Test
+    void eligibilityReportsUnavailableWhenRegistriesFail() {
+        var failing = new MinecraftInventories(() -> {
+            throw new IllegalStateException("no registries");
+        });
+        var eligibility = (Evidence.JsonObject) failing.inspectItem(new ItemStack(Items.IRON_SWORD)).values().get("enchantmentEligibility");
+        assertEquals(new Evidence.JsonString("unavailable"), eligibility.values().get("status"));
+        assertEquals(new Evidence.JsonString("no registries"), eligibility.values().get("detail"));
+    }
+
     private static InventoryInfo only(List<InventoryInfo> infos) {
         assertEquals(1, infos.size());
         return infos.getFirst();

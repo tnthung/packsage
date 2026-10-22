@@ -27,7 +27,8 @@ import java.util.Set;
  * Sliced block and entity scans in a sphere around a center. Block scans take one non-empty 16x16x16 chunk section
  * per step and entity scans one chunk per step. A chunk that is not loaded when its step runs, or unloads while its
  * sections are read, is counted, never loaded, and makes the page PARTIAL. List cursors are
- * {@code <chunk index>:<matches to skip in that chunk>} and stay stable for the same level, center and radius.
+ * {@code <chunk index>:<matches to skip in that chunk>} and stay stable for the same level, center and radius. A scan
+ * asked to stop early at the call's work budget notes how far it got; a list continues from a cursor at that chunk.
  */
 public final class AreaScan {
     public static final int SUMMARY_NOTABLE = 4096;
@@ -105,6 +106,20 @@ public final class AreaScan {
         return chunks;
     }
 
+    /**
+     * Where a list stopped early continues: the chunk it stopped in, skipping the matches seen in that chunk so far
+     * when it was inside it, and never fewer than the matches an earlier page returned from it.
+     */
+    static Cursor resumeCursor(int chunk, int skip, boolean insideChunk, int seen) {
+        return new Cursor(chunk, insideChunk ? Math.max(seen, skip) : skip);
+    }
+
+    /** The note of a scan stopped at the call's work limit; scans without a cursor point at narrower reads. */
+    static String stopNote(int scanned, int total, boolean continues) {
+        return "Stopped at the per-call work limit after scanning " + scanned + " of " + total + " chunks; "
+                + (continues ? "continue with the cursor" : "use a smaller radius, or list_blocks with a filter");
+    }
+
     /** Whether the section starting at baseY has any block within minY..maxY. */
     static boolean sectionOverlaps(int baseY, int minY, int maxY) {
         return baseY + SECTION_SIZE - 1 >= minY && baseY <= maxY;
@@ -133,6 +148,7 @@ public final class AreaScan {
         int next;
         int unloaded;
         String nextCursor;
+        boolean stopped;
         private LevelChunk current;
         private int section;
 
@@ -149,7 +165,7 @@ public final class AreaScan {
 
         @Override
         public boolean step() {
-            if (nextCursor != null) {
+            if (stopped || nextCursor != null) {
                 return false;
             }
             if (current == null) {
@@ -186,6 +202,23 @@ public final class AreaScan {
             }
             scanSection(current, section++, next);
             return hasMore();
+        }
+
+        /** Stops between steps; lists continue from a cursor at the chunk they stopped in. */
+        @Override
+        public boolean stopEarly() {
+            if (!hasMore()) {
+                return true;
+            }
+            stopped = true;
+            nextCursor = stopCursor(current != null);
+            notes.add(stopNote(next, chunks.size(), nextCursor != null));
+            return true;
+        }
+
+        /** The cursor continuing a scan stopped at chunk {@code next}, or null when the scan has no cursor. */
+        String stopCursor(boolean insideChunk) {
+            return null;
         }
 
         private void leaveChunk() {
@@ -282,7 +315,20 @@ public final class AreaScan {
         }
 
         @Override
+        String stopCursor(boolean insideChunk) {
+            return resumeCursor(next, skip(next), insideChunk, seenInChunk()).text();
+        }
+
+        /** Matches seen so far in the chunk being read section by section. */
+        int seenInChunk() {
+            return 0;
+        }
+
+        @Override
         public Page<T> result() {
+            if (nextCursor != null && !stopped) {
+                notes.add("This page holds " + LIST_PAGE + " matches, the page limit; continue with the cursor");
+            }
             return page(items);
         }
     }
@@ -365,6 +411,11 @@ public final class AreaScan {
         @Override
         void enterChunk(int index) {
             seen = 0;
+        }
+
+        @Override
+        int seenInChunk() {
+            return seen;
         }
 
         @Override

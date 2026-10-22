@@ -848,7 +848,7 @@ public final class NativeStorageReader implements StorageReader {
 
     private static Evidence.Authority authority(Observation observation) {
         if (observation.coverage() == Evidence.Coverage.UNAVAILABLE) return Evidence.Authority.UNKNOWN;
-        if (observation.provenance().contains("private_integrated_owner")) return Evidence.Authority.SERVER_READ;
+        if (observation.provenance().contains("integrated_server_read")) return Evidence.Authority.SERVER_READ;
         if (observation.provenance().contains("synchronized-item-components")) return Evidence.Authority.LOADED;
         if (observation.coverage() == Evidence.Coverage.UNAVAILABLE) return Evidence.Authority.UNKNOWN;
         return Evidence.Authority.VIEWER;

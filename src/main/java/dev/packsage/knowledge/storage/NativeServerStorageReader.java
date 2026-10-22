@@ -218,13 +218,13 @@ final class NativeServerStorageReader {
         stateValues.put("positions", new Evidence.JsonArray(positions));
         stateValues.put("ownerIdentity", new Evidence.JsonString(blockId + ":" + level.dimension().location() + ":"
                 + pos.asLong() + ":" + selection.blockState()));
-        stateValues.put("observation", new Evidence.JsonString("private_integrated_owner"));
+        stateValues.put("observation", new Evidence.JsonString("integrated_server_read"));
         stateValues.put("contentsStatus", new Evidence.JsonString("complete"));
         var coverage = entries.stream().anyMatch(entry -> entry.source().coverage() != Evidence.Coverage.COMPLETE)
                 ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
         if (coverage == Evidence.Coverage.COMPLETE) stateValues.put("emptySlots", new Evidence.JsonArray(emptySlots));
         return new NativeStorageReader.Observation(entries, scope, capturedAt, monotonicClock.getAsLong(), blockId.toString(),
-                stateValues, coverage, List.of("private_integrated_owner", "server-read:block:" + blockId,
+                stateValues, coverage, List.of("integrated_server_read", "server-read:block:" + blockId,
                 "dimension:" + level.dimension().location(), "position:" + pos, "player:" + player.getUUID()));
     }
 
@@ -248,12 +248,12 @@ final class NativeServerStorageReader {
         details.put("id", new Evidence.JsonString(identity == null ? "unknown:entity" : identity.toString()));
         details.put("ownerIdentity", new Evidence.JsonString(entity.getUUID() + ":" + player.serverLevel().dimension().location()));
         details.put("entityIdentity", new Evidence.JsonString(entity.getUUID().toString()));
-        details.put("observation", new Evidence.JsonString("private_integrated_owner"));
+        details.put("observation", new Evidence.JsonString("integrated_server_read"));
         details.put("contentsStatus", new Evidence.JsonString("complete"));
         var coverage = entries.stream().anyMatch(entry -> entry.source().coverage() != Evidence.Coverage.COMPLETE)
                 ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
         return new NativeStorageReader.Observation(entries, scope, capturedAt, monotonicClock.getAsLong(), "Vehicle cargo", details,
-                coverage, List.of("private_integrated_owner", "server-read:vehicle-container",
+                coverage, List.of("integrated_server_read", "server-read:vehicle-container",
                 "dimension:" + player.serverLevel().dimension().location(), "entity:" + entity.getUUID(), "player:" + player.getUUID()));
     }
 
@@ -287,12 +287,12 @@ final class NativeServerStorageReader {
         details.put("id", new Evidence.JsonString(identity == null ? "unknown:horse" : identity.toString()));
         details.put("ownerIdentity", new Evidence.JsonString(horse.getUUID() + ":" + player.serverLevel().dimension().location()));
         details.put("entityIdentity", new Evidence.JsonString(horse.getUUID().toString()));
-        details.put("observation", new Evidence.JsonString("private_integrated_owner"));
+        details.put("observation", new Evidence.JsonString("integrated_server_read"));
         details.put("contentsStatus", new Evidence.JsonString("complete"));
         var coverage = entries.stream().anyMatch(entry -> entry.source().coverage() != Evidence.Coverage.COMPLETE)
                 ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
         return new NativeStorageReader.Observation(entries, scope, capturedAt, monotonicClock.getAsLong(), "Horse inventory", details,
-                coverage, List.of("private_integrated_owner", "server-read:horse",
+                coverage, List.of("integrated_server_read", "server-read:horse",
                 "dimension:" + player.serverLevel().dimension().location(), "entity:" + horse.getUUID(), "player:" + player.getUUID()));
     }
 
@@ -359,7 +359,7 @@ final class NativeServerStorageReader {
         var source = new Evidence.Source(scope, "native", "1.21.1", "server-storage-entry:" + scope.worldSession() + ":"
                 + ownerIdentity + ":" + section + ":" + sourceSlot + ":" + slot,
                 scope.requestGeneration(), capturedAt, Evidence.Activity.ACTIVE, partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                Evidence.Authority.SERVER_READ, List.of("private_integrated_owner", "server-read", "serialized-item-components"));
+                Evidence.Authority.SERVER_READ, List.of("integrated_server_read", "server-read", "serialized-item-components"));
         return new Evidence.Record(source, Evidence.RecordKind.ITEM, identity, new Evidence.JsonObject(payload), List.of());
     }
 
@@ -419,7 +419,7 @@ final class NativeServerStorageReader {
                 "completeness", new Evidence.JsonString("unknown"));
         return new NativeStorageReader.Observation(List.of(), scope, Instant.now(), monotonicClock.getAsLong(),
                 request.target().name().toLowerCase(java.util.Locale.ROOT), details, Evidence.Coverage.UNAVAILABLE,
-                List.of("private_integrated_owner", reason));
+                List.of("integrated_server_read", reason));
     }
 
     private record Selection(StorageReader.Target target, UUID playerId, ResourceKey<Level> dimension,

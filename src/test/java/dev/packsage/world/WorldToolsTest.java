@@ -197,6 +197,38 @@ class WorldToolsTest {
     }
 
     @Test
+    void everyBlockOrEntityHolderOfAnEntryGetsALinkableRecord() {
+        var tools = tools();
+        var request = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject("{\"filter\":{\"ids\":[\"minecraft:stone\"]}}"), SCOPE);
+        var chestA = "block:minecraft:overworld|1,64,2";
+        var chestB = "block:minecraft:overworld|5,64,2";
+        var mule = "entity:3f1c2a4e-0000-4000-8000-000000000002";
+        var stone = new ItemEntry("minecraft:stone", "Stone", 96, 1, java.util.List.of(
+                ItemPath.parse("player:" + ENTITY + ">minecraft/main#0@minecraft:stone"),
+                ItemPath.parse(chestA + ">minecraft/container#3@minecraft:stone"),
+                ItemPath.parse(chestB + ">minecraft/container#0@minecraft:shulker_box>minecraft/container#1@minecraft:stone"),
+                ItemPath.parse(mule + ">minecraft/chest#2@minecraft:stone")), false);
+        var dirt = new ItemEntry("minecraft:dirt", "Dirt", 3, 1, java.util.List.of(
+                ItemPath.parse(chestA + ">minecraft/container#4@minecraft:dirt")), false);
+
+        var page = tools.entries(request, new WorldTools.EntriesState(java.util.List.of(stone, dirt), null, Evidence.Coverage.COMPLETE, null),
+                Evidence.Coverage.COMPLETE, null);
+
+        var linked = new java.util.HashMap<String, String>();
+        for (var record : page.records()) {
+            for (var target : record.targets()) {
+                assertEquals(record.source().sourceHandle(), target.sourceHandle(), "a link opens only from a record with its handle");
+                linked.put(target.sourceHandle(), target.targetId());
+            }
+        }
+        assertEquals("world-block|minecraft:overworld|1,64,2", linked.get("block|minecraft:overworld|1,64,2"));
+        assertEquals("world-block|minecraft:overworld|5,64,2", linked.get("block|minecraft:overworld|5,64,2"));
+        assertEquals("world-entity|3f1c2a4e-0000-4000-8000-000000000002", linked.get("entity|3f1c2a4e-0000-4000-8000-000000000002"));
+        assertEquals(1, page.records().stream().filter(record -> record.source().sourceHandle().equals("block|minecraft:overworld|1,64,2")).count(),
+                "a holder shared by entries gets one record");
+    }
+
+    @Test
     void continuationPagesKeepTheFirstPagesPartialCoverageAndNotes() {
         var tools = tools();
         var arguments = Evidence.deserializeObject("{\"filter\":{\"ids\":[\"minecraft:stone\"]}}");

@@ -130,6 +130,21 @@ class ServerWorkTest {
         assertEquals(400, finished.join());
     }
 
+    @Test
+    void anErrorFromASliceFailsItsReadAndLeavesOtherReadsRunning() {
+        var work = new ServerWork(clock::get);
+        CompletableFuture<Integer> broken = work.run(new ServerWork.Slice<Integer>() {
+            @Override public boolean step() { throw new LinkageError("adapter class missing"); }
+
+            @Override public Integer result() { return 0; }
+        }, () -> true).toCompletableFuture();
+        CompletableFuture<Integer> healthy = work.run(new Costly("a", 1, 2, new ArrayList<>()), () -> true).toCompletableFuture();
+        work.tick();
+        assertTrue(broken.isCompletedExceptionally());
+        assertInstanceOf(LinkageError.class, broken.handle((value, failure) -> failure.getCause() == null ? failure : failure.getCause()).join());
+        assertEquals(2, healthy.join());
+    }
+
     private static void assertUnavailable(CompletableFuture<?> future) {
         assertTrue(future.isCompletedExceptionally());
         try {

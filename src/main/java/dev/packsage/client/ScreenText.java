@@ -28,7 +28,7 @@ final class ScreenText {
     static final int CODE_COLOR = 0xffd27f;
     static final int DIM_COLOR = 0x808080;
     private static final String CELL_GAP = "   ";
-    private static final Pattern CITATION_MARKER = Pattern.compile("\\[(native|config|history):([^\\]\\s]+)\\]");
+    private static final Pattern CITATION_MARKER = Pattern.compile("\\[(native|config|history|world):([^\\]\\s]+)\\]");
     private static final String BULLET = "• ";
     private static final String SEPARATOR = " · ";
     private static final Pattern HEADING = Pattern.compile("^(#{1,6}) +(.*)$");

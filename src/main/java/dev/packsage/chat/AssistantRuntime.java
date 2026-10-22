@@ -339,10 +339,10 @@ public final class AssistantRuntime implements ChatActions {
             activeWorld = world != null && holder != null && holder.world.worldOrServer().equals(world.worldOrServer());
         }
         if (!activeWorld || !holder.loaded || holder.knowledge == null || holder.knowledgeUnavailable) return Map.ofEntries(
-                Map.entry("native", false), Map.entry("config", false), Map.entry("history", false));
+                Map.entry("native", false), Map.entry("config", false), Map.entry("world", false), Map.entry("history", false));
         var availability = new java.util.LinkedHashMap<String, Boolean>();
         Map<String, Boolean> providers = holder.knowledge.adapterAvailability();
-        for (String id : List.of("native", "config")) {
+        for (String id : List.of("native", "config", "world")) {
             availability.put(id, providers.getOrDefault(id, false));
         }
         availability.put("history", true);

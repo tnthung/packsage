@@ -13,6 +13,11 @@ import dev.packsage.model.GroundingInstructions;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.chatgpt.ChatGptAuth;
 import dev.packsage.model.chatgpt.ChatGptBackend;
+import dev.packsage.world.WorldRegistry;
+import dev.packsage.world.WorldTools;
+import dev.packsage.world.minecraft.MinecraftEntities;
+import dev.packsage.world.minecraft.MinecraftInventories;
+import dev.packsage.world.minecraft.MinecraftWorld;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.EditBox;
@@ -340,6 +345,11 @@ public final class ClientAssistant {
         var providers = new ArrayList<KnowledgeProvider>();
         providers.add(new NativeProvider(client, workerExecutor, scope));
         providers.add(ConfigProvider.production(configRoots(), clientExecutor, workerExecutor, client::isSameThread));
+        var world = new WorldRegistry();
+        world.register(new MinecraftInventories(() -> client.getSingleplayerServer().registryAccess()));
+        world.register(new MinecraftWorld());
+        world.register(new MinecraftEntities());
+        providers.add(new WorldTools(client, world, scope));
         return new KnowledgeService(providers, scope);
     }
 

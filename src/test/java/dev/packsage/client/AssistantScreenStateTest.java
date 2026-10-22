@@ -26,12 +26,12 @@ class AssistantScreenStateTest {
         var first = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, true, 0, 640, 480);
         assertEquals(List.of("native"), first.rows().stream().map(java.util.Map.Entry::getKey).toList());
         var firstAll = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 0, 640, 480);
-        assertEquals(List.of("native", "config", "history"), firstAll.rows().stream().map(java.util.Map.Entry::getKey).toList());
+        assertEquals(List.of("native", "config", "world", "history"), firstAll.rows().stream().map(java.util.Map.Entry::getKey).toList());
         assertEquals(0, firstAll.offset());
-        assertEquals(78, firstAll.height());
+        assertEquals(92, firstAll.height());
         var last = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 100, 640, 100);
-        assertEquals(1, last.offset());
-        assertEquals(List.of("config", "history"), last.rows().stream().map(java.util.Map.Entry::getKey).toList());
+        assertEquals(2, last.offset());
+        assertEquals(List.of("world", "history"), last.rows().stream().map(java.util.Map.Entry::getKey).toList());
         assertEquals(2, last.visibleRows());
         assertEquals(1, AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 0, 640, 82).visibleRows());
     }
@@ -45,9 +45,9 @@ class AssistantScreenStateTest {
         assertEquals(first.tooltipWidth(), last.tooltipWidth());
         assertTrue(first.tooltipWidth() >= 20 + 10 + 5 * "NeoForge configs".length() + 8);
         assertEquals(28, first.scrollTrackHeight());
-        assertEquals(18, first.scrollThumbHeight());
+        assertEquals(14, first.scrollThumbHeight());
         assertEquals(0, first.scrollThumbOffset());
-        assertEquals(10, last.scrollThumbOffset());
+        assertEquals(14, last.scrollThumbOffset());
         assertEquals(0, AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(),
                 java.util.Map.of("native", true), true, 0, 640, 480).scrollTrackHeight());
     }

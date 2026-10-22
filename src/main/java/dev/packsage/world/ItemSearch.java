@@ -4,14 +4,26 @@ import dev.packsage.knowledge.Evidence;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Searches holders for matching items, one holder per step, inspecting at most {@link #PAGE_CONTAINERS} containers per page. */
+/**
+ * Searches holders for matching items, one container per step, inspecting at most {@link #PAGE_CONTAINERS} containers
+ * per page. Each holder's containers are walked depth first: the holder itself is container 0, then each item that
+ * holds items, in entry order. Cursors are {@code <holder>} to start a fresh holder or {@code <holder>.<container>}
+ * to resume at that 0-based container of the holder's walk; the containers before it are walked again without
+ * reporting, since their matches belong to the earlier page.
+ */
 public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
     public static final int PAGE_CONTAINERS = 512;
+
+    private record Container(ItemPath path, LiveHolder holder, Page<InventoryInfo> inventories) {
+    }
 
     private final WorldRegistry registry;
     private final List<Map.Entry<PathRoot, LiveHolder>> holders;
@@ -19,47 +31,100 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
     private final boolean includeNested;
     private final ItemGrouper grouper = new ItemGrouper();
     private final Set<String> notes = new LinkedHashSet<>();
-    private int next;
+    private final Deque<Container> pending = new ArrayDeque<>();
+    private int holder;
+    private boolean started;
+    private int ordinal;
+    private int replayUntil;
     private int containers;
 
-    public ItemSearch(WorldRegistry registry, List<Map.Entry<PathRoot, LiveHolder>> holders, KindFilter filter, boolean includeNested, int startHolder) {
+    /** The cursor is null for the first page, or a {@code nextCursor} from an earlier page over the same holders. */
+    public ItemSearch(WorldRegistry registry, List<Map.Entry<PathRoot, LiveHolder>> holders, KindFilter filter, boolean includeNested, String cursor) {
         this.registry = registry;
         this.holders = List.copyOf(holders);
         this.filter = filter;
         this.includeNested = includeNested;
-        this.next = startHolder;
+        if (cursor != null) {
+            var parts = cursor.split("[.]", -1);
+            if (parts.length > 2) {
+                throw new IllegalArgumentException("Invalid item search cursor: " + cursor);
+            }
+            this.holder = parseIndex(parts[0], cursor);
+            this.replayUntil = parts.length == 2 ? parseIndex(parts[1], cursor) : 0;
+        }
     }
 
     @Override
     public boolean step() {
-        if (next >= holders.size() || containers >= PAGE_CONTAINERS) {
+        if (pending.isEmpty()) {
+            if (started) {
+                holder++;
+                started = false;
+                ordinal = 0;
+                replayUntil = 0;
+            }
+            if (holder >= holders.size() || containers >= PAGE_CONTAINERS) {
+                return false;
+            }
+            var root = holders.get(holder);
+            pending.push(new Container(new ItemPath(root.getKey(), List.of()), root.getValue(), registry.inventories(root.getValue())));
+            started = true;
+        }
+        var replay = ordinal < replayUntil;
+        if (!replay && containers >= PAGE_CONTAINERS) {
             return false;
         }
-        var holder = holders.get(next++);
-        containers++;
-        search(new ItemPath(holder.getKey(), List.of()), holder.getValue(), inventories(holder.getValue()));
-        return next < holders.size() && containers < PAGE_CONTAINERS;
+        var container = pending.pop();
+        ordinal++;
+        if (!replay) {
+            containers++;
+        }
+        search(container, replay);
+        return hasMore();
     }
 
     @Override
     public Page<ItemEntry> result() {
-        var cursor = next < holders.size() ? String.valueOf(next) : null;
+        var cursor = nextCursor();
         var coverage = cursor == null && notes.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
         return new Page<>(grouper.entries(), cursor, coverage, notes.isEmpty() ? null : String.join("; ", notes));
     }
 
-    private void search(ItemPath path, LiveHolder holder, List<InventoryInfo> inventories) {
-        for (var inventory : inventories) {
+    private boolean hasMore() {
+        if (!pending.isEmpty()) {
+            return ordinal < replayUntil || containers < PAGE_CONTAINERS;
+        }
+        return nextHolder() < holders.size() && containers < PAGE_CONTAINERS;
+    }
+
+    private String nextCursor() {
+        if (!pending.isEmpty()) {
+            return holder + "." + ordinal;
+        }
+        return nextHolder() < holders.size() ? String.valueOf(nextHolder()) : null;
+    }
+
+    private int nextHolder() {
+        return started ? holder + 1 : holder;
+    }
+
+    /** Reads one container and queues the items in it that hold items, so they are walked next, in entry order. */
+    private void search(Container container, boolean replay) {
+        if (container.inventories().note() != null) {
+            note(replay, container.inventories().note());
+        }
+        var nested = new ArrayList<Container>();
+        for (var inventory : container.inventories().items()) {
             var reader = registry.inventoryReader(inventory.id().adapter());
             LiveInventory live;
             try {
-                live = reader == null ? null : reader.open(holder, inventory.id().section());
+                live = reader == null ? null : reader.open(container.holder(), inventory.id().section());
             } catch (RuntimeException exception) {
-                notes.add("Reading " + inventory.id().text() + " failed: " + describe(exception));
+                note(replay, "Reading " + inventory.id().text() + " failed: " + describe(exception));
                 continue;
             }
             if (live == null) {
-                notes.add("Inventory " + inventory.id().text() + " could not be opened");
+                note(replay, "Inventory " + inventory.id().text() + " could not be opened");
                 continue;
             }
             for (var entry : live.entries()) {
@@ -68,38 +133,47 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
                     continue;
                 }
                 var kind = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-                var location = path.child(new PathStep(inventory.id(), entry.getKey(), kind));
-                var nested = inventories(new LiveHolder.OfItem(stack));
-                var tags = stack.getTags().map(tag -> tag.location().toString()).toList();
-                if (filter.matches(kind, tags, stack.getHoverName().getString())) {
-                    grouper.add(location, stack, !nested.isEmpty());
+                var location = container.path().child(new PathStep(inventory.id(), entry.getKey(), kind));
+                var item = new LiveHolder.OfItem(stack);
+                var inventories = registry.inventories(item);
+                if (inventories.note() != null) {
+                    note(replay, inventories.note());
                 }
-                if (includeNested && !nested.isEmpty()) {
-                    descend(location, stack, nested);
+                var holdsItems = !inventories.items().isEmpty();
+                if (!replay && filter.matches(kind, stack.getTags().map(tag -> tag.location().toString()).toList(), stack.getHoverName().getString())) {
+                    grouper.add(location, stack, holdsItems);
+                }
+                if (!includeNested || !holdsItems) {
+                    continue;
+                }
+                if (location.steps().size() >= ItemPath.MAX_STEPS) {
+                    note(replay, "Items nested deeper than " + ItemPath.MAX_STEPS + " steps were not searched");
+                } else {
+                    nested.add(new Container(location, item, inventories));
                 }
             }
         }
+        for (var i = nested.size() - 1; i >= 0; i--) {
+            pending.push(nested.get(i));
+        }
     }
 
-    private void descend(ItemPath location, ItemStack stack, List<InventoryInfo> nested) {
-        if (location.steps().size() >= ItemPath.MAX_STEPS) {
-            notes.add("Items nested deeper than " + ItemPath.MAX_STEPS + " steps were not searched");
-            return;
+    private void note(boolean replay, String note) {
+        if (!replay) {
+            notes.add(note);
         }
-        if (containers >= PAGE_CONTAINERS) {
-            notes.add("Some nested containers were not searched after " + PAGE_CONTAINERS + " containers");
-            return;
-        }
-        containers++;
-        search(location, new LiveHolder.OfItem(stack), nested);
     }
 
-    private List<InventoryInfo> inventories(LiveHolder holder) {
-        var page = registry.inventories(holder);
-        if (page.note() != null) {
-            notes.add(page.note());
+    private static int parseIndex(String text, String cursor) {
+        try {
+            var index = Integer.parseInt(text);
+            if (index < 0 || !String.valueOf(index).equals(text)) {
+                throw new IllegalArgumentException("Invalid item search cursor: " + cursor);
+            }
+            return index;
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("Invalid item search cursor: " + cursor, exception);
         }
-        return page.items();
     }
 
     private static String describe(RuntimeException exception) {

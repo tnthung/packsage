@@ -319,8 +319,18 @@ public final class WorldTools implements KnowledgeProvider {
         var next = rest.isEmpty() && state.search() == null ? null : remember(request, new EntriesState(rest, state.search(), sticky, merged));
         if (bound != null) notes.add(bound);
         if (!rest.isEmpty()) notes.add("This page shows " + shown.size() + " entries, the page limit; continue with the cursor");
-        return result(shown.stream().map(entry -> entryRecord(request.scope(), entry)).toList(), sticky, next,
-                notes.isEmpty() ? null : String.join("; ", notes));
+        var records = new ArrayList<Evidence.Record>();
+        var roots = new LinkedHashSet<PathRoot>();
+        for (var entry : shown) {
+            records.add(entryRecord(request.scope(), entry));
+            for (var location : entry.locations()) roots.add(location.root());
+        }
+        // One record per block or entity holder on the page, so each holder has its own highlight link.
+        for (var root : roots) {
+            var holder = holderRecord(request.scope(), root);
+            if (holder != null) records.add(holder);
+        }
+        return result(records, sticky, next, notes.isEmpty() ? null : String.join("; ", notes));
     }
 
     private static Evidence.Result result(List<Evidence.Record> records, Evidence.Coverage coverage, String next, String note) {
@@ -1068,6 +1078,25 @@ public final class WorldTools implements KnowledgeProvider {
         var first = entry.locations().getFirst();
         return evidence(scope, "item|" + first.text(), Evidence.RecordKind.ITEM, entry.name() + " x" + entry.count(), payload,
                 Evidence.Coverage.COMPLETE, rootTarget(first.root()));
+    }
+
+    /** A block or entity holder of listed items, with its highlight target; the player has none. */
+    private static Evidence.Record holderRecord(Evidence.Scope scope, PathRoot root) {
+        var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+        payload.put("holder", text(new ItemPath(root, List.of()).text()));
+        return switch (root) {
+            case PathRoot.Player player -> null;
+            case PathRoot.Block of -> {
+                payload.put("place", text(of.place().text()));
+                yield evidence(scope, "block|" + of.place().text(), Evidence.RecordKind.BLOCK, "Item holder at " + of.place().text(),
+                        payload, Evidence.Coverage.COMPLETE, WorldNavigation.blockId(of.place()));
+            }
+            case PathRoot.Entity of -> {
+                payload.put("id", text(of.id().toString()));
+                yield evidence(scope, "entity|" + of.id(), Evidence.RecordKind.OTHER, "Item holder entity " + of.id(),
+                        payload, Evidence.Coverage.COMPLETE, WorldNavigation.entityId(of.id()));
+            }
+        };
     }
 
     private static Map<String, Evidence.JsonValue> entityFacts(EntityHandle entity) {

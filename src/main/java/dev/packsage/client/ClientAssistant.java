@@ -436,9 +436,9 @@ public final class ClientAssistant {
                 new RelicsInstanceReader(relicsStatus != null && relicsStatus.loaded(),
                         relicsStatus != null && relicsStatus.supported(), relicsStatus == null ? "unknown" : relicsStatus.actualVersion()));
         var providers = new ArrayList<KnowledgeProvider>();
+        providers.add(jeiProvider());
         providers.add(nativeProvider);
         providers.add(curiosAdapter);
-        providers.add(jeiProvider());
         providers.add(optionalMinecraftProvider(optionalStatuses.get("ftb_quests"), FTB_CLASS, "forMinecraft", scope, clientExecutor));
         providers.add(ConfigProvider.production(configRoots(), clientExecutor, workerExecutor, client::isSameThread));
         providers.add(optionalMinecraftProvider(optionalStatuses.get("patchouli"), PATCHOULI_CLASS, "forMinecraft", scope, clientExecutor));

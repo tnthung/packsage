@@ -540,7 +540,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                     query.operation(), id, text)) continue;
                             JeiProvider.Projection projection;
                             try {
-                                if (outputItem != null && categoryKnown) {
+                                if (outputItem != null) {
                                     var layout = manager.createRecipeLayoutDrawable(
                                             (IRecipeCategory<Object>) category, recipe, new EmptyFocusGroup())
                                             .orElse(null);
@@ -570,7 +570,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                                         }
                                         if (!outputMatches && !budget.exhausted()) continue;
                                         projection = project(runtime, manager, category, recipe, categoryId, handle,
-                                                canonicalCapture.value(), title, true, canonicalCapture.failed(),
+                                                canonicalCapture.value(), title, categoryKnown, canonicalCapture.failed(),
                                                 catalystCapture, observedSlotsView, budget);
                                     }
                                 } else if (categoryKnown) {

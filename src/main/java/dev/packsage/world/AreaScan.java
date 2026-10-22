@@ -24,13 +24,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Sliced block and entity scans in a sphere around a center. Each loaded chunk is one step; a chunk that is not
- * loaded when its step runs is counted, never loaded, and makes the page PARTIAL. List cursors are
+ * Sliced block and entity scans in a sphere around a center. Block scans take one non-empty 16x16x16 chunk section
+ * per step and entity scans one chunk per step. A chunk that is not loaded when its step runs, or unloads while its
+ * sections are read, is counted, never loaded, and makes the page PARTIAL. List cursors are
  * {@code <chunk index>:<matches to skip in that chunk>} and stay stable for the same level, center and radius.
  */
 public final class AreaScan {
     public static final int SUMMARY_NOTABLE = 4096;
     public static final int LIST_PAGE = 64;
+    private static final int SECTION_SIZE = 16;
 
     private final WorldRegistry registry;
 
@@ -50,7 +52,7 @@ public final class AreaScan {
         return new EntityListSlice(level, center, radius, filter, Cursor.parse(cursor));
     }
 
-    private record Cursor(int chunk, int skip) {
+    record Cursor(int chunk, int skip) {
         static final Cursor START = new Cursor(0, 0);
 
         static Cursor parse(String text) {
@@ -74,8 +76,47 @@ public final class AreaScan {
         }
     }
 
+    /** Block IDs per block state, so a scan builds each ID string once. */
+    static final class BlockKinds {
+        private final Map<BlockState, String> kinds = new IdentityHashMap<>();
+
+        String of(BlockState state) {
+            return kinds.computeIfAbsent(state, key -> BuiltInRegistries.BLOCK.getKey(key.getBlock()).toString());
+        }
+    }
+
+    /** Chunks whose column comes within radius of the center horizontally, in x-then-z order. */
+    static List<ChunkPos> chunksInRange(Vec3 center, int radius) {
+        var chunks = new ArrayList<ChunkPos>();
+        var radiusSquared = (double) radius * radius;
+        var minChunkX = SectionPos.blockToSectionCoord(Mth.floor(center.x - radius));
+        var maxChunkX = SectionPos.blockToSectionCoord(Mth.floor(center.x + radius));
+        var minChunkZ = SectionPos.blockToSectionCoord(Mth.floor(center.z - radius));
+        var maxChunkZ = SectionPos.blockToSectionCoord(Mth.floor(center.z + radius));
+        for (var chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+            for (var chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                var dx = gap(center.x, SectionPos.sectionToBlockCoord(chunkX));
+                var dz = gap(center.z, SectionPos.sectionToBlockCoord(chunkZ));
+                if (dx * dx + dz * dz <= radiusSquared) {
+                    chunks.add(new ChunkPos(chunkX, chunkZ));
+                }
+            }
+        }
+        return chunks;
+    }
+
+    /** Whether the section starting at baseY has any block within minY..maxY. */
+    static boolean sectionOverlaps(int baseY, int minY, int maxY) {
+        return baseY + SECTION_SIZE - 1 >= minY && baseY <= maxY;
+    }
+
+    /** Distance from a coordinate to the 16-block span starting at min. */
+    private static double gap(double coordinate, int min) {
+        return Math.max(0, Math.max(min - coordinate, coordinate - (min + SECTION_SIZE)));
+    }
+
     private interface BlockVisitor {
-        /** Returns false to stop visiting the chunk. */
+        /** Returns false to stop visiting. */
         boolean visit(BlockPos.MutableBlockPos pos, BlockState state);
     }
 
@@ -88,9 +129,12 @@ public final class AreaScan {
         final int maxY;
         final List<ChunkPos> chunks;
         final Set<String> notes = new LinkedHashSet<>();
+        final BlockKinds kinds = new BlockKinds();
         int next;
         int unloaded;
         String nextCursor;
+        private LevelChunk current;
+        private int section;
 
         ChunkSlice(ServerLevel level, Vec3 center, int radius, int startChunk) {
             this.level = level;
@@ -105,26 +149,72 @@ public final class AreaScan {
 
         @Override
         public boolean step() {
-            if (nextCursor != null || next >= chunks.size()) {
+            if (nextCursor != null) {
                 return false;
             }
-            var pos = chunks.get(next);
-            var chunk = level.getChunkSource().getChunkNow(pos.x, pos.z);
-            if (chunk == null) {
+            if (current == null) {
+                if (next >= chunks.size()) {
+                    return false;
+                }
+                var pos = chunks.get(next);
+                var chunk = level.getChunkSource().getChunkNow(pos.x, pos.z);
+                if (chunk == null) {
+                    unloaded++;
+                    next++;
+                    return hasMore();
+                }
+                if (!bySection()) {
+                    scanChunk(chunk, next);
+                    next++;
+                    return hasMore();
+                }
+                current = chunk;
+                section = 0;
+                enterChunk(next);
+            } else if (level.getChunkSource().getChunkNow(current.getPos().x, current.getPos().z) != current) {
                 unloaded++;
-            } else {
-                scan(chunk, next);
+                leaveChunk();
+                return hasMore();
             }
-            next++;
-            return nextCursor == null && next < chunks.size();
+            var sections = current.getSections();
+            while (section < sections.length && (sections[section].hasOnlyAir() || !sectionOverlaps(baseY(current, section), minY, maxY))) {
+                section++;
+            }
+            if (section >= sections.length) {
+                leaveChunk();
+                return hasMore();
+            }
+            scanSection(current, section++, next);
+            return hasMore();
         }
 
-        abstract void scan(LevelChunk chunk, int index);
+        private void leaveChunk() {
+            current = null;
+            next++;
+        }
+
+        private boolean hasMore() {
+            return nextCursor == null && (current != null || next < chunks.size());
+        }
+
+        /** Block scans read one section per step; entity scans read a whole chunk per step. */
+        boolean bySection() {
+            return true;
+        }
+
+        void enterChunk(int index) {
+        }
+
+        void scanSection(LevelChunk chunk, int section, int index) {
+        }
+
+        void scanChunk(LevelChunk chunk, int index) {
+        }
 
         <R> Page<R> page(List<R> items) {
             var all = new ArrayList<String>();
             if (unloaded > 0) {
-                all.add(unloaded + " chunks in range were not loaded and were not read");
+                all.add(unloaded + " chunks in range were not loaded and were not fully read");
             }
             all.addAll(notes);
             var coverage = nextCursor == null && all.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
@@ -135,61 +225,35 @@ public final class AreaScan {
             return level.dimension().location().toString();
         }
 
-        void forEachBlock(LevelChunk chunk, BlockVisitor visitor) {
+        private static int baseY(LevelChunk chunk, int section) {
+            return SectionPos.sectionToBlockCoord(chunk.getSectionYFromSectionIndex(section));
+        }
+
+        void forEachBlock(LevelChunk chunk, int index, BlockVisitor visitor) {
+            var section = chunk.getSections()[index];
+            var baseY = baseY(chunk, index);
             var minX = chunk.getPos().getMinBlockX();
             var minZ = chunk.getPos().getMinBlockZ();
             var pos = new BlockPos.MutableBlockPos();
-            var sections = chunk.getSections();
-            for (var i = 0; i < sections.length; i++) {
-                var section = sections[i];
-                var baseY = SectionPos.sectionToBlockCoord(chunk.getSectionYFromSectionIndex(i));
-                if (section.hasOnlyAir() || baseY + 15 < minY || baseY > maxY) {
-                    continue;
-                }
-                for (var y = Math.max(0, minY - baseY); y <= Math.min(15, maxY - baseY); y++) {
-                    for (var z = 0; z < 16; z++) {
-                        for (var x = 0; x < 16; x++) {
-                            var dx = minX + x + 0.5 - center.x;
-                            var dy = baseY + y + 0.5 - center.y;
-                            var dz = minZ + z + 0.5 - center.z;
-                            if (dx * dx + dy * dy + dz * dz > radiusSquared) {
-                                continue;
-                            }
-                            var state = section.getBlockState(x, y, z);
-                            if (state.isAir()) {
-                                continue;
-                            }
-                            if (!visitor.visit(pos.set(minX + x, baseY + y, minZ + z), state)) {
-                                return;
-                            }
+            for (var y = Math.max(0, minY - baseY); y <= Math.min(SECTION_SIZE - 1, maxY - baseY); y++) {
+                for (var z = 0; z < SECTION_SIZE; z++) {
+                    for (var x = 0; x < SECTION_SIZE; x++) {
+                        var dx = minX + x + 0.5 - center.x;
+                        var dy = baseY + y + 0.5 - center.y;
+                        var dz = minZ + z + 0.5 - center.z;
+                        if (dx * dx + dy * dy + dz * dz > radiusSquared) {
+                            continue;
+                        }
+                        var state = section.getBlockState(x, y, z);
+                        if (state.isAir()) {
+                            continue;
+                        }
+                        if (!visitor.visit(pos.set(minX + x, baseY + y, minZ + z), state)) {
+                            return;
                         }
                     }
                 }
             }
-        }
-
-        private static List<ChunkPos> chunksInRange(Vec3 center, int radius) {
-            var chunks = new ArrayList<ChunkPos>();
-            var radiusSquared = (double) radius * radius;
-            var minChunkX = SectionPos.blockToSectionCoord(Mth.floor(center.x - radius));
-            var maxChunkX = SectionPos.blockToSectionCoord(Mth.floor(center.x + radius));
-            var minChunkZ = SectionPos.blockToSectionCoord(Mth.floor(center.z - radius));
-            var maxChunkZ = SectionPos.blockToSectionCoord(Mth.floor(center.z + radius));
-            for (var chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
-                for (var chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-                    var dx = gap(center.x, SectionPos.sectionToBlockCoord(chunkX));
-                    var dz = gap(center.z, SectionPos.sectionToBlockCoord(chunkZ));
-                    if (dx * dx + dz * dz <= radiusSquared) {
-                        chunks.add(new ChunkPos(chunkX, chunkZ));
-                    }
-                }
-            }
-            return chunks;
-        }
-
-        /** Distance from a coordinate to the 16-block span starting at min. */
-        private static double gap(double coordinate, int min) {
-            return Math.max(0, Math.max(min - coordinate, coordinate - (min + 16)));
         }
     }
 
@@ -236,9 +300,9 @@ public final class AreaScan {
         }
 
         @Override
-        void scan(LevelChunk chunk, int index) {
-            forEachBlock(chunk, (pos, state) -> {
-                var kind = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
+        void scanSection(LevelChunk chunk, int section, int index) {
+            forEachBlock(chunk, section, (pos, state) -> {
+                var kind = kinds.of(state);
                 counts.merge(kind, 1, Integer::sum);
                 var role = role(chunk, pos, state);
                 if (role != null) {
@@ -291,6 +355,7 @@ public final class AreaScan {
     private static final class BlockListSlice extends ListSlice<BlockHandle> {
         private final KindFilter filter;
         private final Map<BlockState, Boolean> matches = new IdentityHashMap<>();
+        private int seen;
 
         BlockListSlice(ServerLevel level, Vec3 center, int radius, KindFilter filter, Cursor start) {
             super(level, center, radius, start);
@@ -298,31 +363,33 @@ public final class AreaScan {
         }
 
         @Override
-        void scan(LevelChunk chunk, int index) {
+        void enterChunk(int index) {
+            seen = 0;
+        }
+
+        @Override
+        void scanSection(LevelChunk chunk, int section, int index) {
             var skip = skip(index);
-            var seen = new int[1];
-            forEachBlock(chunk, (pos, state) -> {
+            forEachBlock(chunk, section, (pos, state) -> {
                 if (!matches.computeIfAbsent(state, this::matches)) {
                     return true;
                 }
-                if (seen[0] < skip) {
-                    seen[0]++;
+                if (seen < skip) {
+                    seen++;
                     return true;
                 }
-                var kind = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
-                if (!offer(index, seen[0], new BlockHandle(kind, new BlockPlace(dimension(), pos.getX(), pos.getY(), pos.getZ())))) {
+                if (!offer(index, seen, new BlockHandle(kinds.of(state), new BlockPlace(dimension(), pos.getX(), pos.getY(), pos.getZ())))) {
                     return false;
                 }
-                seen[0]++;
+                seen++;
                 return true;
             });
         }
 
         private boolean matches(BlockState state) {
-            var kind = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
             var tags = filter.tags().isEmpty() ? List.<String>of() : state.getTags().map(tag -> tag.location().toString()).toList();
             var name = filter.text().isEmpty() ? null : state.getBlock().getName().getString();
-            return filter.matches(kind, tags, name);
+            return filter.matches(kinds.of(state), tags, name);
         }
     }
 
@@ -335,9 +402,15 @@ public final class AreaScan {
         }
 
         @Override
-        void scan(LevelChunk chunk, int index) {
+        boolean bySection() {
+            return false;
+        }
+
+        @Override
+        void scanChunk(LevelChunk chunk, int index) {
             var chunkPos = chunk.getPos();
-            var box = new AABB(chunkPos.getMinBlockX(), center.y - radius, chunkPos.getMinBlockZ(), chunkPos.getMinBlockX() + 16, center.y + radius, chunkPos.getMinBlockZ() + 16);
+            var box = new AABB(chunkPos.getMinBlockX(), center.y - radius, chunkPos.getMinBlockZ(),
+                    chunkPos.getMinBlockX() + SECTION_SIZE, center.y + radius, chunkPos.getMinBlockZ() + SECTION_SIZE);
             var found = new ArrayList<>(level.getEntities((Entity) null, box, entity -> inChunk(entity, chunkPos)
                     && entity.position().distanceToSqr(center) <= radiusSquared && matches(entity)));
             found.sort(Comparator.comparing(Entity::getUUID));

@@ -725,10 +725,11 @@ class JeiProjectionTest {
             var recipeVisits = new AtomicInteger();
             var appliedFocuses = new java.util.concurrent.CopyOnWriteArrayList<Collection<?>>();
             var focusRoles = new java.util.concurrent.CopyOnWriteArrayList<Object>();
-            var type = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), Object.class);
+            var crafting = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), Object.class);
+            var type = new AtomicReference<RecipeType<Object>>(crafting);
             var category = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
                     new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
-                        case "getRecipeType" -> type;
+                        case "getRecipeType" -> type.get();
                         case "getTitle" -> Component.literal("Crafting");
                         case "getTooltipStrings" -> List.of();
                         default -> null;
@@ -867,6 +868,14 @@ class JeiProjectionTest {
             search.apply("minecraft:potion");
             assertFalse(appliedFocuses.isEmpty());
             assertTrue(appliedFocuses.stream().allMatch(Collection::isEmpty), "differing listed variants must keep the scan");
+
+            type.set(new RecipeType<>(ResourceLocation.fromNamespaceAndPath("fixture", "altar"), Object.class));
+            var modded = search.apply("minecraft:torch");
+            assertEquals(1, modded.records().size(), () -> "coverage=" + modded.coverage() + "; detail=" + modded.detail());
+            assertEquals(Evidence.Coverage.OPAQUE, modded.records().getFirst().source().coverage());
+            assertTrue(modded.records().getFirst().recipePayload().outputs().getFirst().comparisonIdentity().startsWith("minecraft:torch"),
+                    "a modded output match keeps its captured output slot");
+            type.set(crafting);
 
             appliedFocuses.clear();
             ingredientManagerPresent.set(false);

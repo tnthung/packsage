@@ -31,21 +31,21 @@ class KnowledgeServiceTest {
     @Test
     void savedDestinationResolvesWithANewProviderAndSourceHandle(@TempDir Path directory) throws Exception {
         var historicalScope = new Evidence.Scope("old-session", "old-resources", "team", "old-runtime", 3);
-        var historical = new Evidence.NavigationTarget(historicalScope, "ponder", "old-registration", "create:shaft");
+        var historical = new Evidence.NavigationTarget(historicalScope, "fixture_viewer", "old-registration", "create:shaft");
         var world = new ChatContracts.WorldIdentity("world", "World");
         var store = new ConversationStore(directory, Runnable::run);
         var conversation = store.newConversation(world).toCompletableFuture().join();
         store.appendTurn(world, historicalScope, conversation.id(), new ChatContracts.Turn(
                 new ChatContracts.RequestId("saved"), "Question", "Answer", List.of(),
                 new ChatContracts.Context("context", null, historicalScope), List.of(new Evidence.Source(historicalScope,
-                "ponder", "fixture", "old-registration", 1, Instant.EPOCH, Evidence.Activity.ACTIVE,
+                "fixture_viewer", "fixture", "old-registration", 1, Instant.EPOCH, Evidence.Activity.ACTIVE,
                 Evidence.Coverage.PARTIAL, Evidence.Authority.INSTALLED_DOCUMENTATION, List.of())), List.of(historical),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
         var saved = new ConversationStore(directory, Runnable::run).openLatest(world).toCompletableFuture().join()
                 .turns().getFirst().navigationTargets().getFirst();
-        var current = new Evidence.NavigationTarget(SCOPE, "ponder", "new-registration", "create:shaft");
+        var current = new Evidence.NavigationTarget(SCOPE, "fixture_viewer", "new-registration", "create:shaft");
         var received = new AtomicReference<Evidence.NavigationTarget>();
-        var provider = new PagedProvider("ponder", query -> page(List.of(), null)) {
+        var provider = new PagedProvider("fixture_viewer", query -> page(List.of(), null)) {
             @Override public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
                 received.set(target);
                 assertEquals(SCOPE, scope);
@@ -59,16 +59,16 @@ class KnowledgeServiceTest {
         assertEquals(Evidence.NavigationStatus.STALE, service.open(saved, SCOPE).status());
         assertEquals(Evidence.NavigationStatus.UNSUPPORTED, service.open(current, SCOPE).status());
         assertEquals(Evidence.Outcome.ERROR, execute(service, "read_evidence", Map.of("handles",
-                strings("ponder:new-registration"))).outcome());
+                strings("fixture_viewer:new-registration"))).outcome());
     }
 
     @Test
     void destinationResolversCannotAuthorizeForeignScopesProvidersOrLateResults() {
-        var historical = new Evidence.NavigationTarget(SCOPE, "ponder", "old", "create:shaft");
-        for (var invalid : List.of(new Evidence.NavigationTarget(SCOPE, "jei", "new", "create:shaft"),
+        var historical = new Evidence.NavigationTarget(SCOPE, "fixture_viewer", "old", "create:shaft");
+        for (var invalid : List.of(new Evidence.NavigationTarget(SCOPE, "fixture_recipes", "new", "create:shaft"),
                 new Evidence.NavigationTarget(new Evidence.Scope("other", "resources", "team", "runtime", 1),
-                        "ponder", "new", "create:shaft"))) {
-            var provider = new PagedProvider("ponder", query -> page(List.of(), null)) {
+                        "fixture_viewer", "new", "create:shaft"))) {
+            var provider = new PagedProvider("fixture_viewer", query -> page(List.of(), null)) {
                 @Override public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
                     return CompletableFuture.completedFuture(invalid);
                 }
@@ -79,7 +79,7 @@ class KnowledgeServiceTest {
         }
         var pending = new CompletableFuture<Evidence.NavigationTarget>();
         var active = new AtomicReference<>(SCOPE);
-        var service = new KnowledgeService(List.of(new PagedProvider("ponder", query -> page(List.of(), null)) {
+        var service = new KnowledgeService(List.of(new PagedProvider("fixture_viewer", query -> page(List.of(), null)) {
             @Override public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
                 return pending;
             }
@@ -87,22 +87,22 @@ class KnowledgeServiceTest {
         var refresh = service.refreshNavigation(historical, SCOPE).toCompletableFuture();
         assertFalse(refresh.isDone());
         active.set(new Evidence.Scope("next", "resources", "team", "runtime", 2));
-        pending.complete(new Evidence.NavigationTarget(SCOPE, "ponder", "new", "create:shaft"));
+        pending.complete(new Evidence.NavigationTarget(SCOPE, "fixture_viewer", "new", "create:shaft"));
         assertNull(refresh.join());
         active.set(SCOPE);
         assertEquals(Evidence.NavigationStatus.STALE, service.open(new Evidence.NavigationTarget(SCOPE,
-                "ponder", "new", "create:shaft"), SCOPE).status());
+                "fixture_viewer", "new", "create:shaft"), SCOPE).status());
     }
 
     @Test
     void refreshNavigationRevalidatesHistoricalTargetsAndKeepsNavigationHandlesOutOfModelEvidence() {
         var historicalScope = new Evidence.Scope("world", "resources", "team", "runtime", 0);
-        var historical = new Evidence.NavigationTarget(historicalScope, "patchouli", "book:guide", "page/old");
-        var current = new Evidence.NavigationTarget(SCOPE, "patchouli", "book:guide", "page/old");
-        var currentRecord = new Evidence.Record(new Evidence.Source(SCOPE, "patchouli", "fixture", "book:guide", 1,
+        var historical = new Evidence.NavigationTarget(historicalScope, "fixture_docs", "book:guide", "page/old");
+        var current = new Evidence.NavigationTarget(SCOPE, "fixture_docs", "book:guide", "page/old");
+        var currentRecord = new Evidence.Record(new Evidence.Source(SCOPE, "fixture_docs", "fixture", "book:guide", 1,
                 Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
                 Evidence.RecordKind.GUIDE, "Guide", new Evidence.JsonObject(Map.of()), List.of(current));
-        var provider = new PagedProvider("patchouli", query -> page(List.of(currentRecord), null));
+        var provider = new PagedProvider("fixture_docs", query -> page(List.of(currentRecord), null));
         var service = service(provider);
 
         assertEquals(current, service.refreshNavigation(historical, SCOPE).toCompletableFuture().join());
@@ -114,34 +114,34 @@ class KnowledgeServiceTest {
         assertNull(provider.queries.getFirst().cursor());
 
         var unobserved = execute(service, "read_evidence", Map.of("handles",
-                new Evidence.JsonArray(List.of(text("patchouli:book:guide")))));
+                new Evidence.JsonArray(List.of(text("fixture_docs:book:guide")))));
         assertEquals(Evidence.Outcome.ERROR, unobserved.outcome());
     }
 
     @Test
     void refreshNavigationRejectsMismatchedEvidenceAndChangedScopesIncludingLateCompletion() {
         var historicalScope = new Evidence.Scope("world", "resources", "team", "runtime", 0);
-        var historical = new Evidence.NavigationTarget(historicalScope, "patchouli", "book:guide", "page/old");
-        var wrongSource = new Evidence.Record(new Evidence.Source(SCOPE, "patchouli", "fixture", "book:other", 1,
+        var historical = new Evidence.NavigationTarget(historicalScope, "fixture_docs", "book:guide", "page/old");
+        var wrongSource = new Evidence.Record(new Evidence.Source(SCOPE, "fixture_docs", "fixture", "book:other", 1,
                 Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
                 Evidence.RecordKind.GUIDE, "Guide", new Evidence.JsonObject(Map.of()),
-                List.of(new Evidence.NavigationTarget(SCOPE, "patchouli", "book:other", "page/old")));
-        var wrongTarget = new Evidence.Record(new Evidence.Source(SCOPE, "patchouli", "fixture", "book:guide", 1,
+                List.of(new Evidence.NavigationTarget(SCOPE, "fixture_docs", "book:other", "page/old")));
+        var wrongTarget = new Evidence.Record(new Evidence.Source(SCOPE, "fixture_docs", "fixture", "book:guide", 1,
                 Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
                 Evidence.RecordKind.GUIDE, "Guide", new Evidence.JsonObject(Map.of()),
-                List.of(new Evidence.NavigationTarget(SCOPE, "patchouli", "book:guide", "page/other")));
-        assertNull(service(new PagedProvider("patchouli", query -> page(List.of(wrongSource), null)))
+                List.of(new Evidence.NavigationTarget(SCOPE, "fixture_docs", "book:guide", "page/other")));
+        assertNull(service(new PagedProvider("fixture_docs", query -> page(List.of(wrongSource), null)))
                 .refreshNavigation(historical, SCOPE).toCompletableFuture().join());
-        assertNull(service(new PagedProvider("patchouli", query -> page(List.of(wrongTarget), null)))
+        assertNull(service(new PagedProvider("fixture_docs", query -> page(List.of(wrongTarget), null)))
                 .refreshNavigation(historical, SCOPE).toCompletableFuture().join());
-        assertNull(service(new PagedProvider("patchouli", query -> new Evidence.Result(List.of(wrongTarget),
+        assertNull(service(new PagedProvider("fixture_docs", query -> new Evidence.Result(List.of(wrongTarget),
                 Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null)))
                 .refreshNavigation(historical, SCOPE).toCompletableFuture().join());
         assertNull(service().refreshNavigation(historical, SCOPE).toCompletableFuture().join());
 
         var currentScope = new AtomicReference<>(SCOPE);
         var pending = new CompletableFuture<Evidence.Result>();
-        KnowledgeProvider provider = new PagedProvider("patchouli", query -> page(List.of(), null)) {
+        KnowledgeProvider provider = new PagedProvider("fixture_docs", query -> page(List.of(), null)) {
             @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
                 return pending;
             }
@@ -149,10 +149,10 @@ class KnowledgeServiceTest {
         var service = new KnowledgeService(List.of(provider), currentScope::get);
         var refresh = service.refreshNavigation(historical, SCOPE);
         currentScope.set(new Evidence.Scope("world", "resources-2", "team", "runtime", 2));
-        pending.complete(page(List.of(new Evidence.Record(new Evidence.Source(SCOPE, "patchouli", "fixture", "book:guide", 1,
+        pending.complete(page(List.of(new Evidence.Record(new Evidence.Source(SCOPE, "fixture_docs", "fixture", "book:guide", 1,
                 Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
                 Evidence.RecordKind.GUIDE, "Guide", new Evidence.JsonObject(Map.of()),
-                List.of(new Evidence.NavigationTarget(SCOPE, "patchouli", "book:guide", "page/old")))), null));
+                List.of(new Evidence.NavigationTarget(SCOPE, "fixture_docs", "book:guide", "page/old")))), null));
         assertNull(refresh.toCompletableFuture().join());
         assertNull(service.refreshNavigation(historical, SCOPE).toCompletableFuture().join());
     }
@@ -160,10 +160,10 @@ class KnowledgeServiceTest {
     @Test
     void refreshNavigationAuthorizationIsBounded() {
         var historicalScope = new Evidence.Scope("world", "resources", "team", "runtime", 0);
-        var provider = new PagedProvider("patchouli", query -> {
+        var provider = new PagedProvider("fixture_docs", query -> {
             var handle = ((Evidence.JsonString) query.arguments().values().get("id")).value();
-            var target = new Evidence.NavigationTarget(SCOPE, "patchouli", handle, "page");
-            var source = new Evidence.Source(SCOPE, "patchouli", "fixture", handle, 1, Instant.EPOCH,
+            var target = new Evidence.NavigationTarget(SCOPE, "fixture_docs", handle, "page");
+            var source = new Evidence.Source(SCOPE, "fixture_docs", "fixture", handle, 1, Instant.EPOCH,
                     Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
             return page(List.of(new Evidence.Record(source, Evidence.RecordKind.GUIDE, handle,
                     new Evidence.JsonObject(Map.of()), List.of(target))), null);
@@ -172,7 +172,7 @@ class KnowledgeServiceTest {
         Evidence.NavigationTarget first = null;
         Evidence.NavigationTarget last = null;
         for (var index = 0; index < 65; index++) {
-            var historical = new Evidence.NavigationTarget(historicalScope, "patchouli", "book:" + index, "page");
+            var historical = new Evidence.NavigationTarget(historicalScope, "fixture_docs", "book:" + index, "page");
             var refreshed = service.refreshNavigation(historical, SCOPE).toCompletableFuture().join();
             if (index == 0) first = refreshed;
             if (index == 64) last = refreshed;
@@ -184,15 +184,15 @@ class KnowledgeServiceTest {
 
     @Test
     void adapterAvailabilityUsesLogicalIdsAndIsIndependentOfProviderCoverage() {
-        var partial = new PagedProvider("jei", query -> new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL,
+        var partial = new PagedProvider("fixture_recipes", query -> new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL,
                 Evidence.Outcome.PARTIAL, null));
-        KnowledgeProvider disabled = new PagedProvider("patchouli", query -> page(List.of(), null)) {
+        KnowledgeProvider disabled = new PagedProvider("fixture_docs", query -> page(List.of(), null)) {
             @Override public boolean enabled() { return false; }
         };
         var availability = service(partial, disabled).adapterAvailability();
 
-        assertEquals(Map.of("jei", true, "patchouli", false), availability);
-        assertThrows(UnsupportedOperationException.class, () -> availability.put("jei", false));
+        assertEquals(Map.of("fixture_recipes", true, "fixture_docs", false), availability);
+        assertThrows(UnsupportedOperationException.class, () -> availability.put("fixture_recipes", false));
     }
 
     @Test

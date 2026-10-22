@@ -36,9 +36,9 @@ class ConversationStoreTest {
         ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
         ChatContracts.Screenshot screenshot = new ChatContracts.Screenshot("request-1.png", "image/png", 3, Instant.EPOCH);
         ChatContracts.Context context = new ChatContracts.Context("{\"dimension\":\"overworld\"}", screenshot, SCOPE);
-        Evidence.Source source = new Evidence.Source(SCOPE, "jei", "1", "recipe:altar", 4, Instant.EPOCH,
+        Evidence.Source source = new Evidence.Source(SCOPE, "fixture", "1", "recipe:altar", 4, Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("pack"));
-        Evidence.NavigationTarget target = new Evidence.NavigationTarget(SCOPE, "jei", "recipe:altar", "altar-view");
+        Evidence.NavigationTarget target = new Evidence.NavigationTarget(SCOPE, "fixture", "recipe:altar", "altar-view");
         ChatContracts.Turn turn = new ChatContracts.Turn(new ChatContracts.RequestId("request-1"), "Where?",
                 "Here.", List.of(new ModelBackend.EncryptedReasoning("reasoning-1", "encrypted", "[]"),
                 new ModelBackend.ToolCall("call-1", "packsage", "lookup", "{}"),

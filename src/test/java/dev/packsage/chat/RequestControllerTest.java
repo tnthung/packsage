@@ -1416,7 +1416,7 @@ class RequestControllerTest {
         assertEquals("Searching pack: packsage:fixture_lantern (step 1)", published.getLast().activity());
         assertEquals(published.getLast(), controller.view());
 
-        backend.emit("activity-tool", toolEvent("call-2", "read_progress", "{\"handles\":[\"ftb_quests:1000000000000002\"]}"));
+        backend.emit("activity-tool", toolEvent("call-2", "read_progress", "{\"handles\":[\"quests:1000000000000002\"]}"));
         assertEquals("Reading quest progress (step 2)", published.getLast().activity());
         assertFalse(published.getLast().activity().contains("SECRET"));
     }

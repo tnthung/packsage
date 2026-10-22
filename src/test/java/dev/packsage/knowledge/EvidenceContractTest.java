@@ -43,8 +43,8 @@ class EvidenceContractTest {
     void recordsCopyTargetsAndKeepSourceScope() {
         var targets = new ArrayList<Evidence.NavigationTarget>();
         var scope = new Evidence.Scope("world", "resources", "player", "provider", 3);
-        targets.add(new Evidence.NavigationTarget(scope, "jei", "recipe", "id"));
-        var source = new Evidence.Source(scope, "jei", "version", "recipe", 3, Instant.EPOCH,
+        targets.add(new Evidence.NavigationTarget(scope, "fixture", "recipe", "id"));
+        var source = new Evidence.Source(scope, "fixture", "version", "recipe", 3, Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.VIEWER, List.of("mod"));
         var record = new Evidence.Record(source, Evidence.RecordKind.RECIPE, "Recipe",
                 new Evidence.JsonObject(Map.of("quantity", new Evidence.JsonNull())), targets);

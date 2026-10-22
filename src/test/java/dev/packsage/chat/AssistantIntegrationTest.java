@@ -149,8 +149,8 @@ class AssistantIntegrationTest {
     void revalidatesRestoredLocalReferencesAndDiscardsResolutionAfterContextChanges() throws Exception {
         for (var scenario : List.of("restored", "new_chat", "invalidate", "world")) {
             var historicalScope = new Evidence.Scope("previous-session", "previous-resources", "previous-team", "previous-runtime", 9);
-            var historicalTarget = new Evidence.NavigationTarget(historicalScope, "ftb_quests", "quest", "quest");
-            var historicalRecord = record(historicalScope, "ftb_quests", "quest", Evidence.Authority.LOADED,
+            var historicalTarget = new Evidence.NavigationTarget(historicalScope, "quests", "quest", "quest");
+            var historicalRecord = record(historicalScope, "quests", "quest", Evidence.Authority.LOADED,
                     "Quest", historicalTarget);
             var store = new ConversationStore(Files.createTempDirectory("packsage-historical-navigation"), DIRECT);
             var conversation = store.newConversation(WORLD).toCompletableFuture().join();
@@ -166,7 +166,7 @@ class AssistantIntegrationTest {
             var runtime = new AssistantRuntime(store, new RuntimeBackend(), current -> new GameplayContextCapture(
                     () -> new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains", "1", "block"),
                     ignored -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH), DIRECT, current),
-                    DIRECT, DIRECT, current -> new KnowledgeService(List.of(new Provider("ftb_quests", List.of(), false) {
+                    DIRECT, DIRECT, current -> new KnowledgeService(List.of(new Provider("quests", List.of(), false) {
                         @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
                             queries.incrementAndGet();
                             queriedScope.set(scope);
@@ -181,7 +181,7 @@ class AssistantIntegrationTest {
                     turn -> turn.tokenCount(), GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
             runtime.enterWorld(WORLD, new Evidence.Scope("world", "resources", "team", "runtime", 0));
             assertEquals("Historical quest answer", runtime.view().conversation().turns().getFirst().answer());
-            runtime.navigate(new Evidence.NavigationTarget(historicalScope, "ftb_quests", "unobserved", "quest"));
+            runtime.navigate(new Evidence.NavigationTarget(historicalScope, "quests", "unobserved", "quest"));
             assertEquals(0, queries.get());
             runtime.navigate(historicalTarget);
             assertEquals(1, queries.get());
@@ -190,8 +190,8 @@ class AssistantIntegrationTest {
             if (scenario.equals("invalidate")) runtime.invalidate(new Evidence.Scope("world", "resources-2", "team", "runtime", 0));
             if (scenario.equals("world")) runtime.enterWorld(new ChatContracts.WorldIdentity("other", "Other World"),
                     new Evidence.Scope("other", "resources", "team", "runtime", 0));
-            var refreshed = new Evidence.NavigationTarget(queriedScope.get(), "ftb_quests", "quest", "quest");
-            pending.complete(new Evidence.Result(List.of(record(queriedScope.get(), "ftb_quests", "quest", Evidence.Authority.LOADED,
+            var refreshed = new Evidence.NavigationTarget(queriedScope.get(), "quests", "quest", "quest");
+            pending.complete(new Evidence.Result(List.of(record(queriedScope.get(), "quests", "quest", Evidence.Authority.LOADED,
                     "Current quest", refreshed)), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
             if (scenario.equals("restored")) {
                 assertEquals(refreshed, opened.get());
@@ -235,7 +235,7 @@ class AssistantIntegrationTest {
         var current = new AtomicReference<Evidence.Result>(new Evidence.Result(List.of(refreshed), Evidence.Coverage.COMPLETE,
                 Evidence.Outcome.COMPLETE, null));
         var queries = new ArrayList<Evidence.Query>();
-        KnowledgeProvider provider = new Provider("ftb_quests", List.of(initial), false) {
+        KnowledgeProvider provider = new Provider("quests", List.of(initial), false) {
             @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
                 queries.add(query);
                 return query.operation() == Evidence.Operation.SEARCH
@@ -249,7 +249,7 @@ class AssistantIntegrationTest {
                 new Evidence.JsonObject(Map.of("query", new Evidence.JsonString("quest"))), SCOPE))
                 .toCompletableFuture().get();
         var progress = service.execute(new PackSageTools.ReadRequest("read_progress",
-                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString("ftb_quests:quest"))))), SCOPE))
+                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString("quests:quest"))))), SCOPE))
                 .toCompletableFuture().get();
         assertEquals(List.of(refreshed), progress.records());
         assertEquals(Evidence.Operation.GET, queries.get(1).operation());
@@ -257,7 +257,7 @@ class AssistantIntegrationTest {
 
         current.set(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null));
         var unavailable = service.execute(new PackSageTools.ReadRequest("read_progress",
-                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString("ftb_quests:quest"))))), SCOPE))
+                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString("quests:quest"))))), SCOPE))
                 .toCompletableFuture().get();
         assertEquals(Evidence.Coverage.PARTIAL, unavailable.coverage());
         assertEquals(Evidence.Outcome.PARTIAL, unavailable.outcome());
@@ -268,12 +268,12 @@ class AssistantIntegrationTest {
 
     @Test
     void readProgressKeepsFreshHandlesWhenAnotherSelectedProviderIsUnavailable() throws Exception {
-        var unavailableInitial = questRecord("quest-a", "ftb_quests", false);
+        var unavailableInitial = questRecord("quest-a", "quests", false);
         var freshInitial = questRecord("quest-b", "other_quests", false);
         var freshCurrent = questRecord("quest-b", "other_quests", true);
         var unavailableQueries = new ArrayList<Evidence.Query>();
         var freshQueries = new ArrayList<Evidence.Query>();
-        KnowledgeProvider unavailableProvider = new Provider("ftb_quests", List.of(unavailableInitial), false) {
+        KnowledgeProvider unavailableProvider = new Provider("quests", List.of(unavailableInitial), false) {
             @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
                 unavailableQueries.add(query);
                 return query.operation() == Evidence.Operation.SEARCH
@@ -300,14 +300,14 @@ class AssistantIntegrationTest {
                 .toCompletableFuture().get();
         var progress = service.execute(new PackSageTools.ReadRequest("read_progress",
                 new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(
-                        new Evidence.JsonString("ftb_quests:quest-a"), new Evidence.JsonString("other_quests:quest-b"))))), SCOPE))
+                        new Evidence.JsonString("quests:quest-a"), new Evidence.JsonString("other_quests:quest-b"))))), SCOPE))
                 .toCompletableFuture().get();
 
         assertEquals(Evidence.Coverage.PARTIAL, progress.coverage());
         assertEquals(Evidence.Outcome.PARTIAL, progress.outcome());
         assertTrue(progress.records().contains(freshCurrent));
         assertFalse(progress.records().contains(unavailableInitial));
-        var failure = progress.records().stream().filter(record -> record.source().providerId().equals("ftb_quests")).findFirst().orElseThrow();
+        var failure = progress.records().stream().filter(record -> record.source().providerId().equals("quests")).findFirst().orElseThrow();
         assertEquals(Evidence.RecordKind.OTHER, failure.kind());
         assertEquals(Evidence.Coverage.UNAVAILABLE, failure.source().coverage());
         assertEquals("quest-a", ((Evidence.JsonString) failure.payload().values().get("handle")).value());
@@ -1117,7 +1117,7 @@ class AssistantIntegrationTest {
     }
 
     private static Evidence.Record questRecord(boolean completed) {
-        return questRecord("quest", "ftb_quests", completed);
+        return questRecord("quest", "quests", completed);
     }
 
     private static Evidence.Record questRecord(String handle, String provider, boolean completed) {

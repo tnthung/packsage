@@ -12,7 +12,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.TickTask;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -91,22 +90,27 @@ public final class WorldTools implements KnowledgeProvider {
     private final Supplier<Evidence.Scope> scope;
     private final AreaScan scan;
     private final Executor worker;
+    private final ServerWork work;
     private final WorldNavigation navigation;
     private final Map<String, Cursor> cursors = new LinkedHashMap<>(16, 0.75f, true);
 
-    /** The worker runs everything after a server read, so record building never lands on the server thread. */
-    public WorldTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker) {
-        this(client::getSingleplayerServer, registry, scope, worker, WorldNavigation.blockLookup(client::getSingleplayerServer),
+    /**
+     * The worker runs everything after a server read, so record building never lands on the server thread. Reads queue
+     * on {@code work}, which the server ticks drive.
+     */
+    public WorldTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work) {
+        this(client::getSingleplayerServer, registry, scope, worker, work, WorldNavigation.blockLookup(client::getSingleplayerServer),
                 WorldNavigation.entityLookup(client::getSingleplayerServer), WorldNavigation.client(client));
     }
 
     /** Highlights check {@code blockExists} and {@code entityPlace} before drawing through {@code client}. */
-    WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker,
+    WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
                Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace, WorldNavigation.Client client) {
         this.server = server;
         this.registry = registry;
         this.scope = scope;
         this.worker = worker;
+        this.work = work;
         this.scan = new AreaScan(registry);
         this.navigation = new WorldNavigation(blockExists, entityPlace, client);
     }
@@ -652,18 +656,15 @@ public final class WorldTools implements KnowledgeProvider {
         return current;
     }
 
-    /**
-     * Queues each slice as a server tick task. {@code server.execute} would run a reschedule from the server thread
-     * inline, which would chain slices within one tick.
-     */
+    /** Queues the slice on the shared {@link ServerWork}, which steps it within each server tick's budget. */
     private <T> CompletionStage<T> run(MinecraftServer server, ServerWork.Slice<T> slice) {
-        return run(task -> server.tell(new TickTask(server.getTickCount(), task)), () -> this.server.get() == server && server.isRunning(), slice);
+        return run(() -> this.server.get() == server && server.isRunning(), slice);
     }
 
-    <T> CompletionStage<T> run(Executor serverThread, BooleanSupplier worldOpen, ServerWork.Slice<T> slice) {
+    <T> CompletionStage<T> run(BooleanSupplier worldOpen, ServerWork.Slice<T> slice) {
         // ServerWork completes on the server thread; handing off first keeps every later stage, such as record
         // building and serialization, off it.
-        return new ServerWork(serverThread, System::nanoTime, worldOpen).run(slice).toCompletableFuture().orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).handleAsync((value, failure) -> {
+        return work.run(slice, worldOpen).toCompletableFuture().orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).handleAsync((value, failure) -> {
             if (failure == null) return value;
             while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
             if (failure instanceof Failure typed) throw typed;

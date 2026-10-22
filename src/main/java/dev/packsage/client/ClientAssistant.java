@@ -14,6 +14,7 @@ import dev.packsage.model.GroundingInstructions;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.chatgpt.ChatGptAuth;
 import dev.packsage.model.chatgpt.ChatGptBackend;
+import dev.packsage.world.ServerWork;
 import dev.packsage.world.WorldRegistry;
 import dev.packsage.world.WorldTools;
 import dev.packsage.world.minecraft.MinecraftEntities;
@@ -37,6 +38,8 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
@@ -55,6 +58,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 public final class ClientAssistant {
@@ -80,6 +84,8 @@ public final class ClientAssistant {
     private final Path settingsPath;
     private final PackSageSettings settings;
     private final AssistantRuntime runtime;
+    private final ServerWork serverWork = new ServerWork(System::nanoTime);
+    private final AtomicBoolean pausedWorkQueued = new AtomicBoolean();
     private AssistantScreen assistantScreen;
     private boolean settingsOpen;
     private CopiedWorld activeWorld;
@@ -148,6 +154,21 @@ public final class ClientAssistant {
         NeoForge.EVENT_BUS.addListener((LevelEvent.Unload event) -> levelUnloaded(event));
         NeoForge.EVENT_BUS.addListener((RecipesUpdatedEvent ignored) -> invalidateEvidence());
         NeoForge.EVENT_BUS.addListener((TagsUpdatedEvent ignored) -> invalidateEvidence());
+        NeoForge.EVENT_BUS.addListener((ServerTickEvent.Post ignored) -> serverWork.tick());
+        NeoForge.EVENT_BUS.addListener((ServerStoppingEvent ignored) -> serverWork.closeAll());
+    }
+
+    /**
+     * A paused integrated server skips its ticks, and with them ServerTickEvent, but still runs queued tasks. While it
+     * is paused and world reads are pending, each client tick queues one budgeted ServerWork tick.
+     */
+    private void tickPausedServerWork() {
+        var server = client.getSingleplayerServer();
+        if (server == null || !server.isPaused() || !serverWork.hasWork() || !pausedWorkQueued.compareAndSet(false, true)) return;
+        server.execute(() -> {
+            pausedWorkQueued.set(false);
+            if (server.isPaused()) serverWork.tick();
+        });
     }
 
     public void resourceReloaded() {
@@ -169,6 +190,7 @@ public final class ClientAssistant {
 
     private void tick() {
         if (!client.isSameThread()) return;
+        tickPausedServerWork();
         if (settingsOpen && client.screen == null && assistantScreen != null) {
             settingsOpen = false;
             client.setScreen(assistantScreen);
@@ -351,7 +373,7 @@ public final class ClientAssistant {
         world.register(new MinecraftInventories(() -> client.getSingleplayerServer().registryAccess()));
         world.register(new MinecraftWorld());
         world.register(new MinecraftEntities());
-        providers.add(new WorldTools(client, world, scope, workerExecutor));
+        providers.add(new WorldTools(client, world, scope, workerExecutor, serverWork));
         return new KnowledgeService(providers, scope);
     }
 

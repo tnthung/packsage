@@ -19,7 +19,7 @@ class WorldToolsTest {
     private static final String ENTITY = "3f1c2a4e-0000-4000-8000-000000000001";
 
     private static WorldTools tools() {
-        return new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, Runnable::run, place -> false, id -> null, null);
+        return new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime), place -> false, id -> null, null);
     }
 
     private static Toolbox.Code failure(WorldTools tools, String tool, String arguments) {
@@ -120,10 +120,10 @@ class WorldToolsTest {
 
     @Test
     void resultContinuationsRunOnTheWorkerNotTheServerThread() throws Exception {
-        var serverTasks = new java.util.ArrayDeque<Runnable>();
+        var work = new ServerWork(System::nanoTime);
         var worker = java.util.concurrent.Executors.newSingleThreadExecutor(task -> new Thread(task, "world-worker"));
         try {
-            var tools = new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, worker, place -> false, id -> null, null);
+            var tools = new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, worker, work, place -> false, id -> null, null);
             ServerWork.Slice<String> slice = new ServerWork.Slice<>() {
                 @Override
                 public boolean step() {
@@ -135,8 +135,8 @@ class WorldToolsTest {
                     return "read";
                 }
             };
-            var mapped = tools.run(serverTasks::add, () -> true, slice).thenApply(value -> Thread.currentThread().getName());
-            while (!serverTasks.isEmpty()) serverTasks.poll().run();
+            var mapped = tools.run(() -> true, slice).thenApply(value -> Thread.currentThread().getName());
+            while (work.hasWork()) work.tick();
             assertEquals("world-worker", mapped.toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS));
         } finally {
             worker.shutdownNow();

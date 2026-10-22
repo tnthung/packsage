@@ -80,12 +80,14 @@ public final class MinecraftEntities implements EntityInspector {
         memory(brain, MemoryModuleType.HOME).ifPresent(pos -> values.put("home", place(pos)));
         memory(brain, MemoryModuleType.JOB_SITE).ifPresent(pos -> values.put("jobSite", place(pos)));
         memory(brain, MemoryModuleType.MEETING_POINT).ifPresent(pos -> values.put("meetingPoint", place(pos)));
+        values.put("timeUnits", new Evidence.JsonString("lastSlept, lastWorkedAtPoi and golemDetectedUntil are game times in ticks"
+                + " (20 per second); compare them with the record's gameTime"));
         memory(brain, MemoryModuleType.LAST_SLEPT).ifPresent(time -> values.put("lastSlept", number(time)));
         memory(brain, MemoryModuleType.LAST_WORKED_AT_POI).ifPresent(time -> values.put("lastWorkedAtPoi", number(time)));
         // The memory is a flag that expires; report the game time it expires at (true when it never expires).
         if (memory(brain, MemoryModuleType.GOLEM_DETECTED_RECENTLY).isPresent()) {
             var timeToLive = brain.getTimeUntilExpiry(MemoryModuleType.GOLEM_DETECTED_RECENTLY);
-            values.put("golemDetectedRecently", timeToLive == Long.MAX_VALUE ? new Evidence.JsonBoolean(true)
+            values.put("golemDetectedUntil", timeToLive == Long.MAX_VALUE ? new Evidence.JsonBoolean(true)
                     : number(villager.level().getGameTime() + timeToLive));
         }
         values.put("wantsToSpawnGolem", new Evidence.JsonBoolean(villager.wantsToSpawnGolem(villager.level().getGameTime())));

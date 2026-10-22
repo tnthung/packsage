@@ -65,7 +65,12 @@ public final class ServerWork {
                     return false;
                 }
                 return true;
-            } catch (RuntimeException e) {
+            } catch (VirtualMachineError e) {
+                future.completeExceptionally(e);
+                jobs.decrementAndGet();
+                throw e;
+            } catch (Throwable e) {
+                // An adapter's Error, such as a LinkageError, fails this read without killing the server thread.
                 future.completeExceptionally(e);
                 return false;
             }

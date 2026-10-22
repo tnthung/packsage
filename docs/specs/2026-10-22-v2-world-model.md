@@ -65,6 +65,7 @@ An adapter is identified by an `AdapterId`, such as `minecraft`. It implements a
 | `InventoryReader` | Inventories of a holder, their entries, facts about one item | Inventories combined; item facts merged |
 | `Journalist` | Search past events and notes; save, update and delete notes | One journal per world |
 | `ProgressReader` | Progress trees: advancement tabs now, quest books later | Trees and entries combined; entry facts merged |
+| `StatisticReader` | Counters: mined, crafted, killed, distances, play time | Combined; mod counters later |
 | `RecipeInspector` | Recipe search and route planning (existing native readers) | As today; mod adapters later |
 | `RulesReader` | Registries, enchantments and eligibility, effects, attributes, dimensions (existing native readers) | As today |
 
@@ -73,6 +74,8 @@ The existing `search_inventory`, history and config tools keep working during th
 ### The server boundary
 
 All live reads go through these capability interfaces as named queries with plain-data arguments and results. In singleplayer, reads run on the integrated server thread. Results are copied into plain records before returning, and bounds are enforced there. A later server-side component implements the same queries remotely.
+
+**No policy limits.** PackSage reads everything the integrated server holds, including containers out of reach, locked containers, other players' items and every mob, even while the world is open to LAN with others connected. A "no" in an answer means the thing genuinely is not there or cannot be read, never that a rule forbade reading it. Bounds exist only to pace work: a bounded read returns PARTIAL with a cursor that continues it, never a refusal. The existing storage reader's LAN, other-player, reach and lock refusals are removed.
 
 On a multiplayer server, the world, inventory, entity, progress and journal tools report unavailable. Losing today's client-side inventory reads on servers is accepted for v2; the player only plays singleplayer.
 
@@ -121,7 +124,7 @@ trait EntityInspector { fn inspect_entity(&self, uuid: Uuid) -> Result<Option<Fa
 - **Diagnosis.** PackSage supplies facts. The model reasons with its own game knowledge and says when the facts don't explain the problem.
 - **Inventories.** Block and entity inspection lists the inventories present (`InventoryInfo`) but never their contents; those are read through `InventoryReader`.
 
-*My call:* radius defaults to 16 and is capped at 48. A summary is capped at 4,096 notable blocks and a list page at 64 items.
+*My call:* radius defaults to 16 and may reach as far as chunks are loaded. A summary page holds up to 4,096 notable blocks and a list page up to 64 items; larger areas continue with a cursor.
 
 ## Inventories
 
@@ -216,7 +219,7 @@ Opening for reading must not create or change anything. Each adapter's tests che
 
 `find_items(center, radius, filter, include_nested)` collects every inventory of every holder in range from all `InventoryReader`s. That includes the player's own, and items nested up to the path cap when `include_nested` is set. It returns grouped `ItemEntry` rows with paths. A later storage-network adapter is included automatically.
 
-*My call:* a single search inspects at most 512 containers and reports partial coverage beyond that.
+*My call:* one search page inspects up to 512 containers, then returns PARTIAL with a cursor that continues the search.
 
 ## Progress
 
@@ -240,6 +243,23 @@ trait ProgressReader {
 ```
 
 The Minecraft adapter implements this for advancements, including per-criterion state such as the biomes still missing for *Adventuring Time*. *My call:* a hidden advancement is listed as hidden, without its title or criteria, until it is earned.
+
+## Statistics
+
+The game's own counters answer "how many diamonds have I mined?" exactly: blocks mined, items crafted, used, picked up and dropped, mobs killed and killed by, distances, and custom counters such as deaths, jumps and time played.
+
+```rust
+struct Statistic { category: String, subject: Option<String>, label: String, value: i64, unit: Unit }
+// category: "mined", "crafted", "used", "broken", "picked_up", "dropped", "killed", "killed_by", "custom"
+// subject: block, item or entity id; None for custom counters
+enum Unit { Count, Distance, Time }
+
+trait StatisticReader {
+    fn list_statistics(&self, categories: Vec<String>, subjects: KindFilter, cursor: Option<Cursor>) -> Result<Page<Statistic>>;
+}
+```
+
+The Minecraft adapter reads the player's server-side statistics. Distances are reported in blocks and times in seconds. Statistics count since the world began; the journal answers questions about when.
 
 ## Journal
 
@@ -320,6 +340,7 @@ New persistent navigation targets: `world-block|<dimension>|x,y,z` and `world-en
 | `inspect_item(path)` | merged `InventoryReader::inspect_item` |
 | `find_items(filter, center?, radius?, include_nested?)` | all `InventoryReader`s |
 | `list_progress(tree?, status?, text?, cursor?)`, `inspect_progress(id)` | `ProgressReader` |
+| `list_statistics(categories?, subjects?, cursor?)` | `StatisticReader` |
 | `search_journal(filter, cursor?)` | `Journalist` |
 | `remember(text, at?, tags?)`, `update_note`, `forget_note` | `Journalist` |
 | `search_recipe`, `plan_recipe`, `search_registry`, `read_evidence`, history and config tools | existing, unchanged |

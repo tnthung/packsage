@@ -6,8 +6,10 @@ import dev.packsage.knowledge.Toolbox;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.RecipeTypes;
+import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.ingredient.IRecipeSlotsView;
 import mezz.jei.api.ingredients.ITypedIngredient;
+import mezz.jei.api.ingredients.subtypes.UidContext;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.IFocus;
 import mezz.jei.api.recipe.RecipeIngredientRole;
@@ -19,6 +21,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
@@ -244,6 +247,7 @@ public final class PackSageJeiPlugin implements IModPlugin {
                 if (matchingOutputItemId == null || !BuiltInRegistries.ITEM.containsKey(matchingOutputItemId)) {
                     throw new IllegalArgumentException("unknown or invalid outputItem " + outputItem);
                 }
+                focuses = outputFocus(runtime, BuiltInRegistries.ITEM.get(matchingOutputItemId));
             }
             if (retained != null) {
                 var category = retained.category();
@@ -1160,6 +1164,26 @@ public final class PackSageJeiPlugin implements IModPlugin {
 
         private String categoryHandle(long snapshotVersion, String categoryId) {
             return "jei/" + generation + "/" + snapshotVersion + "/" + categoryId + "/category";
+        }
+
+        private static List<IFocus<?>> outputFocus(IJeiRuntime runtime, Item item) {
+            try {
+                var helpers = runtime.getJeiHelpers();
+                var ingredients = runtime.getIngredientManager();
+                if (helpers == null || ingredients == null || helpers.getStackHelper() == null
+                        || helpers.getFocusFactory() == null) return List.of();
+                var stack = new ItemStack(item);
+                var identity = helpers.getStackHelper().getUidForStack(stack, UidContext.Recipe);
+                if (identity == null) return List.of();
+                for (var listed : ingredients.getAllIngredients(VanillaTypes.ITEM_STACK)) {
+                    if (listed.getItem() == item && !identity.equals(helpers.getStackHelper().getUidForStack(listed, UidContext.Recipe))) {
+                        return List.of();
+                    }
+                }
+                return List.of(helpers.getFocusFactory().createFocus(RecipeIngredientRole.OUTPUT, VanillaTypes.ITEM_STACK, stack));
+            } catch (RuntimeException | LinkageError ignored) {
+                return List.of();
+            }
         }
 
         private static boolean knownCategory(String categoryId) {

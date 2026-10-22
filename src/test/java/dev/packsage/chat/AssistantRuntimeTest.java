@@ -5,8 +5,6 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.knowledge.Toolbox;
-import dev.packsage.knowledge.guide.GuideDocumentProvider;
-import dev.packsage.knowledge.guide.GuideDocumentReader;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.GroundingInstructions;
@@ -553,10 +551,10 @@ class AssistantRuntimeTest {
     }
 
     @Test
-    void parallelGuideDocumentToolsKeepEvidenceReplayAndCompletionWithTheirConversation() throws Exception {
-        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-parallel-guide-tools"), DIRECT);
+    void parallelRecipeToolsKeepEvidenceReplayAndCompletionWithTheirConversation() throws Exception {
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-parallel-recipe-tools"), DIRECT);
         ChatContracts.Conversation conversationA = store.newConversation(WORLD).toCompletableFuture().join();
-        ChatContracts.Turn previousA = new ChatContracts.Turn(new ChatContracts.RequestId("guide-history-a"),
+        ChatContracts.Turn previousA = new ChatContracts.Turn(new ChatContracts.RequestId("recipe-history-a"),
                 "Earlier A question", "Earlier A answer", List.of(), new ChatContracts.Context("A context", null, SCOPE),
                 List.of(), List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
         store.appendTurn(WORLD, SCOPE, conversationA.id(), previousA).toCompletableFuture().join();
@@ -568,32 +566,32 @@ class AssistantRuntimeTest {
             String label = clientQueues.isEmpty() ? "A" : "B";
             var queue = new java.util.ArrayDeque<Runnable>();
             clientQueues.add(queue);
-            return new KnowledgeService(List.of(new GuideDocumentProvider(new GuideDocumentReader() {
-                @Override public String providerId() { return "guideme"; }
-                @Override public String version() { return "fixture-1"; }
-                @Override public String sourceIdentity(Evidence.Scope ignored) { return "source-" + label; }
-                @Override public CandidatePage candidates(String after, int limit, Toolbox.DocumentBudget budget) {
-                    return new CandidatePage(after == null ? List.of(new Candidate("guide-" + label, label + " guide manual",
-                            "entry-" + label, List.of("guide provenance " + label), Evidence.Coverage.COMPLETE)) : List.of(),
-                            after == null ? "entry-" + label : after, false, Evidence.Coverage.COMPLETE, null);
+            return new KnowledgeService(List.of(new KnowledgeProvider() {
+                @Override public String id() { return "fixture"; }
+                @Override public Metadata metadata() { return new Metadata(id(), List.of(), true, List.of(), Map.of()); }
+                @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture-1", null); }
+                @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope requestScope) {
+                    return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                            Evidence.Outcome.COMPLETE, null));
                 }
-                @Override public Fragment readFragment(String id, String position, int maxChars, Toolbox.DocumentBudget budget) {
-                    return new Fragment(label + " manual text", "entry-" + label, 0, null, Evidence.Coverage.COMPLETE, null,
-                            new Evidence.JsonObject(Map.of("items", new Evidence.JsonObject(Map.of(
-                                    "coverage", new Evidence.JsonString("COMPLETE"), "values", new Evidence.JsonArray(List.of(
-                                            new Evidence.JsonObject(Map.of("kind", new Evidence.JsonString("associated"),
-                                                    "sourcePosition", new Evidence.JsonString("entry-" + label),
-                                                    "itemId", new Evidence.JsonString("example:" + label.toLowerCase() + "_item"))))))))));
+                @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) {
+                    var result = new CompletableFuture<Evidence.Result>();
+                    queue.addLast(() -> {
+                        var source = new Evidence.Source(request.scope(), id(), "fixture-1", "recipe-" + label,
+                                request.scope().requestGeneration(), Instant.EPOCH, Evidence.Activity.ACTIVE,
+                                Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("recipe provenance " + label));
+                        result.complete(new Evidence.Result(List.of(new Evidence.Record(source, Evidence.RecordKind.RECIPE,
+                                label + " recipe", new Evidence.JsonObject(Map.of("itemId",
+                                new Evidence.JsonString("example:" + label.toLowerCase() + "_item"))),
+                                List.of(new Evidence.NavigationTarget(request.scope(), id(), "recipe-" + label, "page-" + label)))),
+                                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
+                    });
+                    return result;
                 }
-                @Override public ResolvedDocument resolve(String id, int maxChars, Toolbox.DocumentBudget budget) {
-                    return new ResolvedDocument(new Candidate("guide-" + label, label + " guide manual", "entry-" + label,
-                            List.of("guide provenance " + label), Evidence.Coverage.COMPLETE),
-                            readFragment(id, "entry-" + label, maxChars, budget));
+                @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope requestScope) {
+                    return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "opened");
                 }
-                @Override public List<Evidence.NavigationTarget> navigationTargets(Evidence.Scope requestScope, Candidate candidate) {
-                    return List.of(new Evidence.NavigationTarget(requestScope, "guideme", candidate.id(), "page-" + label));
-                }
-            }, current, queue::addLast)), current);
+            }), current);
         }, ChatContracts.Turn::tokenCount, prepared -> {
             preparedByRequest.put(prepared.submission().requestId().value(), prepared);
             return new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
@@ -606,32 +604,32 @@ class AssistantRuntimeTest {
         backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
         backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
 
-        runtime.send("Question for guide A", false, false);
+        runtime.send("Question for recipe A", false, false);
         String requestA = backend.requests.getLast().requestId();
-        var toolCallA = new ModelBackend.ToolCall("guide-a", "search_document",
-                "{\"query\":\"manual\",\"filter\":{\"provider\":\"guideme\",\"types\":[\"guide\"]}}");
+        var toolCallA = new ModelBackend.ToolCall("recipe-a", "search_recipe",
+                "{\"filter\":{\"provider\":\"fixture\"}}");
         backend.emit(requestA, new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
                 toolCallA, List.of(), null));
-        assertEquals(1, clientQueues.get(0).size(), "A's real guide search should remain queued");
+        assertEquals(1, clientQueues.get(0).size(), "A's recipe search should remain queued");
 
         runtime.newChat();
         String conversationB = runtime.view().conversation().id();
-        runtime.send("Question for guide B", false, false);
+        runtime.send("Question for recipe B", false, false);
         String requestB = backend.requests.getLast().requestId();
         assertNotEquals(preparedByRequest.get(requestA).capturedContext().context().scope(),
                 preparedByRequest.get(requestB).capturedContext().context().scope());
-        var toolCallB = new ModelBackend.ToolCall("guide-b", "search_document",
-                "{\"query\":\"manual\",\"filter\":{\"provider\":\"guideme\",\"types\":[\"guide\"]}}");
+        var toolCallB = new ModelBackend.ToolCall("recipe-b", "search_recipe",
+                "{\"filter\":{\"provider\":\"fixture\"}}");
         backend.emit(requestB, new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
                 toolCallB, List.of(), null));
-        assertEquals(1, clientQueues.get(1).size(), "B's real guide search should be independently queued");
+        assertEquals(1, clientQueues.get(1).size(), "B's recipe search should be independently queued");
 
         clientQueues.get(1).removeFirst().run();
-        ModelBackend.ToolResult resultB = backend.results.stream().filter(result -> result.callId().equals("guide-b")).findFirst().orElseThrow();
+        ModelBackend.ToolResult resultB = backend.results.stream().filter(result -> result.callId().equals("recipe-b")).findFirst().orElseThrow();
         assertFalse(resultB.error(), resultB.serializedResult());
         assertTrue(resultB.serializedResult().contains("example:b_item"), resultB.serializedResult());
         assertFalse(resultB.serializedResult().contains("example:a_item"), resultB.serializedResult());
-        assertTrue(resultB.serializedResult().contains("guide provenance B"), resultB.serializedResult());
+        assertTrue(resultB.serializedResult().contains("recipe provenance B"), resultB.serializedResult());
         var answerB = new ModelBackend.AssistantOutput("answer-b", ModelBackend.OutputStatus.COMPLETED,
                 ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer B", List.of())));
         backend.emit(requestB, new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Answer B", null, List.of(), null));
@@ -640,11 +638,11 @@ class AssistantRuntimeTest {
         assertEquals(1, clientQueues.get(0).size(), "A remains pending after B completes");
 
         clientQueues.get(0).removeFirst().run();
-        ModelBackend.ToolResult resultA = backend.results.stream().filter(result -> result.callId().equals("guide-a")).findFirst().orElseThrow();
+        ModelBackend.ToolResult resultA = backend.results.stream().filter(result -> result.callId().equals("recipe-a")).findFirst().orElseThrow();
         assertFalse(resultA.error(), resultA.serializedResult());
         assertTrue(resultA.serializedResult().contains("example:a_item"), resultA.serializedResult());
         assertFalse(resultA.serializedResult().contains("example:b_item"), resultA.serializedResult());
-        assertTrue(resultA.serializedResult().contains("guide provenance A"), resultA.serializedResult());
+        assertTrue(resultA.serializedResult().contains("recipe provenance A"), resultA.serializedResult());
         var answerA = new ModelBackend.AssistantOutput("answer-a", ModelBackend.OutputStatus.COMPLETED,
                 ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer A", List.of())));
         backend.emit(requestA, new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Answer A", null, List.of(), null));
@@ -658,38 +656,38 @@ class AssistantRuntimeTest {
         assertEquals(List.of(previousA, savedA.turns().getLast()), savedA.turns());
         assertEquals(List.of(previousA), preparedByRequest.get(requestA).history().turns());
         assertTrue(preparedByRequest.get(requestB).history().turns().isEmpty());
-        assertEquals("Question for guide A", savedA.turns().getLast().question());
+        assertEquals("Question for recipe A", savedA.turns().getLast().question());
         assertEquals("Answer A", savedA.turns().getLast().answer());
         assertEquals(ChatContracts.OutcomeStatus.COMPLETED, savedA.turns().getLast().outcome().status());
         assertEquals(requestA, savedA.turns().getLast().requestId().value());
         assertEquals(List.of(toolCallA, resultA, answerA),
                 savedA.turns().getLast().replayItems());
         assertEquals(1, savedA.turns().getLast().sources().size());
-        assertEquals(List.of("guide provenance A"), savedA.turns().getLast().sources().getFirst().provenance());
-        assertEquals("guideme", savedA.turns().getLast().sources().getFirst().providerId());
-        assertEquals("guide-A", savedA.turns().getLast().sources().getFirst().sourceHandle());
-        assertEquals(Evidence.Authority.INSTALLED_DOCUMENTATION, savedA.turns().getLast().sources().getFirst().authority());
+        assertEquals(List.of("recipe provenance A"), savedA.turns().getLast().sources().getFirst().provenance());
+        assertEquals("fixture", savedA.turns().getLast().sources().getFirst().providerId());
+        assertEquals("recipe-A", savedA.turns().getLast().sources().getFirst().sourceHandle());
+        assertEquals(Evidence.Authority.LOADED, savedA.turns().getLast().sources().getFirst().authority());
         assertEquals(preparedByRequest.get(requestA).capturedContext().context().scope(),
                 savedA.turns().getLast().sources().getFirst().scope());
         assertEquals(preparedByRequest.get(requestA).capturedContext().context().scope(), savedA.turns().getLast().context().scope());
-        assertEquals(List.of(new Evidence.NavigationTarget(savedA.turns().getLast().context().scope(), "guideme", "guide-A", "page-A")),
+        assertEquals(List.of(new Evidence.NavigationTarget(savedA.turns().getLast().context().scope(), "fixture", "recipe-A", "page-A")),
                 savedA.turns().getLast().navigationTargets());
-        assertEquals("Question for guide B", savedB.turns().getLast().question());
+        assertEquals("Question for recipe B", savedB.turns().getLast().question());
         assertEquals(1, savedB.turns().size());
         assertEquals("Answer B", savedB.turns().getLast().answer());
         assertEquals(ChatContracts.OutcomeStatus.COMPLETED, savedB.turns().getLast().outcome().status());
         assertEquals(requestB, savedB.turns().getLast().requestId().value());
-        assertEquals("guide-b", savedB.turns().getLast().replayItems().stream().filter(ModelBackend.ToolResult.class::isInstance)
+        assertEquals("recipe-b", savedB.turns().getLast().replayItems().stream().filter(ModelBackend.ToolResult.class::isInstance)
                 .map(ModelBackend.ToolResult.class::cast).findFirst().orElseThrow().callId());
         assertEquals(List.of(toolCallB, resultB, answerB), savedB.turns().getLast().replayItems());
-        assertEquals(List.of("guide provenance B"), savedB.turns().getLast().sources().getFirst().provenance());
+        assertEquals(List.of("recipe provenance B"), savedB.turns().getLast().sources().getFirst().provenance());
         assertEquals(1, savedB.turns().getLast().sources().size());
-        assertEquals("guide-B", savedB.turns().getLast().sources().getFirst().sourceHandle());
+        assertEquals("recipe-B", savedB.turns().getLast().sources().getFirst().sourceHandle());
         assertEquals(preparedByRequest.get(requestB).capturedContext().context().scope(),
                 savedB.turns().getLast().sources().getFirst().scope());
-        assertEquals(Evidence.Authority.INSTALLED_DOCUMENTATION, savedB.turns().getLast().sources().getFirst().authority());
+        assertEquals(Evidence.Authority.LOADED, savedB.turns().getLast().sources().getFirst().authority());
         assertEquals(preparedByRequest.get(requestB).capturedContext().context().scope(), savedB.turns().getLast().context().scope());
-        assertEquals(List.of(new Evidence.NavigationTarget(savedB.turns().getLast().context().scope(), "guideme", "guide-B", "page-B")),
+        assertEquals(List.of(new Evidence.NavigationTarget(savedB.turns().getLast().context().scope(), "fixture", "recipe-B", "page-B")),
                 savedB.turns().getLast().navigationTargets());
         assertEquals(conversationB, runtime.view().conversation().id());
         assertTrue(runtime.view().conversation().turns().stream().anyMatch(turn -> turn.answer().equals("Answer B")));
@@ -1682,16 +1680,13 @@ class AssistantRuntimeTest {
     @Test
     void adapterAvailabilityTracksWorldHistoryAndFactoryFailure() throws Exception {
         FakeBackend backend = new FakeBackend();
-        Map<String, Boolean> unavailableAdapters = Map.ofEntries(Map.entry("native", false), Map.entry("jei", false),
-                Map.entry("ftb_quests", false), Map.entry("config", false), Map.entry("patchouli", false),
-                Map.entry("modonomicon", false), Map.entry("guideme", false), Map.entry("immersiveengineering", false),
-                Map.entry("actuallyadditions", false), Map.entry("relics", false), Map.entry("artifacts", false),
-                Map.entry("ponder", false), Map.entry("history", false), Map.entry("curios", false));
+        Map<String, Boolean> unavailableAdapters = Map.ofEntries(Map.entry("native", false), Map.entry("config", false),
+                Map.entry("history", false));
         AtomicInteger factoryCalls = new AtomicInteger();
         var knowledgeFactory = (java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService>) current -> {
             if (factoryCalls.incrementAndGet() == 2) throw new IllegalStateException("provider refresh failed");
             return new KnowledgeService(List.of(new KnowledgeProvider() {
-                @Override public String id() { return "ponder"; }
+                @Override public String id() { return "config"; }
                 @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
                 @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
                     return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
@@ -1710,7 +1705,7 @@ class AssistantRuntimeTest {
         runtime.enterWorld(WORLD, SCOPE);
         Map<String, Boolean> activeAdapters = new java.util.HashMap<>(unavailableAdapters);
         activeAdapters.put("history", true);
-        activeAdapters.put("ponder", true);
+        activeAdapters.put("config", true);
         assertEquals(activeAdapters, runtime.adapterAvailability());
         runtime.enterWorld(new ChatContracts.WorldIdentity("world-2", "World 2"),
                 new Evidence.Scope("world-2", "resources", "team", "runtime", 0));
@@ -1727,17 +1722,17 @@ class AssistantRuntimeTest {
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
                 new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
                 current -> new KnowledgeService(List.of(new Toolbox() {
-                    @Override public Metadata metadata() { return new Metadata("patchouli", List.of("guide"), false, List.of(), Map.of()); }
-                    @Override public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Context context) {
+                    @Override public Metadata metadata() { return new Metadata("fixture", List.of(), true, List.of(), Map.of()); }
+                    @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) {
                         Evidence.Scope scope = request.scope();
-                        Evidence.Source source = new Evidence.Source(scope, "patchouli", "fixture", "guide-id",
+                        Evidence.Source source = new Evidence.Source(scope, "fixture", "fixture", "recipe-id",
                                 scope.requestGeneration(), Instant.EPOCH, Evidence.Activity.ACTIVE,
                                 Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
-                        Evidence.NavigationTarget target = new Evidence.NavigationTarget(scope, "patchouli", "guide-id", "guide-page");
+                        Evidence.NavigationTarget target = new Evidence.NavigationTarget(scope, "fixture", "recipe-id", "recipe-page");
                         observedSource.set(source);
                         observedTarget.set(target);
                         return CompletableFuture.completedFuture(new Evidence.Result(List.of(new Evidence.Record(source,
-                                Evidence.RecordKind.GUIDE, "Fixture guide", new Evidence.JsonObject(Map.of()), List.of(target))),
+                                Evidence.RecordKind.RECIPE, "Fixture recipe", new Evidence.JsonObject(Map.of()), List.of(target))),
                                 Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
                     }
                 }), current), DIRECT);
@@ -1746,10 +1741,10 @@ class AssistantRuntimeTest {
         backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
         backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
 
-        runtime.send("Find the guide", false, false);
+        runtime.send("Find the recipe", false, false);
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("guide", "search_document",
-                        "{\"query\":\"fixture\",\"filter\":{\"provider\":\"patchouli\",\"types\":[\"guide\"]}}"),
+                new ModelBackend.ToolCall("recipe", "search_recipe",
+                        "{\"filter\":{\"text\":\"fixture\",\"provider\":\"fixture\"}}"),
                 List.of(), null));
 
         assertTrue(runtime.view().active());
@@ -1761,12 +1756,12 @@ class AssistantRuntimeTest {
     void lateNavigationResultCannotReplaceFeedbackFromNewerClick() throws Exception {
         ChatContracts.WorldIdentity world = WORLD;
         Evidence.Scope historicalScope = new Evidence.Scope("world", "old-resources", "team", "runtime", 2);
-        var firstSource = new Evidence.Source(historicalScope, "patchouli", "fixture", "first", 2, Instant.EPOCH,
+        var firstSource = new Evidence.Source(historicalScope, "fixture", "fixture", "first", 2, Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
-        var secondSource = new Evidence.Source(historicalScope, "patchouli", "fixture", "second", 2, Instant.EPOCH,
+        var secondSource = new Evidence.Source(historicalScope, "fixture", "fixture", "second", 2, Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
-        var firstTarget = new Evidence.NavigationTarget(historicalScope, "patchouli", "first", "first-page");
-        var secondTarget = new Evidence.NavigationTarget(historicalScope, "patchouli", "second", "second-page");
+        var firstTarget = new Evidence.NavigationTarget(historicalScope, "fixture", "first", "first-page");
+        var secondTarget = new Evidence.NavigationTarget(historicalScope, "fixture", "second", "second-page");
         var historical = new ChatContracts.Turn(new ChatContracts.RequestId("navigation-history"), "question", "answer",
                 List.of(), new ChatContracts.Context("historical context", null, historicalScope),
                 List.of(firstSource, secondSource), List.of(firstTarget, secondTarget),
@@ -1777,7 +1772,7 @@ class AssistantRuntimeTest {
         var firstRead = new CompletableFuture<Evidence.Result>();
         var secondRead = new CompletableFuture<Evidence.Result>();
         KnowledgeProvider provider = new KnowledgeProvider() {
-            @Override public String id() { return "patchouli"; }
+            @Override public String id() { return "fixture"; }
             @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
             @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
                 String id = ((Evidence.JsonString) query.arguments().values().get("id")).value();
@@ -1800,8 +1795,8 @@ class AssistantRuntimeTest {
 
         runtime.navigate(firstTarget);
         runtime.navigate(secondTarget);
-        var currentSecondTarget = new Evidence.NavigationTarget(SCOPE, "patchouli", "second", "second-page");
-        var currentSecondSource = new Evidence.Source(SCOPE, "patchouli", "fixture", "second", 0, Instant.EPOCH,
+        var currentSecondTarget = new Evidence.NavigationTarget(SCOPE, "fixture", "second", "second-page");
+        var currentSecondSource = new Evidence.Source(SCOPE, "fixture", "fixture", "second", 0, Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
         secondRead.complete(new Evidence.Result(List.of(new Evidence.Record(currentSecondSource, Evidence.RecordKind.GUIDE,
                 "Second page", new Evidence.JsonObject(Map.of()), List.of(currentSecondTarget))),
@@ -2114,24 +2109,24 @@ class AssistantRuntimeTest {
 
     @Test
     void modelAliasesStayCanonicalInSavedAnswersSteeringReadsNavigationDetailsAndReopenedHistory() throws Exception {
-        String handle = "book:example:guides/carried_storage/very_long_container_page";
-        String reference = "patchouli:" + handle;
+        String handle = "recipe:example:recipes/carried_storage/very_long_container_recipe";
+        String reference = "fixture:" + handle;
         var reads = new AtomicInteger();
         var navigations = new AtomicInteger();
         KnowledgeProvider provider = new KnowledgeProvider() {
-            @Override public String id() { return "patchouli"; }
-            @Override public Metadata metadata() { return new Metadata(id(), List.of("guide"), false, List.of(), Map.of()); }
+            @Override public String id() { return "fixture"; }
+            @Override public Metadata metadata() { return new Metadata(id(), List.of(), true, List.of(), Map.of()); }
             @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
             @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
                 var source = new Evidence.Source(scope, id(), "fixture", handle, scope.requestGeneration(), Instant.EPOCH,
                         Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
                 var target = new Evidence.NavigationTarget(scope, id(), handle, "container-page");
                 return CompletableFuture.completedFuture(new Evidence.Result(List.of(new Evidence.Record(source,
-                        Evidence.RecordKind.GUIDE, "Carried storage guide", new Evidence.JsonObject(Map.of(
+                        Evidence.RecordKind.RECIPE, "Carried storage recipe", new Evidence.JsonObject(Map.of(
                         "text", new Evidence.JsonString("Inspect every relevant carried container."))), List.of(target))),
                         Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
             }
-            @Override public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Context context) {
+            @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) {
                 return query(new Evidence.Query(Evidence.Operation.GET, request.arguments(), 1, null, null), request.scope());
             }
             @Override public CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Context context) {
@@ -2157,7 +2152,7 @@ class AssistantRuntimeTest {
         backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
         backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
         runtime.send("Check carried storage", false, false);
-        var search = new ModelBackend.ToolCall("search", "search_document", "{\"query\":\"carried storage\",\"filter\":{\"provider\":\"patchouli\",\"types\":[\"guide\"]}}");
+        var search = new ModelBackend.ToolCall("search", "search_recipe", "{\"filter\":{\"text\":\"carried storage\",\"provider\":\"fixture\"}}");
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, search, List.of(), null));
         assertEquals(1, backend.results.size());
         String alias = com.google.gson.JsonParser.parseString(backend.results.getFirst().serializedResult()).getAsJsonObject()
@@ -2187,7 +2182,7 @@ class AssistantRuntimeTest {
         assertEquals(turn, saved.turns().getLast());
         var details = Class.forName("dev.packsage.client.SourceDetailsScreen").getDeclaredMethod("details", Evidence.Source.class, ChatContracts.Turn.class);
         details.setAccessible(true);
-        assertTrue(((List<?>) details.invoke(null, turn.sources().getFirst(), saved.turns().getLast())).contains("Carried storage guide"));
+        assertTrue(((List<?>) details.invoke(null, turn.sources().getFirst(), saved.turns().getLast())).contains("Carried storage recipe"));
         runtime.newChat();
         runtime.openSession(new ChatContracts.SessionSummary(WORLD, saved.id(), turn.question(), turn.answer(), Instant.EPOCH));
         assertEquals(turn, runtime.view().conversation().turns().getLast());

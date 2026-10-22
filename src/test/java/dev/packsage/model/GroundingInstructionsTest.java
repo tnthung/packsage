@@ -25,6 +25,10 @@ class GroundingInstructionsTest {
         assertTrue(text.contains("derive operations and input totals from those semantics and state the grouping you assumed"));
         assertTrue(text.contains("Request independent reads together in one turn"));
         assertTrue(text.contains("By default, include relevant navigation"));
+        assertTrue(text.contains("search_recipe reads Minecraft's loaded recipes."));
+        var removedSources = java.util.regex.Pattern.compile("\\b(JEI|search_document|read_progress|Ponder|Curios|[Qq]uests?|[Gg]uides?)\\b")
+                .matcher(text);
+        assertFalse(removedSources.find(), () -> removedSources.group());
     }
 
     @Test
@@ -90,7 +94,7 @@ class GroundingInstructionsTest {
         assertEquals(ModelBackend.Role.USER, current.role());
         assertEquals(1, current.content().size());
         assertEquals("hi", ((ModelBackend.TextContent) current.content().getFirst()).text());
-        assertEquals(12, request.tools().size());
+        assertEquals(10, request.tools().size());
     }
 
     @Test

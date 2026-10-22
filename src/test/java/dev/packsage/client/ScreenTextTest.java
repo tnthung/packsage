@@ -138,48 +138,6 @@ class ScreenTextTest {
     }
 
     @Test
-    void savedJeiMarkdownBindsOnlyToOneExactJeiSourceAndMatchingTarget() {
-        String handle = "jei/1/10/minecraft:crafting/recipe-minecraft:torch-1";
-        var source = new Evidence.Source(SCOPE, "jei", "1", handle, 1, java.time.Instant.EPOCH,
-                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("jei"));
-        var target = new Evidence.NavigationTarget(SCOPE, "jei", handle, "current-jei-target");
-        var matching = ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(target), List.of(), List.of(source))
-                .getFirst().spans().getFirst();
-
-        assertEquals("Torch recipe", matching.text());
-        assertEquals(source, matching.source());
-        assertEquals(target, matching.target());
-
-        var sourceOnly = ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(), List.of(), List.of(source))
-                .getFirst().spans().getFirst();
-        assertEquals("Torch recipe", sourceOnly.text());
-        assertEquals(source, sourceOnly.source());
-        assertEquals(null, sourceOnly.target());
-
-        assertTrue(ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(target)).getFirst().spans().stream()
-                .noneMatch(span -> span.target() != null || span.source() != null));
-
-        assertTrue(ScreenText.inlineLines("[Torch recipe](" + handle + "x)", List.of(target), List.of(), List.of(source))
-                .getFirst().spans().stream().noneMatch(span -> span.target() != null || span.source() != null));
-
-        assertTrue(ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(target), List.of(), List.of(source,
-                new Evidence.Source(SCOPE, "other", "1", handle, 1, java.time.Instant.EPOCH, Evidence.Activity.ACTIVE,
-                        Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("other"))))
-                .getFirst().spans().stream().noneMatch(span -> span.target() != null || span.source() != null));
-
-        var repeated = ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(target), List.of(), List.of(source, source))
-                .getFirst().spans().getFirst();
-        assertEquals(source, repeated.source());
-        assertEquals(target, repeated.target());
-
-        var mismatchedScope = ScreenText.inlineLines("[Torch recipe](" + handle + ")", List.of(new Evidence.NavigationTarget(
-                new Evidence.Scope("other-world", "en_us", "team", "runtime", 1), "jei", handle, "other-scope-target")), List.of(), List.of(source))
-                .getFirst().spans().getFirst();
-        assertEquals(source, mismatchedScope.source());
-        assertEquals(null, mismatchedScope.target());
-    }
-
-    @Test
     void recordedSourcesBindGroupedAndBareCitationsWithoutCreatingUnvalidatedNavigation() {
         var inventory = new Evidence.Source(SCOPE, "native", "native", "inventory:observation:hotbar:0", 1,
                 java.time.Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
@@ -209,15 +167,15 @@ class ScreenTextTest {
 
     @Test
     void registeredLocalControlsAppearAtTheirMarkersWithoutOpaqueIdsOrASeparateCollection() {
-        var target = new Evidence.NavigationTarget(SCOPE, "patchouli", "book#entry", "entry#1@lifecycle");
-        var spans = ScreenText.inlineLines("Before [patchouli:book#entry] after.", List.of(target)).getFirst().spans();
+        var target = new Evidence.NavigationTarget(SCOPE, "config", "book#entry", "entry#1@lifecycle");
+        var spans = ScreenText.inlineLines("Before [config:book#entry] after.", List.of(target)).getFirst().spans();
         assertEquals("Before ", spans.getFirst().text());
-        assertEquals("Guide", spans.get(1).text());
+        assertEquals("Config", spans.get(1).text());
         assertEquals(target, spans.get(1).target());
         assertEquals(" after.", spans.getLast().text());
         assertTrue(ScreenText.inlineLines("No reference here.", List.of(target)).stream()
                 .flatMap(line -> line.spans().stream()).noneMatch(span -> span.target() != null));
-        assertTrue(ScreenText.inlineLines("[patchouli:unregistered]", List.of(target)).stream()
+        assertTrue(ScreenText.inlineLines("[config:unregistered]", List.of(target)).stream()
                 .flatMap(line -> line.spans().stream()).noneMatch(span -> span.target() != null));
     }
 
@@ -283,41 +241,41 @@ class ScreenTextTest {
 
     @Test
     void inlineMarkdownClosesStylesAndLeavesCodeReferencesLiteral() {
-        var target = new Evidence.NavigationTarget(SCOPE, "patchouli", "book#entry", "entry");
-        var spans = ScreenText.inlineLines("**bold** normal `code` [patchouli:book#entry]", List.of(target)).getFirst().spans();
+        var target = new Evidence.NavigationTarget(SCOPE, "config", "book#entry", "entry");
+        var spans = ScreenText.inlineLines("**bold** normal `code` [config:book#entry]", List.of(target)).getFirst().spans();
         assertEquals("bold", spans.getFirst().text());
         assertTrue(spans.getFirst().bold());
         assertTrue(spans.stream().anyMatch(span -> span.text().contains("normal") && !span.bold()));
         assertTrue(spans.stream().anyMatch(span -> span.text().equals("code") && span.code()));
-        assertTrue(ScreenText.inlineLines("`[patchouli:book#entry]`", List.of(target)).stream()
+        assertTrue(ScreenText.inlineLines("`[config:book#entry]`", List.of(target)).stream()
                 .flatMap(line -> line.spans().stream()).noneMatch(span -> span.target() != null));
     }
 
     @Test
     void evolutionLocalLinksAndPrivateCitationReferencesUseOnlyRegisteredTargets() {
-        var quest = new Evidence.NavigationTarget(SCOPE, "ftb_quests", "4A2123FF92275F64", "4A2123FF92275F64");
-        var guide = new Evidence.NavigationTarget(SCOPE, "patchouli", "fixture:book#entry", "fixture:book#entry");
-        String privateCitation = "\uE200cite\uE202ftb_quests:4A2123FF92275F64\uE202patchouli:fixture:book#entry"
-                + "\uE202ftb_quests:missing\uE201";
-        String answer = "[**Punch A Tree** — `ftb_quests:4A2123FF92275F64`](ftb_quests:4A2123FF92275F64) "
-                + privateCitation + " [search0](https://evil.test) ` [Fake](ftb_quests:4A2123FF92275F64) ` Claim";
+        var setting = new Evidence.NavigationTarget(SCOPE, "config", "4A2123FF92275F64", "4A2123FF92275F64");
+        var item = new Evidence.NavigationTarget(SCOPE, "native", "fixture:book#entry", "fixture:book#entry");
+        String privateCitation = "\uE200cite\uE202config:4A2123FF92275F64\uE202native:fixture:book#entry"
+                + "\uE202config:missing\uE201";
+        String answer = "[**Punch A Tree** — `config:4A2123FF92275F64`](config:4A2123FF92275F64) "
+                + privateCitation + " [search0](https://evil.test) ` [Fake](config:4A2123FF92275F64) ` Claim";
         var web = new Evidence.NavigationTarget(SCOPE, "web", "https://example.test/source", "https://example.test/source");
         var citation = new dev.packsage.model.ModelBackend.UrlCitation(answer.indexOf("Claim"), answer.length(),
                 "Example", web.sourceHandle());
 
-        var spans = ScreenText.inlineLines(answer, List.of(quest, guide, web), List.of(citation)).getFirst().spans();
-        assertEquals(quest, spans.stream().filter(span -> span.text().equals("Quest") && span.target() != null)
+        var spans = ScreenText.inlineLines(answer, List.of(setting, item, web), List.of(citation)).getFirst().spans();
+        assertEquals(setting, spans.stream().filter(span -> span.text().equals("Config") && span.target() != null)
                 .findFirst().orElseThrow().target());
-        assertEquals(guide, spans.stream().filter(span -> span.text().equals("Guide") && span.target() != null)
+        assertEquals(item, spans.stream().filter(span -> span.text().equals("Source") && span.target() != null)
                 .findFirst().orElseThrow().target());
-        assertEquals(2, spans.stream().filter(span -> span.target() == quest).count());
-        assertTrue(spans.stream().anyMatch(span -> span.target() == quest && span.text().contains("Punch A Tree")));
-        assertTrue(spans.stream().anyMatch(span -> span.text().equals("[quest]") && span.target() == null));
+        assertEquals(2, spans.stream().filter(span -> span.target() == setting).count());
+        assertTrue(spans.stream().anyMatch(span -> span.target() == setting && span.text().contains("Punch A Tree")));
+        assertTrue(spans.stream().anyMatch(span -> span.text().equals("[config]") && span.target() == null));
         assertTrue(spans.stream().anyMatch(span -> span.text().contains("search0") && span.target() == null));
-        assertTrue(spans.stream().anyMatch(span -> span.code() && span.text().contains("[Fake](ftb_quests:")));
+        assertTrue(spans.stream().anyMatch(span -> span.code() && span.text().contains("[Fake](config:")));
         assertTrue(spans.stream().anyMatch(span -> span.target() == web && span.text().equals("Example")));
         assertTrue(spans.stream().filter(span -> span.target() != null)
-                .allMatch(span -> span.target() == quest || span.target() == guide || span.target() == web));
+                .allMatch(span -> span.target() == setting || span.target() == item || span.target() == web));
     }
 
     @Test
@@ -364,7 +322,7 @@ class ScreenTextTest {
 
     @Test
     void inlineTablesHideSeparatorRowsAndKeepHeaderEmphasis() {
-        var lines = ScreenText.inlineLines("| Quest | Progress |\n| --- | --- |\n| Gather | 1/1 |", List.of());
+        var lines = ScreenText.inlineLines("| Task | Progress |\n| --- | --- |\n| Gather | 1/1 |", List.of());
         assertEquals(2, lines.size());
         assertTrue(lines.getFirst().spans().stream().allMatch(ScreenText.InlineSpan::bold));
         assertTrue(lines.getLast().spans().stream().map(ScreenText.InlineSpan::text).reduce("", String::concat).contains("1/1"));
@@ -439,39 +397,36 @@ class ScreenTextTest {
     @Test
     void citationMarkersBecomeShortDimTags() {
         List<Component> lines = ScreenText.markdownLines("Torch [native:minecraft:torch] and "
-                + "[jei:jei/1/1/minecraft:crafting/recipe-packsage:fixture_lantern-123] then [ftb_quests:1000000000000002] "
-                + "[patchouli:fixture:book#fixture:book/intro#0] [config:cfg/x] [jei:other/handle].");
+                + "[config:cfg/x] then [history:turn/1] but [removed:other/handle].");
 
-        assertEquals("Torch [game] and [recipe] then [quest] [book] [config] [jei].", lines.get(0).getString());
-        assertEquals(List.of("[game]", "[recipe]", "[quest]", "[book]", "[config]", "[jei]"), dimRuns(lines.get(0)));
+        assertEquals("Torch [game] and [config] then [history] but [removed:other/handle].", lines.get(0).getString());
+        assertEquals(List.of("[game]", "[config]", "[history]"), dimRuns(lines.get(0)));
     }
 
     @Test
-    void groupedGuideCitationsUseShortTagsWithoutInventingNavigationTargets() {
-        String grouped = "\uE200cite\uE202artifacts:artifacts:umbrella#glider\uE202relics:relics:leafy_mantle#camouflage"
-                + "\uE202modonomicon:fixture:book#entry\uE202guideme:fixture:guide#page"
-                + "\uE202immersiveengineering:manual/fluid_pipes\uE202actuallyadditions:actuallyadditions:crystals\uE201";
+    void groupedCitationsUseShortTagsWithoutInventingNavigationTargets() {
+        String grouped = "\uE200cite\uE202config:cfg/first\uE202config:cfg/second\uE202history:turn/1\uE201";
         var spans = ScreenText.inlineLines(grouped + " [unknown:source]", List.of()).getFirst().spans();
 
-        assertEquals("[guide][guide][guide][guide][manual][guide] [unknown:source]",
+        assertEquals("[config][config][history] [unknown:source]",
                 spans.stream().map(ScreenText.InlineSpan::text).reduce("", String::concat));
         assertTrue(spans.stream().filter(span -> span.text().startsWith("[") && span.text().endsWith("]"))
                 .allMatch(span -> span.target() == null));
-        assertEquals(List.of("[guide]", "[guide]", "[guide]", "[guide]", "[manual]", "[guide]"),
+        assertEquals(List.of("[config]", "[config]", "[history]"),
                 spans.stream().filter(span -> span.text().startsWith("[") && span.text().endsWith("]")
                         && !span.text().equals("[unknown:source]")).map(ScreenText.InlineSpan::text).toList());
     }
 
     @Test
-    void ponderCitationsKeepPlayerNavigationForRawAndGroupedMarkers() {
-        var target = new Evidence.NavigationTarget(SCOPE, "ponder", "1:registration", "create:shaft");
-        for (String marker : List.of("[ponder:1:registration]", "\uE200cite\uE202ponder:1:registration\uE201")) {
+    void navigableCitationsKeepPlayerNavigationForRawAndGroupedMarkers() {
+        var target = new Evidence.NavigationTarget(SCOPE, "config", "cfg/registration", "cfg/registration");
+        for (String marker : List.of("[config:cfg/registration]", "\uE200cite\uE202config:cfg/registration\uE201")) {
             var spans = ScreenText.inlineLines(marker, List.of(target)).getFirst().spans();
             assertEquals(1, spans.size());
-            assertEquals("Ponder", spans.getFirst().text());
+            assertEquals("Config", spans.getFirst().text());
             assertEquals(target, spans.getFirst().target());
         }
-        assertEquals("[ponder]", ScreenText.inlineLines("[ponder:1:registration]", List.of())
+        assertEquals("[config]", ScreenText.inlineLines("[config:cfg/registration]", List.of())
                 .getFirst().spans().getFirst().text());
     }
 
@@ -645,30 +600,14 @@ class ScreenTextTest {
 
     @Test
     void navigationLabelIsReadableAndHasNoHashSuffix() {
-        var jei = new Evidence.NavigationTarget(SCOPE, "jei", "jei/4/9/minecraft:crafting/recipe-minecraft:torch-331",
-                "jei/4/9/minecraft:crafting/recipe-minecraft:torch-331");
-        assertEquals("Open recipe: Torch", ScreenText.navigationLabel(jei));
-
-        var slashed = new Evidence.NavigationTarget(SCOPE, "jei", "jei/4/9/minecraft:crafting/recipe-create:crafting/foo_bar-3",
-                "jei/4/9/minecraft:crafting/recipe-create:crafting/foo_bar-3");
-        assertEquals("Open recipe: Foo Bar", ScreenText.navigationLabel(slashed));
-
-        var noCanonical = new Evidence.NavigationTarget(SCOPE, "jei",
-                "jei/4/9/minecraft:crafting/net.example.Recipe-1a2b3c-7", "jei/4/9/minecraft:crafting/net.example.Recipe-1a2b3c-7");
-        assertEquals("Open recipe", ScreenText.navigationLabel(noCanonical));
-
-        var category = new Evidence.NavigationTarget(SCOPE, "jei", "jei/4/9/minecraft:crafting/category",
-                "jei/4/9/minecraft:crafting/category");
-        assertEquals("Open recipe", ScreenText.navigationLabel(category));
-
-        var ftb =new Evidence.NavigationTarget(SCOPE, "ftb", "abcd", "abcd");
-        assertEquals("Open ftb: abcd", ScreenText.navigationLabel(ftb));
+        var plain = new Evidence.NavigationTarget(SCOPE, "fixture", "abcd", "abcd");
+        assertEquals("Open fixture: abcd", ScreenText.navigationLabel(plain));
 
         var web = new Evidence.NavigationTarget(SCOPE, "native", "minecraft:torch", "minecraft:torch");
         assertEquals("Open native: minecraft:torch", ScreenText.navigationLabel(web));
 
-        var patchouli = new Evidence.NavigationTarget(SCOPE, "patchouli", "fixture:book#fixture:book/intro#0",
+        var hashed = new Evidence.NavigationTarget(SCOPE, "fixture", "fixture:book#fixture:book/intro#0",
                 "fixture:book#fixture:book/intro#0");
-        assertTrue(ScreenText.navigationLabel(patchouli).startsWith("Open patchouli: "));
+        assertEquals("Open fixture: intro", ScreenText.navigationLabel(hashed));
     }
 }

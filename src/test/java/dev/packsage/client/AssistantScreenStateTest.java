@@ -22,34 +22,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AssistantScreenStateTest {
     @Test
     void adapterRowsFilterUnavailableEntriesAndTooltipWindowIsCappedAndClamped() {
-        var availability = java.util.Map.of("native", true, "jei", false);
+        var availability = java.util.Map.of("native", true, "config", false);
         var first = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, true, 0, 640, 480);
         assertEquals(List.of("native"), first.rows().stream().map(java.util.Map.Entry::getKey).toList());
         var firstAll = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 0, 640, 480);
-        assertEquals(8, firstAll.rows().size());
+        assertEquals(List.of("native", "config", "history"), firstAll.rows().stream().map(java.util.Map.Entry::getKey).toList());
         assertEquals(0, firstAll.offset());
-        assertEquals(148, firstAll.height());
-        var last = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 100, 640, 480);
-        assertEquals(6, last.offset());
-        assertEquals(List.of("ponder", "history"), last.rows().stream().map(java.util.Map.Entry::getKey).skip(6).toList());
-        assertEquals(5, AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 0, 640, 160).visibleRows());
+        assertEquals(78, firstAll.height());
+        var last = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 100, 640, 100);
+        assertEquals(1, last.offset());
+        assertEquals(List.of("config", "history"), last.rows().stream().map(java.util.Map.Entry::getKey).toList());
+        assertEquals(2, last.visibleRows());
+        assertEquals(1, AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 0, 640, 82).visibleRows());
     }
 
     @Test
     void adapterTooltipWidthUsesLongestFilteredEntryAndScrollbarTracksScrollPosition() {
         var availability = java.util.Map.<String, Boolean>of();
-        var first = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 0, 640, 480);
-        var middle = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 3, 640, 480);
-        var last = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 100, 640, 480);
+        var first = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 0, 640, 100);
+        var last = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, false, 100, 640, 100);
 
-        assertEquals(first.tooltipWidth(), middle.tooltipWidth());
-        assertEquals(middle.tooltipWidth(), last.tooltipWidth());
-        assertTrue(first.tooltipWidth() >= 20 + 10 + 5 * "Immersive Engineering".length() + 8);
-        assertEquals(112, first.scrollTrackHeight());
-        assertEquals(64, first.scrollThumbHeight());
+        assertEquals(first.tooltipWidth(), last.tooltipWidth());
+        assertTrue(first.tooltipWidth() >= 20 + 10 + 5 * "NeoForge configs".length() + 8);
+        assertEquals(28, first.scrollTrackHeight());
+        assertEquals(18, first.scrollThumbHeight());
         assertEquals(0, first.scrollThumbOffset());
-        assertEquals(24, middle.scrollThumbOffset());
-        assertEquals(48, last.scrollThumbOffset());
+        assertEquals(10, last.scrollThumbOffset());
         assertEquals(0, AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(),
                 java.util.Map.of("native", true), true, 0, 640, 480).scrollTrackHeight());
     }
@@ -61,7 +59,7 @@ class AssistantScreenStateTest {
         actions.availableAdapters = java.util.Map.of("native", true);
         AssistantScreen screen = new AssistantScreen(actions);
         screen.width = 640;
-        screen.height = 480;
+        screen.height = 82;
         ScreenTestHost.initialize(screen);
         var visibleField = AssistantScreen.class.getDeclaredField("adapterPopupVisible");
         visibleField.setAccessible(true);
@@ -81,7 +79,7 @@ class AssistantScreenStateTest {
         offset.setAccessible(true);
         assertTrue(screen.mouseScrolled(210, 210, 0, -1));
         assertEquals(1, offset.getInt(screen));
-        assertTrue(screen.mouseScrolled(20, 455, 0, -1));
+        assertTrue(screen.mouseScrolled(20, 60, 0, -1));
         assertEquals(2, offset.getInt(screen));
     }
 
@@ -348,8 +346,8 @@ class AssistantScreenStateTest {
         screen.width = 640;
         screen.height = 480;
 
-        screen.refresh(active(actions, "", "Reading quest progress (step 2)"));
-        assertEquals("Reading quest progress (step 2)", screen.statusLine());
+        screen.refresh(active(actions, "", "Reading evidence (step 2)"));
+        assertEquals("Reading evidence (step 2)", screen.statusLine());
         screen.refresh(active(actions, "", ""));
         assertEquals("Working...", screen.statusLine());
         screen.refresh(actions.view);
@@ -528,10 +526,10 @@ class AssistantScreenStateTest {
     @Test
     void legacyExpandedToolActivityResolvesArgumentsByExactCallId() {
         AssistantScreen screen = new AssistantScreen(new FakeActions());
-        String body = screen.activityBody(new ChatContracts.ActivityStep("tool:second", "Reading progress", "",
+        String body = screen.activityBody(new ChatContracts.ActivityStep("tool:second", "Reading evidence", "",
                 ChatContracts.ActivityStatus.COMPLETED), List.of(
-                new ModelBackend.ToolCall("first", "packsage", "read_progress", "{\"selected\":\"wrong call\"}"),
-                new ModelBackend.ToolCall("second", "packsage", "read_progress",
+                new ModelBackend.ToolCall("first", "packsage", "read_evidence", "{\"selected\":\"wrong call\"}"),
+                new ModelBackend.ToolCall("second", "packsage", "read_evidence",
                         "{\"selected\":null,\"path\":[{\"child\":true}]}")));
 
         assertTrue(body.contains("selected"));
@@ -539,9 +537,9 @@ class AssistantScreenStateTest {
         assertTrue(body.contains("child"));
         assertFalse(body.contains("wrong call"));
 
-        String bounded = screen.activityBody(new ChatContracts.ActivityStep("tool:large", "Reading progress", "",
+        String bounded = screen.activityBody(new ChatContracts.ActivityStep("tool:large", "Reading evidence", "",
                         ChatContracts.ActivityStatus.RUNNING), List.of(new ModelBackend.ToolCall("large", "packsage",
-                        "read_progress", "{\"payload\":\"" + "x".repeat(6000) + "\"}")));
+                        "read_evidence", "{\"payload\":\"" + "x".repeat(6000) + "\"}")));
         assertFalse(bounded.isEmpty());
         assertTrue(bounded.length() <= 2048, "expanded tool arguments should have an explicit display bound");
         assertTrue(bounded.contains("[truncated]"));
@@ -663,7 +661,7 @@ class AssistantScreenStateTest {
         screen.height = 480;
         ScreenTestHost.initialize(screen);
         screen.setInput("next question");
-        for (String phase : List.of("Capturing context...", "Waiting Model", "Thinking...", "Reading quest progress")) {
+        for (String phase : List.of("Capturing context...", "Waiting Model", "Thinking...", "Reading evidence")) {
             screen.refresh(active(actions, "", phase));
             var editor = (MultilineEditor) screen.children().getLast();
             screen.mouseClicked(editor.getX() + editor.getWidth() + 12, editor.getY() + editor.getHeight() - 10, 0);
@@ -1163,8 +1161,8 @@ class AssistantScreenStateTest {
         var words = screen.messageLayout(ScreenText.inlineLines("alpha beta gamma", List.of()), 55);
         assertEquals(0, words.runs().stream().filter(run -> run.span().text().equals("beta")).findFirst().orElseThrow().y());
         assertEquals(12, words.runs().stream().filter(run -> run.span().text().equals("gamma")).findFirst().orElseThrow().y());
-        var quest = new Evidence.NavigationTarget(SCOPE, "ftb_quests", "source", "quest");
-        var chips = screen.messageLayout(ScreenText.inlineLines("[ftb_quests:source] [ftb_quests:source]", List.of(quest)), 70);
+        var setting = new Evidence.NavigationTarget(SCOPE, "config", "source", "setting");
+        var chips = screen.messageLayout(ScreenText.inlineLines("[config:source] [config:source]", List.of(setting)), 70);
         var targets = chips.runs().stream().filter(run -> run.span().target() != null).toList();
         assertEquals(2, targets.size());
         assertEquals(12, targets.get(1).y() - targets.get(0).y());

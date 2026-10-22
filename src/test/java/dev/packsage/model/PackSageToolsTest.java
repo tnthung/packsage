@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PackSageToolsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
-    private static final List<String> NAMES = List.of("search_document", "search_recipe", "search_registry", "search_inventory", "read_evidence", "read_progress", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history");
+    private static final List<String> NAMES = List.of("search_recipe", "search_registry", "search_inventory", "read_evidence", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history");
 
     @Test
     void continuationCallPreservesQueryAndExecutesAnotherLiveRead() throws Exception {
@@ -28,14 +28,14 @@ class PackSageToolsTest {
                     calls.size() == 1 ? Evidence.Outcome.PARTIAL : Evidence.Outcome.COMPLETE,
                     calls.size() == 1 ? "next-live-position" : null));
         });
-        var response = tools.execute(new ModelBackend.ToolCall("first", "search_document",
-                "{\"query\":\"fall damage\",\"filter\":{\"types\":[\"guide\"]},\"limit\":10}"), SCOPE).toCompletableFuture().get();
+        var response = tools.execute(new ModelBackend.ToolCall("first", "search_recipe",
+                "{\"filter\":{\"text\":\"fall damage\"},\"limit\":10}"), SCOPE).toCompletableFuture().get();
         var next = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject().getAsJsonObject("nextCall");
         assertNotNull(next);
         var continued = tools.execute(new ModelBackend.ToolCall("second", next.get("name").getAsString(),
                 next.get("arguments").toString()), SCOPE).toCompletableFuture().get();
         assertEquals(2, calls.size());
-        assertEquals(Evidence.deserializeObject("{\"query\":\"fall damage\",\"filter\":{\"types\":[\"guide\"]},\"limit\":10,\"cursor\":\"next-live-position\"}"), calls.get(1).arguments());
+        assertEquals(Evidence.deserializeObject("{\"filter\":{\"text\":\"fall damage\"},\"limit\":10,\"cursor\":\"next-live-position\"}"), calls.get(1).arguments());
         assertFalse(JsonParser.parseString(continued.result().serializedResult()).getAsJsonObject().has("nextCall"));
     }
 
@@ -56,19 +56,19 @@ class PackSageToolsTest {
     }
 
     @Test
-    void exposesExactlyTwelveToolsAndKeepsOptionalArgumentsOptional() {
+    void exposesExactlyTenToolsAndKeepsOptionalArgumentsOptional() {
         var definitions = PackSageTools.definitions();
         assertEquals(NAMES, definitions.stream().map(ModelBackend.ToolDefinition::name).toList());
         for (var definition : definitions) {
             var schema = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject();
             assertFalse(schema.get("additionalProperties").getAsBoolean());
             assertTrue(schema.getAsJsonArray("required").size() < schema.getAsJsonObject("properties").size()
-                    || definition.name().equals("read_evidence") || definition.name().equals("read_progress") || definition.name().equals("read_history"));
+                    || definition.name().equals("read_evidence") || definition.name().equals("read_history"));
         }
-        var inventory = JsonParser.parseString(definitions.get(3).serializedSchema()).getAsJsonObject();
+        var inventory = JsonParser.parseString(definitions.get(2).serializedSchema()).getAsJsonObject();
         assertTrue(inventory.getAsJsonObject("properties").getAsJsonObject("target").has("oneOf"));
         assertEquals(32, inventory.getAsJsonObject("properties").getAsJsonObject("limit").get("maximum").getAsInt());
-        for (var name : List.of("search_document", "search_recipe", "search_registry")) {
+        for (var name : List.of("search_recipe", "search_registry")) {
             var schema = definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow();
             assertEquals(64, JsonParser.parseString(schema.serializedSchema()).getAsJsonObject().getAsJsonObject("properties").getAsJsonObject("limit").get("maximum").getAsInt());
         }
@@ -77,21 +77,15 @@ class PackSageToolsTest {
     @Test
     void descriptionsGuideCommonSearchAndEvidenceReferences() {
         var definitions = PackSageTools.definitions();
-        var document = definitions.stream().filter(value -> value.name().equals("search_document")).findFirst().orElseThrow().description();
-        assertTrue(document.contains("one case-insensitive literal phrase"));
-        assertTrue(document.contains("Exact item or recipe IDs can find declared guide relationships"));
-        assertTrue(document.contains("for an item's Ponder scenes, use its exact registry ID as query with provider ponder"));
-        assertTrue(document.contains("same query, filters and limit"));
+        assertTrue(definitions.stream().noneMatch(value -> value.name().equals("search_document") || value.name().equals("read_progress")));
         var recipe = definitions.stream().filter(value -> value.name().equals("search_recipe")).findFirst().orElseThrow().description();
         assertTrue(recipe.contains("outputItem without text"));
-        assertTrue(recipe.contains("JEI when available, otherwise Minecraft's loaded recipes"));
-        assertTrue(recipe.contains("evidence from different providers distinct"));
+        assertTrue(recipe.contains("Find Minecraft's loaded recipes"));
+        assertTrue(recipe.contains("case-insensitive literal match"));
         var inventory = definitions.stream().filter(value -> value.name().equals("search_inventory")).findFirst().orElseThrow().description();
         assertTrue(inventory.contains("Player summaries do not include nested containers"));
         assertTrue(inventory.contains("returned slotReference"));
-        assertTrue(inventory.contains("functional Curios equipment"));
-        assertTrue(inventory.contains("cosmetic slots are excluded"));
-        assertTrue(inventory.contains("curios:<type>"));
+        assertTrue(inventory.contains("vanilla inventory and equipment slots"));
         assertTrue(inventory.contains("selected item's own record first, in section item"));
         assertTrue(inventory.contains("enchantmentEligibility"));
         assertTrue(inventory.contains("Target opened reads the open menu named by openedMenu when it is a supported vanilla menu"));
@@ -106,7 +100,7 @@ class PackSageToolsTest {
         assertTrue(plan.contains("Brewing routes withhold operation counts"));
         assertTrue(plan.contains("Routes cover every component variant of the identity; match output components."));
         assertTrue(plan.contains("The live recipe scan is bounded, so a missing route is not absence."));
-        for (var name : List.of("read_evidence", "read_progress")) {
+        for (var name : List.of("read_evidence")) {
             var description = definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow().description();
             assertTrue(description.contains("returned record references only"));
             assertTrue(description.contains("Do not pass search cursors"));
@@ -119,8 +113,8 @@ class PackSageToolsTest {
     void serializesDeterministicTotalsForSingletonConsumedRecipeInputs() throws Exception {
         var iron = new Evidence.RecipeAlternative("item_stack", "minecraft:iron_ingot", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
         var redstone = new Evidence.RecipeAlternative("item_stack", "minecraft:redstone", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
-        var casing = new Evidence.RecipeAlternative("item_stack", "actuallyadditions:iron_casing", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
-        var recipe = new Evidence.RecipePayload("actuallyadditions:atomic_reconstructor", List.of(
+        var casing = new Evidence.RecipeAlternative("item_stack", "fixture:iron_casing", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
+        var recipe = new Evidence.RecipePayload("fixture:atomic_reconstructor", List.of(
                 new Evidence.RecipeSlot("iron-1", List.of(iron)), new Evidence.RecipeSlot("redstone-1", List.of(redstone)),
                 new Evidence.RecipeSlot("iron-2", List.of(iron)), new Evidence.RecipeSlot("redstone-2", List.of(redstone)),
                 new Evidence.RecipeSlot("casing", List.of(casing)), new Evidence.RecipeSlot("iron-3", List.of(iron)),
@@ -144,7 +138,7 @@ class PackSageToolsTest {
         assertEquals(4, totals.get(1).getAsJsonObject().get("quantity").getAsInt());
         assertEquals("minecraft:redstone", totals.get(1).getAsJsonObject().get("comparisonIdentity").getAsString());
         assertEquals(1, totals.get(2).getAsJsonObject().get("quantity").getAsInt());
-        assertEquals("actuallyadditions:iron_casing", totals.get(2).getAsJsonObject().get("comparisonIdentity").getAsString());
+        assertEquals("fixture:iron_casing", totals.get(2).getAsJsonObject().get("comparisonIdentity").getAsString());
         assertEquals("COMPLETE", json.get("coverage").getAsString());
         assertEquals(9, encoded.getAsJsonObject("recipe").getAsJsonArray("inputs").size());
     }
@@ -230,7 +224,7 @@ class PackSageToolsTest {
                 "{\"target\":{\"type\":\"ae2:network\",\"reference\":\"seen\"},\"filter\":{\"ids\":[\"minecraft:iron_ingot\"],\"tags\":[\"minecraft:ingots/iron\"]}}")) {
             assertFalse(tools.execute(new ModelBackend.ToolCall("ok", "search_inventory", arguments), SCOPE).toCompletableFuture().get().result().error());
         }
-        assertFalse(tools.execute(new ModelBackend.ToolCall("doc", "search_document", "{\"query\":\"quest\"}"), SCOPE).toCompletableFuture().get().result().error());
+        assertFalse(tools.execute(new ModelBackend.ToolCall("recipe", "search_recipe", "{}"), SCOPE).toCompletableFuture().get().result().error());
         assertFalse(tools.execute(new ModelBackend.ToolCall("registry", "search_registry", "{\"registry\":\"channel\"}"), SCOPE).toCompletableFuture().get().result().error());
         for (var arguments : List.of(
                 "{\"target\":{\"type\":\"unknown\"}}",
@@ -248,14 +242,14 @@ class PackSageToolsTest {
         var requests = new java.util.ArrayList<PackSageTools.ReadRequest>();
         var tools = new PackSageTools(request -> { requests.add(request); return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)); });
         for (var call : List.of(new ModelBackend.ToolCall("inv", "search_inventory", "{\"target\":{\"type\":\"player\"}}"),
-                new ModelBackend.ToolCall("doc", "search_document", "{\"query\":\"iron\"}"),
+                new ModelBackend.ToolCall("plan", "plan_recipe", "{\"identity\":\"minecraft:iron_ingot\",\"quantity\":1}"),
                 new ModelBackend.ToolCall("recipe", "search_recipe", "{}"),
                 new ModelBackend.ToolCall("registry", "search_registry", "{\"registry\":\"item\"}"),
                 new ModelBackend.ToolCall("history", "search_history", "{\"text\":\"iron\"}"))) {
             assertFalse(tools.execute(call, SCOPE).toCompletableFuture().get().result().error(), call.name());
         }
         assertEquals(5, requests.size());
-        assertTrue(tools.execute(new ModelBackend.ToolCall("missing", "search_document", "{}"), SCOPE).toCompletableFuture().get().result().error());
+        assertTrue(tools.execute(new ModelBackend.ToolCall("missing", "plan_recipe", "{}"), SCOPE).toCompletableFuture().get().result().error());
         assertTrue(tools.execute(new ModelBackend.ToolCall("badid", "search_registry", "{\"registry\":\"item\",\"filter\":{\"ids\":[\"bad\"]}}"), SCOPE).toCompletableFuture().get().result().error());
         assertEquals(5, requests.size());
     }
@@ -273,7 +267,7 @@ class PackSageToolsTest {
                     Evidence.Outcome.COMPLETE, null));
         });
 
-        var response = tools.execute(new ModelBackend.ToolCall("call", "search_document", "{\"query\":\"torch\"}"), SCOPE)
+        var response = tools.execute(new ModelBackend.ToolCall("call", "search_recipe", "{\"filter\":{\"text\":\"torch\"}}"), SCOPE)
                 .toCompletableFuture().get();
 
         assertEquals(SCOPE, requested.get().scope());
@@ -291,7 +285,7 @@ class PackSageToolsTest {
         var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
                 Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, "cursor does not match this query")));
 
-        var response = tools.execute(new ModelBackend.ToolCall("a", "search_document", "{\"query\":\"none\"}"), SCOPE)
+        var response = tools.execute(new ModelBackend.ToolCall("a", "search_recipe", "{\"filter\":{\"text\":\"none\"}}"), SCOPE)
                 .toCompletableFuture().get();
 
         assertTrue(response.result().error());
@@ -300,7 +294,7 @@ class PackSageToolsTest {
 
         var plain = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
                 Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
-        var plainJson = JsonParser.parseString(plain.execute(new ModelBackend.ToolCall("b", "search_document", "{\"query\":\"none\"}"), SCOPE)
+        var plainJson = JsonParser.parseString(plain.execute(new ModelBackend.ToolCall("b", "search_recipe", "{\"filter\":{\"text\":\"none\"}}"), SCOPE)
                 .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
         assertFalse(plainJson.has("detail"));
     }
@@ -313,7 +307,7 @@ class PackSageToolsTest {
         var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(record),
                 Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
 
-        var json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("a", "search_document", "{\"query\":\"torch\"}"), SCOPE)
+        var json = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("a", "search_recipe", "{\"filter\":{\"text\":\"torch\"}}"), SCOPE)
                 .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
 
         assertFalse(json.getAsJsonArray("records").get(0).getAsJsonObject().get("navigable").getAsBoolean());
@@ -322,9 +316,9 @@ class PackSageToolsTest {
     @Test
     void providerStatusRecordsDoNotCountTowardTheRecordCap() throws Exception {
         var records = new java.util.ArrayList<Evidence.Record>();
-        records.add(new Evidence.Record(new Evidence.Source(SCOPE, "jei", "fixture", "status:jei", 1, Instant.EPOCH,
+        records.add(new Evidence.Record(new Evidence.Source(SCOPE, "fixture", "fixture", "status:fixture", 1, Instant.EPOCH,
                 Evidence.Activity.UNKNOWN, Evidence.Coverage.UNAVAILABLE, Evidence.Authority.UNKNOWN, List.of()),
-                Evidence.RecordKind.OTHER, "JEI unavailable", new Evidence.JsonObject(Map.of()), List.of()));
+                Evidence.RecordKind.OTHER, "Fixture unavailable", new Evidence.JsonObject(Map.of()), List.of()));
         for (int index = 0; index < 64; index++) {
             records.add(new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "item:" + index, 1, Instant.EPOCH,
                     Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
@@ -333,7 +327,7 @@ class PackSageToolsTest {
         var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
                 Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
 
-        var response = tools.execute(new ModelBackend.ToolCall("a", "search_document", "{\"query\":\"item\"}"), SCOPE)
+        var response = tools.execute(new ModelBackend.ToolCall("a", "search_recipe", "{\"filter\":{\"text\":\"item\"}}"), SCOPE)
                 .toCompletableFuture().get();
 
         assertEquals(65, response.records().size());
@@ -344,11 +338,11 @@ class PackSageToolsTest {
     void distinguishesEmptyMatchesFromFailedExtractionAndRejectsForeignScope() throws Exception {
         var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
                 Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
-        assertFalse(tools.execute(new ModelBackend.ToolCall("a", "search_document", "{\"query\":\"none\"}"), SCOPE)
+        assertFalse(tools.execute(new ModelBackend.ToolCall("a", "search_recipe", "{\"filter\":{\"text\":\"none\"}}"), SCOPE)
                 .toCompletableFuture().get().result().error());
 
         var failed = new PackSageTools(request -> CompletableFuture.failedFuture(new IllegalStateException("unreadable")));
-        assertTrue(failed.execute(new ModelBackend.ToolCall("b", "search_document", "{\"query\":\"none\"}"), SCOPE)
+        assertTrue(failed.execute(new ModelBackend.ToolCall("b", "search_recipe", "{\"filter\":{\"text\":\"none\"}}"), SCOPE)
                 .toCompletableFuture().get().result().error());
 
         var foreign = new Evidence.Source(new Evidence.Scope("other-world", "resources", "team", "runtime", 1),
@@ -357,7 +351,7 @@ class PackSageToolsTest {
         var stale = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(
                 new Evidence.Record(foreign, Evidence.RecordKind.ITEM, "Torch", new Evidence.JsonObject(Map.of()), List.of())),
                 Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
-        assertTrue(stale.execute(new ModelBackend.ToolCall("c", "search_document", "{\"query\":\"torch\"}"), SCOPE)
+        assertTrue(stale.execute(new ModelBackend.ToolCall("c", "search_recipe", "{\"filter\":{\"text\":\"torch\"}}"), SCOPE)
                 .toCompletableFuture().get().result().error());
     }
     @Test

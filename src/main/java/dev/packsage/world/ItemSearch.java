@@ -17,7 +17,8 @@ import java.util.Set;
  * per page. Each holder's containers are walked depth first: the holder itself is container 0, then each item that
  * holds items, in entry order. Cursors are {@code <holder>} to start a fresh holder or {@code <holder>.<container>}
  * to resume at that 0-based container of the holder's walk; the containers before it are walked again without
- * reporting, since their matches belong to the earlier page.
+ * reporting, since their matches belong to the earlier page. A page cut by the container bound or by an early stop
+ * at the call's work budget says which in its note.
  */
 public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
     public static final int PAGE_CONTAINERS = 512;
@@ -37,6 +38,7 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
     private int ordinal;
     private int replayUntil;
     private int containers;
+    private boolean stopped;
 
     /** The cursor is null for the first page, or a {@code nextCursor} from an earlier page over the same holders. */
     public ItemSearch(WorldRegistry registry, List<Map.Entry<PathRoot, LiveHolder>> holders, KindFilter filter, boolean includeNested, String cursor) {
@@ -56,6 +58,9 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
 
     @Override
     public boolean step() {
+        if (stopped) {
+            return false;
+        }
         if (pending.isEmpty()) {
             if (started) {
                 holder++;
@@ -86,8 +91,20 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
     @Override
     public Page<ItemEntry> result() {
         var cursor = nextCursor();
-        var coverage = cursor == null && notes.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
-        return new Page<>(grouper.entries(), cursor, coverage, notes.isEmpty() ? null : String.join("; ", notes));
+        var all = new ArrayList<>(notes);
+        if (cursor != null) {
+            all.add(stopped ? "Stopped at the per-call work limit after searching " + containers + " containers; continue with the cursor"
+                    : "Searched " + PAGE_CONTAINERS + " containers, the page limit; continue with the cursor");
+        }
+        var coverage = cursor == null && all.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
+        return new Page<>(grouper.entries(), cursor, coverage, all.isEmpty() ? null : String.join("; ", all));
+    }
+
+    /** Stops between containers; the cursor continues at the next one. */
+    @Override
+    public boolean stopEarly() {
+        stopped = true;
+        return true;
     }
 
     private boolean hasMore() {
@@ -99,7 +116,8 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
 
     private String nextCursor() {
         if (!pending.isEmpty()) {
-            return holder + "." + ordinal;
+            // A stop while replaying still skips the containers the earlier page reported.
+            return holder + "." + Math.max(ordinal, replayUntil);
         }
         return nextHolder() < holders.size() ? String.valueOf(nextHolder()) : null;
     }

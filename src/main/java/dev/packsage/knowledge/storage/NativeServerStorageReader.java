@@ -14,7 +14,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Containers;
-import net.minecraft.world.LockCode;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -60,7 +59,6 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.level.storage.loot.LootTable;
-import net.minecraft.world.entity.ai.attributes.Attributes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -115,15 +113,8 @@ final class NativeServerStorageReader {
                                                               StorageReader.Request request, Evidence.Scope scope,
                                                               LongSupplier monotonicClock, Supplier<Evidence.Scope> currentScope) {
         if (!scope.equals(currentScope.get())) return unavailable(request, scope, monotonicClock, "evidence scope changed");
-        var profile = server.getSingleplayerProfile();
-        var players = server.getPlayerList().getPlayers();
-        var serverPlayerId = players.size() == 1 ? players.getFirst().getUUID() : null;
-        if (profile == null || !server.isSingleplayerOwner(profile)
-                || !privateOwnerReadAllowed(server.isPublished(), profile.getId(), selection.playerId(), serverPlayerId, players.size())) {
-            return unavailable(request, scope, monotonicClock, "integrated server is published or has another connected player");
-        }
-        ServerPlayer player = players.getFirst();
-        if (!player.getUUID().equals(selection.playerId()) || !player.serverLevel().dimension().equals(selection.dimension())) {
+        ServerPlayer player = server.getPlayerList().getPlayer(selection.playerId());
+        if (player == null || !player.serverLevel().dimension().equals(selection.dimension())) {
             return unavailable(request, scope, monotonicClock, "server player identity or dimension changed");
         }
         if (selection.target() == StorageReader.Target.RIDDEN) {
@@ -132,20 +123,12 @@ final class NativeServerStorageReader {
                 return unavailable(request, scope, monotonicClock, "ridden entity changed");
             }
         }
-        double range = player.getAttributeValue(selection.blockPos() == null ? Attributes.ENTITY_INTERACTION_RANGE
-                : Attributes.BLOCK_INTERACTION_RANGE);
-        if (range < 0 || player.getEyePosition().distanceToSqr(selection.hitPosition()) > range * range) {
-            return unavailable(request, scope, monotonicClock, "target is outside interaction range");
-        }
         var level = player.serverLevel();
         if (selection.blockPos() != null) return readBlock(level, selection, player, request, scope, monotonicClock);
         Entity entity = level.getEntity(selection.entityId());
         if (entity == null || entity.isRemoved() || !entity.getUUID().equals(selection.entityId())
                 || !Objects.equals(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()), selection.entityType())) {
             return unavailable(request, scope, monotonicClock, "target entity changed or is unavailable");
-        }
-        if (entity.getBoundingBox().distanceToSqr(player.getEyePosition()) > range * range) {
-            return unavailable(request, scope, monotonicClock, "target entity is outside interaction range");
         }
         var entityType = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         if (entityType == null) return unavailable(request, scope, monotonicClock, "target entity type is unavailable");
@@ -209,11 +192,9 @@ final class NativeServerStorageReader {
         for (BlockHalf half : halves) {
             boolean hasPendingLoot = half.container() instanceof RandomizableContainerBlockEntity randomizable
                     && randomizable.getLootTable() != null;
-            if (!mayReadContainerContents(LockCode.NO_LOCK, hasPendingLoot)) {
+            if (!mayReadContainerContents(hasPendingLoot)) {
                 return unavailable(request, scope, monotonicClock, "pending loot table contents are unavailable");
             }
-            var lock = half.container().collectComponents().getOrDefault(DataComponents.LOCK, LockCode.NO_LOCK);
-            if (!mayReadContainerContents(lock, false)) return unavailable(request, scope, monotonicClock, "locked containers are unavailable");
         }
         if (halves.stream().mapToInt(half -> half.container().getContainerSize()).sum() > 256) {
             return unavailable(request, scope, monotonicClock, "container contents exceed the read bound");
@@ -390,14 +371,8 @@ final class NativeServerStorageReader {
                 "section", new Evidence.JsonString(section)));
     }
 
-    static boolean privateOwnerReadAllowed(boolean published, UUID profileId, UUID clientPlayerId,
-                                           UUID serverPlayerId, int connectedPlayers) {
-        return !published && connectedPlayers == 1 && profileId != null
-                && profileId.equals(clientPlayerId) && profileId.equals(serverPlayerId);
-    }
-
-    static boolean mayReadContainerContents(LockCode lock, boolean hasPendingLoot) {
-        return !hasPendingLoot && lock.key().isEmpty();
+    static boolean mayReadContainerContents(boolean hasPendingLoot) {
+        return !hasPendingLoot;
     }
 
     static List<Evidence.JsonValue> blockEmptySlots(BaseContainerBlockEntity container, String section) {

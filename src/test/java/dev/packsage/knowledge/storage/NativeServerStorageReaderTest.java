@@ -16,7 +16,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -29,14 +28,6 @@ class NativeServerStorageReaderTest {
     }
 
     @Test
-    void lanOpenWorldsAndOtherPlayersDoNotBlockTheRead() {
-        var owner = UUID.randomUUID();
-
-        assertTrue(NativeServerStorageReader.privateOwnerReadAllowed(true, owner, owner, owner, 1));
-        assertTrue(NativeServerStorageReader.privateOwnerReadAllowed(false, owner, owner, owner, 3));
-    }
-
-    @Test
     void lockedAndOutOfReachContainersAreRead() {
         var furnace = new FurnaceBlockEntity(BlockPos.ZERO, Blocks.FURNACE.defaultBlockState());
         furnace.applyComponents(DataComponentMap.builder()
@@ -44,7 +35,7 @@ class NativeServerStorageReaderTest {
                 .set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.SAND, 64)))).build(),
                 DataComponentPatch.EMPTY);
 
-        assertTrue(NativeServerStorageReader.mayReadContainerContents(new LockCode("key"), false));
+        assertTrue(NativeServerStorageReader.mayReadContainerContents(false));
         assertEquals(64, furnace.getItem(0).getCount());
         assertEquals(List.of(1, 2), NativeServerStorageReader.blockEmptySlots(furnace, "container").stream()
                 .map(value -> ((Evidence.JsonNumber) ((Evidence.JsonObject) value).values().get("componentSlot")).value().intValueExact())
@@ -53,8 +44,8 @@ class NativeServerStorageReaderTest {
 
     @Test
     void containersWithPendingLootAreStillNotRead() {
-        assertTrue(NativeServerStorageReader.mayReadContainerContents(LockCode.NO_LOCK, false));
-        assertFalse(NativeServerStorageReader.mayReadContainerContents(LockCode.NO_LOCK, true));
+        assertTrue(NativeServerStorageReader.mayReadContainerContents(false));
+        assertFalse(NativeServerStorageReader.mayReadContainerContents(true));
     }
 
     @Test

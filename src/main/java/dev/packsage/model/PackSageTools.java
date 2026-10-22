@@ -22,7 +22,11 @@ public final class PackSageTools {
             "targeted", "{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"targeted\"}},\"required\":[\"type\"],\"additionalProperties\":false}",
             "ridden", "{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"ridden\"}},\"required\":[\"type\"],\"additionalProperties\":false}",
             "item", "{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"item\"},\"slot\":{\"type\":\"string\",\"enum\":[\"mainhand\",\"offhand\"]},\"slotReference\":{\"type\":\"string\",\"maxLength\":1024}},\"required\":[\"type\"],\"additionalProperties\":false}");
-    private static final List<String> NATIVE_REGISTRIES = List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion", "active_effect", "player_attribute", "dimension", "dimension_type");
+    private static final String WORLD_ANCHOR = "{\"type\":[\"object\",\"null\"],\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"player\",\"entity\",\"block\"]},\"id\":{\"type\":[\"string\",\"null\"],\"maxLength\":36},\"place\":{\"type\":[\"string\",\"null\"],\"maxLength\":300}},\"required\":[\"type\"],\"additionalProperties\":false}";
+    private static final String WORLD_RADIUS = "{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":256}";
+    private static final String WORLD_FILTER = "{\"type\":\"object\",\"properties\":{\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256}},\"additionalProperties\":false}";
+    private static final String WORLD_CURSOR = "{\"type\":[\"string\",\"null\"],\"maxLength\":1024}";
+    private static final List<String> NATIVE_REGISTRIES =List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion", "active_effect", "player_attribute", "dimension", "dimension_type");
     private static final com.google.gson.Gson JSON = new com.google.gson.GsonBuilder().serializeNulls()
             .registerTypeAdapter(Instant.class, (com.google.gson.JsonSerializer<Instant>) (value, type, context) -> new com.google.gson.JsonPrimitive(value.toString()))
             .registerTypeHierarchyAdapter(Evidence.JsonValue.class, (com.google.gson.JsonSerializer<Evidence.JsonValue>) (value, type, context) -> JsonParser.parseString(Evidence.serialize(value)))
@@ -69,7 +73,8 @@ public final class PackSageTools {
         targetSchema.add("oneOf", targetChoices);
         var definitions = new ArrayList<ModelBackend.ToolDefinition>();
         for (var name : List.of("search_recipe", "search_registry", "search_inventory", "read_evidence",
-                "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history")) {
+                "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
+                "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items")) {
             var properties = new JsonObject();
             var required = new JsonArray();
             switch (name) {
@@ -108,6 +113,37 @@ public final class PackSageTools {
                     required.add("handle");
                 }
                 case "list_configs" -> { }
+                case "inspect_area" -> {
+                    properties.add("center", JsonParser.parseString(WORLD_ANCHOR));
+                    properties.add("radius", JsonParser.parseString(WORLD_RADIUS));
+                }
+                case "list_blocks", "list_entities" -> {
+                    properties.add("center", JsonParser.parseString(WORLD_ANCHOR));
+                    properties.add("radius", JsonParser.parseString(WORLD_RADIUS));
+                    properties.add("filter", JsonParser.parseString(WORLD_FILTER));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                    required.add("filter");
+                }
+                case "inspect_block" -> { properties.add("place", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":300}")); required.add("place"); }
+                case "inspect_entity" -> { properties.add("id", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":36,\"pattern\":\"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\"}")); required.add("id"); }
+                case "list_items" -> {
+                    properties.add("holder", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":2048}"));
+                    properties.add("inventory", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256}"));
+                    var filter = JsonParser.parseString(WORLD_FILTER).getAsJsonObject();
+                    filter.add("type", JsonParser.parseString("[\"object\",\"null\"]"));
+                    properties.add("filter", filter);
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                    required.add("holder");
+                }
+                case "inspect_item" -> { properties.add("path", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":2048}")); required.add("path"); }
+                case "find_items" -> {
+                    properties.add("filter", JsonParser.parseString(WORLD_FILTER));
+                    properties.add("center", JsonParser.parseString(WORLD_ANCHOR));
+                    properties.add("radius", JsonParser.parseString(WORLD_RADIUS));
+                    properties.add("includeNested", JsonParser.parseString("{\"type\":[\"boolean\",\"null\"]}"));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                    required.add("filter");
+                }
                 default -> throw new IllegalStateException(name);
             }
             if (List.of("search_recipe", "search_registry").contains(name)) {
@@ -138,6 +174,14 @@ public final class PackSageTools {
                 case "read_config" -> "Read a discovered config key or section at call time. A file value is not necessarily the effective server setting; preserve returned authority and scope.";
                 case "plan_recipe" -> "Plan recipe routes for an item identity and quantity, including brewing routes, with unresolved dependencies and coverage. It does not read owned materials or establish affordability. Routes cover every component variant of the identity; match output components. The live recipe scan is bounded, so a missing route is not absence. Brewing routes withhold operation counts (batches null); state only what their operationSemantics supports.";
                 case "read_evidence" -> "Read current evidence for returned record references only. Do not pass search cursors, labels or guessed references. An inventory slot record's reference rereads that item's current record, including enchantmentEligibility.";
+                case "inspect_area" -> "Summarize the loaded world around center (default the player, radius 16): block counts, notable blocks such as containers, workstations, beds and spawners grouped by role and block, and nearby entities. Then list_blocks or list_entities with a filter for linkable places, and inspect_block or inspect_entity what matters.";
+                case "list_blocks" -> "List blocks matching filter (ids, tags or name text) within radius of center, 64 per page, each with its place and a highlight link. Inspect what matters with inspect_block.";
+                case "list_entities" -> "List entities such as mobs, villagers, item frames and minecarts matching filter within radius of center, 64 per page, each with its id, position and a highlight link. Inspect what matters with inspect_entity.";
+                case "inspect_block" -> "Read one block by place (dimension|x,y,z): its state, facts from every adapter and the inventories it has. List an inventory's items with list_items, passing the returned holder.";
+                case "inspect_entity" -> "Read one loaded entity by id: facts from every adapter, such as health, villager profession, bed and job site, and the inventories it has. List its items with list_items, passing the returned holder.";
+                case "list_items" -> "List the items in one holder (player, a returned holder, or an item path whose item holdsItems) grouped by item with counts, variants and up to 8 location paths; inventory limits it to one section. Inspect a location with inspect_item, or list_items it again to step inside.";
+                case "inspect_item" -> "Read one item by its location path: enchantments, durability, potion contents, custom name, attribute modifiers, enchantment eligibility and the inventories it has.";
+                case "find_items" -> "Search every inventory in range at once: the player's own, containers and entities, including items nested in shulker boxes, bundles and backpacks, grouped by item with location paths. Prefer it over opening containers one by one; then inspect_item a returned path, or inspect_block its holder for a highlight link.";
                 default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
             }, schema.toString()));
         }

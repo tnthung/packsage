@@ -1,9 +1,14 @@
 package dev.packsage.world;
 
+import dev.packsage.chat.ChatContracts;
+import dev.packsage.chat.ConversationStore;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -140,6 +145,32 @@ class WorldNavigationTest {
         var malformed = new Evidence.NavigationTarget(SCOPE, WorldTools.ID, "block|x", "world-block|x");
         assertEquals(Evidence.NavigationStatus.ERROR, tools.open(malformed, SCOPE).status());
         assertEquals(List.of("entity " + MOB), client.drawn);
+    }
+
+    @Test
+    void targetsSavedInTheConversationStoreOpenAfterARestart(@TempDir Path directory) throws Exception {
+        var world = new ChatContracts.WorldIdentity("world", "World");
+        var store = new ConversationStore(directory, Runnable::run);
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        var sources = List.of(block(SCOPE), entity(SCOPE)).stream().map(target -> new Evidence.Source(SCOPE, WorldTools.ID, WorldTools.VERSION,
+                target.sourceHandle(), 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.SERVER_READ,
+                List.of())).toList();
+        store.appendTurn(world, SCOPE, conversation.id(), new ChatContracts.Turn(new ChatContracts.RequestId("saved"), "Where is my chest?",
+                "Here.", List.of(), new ChatContracts.Context("context", null, SCOPE), sources, List.of(block(SCOPE), entity(SCOPE)),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
+
+        // A new store, provider and scope stand in for a Minecraft restart; only the serialized turn survives.
+        var saved = new ConversationStore(directory, Runnable::run).openLatest(world).toCompletableFuture().join()
+                .turns().getFirst().navigationTargets();
+        assertEquals(List.of(block(SCOPE), entity(SCOPE)), saved);
+        var client = new FakeClient();
+        var knowledge = new KnowledgeService(List.of(tools(RELOADED, PLACE::equals, WorldNavigationTest::mob, client)), () -> RELOADED);
+        for (var target : saved) {
+            var refreshed = knowledge.refreshNavigation(target, RELOADED).toCompletableFuture().get();
+            assertEquals(new Evidence.NavigationTarget(RELOADED, WorldTools.ID, target.sourceHandle(), target.targetId()), refreshed);
+            assertEquals(Evidence.NavigationStatus.OPENED, knowledge.open(refreshed, RELOADED).status());
+        }
+        assertEquals(List.of("block " + PLACE.text(), "entity " + MOB), client.drawn);
     }
 
     @Test

@@ -56,4 +56,21 @@ class ItemGrouperTest {
         assertEquals(3, sword.locations().size());
         assertTrue(sword.holdsItems());
     }
+
+    @Test
+    void aGroupOfSeveralVariantsUsesTheItemsDefaultName() {
+        var grouper = new ItemGrouper();
+        var renamed = new ItemStack(Items.STONE, 1);
+        renamed.set(DataComponents.CUSTOM_NAME, Component.literal("Bob"));
+        grouper.add(path(0), renamed, false);
+        grouper.add(path(1), new ItemStack(Items.STONE, 64), false);
+        var alone = new ItemStack(Items.DIRT);
+        alone.set(DataComponents.CUSTOM_NAME, Component.literal("Special dirt"));
+        grouper.add(path(2), alone, false);
+
+        var entries = grouper.entries();
+
+        assertEquals("Stone", entries.get(0).name());
+        assertEquals("Special dirt", entries.get(1).name(), "a single variant keeps its own name");
+    }
 }

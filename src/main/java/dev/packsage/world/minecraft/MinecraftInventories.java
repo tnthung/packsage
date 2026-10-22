@@ -38,6 +38,7 @@ import net.minecraft.world.entity.vehicle.ContainerEntity;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemContainerContents;
+import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.DoubleBlockCombiner;
@@ -364,16 +365,21 @@ public final class MinecraftInventories implements InventoryReader {
     }
 
     private Evidence.JsonObject eligibility(ItemStack stack) {
+        HolderLookup.RegistryLookup<Enchantment> lookup;
         try {
             var provider = registries.get();
-            var lookup = provider == null ? null : provider.lookup(Registries.ENCHANTMENT).orElse(null);
-            if (lookup == null) return null;
-            var result = NativeEnchantmentEligibility.read(stack, lookup);
-            var supported = result.values().get("supported");
-            return supported instanceof Evidence.JsonArray array && !array.values().isEmpty() ? result : null;
+            lookup = provider == null ? null : provider.lookup(Registries.ENCHANTMENT).orElse(null);
         } catch (RuntimeException exception) {
-            return null;
+            return unavailable(exception.getMessage() != null ? exception.getMessage() : exception.getClass().getName());
         }
+        if (lookup == null) return unavailable("enchantment registry is not available");
+        var result = NativeEnchantmentEligibility.read(stack, lookup);
+        var supported = result.values().get("supported");
+        return supported instanceof Evidence.JsonArray array && !array.values().isEmpty() ? result : null;
+    }
+
+    private static Evidence.JsonObject unavailable(String detail) {
+        return new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unavailable"), "detail", new Evidence.JsonString(detail)));
     }
 
     private static void putEnchantments(Map<String, Evidence.JsonValue> values, String key, ItemEnchantments enchantments) {

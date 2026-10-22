@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.BedBlock;
@@ -35,7 +36,9 @@ import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.chunk.LevelChunk;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Vanilla notable-block roles and block facts. Every read is side-effect free. */
@@ -103,6 +106,10 @@ public final class MinecraftWorld implements WorldAccessor, BlockInspector {
     }
 
     /** Signal reads look at every neighbour, and reading an unloaded neighbour would load its chunk. */
+    static List<ChunkPos> signalChunks(BlockPos pos) {
+        return List.of();
+    }
+
     private static boolean neighborsLoaded(ServerLevel level, BlockPos pos) {
         for (var direction : Direction.values()) {
             if (loadedChunk(level, pos.relative(direction)) == null) return false;

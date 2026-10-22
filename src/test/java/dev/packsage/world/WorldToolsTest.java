@@ -197,6 +197,27 @@ class WorldToolsTest {
     }
 
     @Test
+    void slicedReadsReportTheGameTimeSpanTheyCovered() {
+        var time = new long[] {100};
+        var inner = new Steps("a", 3, true);
+        var read = WorldTools.spanned(() -> time[0], inner);
+        read.step();
+        time[0] = 101;
+        read.step();
+        time[0] = 105;
+        read.step();
+        time[0] = 200;
+        var result = read.result();
+        assertEquals("a3", result.value());
+        assertEquals(new WorldTools.ReadSpan(100, 105), result.span());
+        assertTrue(read.stopEarly());
+        assertTrue(inner.stopped);
+
+        var area = WorldTools.spanPayload(new WorldTools.ReadSpan(100, 105));
+        assertEquals("{\"fromGameTime\":100,\"toGameTime\":105}", Evidence.serialize(area));
+    }
+
+    @Test
     void everyBlockOrEntityHolderOfAnEntryGetsALinkableRecord() {
         var tools = tools();
         var request = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject("{\"filter\":{\"ids\":[\"minecraft:stone\"]}}"), SCOPE);

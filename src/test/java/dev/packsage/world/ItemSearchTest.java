@@ -138,6 +138,53 @@ class ItemSearchTest {
     }
 
     @Test
+    void aPageCutByTheContainerBoundSaysWhy() {
+        var reader = new FakeReader();
+        var holders = new ArrayList<Map.Entry<PathRoot, LiveHolder>>();
+        for (var i = 0; i < 600; i++) {
+            holders.add(holder(i, reader.box(new ItemStack(Items.IRON_INGOT))));
+        }
+
+        var first = run(new ItemSearch(registry(reader), holders, IRON, true, null));
+
+        assertTrue(first.note().contains("512 containers"), first.note());
+    }
+
+    @Test
+    void aSearchStoppedByTheCallBudgetContinuesWhereItStopped() {
+        var reader = new FakeReader();
+        var holders = new ArrayList<Map.Entry<PathRoot, LiveHolder>>();
+        for (var i = 0; i < 3; i++) {
+            holders.add(holder(i, reader.box(new ItemStack(Items.IRON_INGOT))));
+        }
+        var search = new ItemSearch(registry(reader), holders, IRON, true, null);
+        assertTrue(search.step());
+
+        assertTrue(search.stopEarly());
+        var first = search.result();
+
+        assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
+        assertEquals("1", first.nextCursor());
+        assertEquals(1, first.items().get(0).count());
+        assertTrue(first.note().contains("work limit"), first.note());
+        var rest = run(new ItemSearch(registry(reader), holders, IRON, true, first.nextCursor()));
+        assertEquals(2, rest.items().get(0).count());
+        assertNull(rest.nextCursor());
+    }
+
+    @Test
+    void stoppingWhileReplayingKeepsTheEarlierPagesContainers() {
+        var reader = new FakeReader();
+        var holders = List.of(holder(0, reader.box(reader.box(), reader.box(), reader.box(new ItemStack(Items.IRON_INGOT)))));
+        var search = new ItemSearch(registry(reader), holders, IRON, true, "0.3");
+        assertTrue(search.step());
+
+        assertTrue(search.stopEarly());
+
+        assertEquals("0.3", search.result().nextCursor());
+    }
+
+    @Test
     void nestedContainersCountTowardThePageLimit() {
         var reader = new FakeReader();
         var holders = new ArrayList<Map.Entry<PathRoot, LiveHolder>>();

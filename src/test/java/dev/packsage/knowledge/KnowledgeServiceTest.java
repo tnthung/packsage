@@ -207,6 +207,47 @@ class KnowledgeServiceTest {
     }
 
     @Test
+    void unqualifiedRecipeSearchReadsOnlyTheFirstAvailableRecipeSource() {
+        var viewerEnabled = new java.util.concurrent.atomic.AtomicBoolean(true);
+        PagedProvider viewer = new RecipeProvider("viewer", viewerEnabled::get);
+        PagedProvider loaded = new RecipeProvider("loaded", () -> true);
+        var guide = new PagedProvider("guide", query -> page(List.of(record("guide", "entry", Evidence.RecordKind.GUIDE)), null));
+        var service = service(viewer, guide, loaded);
+
+        var fromViewer = execute(service, "search_recipe", Map.of());
+        assertEquals(List.of("viewer-recipe"), handles(fromViewer));
+        assertEquals(Evidence.Coverage.COMPLETE, fromViewer.coverage());
+        assertTrue(loaded.queries.isEmpty());
+        assertEquals(List.of("loaded-recipe"), handles(execute(service, "search_recipe", Map.of(
+                "filter", new Evidence.JsonObject(Map.of("provider", text("loaded")))))));
+
+        viewerEnabled.set(false);
+        viewer.queries.clear();
+        var fromLoaded = execute(service, "search_recipe", Map.of());
+        assertEquals(List.of("loaded-recipe"), handles(fromLoaded));
+        assertEquals(Evidence.Coverage.COMPLETE, fromLoaded.coverage());
+        assertNull(fromLoaded.detail());
+        assertTrue(viewer.queries.isEmpty());
+        var unavailable = execute(service, "search_recipe", Map.of(
+                "filter", new Evidence.JsonObject(Map.of("provider", text("viewer")))));
+        assertEquals(Evidence.Outcome.ERROR, unavailable.outcome());
+        assertTrue(unavailable.detail().contains("UNAVAILABLE"));
+        assertEquals(List.of("entry"), handles(search(service, Map.of("query", text("")))));
+    }
+
+    @Test
+    void recipeContinuationIsRejectedAfterTheDefaultSourceChanges() {
+        var viewerEnabled = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var service = service(new RecipeProvider("viewer", viewerEnabled::get), new RecipeProvider("loaded", () -> true));
+        var first = execute(service, "search_recipe", Map.of("limit", number(1)));
+        assertNotNull(first.nextCursor());
+        viewerEnabled.set(false);
+        var continued = execute(service, "search_recipe", Map.of("limit", number(1), "cursor", text(first.nextCursor())));
+        assertEquals(Evidence.Outcome.ERROR, continued.outcome());
+        assertTrue(continued.detail().contains("INVALID_CURSOR"));
+    }
+
+    @Test
     void discoveryPreservesContinuationAtResultAndWorkBounds() {
         var source = new PagedProvider("guide", query -> {
             int position = query.cursor() == null ? 0 : Integer.parseInt(query.cursor());
@@ -373,5 +414,25 @@ class KnowledgeServiceTest {
         }
         @Override public CompletionStage<Evidence.Result> readProgress(PackSageTools.ReadRequest request, Context context) { return readEvidence(request, context); }
         @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) { return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "fixture"); }
+    }
+
+    private static class RecipeProvider extends PagedProvider {
+        private final java.util.function.BooleanSupplier enabled;
+        private RecipeProvider(String id, java.util.function.BooleanSupplier enabled) {
+            super(id, query -> page(List.of(record(id, id + "-recipe", Evidence.RecordKind.RECIPE)),
+                    query.cursor() == null && query.limit() == 1 ? "more" : null));
+            this.enabled = enabled;
+        }
+        @Override public Metadata metadata() { return new Metadata(id(), List.of(), true, List.of(), Map.of()); }
+        @Override public boolean enabled() { return enabled.getAsBoolean(); }
+        @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) {
+            var filter = request.arguments().values().get("filter") instanceof Evidence.JsonObject value ? value : new Evidence.JsonObject(Map.of());
+            if (!text(id()).equals(filter.values().get("provider"))) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "other source"));
+            if (!enabled()) return CompletableFuture.failedFuture(new Failure(Code.UNAVAILABLE, id() + " runtime is unavailable"));
+            return query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(Map.of()),
+                    request.arguments().values().get("limit") instanceof Evidence.JsonNumber limit ? limit.value().intValueExact() : 16,
+                    request.arguments().values().get("cursor") instanceof Evidence.JsonString ? SCOPE : null,
+                    request.arguments().values().get("cursor") instanceof Evidence.JsonString cursor ? cursor.value() : null), request.scope());
+        }
     }
 }

@@ -138,7 +138,9 @@ public final class KnowledgeService {
             signature.remove("limit");
             var sources = registry.metadata().stream().filter(value -> request.tool().equals("search_recipe") ? value.recipes()
                     : !value.documentTypes().isEmpty() && (!(filter.get("types") instanceof Evidence.JsonArray types) || types.values().isEmpty()
-                    || types.values().stream().anyMatch(type -> value.documentTypes().contains(((Evidence.JsonString) type).value())))).map(Metadata::id).toList();
+                    || types.values().stream().anyMatch(type -> value.documentTypes().contains(((Evidence.JsonString) type).value())))).map(Metadata::id)
+                    .filter(id -> !request.tool().equals("search_recipe") || providers.stream().filter(provider -> provider.id().equals(id)).allMatch(KnowledgeProvider::enabled))
+                    .limit(request.tool().equals("search_recipe") ? 1 : Long.MAX_VALUE).toList();
             Cursor cursor = null;
             if (request.arguments().values().get("cursor") instanceof Evidence.JsonString token) {
                 synchronized (this) { cursor = cursors.get(token.value()); }

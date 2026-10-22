@@ -64,6 +64,7 @@ An adapter is identified by an `AdapterId`, such as `minecraft`. It implements a
 | `EntityInspector` | Facts about one entity | Merged: one section per adapter |
 | `InventoryReader` | Inventories of a holder, their entries, facts about one item | Inventories combined; item facts merged |
 | `Journalist` | Search past events and notes; save, update and delete notes | One journal per world |
+| `ProgressReader` | Progress trees: advancement tabs now, quest books later | Trees and entries combined; entry facts merged |
 | `RecipeInspector` | Recipe search and route planning (existing native readers) | As today; mod adapters later |
 | `RulesReader` | Registries, enchantments and eligibility, effects, attributes, dimensions (existing native readers) | As today |
 
@@ -71,7 +72,11 @@ The existing `search_inventory`, history and config tools keep working during th
 
 ### The server boundary
 
-All live reads go through these capability interfaces as named queries with plain-data arguments and results. In singleplayer, each query runs as one task on the integrated server thread. It copies the results into plain records before returning, and enforces its bounds there. A later server-side component implements the same queries remotely.
+All live reads go through these capability interfaces as named queries with plain-data arguments and results. In singleplayer, reads run on the integrated server thread. Results are copied into plain records before returning, and bounds are enforced there. A later server-side component implements the same queries remotely.
+
+On a multiplayer server, the world, inventory, entity, progress and journal tools report unavailable. Losing today's client-side inventory reads on servers is accepted for v2; the player only plays singleplayer.
+
+*My call:* a large read is split across server ticks with a work budget of about 5 ms per tick, so it never causes a long tick even when the game keeps running behind the chat. Each slice copies its part. The result reports the game-time span it was read over, because the world can change between slices.
 
 ### Shared types
 
@@ -213,6 +218,29 @@ Opening for reading must not create or change anything. Each adapter's tests che
 
 *My call:* a single search inspects at most 512 containers and reports partial coverage beyond that.
 
+## Progress
+
+Progress is current state (what is done, what is left, what unlocks what). The journal records when something happened.
+
+```rust
+struct ProgressTree { id: String, adapter: AdapterId, title: String, done: u32, total: u32 }   // advancement tab, quest chapter
+struct ProgressHandle { id: String, adapter: AdapterId, title: String, status: Status }
+enum Status { Done, InProgress, Available, Locked, Hidden }
+struct Criterion { id: String, label: String, done: bool, done_at: Option<Instant> }
+struct Progress {
+    handle: ProgressHandle, description: Option<String>, criteria: Vec<Criterion>,
+    requires: Vec<ProgressHandle>, unlocks: Vec<ProgressHandle>, rewards: Vec<String>,
+    facts: BTreeMap<AdapterId, Section>,
+}
+trait ProgressReader {
+    fn trees(&self) -> Result<Vec<ProgressTree>>;
+    fn list_progress(&self, tree: Option<&str>, status: Vec<Status>, text: Option<String>, cursor: Option<Cursor>) -> Result<Page<ProgressHandle>>;
+    fn inspect_progress(&self, id: &str) -> Result<Progress>;
+}
+```
+
+The Minecraft adapter implements this for advancements, including per-criterion state such as the biomes still missing for *Adventuring Time*. *My call:* a hidden advancement is listed as hidden, without its title or criteria, until it is earned.
+
 ## Journal
 
 ### What is recorded
@@ -291,6 +319,7 @@ New persistent navigation targets: `world-block|<dimension>|x,y,z` and `world-en
 | `list_items(holder, inventory?, filter?, cursor?)` | `InventoryReader` |
 | `inspect_item(path)` | merged `InventoryReader::inspect_item` |
 | `find_items(filter, center?, radius?, include_nested?)` | all `InventoryReader`s |
+| `list_progress(tree?, status?, text?, cursor?)`, `inspect_progress(id)` | `ProgressReader` |
 | `search_journal(filter, cursor?)` | `Journalist` |
 | `remember(text, at?, tags?)`, `update_note`, `forget_note` | `Journalist` |
 | `search_recipe`, `plan_recipe`, `search_registry`, `read_evidence`, history and config tools | existing, unchanged |
@@ -300,6 +329,10 @@ Results keep using the existing evidence wrapper (source, coverage, citable refe
 ## Prompt
 
 The tool descriptions and system prompt are rewritten for these tools as one policy, under the AGENTS.md prompt rules, including the note-saving rule and invisibility. They are validated in game.
+
+## Tracking
+
+*My call:* v2 work is tracked in the [v2 baseline note](../roadmap/2026-10-22-v2-minecraft-only.md), which grows into the v2 checklist. The existing tool roadmap and adapter feature checklist keep describing `feat/packsage-v1`.
 
 ## Left to the builder
 

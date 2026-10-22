@@ -478,6 +478,7 @@ public final class WorldTools implements KnowledgeProvider {
         private int next;
         private int resolved;
         private int unloaded;
+        private int entitiesUnloaded;
         private int gone;
         private boolean resumeInside;
         private boolean stopped;
@@ -573,6 +574,11 @@ public final class WorldTools implements KnowledgeProvider {
                 if (doubleChest) chestHalves.add(at.immutable());
                 holders.add(Map.entry(new PathRoot.Block(new BlockPlace(dimension, at.getX(), at.getY(), at.getZ())), holder));
             }
+            // A loaded chunk can still be waiting for its entities; count it rather than report them absent.
+            if (!level.areEntitiesLoaded(pos.toLong())) {
+                entitiesUnloaded++;
+                return;
+            }
             var box = new AABB(pos.getMinBlockX(), center.y - radius, pos.getMinBlockZ(),
                     pos.getMinBlockX() + 16, center.y + radius, pos.getMinBlockZ() + 16);
             var entities = new ArrayList<>(level.getEntities((Entity) null, box, entity -> entity != host
@@ -596,6 +602,7 @@ public final class WorldTools implements KnowledgeProvider {
         public ItemsRead result() {
             var all = new ArrayList<String>();
             if (unloaded > 0) all.add(unloaded + " chunks in range were not loaded and were not searched");
+            if (entitiesUnloaded > 0) all.add(entitiesUnloaded + " chunks in range did not have their entities loaded yet, so entities there were not searched");
             if (gone > 0) all.add(gone + " holders from earlier pages are gone or no longer loaded");
             all.addAll(notes);
             List<ItemEntry> entries = List.of();

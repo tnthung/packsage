@@ -147,6 +147,7 @@ public final class AreaScan {
         final BlockKinds kinds = new BlockKinds();
         int next;
         int unloaded;
+        int entitiesUnloaded;
         String nextCursor;
         boolean stopped;
         private LevelChunk current;
@@ -180,6 +181,12 @@ public final class AreaScan {
                     return hasMore();
                 }
                 if (!bySection()) {
+                    // A loaded chunk can still be waiting for its entities; an empty read there proves nothing.
+                    if (!level.areEntitiesLoaded(pos.toLong())) {
+                        entitiesUnloaded++;
+                        next++;
+                        return hasMore();
+                    }
                     scanChunk(chunk, next);
                     next++;
                     return hasMore();
@@ -248,6 +255,9 @@ public final class AreaScan {
             var all = new ArrayList<String>();
             if (unloaded > 0) {
                 all.add(unloaded + " chunks in range were not loaded and were not fully read");
+            }
+            if (entitiesUnloaded > 0) {
+                all.add(entitiesUnloaded + " chunks in range did not have their entities loaded yet, so entities there were not read");
             }
             all.addAll(notes);
             var coverage = nextCursor == null && all.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;

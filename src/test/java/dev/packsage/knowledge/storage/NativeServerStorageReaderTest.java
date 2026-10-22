@@ -29,25 +29,32 @@ class NativeServerStorageReaderTest {
     }
 
     @Test
-    void privateOwnerReadRequiresTheSameSingleConnectedPlayerAndAnUnpublishedServer() {
+    void lanOpenWorldsAndOtherPlayersDoNotBlockTheRead() {
         var owner = UUID.randomUUID();
-        var other = UUID.randomUUID();
 
-        assertTrue(NativeServerStorageReader.privateOwnerReadAllowed(false, owner, owner, owner, 1));
-        assertFalse(NativeServerStorageReader.privateOwnerReadAllowed(true, owner, owner, owner, 1));
-        assertFalse(NativeServerStorageReader.privateOwnerReadAllowed(false, other, owner, owner, 1));
-        assertFalse(NativeServerStorageReader.privateOwnerReadAllowed(false, owner, other, owner, 1));
-        assertFalse(NativeServerStorageReader.privateOwnerReadAllowed(false, owner, owner, other, 1));
-        assertFalse(NativeServerStorageReader.privateOwnerReadAllowed(false, owner, owner, owner, 2));
-        assertFalse(NativeServerStorageReader.privateOwnerReadAllowed(false, null, owner, owner, 1));
+        assertTrue(NativeServerStorageReader.privateOwnerReadAllowed(true, owner, owner, owner, 1));
+        assertTrue(NativeServerStorageReader.privateOwnerReadAllowed(false, owner, owner, owner, 3));
     }
 
     @Test
-    void lockedOrUnpackedLootContainersAreNeverRead() {
+    void lockedAndOutOfReachContainersAreRead() {
+        var furnace = new FurnaceBlockEntity(BlockPos.ZERO, Blocks.FURNACE.defaultBlockState());
+        furnace.applyComponents(DataComponentMap.builder()
+                .set(DataComponents.LOCK, new LockCode("key"))
+                .set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.SAND, 64)))).build(),
+                DataComponentPatch.EMPTY);
+
+        assertTrue(NativeServerStorageReader.mayReadContainerContents(new LockCode("key"), false));
+        assertEquals(64, furnace.getItem(0).getCount());
+        assertEquals(List.of(1, 2), NativeServerStorageReader.blockEmptySlots(furnace, "container").stream()
+                .map(value -> ((Evidence.JsonNumber) ((Evidence.JsonObject) value).values().get("componentSlot")).value().intValueExact())
+                .toList());
+    }
+
+    @Test
+    void containersWithPendingLootAreStillNotRead() {
         assertTrue(NativeServerStorageReader.mayReadContainerContents(LockCode.NO_LOCK, false));
-        assertFalse(NativeServerStorageReader.mayReadContainerContents(new LockCode("key"), false));
         assertFalse(NativeServerStorageReader.mayReadContainerContents(LockCode.NO_LOCK, true));
-        assertFalse(NativeServerStorageReader.mayReadContainerContents(new LockCode("key"), true));
     }
 
     @Test

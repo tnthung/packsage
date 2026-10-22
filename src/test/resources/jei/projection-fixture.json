@@ -1,8 +1,0 @@
-{
-  "category": "mod:category",
-  "viewerHandle": "mod:category#0",
-  "canonicalRecipeId": null,
-  "inputs": [["minecraft:iron_ingot", "minecraft:copper_ingot"]],
-  "catalysts": ["minecraft:crafting_table"],
-  "information": ["requires power"]
-}

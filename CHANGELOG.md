@@ -4,6 +4,7 @@
 
 ### 2026-10-22
 
+- On the v2 branch, removed every adapter except Minecraft's, so mod support can be rebuilt with a new approach. PackSage no longer reads JEI, FTB Quests, Patchouli, Modonomicon, GuideME, Immersive Engineering, Actually Additions, Relics, Artifacts, Ponder or Curios. It still reads Minecraft's recipes, items, effects, inventory and storage, the pack's config files, and earlier chats. The assistant can no longer search guides or read quest progress, and its instructions no longer mention those sources. These instruction changes have not been tested in game. The [v2 note](docs/roadmap/2026-10-22-v2-minecraft-only.md) lists what was removed and what remains.
 - Made JEI recipe lookups by output item fast, and made them find modded recipes. For most items, PackSage now asks JEI for the item's recipes directly, as JEI's own R key does, instead of walking every recipe. A torch question found its recipe on the first search in about 22 seconds, down from about 40. Items JEI splits into variants, such as potions, keep the previous search.
 
   Fixed output searches never returning a recipe from a mod's own JEI category. Asking how to make Nature's Aura Gold Powder now returns the Natural Altar Infusion recipe with its inputs, output and catalyst, alongside the crafting recipe. PackSage still marks modded recipes as not fully understood.

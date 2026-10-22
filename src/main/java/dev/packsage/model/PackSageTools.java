@@ -59,11 +59,7 @@ public final class PackSageTools {
     }
 
     private static List<Toolbox.Metadata> nativeMetadata() {
-        return List.of(new Toolbox.Metadata("native", List.of(), true, NATIVE_REGISTRIES, NATIVE_INVENTORY_TARGETS),
-                new Toolbox.Metadata("ftb_quests", List.of("quest"), false, List.of(), Map.of()),
-                new Toolbox.Metadata("patchouli", List.of("guide"), false, List.of(), Map.of()),
-                new Toolbox.Metadata("curios", List.of(), false, List.of(), Map.of()),
-                new Toolbox.Metadata("jei", List.of(), true, List.of(), Map.of()));
+        return List.of(new Toolbox.Metadata("native", List.of(), true, NATIVE_REGISTRIES, NATIVE_INVENTORY_TARGETS));
     }
 
     public static List<ModelBackend.ToolDefinition> definitions(List<Toolbox.Metadata> metadata) {
@@ -72,20 +68,11 @@ public final class PackSageTools {
         var targetSchema = new JsonObject();
         targetSchema.add("oneOf", targetChoices);
         var definitions = new ArrayList<ModelBackend.ToolDefinition>();
-        for (var name : List.of("search_document", "search_recipe", "search_registry", "search_inventory", "read_evidence", "read_progress",
+        for (var name : List.of("search_recipe", "search_registry", "search_inventory", "read_evidence",
                 "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history")) {
             var properties = new JsonObject();
             var required = new JsonArray();
             switch (name) {
-                case "search_document" -> {
-                    properties.add("query", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":512}"));
-                    required.add("query");
-                    var types = JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"maxItems\":16,\"items\":{\"type\":\"string\",\"maxLength\":64}}").getAsJsonObject();
-                    types.getAsJsonObject("items").add("enum", JSON.toJsonTree(metadata.stream().flatMap(adapter -> adapter.documentTypes().stream()).distinct().toList()));
-                    var filter = JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{},\"additionalProperties\":false}").getAsJsonObject();
-                    filter.getAsJsonObject("properties").add("types", types);
-                    properties.add("filter", filter);
-                }
                 case "search_recipe" -> properties.add("filter", JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":512},\"outputItem\":{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"additionalProperties\":false}"));
                 case "search_registry" -> {
                     var registry = JsonParser.parseString("{\"type\":\"string\",\"maxLength\":64}").getAsJsonObject();
@@ -99,7 +86,7 @@ public final class PackSageTools {
                     required.add("target");
                     properties.add("filter", JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{\"names\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}},\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tooltip\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":512}},\"sections\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":64}}},\"additionalProperties\":false}"));
                 }
-                case "read_evidence", "read_progress" -> { properties.add("handles", JsonParser.parseString("{\"type\":\"array\",\"minItems\":1,\"maxItems\":16,\"items\":{\"type\":\"string\",\"maxLength\":1024}}")); required.add("handles"); }
+                case "read_evidence" -> { properties.add("handles", JsonParser.parseString("{\"type\":\"array\",\"minItems\":1,\"maxItems\":16,\"items\":{\"type\":\"string\",\"maxLength\":1024}}")); required.add("handles"); }
                 case "read_history" -> {
                     properties.add("handles", JsonParser.parseString("{\"type\":\"array\",\"minItems\":1,\"maxItems\":8,\"items\":{\"type\":\"string\",\"maxLength\":1024}}"));
                     properties.add("maxChars", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":256,\"maximum\":16000}"));
@@ -123,16 +110,16 @@ public final class PackSageTools {
                 case "list_configs" -> { }
                 default -> throw new IllegalStateException(name);
             }
-            if (List.of("search_document", "search_recipe", "search_registry").contains(name)) {
+            if (List.of("search_recipe", "search_registry").contains(name)) {
                 var provider = JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":32}").getAsJsonObject();
                 var choices = new JsonArray();
-                metadata.stream().filter(adapter -> name.equals("search_document") ? !adapter.documentTypes().isEmpty()
-                        : name.equals("search_recipe") ? adapter.recipes() : !adapter.registries().isEmpty()).map(Toolbox.Metadata::id).distinct().forEach(choices::add);
+                metadata.stream().filter(adapter -> name.equals("search_recipe") ? adapter.recipes() : !adapter.registries().isEmpty())
+                        .map(Toolbox.Metadata::id).distinct().forEach(choices::add);
                 choices.add(com.google.gson.JsonNull.INSTANCE);
                 provider.add("enum", choices);
                 properties.getAsJsonObject("filter").getAsJsonObject("properties").add("provider", provider);
             }
-            if (List.of("search_document", "search_recipe", "search_registry", "search_inventory", "list_configs", "search_config", "search_history").contains(name)) {
+            if (List.of("search_recipe", "search_registry", "search_inventory", "list_configs", "search_config", "search_history").contains(name)) {
                 var limit = JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":64}").getAsJsonObject();
                 limit.addProperty("maximum", name.equals("search_inventory") ? 32 : name.equals("search_history") ? 16 : 64);
                 properties.add("limit", limit);
@@ -144,14 +131,12 @@ public final class PackSageTools {
             schema.add("properties", properties);
             schema.add("required", required);
             definitions.add(new ModelBackend.ToolDefinition(name, switch (name) {
-                case "search_document" -> "Find quests, chapters or guides with one case-insensitive literal phrase. Exact item or recipe IDs can find declared guide relationships. Prefer a compact topic term; for an item's Ponder scenes, use its exact registry ID as query with provider ponder. Continue with the returned nextCall and the same query, filters and limit while unseen results could resolve the remaining evidence gap.";
-                case "search_recipe" -> "Find recipes, including supported brewing transformations. Without provider it reads one default source: JEI when available, otherwise Minecraft's loaded recipes. Select provider native for loaded recipe types JEI does not display. Text is a case-insensitive literal match. For an exact output, use outputItem without text unless text is an additional intended filter; variants can differ in components. requiredInputTotals, when present, totals only unambiguous returned inputs and inherits record coverage. An advancing nextCall can scan other recipes before brewing and return empty pages. Keep evidence from different providers distinct.";
+                case "search_recipe" -> "Find Minecraft's loaded recipes, including supported brewing transformations. Text is a case-insensitive literal match. For an exact output, use outputItem without text unless text is an additional intended filter; variants can differ in components. requiredInputTotals, when present, totals only unambiguous returned inputs and inherits record coverage. An advancing nextCall can scan other recipes before brewing and return empty pages.";
                 case "search_registry" -> "Find identities in one registry catalog. active_effect lists the player's current effect instances (durationTicks, amplifier, ambient, attributeModifiers), with description when the mod provides one; descriptionStatus reports not_provided, unknown, or bounded for a truncated description. player_attribute lists current attribute base and value with modifiers whose IDs name their sources, such as minecraft:effect.luck or an item's modifier ID. Minecraft does not record who applied an effect.";
-                case "search_inventory" -> "Read current contents of one target. Target item (mainhand, offhand or a slotReference) returns the selected item's own record first, in section item with components, potion contents and enchantmentEligibility, before any contents it holds. Target opened reads the open menu named by openedMenu when it is a supported vanilla menu. Player summaries do not include nested containers; inspect each relevant carried container, including multiple matching items, with its returned slotReference. Player reads include occupied functional Curios equipment when its API is supported; cosmetic slots are excluded. Filter sections with curios for all Curios equipment or curios:<type> for one slot type.";
+                case "search_inventory" -> "Read current contents of one target. Target item (mainhand, offhand or a slotReference) returns the selected item's own record first, in section item with components, potion contents and enchantmentEligibility, before any contents it holds. Target opened reads the open menu named by openedMenu when it is a supported vanilla menu. Player summaries do not include nested containers; inspect each relevant carried container, including multiple matching items, with its returned slotReference. Player reads cover vanilla inventory and equipment slots.";
                 case "search_config" -> "Find accessible config keys and comments, including machine speed, energy and upgrade settings. Use returned config references with read_config; preserve scope and effective-value authority.";
                 case "read_config" -> "Read a discovered config key or section at call time. A file value is not necessarily the effective server setting; preserve returned authority and scope.";
                 case "plan_recipe" -> "Plan recipe routes for an item identity and quantity, including brewing routes, with unresolved dependencies and coverage. It does not read owned materials or establish affordability. Routes cover every component variant of the identity; match output components. The live recipe scan is bounded, so a missing route is not absence. Brewing routes withhold operation counts (batches null); state only what their operationSemantics supports.";
-                case "read_progress" -> "Read current evidence for returned record references only. Do not pass search cursors, labels or guessed references.";
                 case "read_evidence" -> "Read current evidence for returned record references only. Do not pass search cursors, labels or guessed references. An inventory slot record's reference rereads that item's current record, including enchantmentEligibility.";
                 default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
             }, schema.toString()));

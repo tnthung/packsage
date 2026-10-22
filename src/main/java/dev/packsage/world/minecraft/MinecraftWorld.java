@@ -4,7 +4,6 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.world.BlockInspector;
 import dev.packsage.world.WorldAccessor;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -51,12 +50,12 @@ public final class MinecraftWorld implements WorldAccessor, BlockInspector {
     @Override
     public String notableRole(BlockState state, BlockEntity entity) {
         var block = state.getBlock();
+        // The blocks MinecraftInventories reads a section from; this wins over workstation so barrels and smokers count as containers.
+        if (entity instanceof Container || entity instanceof CampfireBlockEntity || entity instanceof LecternBlockEntity
+                || block instanceof EnderChestBlock) return "container";
         var poi = PoiTypes.forState(state);
         if (poi.isPresent() && isWorkstation(poi.get())) return "workstation";
         if (block instanceof BedBlock) return "bed";
-        // The blocks MinecraftInventories reads a section from.
-        if (entity instanceof Container || entity instanceof CampfireBlockEntity || entity instanceof LecternBlockEntity
-                || block instanceof EnderChestBlock) return "container";
         if (block instanceof Portal) return "portal";
         if (block instanceof SpawnerBlock || block instanceof TrialSpawnerBlock) return "spawner";
         if (state.isSignalSource() || block instanceof PistonBaseBlock || block instanceof PistonHeadBlock
@@ -95,7 +94,7 @@ public final class MinecraftWorld implements WorldAccessor, BlockInspector {
         if (state.getBlock() instanceof BedBlock) {
             values.put("bedOccupied", new Evidence.JsonBoolean(state.getValue(BedBlock.OCCUPIED)));
         }
-        if (neighborsLoaded(level, pos)) {
+        if (signalChunks(pos).stream().allMatch(near -> level.getChunkSource().getChunkNow(near.x, near.z) != null)) {
             values.put("redstoneSignal", number(level.getBestNeighborSignal(pos)));
         }
         return new Evidence.JsonObject(values);
@@ -105,16 +104,18 @@ public final class MinecraftWorld implements WorldAccessor, BlockInspector {
         return property.getName(state.getValue(property));
     }
 
-    /** Signal reads look at every neighbour, and reading an unloaded neighbour would load its chunk. */
+    /**
+     * The chunks a neighbour signal read can touch: neighbouring conductors read their own neighbours, so it reaches
+     * two blocks out, and reading a block in an unloaded chunk would load it.
+     */
     static List<ChunkPos> signalChunks(BlockPos pos) {
-        return List.of();
-    }
-
-    private static boolean neighborsLoaded(ServerLevel level, BlockPos pos) {
-        for (var direction : Direction.values()) {
-            if (loadedChunk(level, pos.relative(direction)) == null) return false;
+        var chunks = new ArrayList<ChunkPos>();
+        for (int x = SectionPos.blockToSectionCoord(pos.getX() - 2); x <= SectionPos.blockToSectionCoord(pos.getX() + 2); x++) {
+            for (int z = SectionPos.blockToSectionCoord(pos.getZ() - 2); z <= SectionPos.blockToSectionCoord(pos.getZ() + 2); z++) {
+                chunks.add(new ChunkPos(x, z));
+            }
         }
-        return true;
+        return chunks;
     }
 
     private static LevelChunk loadedChunk(ServerLevel level, BlockPos pos) {

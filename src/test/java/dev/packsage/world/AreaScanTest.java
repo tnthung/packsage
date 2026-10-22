@@ -51,6 +51,22 @@ class AreaScanTest {
     }
 
     @Test
+    void anEarlyStopResumesAtTheChunkItStoppedIn() {
+        assertEquals("4:0", AreaScan.resumeCursor(4, 0, false, 9).text());
+        assertEquals("4:7", AreaScan.resumeCursor(4, 7, false, 0).text(), "a chunk not entered yet keeps the cursor's skip");
+        assertEquals("4:9", AreaScan.resumeCursor(4, 0, true, 9).text(), "matches seen in the chunk so far are skipped");
+        assertEquals("4:7", AreaScan.resumeCursor(4, 7, true, 3).text(), "matches an earlier page returned stay skipped");
+    }
+
+    @Test
+    void anEarlyStopNamesTheBoundAndHowToContinue() {
+        var listing = AreaScan.stopNote(5, 40, true);
+        assertTrue(listing.contains("work limit") && listing.contains("5 of 40 chunks") && listing.contains("cursor"), listing);
+        var summary = AreaScan.stopNote(5, 40, false);
+        assertTrue(summary.contains("5 of 40 chunks") && summary.contains("smaller radius") && !summary.contains("cursor"), summary);
+    }
+
+    @Test
     void blockKindsAreCachedPerState() {
         var kinds = new AreaScan.BlockKinds();
 

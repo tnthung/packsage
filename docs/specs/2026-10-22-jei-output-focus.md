@@ -19,6 +19,8 @@ For a JEI `search_recipe` or JEI read with `outputItem`, the reader decides per 
 - When any listed stack has a different identity, such as potions, the reader keeps the current bounded scan, including the brewing-first order for potion outputs.
 - When the ingredient list, stack helper or focus factory is unavailable or throws, the reader keeps the current bounded scan.
 
+An `outputItem` search reads the recipe slots of every candidate, including recipes in categories outside `minecraft:`. Before, those recipes became placeholder records without slots, which the output check always rejected, so no modded JEI recipe could match an output search. A modded match now carries its captured slots and keeps OPAQUE coverage, as a JEI read of the same recipe already did. Searches without `outputItem` keep the placeholder records for modded categories.
+
 Everything else is unchanged: the output-slot check on each projected recipe, component-variant matching, coverage and decoding labels, page and budget bounds, cursors, hidden-recipe capture, visibility checks and navigation identities. Searches without `outputItem` keep the current scan.
 
 A cursor stays bound to the query that issued it. The focus decision depends only on the query and the current JEI runtime, so a continuation within one runtime generation repeats the same decision.

@@ -166,6 +166,15 @@ class ScreenTextTest {
     }
 
     @Test
+    void worldTargetsAreLabeledPlace() {
+        var target = new Evidence.NavigationTarget(SCOPE, "world", "block|minecraft:overworld|10,64,-3",
+                "world-block|minecraft:overworld|10,64,-3");
+        var spans = ScreenText.inlineLines("Chest [world:block|minecraft:overworld|10,64,-3].", List.of(target)).getFirst().spans();
+        assertEquals("Place", spans.get(1).text());
+        assertEquals(target, spans.get(1).target());
+    }
+
+    @Test
     void registeredLocalControlsAppearAtTheirMarkersWithoutOpaqueIdsOrASeparateCollection() {
         var target = new Evidence.NavigationTarget(SCOPE, "config", "book#entry", "entry#1@lifecycle");
         var spans = ScreenText.inlineLines("Before [config:book#entry] after.", List.of(target)).getFirst().spans();

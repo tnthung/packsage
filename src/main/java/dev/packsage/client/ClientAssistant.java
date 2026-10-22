@@ -4,6 +4,7 @@ import dev.packsage.chat.AssistantRuntime;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.ConversationStore;
 import dev.packsage.chat.PackSageSettings;
+import dev.packsage.client.highlight.WorldHighlighter;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.KnowledgeService;
@@ -121,6 +122,7 @@ public final class ClientAssistant {
         runtime.setSettings(settings);
         runtime.restoreSession();
 
+        WorldHighlighter.register();
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post ignored) -> tick());
         NeoForge.EVENT_BUS.addListener((ScreenEvent.KeyPressed.Pre event) -> {
             if (!(event.getScreen() instanceof AbstractContainerScreen<?> screen) || client.level == null

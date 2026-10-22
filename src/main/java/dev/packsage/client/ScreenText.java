@@ -401,6 +401,7 @@ final class ScreenText {
                                     .reduce((first, latest) -> latest).orElse(null);
                             if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
                                 case "config" -> "Config";
+                                case "world" -> "Place";
                                 default -> "Source";
                             }, target, ModernUi.TEXT, false, false, source));
                             else {
@@ -428,6 +429,7 @@ final class ScreenText {
                             && value.sourceHandle().equals(marker.group(2))).reduce((first, latest) -> latest).orElse(null);
                     if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
                         case "config" -> "Config";
+                        case "world" -> "Place";
                         default -> "Source";
                     }, target, ModernUi.TEXT, false, false, source));
                     else if (source != null) spans.add(new InlineSpan(sourceLabels.getOrDefault(source,

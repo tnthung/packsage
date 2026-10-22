@@ -91,19 +91,24 @@ public final class WorldTools implements KnowledgeProvider {
     private final Supplier<Evidence.Scope> scope;
     private final AreaScan scan;
     private final Executor worker;
+    private final WorldNavigation navigation;
     private final Map<String, Cursor> cursors = new LinkedHashMap<>(16, 0.75f, true);
 
     /** The worker runs everything after a server read, so record building never lands on the server thread. */
     public WorldTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker) {
-        this(client::getSingleplayerServer, registry, scope, worker);
+        this(client::getSingleplayerServer, registry, scope, worker, WorldNavigation.blockLookup(client::getSingleplayerServer),
+                WorldNavigation.entityLookup(client::getSingleplayerServer), WorldNavigation.client(client));
     }
 
-    WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker) {
+    /** Highlights check {@code blockExists} and {@code entityAlive} before drawing through {@code client}. */
+    WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker,
+               Function<BlockPlace, Boolean> blockExists, Function<UUID, Boolean> entityAlive, WorldNavigation.Client client) {
         this.server = server;
         this.registry = registry;
         this.scope = scope;
         this.worker = worker;
         this.scan = new AreaScan(registry);
+        this.navigation = new WorldNavigation(blockExists, entityAlive, client);
     }
 
     @Override
@@ -178,8 +183,14 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     @Override
+    public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!scope.equals(this.scope.get())) return CompletableFuture.completedFuture(null);
+        return navigation.refresh(target, scope);
+    }
+
+    @Override
     public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
-        return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "world highlights are not available yet");
+        return navigation.open(target);
     }
 
     private static Evidence.Result single(Evidence.Record record) {
@@ -336,7 +347,7 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("sections", sections(sections));
         payload.put("inventories", inventories(inventories));
         return evidence(scope, "block|" + place.text(), Evidence.RecordKind.BLOCK, kind + " at " + place.text(), payload,
-                coverage(sections, inventories), "world-block|" + place.text());
+                coverage(sections, inventories), WorldNavigation.blockId(place));
     }
 
     private Evidence.Record inspectEntity(MinecraftServer server, UUID id, Evidence.Scope scope) {
@@ -352,7 +363,7 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("sections", sections(sections));
         payload.put("inventories", inventories(inventories));
         return evidence(scope, "entity|" + id, Evidence.RecordKind.OTHER, entityTitle(handle), payload,
-                coverage(sections, inventories), "world-entity|" + id);
+                coverage(sections, inventories), WorldNavigation.entityId(id));
     }
 
     private Evidence.Record inspectItem(MinecraftServer server, ItemPath path, Evidence.Scope scope) {
@@ -957,12 +968,12 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("block", text(block.kind()));
         payload.put("place", text(block.place().text()));
         return evidence(scope, "block|" + block.place().text(), Evidence.RecordKind.BLOCK, block.kind() + " at " + block.place().text(),
-                payload, Evidence.Coverage.COMPLETE, "world-block|" + block.place().text());
+                payload, Evidence.Coverage.COMPLETE, WorldNavigation.blockId(block.place()));
     }
 
     private Evidence.Record entityRecord(Evidence.Scope scope, EntityHandle entity) {
         return evidence(scope, "entity|" + entity.id(), Evidence.RecordKind.OTHER, entityTitle(entity), entityFacts(entity),
-                Evidence.Coverage.COMPLETE, "world-entity|" + entity.id());
+                Evidence.Coverage.COMPLETE, WorldNavigation.entityId(entity.id()));
     }
 
     private Evidence.Record entryRecord(Evidence.Scope scope, ItemEntry entry) {
@@ -1007,8 +1018,8 @@ public final class WorldTools implements KnowledgeProvider {
     private static String rootTarget(PathRoot root) {
         return switch (root) {
             case PathRoot.Player player -> null;
-            case PathRoot.Entity of -> "world-entity|" + of.id();
-            case PathRoot.Block of -> "world-block|" + of.place().text();
+            case PathRoot.Entity of -> WorldNavigation.entityId(of.id());
+            case PathRoot.Block of -> WorldNavigation.blockId(of.place());
         };
     }
 

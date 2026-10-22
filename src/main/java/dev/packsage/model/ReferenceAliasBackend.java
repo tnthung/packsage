@@ -251,11 +251,6 @@ public final class ReferenceAliasBackend implements ModelBackend {
                             && source.get("sourceHandle") instanceof com.google.gson.JsonPrimitive handle && handle.isString()
                             && reference.getAsString().equals(provider.getAsString() + ":" + handle.getAsString())) {
                         String alias = register(reference.getAsString(), false);
-                        if (provider.getAsString().equals("jei") && record.get("payload") instanceof JsonObject payload
-                                && payload.get("viewerHandle") instanceof com.google.gson.JsonPrimitive viewerHandle && viewerHandle.isString()
-                                && viewerHandle.getAsString().equals(handle.getAsString())) {
-                            payload.addProperty("viewerHandle", alias);
-                        }
                         if (!alias.equals(reference.getAsString())) {
                             record.addProperty("reference", alias);
                             source.addProperty("sourceHandle", alias);

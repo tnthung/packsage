@@ -28,14 +28,13 @@ final class ScreenText {
     static final int CODE_COLOR = 0xffd27f;
     static final int DIM_COLOR = 0x808080;
     private static final String CELL_GAP = "   ";
-    private static final Pattern CITATION_MARKER = Pattern.compile("\\[(native|jei|ftb_quests|patchouli|modonomicon|guideme|immersiveengineering|actuallyadditions|relics|artifacts|ponder|config|history):([^\\]\\s]+)\\]");
+    private static final Pattern CITATION_MARKER = Pattern.compile("\\[(native|config|history):([^\\]\\s]+)\\]");
     private static final String BULLET = "• ";
     private static final String SEPARATOR = " · ";
     private static final Pattern HEADING = Pattern.compile("^(#{1,6}) +(.*)$");
     private static final Pattern LIST_ITEM = Pattern.compile("^(\\s*)[-*] +(.*)$");
     private static final Pattern BLOCKQUOTE = Pattern.compile("^(\\s*> ?)");
     private static final Pattern COORDINATE = Pattern.compile("([xyz])=(-?\\d+)");
-    private static final Pattern JEI_RECIPE = Pattern.compile("^jei/\\d+/\\d+/.+?/recipe-(.+)-\\d+$");
     private static final Pattern HASH_SUFFIX = Pattern.compile("#\\d+$");
 
     record InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code,
@@ -135,11 +134,6 @@ final class ScreenText {
     private static String markerTag(String provider, String handle) {
         return "[" + switch (provider) {
             case "native" -> "game";
-            case "ftb_quests" -> "quest";
-            case "patchouli" -> "book";
-            case "modonomicon", "guideme", "actuallyadditions", "relics", "artifacts" -> "guide";
-            case "immersiveengineering" -> "manual";
-            case "jei" -> handle.contains("recipe") ? "recipe" : "jei";
             default -> provider; // config
         } + "]";
     }
@@ -406,11 +400,6 @@ final class ScreenText {
                                             && candidate.sourceHandle().equals(reference.group(2)))
                                     .reduce((first, latest) -> latest).orElse(null);
                             if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
-                                case "ftb_quests" -> "Quest";
-                                case "patchouli", "modonomicon", "guideme", "actuallyadditions", "relics", "artifacts" -> "Guide";
-                                case "immersiveengineering" -> "Manual";
-                                case "ponder" -> "Ponder";
-                                case "jei" -> "Recipe";
                                 case "config" -> "Config";
                                 default -> "Source";
                             }, target, ModernUi.TEXT, false, false, source));
@@ -438,11 +427,6 @@ final class ScreenText {
                     Evidence.Source source = sources.stream().filter(value -> value.providerId().equals(marker.group(1))
                             && value.sourceHandle().equals(marker.group(2))).reduce((first, latest) -> latest).orElse(null);
                     if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
-                        case "ftb_quests" -> "Quest";
-                        case "patchouli", "modonomicon", "guideme", "actuallyadditions", "relics", "artifacts" -> "Guide";
-                        case "immersiveengineering" -> "Manual";
-                        case "ponder" -> "Ponder";
-                        case "jei" -> "Recipe";
                         case "config" -> "Config";
                         default -> "Source";
                     }, target, ModernUi.TEXT, false, false, source));
@@ -457,20 +441,6 @@ final class ScreenText {
                 if (close > index && closeUrl > close + 2) {
                     int end = closeUrl + 1;
                     String url = text.substring(close + 2, closeUrl);
-                    if (url.startsWith("jei/")) {
-                        List<Evidence.Source> matchingSources = sources.stream()
-                                .filter(value -> value.sourceHandle().equals(url)).toList();
-                        Evidence.Source source = !matchingSources.isEmpty()
-                                && matchingSources.stream().map(Evidence.Source::providerId).distinct().count() == 1
-                                && matchingSources.getFirst().providerId().equals("jei")
-                                ? matchingSources.getLast() : null;
-                        flushInline(spans, plain, bold, code);
-                        spans.add(new InlineSpan(text.substring(index + 1, close), source == null ? null : targets.stream().filter(value ->
-                                value.providerId().equals("jei") && value.sourceHandle().equals(url)
-                                        && value.scope().equals(source.scope())).findFirst().orElse(null), ModernUi.TEXT, false, false, source));
-                        index = end;
-                        continue;
-                    }
                     Matcher localReference = CITATION_MARKER.matcher("[" + url + "]");
                     if (localReference.matches()) {
                         flushInline(spans, plain, bold, code);
@@ -694,11 +664,6 @@ final class ScreenText {
 
     static String navigationLabel(Evidence.NavigationTarget target) {
         String id = target.targetId();
-        if (target.providerId().equals("jei")) {
-            // handle format from PackSageJeiPlugin.sourceHandle: jei/<gen>/<ver>/<category>/recipe-<id>-<ordinal>
-            Matcher recipe = JEI_RECIPE.matcher(id);
-            return recipe.matches() ? "Open recipe: " + displayName(recipe.group(1)) : "Open recipe";
-        }
         String tail = id.substring(id.lastIndexOf('/') + 1);
         String readable = HASH_SUFFIX.matcher(tail.isEmpty() ? id : tail).replaceFirst("");
         return "Open " + target.providerId() + ": " + readable;

@@ -52,6 +52,13 @@ class NativeServerStorageReaderTest {
     }
 
     @Test
+    void entityContainersShareThePendingLootDecision() {
+        assertNull(NativeServerStorageReader.pendingLootReason(null));
+        assertEquals("pending loot table contents are unavailable",
+                NativeServerStorageReader.pendingLootReason(BuiltInLootTables.SPAWN_BONUS_CHEST));
+    }
+
+    @Test
     void targetedBlockEmptySlotsUsePhysicalContainerCapacity() {
         var furnace = new FurnaceBlockEntity(BlockPos.ZERO, Blocks.FURNACE.defaultBlockState());
         furnace.applyComponents(DataComponentMap.builder().set(DataComponents.CONTAINER,

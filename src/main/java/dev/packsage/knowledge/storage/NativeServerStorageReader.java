@@ -231,7 +231,8 @@ final class NativeServerStorageReader {
     private static NativeStorageReader.Observation readVehicleContainer(ContainerEntity container, Entity entity,
                                                                        ServerPlayer player, StorageReader.Request request,
                                                                        Evidence.Scope scope, LongSupplier monotonicClock) {
-        if (container.getLootTable() != null) return unavailable(request, scope, monotonicClock, "pending loot table contents are unavailable");
+        var refusal = unreadableReason(container);
+        if (refusal != null) return unavailable(request, scope, monotonicClock, refusal);
         var capturedAt = Instant.now();
         var entries = new ArrayList<Evidence.Record>();
         for (int slot = 0; slot < container.getContainerSize(); slot++) {
@@ -369,10 +370,15 @@ final class NativeServerStorageReader {
     }
 
     static String unreadableReason(BaseContainerBlockEntity container) {
-        if (container instanceof RandomizableContainerBlockEntity randomizable && randomizable.getLootTable() != null) {
-            return "pending loot table contents are unavailable";
-        }
-        return null;
+        return container instanceof RandomizableContainerBlockEntity randomizable ? pendingLootReason(randomizable.getLootTable()) : null;
+    }
+
+    static String unreadableReason(ContainerEntity container) {
+        return pendingLootReason(container.getLootTable());
+    }
+
+    static String pendingLootReason(ResourceKey<LootTable> lootTable) {
+        return lootTable == null ? null : "pending loot table contents are unavailable";
     }
 
     static List<Evidence.JsonValue> blockEmptySlots(BaseContainerBlockEntity container, String section) {

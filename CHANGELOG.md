@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### 2026-10-22
+
+- Recipe searches now read one source instead of two. When JEI is installed and ready, a recipe search reads JEI only, which also shows modded byproducts, fluids and machines. Without JEI it reads Minecraft's recipes only, and no longer reports the search as partial just because JEI is missing. The assistant can still name a source explicitly, for example Minecraft's recipes for a mod's recipe type that JEI does not show. The assistant's tool description and instructions were updated to match. This passes 853 automated tests, and in-game acceptance with and without JEI is still pending ([validation record](docs/validation/2026-10-22-jei-default-recipe-source.md)).
+
 ### 2026-10-21
 
 - Made the Minecraft reads easier for the assistant to reach and added a few new ones. Asking about the item in your hand now reads that item itself, including which enchantments it can still take and which of them conflict (for example Sharpness, Smite and Bane of Arthropods). When a crafting table or stonecutter is open, the assistant now knows which menu it is and reads its contents without counting the recipe preview. It can read your attribute values and the modifiers behind them, such as Luck from an effect and from armor, though Minecraft does not record what applied an effect. Effect records carry their description when the pack provides one. Shaped crafting recipes now report their grid layout, so a piston's placement comes from the recipe. The assistant's built-in instructions were rewritten and tested in game for these reads.

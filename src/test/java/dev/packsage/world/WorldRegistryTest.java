@@ -11,7 +11,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WorldRegistryTest {
     @BeforeAll
@@ -34,6 +36,40 @@ class WorldRegistryTest {
             }
             return facts;
         }
+    }
+
+    private record ListingReader(String adapterId, List<InventoryInfo> infos) implements InventoryReader {
+        public List<InventoryInfo> inventories(LiveHolder holder) {
+            if (infos == null) {
+                throw new IllegalStateException("cannot list");
+            }
+            return infos;
+        }
+
+        public LiveInventory open(LiveHolder holder, String section) {
+            return null;
+        }
+
+        public Evidence.JsonObject inspectItem(ItemStack stack) {
+            return null;
+        }
+    }
+
+    @Test
+    void inventoriesReportAFailingReaderAsPartial() {
+        var registry = new WorldRegistry();
+        var info = new InventoryInfo(new InventoryId("good", "main"), "Main", 27, SlotRole.STORAGE);
+        registry.register(new ListingReader("good", List.of(info)));
+        registry.register(new ListingReader("bad", null));
+        var holder = new LiveHolder.OfItem(new ItemStack(Items.DIAMOND));
+        var page = registry.inventories(holder);
+        assertEquals(List.of(info), page.items());
+        assertEquals(Evidence.Coverage.PARTIAL, page.coverage());
+        assertNull(page.nextCursor());
+        assertTrue(page.note().contains("bad") && page.note().contains("cannot list"));
+        var healthy = new WorldRegistry();
+        healthy.register(new ListingReader("good", List.of(info)));
+        assertEquals(Evidence.Coverage.COMPLETE, healthy.inventories(holder).coverage());
     }
 
     @Test

@@ -58,16 +58,24 @@ public final class WorldRegistry {
         return sections;
     }
 
-    public List<InventoryInfo> inventories(LiveHolder holder) {
+    public Page<InventoryInfo> inventories(LiveHolder holder) {
         var result = new ArrayList<InventoryInfo>();
+        var failures = new ArrayList<String>();
         for (var reader : readers) {
             try {
                 result.addAll(reader.inventories(holder));
-            } catch (RuntimeException ignored) {
-                // A failing adapter lists no inventories; the others still answer.
+            } catch (RuntimeException exception) {
+                failures.add(reader.adapterId() + ": " + describe(exception));
             }
         }
-        return result;
+        if (failures.isEmpty()) {
+            return new Page<>(result, null, Evidence.Coverage.COMPLETE, null);
+        }
+        return new Page<>(result, null, Evidence.Coverage.PARTIAL, "Inventory listing failed for " + String.join("; ", failures));
+    }
+
+    private static String describe(RuntimeException exception) {
+        return exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage();
     }
 
     public InventoryReader inventoryReader(String adapterId) {
@@ -85,9 +93,7 @@ public final class WorldRegistry {
                 sections.put(id, new Section(facts, Evidence.Coverage.COMPLETE, null));
             }
         } catch (RuntimeException exception) {
-            var message = exception.getMessage();
-            sections.put(id, new Section(new Evidence.JsonObject(Map.of()), Evidence.Coverage.ERROR,
-                    message == null ? exception.getClass().getSimpleName() : message));
+            sections.put(id, new Section(new Evidence.JsonObject(Map.of()), Evidence.Coverage.ERROR, describe(exception)));
         }
     }
 }

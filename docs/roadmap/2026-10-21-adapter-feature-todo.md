@@ -1,6 +1,6 @@
 # PackSage adapter feature todo
 
-Updated: 2026-10-21.
+Updated: 2026-10-22.
 
 Feature-grouped summary of the [tool roadmap](2026-10-13-todo.md). A mod can appear under multiple features. Unchecked items include missing implementation and implemented features still awaiting the stated live acceptance. Detailed contracts, evidence and acceptance limits remain in the tool roadmap and its linked reports.
 
@@ -90,6 +90,11 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 - [x] Minecraft — planner brewing batch presentation; installed acceptance passed: `plan_recipe` was called and the reply stated the batch semantics and derived totals under a stated grouping ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [ ] Actually Additions — investigate the native laser recipe read that returned no inputs.
 - [ ] PackSage planner — investigate the empty Powah partial plans, then add other verified transformation semantics to bounded route planning.
+
+### Default recipe source
+
+- [ ] JEI — default source of an unqualified recipe search whenever its runtime is available; implemented with passing automated tests, with in-game acceptance pending ([specification](../specs/2026-10-22-jei-default-recipe-source.md), [validation record](../validation/2026-10-22-jei-default-recipe-source.md)).
+- [ ] Minecraft — default recipe source when JEI is not installed or not ready, with no JEI-unavailable note; implemented with passing automated tests, with in-game acceptance pending.
 
 ### Native crafting grid layout
 

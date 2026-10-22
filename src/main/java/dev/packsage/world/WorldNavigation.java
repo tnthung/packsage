@@ -29,7 +29,7 @@ final class WorldNavigation {
     static final long HIGHLIGHT_MILLIS = 30_000;
     private static final String BLOCK = "world-block|";
     private static final String ENTITY = "world-entity|";
-    private static final long CHECK_SECONDS = 5;
+    private static final long CHECK_MILLIS = 1_000;
     private static final String NO_SERVER = "world highlights need an integrated singleplayer server";
 
     sealed interface Destination {
@@ -204,7 +204,7 @@ final class WorldNavigation {
         };
     }
 
-    /** Runs a world read on the server thread, waiting at most a few seconds so a click never stalls the client. */
+    /** Runs a world read on the server thread, waiting at most a second so a click never stalls the client for long. */
     private static <T> T onServer(Supplier<MinecraftServer> servers, Function<MinecraftServer, T> read) {
         var server = servers.get();
         if (server == null) throw new IllegalStateException(NO_SERVER);
@@ -218,7 +218,7 @@ final class WorldNavigation {
             }
         }));
         try {
-            return answer.get(CHECK_SECONDS, TimeUnit.SECONDS);
+            return answer.get(CHECK_MILLIS, TimeUnit.MILLISECONDS);
         } catch (TimeoutException failure) {
             throw new IllegalStateException("the server did not answer in time");
         } catch (InterruptedException failure) {

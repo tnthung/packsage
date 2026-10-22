@@ -4,7 +4,12 @@
 
 ### 2026-10-22
 
-- Recipe searches now read one source instead of two. When JEI is installed and ready, a recipe search reads JEI only, which also shows modded byproducts, fluids and machines. Without JEI it reads Minecraft's recipes only, and no longer reports the search as partial just because JEI is missing. The assistant can still name a source explicitly, for example Minecraft's recipes for a mod's recipe type that JEI does not show. The assistant's tool description and instructions were updated to match. This passes 853 automated tests, and in-game acceptance with and without JEI is still pending ([validation record](docs/validation/2026-10-22-jei-default-recipe-source.md)).
+- Made JEI recipe lookups by output item fast, and made them find modded recipes. For most items, PackSage now asks JEI for the item's recipes directly, as JEI's own R key does, instead of walking every recipe. A torch question found its recipe on the first search in about 22 seconds, down from about 40. Items JEI splits into variants, such as potions, keep the previous search.
+
+  Fixed output searches never returning a recipe from a mod's own JEI category. Asking how to make Nature's Aura Gold Powder now returns the Natural Altar Infusion recipe with its inputs, output and catalyst, alongside the crafting recipe. PackSage still marks modded recipes as not fully understood.
+
+  The [validation record](docs/validation/2026-10-22-jei-output-focus.md) records 854 automated tests and the installed checks. Still open: the assistant chose Minecraft's recipes for the Potion of Strength even with JEI installed, and its Gold Powder reply mentioned only the crafting route.
+- Recipe searches now read one source instead of two. When JEI is installed and ready, a recipe search reads JEI only, which also shows modded byproducts, fluids and machines. Without JEI it reads Minecraft's recipes only, and no longer reports the search as partial just because JEI is missing. The assistant can still name a source explicitly, for example Minecraft's recipes for a mod's recipe type that JEI does not show. The assistant's tool description and instructions were updated to match. Installed checks passed with and without JEI for the torch, and without JEI for the Potion of Strength ([validation record](docs/validation/2026-10-22-jei-default-recipe-source.md)).
 
 ### 2026-10-21
 

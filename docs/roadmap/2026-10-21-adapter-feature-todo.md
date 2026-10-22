@@ -93,8 +93,15 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 ### Default recipe source
 
-- [ ] JEI — default source of an unqualified recipe search whenever its runtime is available; implemented with passing automated tests, with in-game acceptance pending ([specification](../specs/2026-10-22-jei-default-recipe-source.md), [validation record](../validation/2026-10-22-jei-default-recipe-source.md)).
-- [ ] Minecraft — default recipe source when JEI is not installed or not ready, with no JEI-unavailable note; implemented with passing automated tests, with in-game acceptance pending.
+- [x] JEI — default source of an unqualified recipe search whenever its runtime is available; installed acceptance passed for the torch question ([specification](../specs/2026-10-22-jei-default-recipe-source.md), [validation record](../validation/2026-10-22-jei-default-recipe-source.md)).
+- [x] Minecraft — default recipe source when JEI is not installed or not ready, with no JEI-unavailable note; installed acceptance passed for the torch and Potion of Strength questions.
+- [ ] PackSage — prompt: the assistant still selects `provider: native` for brewing while JEI is installed, and omits a returned modded route without saying so ([validation record](../validation/2026-10-22-jei-output-focus.md)).
+
+### JEI output search
+
+- [x] JEI — output-item searches use JEI's recipe index for items without JEI-distinguished variants; installed acceptance passed: the torch was found on the first JEI page in about 22 seconds, down from about 40 ([specification](../specs/2026-10-22-jei-output-focus.md), [validation record](../validation/2026-10-22-jei-output-focus.md)).
+- [x] JEI — output-item searches match modded-category recipes with their captured slots and OPAQUE coverage; installed retrieval passed for Nature's Aura's Natural Altar Infusion recipe for Gold Powder. Using that route in the reply is tracked under the prompt item above.
+- [ ] JEI — items with JEI-distinguished variants, such as potions, still use the bounded scan; the installed potion path was not exercised because the assistant selected native.
 
 ### Native crafting grid layout
 

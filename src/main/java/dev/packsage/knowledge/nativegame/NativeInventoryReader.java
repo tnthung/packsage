@@ -1,9 +1,7 @@
 package dev.packsage.knowledge.nativegame;
 
 import dev.packsage.knowledge.Evidence;
-import dev.packsage.knowledge.curios.CuriosInventoryAdapter;
 import dev.packsage.knowledge.inventory.InventoryReader;
-import dev.packsage.knowledge.relics.RelicsInstanceReader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
@@ -43,57 +41,30 @@ public final class NativeInventoryReader implements InventoryReader {
     private final Function<Request, Capture> captureSource;
     private final Function<SlotAddress, LocatedItem> lookupSource;
     private final LongSupplier clock;
-    private final CuriosInventoryAdapter curios;
-    private final RelicsInstanceReader relics;
     private final LinkedHashMap<String, Reference> references = new LinkedHashMap<>();
     private final LinkedHashMap<String, CursorState> cursors = new LinkedHashMap<>();
 
     public NativeInventoryReader(Minecraft client, Executor executor, Supplier<Evidence.Scope> currentScope) {
-        this(Objects.requireNonNull(client), executor, currentScope, null, null);
-    }
-
-    public NativeInventoryReader(Minecraft client, Executor executor, Supplier<Evidence.Scope> currentScope,
-                                 CuriosInventoryAdapter curios) {
-        this(client, executor, currentScope, curios, null);
-    }
-
-    public NativeInventoryReader(Minecraft client, Executor executor, Supplier<Evidence.Scope> currentScope,
-                                 CuriosInventoryAdapter curios, RelicsInstanceReader relics) {
         this(Objects.requireNonNull(client), executor, currentScope,
-                request -> capture(client, request, () -> System.nanoTime() / 1_000_000L, curios, relics),
-                address -> locate(client, address, curios), () -> System.nanoTime() / 1_000_000L, curios, relics);
-    }
-
-    NativeInventoryReader(Minecraft client, Executor executor, Supplier<Evidence.Scope> currentScope,
-                          Function<Request, Capture> captureSource,
-                          Function<SlotAddress, LocatedItem> lookupSource, LongSupplier clock) {
-        this(client, executor, currentScope, captureSource, lookupSource, clock, null, null);
+                request -> capture(client, request, () -> System.nanoTime() / 1_000_000L),
+                address -> locate(client, address), () -> System.nanoTime() / 1_000_000L);
     }
 
     NativeInventoryReader(Executor executor, Supplier<Evidence.Scope> currentScope,
                           Function<Request, Capture> captureSource, Function<SlotAddress, LocatedItem> lookupSource,
                           LongSupplier clock) {
-        this(null, executor, currentScope, captureSource, lookupSource, clock, null, null);
+        this(null, executor, currentScope, captureSource, lookupSource, clock);
     }
 
-    NativeInventoryReader(Executor executor, Supplier<Evidence.Scope> currentScope,
-                          Function<Request, Capture> captureSource, Function<SlotAddress, LocatedItem> lookupSource,
-                          LongSupplier clock, CuriosInventoryAdapter curios) {
-        this(null, executor, currentScope, captureSource, lookupSource, clock, curios, null);
-    }
-
-    private NativeInventoryReader(Minecraft client, Executor executor, Supplier<Evidence.Scope> currentScope,
-                                  Function<Request, Capture> captureSource,
-                                  Function<SlotAddress, LocatedItem> lookupSource, LongSupplier clock,
-                                  CuriosInventoryAdapter curios, RelicsInstanceReader relics) {
+    NativeInventoryReader(Minecraft client, Executor executor, Supplier<Evidence.Scope> currentScope,
+                          Function<Request, Capture> captureSource,
+                          Function<SlotAddress, LocatedItem> lookupSource, LongSupplier clock) {
         this.client = client;
         this.executor = Objects.requireNonNull(executor);
         this.currentScope = Objects.requireNonNull(currentScope);
         this.captureSource = Objects.requireNonNull(captureSource);
         this.lookupSource = Objects.requireNonNull(lookupSource);
         this.clock = Objects.requireNonNull(clock);
-        this.curios = curios;
-        this.relics = relics;
     }
 
     @Override
@@ -102,21 +73,12 @@ public final class NativeInventoryReader implements InventoryReader {
         if (!request.scope().equals(currentScope.get())) return CompletableFuture.completedFuture(
                 new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL, Evidence.Outcome.UNKNOWN, null,
                         "inventory request scope is no longer current"));
-        var unsupportedSections = request.filter().sections().stream().filter(section -> !SUPPORTED_SECTIONS.contains(section)
-                && !(section.equals("curios") || section.startsWith("curios:") && section.length() > "curios:".length())).toList();
+        var unsupportedSections = request.filter().sections().stream().filter(section -> !SUPPORTED_SECTIONS.contains(section)).toList();
         if (!unsupportedSections.isEmpty() && unsupportedSections.size() == request.filter().sections().size()) {
             return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
                     Evidence.Outcome.UNKNOWN, null, "unsupported native inventory sections were not inspected: "
                     + String.join(", ", unsupportedSections) + "; native sections covered: " + String.join(", ", SUPPORTED_SECTIONS)));
         }
-        boolean curiosRequested = request.filter().sections().stream().anyMatch(section -> section.equals("curios")
-                || section.startsWith("curios:") && section.length() > "curios:".length());
-        boolean curiosOnly = !request.filter().sections().isEmpty()
-                && request.filter().sections().stream().allMatch(section -> section.equals("curios")
-                || section.startsWith("curios:") && section.length() > "curios:".length());
-        if (curiosOnly && (curios == null || !curios.canAttempt())) return CompletableFuture.completedFuture(
-                new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
-                        "Curios functional equipment is unavailable or could not be read"));
         if (request.cursor() != null) return continueRead(request);
         CompletionStage<Capture> captured;
         try {
@@ -135,16 +97,6 @@ public final class NativeInventoryReader implements InventoryReader {
                 if (result.capture().coverage() == Evidence.Coverage.UNAVAILABLE) return new Evidence.Result(
                         List.of(result.capture().summary()), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
                         "vanilla player inventory is unavailable");
-                boolean curiosComplete = result.capture().summary().payload().values().get("curiosCoverage")
-                        instanceof Evidence.JsonString value && value.value().equals("COMPLETE");
-                if (curiosOnly && !curiosComplete && result.capture().slots().stream()
-                        .noneMatch(slot -> slot.section().startsWith("curios:") && slot.record() != null)) return new Evidence.Result(
-                        List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
-                        "Curios functional equipment is unavailable or could not be read");
-                if (curiosRequested && !curiosComplete) {
-                    return page(request, new Capture(result.capture().slots(), result.capture().summary(),
-                            Evidence.Coverage.PARTIAL, result.capture().capturedAt(), result.capture().capturedAtMillis()), 0);
-                }
                 return page(request, result.capture(), 0);
             }
         }, executor);
@@ -202,15 +154,11 @@ public final class NativeInventoryReader implements InventoryReader {
                 location.section(), location.slot(), location.equipmentSlot(), location.selectedHotbar());
         var payload = new LinkedHashMap<>(current.payload().values());
         payload.put("slotReference", new Evidence.JsonString("native:" + sourceHandle));
-        var instance = relics == null ? null : relics.read(client.player, stack);
-        if (instance != null) payload.put("relicInstance", instance);
         var eligibility = NativeEnchantmentEligibility.read(stack,
                 client.level.registryAccess().registryOrThrow(Registries.ENCHANTMENT));
         payload.put("enchantmentEligibility", eligibility);
         var source = current.source();
-        var coverage = instance != null && (!(instance.values().get("coverage") instanceof Evidence.JsonString coverageValue)
-                || !coverageValue.value().equals("COMPLETE")) || !NativeEnchantmentEligibility.complete(eligibility)
-                ? Evidence.Coverage.PARTIAL : source.coverage();
+        var coverage = !NativeEnchantmentEligibility.complete(eligibility) ? Evidence.Coverage.PARTIAL : source.coverage();
         return new Evidence.Record(new Evidence.Source(scope, source.providerId(), source.providerVersion(), sourceHandle,
                 scope.requestGeneration(), Instant.now(), source.activity(), coverage, source.authority(),
                 source.provenance()), current.kind(), current.title(), new Evidence.JsonObject(payload), current.targets());
@@ -259,21 +207,7 @@ public final class NativeInventoryReader implements InventoryReader {
                     Evidence.Outcome.ERROR, null, "inventory continuation capture failed");
             if (!request.scope().equals(currentScope.get())) return new Evidence.Result(List.of(), Evidence.Coverage.PARTIAL,
                     Evidence.Outcome.UNKNOWN, null, "inventory scope changed during continuation");
-            boolean curiosRequested = request.filter().sections().stream().anyMatch(section -> section.equals("curios")
-                    || section.startsWith("curios:") && section.length() > "curios:".length());
-            boolean curiosOnly = !request.filter().sections().isEmpty()
-                    && request.filter().sections().stream().allMatch(section -> section.equals("curios")
-                    || section.startsWith("curios:") && section.length() > "curios:".length());
             synchronized (this) {
-                boolean curiosComplete = result.capture().summary().payload().values().get("curiosCoverage")
-                        instanceof Evidence.JsonString value && value.value().equals("COMPLETE");
-                if (curiosOnly && !curiosComplete && result.capture().slots().stream()
-                        .noneMatch(slot -> slot.section().startsWith("curios:") && slot.record() != null)) return new Evidence.Result(
-                        List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null,
-                        "Curios functional equipment is unavailable or could not be read");
-                if (curiosRequested && !curiosComplete) return page(request,
-                        new Capture(result.capture().slots(), result.capture().summary(), Evidence.Coverage.PARTIAL,
-                                result.capture().capturedAt(), result.capture().capturedAtMillis()), state.offset());
                 return page(request, result.capture(), state.offset());
             }
         }, executor);
@@ -320,33 +254,23 @@ public final class NativeInventoryReader implements InventoryReader {
                     capture.capturedAtMillis()));
             while (cursors.size() > MAX_CURSORS) cursors.remove(cursors.keySet().iterator().next());
         }
-        var unsupportedSections = request.filter().sections().stream().filter(section -> !SUPPORTED_SECTIONS.contains(section)
-                && !(section.equals("curios") || section.startsWith("curios:") && section.length() > "curios:".length())).toList();
+        var unsupportedSections = request.filter().sections().stream().filter(section -> !SUPPORTED_SECTIONS.contains(section)).toList();
         var coverage = capture.coverage();
         if (!unsupportedSections.isEmpty() && coverage == Evidence.Coverage.COMPLETE) coverage = Evidence.Coverage.PARTIAL;
         var outcome = coverage == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL;
         String sourceScope = capture.summary().payload().values().get("sourceScope") instanceof Evidence.JsonString value
                 ? value.value() : "vanilla-player-inventory-and-equipment";
-        String curiosVersion = capture.summary().payload().values().get("curiosProviderVersion") instanceof Evidence.JsonString value
-                ? value.value() : "unknown";
-        String curiosCoverage = capture.summary().payload().values().get("curiosCoverage") instanceof Evidence.JsonString value
-                ? value.value() : "UNKNOWN";
-        var detail = "scope=direct vanilla player slots and equipment"
-                + (sourceScope.contains("functional-curios") ? "; functional Curios equipment included" : "")
-                + "; Curios=" + curiosCoverage
-                + " (API " + curiosVersion + "); cosmetic Curios slots are excluded; nested storage contents are not inspected"
+        var detail = "scope=direct vanilla player slots and equipment; nested storage contents are not inspected"
                 + "; source=" + sourceScope + "; capturedAt=" + capture.capturedAt()
                 + (unsupportedSections.isEmpty() ? "" : "; unsupported native inventory sections were not inspected: "
-                + String.join(", ", unsupportedSections) + "; native sections covered: " + String.join(", ", SUPPORTED_SECTIONS)
-                + ", curios:<type>");
+                + String.join(", ", unsupportedSections) + "; native sections covered: " + String.join(", ", SUPPORTED_SECTIONS));
         return new Evidence.Result(records, coverage, outcome, next, detail);
     }
 
     private static boolean matches(CapturedSlot slot, Request request) {
         var filter = request.filter();
         return (filter.ids().isEmpty() || filter.ids().contains(slot.identity()))
-                && (filter.sections().isEmpty() || filter.sections().stream().anyMatch(section -> section.equals(slot.section())
-                || section.equals("curios") && slot.section().startsWith("curios:")))
+                && (filter.sections().isEmpty() || filter.sections().contains(slot.section()))
                 && matchesText(filter.names(), List.of(slot.name()))
                 && (filter.tags().isEmpty() || filter.tags().stream().anyMatch(slot.tags()::contains))
                 && matchesText(filter.tooltip(), slot.tooltip());
@@ -357,8 +281,7 @@ public final class NativeInventoryReader implements InventoryReader {
                 .anyMatch(value -> value.toLowerCase(java.util.Locale.ROOT).contains(needle.toLowerCase(java.util.Locale.ROOT))));
     }
 
-    private static Capture capture(Minecraft client, Request request, LongSupplier clock, CuriosInventoryAdapter curios,
-                                   RelicsInstanceReader relics) {
+    private static Capture capture(Minecraft client, Request request, LongSupplier clock) {
         var scope = request.scope();
         if (!client.isSameThread()) throw new IllegalStateException("inventory capture must run on the client thread");
         if (client.level == null || client.player == null) return new Capture(List.of(), unavailable(scope,
@@ -391,17 +314,6 @@ public final class NativeInventoryReader implements InventoryReader {
         for (int index = 0; index < inventory.offhand.size(); index++) {
             allSlots.add(new SlotInput("offhand", index, "offhand", false, inventory.offhand.get(index)));
         }
-        boolean curiosRequested = request.filter().sections().isEmpty()
-                || request.filter().sections().stream().anyMatch(section -> section.equals("curios")
-                || section.startsWith("curios:") && section.length() > "curios:".length());
-        CuriosInventoryAdapter.Capture equipment = null;
-        if (curios != null && curiosRequested) {
-            equipment = curios.capture(client.player);
-            if (equipment.coverage() != Evidence.Coverage.COMPLETE) coverage = Evidence.Coverage.PARTIAL;
-            for (var slot : equipment.slots()) {
-                allSlots.add(new SlotInput("curios:" + slot.type(), slot.index(), slot.type(), false, slot.stack()));
-            }
-        }
         for (var input : allSlots) {
             var stack = input.stack().copy();
             var ref = "native:inventory:" + observation + ":" + input.section() + ":" + input.slot();
@@ -413,16 +325,8 @@ public final class NativeInventoryReader implements InventoryReader {
             var record = NativeSnapshot.inventoryRecord(scope, stack, itemRegistry, level.registryAccess(), input.section(),
                     input.slot(), input.equipmentSlot(), input.selectedHotbar());
             var payload = new LinkedHashMap<>(record.payload().values());
-            var instance = relics == null ? null : relics.read(client.player, stack);
-            boolean instanceComplete = instance != null && instance.values().get("coverage") instanceof Evidence.JsonString coverageValue
-                    && coverageValue.value().equals("COMPLETE");
-            if (instance != null) {
-                payload.put("relicInstance", instance);
-                if (!instanceComplete) coverage = Evidence.Coverage.PARTIAL;
-            }
             var components = (Evidence.JsonObject) payload.get("components");
             var itemCoverage = record.source().coverage();
-            if (instance != null && !instanceComplete) itemCoverage = Evidence.Coverage.PARTIAL;
             if (Evidence.serialize(components).getBytes(StandardCharsets.UTF_8).length > MAX_COMPONENT_BYTES) {
                 payload.put("components", new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))));
                 coverage = Evidence.Coverage.PARTIAL;
@@ -482,14 +386,8 @@ public final class NativeInventoryReader implements InventoryReader {
                     itemRegistry.getKey(stack.getItem()).toString(), stack.getHoverName().getString(), ref, record, tags, tooltip, stack.copy()));
         }
         var summaryPayload = new LinkedHashMap<String, Evidence.JsonValue>();
-        String curiosCoverage = curios == null ? "UNKNOWN" : !curios.loaded() ? "NOT_INSTALLED"
-                : !curiosRequested ? "NOT_REQUESTED" : equipment.coverage() == Evidence.Coverage.COMPLETE ? "COMPLETE" : "UNKNOWN";
-        String sourceScope = curiosCoverage.equals("COMPLETE") ? "vanilla-player-inventory-and-functional-curios"
-                : curiosCoverage.equals("UNKNOWN") ? "vanilla-player-inventory-and-equipment; Curios coverage unknown"
-                : "vanilla-player-inventory-and-equipment";
+        String sourceScope = "vanilla-player-inventory-and-equipment";
         summaryPayload.put("sourceScope", new Evidence.JsonString(sourceScope));
-        summaryPayload.put("curiosCoverage", new Evidence.JsonString(curiosCoverage));
-        summaryPayload.put("curiosProviderVersion", new Evidence.JsonString(curios == null ? "unknown" : curios.version()));
         summaryPayload.put("capturedAt", new Evidence.JsonString(capturedAt.toString()));
         for (var slot : allSlots) if (slot.selectedHotbar() || "offhand".equals(slot.equipmentSlot())) {
             var reference = "native:inventory:" + observation + ":" + slot.section() + ":" + slot.slot();
@@ -502,23 +400,17 @@ public final class NativeInventoryReader implements InventoryReader {
             summaryPayload.put(key + "Location", new Evidence.JsonObject(location));
             summaryPayload.put(key + "SlotReference", new Evidence.JsonString(reference));
         }
-        var provenance = new ArrayList<>(List.of("player-inventory", sourceScope));
-        if (curios != null && curios.loaded()) provenance.add("curios-api:" + curios.version());
         var summarySource = new Evidence.Source(scope, "native", "1.21.1", "inventory-summary:" + observation,
-                scope.requestGeneration(), capturedAt, Evidence.Activity.ACTIVE, coverage, Evidence.Authority.LOADED, provenance);
+                scope.requestGeneration(), capturedAt, Evidence.Activity.ACTIVE, coverage, Evidence.Authority.LOADED,
+                List.of("player-inventory", sourceScope));
         var summary = new Evidence.Record(summarySource, Evidence.RecordKind.OTHER, "Player inventory observation",
                 new Evidence.JsonObject(summaryPayload), List.of());
         return new Capture(slots, summary, coverage, capturedAt, capturedAtMillis);
     }
 
-    private static LocatedItem locate(Minecraft client, SlotAddress address, CuriosInventoryAdapter curios) {
+    private static LocatedItem locate(Minecraft client, SlotAddress address) {
         if (!client.isSameThread()) throw new IllegalStateException("inventory lookup must run on the client thread");
         if (client.player == null) return null;
-        if (address.section().startsWith("curios:") && address.section().length() > "curios:".length()) {
-            String type = address.section().substring("curios:".length());
-            ItemStack stack = curios == null ? null : curios.locate(client.player, type, address.slot());
-            return stack == null ? null : new LocatedItem(address.section(), address.slot(), type, false, stack);
-        }
         var inventory = client.player.getInventory();
         var stack = switch (address.section()) {
             case "hotbar" -> address.slot() < 0 || address.slot() >= 9 ? null : inventory.items.get(address.slot());

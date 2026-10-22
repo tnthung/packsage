@@ -1,0 +1,142 @@
+package dev.packsage.world.minecraft;
+
+import dev.packsage.knowledge.Evidence;
+import dev.packsage.world.BlockPlace;
+import dev.packsage.world.EntityInspector;
+import net.minecraft.core.GlobalPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.AgeableMob;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Leashable;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.OwnableEntity;
+import net.minecraft.world.entity.ai.Brain;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
+import net.minecraft.world.entity.ai.gossip.GossipType;
+import net.minecraft.world.entity.animal.IronGolem;
+import net.minecraft.world.entity.npc.Villager;
+
+import java.lang.reflect.Field;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
+
+/** Vanilla mob facts, including the villager state the game uses to decide iron-golem spawning. Reads never mutate. */
+public final class MinecraftEntities implements EntityInspector {
+    /** Villager keeps today's restock count private with no accessor; null when the field cannot be read. */
+    private static final Field RESTOCKS_TODAY = restocksField();
+
+    @Override
+    public String adapterId() {
+        return MinecraftInventories.ADAPTER;
+    }
+
+    @Override
+    public Evidence.JsonObject inspectEntity(Entity entity) {
+        var values = new LinkedHashMap<String, Evidence.JsonValue>();
+        if (entity instanceof LivingEntity living) {
+            values.put("health", decimal(living.getHealth()));
+            values.put("maxHealth", decimal(living.getMaxHealth()));
+            var effects = new ArrayList<Evidence.JsonValue>();
+            for (var effect : living.getActiveEffects()) {
+                effects.add(new Evidence.JsonObject(Map.of(
+                        "id", new Evidence.JsonString(effect.getEffect().getRegisteredName()),
+                        "amplifier", number(effect.getAmplifier()),
+                        "durationTicks", number(effect.getDuration()))));
+            }
+            values.put("effects", new Evidence.JsonArray(effects));
+        }
+        var customName = entity.getCustomName();
+        if (customName != null) values.put("customName", new Evidence.JsonString(customName.getString()));
+        if (entity instanceof AgeableMob ageable) values.put("age", number(ageable.getAge()));
+        if (entity instanceof OwnableEntity ownable && ownable.getOwnerUUID() != null) {
+            values.put("tamedOwner", new Evidence.JsonString(ownable.getOwnerUUID().toString()));
+        }
+        if (entity instanceof Leashable leashable) values.put("leashed", new Evidence.JsonBoolean(leashable.isLeashed()));
+        if (!entity.getPassengers().isEmpty()) {
+            var passengers = new ArrayList<Evidence.JsonValue>();
+            for (var passenger : entity.getPassengers()) {
+                passengers.add(new Evidence.JsonObject(Map.of(
+                        "type", new Evidence.JsonString(BuiltInRegistries.ENTITY_TYPE.getKey(passenger.getType()).toString()),
+                        "uuid", new Evidence.JsonString(passenger.getStringUUID()))));
+            }
+            values.put("passengers", new Evidence.JsonArray(passengers));
+        }
+        if (entity instanceof Villager villager) villager(villager, values);
+        if (entity instanceof IronGolem golem) values.put("playerCreated", new Evidence.JsonBoolean(golem.isPlayerCreated()));
+        return values.isEmpty() ? null : new Evidence.JsonObject(values);
+    }
+
+    private static void villager(Villager villager, Map<String, Evidence.JsonValue> values) {
+        var data = villager.getVillagerData();
+        values.put("profession", new Evidence.JsonString(BuiltInRegistries.VILLAGER_PROFESSION.getKey(data.getProfession()).toString()));
+        values.put("level", number(data.getLevel()));
+        values.put("xp", number(villager.getVillagerXp()));
+        var restocks = restocksToday(villager);
+        if (restocks != null) values.put("restocksToday", number(restocks));
+        var brain = villager.getBrain();
+        memory(brain, MemoryModuleType.HOME).ifPresent(pos -> values.put("home", place(pos)));
+        memory(brain, MemoryModuleType.JOB_SITE).ifPresent(pos -> values.put("jobSite", place(pos)));
+        memory(brain, MemoryModuleType.MEETING_POINT).ifPresent(pos -> values.put("meetingPoint", place(pos)));
+        memory(brain, MemoryModuleType.LAST_SLEPT).ifPresent(time -> values.put("lastSlept", number(time)));
+        memory(brain, MemoryModuleType.LAST_WORKED_AT_POI).ifPresent(time -> values.put("lastWorkedAtPoi", number(time)));
+        // The memory is a flag that expires; report the game time it expires at (true when it never expires).
+        if (memory(brain, MemoryModuleType.GOLEM_DETECTED_RECENTLY).isPresent()) {
+            var timeToLive = brain.getTimeUntilExpiry(MemoryModuleType.GOLEM_DETECTED_RECENTLY);
+            values.put("golemDetectedRecently", timeToLive == Long.MAX_VALUE ? new Evidence.JsonBoolean(true)
+                    : number(villager.level().getGameTime() + timeToLive));
+        }
+        values.put("wantsToSpawnGolem", new Evidence.JsonBoolean(villager.wantsToSpawnGolem(villager.level().getGameTime())));
+        var gossip = new LinkedHashMap<String, Long>();
+        for (var entries : villager.getGossips().getGossipEntries().values()) {
+            for (var entry : entries.object2IntEntrySet()) {
+                gossip.merge(entry.getKey().id, (long) entry.getIntValue(), Long::sum);
+            }
+        }
+        var totals = new LinkedHashMap<String, Evidence.JsonValue>();
+        for (var type : GossipType.values()) {
+            var total = gossip.get(type.id);
+            if (total != null) totals.put(type.id, number(total));
+        }
+        values.put("gossip", new Evidence.JsonObject(totals));
+    }
+
+    /** Empty when the memory is absent or not registered for this brain. */
+    private static <U> Optional<U> memory(Brain<?> brain, MemoryModuleType<U> type) {
+        var memory = brain.getMemoryInternal(type);
+        return memory == null ? Optional.empty() : memory;
+    }
+
+    private static Evidence.JsonString place(GlobalPos pos) {
+        return new Evidence.JsonString(new BlockPlace(pos.dimension().location().toString(),
+                pos.pos().getX(), pos.pos().getY(), pos.pos().getZ()).text());
+    }
+
+    private static Integer restocksToday(Villager villager) {
+        if (RESTOCKS_TODAY == null) return null;
+        try {
+            return RESTOCKS_TODAY.getInt(villager);
+        } catch (IllegalAccessException exception) {
+            return null;
+        }
+    }
+
+    private static Field restocksField() {
+        try {
+            var field = Villager.class.getDeclaredField("numberOfRestocksToday");
+            return field.getType() == int.class && field.trySetAccessible() ? field : null;
+        } catch (NoSuchFieldException | SecurityException exception) {
+            return null;
+        }
+    }
+
+    private static Evidence.JsonNumber number(long value) {
+        return new Evidence.JsonNumber(BigDecimal.valueOf(value));
+    }
+
+    private static Evidence.JsonValue decimal(float value) {
+        return Float.isFinite(value) ? new Evidence.JsonNumber(new BigDecimal(Float.toString(value))) : new Evidence.JsonNull();
+    }
+}

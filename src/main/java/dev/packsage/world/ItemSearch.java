@@ -92,12 +92,25 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
     public Page<ItemEntry> result() {
         var cursor = nextCursor();
         var all = new ArrayList<>(notes);
-        if (cursor != null) {
-            all.add(stopped ? "Stopped at the per-call work limit after searching " + containers + " containers; continue with the cursor"
-                    : "Searched " + PAGE_CONTAINERS + " containers, the page limit; continue with the cursor");
+        if (boundNote() != null) {
+            all.add(boundNote());
         }
         var coverage = cursor == null && all.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
         return new Page<>(grouper.entries(), cursor, coverage, all.isEmpty() ? null : String.join("; ", all));
+    }
+
+    /** What this page could not read, or null. */
+    String gapNote() {
+        return notes.isEmpty() ? null : String.join("; ", notes);
+    }
+
+    /** Why this page stopped before the search ended, or null when it ended. */
+    String boundNote() {
+        if (nextCursor() == null) {
+            return null;
+        }
+        return stopped ? "Stopped at the per-call work limit after searching " + containers + " containers; continue with the cursor"
+                : "Searched " + PAGE_CONTAINERS + " containers, the page limit; continue with the cursor";
     }
 
     /** Stops between containers; the cursor continues at the next one. */

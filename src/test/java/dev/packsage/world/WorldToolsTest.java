@@ -210,6 +210,7 @@ class WorldToolsTest {
         var first = tools.entries(request, new WorldTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null),
                 Evidence.Coverage.PARTIAL, note);
         assertEquals(64, first.records().size());
+        assertTrue(first.detail().contains("64 entries, the page limit"), first.detail());
         assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
         var continued = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"cursor\":\"" + first.nextCursor() + "\"}"), SCOPE);
@@ -221,7 +222,7 @@ class WorldToolsTest {
         assertEquals(Evidence.Outcome.PARTIAL, last.outcome());
         assertEquals(note, last.detail());
 
-        var search = new WorldTools.FindState(java.util.List.of(), 0);
+        var search = new WorldTools.FindState(java.util.List.of(), 0, null);
         var merged = tools.entries(request, new WorldTools.EntriesState(java.util.List.of(), search, Evidence.Coverage.PARTIAL, note),
                 Evidence.Coverage.COMPLETE, "Inventory minecraft/container could not be opened");
         assertEquals(Evidence.Coverage.PARTIAL, merged.coverage());

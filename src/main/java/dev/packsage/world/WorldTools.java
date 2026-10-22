@@ -68,8 +68,15 @@ public final class WorldTools implements KnowledgeProvider {
     private record ListState(Center center, String scan) {
     }
 
-    /** Remaining roots of a find_items walk; ordinal resumes inside the first one. */
-    record FindState(List<PathRoot> roots, int ordinal) {
+    /**
+     * Remaining roots of a find_items walk; ordinal resumes inside the first one. Gather is null once every chunk in
+     * range was gathered, or the chunks still to gather holders from after these roots.
+     */
+    record FindState(List<PathRoot> roots, int ordinal, Gather gather) {
+    }
+
+    /** The find_items sphere and the index of the next chunk in range to gather holders from. */
+    record Gather(String dimension, Vec3 center, int nextChunk) {
     }
 
     /**
@@ -82,7 +89,8 @@ public final class WorldTools implements KnowledgeProvider {
     private record AreaRead(Center center, Page<BlockSummary> blocks, Page<EntityHandle> entities) {
     }
 
-    private record ItemsRead(List<ItemEntry> entries, FindState search, Evidence.Coverage coverage, String note) {
+    /** Note is sticky for later pages; bound says why only this page was cut. */
+    private record ItemsRead(List<ItemEntry> entries, FindState search, Evidence.Coverage coverage, String note, String bound) {
     }
 
     private final Supplier<MinecraftServer> server;
@@ -286,14 +294,20 @@ public final class WorldTools implements KnowledgeProvider {
         }
         return run(server, new FindSlice(server, anchor, radius, filter, includeNested, state == null ? null : state.search()))
                 .thenApply(read -> entries(request, new EntriesState(read.entries(), read.search(),
-                        state == null ? Evidence.Coverage.COMPLETE : state.coverage(), state == null ? null : state.note()), read.coverage(), read.note()));
+                        state == null ? Evidence.Coverage.COMPLETE : state.coverage(), state == null ? null : state.note()),
+                        read.coverage(), read.note(), read.bound()));
+    }
+
+    Evidence.Result entries(PackSageTools.ReadRequest request, EntriesState state, Evidence.Coverage coverage, String note) {
+        return entries(request, state, coverage, note, null);
     }
 
     /**
      * Shows up to one list page of entries; the rest, and any search continuation, go behind the next cursor. This
-     * page's coverage and note merge into the state's sticky ones, which every later page reports too.
+     * page's coverage and note merge into the state's sticky ones, which every later page reports too; bound and the
+     * entry split explain only this page's cut.
      */
-    Evidence.Result entries(PackSageTools.ReadRequest request, EntriesState state, Evidence.Coverage coverage, String note) {
+    Evidence.Result entries(PackSageTools.ReadRequest request, EntriesState state, Evidence.Coverage coverage, String note, String bound) {
         var partial = state.coverage() != Evidence.Coverage.COMPLETE || coverage != Evidence.Coverage.COMPLETE;
         var sticky = partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
         var notes = new LinkedHashSet<String>();
@@ -303,7 +317,10 @@ public final class WorldTools implements KnowledgeProvider {
         var shown = state.pending().subList(0, Math.min(AreaScan.LIST_PAGE, state.pending().size()));
         var rest = List.copyOf(state.pending().subList(shown.size(), state.pending().size()));
         var next = rest.isEmpty() && state.search() == null ? null : remember(request, new EntriesState(rest, state.search(), sticky, merged));
-        return result(shown.stream().map(entry -> entryRecord(request.scope(), entry)).toList(), sticky, next, merged);
+        if (bound != null) notes.add(bound);
+        if (!rest.isEmpty()) notes.add("This page shows " + shown.size() + " entries, the page limit; continue with the cursor");
+        return result(shown.stream().map(entry -> entryRecord(request.scope(), entry)).toList(), sticky, next,
+                notes.isEmpty() ? null : String.join("; ", notes));
     }
 
     private static Evidence.Result result(List<Evidence.Record> records, Evidence.Coverage coverage, String next, String note) {
@@ -425,13 +442,14 @@ public final class WorldTools implements KnowledgeProvider {
             }
         }
         return new ItemsRead(grouper.entries(), null, notes.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
-                notes.isEmpty() ? null : String.join("; ", notes));
+                notes.isEmpty() ? null : String.join("; ", notes), null);
     }
 
     /**
-     * Collects the find_items holders one chunk per step (the player first, then each loaded chunk's existing block
-     * entities and entities in range that hold inventories), or re-resolves a continuation's remaining roots, then runs
-     * {@link ItemSearch} over them.
+     * Gathers the find_items holders one chunk per step (the player first, then each loaded chunk's existing block
+     * entities and entities in range that hold inventories), after re-resolving a continuation's remaining roots, then
+     * runs {@link ItemSearch} over them. Stopped early while gathering, it returns no entries and a continuation over
+     * the holders gathered so far and the chunks left.
      */
     private final class FindSlice implements ServerWork.Slice<ItemsRead> {
         private final MinecraftServer server;
@@ -448,9 +466,11 @@ public final class WorldTools implements KnowledgeProvider {
         private Vec3 center;
         private List<ChunkPos> chunks;
         private int next;
+        private int resolved;
         private int unloaded;
         private int gone;
         private boolean resumeInside;
+        private boolean stopped;
         private ItemSearch search;
 
         FindSlice(MinecraftServer server, Anchor anchor, int radius, KindFilter filter, boolean includeNested, FindState resume) {
@@ -464,39 +484,60 @@ public final class WorldTools implements KnowledgeProvider {
 
         @Override
         public boolean step() {
+            if (stopped) return false;
             if (search != null) return search.step();
-            if (resume != null) {
+            if (resume != null && chunks == null) {
                 resolveRoots();
             } else if (chunks == null) {
                 host = host(server);
-                var resolved = center(server, anchor);
-                level = level(server, resolved.dimension());
-                center = resolved.position();
+                var start = center(server, anchor);
+                level = level(server, start.dimension());
+                center = start.position();
                 holders.add(Map.entry(new PathRoot.Player(host.getUUID()), new LiveHolder.OfPlayer(host)));
                 chunks = AreaScan.chunksInRange(center, radius);
             } else if (next < chunks.size()) {
                 collect(chunks.get(next++));
             } else {
-                search = new ItemSearch(registry, holders, filter, includeNested, null);
+                search = new ItemSearch(registry, holders, filter, includeNested, resumeInside ? "0." + resume.ordinal() : null);
             }
             return true;
         }
 
+        /** Re-resolves the continuation's roots, then picks up gathering where the earlier page stopped, if it did. */
         private void resolveRoots() {
-            var end = Math.min(resume.roots().size(), next + RESOLVE_PER_STEP);
-            for (; next < end; next++) {
-                var root = resume.roots().get(next);
+            var end = Math.min(resume.roots().size(), resolved + RESOLVE_PER_STEP);
+            for (; resolved < end; resolved++) {
+                var root = resume.roots().get(resolved);
                 var holder = root(server, root);
                 if (holder == null) {
                     gone++;
                     continue;
                 }
-                if (next == 0) resumeInside = resume.ordinal() > 0;
+                if (resolved == 0) resumeInside = resume.ordinal() > 0;
+                // Gathering later chunks must not add the other half of a double chest already among the roots.
+                if (root instanceof PathRoot.Block block) chestHalves.add(new BlockPos(block.place().x(), block.place().y(), block.place().z()));
                 holders.add(Map.entry(root, holder));
             }
-            if (next >= resume.roots().size()) {
-                search = new ItemSearch(registry, holders, filter, includeNested, resumeInside ? "0." + resume.ordinal() : null);
+            if (resolved < resume.roots().size()) return;
+            var gather = resume.gather();
+            if (gather == null) {
+                chunks = List.of();
+                return;
             }
+            host = host(server);
+            level = level(server, gather.dimension());
+            center = gather.center();
+            chunks = AreaScan.chunksInRange(center, radius);
+            next = gather.nextChunk();
+        }
+
+        /** Stops inside the search, or between chunks while gathering; resolving roots runs to its end first. */
+        @Override
+        public boolean stopEarly() {
+            if (search != null) return search.stopEarly();
+            if (chunks == null || next >= chunks.size()) return false;
+            stopped = true;
+            return true;
         }
 
         private void collect(ChunkPos pos) {
@@ -543,21 +584,39 @@ public final class WorldTools implements KnowledgeProvider {
 
         @Override
         public ItemsRead result() {
-            var page = search.result();
-            FindState continuation = null;
-            if (page.nextCursor() != null) {
-                var parts = page.nextCursor().split("[.]");
-                var from = Integer.parseInt(parts[0]);
-                continuation = new FindState(holders.subList(from, holders.size()).stream().map(Map.Entry::getKey).toList(),
-                        parts.length == 2 ? Integer.parseInt(parts[1]) : 0);
-            }
             var all = new ArrayList<String>();
             if (unloaded > 0) all.add(unloaded + " chunks in range were not loaded and were not searched");
             if (gone > 0) all.add(gone + " holders from earlier pages are gone or no longer loaded");
             all.addAll(notes);
-            if (page.note() != null) all.add(page.note());
-            var coverage = all.isEmpty() ? page.coverage() : Evidence.Coverage.PARTIAL;
-            return new ItemsRead(page.items(), continuation, coverage, all.isEmpty() ? null : String.join("; ", all));
+            List<ItemEntry> entries = List.of();
+            FindState continuation = null;
+            String bound;
+            Evidence.Coverage coverage;
+            if (search == null) {
+                // Stopped while gathering: nothing was searched yet, so every holder so far carries over.
+                continuation = new FindState(holders.stream().map(Map.Entry::getKey).toList(), resumeInside ? resume.ordinal() : 0,
+                        new Gather(level.dimension().location().toString(), center, next));
+                bound = "Stopped at the per-call work limit while gathering holders, after " + next + " of " + chunks.size()
+                        + " chunks; continue with the cursor";
+                coverage = Evidence.Coverage.PARTIAL;
+            } else {
+                var page = search.result();
+                entries = page.items();
+                if (page.nextCursor() != null) {
+                    var parts = page.nextCursor().split("[.]");
+                    var from = Integer.parseInt(parts[0]);
+                    continuation = new FindState(holders.subList(from, holders.size()).stream().map(Map.Entry::getKey).toList(),
+                            parts.length == 2 ? Integer.parseInt(parts[1]) : 0, null);
+                }
+                if (search.gapNote() != null) all.add(search.gapNote());
+                bound = search.boundNote();
+                coverage = page.coverage();
+            }
+            if (continuation != null || resume != null) {
+                all.add("Counts cover only the containers searched for each page; an item can appear again on another page");
+            }
+            if (!all.isEmpty()) coverage = Evidence.Coverage.PARTIAL;
+            return new ItemsRead(entries, continuation, coverage, all.isEmpty() ? null : String.join("; ", all), bound);
         }
     }
 
@@ -693,7 +752,7 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     /** Runs first as one step, then the slice it starts. */
-    private static <A, T> ServerWork.Slice<T> then(Supplier<A> first, Function<A, ServerWork.Slice<T>> next) {
+    static <A, T> ServerWork.Slice<T> then(Supplier<A> first, Function<A, ServerWork.Slice<T>> next) {
         return new ServerWork.Slice<>() {
             private ServerWork.Slice<T> inner;
 
@@ -710,10 +769,15 @@ public final class WorldTools implements KnowledgeProvider {
             public T result() {
                 return inner.result();
             }
+
+            @Override
+            public boolean stopEarly() {
+                return inner != null && inner.stopEarly();
+            }
         };
     }
 
-    private static <A, T> ServerWork.Slice<T> mapped(ServerWork.Slice<A> slice, Function<A, T> map) {
+    static <A, T> ServerWork.Slice<T> mapped(ServerWork.Slice<A> slice, Function<A, T> map) {
         return new ServerWork.Slice<>() {
             @Override
             public boolean step() {
@@ -724,10 +788,15 @@ public final class WorldTools implements KnowledgeProvider {
             public T result() {
                 return map.apply(slice.result());
             }
+
+            @Override
+            public boolean stopEarly() {
+                return slice.stopEarly();
+            }
         };
     }
 
-    private static <A, B> ServerWork.Slice<Map.Entry<A, B>> both(ServerWork.Slice<A> first, ServerWork.Slice<B> second) {
+    static <A, B> ServerWork.Slice<Map.Entry<A, B>> both(ServerWork.Slice<A> first, ServerWork.Slice<B> second) {
         return new ServerWork.Slice<>() {
             private boolean firstDone;
 
@@ -743,6 +812,13 @@ public final class WorldTools implements KnowledgeProvider {
             @Override
             public Map.Entry<A, B> result() {
                 return Map.entry(first.result(), second.result());
+            }
+
+            /** Stopping inside the first slice stops the second before it starts, so both report what they missed. */
+            @Override
+            public boolean stopEarly() {
+                if (firstDone) return second.stopEarly();
+                return first.stopEarly() & second.stopEarly();
             }
         };
     }
@@ -924,10 +1000,14 @@ public final class WorldTools implements KnowledgeProvider {
         if (summary.notable().size() >= AreaScan.SUMMARY_NOTABLE) {
             notes.add("Notable blocks reached the " + AreaScan.SUMMARY_NOTABLE + " cap; use list_blocks with a filter for the rest");
         }
+        // inspect_area has no cursor, so a cut entity page points at list_entities instead of its own cursor note.
         if (read.entities().nextCursor() != null) {
-            notes.add("More than " + AreaScan.LIST_PAGE + " entities are in range; use list_entities with a filter for the rest");
+            notes.add(read.entities().items().size() >= AreaScan.LIST_PAGE
+                    ? "More than " + AreaScan.LIST_PAGE + " entities are in range; use list_entities with a filter for the rest"
+                    : "The entity scan stopped at the per-call work limit; use list_entities for the rest");
+        } else if (read.entities().note() != null) {
+            notes.add(read.entities().note());
         }
-        if (read.entities().note() != null) notes.add(read.entities().note());
         var notable = new TreeMap<String, Map<String, List<Evidence.JsonValue>>>();
         for (var block : summary.notable()) {
             var place = block.handle().place();

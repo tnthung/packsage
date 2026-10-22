@@ -116,23 +116,30 @@ final class WorldNavigation {
     }
 
     private Evidence.NavigationResult openBlock(BlockPlace place) {
-        var coordinates = place.x() + ", " + place.y() + ", " + place.z();
         var here = client.dimension();
         if (here == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "the player is not in a world");
         if (!here.equals(place.dimension())) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, coordinates + " in " + place.dimension());
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, coordinates(place) + " in " + place.dimension());
         }
         if (!Boolean.TRUE.equals(blockExists.apply(place))) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE,
-                    "no block remains at " + coordinates + " in " + place.dimension() + ", or its chunk is not loaded");
+                    "no block remains at " + coordinates(place) + " in " + place.dimension() + ", or its chunk is not loaded");
         }
         client.highlightBlock(place, System.currentTimeMillis() + HIGHLIGHT_MILLIS);
-        return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, coordinates);
+        return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, null);
+    }
+
+    private static String coordinates(BlockPlace place) {
+        return place.x() + ", " + place.y() + ", " + place.z();
     }
 
     private Evidence.NavigationResult openEntity(UUID id) {
-        if (entityPlace.apply(id) == null) {
+        var place = entityPlace.apply(id);
+        if (place == null) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "entity " + id + " is no longer loaded and alive");
+        }
+        if (!place.dimension().equals(client.dimension()) || !client.tracks(id)) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, coordinates(place) + " in " + place.dimension());
         }
         client.highlightEntity(id, System.currentTimeMillis() + HIGHLIGHT_MILLIS);
         return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, null);

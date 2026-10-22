@@ -1212,7 +1212,9 @@ public final class AssistantRuntime implements ChatActions {
             } else {
                 try {
                     var result = currentKnowledge.open(refreshed, currentScope);
-                    if (result.status() != Evidence.NavigationStatus.OPENED) showNavigationError(navigationId,
+                    if (result.status() == Evidence.NavigationStatus.OPENED) {
+                        if (result.detail() != null) showNavigationMessage(navigationId, result.detail(), true);
+                    } else showNavigationError(navigationId,
                             "Navigation " + result.status().name().toLowerCase() + ": "
                                     + (result.detail() == null ? "target unavailable" : result.detail()));
                 } catch (RuntimeException navigationFailure) {
@@ -1223,12 +1225,19 @@ public final class AssistantRuntime implements ChatActions {
     }
 
     private void showNavigationError(long navigationId, String error) {
+        showNavigationMessage(navigationId, error, false);
+    }
+
+    /** A notice is information from a successful open, such as where a destination that cannot be drawn is. */
+    private void showNavigationMessage(long navigationId, String message, boolean notice) {
         AssistantScreen screen;
         synchronized (stateLock) {
             if (navigationId != navigationGeneration) return;
             screen = currentScreen;
         }
-        if (screen != null) screen.showNavigationError(error);
+        if (screen == null) return;
+        if (notice) screen.showNavigationNotice(message);
+        else screen.showNavigationError(message);
     }
 
     private CompletionStage<ChatContracts.ToolResponse> executeTool(Holder holder, ChatContracts.ToolRequest request) {

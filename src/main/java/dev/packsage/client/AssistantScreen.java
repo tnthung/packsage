@@ -452,12 +452,13 @@ public final class AssistantScreen extends Screen {
                     GroundingInstructions.historyTokenCounts(liveTurn).assistant(), y, mouseX, mouseY);
         }
         String visibleError = navigationError(System.currentTimeMillis());
+        int errorColor = visibleError != null && navigationNotice ? ModernUi.MUTED : ModernUi.DANGER;
         if (visibleError == null && !view.errors().isEmpty()) visibleError = view.errors().getLast();
         if (visibleError != null) {
             y += 4;
             for (var line : font.split(Component.literal(visibleError).withStyle(style ->
-                    style.withFont(ModernUi.FONT).withColor(ModernUi.DANGER)), Math.max(1, readableWidth - 26))) {
-                graphics.drawString(font, line, readableLeft + 26, y, ModernUi.DANGER, false);
+                    style.withFont(ModernUi.FONT).withColor(errorColor)), Math.max(1, readableWidth - 26))) {
+                graphics.drawString(font, line, readableLeft + 26, y, errorColor, false);
                 y += ModernUi.MESSAGE_LINE_HEIGHT;
             }
         }
@@ -1568,7 +1569,14 @@ public final class AssistantScreen extends Screen {
     public void showNavigationError(String error) {
         if (error != null) followOnCompletion = followBottom;
         navigationError = error;
+        navigationNotice = false;
         navigationErrorExpiresAt = error == null ? 0 : System.currentTimeMillis() + 5_000;
+    }
+
+    /** Shows information from a successful navigation in the error's place, without error styling. */
+    public void showNavigationNotice(String notice) {
+        showNavigationError(notice);
+        navigationNotice = notice != null;
     }
 
     String navigationError(long nowMillis) {

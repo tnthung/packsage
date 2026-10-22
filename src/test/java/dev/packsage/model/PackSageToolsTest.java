@@ -84,7 +84,8 @@ class PackSageToolsTest {
         assertTrue(document.contains("same query, filters and limit"));
         var recipe = definitions.stream().filter(value -> value.name().equals("search_recipe")).findFirst().orElseThrow().description();
         assertTrue(recipe.contains("outputItem without text"));
-        assertTrue(recipe.contains("native and JEI evidence distinct"));
+        assertTrue(recipe.contains("JEI when available, otherwise Minecraft's loaded recipes"));
+        assertTrue(recipe.contains("evidence from different providers distinct"));
         var inventory = definitions.stream().filter(value -> value.name().equals("search_inventory")).findFirst().orElseThrow().description();
         assertTrue(inventory.contains("Player summaries do not include nested containers"));
         assertTrue(inventory.contains("returned slotReference"));

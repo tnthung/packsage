@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -693,6 +694,185 @@ class JeiProjectionTest {
                     new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("absent"))), 1, null, null), SCOPE)
                     .toCompletableFuture().get();
             assertEquals(Evidence.Coverage.OPAQUE, noMatch.coverage());
+        } finally {
+            minecraftInstance.set(null, previousMinecraft);
+        }
+    }
+
+    @Test
+    void outputSearchUsesTheJeiFocusOnlyWhenListedVariantsShareOneRecipeIdentity() throws Exception {
+        var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var allocateInstance = unsafe.getClass().getMethod("allocateInstance", Class.class);
+        var fakeMinecraft = (Minecraft) allocateInstance.invoke(unsafe, Minecraft.class);
+        var minecraftInstance = Minecraft.class.getDeclaredField("instance");
+        minecraftInstance.setAccessible(true);
+        var previousMinecraft = minecraftInstance.get(null);
+        var gameThread = Minecraft.class.getDeclaredField("gameThread");
+        gameThread.setAccessible(true);
+        gameThread.set(fakeMinecraft, Thread.currentThread());
+        minecraftInstance.set(null, fakeMinecraft);
+        try {
+            var torch = new ItemStack(BuiltInRegistries.ITEM.get(ResourceLocation.parse("minecraft:torch")));
+            var potionItem = BuiltInRegistries.ITEM.get(ResourceLocation.parse("minecraft:potion"));
+            var plainPotion = new ItemStack(potionItem);
+            var strengthPotion = PotionContents.createItemStack(potionItem, Potions.STRENGTH);
+            var listed = new AtomicReference<List<ItemStack>>(List.of(torch.copy(), plainPotion, strengthPotion));
+            var torchRecipe = "torch-recipe";
+            var everyRecipe = Stream.concat(java.util.stream.IntStream.range(0, 20000)
+                    .mapToObj(value -> (Object) ("filler-" + value)), Stream.of((Object) torchRecipe)).toList();
+            var recipeVisits = new AtomicInteger();
+            var appliedFocuses = new java.util.concurrent.CopyOnWriteArrayList<Collection<?>>();
+            var focusRoles = new java.util.concurrent.CopyOnWriteArrayList<Object>();
+            var type = new RecipeType<>(ResourceLocation.fromNamespaceAndPath("minecraft", "crafting"), Object.class);
+            var category = (IRecipeCategory<?>) Proxy.newProxyInstance(IRecipeCategory.class.getClassLoader(),
+                    new Class<?>[] { IRecipeCategory.class }, (proxy, method, arguments) -> switch (method.getName()) {
+                        case "getRecipeType" -> type;
+                        case "getTitle" -> Component.literal("Crafting");
+                        case "getTooltipStrings" -> List.of();
+                        default -> null;
+                    });
+            var recipeLookup = (IRecipeLookup<Object>) Proxy.newProxyInstance(IRecipeLookup.class.getClassLoader(),
+                    new Class<?>[] { IRecipeLookup.class }, new java.lang.reflect.InvocationHandler() {
+                        private Collection<?> focus = List.of();
+                        @Override public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] arguments) {
+                            return switch (method.getName()) {
+                                case "includeHidden" -> proxy;
+                                case "limitFocus" -> {
+                                    focus = (Collection<?>) arguments[0];
+                                    appliedFocuses.add(focus);
+                                    yield proxy;
+                                }
+                                case "get" -> (focus.isEmpty() ? everyRecipe.stream() : Stream.of((Object) torchRecipe))
+                                        .peek(ignored -> recipeVisits.incrementAndGet());
+                                default -> null;
+                            };
+                        }
+                    });
+            var catalystLookup = (IRecipeCatalystLookup) Proxy.newProxyInstance(
+                    IRecipeCatalystLookup.class.getClassLoader(), new Class<?>[] { IRecipeCatalystLookup.class },
+                    (proxy, method, arguments) -> switch (method.getName()) {
+                        case "includeHidden" -> proxy;
+                        case "get" -> Stream.empty();
+                        default -> null;
+                    });
+            var categoryLookup = (IRecipeCategoriesLookup) Proxy.newProxyInstance(
+                    IRecipeCategoriesLookup.class.getClassLoader(), new Class<?>[] { IRecipeCategoriesLookup.class },
+                    (proxy, method, arguments) -> {
+                        if (method.getName().equals("limitFocus")) appliedFocuses.add((Collection<?>) arguments[0]);
+                        return switch (method.getName()) {
+                            case "includeHidden", "limitTypes", "limitFocus" -> proxy;
+                            case "get" -> Stream.of(category);
+                            default -> null;
+                        };
+                    });
+            var torchIngredient = Proxy.newProxyInstance(ITypedIngredient.class.getClassLoader(),
+                    new Class<?>[] { ITypedIngredient.class }, (proxy, method, arguments) -> switch (method.getName()) {
+                        case "getType" -> VanillaTypes.ITEM_STACK;
+                        case "getIngredient" -> torch;
+                        default -> null;
+                    });
+            var manager = (IRecipeManager) Proxy.newProxyInstance(IRecipeManager.class.getClassLoader(),
+                    new Class<?>[] { IRecipeManager.class }, (proxy, method, arguments) -> switch (method.getName()) {
+                        case "createRecipeCategoryLookup" -> categoryLookup;
+                        case "createRecipeLookup" -> recipeLookup;
+                        case "createRecipeCatalystLookup" -> catalystLookup;
+                        case "createRecipeLayoutDrawable" -> {
+                            var layoutArgument = ((ParameterizedType) method.getGenericReturnType()).getActualTypeArguments()[0];
+                            var layoutType = layoutArgument instanceof Class<?> typeClass ? typeClass
+                                    : (Class<?>) ((ParameterizedType) layoutArgument).getRawType();
+                            var slotsType = layoutType.getMethod("getRecipeSlotsView").getReturnType();
+                            var slotViewArgument = ((ParameterizedType) slotsType.getMethod("getSlotViews")
+                                    .getGenericReturnType()).getActualTypeArguments()[0];
+                            var slotViewType = slotViewArgument instanceof Class<?> typeClass ? typeClass
+                                    : (Class<?>) ((ParameterizedType) slotViewArgument).getRawType();
+                            var slotViews = torchRecipe.equals(arguments[1]) ? List.of(Proxy.newProxyInstance(
+                                    slotViewType.getClassLoader(), new Class<?>[] { slotViewType },
+                                    (slotProxy, slotMethod, slotArgs) -> switch (slotMethod.getName()) {
+                                        case "getRole" -> RecipeIngredientRole.OUTPUT;
+                                        case "getAllIngredientsList" -> List.of(torchIngredient);
+                                        case "getSlotName" -> Optional.of("result");
+                                        default -> null;
+                                    })) : List.of();
+                            var slots = Proxy.newProxyInstance(slotsType.getClassLoader(), new Class<?>[] { slotsType },
+                                    (slotsProxy, slotsMethod, slotsArgs) -> slotsMethod.getName().equals("getSlotViews")
+                                            ? slotViews : null);
+                            var layout = Proxy.newProxyInstance(layoutType.getClassLoader(), new Class<?>[] { layoutType },
+                                    (layoutProxy, layoutMethod, layoutArgs) -> layoutMethod.getName().equals("getRecipeSlotsView")
+                                            ? slots : null);
+                            yield Optional.of(layout);
+                        }
+                        default -> null;
+                    });
+            var focusFactory = (mezz.jei.api.recipe.IFocusFactory) Proxy.newProxyInstance(
+                    mezz.jei.api.recipe.IFocusFactory.class.getClassLoader(), new Class<?>[] { mezz.jei.api.recipe.IFocusFactory.class },
+                    (proxy, method, arguments) -> {
+                        if (!method.getName().equals("createFocus")) return null;
+                        focusRoles.add(arguments[0]);
+                        return Proxy.newProxyInstance(mezz.jei.api.recipe.IFocus.class.getClassLoader(),
+                                new Class<?>[] { mezz.jei.api.recipe.IFocus.class }, (focus, focusMethod, focusArgs) -> null);
+                    });
+            var stackHelper = (mezz.jei.api.helpers.IStackHelper) Proxy.newProxyInstance(
+                    mezz.jei.api.helpers.IStackHelper.class.getClassLoader(), new Class<?>[] { mezz.jei.api.helpers.IStackHelper.class },
+                    (proxy, method, arguments) -> {
+                        if (!method.getName().equals("getUidForStack") || !(arguments[0] instanceof ItemStack stack)) return null;
+                        return BuiltInRegistries.ITEM.getKey(stack.getItem()) + "|" + stack.getComponentsPatch();
+                    });
+            var helpers = (mezz.jei.api.helpers.IJeiHelpers) Proxy.newProxyInstance(
+                    mezz.jei.api.helpers.IJeiHelpers.class.getClassLoader(), new Class<?>[] { mezz.jei.api.helpers.IJeiHelpers.class },
+                    (proxy, method, arguments) -> switch (method.getName()) {
+                        case "getFocusFactory" -> focusFactory;
+                        case "getStackHelper" -> stackHelper;
+                        default -> null;
+                    });
+            var ingredientManagerPresent = new AtomicBoolean(true);
+            var ingredientManager = (mezz.jei.api.runtime.IIngredientManager) Proxy.newProxyInstance(
+                    mezz.jei.api.runtime.IIngredientManager.class.getClassLoader(),
+                    new Class<?>[] { mezz.jei.api.runtime.IIngredientManager.class },
+                    (proxy, method, arguments) -> method.getName().equals("getAllIngredients")
+                            && arguments[0] == VanillaTypes.ITEM_STACK ? listed.get() : null);
+            var visibilityType = IJeiRuntime.class.getMethod("getIngredientVisibility").getReturnType();
+            var visibility = Proxy.newProxyInstance(visibilityType.getClassLoader(), new Class<?>[] { visibilityType },
+                    (proxy, method, arguments) -> method.getName().equals("isIngredientVisible") ? true : null);
+            var runtime = (IJeiRuntime) Proxy.newProxyInstance(IJeiRuntime.class.getClassLoader(),
+                    new Class<?>[] { IJeiRuntime.class }, (proxy, method, arguments) -> switch (method.getName()) {
+                        case "getRecipeManager" -> manager;
+                        case "getJeiHelpers" -> helpers;
+                        case "getIngredientManager" -> ingredientManagerPresent.get() ? ingredientManager : null;
+                        case "getIngredientVisibility" -> visibility;
+                        default -> null;
+                    });
+            var plugin = new PackSageJeiPlugin();
+            plugin.onRuntimeAvailable(runtime);
+            Function<String, Evidence.Result> search = outputItem -> {
+                PackSageJeiPlugin.clientTicked();
+                try {
+                    return plugin.provider().query(new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(Map.of(
+                            "outputItem", new Evidence.JsonString(outputItem))), 16, null, null), SCOPE).toCompletableFuture().get();
+                } catch (Exception failure) {
+                    throw new AssertionError(failure);
+                }
+            };
+
+            var torchPage = search.apply("minecraft:torch");
+            assertEquals(1, torchPage.records().size(), () -> "coverage=" + torchPage.coverage() + "; detail=" + torchPage.detail());
+            assertEquals("item", torchPage.records().getFirst().recipePayload().outputs().getFirst().type());
+            assertFalse(appliedFocuses.isEmpty());
+            assertTrue(appliedFocuses.stream().allMatch(focus -> focus.size() == 1), "both lookups must receive the output focus");
+            assertEquals(List.of(RecipeIngredientRole.OUTPUT), List.copyOf(new java.util.LinkedHashSet<>(focusRoles)));
+            assertTrue(recipeVisits.get() < 16, "the focused lookup must not walk unrelated recipes");
+
+            appliedFocuses.clear();
+            search.apply("minecraft:potion");
+            assertFalse(appliedFocuses.isEmpty());
+            assertTrue(appliedFocuses.stream().allMatch(Collection::isEmpty), "differing listed variants must keep the scan");
+
+            appliedFocuses.clear();
+            ingredientManagerPresent.set(false);
+            var unfocused = search.apply("minecraft:torch");
+            assertTrue(appliedFocuses.stream().allMatch(Collection::isEmpty), "a missing ingredient manager must keep the scan");
+            assertTrue(unfocused.records().isEmpty(), "the scan cannot reach the late torch recipe within one page");
         } finally {
             minecraftInstance.set(null, previousMinecraft);
         }

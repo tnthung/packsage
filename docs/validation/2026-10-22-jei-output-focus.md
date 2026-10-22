@@ -90,3 +90,49 @@ The exact reply was: “Craft **1 Gold Leaf** to get **2 Gold Powder**. Put the 
 The offered link opened the JEI Crafting viewer, page 1/1, showing Gold Leaf → 2 Gold Powder. No altar link was offered. The reply neither mentioned the Natural Altar route nor justified omitting it, so the check fails despite the native plan call containing a partial altar record.
 
 The previous A3 took about 38 seconds and returned only the crafting route. This run also took about 39 seconds and the JEI output search again returned only Crafting, not Natural Altar Infusion.
+
+## Retest after modded-category fix
+
+### Build and installed profile
+
+- `scripts/build.ps1` ran with `JAVA_HOME=D:\Project\packsage\.tools\jdk\jdk-21.0.12.1` and completed `BUILD SUCCESSFUL`; all 11 Gradle tasks were up to date.
+- Profile: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage`; world: `PackSage Adapter Filter Live Test`.
+- Built and installed `packsage.jar`, SHA-256 `60C40C481C7F4EDE3F27C914B9F725D2A7BFF86258C3CAA58C06A028B0A45681`. The dist and installed copies match. This differs from the previous round's `96E12FD70C1AA5BA12E46778D91C75A98846648361D46E4255F25BABDE69363A`.
+- `config/packsage.properties` had no `developerPrompt` override. Minecraft 1.21.1 / NeoForge 21.1.259 loaded with JEI 19.27.0.340 and Nature's Aura 41.10. The visible model was GPT-6-Sol / medium, with Search selected.
+- Response time is approximated from each JSONL `sentAt` to that file's last-write time.
+
+### F-A3 — Nature's Aura Gold Powder — FAIL
+
+- [ ] FAIL
+
+Question: `How do I make Gold Powder?`
+
+Request `d3f1d811-35c4-48a7-b70a-7102fe8eec80`, file `d5c88426-4d94-4ef1-b564-a92bdd8ebe75-469ec01d320ae3ae.jsonl`; approximately 34.6 seconds.
+
+Tool calls from the saved JSONL, in order:
+
+1. `search_registry` — `{"registry":"item","filter":{"text":"Gold Powder","ids":null,"tags":null,"provider":null},"limit":32,"cursor":null}`. Provider native, COMPLETE, no detail or cursor; returned `naturesaura:gold_powder`.
+2. `plan_recipe` — `{"identity":"naturesaura:gold_powder","quantity":1,"depth":2}`. Provider native, PARTIAL, detail `bounded-live-recipe-scan`, no cursor; returned native plan records `naturesaura:altar/gold_powder` (4 Gold Powder) and `naturesaura:gold_powder` (2 Gold Powder). The altar plan record had no captured inputs.
+3. `search_recipe` — `{"filter":{"text":null,"outputItem":"naturesaura:gold_powder","provider":null},"limit":16,"cursor":null}`. Provider JEI, PARTIAL, no detail or cursor. It returned both:
+   - Crafting, category `minecraft:crafting`, PARTIAL coverage; captured Gold Leaf input and 2 Gold Powder output slots.
+   - Natural Altar Infusion, category `naturesaura:altar`, OPAQUE coverage/decoding; captured Gold Leaf input, 4 Gold Powder output, and Crushing Catalyst slot. Reference: `jei:jei/1/1/naturesaura:altar/recipe-naturesaura:altar/gold_powder-1`.
+4. `search_document` — `{"query":"Gold Powder","filter":{"types":null,"provider":null},"limit":16,"cursor":null}`. Patchouli discovery, PARTIAL, zero records, next cursor `0c4aab3c-2b39-4fc1-9d2e-8948a49468b3`; detail said the bounded discovery work was reached and to continue with the cursor. The assistant did not continue it.
+
+The exact reply was: “Craft **1 Gold Leaf** to get **2 Gold Powder**. You can view the recipe in [JEI](jei:jei/1/1/minecraft:crafting/recipe-naturesaura:gold_powder-1).”
+
+The JEI link opened the Crafting card, page 1/1, showing Gold Leaf -> 2 Gold Powder. No altar link was offered, so altar-link navigation was not exercised. The output-search and captured-slot requirement passed, but the full check fails because the reply neither mentions the altar route nor justifies omitting it. The conditional same-chat follow-up was not sent because the model did make a JEI output search.
+
+### F-A1 — JEI torch recipe — PASS
+
+- [x] PASS
+
+Question: `How do I craft a torch?`
+
+Request `7729f237-682e-4902-8730-39220f365bee`, file `d522a8c2-a74f-4d3d-9de5-525acb416f40-0a216cb4eeb8eee6.jsonl`; approximately 26.9 seconds.
+
+Tool calls from the saved JSONL, in order:
+
+1. `search_recipe` — `{"filter":{"text":null,"outputItem":"minecraft:torch","provider":null},"limit":16,"cursor":null}`. First JEI output search returned provider JEI, PARTIAL, no detail or cursor, with one Crafting record on this first page; category `minecraft:crafting`, PARTIAL coverage/decoding. Its captured slots showed coal or charcoal, a stick, and 1 torch output. Reference: `jei:jei/1/4/minecraft:crafting/recipe-minecraft:torch-1`.
+2. `plan_recipe` — `{"identity":"minecraft:torch","quantity":1,"depth":1}`. Provider native, PARTIAL, detail `bounded-live-recipe-scan`, no cursor; returned one native `minecraft:torch` plan record.
+
+The exact reply was: “Place **coal or charcoal directly above a stick** in a crafting grid to make a torch. [Recipe viewer](jei:jei/1/4/minecraft:crafting/recipe-minecraft:torch-1) [Loaded recipe](native:plan|minecraft:torch|1|1|0|minecraft:torch)” The Recipe viewer link opened the JEI Crafting card, page 1/1, showing coal above a stick -> torch. The separate Loaded recipe link was not opened.

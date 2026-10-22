@@ -498,7 +498,7 @@ public final class WorldTools implements KnowledgeProvider {
         private int unloaded;
         private int entitiesUnloaded;
         private int gone;
-        private boolean resumeInside;
+        private boolean firstRootFound;
         private boolean stopped;
         private ItemSearch search;
 
@@ -527,7 +527,7 @@ public final class WorldTools implements KnowledgeProvider {
             } else if (next < chunks.size()) {
                 collect(chunks.get(next++));
             } else {
-                search = new ItemSearch(registry, holders, filter, includeNested, resumeInside ? "0." + resume.ordinal() : null);
+                search = new ItemSearch(registry, holders, filter, includeNested, resumedCursor(resume, firstRootFound));
             }
             return true;
         }
@@ -542,7 +542,7 @@ public final class WorldTools implements KnowledgeProvider {
                     gone++;
                     continue;
                 }
-                if (resolved == 0) resumeInside = resume.ordinal() > 0;
+                if (resolved == 0) firstRootFound = true;
                 // Gathering later chunks must not add the other half of a double chest already among the roots.
                 if (root instanceof PathRoot.Block block) chestHalves.add(new BlockPos(block.place().x(), block.place().y(), block.place().z()));
                 holders.add(Map.entry(root, holder));
@@ -629,7 +629,7 @@ public final class WorldTools implements KnowledgeProvider {
             Evidence.Coverage coverage;
             if (search == null) {
                 // Stopped while gathering: nothing was searched yet, so every holder so far carries over.
-                continuation = new FindState(holders.stream().map(Map.Entry::getKey).toList(), resumeInside ? resume.ordinal() : 0,
+                continuation = new FindState(holders.stream().map(Map.Entry::getKey).toList(), firstRootFound ? resume.ordinal() : 0,
                         new Gather(level.dimension().location().toString(), center, next));
                 bound = "Stopped at the per-call work limit while gathering holders, after " + next + " of " + chunks.size()
                         + " chunks; continue with the cursor";
@@ -637,12 +637,7 @@ public final class WorldTools implements KnowledgeProvider {
             } else {
                 var page = search.result();
                 entries = page.items();
-                if (page.nextCursor() != null) {
-                    var parts = page.nextCursor().split("[.]");
-                    var from = Integer.parseInt(parts[0]);
-                    continuation = new FindState(holders.subList(from, holders.size()).stream().map(Map.Entry::getKey).toList(),
-                            parts.length == 2 ? Integer.parseInt(parts[1]) : 0, null);
-                }
+                if (page.nextCursor() != null) continuation = continuation(holders.stream().map(Map.Entry::getKey).toList(), page.nextCursor());
                 if (search.gapNote() != null) all.add(search.gapNote());
                 bound = search.boundNote();
                 coverage = page.coverage();
@@ -653,6 +648,24 @@ public final class WorldTools implements KnowledgeProvider {
             if (!all.isEmpty()) coverage = Evidence.Coverage.PARTIAL;
             return new ItemsRead(entries, continuation, coverage, all.isEmpty() ? null : String.join("; ", all), bound);
         }
+    }
+
+    /**
+     * The find_items continuation of an {@link ItemSearch} page over these roots: the roots from the cursor's holder on,
+     * with the ordinal to resume at inside the first one.
+     */
+    static FindState continuation(List<PathRoot> roots, String searchCursor) {
+        var parts = searchCursor.split("[.]");
+        var from = Integer.parseInt(parts[0]);
+        return new FindState(List.copyOf(roots.subList(from, roots.size())), parts.length == 2 ? Integer.parseInt(parts[1]) : 0, null);
+    }
+
+    /**
+     * The {@link ItemSearch} cursor that resumes a continuation over its re-resolved roots: inside the first root when it
+     * is still there, otherwise from the start of the roots that remain.
+     */
+    static String resumedCursor(FindState resume, boolean firstRootFound) {
+        return resume != null && firstRootFound && resume.ordinal() > 0 ? "0." + resume.ordinal() : null;
     }
 
     // Live lookups; server thread only

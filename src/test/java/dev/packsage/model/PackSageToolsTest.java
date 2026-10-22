@@ -16,7 +16,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PackSageToolsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
-    private static final List<String> NAMES = List.of("search_recipe", "search_registry", "search_inventory", "read_evidence", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history");
+    private static final List<String> NAMES = List.of("search_recipe", "search_registry", "search_inventory", "read_evidence", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
+            "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items");
 
     @Test
     void continuationCallPreservesQueryAndExecutesAnotherLiveRead() throws Exception {
@@ -56,14 +57,14 @@ class PackSageToolsTest {
     }
 
     @Test
-    void exposesExactlyTenToolsAndKeepsOptionalArgumentsOptional() {
+    void exposesExactlyEighteenToolsAndKeepsOptionalArgumentsOptional() {
         var definitions = PackSageTools.definitions();
         assertEquals(NAMES, definitions.stream().map(ModelBackend.ToolDefinition::name).toList());
         for (var definition : definitions) {
             var schema = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject();
             assertFalse(schema.get("additionalProperties").getAsBoolean());
             assertTrue(schema.getAsJsonArray("required").size() < schema.getAsJsonObject("properties").size()
-                    || definition.name().equals("read_evidence") || definition.name().equals("read_history"));
+                    || List.of("read_evidence", "read_history", "inspect_block", "inspect_entity", "inspect_item").contains(definition.name()));
         }
         var inventory = JsonParser.parseString(definitions.get(2).serializedSchema()).getAsJsonObject();
         assertTrue(inventory.getAsJsonObject("properties").getAsJsonObject("target").has("oneOf"));
@@ -382,5 +383,40 @@ class PackSageToolsTest {
     @Test void registrySchemaOffersPlayerAttribute() {
         var registry = PackSageTools.definitions().stream().filter(tool -> tool.name().equals("search_registry")).findFirst().orElseThrow();
         assertTrue(registry.serializedSchema().contains("\"player_attribute\""));
+    }
+
+    @Test void listsWorldTools() throws Exception {
+        var expected = Map.of(
+                "inspect_area", List.of(List.of("center", "radius"), List.<String>of()),
+                "list_blocks", List.of(List.of("center", "radius", "filter", "cursor"), List.of("filter")),
+                "list_entities", List.of(List.of("center", "radius", "filter", "cursor"), List.of("filter")),
+                "inspect_block", List.of(List.of("place"), List.of("place")),
+                "inspect_entity", List.of(List.of("id"), List.of("id")),
+                "list_items", List.of(List.of("holder", "inventory", "filter", "cursor"), List.of("holder")),
+                "inspect_item", List.of(List.of("path"), List.of("path")),
+                "find_items", List.of(List.of("filter", "center", "radius", "includeNested", "cursor"), List.of("filter")));
+        var definitions = PackSageTools.definitions();
+        for (var tool : expected.entrySet()) {
+            var definition = definitions.stream().filter(value -> value.name().equals(tool.getKey())).findFirst().orElseThrow();
+            var schema = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject();
+            var properties = schema.getAsJsonObject("properties");
+            assertEquals(java.util.Set.copyOf(tool.getValue().get(0)), properties.keySet(), tool.getKey());
+            assertEquals(tool.getValue().get(1), schema.getAsJsonArray("required").asList().stream().map(value -> value.getAsString()).toList(), tool.getKey());
+            assertFalse(definition.description().startsWith("Read current evidence for"), tool.getKey());
+            if (properties.has("radius")) {
+                assertEquals(1, properties.getAsJsonObject("radius").get("minimum").getAsInt());
+                assertEquals(256, properties.getAsJsonObject("radius").get("maximum").getAsInt());
+            }
+        }
+        var center = JsonParser.parseString(definitions.stream().filter(value -> value.name().equals("inspect_area")).findFirst().orElseThrow()
+                .serializedSchema()).getAsJsonObject().getAsJsonObject("properties").getAsJsonObject("center");
+        assertEquals(List.of("player", "entity", "block"), center.getAsJsonObject("properties").getAsJsonObject("type")
+                .getAsJsonArray("enum").asList().stream().map(value -> value.getAsString()).toList());
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(
+                new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+        assertTrue(tools.execute(new ModelBackend.ToolCall("far", "inspect_area", "{\"radius\":300}"), SCOPE).toCompletableFuture().get().result().error());
+        assertFalse(tools.execute(new ModelBackend.ToolCall("near", "find_items",
+                "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"center\":{\"type\":\"player\"},\"radius\":32,\"includeNested\":false}"), SCOPE)
+                .toCompletableFuture().get().result().error());
     }
 }

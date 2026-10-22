@@ -3,6 +3,7 @@ package dev.packsage.knowledge.jei;
 import dev.packsage.PackSageLog;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
+import dev.packsage.knowledge.RecipePlanner;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -11,10 +12,12 @@ import net.minecraft.resources.ResourceLocation;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
@@ -29,6 +32,10 @@ import java.util.function.Supplier;
 public final class JeiProvider implements KnowledgeProvider {
     public static final String ID = "jei";
     public static final String VERSION = "19.27.0.340";
+    private static final int MAX_PLAN_LOOKUPS = 64;
+    private static final int MAX_PLAN_RECIPES_PER_LOOKUP = 16;
+    private static final String BREWING_CONSTRAINT = "brewing-batch=up-to-3-bottles; reagent=one-per-operation; "
+            + "fuel=unknown-per-operation; remainders=unknown";
 
     @FunctionalInterface
     public interface SnapshotSource {
@@ -276,6 +283,121 @@ public final class JeiProvider implements KnowledgeProvider {
         } catch (RuntimeException failure) {
             return CompletableFuture.failedFuture(failure);
         }
+    }
+
+    @Override
+    public CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Toolbox.Context context) {
+        var values = request.arguments().values();
+        var selected = values.get("provider") instanceof Evidence.JsonString provider ? provider.value() : null;
+        if (selected != null && !ID.equals(selected)) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "JEI does not handle another selected plan source"));
+        if (!runtimeAvailable) return CompletableFuture.failedFuture(selected == null
+                ? new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "JEI runtime unavailable")
+                : new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "JEI runtime is unavailable"));
+        if (!(values.get("identity") instanceof Evidence.JsonString identity)) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "identity is required"));
+        var itemId = ResourceLocation.tryParse(identity.value());
+        if (itemId == null || !itemId.toString().equals(identity.value()) || !BuiltInRegistries.ITEM.containsKey(itemId)) {
+            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "recipe output item is unknown"));
+        }
+        long quantity;
+        int depth;
+        try {
+            quantity = values.get("quantity") instanceof Evidence.JsonNumber number ? number.value().longValueExact() : 1;
+            depth = values.get("depth") instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 4;
+        } catch (ArithmeticException failure) {
+            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "quantity and depth must be integers"));
+        }
+        if (quantity < 1 || quantity > 1_000_000 || depth < 0 || depth > 8) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "recipe quantity or depth is outside bounds"));
+        if (!request.scope().equals(context.currentScope().get())) return CompletableFuture.failedFuture(
+                new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "repeat the lookup in the current scope"));
+        var planned = new CompletableFuture<Evidence.Result>();
+        clientExecutor.execute(() -> {
+            try {
+                planned.complete(plan(identity.value(), quantity, depth, request.scope(), context.documentBudget()));
+            } catch (Throwable failure) {
+                planned.completeExceptionally(failure);
+            }
+        });
+        return planned.thenApply(result -> {
+            if (!request.scope().equals(context.currentScope().get())) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE,
+                    "scope changed while planning with JEI");
+            return result;
+        });
+    }
+
+    private Evidence.Result plan(String identity, long quantity, int depth, Evidence.Scope scope, Toolbox.DocumentBudget budget) {
+        var lookups = new LinkedHashMap<String, List<Evidence.Record>>();
+        var bounds = new LinkedHashSet<String>();
+        var result = new RecipePlanner(new RecipePlanner.Source() {
+            @Override public boolean available(Evidence.Scope requested) { return runtimeAvailable && sameScope(requested, scope); }
+
+            @Override
+            public List<Evidence.Record> recipeOutputs(String item, Evidence.JsonObject components, Evidence.Scope requested) {
+                if (!available(requested)) return List.of();
+                var records = lookups.get(item);
+                if (records == null) {
+                    if (lookups.size() >= MAX_PLAN_LOOKUPS) {
+                        bounds.add("bounded-jei-plan-lookups");
+                        return List.of();
+                    }
+                    records = planLookup(item, scope, budget, bounds);
+                    lookups.put(item, records);
+                }
+                return records.stream().filter(record -> record.recipePayload().outputs().stream().anyMatch(output ->
+                        item.equals(output.comparisonIdentity())
+                                && (components.values().isEmpty() || components.equals(output.components())))).toList();
+            }
+        }).plan(identity, quantity, scope, depth);
+        if (bounds.isEmpty() || result.coverage() == Evidence.Coverage.UNAVAILABLE) return result;
+        return new Evidence.Result(result.records(), Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, null,
+                String.join("; ", bounds));
+    }
+
+    private List<Evidence.Record> planLookup(String item, Evidence.Scope scope, Toolbox.DocumentBudget budget, Set<String> bounds) {
+        var itemId = ResourceLocation.tryParse(item);
+        if (itemId == null || !itemId.toString().equals(item) || !BuiltInRegistries.ITEM.containsKey(itemId)) return List.of();
+        var query = new Evidence.Query(Evidence.Operation.SEARCH, new Evidence.JsonObject(Map.of(
+                "outputItem", new Evidence.JsonString(item))), MAX_PLAN_RECIPES_PER_LOOKUP, null, null);
+        Snapshot snapshot;
+        try {
+            snapshot = snapshots.capture(scope, query, budget);
+        } catch (RuntimeException failure) {
+            bounds.add("jei-plan-lookup-failed");
+            return List.of();
+        }
+        if (snapshot == null || !sameScope(snapshot.scope(), scope)) {
+            bounds.add("jei-plan-lookup-unavailable");
+            return List.of();
+        }
+        var found = snapshot.queryScoped() ? queryScopedResult(snapshot, query) : querySnapshot(snapshot, query, 0);
+        if (found.nextCursor() != null || found.records().size() > MAX_PLAN_RECIPES_PER_LOOKUP) bounds.add("bounded-jei-plan-page");
+        if (found.coverage() == Evidence.Coverage.ERROR || found.coverage() == Evidence.Coverage.UNAVAILABLE) {
+            bounds.add("jei-plan-lookup-incomplete");
+        }
+        return found.records().stream().filter(record -> record.recipePayload() != null).limit(MAX_PLAN_RECIPES_PER_LOOKUP)
+                .map(JeiProvider::planningRecord).toList();
+    }
+
+    private static Evidence.Record planningRecord(Evidence.Record record) {
+        var payload = record.recipePayload();
+        var constraints = new ArrayList<>(payload.constraints());
+        if (record.payload().values().get("categoryId") instanceof Evidence.JsonString category
+                && category.value().equals("minecraft:brewing")) constraints.add(BREWING_CONSTRAINT);
+        var normalized = new Evidence.RecipePayload(payload.canonicalRecipeId(), payload.inputs().stream()
+                .map(slot -> new Evidence.RecipeSlot(slot.groupId(), slot.alternatives().stream()
+                        .map(alternative -> new Evidence.RecipeAlternative(alternative.type(),
+                                plainIdentity(alternative.type(), alternative.comparisonIdentity()), alternative.components(),
+                                alternative.quantity(), alternative.consumption())).toList())).toList(),
+                payload.outputs().stream().map(output -> new Evidence.RecipeOutput(output.type(),
+                        plainIdentity(output.type(), output.comparisonIdentity()), output.components(), output.quantity())).toList(),
+                payload.remainders(), payload.catalysts(), constraints, payload.decodingStatus());
+        return new Evidence.Record(record.source(), record.kind(), record.title(), record.payload(), record.targets(), normalized);
+    }
+
+    private static String plainIdentity(String type, String identity) {
+        return type.equals("item") ? identity.split("\\|componentsHash=", 2)[0] : identity;
     }
 
     @Override

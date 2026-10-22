@@ -190,11 +190,8 @@ final class NativeServerStorageReader {
             halves.add(new BlockHalf((BaseContainerBlockEntity) blockEntity, pos, "container"));
         }
         for (BlockHalf half : halves) {
-            boolean hasPendingLoot = half.container() instanceof RandomizableContainerBlockEntity randomizable
-                    && randomizable.getLootTable() != null;
-            if (!mayReadContainerContents(hasPendingLoot)) {
-                return unavailable(request, scope, monotonicClock, "pending loot table contents are unavailable");
-            }
+            var refusal = unreadableReason(half.container());
+            if (refusal != null) return unavailable(request, scope, monotonicClock, refusal);
         }
         if (halves.stream().mapToInt(half -> half.container().getContainerSize()).sum() > 256) {
             return unavailable(request, scope, monotonicClock, "container contents exceed the read bound");
@@ -371,8 +368,11 @@ final class NativeServerStorageReader {
                 "section", new Evidence.JsonString(section)));
     }
 
-    static boolean mayReadContainerContents(boolean hasPendingLoot) {
-        return !hasPendingLoot;
+    static String unreadableReason(BaseContainerBlockEntity container) {
+        if (container instanceof RandomizableContainerBlockEntity randomizable && randomizable.getLootTable() != null) {
+            return "pending loot table contents are unavailable";
+        }
+        return null;
     }
 
     static List<Evidence.JsonValue> blockEmptySlots(BaseContainerBlockEntity container, String section) {

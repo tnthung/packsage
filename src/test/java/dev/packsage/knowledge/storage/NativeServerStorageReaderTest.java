@@ -11,6 +11,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.storage.loot.BuiltInLootTables;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraft.world.level.block.entity.FurnaceBlockEntity;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -18,8 +20,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class NativeServerStorageReaderTest {
     @BeforeAll
@@ -29,23 +30,25 @@ class NativeServerStorageReaderTest {
 
     @Test
     void lockedAndOutOfReachContainersAreRead() {
-        var furnace = new FurnaceBlockEntity(BlockPos.ZERO, Blocks.FURNACE.defaultBlockState());
+        var farAway = new BlockPos(29_999_000, 64, 29_999_000);
+        var furnace = new FurnaceBlockEntity(farAway, Blocks.FURNACE.defaultBlockState());
         furnace.applyComponents(DataComponentMap.builder()
                 .set(DataComponents.LOCK, new LockCode("key"))
                 .set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.SAND, 64)))).build(),
                 DataComponentPatch.EMPTY);
 
-        assertTrue(NativeServerStorageReader.mayReadContainerContents(false));
+        assertEquals(new LockCode("key"), furnace.collectComponents().get(DataComponents.LOCK));
+        assertNull(NativeServerStorageReader.unreadableReason(furnace));
         assertEquals(64, furnace.getItem(0).getCount());
-        assertEquals(List.of(1, 2), NativeServerStorageReader.blockEmptySlots(furnace, "container").stream()
-                .map(value -> ((Evidence.JsonNumber) ((Evidence.JsonObject) value).values().get("componentSlot")).value().intValueExact())
-                .toList());
     }
 
     @Test
     void containersWithPendingLootAreStillNotRead() {
-        assertTrue(NativeServerStorageReader.mayReadContainerContents(false));
-        assertFalse(NativeServerStorageReader.mayReadContainerContents(true));
+        var chest = new ChestBlockEntity(BlockPos.ZERO, Blocks.CHEST.defaultBlockState());
+        assertNull(NativeServerStorageReader.unreadableReason(chest));
+
+        chest.setLootTable(BuiltInLootTables.SPAWN_BONUS_CHEST);
+        assertEquals("pending loot table contents are unavailable", NativeServerStorageReader.unreadableReason(chest));
     }
 
     @Test

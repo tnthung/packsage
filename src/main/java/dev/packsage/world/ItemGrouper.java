@@ -19,7 +19,7 @@ public final class ItemGrouper {
 
     public void add(ItemPath location, ItemStack stack, boolean holdsItems) {
         var id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-        var group = groups.computeIfAbsent(id, key -> new Group(stack.getHoverName().getString()));
+        var group = groups.computeIfAbsent(id, key -> new Group(stack.getHoverName().getString(), stack.getItem().getDescription().getString()));
         group.count += stack.getCount();
         group.patches.add(stack.getComponentsPatch());
         if (group.locations.size() < MAX_LOCATIONS) {
@@ -30,7 +30,7 @@ public final class ItemGrouper {
 
     public List<ItemEntry> entries() {
         return groups.entrySet().stream()
-                .map(entry -> new ItemEntry(entry.getKey(), entry.getValue().name, entry.getValue().count,
+                .map(entry -> new ItemEntry(entry.getKey(), entry.getValue().name(), entry.getValue().count,
                         entry.getValue().patches.size(), entry.getValue().locations, entry.getValue().holdsItems))
                 .sorted(Comparator.comparingLong(ItemEntry::count).reversed().thenComparing(ItemEntry::item))
                 .toList();
@@ -38,13 +38,20 @@ public final class ItemGrouper {
 
     private static final class Group {
         final String name;
+        final String defaultName;
         final Set<DataComponentPatch> patches = new HashSet<>();
         final List<ItemPath> locations = new ArrayList<>();
         long count;
         boolean holdsItems;
 
-        Group(String name) {
+        Group(String name, String defaultName) {
             this.name = name;
+            this.defaultName = defaultName;
+        }
+
+        /** The first stack's name labels only a group of one variant; a renamed stack must not name the rest. */
+        String name() {
+            return patches.size() > 1 ? defaultName : name;
         }
     }
 }

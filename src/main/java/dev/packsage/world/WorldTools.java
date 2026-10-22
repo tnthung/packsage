@@ -270,15 +270,25 @@ public final class WorldTools implements KnowledgeProvider {
             return CompletableFuture.completedFuture(entries(request, state, Evidence.Coverage.COMPLETE, null));
         }
         return run(server, new FindSlice(server, anchor, radius, filter, includeNested, state == null ? null : state.search()))
-                .thenApply(read -> entries(request, new EntriesState(read.entries(), read.search(), Evidence.Coverage.COMPLETE, null), read.coverage(), read.note()));
+                .thenApply(read -> entries(request, new EntriesState(read.entries(), read.search(),
+                        state == null ? Evidence.Coverage.COMPLETE : state.coverage(), state == null ? null : state.note()), read.coverage(), read.note()));
     }
 
-    /** Shows up to one list page of entries; the rest, and any search continuation, go behind the next cursor. */
+    /**
+     * Shows up to one list page of entries; the rest, and any search continuation, go behind the next cursor. This
+     * page's coverage and note merge into the state's sticky ones, which every later page reports too.
+     */
     Evidence.Result entries(PackSageTools.ReadRequest request, EntriesState state, Evidence.Coverage coverage, String note) {
+        var partial = state.coverage() != Evidence.Coverage.COMPLETE || coverage != Evidence.Coverage.COMPLETE;
+        var sticky = partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
+        var notes = new LinkedHashSet<String>();
+        if (state.note() != null) notes.add(state.note());
+        if (note != null) notes.add(note);
+        var merged = notes.isEmpty() ? null : String.join("; ", notes);
         var shown = state.pending().subList(0, Math.min(AreaScan.LIST_PAGE, state.pending().size()));
         var rest = List.copyOf(state.pending().subList(shown.size(), state.pending().size()));
-        var next = rest.isEmpty() && state.search() == null ? null : remember(request, new EntriesState(rest, state.search(), Evidence.Coverage.COMPLETE, null));
-        return result(shown.stream().map(entry -> entryRecord(request.scope(), entry)).toList(), coverage, next, note);
+        var next = rest.isEmpty() && state.search() == null ? null : remember(request, new EntriesState(rest, state.search(), sticky, merged));
+        return result(shown.stream().map(entry -> entryRecord(request.scope(), entry)).toList(), sticky, next, merged);
     }
 
     private static Evidence.Result result(List<Evidence.Record> records, Evidence.Coverage coverage, String next, String note) {
@@ -640,14 +650,16 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     <T> CompletionStage<T> run(Executor serverThread, BooleanSupplier worldOpen, ServerWork.Slice<T> slice) {
-        return new ServerWork(serverThread, System::nanoTime, worldOpen).run(slice).toCompletableFuture().orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).handle((value, failure) -> {
+        // ServerWork completes on the server thread; handing off first keeps every later stage, such as record
+        // building and serialization, off it.
+        return new ServerWork(serverThread, System::nanoTime, worldOpen).run(slice).toCompletableFuture().orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).handleAsync((value, failure) -> {
             if (failure == null) return value;
             while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
             if (failure instanceof Failure typed) throw typed;
             if (failure instanceof TimeoutException) throw new Failure(Code.UNAVAILABLE, "the world did not answer in time");
             if (failure instanceof IllegalArgumentException) throw invalid(failure.getMessage());
             throw new Failure(Code.EXTRACTION_FAILED, failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
-        });
+        }, worker);
     }
 
     private static <T> ServerWork.Slice<T> once(Supplier<T> read) {

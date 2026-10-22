@@ -214,7 +214,7 @@ class WorldToolsTest {
         assertTrue(inner.stopped);
 
         var area = WorldTools.spanPayload(new WorldTools.ReadSpan(100, 105));
-        assertEquals("{\"fromGameTime\":100,\"toGameTime\":105}", Evidence.serialize(area));
+        assertEquals(Evidence.deserializeObject("{\"fromGameTime\":100,\"toGameTime\":105}"), area);
     }
 
     @Test

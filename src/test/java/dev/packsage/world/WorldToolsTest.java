@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldToolsTest {
@@ -141,6 +142,58 @@ class WorldToolsTest {
         } finally {
             worker.shutdownNow();
         }
+    }
+
+    /** Counts steps; stops early only when allowed. */
+    private static final class Steps implements ServerWork.Slice<String> {
+        final String name;
+        final int total;
+        final boolean stoppable;
+        int steps;
+        boolean stopped;
+
+        Steps(String name, int total, boolean stoppable) {
+            this.name = name;
+            this.total = total;
+            this.stoppable = stoppable;
+        }
+
+        @Override
+        public boolean step() {
+            return ++steps < total;
+        }
+
+        @Override
+        public String result() {
+            return name + steps + (stopped ? " stopped" : "");
+        }
+
+        @Override
+        public boolean stopEarly() {
+            stopped = stoppable;
+            return stoppable;
+        }
+    }
+
+    @Test
+    void earlyStopsReachTheSlicesInsideCombinators() {
+        var first = new Steps("a", 10, true);
+        var second = new Steps("b", 10, true);
+        var pair = WorldTools.both(first, second);
+        pair.step();
+        assertTrue(pair.stopEarly());
+        assertEquals(java.util.Map.entry("a1 stopped", "b0 stopped"), pair.result());
+
+        var started = WorldTools.then(() -> "x", value -> WorldTools.mapped(new Steps(value, 10, true), text -> text + "!"));
+        assertFalse(started.stopEarly(), "the first step must run before the slice it starts can stop");
+        started.step();
+        started.step();
+        assertTrue(started.stopEarly());
+        assertEquals("x1 stopped!", started.result());
+
+        var stubborn = WorldTools.mapped(new Steps("c", 10, false), text -> text);
+        stubborn.step();
+        assertFalse(stubborn.stopEarly());
     }
 
     @Test

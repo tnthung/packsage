@@ -109,4 +109,5 @@ public interface Toolbox {
     default CompletionStage<Evidence.Result> readConfig(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "config")); }
     default CompletionStage<Evidence.Result> searchHistory(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "history search")); }
     default CompletionStage<Evidence.Result> readHistory(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "history")); }
+    default CompletionStage<Evidence.Result> handle(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, request.tool())); }
 }

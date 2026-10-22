@@ -77,6 +77,28 @@ class ToolboxTest {
     }
 
     @Test
+    void unlistedToolsRouteThroughHandleWithFallThrough() {
+        var called = new ArrayList<String>();
+        var registry = new AdapterRegistry();
+        registry.register(new Adapter("decline"));
+        var expected = new Evidence.Result(List.of(), Evidence.Coverage.values()[0], Evidence.Outcome.PARTIAL, null);
+        registry.register(new Adapter("owner") {
+            @Override public CompletionStage<Evidence.Result> handle(PackSageTools.ReadRequest request, Context context) {
+                called.add(request.tool());
+                return request.tool().equals("inspect_block") ? CompletableFuture.completedFuture(expected)
+                        : CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "not mine"));
+            }
+        });
+        var context = new Toolbox.Context(() -> SCOPE, Map.of(), registry, new Toolbox.DocumentBudget(), null);
+        assertSame(expected, registry.dispatch(new PackSageTools.ReadRequest("inspect_block", new Evidence.JsonObject(Map.of()), SCOPE),
+                context).toCompletableFuture().join());
+        var failure = assertThrows(CompletionException.class, () -> registry.dispatch(
+                new PackSageTools.ReadRequest("no_such_tool", new Evidence.JsonObject(Map.of()), SCOPE), context).toCompletableFuture().join());
+        assertEquals(Toolbox.Code.NOT_HANDLED, ((Toolbox.Failure) failure.getCause()).code());
+        assertEquals(List.of("inspect_block", "no_such_tool"), called);
+    }
+
+    @Test
     void providerQualifiedRelationshipSearchAndFreshReadStayWithTheOwningAdapter() {
         var relationships = new AtomicReference<>(Evidence.deserializeObject(
                 "{\"items\":{\"coverage\":\"COMPLETE\",\"values\":[{\"kind\":\"associated\",\"itemId\":\"minecraft:diamond\"}]}}"));

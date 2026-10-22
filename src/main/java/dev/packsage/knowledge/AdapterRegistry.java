@@ -49,7 +49,7 @@ public final class AdapterRegistry {
                 case "read_config" -> adapters.get(index).readConfig(request, context);
                 case "search_history" -> adapters.get(index).searchHistory(request, context);
                 case "read_history" -> adapters.get(index).readHistory(request, context);
-                default -> CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "unknown tool: " + request.tool()));
+                default -> adapters.get(index).handle(request, context);
             };
         } catch (RuntimeException failure) {
             result = CompletableFuture.failedFuture(failure);

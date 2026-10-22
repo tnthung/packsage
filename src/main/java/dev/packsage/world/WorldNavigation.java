@@ -45,18 +45,21 @@ final class WorldNavigation {
         /** The player's current dimension, or null outside a world. */
         String dimension();
 
+        /** Whether the client has the entity loaded, so it can glow. */
+        boolean tracks(UUID id);
+
         void highlightBlock(BlockPlace place, long untilMillis);
 
         void highlightEntity(UUID id, long untilMillis);
     }
 
     private final Function<BlockPlace, Boolean> blockExists;
-    private final Function<UUID, Boolean> entityAlive;
+    private final Function<UUID, BlockPlace> entityPlace;
     private final Client client;
 
-    WorldNavigation(Function<BlockPlace, Boolean> blockExists, Function<UUID, Boolean> entityAlive, Client client) {
+    WorldNavigation(Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace, Client client) {
         this.blockExists = blockExists;
-        this.entityAlive = entityAlive;
+        this.entityPlace = entityPlace;
         this.client = client;
     }
 
@@ -128,7 +131,7 @@ final class WorldNavigation {
     }
 
     private Evidence.NavigationResult openEntity(UUID id) {
-        if (!Boolean.TRUE.equals(entityAlive.apply(id))) {
+        if (entityPlace.apply(id) == null) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "entity " + id + " is no longer loaded and alive");
         }
         client.highlightEntity(id, System.currentTimeMillis() + HIGHLIGHT_MILLIS);
@@ -150,14 +153,17 @@ final class WorldNavigation {
         });
     }
 
-    /** True when a loaded entity in any dimension has the id and is alive. */
-    static Function<UUID, Boolean> entityLookup(Supplier<MinecraftServer> servers) {
+    /** Where the loaded, living entity with the id stands in any dimension, or null when there is none. */
+    static Function<UUID, BlockPlace> entityLookup(Supplier<MinecraftServer> servers) {
         return id -> onServer(servers, server -> {
             for (var level : server.getAllLevels()) {
                 var entity = level.getEntity(id);
-                if (entity != null) return entity.isAlive();
+                if (entity == null) continue;
+                if (!entity.isAlive()) return null;
+                var pos = entity.blockPosition();
+                return new BlockPlace(level.dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ());
             }
-            return false;
+            return null;
         });
     }
 
@@ -167,6 +173,16 @@ final class WorldNavigation {
             public String dimension() {
                 var level = minecraft.level;
                 return level == null ? null : level.dimension().location().toString();
+            }
+
+            @Override
+            public boolean tracks(UUID id) {
+                var level = minecraft.level;
+                if (level == null) return false;
+                for (var entity : level.entitiesForRendering()) {
+                    if (entity.getUUID().equals(id)) return true;
+                }
+                return false;
             }
 
             @Override
@@ -182,11 +198,11 @@ final class WorldNavigation {
     }
 
     /** Runs a world read on the server thread, waiting at most a few seconds so a click never stalls the client. */
-    private static boolean onServer(Supplier<MinecraftServer> servers, Function<MinecraftServer, Boolean> read) {
+    private static <T> T onServer(Supplier<MinecraftServer> servers, Function<MinecraftServer, T> read) {
         var server = servers.get();
         if (server == null) throw new IllegalStateException(NO_SERVER);
         if (server.isSameThread()) return read.apply(server);
-        var answer = new CompletableFuture<Boolean>();
+        var answer = new CompletableFuture<T>();
         server.tell(new TickTask(server.getTickCount(), () -> {
             try {
                 answer.complete(read.apply(server));

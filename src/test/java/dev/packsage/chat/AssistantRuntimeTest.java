@@ -1809,6 +1809,57 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void openedNavigationDetailIsShownAsANoticeAndOpenedWithoutDetailShowsNothing() throws Exception {
+        ChatContracts.WorldIdentity world = WORLD;
+        Evidence.Scope historicalScope = new Evidence.Scope("world", "old-resources", "team", "runtime", 2);
+        var source = new Evidence.Source(historicalScope, "fixture", "fixture", "chest", 2, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var elsewhere = new Evidence.NavigationTarget(historicalScope, "fixture", "chest", "elsewhere");
+        var here = new Evidence.NavigationTarget(historicalScope, "fixture", "chest", "here");
+        var historical = new ChatContracts.Turn(new ChatContracts.RequestId("navigation-notice"), "question", "answer",
+                List.of(), new ChatContracts.Context("historical context", null, historicalScope),
+                List.of(source), List.of(elsewhere, here),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+        ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-navigation-notice-store"), DIRECT);
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, historicalScope, conversation.id(), historical).toCompletableFuture().join();
+        KnowledgeProvider provider = new KnowledgeProvider() {
+            @Override public String id() { return "fixture"; }
+            @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
+            @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                return CompletableFuture.failedFuture(new IllegalStateException("not read"));
+            }
+            @Override public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                return CompletableFuture.completedFuture(new Evidence.NavigationTarget(scope, target.providerId(), target.sourceHandle(), target.targetId()));
+            }
+            @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED,
+                        target.targetId().equals("elsewhere") ? "10, 64, -3 in minecraft:the_nether" : null);
+            }
+        };
+        var runtime = new AssistantRuntime(store, new FakeBackend(), captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(provider), current), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(MODEL.id(), "instructions", List.of(new ModelBackend.Message(
+                        ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(prepared.submission().question())))),
+                        List.of(), prepared.submission().searchMode(), prepared.submission().requestId().value(), 512),
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(world, SCOPE);
+        var screen = runtime.openScreen();
+        runtime.openSession(new ChatContracts.SessionSummary(world, conversation.id(), "question", "answer", Instant.EPOCH));
+        var navigationMessage = screen.getClass().getDeclaredMethod("navigationError", long.class);
+        navigationMessage.setAccessible(true);
+        var notice = screen.getClass().getDeclaredMethod("navigationNotice");
+        notice.setAccessible(true);
+
+        runtime.navigate(elsewhere);
+        assertEquals("10, 64, -3 in minecraft:the_nether", navigationMessage.invoke(screen, 0L));
+        assertEquals(true, notice.invoke(screen));
+
+        runtime.navigate(here);
+        assertNull(navigationMessage.invoke(screen, 0L));
+    }
+
+    @Test
     void worldSwitchRebuildsKnowledgeAndDropsLateToolResult() throws Exception {
         FakeBackend backend = new FakeBackend();
         AtomicInteger factoryCalls = new AtomicInteger();

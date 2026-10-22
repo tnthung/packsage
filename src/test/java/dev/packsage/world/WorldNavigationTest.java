@@ -19,16 +19,23 @@ class WorldNavigationTest {
     private static final Evidence.Scope RELOADED = new Evidence.Scope("world", "resources-2", "team", "runtime-2", 7);
     private static final BlockPlace PLACE = new BlockPlace("minecraft:overworld", 10, 64, -3);
     private static final UUID MOB = UUID.fromString("3f1c2a4e-0000-4000-8000-000000000001");
+    private static final BlockPlace MOB_PLACE = new BlockPlace("minecraft:overworld", 12, 65, -8);
 
     /** Records highlights instead of drawing them, standing in for the client. */
     private static final class FakeClient implements WorldNavigation.Client {
         String dimension = "minecraft:overworld";
+        boolean tracksMob = true;
         final List<String> drawn = new ArrayList<>();
         final List<Long> until = new ArrayList<>();
 
         @Override
         public String dimension() {
             return dimension;
+        }
+
+        @Override
+        public boolean tracks(UUID id) {
+            return tracksMob && MOB.equals(id);
         }
 
         @Override
@@ -44,9 +51,14 @@ class WorldNavigationTest {
         }
     }
 
-    private static WorldTools tools(Evidence.Scope scope, Function<BlockPlace, Boolean> blockExists, Function<UUID, Boolean> entityAlive,
+    private static WorldTools tools(Evidence.Scope scope, Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace,
                                     FakeClient client) {
-        return new WorldTools(() -> null, new WorldRegistry(), () -> scope, Runnable::run, blockExists, entityAlive, client);
+        return new WorldTools(() -> null, new WorldRegistry(), () -> scope, Runnable::run, blockExists, entityPlace, client);
+    }
+
+    /** The living mob stands at MOB_PLACE; any other id is gone. */
+    private static BlockPlace mob(UUID id) {
+        return MOB.equals(id) ? MOB_PLACE : null;
     }
 
     private static Evidence.NavigationTarget block(Evidence.Scope scope) {
@@ -72,7 +84,7 @@ class WorldNavigationTest {
     @Test
     void openingABrokenBlockOrDeadMobIsUnavailableAndDrawsNothing() {
         var client = new FakeClient();
-        var gone = tools(SCOPE, place -> false, id -> false, client);
+        var gone = tools(SCOPE, place -> false, id -> null, client);
         assertEquals(Evidence.NavigationStatus.UNAVAILABLE, gone.open(block(SCOPE), SCOPE).status());
         assertEquals(Evidence.NavigationStatus.UNAVAILABLE, gone.open(entity(SCOPE), SCOPE).status());
         var failing = tools(SCOPE, place -> {
@@ -87,7 +99,7 @@ class WorldNavigationTest {
         assertEquals(List.of(), client.drawn);
 
         var before = System.currentTimeMillis();
-        var present = tools(SCOPE, PLACE::equals, MOB::equals, client);
+        var present = tools(SCOPE, PLACE::equals, WorldNavigationTest::mob, client);
         assertEquals(Evidence.NavigationStatus.OPENED, present.open(block(SCOPE), SCOPE).status());
         assertEquals(Evidence.NavigationStatus.OPENED, present.open(entity(SCOPE), SCOPE).status());
         assertEquals(List.of("block " + PLACE.text(), "entity " + MOB), client.drawn);
@@ -97,20 +109,43 @@ class WorldNavigationTest {
         client.dimension = "minecraft:the_nether";
         var elsewhere = tools(SCOPE, place -> {
             throw new AssertionError("another dimension is not read");
-        }, MOB::equals, client).open(block(SCOPE), SCOPE);
+        }, WorldNavigationTest::mob, client).open(block(SCOPE), SCOPE);
         assertEquals(Evidence.NavigationStatus.OPENED, elsewhere.status());
         assertEquals("10, 64, -3 in minecraft:overworld", elsewhere.detail());
         assertEquals(List.of(), client.drawn);
+    }
+
+    @Test
+    void aLivingMobTheClientCannotShowOpensWithItsPlaceAndDrawsNothing() {
+        var client = new FakeClient();
+        var tools = tools(SCOPE, PLACE::equals, WorldNavigationTest::mob, client);
+        client.dimension = "minecraft:the_nether";
+        var elsewhere = tools.open(entity(SCOPE), SCOPE);
+        assertEquals(Evidence.NavigationStatus.OPENED, elsewhere.status());
+        assertEquals("12, 65, -8 in minecraft:overworld", elsewhere.detail());
+
+        client.dimension = "minecraft:overworld";
+        client.tracksMob = false;
+        var untracked = tools.open(entity(SCOPE), SCOPE);
+        assertEquals(Evidence.NavigationStatus.OPENED, untracked.status());
+        assertEquals("12, 65, -8 in minecraft:overworld", untracked.detail());
+        assertEquals(List.of(), client.drawn);
+
+        client.tracksMob = true;
+        var shown = tools.open(entity(SCOPE), SCOPE);
+        assertEquals(Evidence.NavigationStatus.OPENED, shown.status());
+        assertNull(shown.detail());
+        assertEquals(List.of("entity " + MOB), client.drawn);
 
         var malformed = new Evidence.NavigationTarget(SCOPE, WorldTools.ID, "block|x", "world-block|x");
-        assertEquals(Evidence.NavigationStatus.ERROR, present.open(malformed, SCOPE).status());
-        assertEquals(List.of(), client.drawn);
+        assertEquals(Evidence.NavigationStatus.ERROR, tools.open(malformed, SCOPE).status());
+        assertEquals(List.of("entity " + MOB), client.drawn);
     }
 
     @Test
     void savedTargetsResolveAfterAReloadWithANewScope() throws Exception {
         var client = new FakeClient();
-        var tools = tools(RELOADED, PLACE::equals, MOB::equals, client);
+        var tools = tools(RELOADED, PLACE::equals, WorldNavigationTest::mob, client);
         var knowledge = new KnowledgeService(List.of(tools), () -> RELOADED);
         for (var saved : List.of(block(SCOPE), entity(SCOPE))) {
             var refreshed = knowledge.refreshNavigation(saved, RELOADED).toCompletableFuture().get();

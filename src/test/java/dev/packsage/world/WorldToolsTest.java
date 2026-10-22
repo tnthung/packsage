@@ -19,7 +19,7 @@ class WorldToolsTest {
     private static final String ENTITY = "3f1c2a4e-0000-4000-8000-000000000001";
 
     private static WorldTools tools() {
-        return new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, Runnable::run, place -> false, id -> false, null);
+        return new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, Runnable::run, place -> false, id -> null, null);
     }
 
     private static Toolbox.Code failure(WorldTools tools, String tool, String arguments) {
@@ -123,7 +123,7 @@ class WorldToolsTest {
         var serverTasks = new java.util.ArrayDeque<Runnable>();
         var worker = java.util.concurrent.Executors.newSingleThreadExecutor(task -> new Thread(task, "world-worker"));
         try {
-            var tools = new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, worker, place -> false, id -> false, null);
+            var tools = new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, worker, place -> false, id -> null, null);
             ServerWork.Slice<String> slice = new ServerWork.Slice<>() {
                 @Override
                 public boolean step() {

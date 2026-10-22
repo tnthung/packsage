@@ -100,15 +100,15 @@ public final class WorldTools implements KnowledgeProvider {
                 WorldNavigation.entityLookup(client::getSingleplayerServer), WorldNavigation.client(client));
     }
 
-    /** Highlights check {@code blockExists} and {@code entityAlive} before drawing through {@code client}. */
+    /** Highlights check {@code blockExists} and {@code entityPlace} before drawing through {@code client}. */
     WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker,
-               Function<BlockPlace, Boolean> blockExists, Function<UUID, Boolean> entityAlive, WorldNavigation.Client client) {
+               Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace, WorldNavigation.Client client) {
         this.server = server;
         this.registry = registry;
         this.scope = scope;
         this.worker = worker;
         this.scan = new AreaScan(registry);
-        this.navigation = new WorldNavigation(blockExists, entityAlive, client);
+        this.navigation = new WorldNavigation(blockExists, entityPlace, client);
     }
 
     @Override

@@ -47,6 +47,7 @@ public final class AssistantScreen extends Screen {
     private String input = "";
     private String navigationError;
     private long navigationErrorExpiresAt;
+    private boolean navigationNotice;
     private boolean explicitWebSearch;
     private boolean includeScreenshot = true;
     private MultilineEditor inputEditor;
@@ -1573,6 +1574,11 @@ public final class AssistantScreen extends Screen {
     String navigationError(long nowMillis) {
         if (navigationError != null && nowMillis >= navigationErrorExpiresAt) showNavigationError(null);
         return navigationError;
+    }
+
+    /** Whether the navigation message is information from a successful open rather than an error. */
+    boolean navigationNotice() {
+        return navigationNotice;
     }
 
     public void submit() {

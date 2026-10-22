@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -81,9 +82,20 @@ public final class WorldTools implements KnowledgeProvider {
 
     /**
      * Entries not shown yet, then the search continuation (null when the search is done or for list_items). Coverage
-     * and note are sticky: a later page of the same listing or search is never more complete than an earlier one.
+     * and note are sticky: a later page of the same listing or search is never more complete than an earlier one. Span
+     * is the game-time span of the read the pending entries came from, or null when unknown.
      */
-    record EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note) {
+    record EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note, ReadSpan span) {
+        EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note) {
+            this(pending, search, coverage, note, null);
+        }
+    }
+
+    /** The game times a sliced read started and ended at; the world can change between its slices. */
+    record ReadSpan(long fromGameTime, long toGameTime) {
+    }
+
+    record Spanned<T>(T value, ReadSpan span) {
     }
 
     private record AreaRead(Center center, Page<BlockSummary> blocks, Page<EntityHandle> entities) {
@@ -222,12 +234,12 @@ public final class WorldTools implements KnowledgeProvider {
         var anchor = anchor(argument(request, "center"));
         var radius = radius(argument(request, "radius"));
         var server = server();
-        return run(server, then(() -> center(server, anchor), center -> {
+        return run(server, spanned(gameTime(server), then(() -> center(server, anchor), center -> {
             var level = level(server, center.dimension());
             return mapped(both(scan.summary(level, center.position(), radius),
                             scan.listEntities(level, center.position(), radius, KindFilter.ANY, null)),
                     pages -> new AreaRead(center, pages.getKey(), pages.getValue()));
-        })).thenApply(read -> area(request.scope(), anchor, radius, read));
+        }))).thenApply(read -> area(request.scope(), anchor, radius, read.value(), read.span()));
     }
 
     private CompletionStage<Evidence.Result> listBlocks(PackSageTools.ReadRequest request) {
@@ -243,7 +255,7 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private interface RecordOf<T> {
-        Evidence.Record record(Evidence.Scope scope, T handle);
+        Evidence.Record record(Evidence.Scope scope, T handle, ReadSpan span);
     }
 
     private <T> CompletionStage<Evidence.Result> list(PackSageTools.ReadRequest request, ListScan<T> listing, RecordOf<T> records) {
@@ -253,12 +265,12 @@ public final class WorldTools implements KnowledgeProvider {
         var cursor = cursor(request);
         var server = server();
         var state = cursor == null ? null : state(cursor, ListState.class);
-        return run(server, then(() -> state == null ? center(server, anchor) : state.center(), center -> mapped(
+        return run(server, spanned(gameTime(server), then(() -> state == null ? center(server, anchor) : state.center(), center -> mapped(
                 listing.scan(level(server, center.dimension()), center.position(), radius, filter, state == null ? null : state.scan()),
-                page -> Map.entry(center, page)))).thenApply(read -> {
-            var page = read.getValue();
-            var next = page.nextCursor() == null ? null : remember(request, new ListState(read.getKey(), page.nextCursor()));
-            return result(page.items().stream().map(handle -> records.record(request.scope(), handle)).toList(), page.coverage(), next, page.note());
+                page -> Map.entry(center, page))))).thenApply(read -> {
+            var page = read.value().getValue();
+            var next = page.nextCursor() == null ? null : remember(request, new ListState(read.value().getKey(), page.nextCursor()));
+            return result(page.items().stream().map(handle -> records.record(request.scope(), handle, read.span())).toList(), page.coverage(), next, page.note());
         });
     }
 
@@ -277,8 +289,9 @@ public final class WorldTools implements KnowledgeProvider {
         var cursor = cursor(request);
         var server = server();
         if (cursor != null) return CompletableFuture.completedFuture(entries(request, state(cursor, EntriesState.class), Evidence.Coverage.COMPLETE, null));
-        return run(server, once(() -> items(server, holder, inventory, filter)))
-                .thenApply(read -> entries(request, new EntriesState(read.entries(), null, Evidence.Coverage.COMPLETE, null), read.coverage(), read.note()));
+        return run(server, spanned(gameTime(server), once(() -> items(server, holder, inventory, filter))))
+                .thenApply(read -> entries(request, new EntriesState(read.value().entries(), null, Evidence.Coverage.COMPLETE, null, read.span()),
+                        read.value().coverage(), read.value().note()));
     }
 
     private CompletionStage<Evidence.Result> findItems(PackSageTools.ReadRequest request) {
@@ -292,10 +305,13 @@ public final class WorldTools implements KnowledgeProvider {
         if (state != null && !state.pending().isEmpty()) {
             return CompletableFuture.completedFuture(entries(request, state, Evidence.Coverage.COMPLETE, null));
         }
-        return run(server, new FindSlice(server, anchor, radius, filter, includeNested, state == null ? null : state.search()))
-                .thenApply(read -> entries(request, new EntriesState(read.entries(), read.search(),
-                        state == null ? Evidence.Coverage.COMPLETE : state.coverage(), state == null ? null : state.note()),
-                        read.coverage(), read.note(), read.bound()));
+        return run(server, spanned(gameTime(server), new FindSlice(server, anchor, radius, filter, includeNested, state == null ? null : state.search())))
+                .thenApply(finished -> {
+                    var read = finished.value();
+                    return entries(request, new EntriesState(read.entries(), read.search(),
+                            state == null ? Evidence.Coverage.COMPLETE : state.coverage(), state == null ? null : state.note(), finished.span()),
+                            read.coverage(), read.note(), read.bound());
+                });
     }
 
     Evidence.Result entries(PackSageTools.ReadRequest request, EntriesState state, Evidence.Coverage coverage, String note) {
@@ -316,18 +332,18 @@ public final class WorldTools implements KnowledgeProvider {
         var merged = notes.isEmpty() ? null : String.join("; ", notes);
         var shown = state.pending().subList(0, Math.min(AreaScan.LIST_PAGE, state.pending().size()));
         var rest = List.copyOf(state.pending().subList(shown.size(), state.pending().size()));
-        var next = rest.isEmpty() && state.search() == null ? null : remember(request, new EntriesState(rest, state.search(), sticky, merged));
+        var next = rest.isEmpty() && state.search() == null ? null : remember(request, new EntriesState(rest, state.search(), sticky, merged, state.span()));
         if (bound != null) notes.add(bound);
         if (!rest.isEmpty()) notes.add("This page shows " + shown.size() + " entries, the page limit; continue with the cursor");
         var records = new ArrayList<Evidence.Record>();
         var roots = new LinkedHashSet<PathRoot>();
         for (var entry : shown) {
-            records.add(entryRecord(request.scope(), entry));
+            records.add(entryRecord(request.scope(), entry, state.span()));
             for (var location : entry.locations()) roots.add(location.root());
         }
         // One record per block or entity holder on the page, so each holder has its own highlight link.
         for (var root : roots) {
-            var holder = holderRecord(request.scope(), root);
+            var holder = holderRecord(request.scope(), root, state.span());
             if (holder != null) records.add(holder);
         }
         return result(records, sticky, next, notes.isEmpty() ? null : String.join("; ", notes));
@@ -377,6 +393,7 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("holder", text(new ItemPath(new PathRoot.Block(place), List.of()).text()));
         payload.put("sections", sections(sections));
         payload.put("inventories", inventories(inventories));
+        putTime(payload, level);
         return evidence(scope, "block|" + place.text(), Evidence.RecordKind.BLOCK, kind + " at " + place.text(), payload,
                 coverage(sections, inventories), WorldNavigation.blockId(place));
     }
@@ -393,6 +410,7 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("holder", text(new ItemPath(root, List.of()).text()));
         payload.put("sections", sections(sections));
         payload.put("inventories", inventories(inventories));
+        putTime(payload, entity.level());
         return evidence(scope, "entity|" + id, Evidence.RecordKind.OTHER, entityTitle(handle), payload,
                 coverage(sections, inventories), WorldNavigation.entityId(id));
     }
@@ -768,6 +786,41 @@ public final class WorldTools implements KnowledgeProvider {
         };
     }
 
+    /** Records the game time before the slice's first step and after its last one. */
+    static <T> ServerWork.Slice<Spanned<T>> spanned(LongSupplier gameTime, ServerWork.Slice<T> slice) {
+        return new ServerWork.Slice<>() {
+            private boolean started;
+            private long from;
+            private long to;
+
+            @Override
+            public boolean step() {
+                if (!started) {
+                    started = true;
+                    from = gameTime.getAsLong();
+                }
+                var more = slice.step();
+                to = gameTime.getAsLong();
+                return more;
+            }
+
+            @Override
+            public Spanned<T> result() {
+                return new Spanned<>(slice.result(), new ReadSpan(from, to));
+            }
+
+            @Override
+            public boolean stopEarly() {
+                return slice.stopEarly();
+            }
+        };
+    }
+
+    /** The overworld's game time, which every dimension shares; server thread only. */
+    private static LongSupplier gameTime(MinecraftServer server) {
+        return () -> server.overworld().getGameTime();
+    }
+
     /** Runs first as one step, then the slice it starts. */
     static <A, T> ServerWork.Slice<T> then(Supplier<A> first, Function<A, ServerWork.Slice<T>> next) {
         return new ServerWork.Slice<>() {
@@ -1010,7 +1063,7 @@ public final class WorldTools implements KnowledgeProvider {
 
     // Records
 
-    private Evidence.Result area(Evidence.Scope scope, Anchor anchor, int radius, AreaRead read) {
+    private Evidence.Result area(Evidence.Scope scope, Anchor anchor, int radius, AreaRead read, ReadSpan span) {
         var summary = read.blocks().items().getFirst();
         var notes = new LinkedHashSet<String>();
         if (read.blocks().note() != null) notes.add(read.blocks().note());
@@ -1051,6 +1104,7 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("notable", new Evidence.JsonObject(roles));
         payload.put("notableCount", number(summary.notable().size()));
         payload.put("unloadedChunks", number(summary.unloadedChunks()));
+        putSpan(payload, span);
         payload.put("entities", new Evidence.JsonArray(read.entities().items().stream()
                 .map(entity -> (Evidence.JsonValue) new Evidence.JsonObject(entityFacts(entity))).toList()));
         var coverage = notes.isEmpty() && read.blocks().coverage() == Evidence.Coverage.COMPLETE
@@ -1061,20 +1115,23 @@ public final class WorldTools implements KnowledgeProvider {
         return result(List.of(record), coverage, null, notes.isEmpty() ? null : String.join("; ", notes));
     }
 
-    private Evidence.Record blockRecord(Evidence.Scope scope, BlockHandle block) {
+    private Evidence.Record blockRecord(Evidence.Scope scope, BlockHandle block, ReadSpan span) {
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("block", text(block.kind()));
         payload.put("place", text(block.place().text()));
+        putSpan(payload, span);
         return evidence(scope, "block|" + block.place().text(), Evidence.RecordKind.BLOCK, block.kind() + " at " + block.place().text(),
                 payload, Evidence.Coverage.COMPLETE, WorldNavigation.blockId(block.place()));
     }
 
-    private Evidence.Record entityRecord(Evidence.Scope scope, EntityHandle entity) {
-        return evidence(scope, "entity|" + entity.id(), Evidence.RecordKind.OTHER, entityTitle(entity), entityFacts(entity),
+    private Evidence.Record entityRecord(Evidence.Scope scope, EntityHandle entity, ReadSpan span) {
+        var payload = new LinkedHashMap<>(entityFacts(entity));
+        putSpan(payload, span);
+        return evidence(scope, "entity|" + entity.id(), Evidence.RecordKind.OTHER, entityTitle(entity), payload,
                 Evidence.Coverage.COMPLETE, WorldNavigation.entityId(entity.id()));
     }
 
-    private Evidence.Record entryRecord(Evidence.Scope scope, ItemEntry entry) {
+    private Evidence.Record entryRecord(Evidence.Scope scope, ItemEntry entry, ReadSpan span) {
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("item", text(entry.item()));
         payload.put("name", text(entry.name()));
@@ -1082,28 +1139,52 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("variants", number(entry.variants()));
         payload.put("holdsItems", new Evidence.JsonBoolean(entry.holdsItems()));
         payload.put("locations", new Evidence.JsonArray(entry.locations().stream().map(path -> (Evidence.JsonValue) text(path.text())).toList()));
+        putSpan(payload, span);
         var first = entry.locations().getFirst();
         return evidence(scope, "item|" + first.text(), Evidence.RecordKind.ITEM, entry.name() + " x" + entry.count(), payload,
                 Evidence.Coverage.COMPLETE, rootTarget(first.root()));
     }
 
     /** A block or entity holder of listed items, with its highlight target; the player has none. */
-    private static Evidence.Record holderRecord(Evidence.Scope scope, PathRoot root) {
+    private static Evidence.Record holderRecord(Evidence.Scope scope, PathRoot root, ReadSpan span) {
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("holder", text(new ItemPath(root, List.of()).text()));
         return switch (root) {
             case PathRoot.Player player -> null;
             case PathRoot.Block of -> {
                 payload.put("place", text(of.place().text()));
+                putSpan(payload, span);
                 yield evidence(scope, "block|" + of.place().text(), Evidence.RecordKind.BLOCK, "Item holder at " + of.place().text(),
                         payload, Evidence.Coverage.COMPLETE, WorldNavigation.blockId(of.place()));
             }
             case PathRoot.Entity of -> {
                 payload.put("id", text(of.id().toString()));
+                putSpan(payload, span);
                 yield evidence(scope, "entity|" + of.id(), Evidence.RecordKind.OTHER, "Item holder entity " + of.id(),
                         payload, Evidence.Coverage.COMPLETE, WorldNavigation.entityId(of.id()));
             }
         };
+    }
+
+    /** Game times in ticks between the read's first and last slice; the world can change in between. */
+    static Evidence.JsonObject spanPayload(ReadSpan span) {
+        var values = new LinkedHashMap<String, Evidence.JsonValue>();
+        values.put("fromGameTime", number(span.fromGameTime()));
+        values.put("toGameTime", number(span.toGameTime()));
+        return new Evidence.JsonObject(values);
+    }
+
+    /**
+     * The game time the record was read at, in ticks (20 per second), so game times in its facts can be aged, and the
+     * day time (24000 ticks per day, 0 at sunrise).
+     */
+    private static void putTime(Map<String, Evidence.JsonValue> payload, net.minecraft.world.level.Level level) {
+        payload.put("gameTime", number(level.getGameTime()));
+        payload.put("dayTime", number(level.getDayTime()));
+    }
+
+    private static void putSpan(Map<String, Evidence.JsonValue> payload, ReadSpan span) {
+        if (span != null) payload.put("readSpan", spanPayload(span));
     }
 
     private static Map<String, Evidence.JsonValue> entityFacts(EntityHandle entity) {

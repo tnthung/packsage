@@ -77,11 +77,16 @@ class AssistantIntegrationTest {
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, searchCall, List.of(), List.of(), null));
         assertEquals(1, backend.submitted.size());
         assertTrue(backend.submitted.get(0).serializedResult().contains("native:torch"));
+        var guideCall = new ModelBackend.ToolCall("search-2", "search_recipe", "{\"filter\":{\"text\":\"torch\",\"provider\":\"guide\"}}");
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, guideCall, List.of(), List.of(), null));
+        assertEquals(2, backend.submitted.size());
+        assertTrue(backend.submitted.get(1).serializedResult().contains("guide:torch"));
         var readCall = new ModelBackend.ToolCall("read-1", "read_evidence", "{\"handles\":[\"native:torch\"]}");
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, readCall, List.of(), List.of(), null));
-        assertEquals(2, backend.submitted.size());
+        assertEquals(3, backend.submitted.size());
         assertEquals(backend.submitted.get(0).callId(), "search-1");
-        assertEquals(backend.submitted.get(1).callId(), "read-1");
+        assertEquals(backend.submitted.get(1).callId(), "search-2");
+        assertEquals(backend.submitted.get(2).callId(), "read-1");
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA,
                 "Use the loaded recipe; the installed guide differs. See the external version note.", null, List.of(), List.of(), null));
         var assistant = new ModelBackend.AssistantOutput("answer-1", ModelBackend.OutputStatus.COMPLETED,
@@ -89,7 +94,7 @@ class AssistantIntegrationTest {
                         "Use the loaded recipe; the installed guide differs. See the external version note.",
                         List.of(new ModelBackend.UrlCitation(0, 7, "Version note", "https://example.test/torch")) )));
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
-                List.of(searchCall, backend.submitted.get(0), readCall, backend.submitted.get(1), assistant), null));
+                List.of(searchCall, backend.submitted.get(0), guideCall, backend.submitted.get(1), readCall, backend.submitted.get(2), assistant), null));
 
         var firstView = runtime.view();
         assertEquals("", firstView.streamingAnswer());
@@ -204,11 +209,14 @@ class AssistantIntegrationTest {
         var current = new AtomicReference<>(SCOPE);
         var service = new KnowledgeService(List.of(new Provider("native", List.of(loaded), false),
                 new Provider("guide", List.of(external), false)), current::get);
-        var tools = new PackSageTools(service::execute);
+        var tools = new PackSageTools(service::execute, service.metadata());
 
         var search = tools.execute(new ModelBackend.ToolCall("search", "search_recipe", "{\"filter\":{\"text\":\"torch\"}}"), SCOPE)
                 .toCompletableFuture().get();
-        assertEquals(List.of(loaded, external), search.records());
+        assertEquals(List.of(loaded), search.records());
+        var guideSearch = tools.execute(new ModelBackend.ToolCall("guide", "search_recipe", "{\"filter\":{\"text\":\"torch\",\"provider\":\"guide\"}}"), SCOPE)
+                .toCompletableFuture().get();
+        assertEquals(List.of(external), guideSearch.records());
         var read = tools.execute(new ModelBackend.ToolCall("read", "read_evidence", "{\"handles\":[\"native:torch\",\"guide:torch\"]}"), SCOPE)
                 .toCompletableFuture().get();
         assertEquals(List.of(loaded, external), read.records());
@@ -310,14 +318,18 @@ class AssistantIntegrationTest {
     @Test
     void preservesUnaffectedEvidenceWhenAnotherProviderFails() throws Exception {
         var loaded = record("native", "torch", Evidence.Authority.LOADED, "7 torches");
-        var service = new KnowledgeService(List.of(new Provider("native", List.of(loaded), false),
-                new Provider("broken", List.of(), true)), () -> SCOPE);
+        var service = new KnowledgeService(List.of(new Provider("broken", List.of(), true),
+                new Provider("native", List.of(loaded), false)), () -> SCOPE);
+        var tools = new PackSageTools(service::execute);
 
-        var response = new PackSageTools(service::execute).execute(new ModelBackend.ToolCall("search", "search_recipe", "{\"filter\":{\"text\":\"torch\"}}"), SCOPE)
+        var response = tools.execute(new ModelBackend.ToolCall("search", "search_recipe", "{\"filter\":{\"text\":\"torch\"}}"), SCOPE)
                 .toCompletableFuture().get();
-        assertTrue(response.records().contains(loaded));
+        assertTrue(response.records().isEmpty());
         assertTrue(response.result().serializedResult().contains("broken"));
         assertTrue(response.result().serializedResult().contains("PARTIAL"));
+        var qualified = tools.execute(new ModelBackend.ToolCall("native", "search_recipe", "{\"filter\":{\"text\":\"torch\",\"provider\":\"native\"}}"), SCOPE)
+                .toCompletableFuture().get();
+        assertTrue(qualified.records().contains(loaded));
     }
 
     @Test

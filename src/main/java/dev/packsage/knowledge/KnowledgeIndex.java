@@ -11,7 +11,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
-public final class KnowledgeIndex {
+public final class KnowledgeIndex implements RecipePlanner.Source {
     private List<Evidence.Record> records = List.of();
     private Evidence.Scope scope;
     private Evidence.Coverage snapshotCoverage = Evidence.Coverage.UNAVAILABLE;
@@ -64,7 +64,7 @@ public final class KnowledgeIndex {
         return recipeOutputs(identity, new Evidence.JsonObject(Map.of()), requestedScope);
     }
 
-    public synchronized List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components,
+    @Override public synchronized List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components,
                                                              Evidence.Scope requestedScope) {
         if (!available(requestedScope)) return List.of();
         return records.stream().filter(record -> record.recipePayload() != null)
@@ -72,7 +72,7 @@ public final class KnowledgeIndex {
                         && (components.values().isEmpty() || output.components().equals(components)))).toList();
     }
 
-    synchronized boolean available(Evidence.Scope requestedScope) {
+    @Override public synchronized boolean available(Evidence.Scope requestedScope) {
         return scope != null && scope.equals(requestedScope) && snapshotAvailable;
     }
 

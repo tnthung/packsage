@@ -12,9 +12,14 @@ import java.util.stream.Stream;
 public final class RecipePlanner {
     private static final int MAX_NODES = 256;
     private static final int MAX_BRANCHES = 64;
-    private final KnowledgeIndex index;
+    private final Source index;
 
-    public RecipePlanner(KnowledgeIndex index) {
+    public interface Source {
+        boolean available(Evidence.Scope scope);
+        List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components, Evidence.Scope scope);
+    }
+
+    public RecipePlanner(Source index) {
         this.index = index;
     }
 

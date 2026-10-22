@@ -38,8 +38,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -68,11 +70,14 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     /** Remaining roots of a find_items walk; ordinal resumes inside the first one. */
-    private record FindState(List<PathRoot> roots, int ordinal) {
+    record FindState(List<PathRoot> roots, int ordinal) {
     }
 
-    /** Entries not shown yet, then the search continuation (null when the search is done or for list_items). */
-    private record EntriesState(List<ItemEntry> pending, FindState search) {
+    /**
+     * Entries not shown yet, then the search continuation (null when the search is done or for list_items). Coverage
+     * and note are sticky: a later page of the same listing or search is never more complete than an earlier one.
+     */
+    record EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note) {
     }
 
     private record AreaRead(Center center, Page<BlockSummary> blocks, Page<EntityHandle> entities) {
@@ -85,16 +90,19 @@ public final class WorldTools implements KnowledgeProvider {
     private final WorldRegistry registry;
     private final Supplier<Evidence.Scope> scope;
     private final AreaScan scan;
+    private final Executor worker;
     private final Map<String, Cursor> cursors = new LinkedHashMap<>(16, 0.75f, true);
 
-    public WorldTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope) {
-        this(client::getSingleplayerServer, registry, scope);
+    /** The worker runs everything after a server read, so record building never lands on the server thread. */
+    public WorldTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker) {
+        this(client::getSingleplayerServer, registry, scope, worker);
     }
 
-    WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope) {
+    WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker) {
         this.server = server;
         this.registry = registry;
         this.scope = scope;
+        this.worker = worker;
         this.scan = new AreaScan(registry);
     }
 
@@ -247,7 +255,7 @@ public final class WorldTools implements KnowledgeProvider {
         var server = server();
         if (cursor != null) return CompletableFuture.completedFuture(entries(request, state(cursor, EntriesState.class), Evidence.Coverage.COMPLETE, null));
         return run(server, once(() -> items(server, holder, inventory, filter)))
-                .thenApply(read -> entries(request, new EntriesState(read.entries(), null), read.coverage(), read.note()));
+                .thenApply(read -> entries(request, new EntriesState(read.entries(), null, Evidence.Coverage.COMPLETE, null), read.coverage(), read.note()));
     }
 
     private CompletionStage<Evidence.Result> findItems(PackSageTools.ReadRequest request) {
@@ -262,14 +270,14 @@ public final class WorldTools implements KnowledgeProvider {
             return CompletableFuture.completedFuture(entries(request, state, Evidence.Coverage.COMPLETE, null));
         }
         return run(server, new FindSlice(server, anchor, radius, filter, includeNested, state == null ? null : state.search()))
-                .thenApply(read -> entries(request, new EntriesState(read.entries(), read.search()), read.coverage(), read.note()));
+                .thenApply(read -> entries(request, new EntriesState(read.entries(), read.search(), Evidence.Coverage.COMPLETE, null), read.coverage(), read.note()));
     }
 
     /** Shows up to one list page of entries; the rest, and any search continuation, go behind the next cursor. */
-    private Evidence.Result entries(PackSageTools.ReadRequest request, EntriesState state, Evidence.Coverage coverage, String note) {
+    Evidence.Result entries(PackSageTools.ReadRequest request, EntriesState state, Evidence.Coverage coverage, String note) {
         var shown = state.pending().subList(0, Math.min(AreaScan.LIST_PAGE, state.pending().size()));
         var rest = List.copyOf(state.pending().subList(shown.size(), state.pending().size()));
-        var next = rest.isEmpty() && state.search() == null ? null : remember(request, new EntriesState(rest, state.search()));
+        var next = rest.isEmpty() && state.search() == null ? null : remember(request, new EntriesState(rest, state.search(), Evidence.Coverage.COMPLETE, null));
         return result(shown.stream().map(entry -> entryRecord(request.scope(), entry)).toList(), coverage, next, note);
     }
 
@@ -628,9 +636,11 @@ public final class WorldTools implements KnowledgeProvider {
      * inline, which would chain slices within one tick.
      */
     private <T> CompletionStage<T> run(MinecraftServer server, ServerWork.Slice<T> slice) {
-        var work = new ServerWork(task -> server.tell(new TickTask(server.getTickCount(), task)), System::nanoTime,
-                () -> this.server.get() == server && server.isRunning());
-        return work.run(slice).toCompletableFuture().orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).handle((value, failure) -> {
+        return run(task -> server.tell(new TickTask(server.getTickCount(), task)), () -> this.server.get() == server && server.isRunning(), slice);
+    }
+
+    <T> CompletionStage<T> run(Executor serverThread, BooleanSupplier worldOpen, ServerWork.Slice<T> slice) {
+        return new ServerWork(serverThread, System::nanoTime, worldOpen).run(slice).toCompletableFuture().orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).handle((value, failure) -> {
             if (failure == null) return value;
             while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
             if (failure instanceof Failure typed) throw typed;
@@ -729,7 +739,7 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     /** The state behind the request's cursor, or null without one. */
-    private Object cursor(PackSageTools.ReadRequest request) {
+    Object cursor(PackSageTools.ReadRequest request) {
         if (!(argument(request, "cursor") instanceof Evidence.JsonString token)) return null;
         Cursor cursor;
         synchronized (cursors) {

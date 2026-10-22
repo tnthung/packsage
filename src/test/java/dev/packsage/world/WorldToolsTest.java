@@ -19,7 +19,7 @@ class WorldToolsTest {
     private static final String ENTITY = "3f1c2a4e-0000-4000-8000-000000000001";
 
     private static WorldTools tools() {
-        return new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE);
+        return new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, Runnable::run);
     }
 
     private static Toolbox.Code failure(WorldTools tools, String tool, String arguments) {
@@ -116,5 +116,66 @@ class WorldToolsTest {
         }
         assertEquals(Toolbox.Code.INVALID_CURSOR, failure(tools, "find_items",
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"radius\":24,\"cursor\":\"" + first + "\"}"));
+    }
+
+    @Test
+    void resultContinuationsRunOnTheWorkerNotTheServerThread() throws Exception {
+        var serverTasks = new java.util.ArrayDeque<Runnable>();
+        var worker = java.util.concurrent.Executors.newSingleThreadExecutor(task -> new Thread(task, "world-worker"));
+        try {
+            var tools = new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, worker);
+            ServerWork.Slice<String> slice = new ServerWork.Slice<>() {
+                @Override
+                public boolean step() {
+                    return false;
+                }
+
+                @Override
+                public String result() {
+                    return "read";
+                }
+            };
+            var mapped = tools.run(serverTasks::add, () -> true, slice).thenApply(value -> Thread.currentThread().getName());
+            while (!serverTasks.isEmpty()) serverTasks.poll().run();
+            assertEquals("world-worker", mapped.toCompletableFuture().get(5, java.util.concurrent.TimeUnit.SECONDS));
+        } finally {
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
+    void continuationPagesKeepTheFirstPagesPartialCoverageAndNotes() {
+        var tools = tools();
+        var arguments = Evidence.deserializeObject("{\"filter\":{\"ids\":[\"minecraft:stone\"]}}");
+        var request = new PackSageTools.ReadRequest("find_items", arguments, SCOPE);
+        var entries = new java.util.ArrayList<ItemEntry>();
+        for (var i = 0; i < 70; i++) {
+            var location = ItemPath.parse("player:" + ENTITY + ">minecraft/main#" + i + "@minecraft:item_" + i);
+            entries.add(new ItemEntry("minecraft:item_" + i, "Item " + i, 1, 1, java.util.List.of(location), false));
+        }
+        var note = "3 chunks in range were not loaded and were not searched";
+        var first = tools.entries(request, new WorldTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null),
+                Evidence.Coverage.PARTIAL, note);
+        assertEquals(64, first.records().size());
+        assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
+        var continued = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
+                "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"cursor\":\"" + first.nextCursor() + "\"}"), SCOPE);
+        var state = (WorldTools.EntriesState) tools.cursor(continued);
+        var last = tools.entries(continued, state, Evidence.Coverage.COMPLETE, null);
+        assertEquals(6, last.records().size());
+        assertEquals(null, last.nextCursor());
+        assertEquals(Evidence.Coverage.PARTIAL, last.coverage());
+        assertEquals(Evidence.Outcome.PARTIAL, last.outcome());
+        assertEquals(note, last.detail());
+
+        var search = new WorldTools.FindState(java.util.List.of(), 0);
+        var merged = tools.entries(request, new WorldTools.EntriesState(java.util.List.of(), search, Evidence.Coverage.PARTIAL, note),
+                Evidence.Coverage.COMPLETE, "Inventory minecraft/container could not be opened");
+        assertEquals(Evidence.Coverage.PARTIAL, merged.coverage());
+        assertEquals(note + "; Inventory minecraft/container could not be opened", merged.detail());
+        var carried = (WorldTools.EntriesState) tools.cursor(new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
+                "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"cursor\":\"" + merged.nextCursor() + "\"}"), SCOPE));
+        assertEquals(Evidence.Coverage.PARTIAL, carried.coverage());
+        assertEquals(merged.detail(), carried.note());
     }
 }

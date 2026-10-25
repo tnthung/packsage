@@ -33,7 +33,8 @@ public final class PackSageSettings {
     private String modelId;
     private ModelBackend.ReasoningEffort reasoningEffort;
     private volatile String developerPrompt;
-    private long saveGeneration;
+    private volatile long saveGeneration;
+    private final Object saveLock = new Object();
 
     public PackSageSettings(boolean openPaused, boolean automaticWebSearch, int historyTurns, int historicalTokens) {
         this.openPaused = openPaused;
@@ -97,21 +98,32 @@ public final class PackSageSettings {
     }
 
     public void save(Path path) {
-        Properties properties = properties();
-        try {
-            if (path.getParent() != null) Files.createDirectories(path.getParent());
-            var temporary = Files.createTempFile(path.toAbsolutePath().getParent(), "packsage-", ".properties.tmp");
+        saveGeneration++;
+        synchronized (saveLock) {
+            Properties properties = properties();
             try {
-                try (OutputStream output = Files.newOutputStream(temporary)) {
-                    properties.store(output, "PackSage settings");
+                if (path.getParent() != null) Files.createDirectories(path.getParent());
+                var temporary = Files.createTempFile(path.toAbsolutePath().getParent(), "packsage-", ".properties.tmp");
+                try {
+                    try (OutputStream output = Files.newOutputStream(temporary)) {
+                        properties.store(output, "PackSage settings");
+                    }
+                    Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } finally {
+                    Files.deleteIfExists(temporary);
                 }
-                Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } finally {
-                Files.deleteIfExists(temporary);
+            } catch (IOException exception) {
+                throw new IllegalStateException("could not save PackSage settings", exception);
             }
-            saveGeneration++;
-        } catch (IOException exception) {
-            throw new IllegalStateException("could not save PackSage settings", exception);
+        }
+    }
+
+    /** Worker-side restore: screen saves share this lock, and client-side changes invalidate captured generations. */
+    public boolean saveIfUnchanged(PackSageSettings snapshot, Runnable write) {
+        synchronized (saveLock) {
+            if (saveGeneration != snapshot.saveGeneration) return false;
+            write.run();
+            return true;
         }
     }
 
@@ -150,24 +162,27 @@ public final class PackSageSettings {
     public ModelBackend.ReasoningEffort reasoningEffort() { return reasoningEffort; }
     public String developerPrompt() { return developerPrompt; }
 
-    public void setOpenPaused(boolean value) { openPaused = value; }
-    public void setAutomaticWebSearch(boolean value) { automaticWebSearch = value; }
-    public void setHideInactiveAdapters(boolean value) { hideInactiveAdapters = value; }
-    public void setSendShortcut(SendShortcut value) { sendShortcut = value == null ? SendShortcut.ENTER : value; }
-    public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; }
-    public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; }
+    public void setOpenPaused(boolean value) { openPaused = value; saveGeneration++; }
+    public void setAutomaticWebSearch(boolean value) { automaticWebSearch = value; saveGeneration++; }
+    public void setHideInactiveAdapters(boolean value) { hideInactiveAdapters = value; saveGeneration++; }
+    public void setSendShortcut(SendShortcut value) { sendShortcut = value == null ? SendShortcut.ENTER : value; saveGeneration++; }
+    public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; saveGeneration++; }
+    public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; saveGeneration++; }
 
     public boolean setDeveloperPrompt(String value) {
         if (value != null && (value.isBlank() || value.length() > MAX_DEVELOPER_PROMPT_LENGTH)) return false;
         developerPrompt = value;
+        saveGeneration++;
         return true;
     }
 
     public void saveDeveloperPrompt(Path path, String value) {
-        PackSageSettings candidate = withDeveloperPrompt(dev.packsage.model.GroundingInstructions.defaultInstructions().equals(value) ? null : value);
-        candidate.save(path);
-        setDeveloperPrompt(candidate.developerPrompt());
         saveGeneration++;
+        synchronized (saveLock) {
+            PackSageSettings candidate = withDeveloperPrompt(dev.packsage.model.GroundingInstructions.defaultInstructions().equals(value) ? null : value);
+            candidate.save(path);
+            setDeveloperPrompt(candidate.developerPrompt());
+        }
     }
 
     public PackSageSettings withDeveloperPrompt(String value) {
@@ -179,26 +194,29 @@ public final class PackSageSettings {
         copy.hideInactiveAdapters = hideInactiveAdapters;
         copy.debugBridge = debugBridge;
         copy.debugBridgePort = debugBridgePort;
-        copy.saveGeneration = saveGeneration;
         if (!copy.setDeveloperPrompt(value)) throw new IllegalArgumentException("developerPrompt is out of bounds");
+        copy.saveGeneration = saveGeneration;
         return copy;
     }
 
     public boolean setHistoryTurns(int value) {
         if (value < 1 || value > MAX_HISTORY_TURNS) return false;
         historyTurns = value;
+        saveGeneration++;
         return true;
     }
 
     public boolean setHistoricalTokens(int value) {
         if (value < 1 || value > MAX_HISTORICAL_TOKENS) return false;
         historicalTokens = value;
+        saveGeneration++;
         return true;
     }
 
     public boolean setSessionsBeforeCollapse(int value) {
         if (value < 1 || value > MAX_SESSIONS_BEFORE_COLLAPSE) return false;
         sessionsBeforeCollapse = value;
+        saveGeneration++;
         return true;
     }
 

@@ -36,7 +36,7 @@ import java.util.function.Supplier;
 public final class MinecraftDebugAdapter implements DebugRouter.Game {
     private record ServerSession(IntegratedServer server, UUID player) { }
     private record PendingScreenshot(boolean previousHideGui, CompletableFuture<NativeImage> image) { }
-    private record PendingPrompt(PackSageSettings before, PackSageSettings candidate) { }
+    private record PendingPrompt(PackSageSettings live, PackSageSettings before, PackSageSettings candidate) { }
 
     private final Minecraft client;
     private final AssistantRuntime runtime;
@@ -238,7 +238,7 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                     var pending = call(client, () -> {
                         var settings = runtime.settings();
                         String text = body.get("text").isJsonNull() ? null : body.get("text").getAsString();
-                        return new PendingPrompt(settings.withDeveloperPrompt(settings.developerPrompt()), settings.withDeveloperPrompt(
+                        return new PendingPrompt(settings, settings.withDeveloperPrompt(settings.developerPrompt()), settings.withDeveloperPrompt(
                                 dev.packsage.model.GroundingInstructions.defaultInstructions().equals(text) ? null : text));
                     });
                     for (int attempt = 0; pending != null && attempt < 3; attempt++) {
@@ -251,18 +251,15 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                                 return null;
                             }
                             // A screen save wins for fields it changed; persist the latest snapshot before publishing.
-                            return new PendingPrompt(settings.withDeveloperPrompt(settings.developerPrompt()), settings.withDeveloperPrompt(
+                            return new PendingPrompt(settings, settings.withDeveloperPrompt(settings.developerPrompt()), settings.withDeveloperPrompt(
                                     Objects.equals(settings.developerPrompt(), written.before().developerPrompt())
                                             ? written.candidate().developerPrompt() : settings.developerPrompt()));
                         });
                     }
                     if (pending != null) {
-                        var restore = pending.before();
-                        call(client, () -> {
-                            // Keep this rare debug-only file write with its check so a screen save cannot slip between them.
-                            if (runtime.settings().sameSnapshot(restore)) promptWriter.accept(restore, restore.developerPrompt());
-                            return null;
-                        });
+                        var latest = pending;
+                        var restore = call(client, () -> latest.live().sameSnapshot(latest.before()) ? latest.before() : null);
+                        if (restore != null) latest.live().saveIfUnchanged(restore, () -> promptWriter.accept(restore, restore.developerPrompt()));
                         throw new IllegalStateException("Prompt save conflict: settings kept changing; retry the request");
                     }
                     yield execute(DebugRouter.Operation.PROMPT_GET, body);

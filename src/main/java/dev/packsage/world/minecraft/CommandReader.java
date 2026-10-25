@@ -103,7 +103,13 @@ public final class CommandReader<S> {
             if (child instanceof SnapshotNode<?> captured) {
                 argument = captured.argument;
             } else if (child instanceof ArgumentCommandNode<?, ?> typed) {
-                argument = new Argument("", child.getName(), typeId.apply(typed.getType()),
+                String type;
+                try {
+                    type = typeId.apply(typed.getType());
+                } catch (RuntimeException exception) {
+                    type = typed.getType().getClass().getSimpleName();
+                }
+                argument = new Argument("", child.getName(), type,
                         typed.getType().getExamples().stream().limit(4).toList(), allowed);
             }
             if (argument != null && skipped++ >= argumentOffset) {
@@ -161,7 +167,13 @@ public final class CommandReader<S> {
                             } catch (RuntimeException exception) {
                                 examples = List.of();
                             }
-                            argument = new Argument("", node.getName(), typeId.apply(typed.getType()), examples, false);
+                            String type;
+                            try {
+                                type = typeId.apply(typed.getType());
+                            } catch (RuntimeException exception) {
+                                type = typed.getType().getClass().getSimpleName();
+                            }
+                            argument = new Argument("", node.getName(), type, examples, false);
                         }
                         copy = new SnapshotNode<>(node.getName(), node.getUsageText(), node.getCommand() != null, node.canUse(source), argument);
                         copies.put(node, copy);

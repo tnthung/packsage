@@ -673,7 +673,7 @@ final class WorldKnowledgeTools {
         try {
             var id = BuiltInRegistries.COMMAND_ARGUMENT_TYPE.getKey(ArgumentTypeInfos.byClass(type));
             return id == null ? type.getClass().getSimpleName() : id.toString();
-        } catch (IllegalArgumentException exception) {
+        } catch (RuntimeException exception) {
             return type.getClass().getSimpleName();
         }
     }

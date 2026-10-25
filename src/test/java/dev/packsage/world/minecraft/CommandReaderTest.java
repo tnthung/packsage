@@ -164,6 +164,16 @@ class CommandReaderTest {
     }
 
     @Test
+    void argumentTypeLookupFailuresUseTheClassName() {
+        var reader = new CommandReader<>(dispatcher, 0, type -> { throw new IllegalStateException("broken type registry"); });
+        var snapshot = reader.snapshot();
+        while (snapshot.step()) { }
+        assertEquals(List.of("IntegerArgumentType", "IntegerArgumentType", "StringArgumentType", "StringArgumentType"),
+                snapshot.result().read("fill").arguments().stream().map(CommandReader.Argument::type).toList());
+        assertEquals(reader.read("fill"), snapshot.result().read("fill"));
+    }
+
+    @Test
     void snapshotKeepsArgumentsWhoseExamplesThrow() {
         class BrokenExamples implements com.mojang.brigadier.arguments.ArgumentType<String> {
             public String parse(com.mojang.brigadier.StringReader reader) { return reader.readUnquotedString(); }

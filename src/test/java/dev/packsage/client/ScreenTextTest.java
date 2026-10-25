@@ -21,6 +21,33 @@ class ScreenTextTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
 
     @Test
+    void legacyQuestToolResultsStillRenderStoredSourcesAndLinks() {
+        var source = new Evidence.Source(SCOPE, "native", "1", "quest:1000000000000002", 1, java.time.Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var target = new Evidence.NavigationTarget(SCOPE, "native", source.sourceHandle(), "1000000000000002");
+        var turn = new ChatContracts.Turn(new ChatContracts.RequestId("legacy-progress"), "Did I finish it?",
+                "[Old quest](native:quest:1000000000000002)", List.of(
+                new ModelBackend.ToolCall("old-progress", "read_progress", "{\"handles\":[\"native:quest:1000000000000002\"]}"),
+                new ModelBackend.ToolResult("old-progress", """
+                        {"coverage":"COMPLETE","outcome":"COMPLETE","records":[{
+                          "source":{"providerId":"native","providerVersion":"1","sourceHandle":"quest:1000000000000002",
+                            "observedAt":"1970-01-01T00:00:00Z","observedGeneration":1,
+                            "activity":"ACTIVE","coverage":"COMPLETE","authority":"LOADED","provenance":[],
+                            "scope":{"worldSession":"world","resourcesLocale":"en_us","playerTeam":"team",
+                              "providerRuntime":"runtime","requestGeneration":1}},
+                          "kind":"QUEST","title":"Old quest","payload":{"completed":true}}]}
+                        """, false)),
+                new ChatContracts.Context("{}", null, SCOPE), List.of(source), List.of(target),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+
+        var span = ScreenText.inlineLines(turn.answer(), turn.navigationTargets(), List.of(), turn.sources(),
+                ScreenText.sourceLabels(turn)).getFirst().spans().getFirst();
+        assertEquals("Old quest", span.text());
+        assertEquals(source, span.source());
+        assertEquals(target, span.target());
+    }
+
+    @Test
     void nativeBrewingAndPotionCitationsUseExactSavedDetailsForReadableLabels() {
         String brewingHandle = "brewing:potion:56:0:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
         String splashHandle = "brewing:container:3:0:1123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -185,6 +212,19 @@ class ScreenTextTest {
                 "world-block|minecraft:overworld|10,64,-3");
         var spans = ScreenText.inlineLines("Chest [world:block|minecraft:overworld|10,64,-3].", List.of(target)).getFirst().spans();
         assertEquals("in world", spans.get(1).text());
+        assertEquals(target, spans.get(1).target());
+    }
+
+    @Test
+    void progressTargetsReadOpenAdvancements() {
+        var target = new Evidence.NavigationTarget(SCOPE, "progress", "progress|minecraft/minecraft:story/mine_stone",
+                "advancement|minecraft:story/root|minecraft:story/mine_stone");
+        assertEquals("Open advancements: mine_stone", ScreenText.navigationLabel(target));
+        var bare = new Evidence.NavigationTarget(SCOPE, "progress", "progress|examplemod/examplemod:root",
+                "advancement|examplemod:root|examplemod:root");
+        assertEquals("Open advancements: root", ScreenText.navigationLabel(bare));
+        var spans = ScreenText.inlineLines("Stone [progress:progress|minecraft/minecraft:story/mine_stone].", List.of(target)).getFirst().spans();
+        assertEquals("Advancements", spans.get(1).text());
         assertEquals(target, spans.get(1).target());
     }
 
@@ -415,6 +455,54 @@ class ScreenTextTest {
             return java.util.Optional.empty();
         }, net.minecraft.network.chat.Style.EMPTY);
         return runs;
+    }
+
+    @Test
+    void unresolvedModelAliasIsNotShownRaw() {
+        for (String closing : List.of("]", ")")) {
+            String text = "Done. [ref:e36be868.1.1f" + closing;
+            var spans = ScreenText.inlineLines(text, List.of()).getFirst().spans();
+            assertEquals("Done.", spans.stream().map(ScreenText.InlineSpan::text).reduce("", String::concat));
+            assertTrue(spans.stream().noneMatch(span -> span.text().contains("ref:")));
+            assertEquals("Done.", ScreenText.markdownLines(text).getFirst().getString());
+            assertEquals("Before after.", ScreenText.inlineLines("Before [ref:e36be868.1.1f" + closing + " after.", List.of())
+                    .getFirst().spans().stream().map(ScreenText.InlineSpan::text).reduce("", String::concat));
+        }
+        String prose = "[see note) [ref:unknown] [ref:ffffffff.9.9 extra) [ref:E36be868.1.1f]";
+        assertEquals(prose, ScreenText.inlineLines(prose, List.of()).getFirst().spans().stream()
+                .map(ScreenText.InlineSpan::text).reduce("", String::concat));
+        assertEquals(prose, ScreenText.markdownLines(prose).getFirst().getString());
+    }
+
+    @Test
+    void aliasShapedMarkdownLabelKeepsRecordedWorldNavigation() {
+        var target = new Evidence.NavigationTarget(SCOPE, "world", "item|player:abc>minecraft/inventory#0@minecraft:torch",
+                "world-item|player:abc>minecraft/inventory#0@minecraft:torch");
+        var spans = ScreenText.inlineLines("[ref:e36be868.1.1f](world:item|player:abc>minecraft/inventory#0@minecraft:torch)",
+                List.of(target)).getFirst().spans();
+
+        assertEquals(1, spans.size());
+        assertEquals("ref:e36be868.1.1f", spans.getFirst().text());
+        assertEquals(target, spans.getFirst().target());
+    }
+
+    @Test
+    void citationsFromEveryRegisteredProviderBecomeChips() {
+        // ClientAssistant.knowledge registers native/config/world/progress; AssistantRuntime adds history.
+        assertEquals(List.of("native", "config", "history", "world", "progress", "journal"), ScreenText.CITATION_PROVIDERS);
+        for (String provider : List.of("native", "config", "history", "world", "progress", "journal")) {
+            var source = new Evidence.Source(SCOPE, provider, "1", "note:abc", 1, java.time.Instant.EPOCH,
+                    Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+            for (String marker : List.of("[" + provider + ":note:abc]", "\uE200cite\uE202" + provider + ":note:abc\uE201",
+                    "[Recorded note](" + provider + ":note:abc)")) {
+                var spans = ScreenText.inlineLines(marker, List.of(), List.of(), List.of(source)).getFirst().spans();
+                assertEquals(1, spans.size(), marker);
+                assertEquals(source, spans.getFirst().source(), marker);
+                assertFalse(spans.getFirst().text().contains(provider + ":note:abc"), marker);
+            }
+            assertEquals(provider.equals("native") ? "[game]" : provider.equals("journal") ? "[in world]" : "[" + provider + "]",
+                    ScreenText.markdownLines("[" + provider + ":note:abc]").getFirst().getString());
+        }
     }
 
     @Test

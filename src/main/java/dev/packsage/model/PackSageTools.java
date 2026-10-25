@@ -19,6 +19,8 @@ public final class PackSageTools {
     private static final String WORLD_RADIUS = "{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":256}";
     private static final String WORLD_FILTER = "{\"type\":\"object\",\"properties\":{\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256}},\"additionalProperties\":false}";
     private static final String WORLD_ITEM_FILTER = "{\"type\":\"object\",\"properties\":{\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256},\"tooltip\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}}},\"additionalProperties\":false}";
+    private static final String WORLD_ID = "{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}";
+    private static final String WORLD_ID_OR_TAG = "{\"type\":[\"string\",\"null\"],\"maxLength\":257,\"pattern\":\"^#?[a-z0-9_.-]+:[a-z0-9/._-]+$\"}";
     private static final String WORLD_CURSOR = "{\"type\":[\"string\",\"null\"],\"maxLength\":1024}";
     private static final List<String> NATIVE_REGISTRIES = List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion", "active_effect", "player_attribute", "dimension", "dimension_type");
     private static final com.google.gson.Gson JSON = new com.google.gson.GsonBuilder().serializeNulls()
@@ -65,6 +67,8 @@ public final class PackSageTools {
         for (var name : List.of("search_recipe", "search_registry", "read_evidence",
                 "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
                 "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
+                "list_progress", "inspect_progress", "list_statistics",
+                "read_loot", "locate", "search_commands", "read_command",
                 "search_journal", "remember", "update_note", "forget_note")) {
             var properties = new JsonObject();
             var required = new JsonArray();
@@ -130,6 +134,43 @@ public final class PackSageTools {
                     properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
                     required.add("filter");
                 }
+                case "list_progress" -> {
+                    properties.add("tree", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":600}"));
+                    properties.add("status", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"maxItems\":5,\"items\":{\"type\":\"string\",\"enum\":[\"done\",\"in_progress\",\"available\",\"locked\",\"hidden\"]}}"));
+                    properties.add("text", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256}"));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                }
+                case "inspect_progress" -> { properties.add("id", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":600}")); required.add("id"); }
+                case "list_statistics" -> {
+                    properties.add("categories", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"maxItems\":16,\"items\":{\"type\":\"string\",\"maxLength\":128,\"pattern\":\"^[a-z0-9_.:-]+$\"}}"));
+                    var subjects = JsonParser.parseString(WORLD_FILTER).getAsJsonObject();
+                    subjects.add("type", JsonParser.parseString("[\"object\",\"null\"]"));
+                    properties.add("subjects", subjects);
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                }
+                case "read_loot" -> {
+                    properties.add("table", JsonParser.parseString(WORLD_ID));
+                    properties.add("block", JsonParser.parseString(WORLD_ID));
+                    properties.add("entity", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256}"));
+                    properties.add("place", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":300}"));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                }
+                case "locate" -> {
+                    properties.add("biome", JsonParser.parseString(WORLD_ID_OR_TAG));
+                    properties.add("structure", JsonParser.parseString(WORLD_ID_OR_TAG));
+                    properties.add("center", JsonParser.parseString(WORLD_ANCHOR));
+                    properties.add("radius", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":512}"));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                }
+                case "search_commands" -> {
+                    properties.add("text", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256}"));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                }
+                case "read_command" -> {
+                    properties.add("name", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":512}"));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                    required.add("name");
+                }
                 case "search_journal" -> {
                     properties.add("filter", JsonParser.parseString("{\"type\":\"object\",\"properties\":{\"time\":{\"type\":[\"object\",\"null\"],\"properties\":{\"after\":{\"type\":[\"string\",\"null\"],\"maxLength\":64},\"before\":{\"type\":[\"string\",\"null\"],\"maxLength\":64},\"lastMinutes\":{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":5256000}},\"additionalProperties\":false},\"area\":{\"type\":[\"object\",\"null\"],\"properties\":{\"center\":{\"type\":[\"object\",\"null\"],\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"player\",\"entity\",\"block\",\"note\"]},\"id\":{\"type\":[\"string\",\"null\"],\"maxLength\":36},\"place\":{\"type\":[\"string\",\"null\"],\"maxLength\":300}},\"required\":[\"type\"],\"additionalProperties\":false},\"radius\":{\"type\":\"integer\",\"minimum\":0,\"maximum\":256}},\"required\":[\"radius\"],\"additionalProperties\":false},\"dimension\":{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"},\"types\":{\"type\":[\"array\",\"null\"],\"maxItems\":17,\"items\":{\"type\":\"string\",\"enum\":[\"place\",\"break\",\"deposit\",\"withdraw\",\"death\",\"kill\",\"dimension\",\"advancement\",\"profession\",\"cured\",\"converted\",\"trade\",\"raid_start\",\"raid_end\",\"structure\",\"explosion\",\"note\"]}},\"subjects\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256},\"notesOnly\":{\"type\":[\"boolean\",\"null\"]}},\"additionalProperties\":false}"));
                     properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
@@ -193,6 +234,13 @@ public final class PackSageTools {
                 case "remember" -> "Save a note when the player reports something they did, built, achieved or found. Pass their statement as text, at for the place they mean (the player for 'here'), and a few lowercase tags such as build, achievement or resource. If possibleDuplicates shows the same thing, update_note it instead. Save silently; mention notes only when the player asks.";
                 case "update_note" -> "Correct a saved note when the player changes, moves or renames what they reported: replace its text, move it with at, clear its place or replace its tags. Find its id with search_journal notesOnly.";
                 case "forget_note" -> "Delete a saved note when the player says it no longer applies or asks you to forget it.";
+                case "list_progress" -> "List progress entries: Minecraft advancements now, quest books later. The first page starts with one record per tree (an advancement tab) with done and total counts, then entries in tree order with status done, in_progress, available, locked or hidden, 64 records per page. Filter by tree id, statuses, or text in the title or description. Hidden entries have no title until earned; do not guess what they are. Read criteria, requirements and rewards with inspect_progress.";
+                case "inspect_progress" -> "Read one progress entry by its returned id: description, each criterion with its done state and when it was met (for example the biomes still missing for Adventuring Time), what it requires and unlocks, and rewards. A hidden entry that is not earned returns only its status.";
+                case "list_statistics" -> "Read the player's own counters since the world began: blocks mined; items crafted, used, broken, picked up and dropped; mobs killed and killed by; and custom counters such as deaths, jumps, play time and distance walked. categories narrows to mined, crafted, used, broken, picked_up, dropped, killed, killed_by or custom. subjects filters block, item, entity or counter ids, tags or name text. Distances are in blocks, times in seconds and damage in health points. Counters never incremented are zero and are listed only when named in subjects.ids. Pass categories together with subjects, or a named id gets a zero row in every category that can count it. 64 per page.";
+                case "read_loot" -> "Read a loot table as the game defines it, from a table id, a block id (its drops), an entity type id or loaded entity id (its death drops) or a container place (its pending loot and seed, before it is opened). Returns pools, rolls, entries, conditions and functions with item and tag ids, plus the item ids it can produce. It never rolls the table; explain chances from rolls, weights and conditions.";
+                case "locate" -> "Find the nearest biome or structure (ids or tags such as #minecraft:village) around center within radius chunks (default 100), without loading or generating chunks. Biomes are sampled from the biome source; structures come back as found (present in a generated chunk) or predicted (placement and biome checks pass for an ungenerated chunk), up to 5 nearest first, each with a link that marks the place. Say which kind each result is.";
+                case "search_commands" -> "List the server's commands matching text in their name or usage, with whether the player can run them and short usage. Read one with read_command. PackSage never runs commands; explain what to type.";
+                case "read_command" -> "Read one command or subcommand path such as fill or execute if block: its usage forms for the player's permission level, every argument with its type and examples, redirects and whether the player can run it.";
                 default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
             }, schema.toString()));
         }

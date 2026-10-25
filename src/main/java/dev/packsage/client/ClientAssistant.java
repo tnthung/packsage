@@ -18,11 +18,14 @@ import dev.packsage.model.ModelBackend;
 import dev.packsage.model.chatgpt.ChatGptAuth;
 import dev.packsage.model.chatgpt.ChatGptBackend;
 import dev.packsage.world.PausedWorkPump;
+import dev.packsage.world.ProgressTools;
 import dev.packsage.world.ServerWork;
 import dev.packsage.world.WorldRegistry;
 import dev.packsage.world.WorldTools;
 import dev.packsage.world.minecraft.MinecraftEntities;
 import dev.packsage.world.minecraft.MinecraftInventories;
+import dev.packsage.world.minecraft.MinecraftProgress;
+import dev.packsage.world.minecraft.MinecraftStatistics;
 import dev.packsage.world.minecraft.MinecraftWorld;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -382,7 +385,10 @@ public final class ClientAssistant {
         world.register(new MinecraftInventories(() -> client.getSingleplayerServer().registryAccess()));
         world.register(new MinecraftWorld());
         world.register(new MinecraftEntities());
+        world.register(new MinecraftProgress());
+        world.register(new MinecraftStatistics());
         providers.add(new WorldTools(client, world, scope, workerExecutor, serverWork, () -> client.submit(() -> GameplayContextCapture.focus(client))));
+        providers.add(new ProgressTools(client, world, scope, workerExecutor, serverWork));
         providers.add(new JournalTools(journal, scope, workerExecutor, client::getSingleplayerServer,
                 anchor -> CompletableFuture.failedFuture(new dev.packsage.knowledge.Toolbox.Failure(
                         dev.packsage.knowledge.Toolbox.Code.UNAVAILABLE, "journal anchor resolution is not available yet"))));

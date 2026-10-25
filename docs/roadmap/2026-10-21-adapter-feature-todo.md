@@ -28,6 +28,22 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 - [x] PackSage — item pages keep holder links and their continuation within the 64-record tool-output limit (N1); installed recheck passed with 52 items, 12 holders and a cursor.
 - [ ] PackSage — prompt: the armor reply omitted eligible enchantments from returned evidence, and the mule reply gave no coordinates, the farm reply did not reason from villager times, a broad storage reply did not continue its cursor, and one reply ended with a malformed source token.
 
+### Villager trades (v2)
+
+- [ ] Minecraft — villager and wandering-trader offers, distinguishing item facts and prices for the player through `inspect_entity`, without generating trades; implemented with automated tests, not yet checked in game ([world knowledge plan](../plans/2026-10-25-v2-world-knowledge.md)).
+
+### Loot tables (v2)
+
+- [ ] Minecraft — `read_loot` reads table definitions, block/entity drops and pending container loot without rolling or unpacking it; implemented with automated tests, not yet checked in game.
+
+### Biome and structure locating (v2)
+
+- [ ] Minecraft — `locate` resolves biome and structure ids/tags, returns coordinates and persistent place links, and continues paced searches without loading or generating chunks. Structures distinguish found starts from predictions; unknown saved-start confirmation never proves absence. Place columns await visibility checks in the Nether at default render distance and the Overworld at 8 chunks, and saved links await a full-restart check. Implemented with automated tests, not yet checked in game ([final stage 3 checklist](2026-10-22-v2-minecraft-only.md)).
+
+### Command discovery and usage (v2)
+
+- [ ] Minecraft — `search_commands` and `read_command` read a paced detached command snapshot, with usage, argument names/types and player permissions, without running commands; implemented with automated tests, not yet checked in game.
+
 ### Held and offhand item facts (v2)
 
 - [ ] Minecraft — `inspect_item` and `list_items` read the held and offhand items through `held` and `offhand`, with full item facts, tooltip lines and always-present `enchantmentEligibility`; implemented with automated tests, not yet checked in game ([plan](../plans/2026-10-25-v2-item-reading-consolidation.md)).
@@ -43,6 +59,11 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 ### Tooltip item search (v2)
 
 - [ ] Minecraft — `filter.tooltip` in `list_items` and `find_items` matches the tooltip lines shown to the player, and unreadable tooltips make the page PARTIAL; implemented with automated tests, not yet checked in game.
+
+### Progress and statistics (v2)
+
+- [ ] Minecraft — advancement progress with per-criterion state and tab links; implemented with automated tests, not yet checked in game ([final acceptance checks](2026-10-22-v2-minecraft-only.md#progress-and-statistics)).
+- [ ] Minecraft — player statistics in blocks and seconds; implemented with automated tests, not yet checked in game. Acceptance runs once at the end of all stages, as listed in the [v2 note](2026-10-22-v2-minecraft-only.md#progress-and-statistics).
 
 ### Inventory and equipment inspection
 

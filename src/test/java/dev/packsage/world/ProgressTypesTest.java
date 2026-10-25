@@ -19,6 +19,7 @@ class ProgressTypesTest {
         assertEquals("minecraft:story/root", bare.local());
         assertThrows(IllegalArgumentException.class, () -> ProgressId.parse(" "));
     }
+
     @Test
     void progressIdRejectsInvalidAdaptersAndParsesEdgeCases() {
         assertThrows(IllegalArgumentException.class, () -> new ProgressId("a:b", "x"));
@@ -43,6 +44,12 @@ class ProgressTypesTest {
         assertThrows(IllegalArgumentException.class, () -> new ProgressHandle(id, id, null, ProgressStatus.DONE));
         assertThrows(IllegalArgumentException.class, () -> new ProgressHandle(id, id, " ", ProgressStatus.AVAILABLE));
         assertDoesNotThrow(() -> new ProgressHandle(id, id, null, ProgressStatus.HIDDEN));
+    }
+
+    @Test
+    void statisticRequiresACategory() {
+        assertThrows(IllegalArgumentException.class, () -> new Statistic("minecraft", null, "minecraft:stone", "Stone", 1, StatisticUnit.COUNT, 1));
+        assertThrows(IllegalArgumentException.class, () -> new Statistic("minecraft", " ", "minecraft:stone", "Stone", 1, StatisticUnit.COUNT, 1));
     }
 
     @Test

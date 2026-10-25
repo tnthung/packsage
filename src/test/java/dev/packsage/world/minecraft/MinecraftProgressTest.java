@@ -1,0 +1,314 @@
+package dev.packsage.world.minecraft;
+
+import dev.packsage.knowledge.Evidence;
+import dev.packsage.world.Progress;
+import dev.packsage.world.ProgressCriterion;
+import dev.packsage.world.ProgressEntry;
+import dev.packsage.world.ProgressHandle;
+import dev.packsage.world.ProgressId;
+import dev.packsage.world.ProgressSnapshot;
+import dev.packsage.world.ProgressStatus;
+import dev.packsage.world.ProgressTree;
+import dev.packsage.world.ServerWork;
+import net.minecraft.SharedConstants;
+import net.minecraft.advancements.Advancement;
+import net.minecraft.advancements.AdvancementHolder;
+import net.minecraft.advancements.AdvancementProgress;
+import net.minecraft.advancements.AdvancementRequirements;
+import net.minecraft.advancements.AdvancementRewards;
+import net.minecraft.advancements.AdvancementTree;
+import net.minecraft.advancements.AdvancementType;
+import net.minecraft.advancements.CriteriaTriggers;
+import net.minecraft.advancements.DisplayInfo;
+import net.minecraft.advancements.critereon.ImpossibleTrigger;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.Bootstrap;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.IntStream;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+
+class MinecraftProgressTest {
+    private static final String RELOADED = "advancements were reloaded during the read; repeat it";
+
+    @BeforeAll
+    static void bootstrap() {
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
+    }
+
+    @Test
+    void statusCoversDoneInProgressAvailableLockedAndHidden() {
+        assertEquals(ProgressStatus.DONE, MinecraftProgress.status(true, true, true, false));
+        assertEquals(ProgressStatus.HIDDEN, MinecraftProgress.status(false, true, true, true));
+        assertEquals(ProgressStatus.IN_PROGRESS, MinecraftProgress.status(false, true, false, false));
+        assertEquals(ProgressStatus.AVAILABLE, MinecraftProgress.status(false, false, false, null));
+        assertEquals(ProgressStatus.AVAILABLE, MinecraftProgress.status(false, false, false, true));
+        assertEquals(ProgressStatus.LOCKED, MinecraftProgress.status(false, false, false, false));
+    }
+
+    @Test
+    void snapshotListsDisplayedTreesAndEntriesAndSkipsDisplaylessAdvancements() {
+        var world = new World();
+        var other = world.add(displayed("test:b/root", null, false, "c"));
+        for (var i = 0; i < 143; i++) {
+            world.add(displayed("test:b/child_" + i, other, false, "c"));
+        }
+        var recipes = world.add(displayless("test:recipes/root", null));
+        world.add(displayless("test:recipes/torch", recipes));
+        var root = world.add(displayed("test:a/root", null, false, "c"), "c");
+        world.add(displayed("test:a/second", root, false, "c"));
+        var middle = world.add(displayless("test:a/recipe", root));
+        world.add(displayed("test:a/recipe_child", middle, false, "c"));
+        world.add(displayed("test:a/hidden", root, true, "c"));
+        var first = world.add(displayed("test:a/first", root, false, "c"), "c");
+        world.add(displayed("test:a/first_child", first, false, "c"));
+
+        var steps = new int[1];
+        var snapshot = run(new MinecraftProgress().snapshot(world.source()), steps);
+
+        assertNull(snapshot.note());
+        assertEquals(List.of(new ProgressTree(id("test:a/root"), "test:a/root title", 2, 6),
+                new ProgressTree(id("test:b/root"), "test:b/root title", 0, 144)), snapshot.trees());
+        var locals = snapshot.entries().stream().map(entry -> entry.handle().id().local()).toList();
+        var expected = new ArrayList<>(List.of("test:a/root", "test:a/first", "test:a/first_child", "test:a/hidden", "test:a/recipe_child",
+                "test:a/second", "test:b/root"));
+        IntStream.range(0, 143).mapToObj(i -> "test:b/child_" + i).sorted().forEach(expected::add);
+        assertEquals(expected, locals);
+        assertTrue(steps[0] >= 3, "steps: " + steps[0]);
+        var firstEntry = snapshot.entries().get(locals.indexOf("test:a/first"));
+        assertEquals(new ProgressEntry(new ProgressHandle(id("test:a/first"), id("test:a/root"), "test:a/first title", ProgressStatus.DONE),
+                "test:a/first description"), firstEntry);
+        assertEquals(ProgressStatus.AVAILABLE, snapshot.entries().get(locals.indexOf("test:a/first_child")).handle().status());
+        assertEquals(ProgressStatus.AVAILABLE, snapshot.entries().get(locals.indexOf("test:a/recipe_child")).handle().status());
+        assertEquals(ProgressStatus.AVAILABLE, snapshot.entries().get(6).handle().status());
+        assertEquals(ProgressStatus.LOCKED, snapshot.entries().get(7).handle().status());
+    }
+
+    @Test
+    void hiddenUnearnedEntriesCarryNoTitleDescriptionOrCriteria() {
+        var world = new World();
+        var root = world.add(displayed("test:a/root", null, false, "c"), "c");
+        var hidden = world.add(displayed("test:a/secret", root, true, "x", "y"), "x");
+        world.add(displayed("test:a/after_secret", hidden, false, "c"));
+        var reader = new MinecraftProgress();
+
+        var entry = entry(run(reader.snapshot(world.source()), new int[1]), "test:a/secret");
+        var handle = new ProgressHandle(id("test:a/secret"), id("test:a/root"), null, ProgressStatus.HIDDEN);
+        assertEquals(new ProgressEntry(handle, null), entry);
+        assertEquals(Progress.hidden(handle), reader.inspect(world.source(), "test:a/secret"));
+        assertEquals(List.of(handle), reader.inspect(world.source(), "test:a/root").unlocks());
+        assertEquals(List.of(handle), reader.inspect(world.source(), "test:a/after_secret").requires());
+
+        world.progress.get(hidden).grantProgress("y");
+        var done = entry(run(reader.snapshot(world.source()), new int[1]), "test:a/secret");
+        assertEquals(ProgressStatus.DONE, done.handle().status());
+        assertEquals("test:a/secret title", done.handle().title());
+        assertEquals("test:a/secret description", done.description());
+        assertEquals(2, reader.inspect(world.source(), "test:a/secret").criteria().size());
+    }
+
+    @Test
+    void inspectReportsCriteriaWithDatesRequirementsUnlocksAndRewards() {
+        var world = new World();
+        var root = world.add(displayed("test:adventure/root", null, false, "c"), "c");
+        var adventuring = world.add(Advancement.Builder.advancement().parent(root)
+                .display(display("Adventuring Time", "Discover every biome", AdvancementType.CHALLENGE, false))
+                .rewards(AdvancementRewards.Builder.experience(100).addRecipe(ResourceLocation.withDefaultNamespace("torch")))
+                .addCriterion("minecraft:plains", impossible()).addCriterion("minecraft:desert", impossible())
+                .build(ResourceLocation.parse("test:adventure/adventuring_time")), "minecraft:plains");
+        world.add(displayed("test:adventure/next", adventuring, false, "c"));
+        var middle = world.add(displayless("test:adventure/recipe", adventuring));
+        world.add(displayed("test:adventure/recipe_child", middle, false, "c"));
+        var alternatives = world.add(Advancement.Builder.advancement().parent(root)
+                .display(display("Either", "Any one of two", AdvancementType.GOAL, false))
+                .addCriterion("a", impossible()).addCriterion("b", impossible()).addCriterion("c", impossible())
+                .requirements(new AdvancementRequirements(List.of(List.of("a", "b"), List.of("c"))))
+                .build(ResourceLocation.parse("test:adventure/either")), "b", "c");
+        var reader = new MinecraftProgress();
+
+        var progress = reader.inspect(world.source(), "test:adventure/adventuring_time");
+
+        var tree = id("test:adventure/root");
+        assertEquals(new ProgressHandle(id("test:adventure/adventuring_time"), tree, "Adventuring Time", ProgressStatus.IN_PROGRESS), progress.handle());
+        assertEquals("Discover every biome", progress.description());
+        var plains = world.progress.get(adventuring).getCriterion("minecraft:plains").getObtained();
+        assertNotNull(plains);
+        assertEquals(List.of(new ProgressCriterion("minecraft:plains", "label minecraft:plains", true, plains),
+                new ProgressCriterion("minecraft:desert", "label minecraft:desert", false, null)), progress.criteria());
+        assertEquals(List.of(new ProgressHandle(tree, tree, "test:adventure/root title", ProgressStatus.DONE)), progress.requires());
+        assertEquals(List.of(new ProgressHandle(id("test:adventure/next"), tree, "test:adventure/next title", ProgressStatus.LOCKED),
+                new ProgressHandle(id("test:adventure/recipe_child"), tree, "test:adventure/recipe_child title", ProgressStatus.LOCKED)),
+                progress.unlocks());
+        assertEquals(List.of(progress.handle()), reader.inspect(world.source(), "test:adventure/recipe_child").requires());
+        assertEquals(List.of("experience: 100", "recipe: minecraft:torch"), progress.rewards());
+        assertNull(progress.doneAt());
+        var facts = progress.facts().get("minecraft");
+        assertEquals(Evidence.Coverage.COMPLETE, facts.coverage());
+        var values = facts.facts().values();
+        assertEquals(new Evidence.JsonString("challenge"), values.get("frame"));
+        assertEquals(1, ((Evidence.JsonNumber) values.get("criteriaDone")).value().intValue());
+        assertEquals(2, ((Evidence.JsonNumber) values.get("criteriaTotal")).value().intValue());
+        assertFalse(values.containsKey("requirements"));
+
+        var either = reader.inspect(world.source(), "test:adventure/either");
+        assertEquals(ProgressStatus.DONE, either.handle().status());
+        var latest = world.progress.get(alternatives).getCriterion("b").getObtained();
+        var c = world.progress.get(alternatives).getCriterion("c").getObtained();
+        assertEquals(latest.isAfter(c) ? latest : c, either.doneAt());
+        assertEquals(List.of("a", "b", "c"), either.criteria().stream().map(ProgressCriterion::id).toList());
+        assertEquals(new Evidence.JsonArray(List.of(
+                new Evidence.JsonArray(List.of(new Evidence.JsonString("a"), new Evidence.JsonString("b"))),
+                new Evidence.JsonArray(List.of(new Evidence.JsonString("c"))))), either.facts().get("minecraft").facts().values().get("requirements"));
+        assertEquals(2, ((Evidence.JsonNumber) either.facts().get("minecraft").facts().values().get("criteriaDone")).value().intValue());
+
+        assertNull(reader.inspect(world.source(), "test:adventure/recipe"));
+        assertNull(reader.inspect(world.source(), "test:adventure/missing"));
+        assertNull(reader.inspect(world.source(), "not a valid id"));
+    }
+
+    @Test
+    void readingNeverStartsProgressOrChangesCriteria() {
+        var world = new World();
+        var root = world.add(displayed("test:a/root", null, false, "c"), "c");
+        var child = world.add(displayed("test:a/child", root, false, "x", "y"), "x");
+        world.add(displayed("test:a/secret", child, true, "z"));
+        world.add(displayless("test:a/recipe", root));
+        var keys = new HashSet<>(world.progress.keySet());
+        var before = criteria(world);
+        var reader = new MinecraftProgress();
+
+        run(reader.snapshot(world.source()), new int[1]);
+        for (var local : List.of("test:a/root", "test:a/child", "test:a/secret", "test:a/recipe")) {
+            reader.inspect(world.source(), local);
+        }
+
+        assertEquals(keys, world.progress.keySet());
+        assertEquals(before, criteria(world));
+    }
+
+    @Test
+    void reloadBetweenSlicesStopsThePartialSnapshotWithoutTouchingStaleHolders() {
+        var world = new World();
+        var root = world.add(displayed("test:a/root", null, false, "c"));
+        for (var i = 0; i < 149; i++) {
+            world.add(displayed("test:a/child_" + i, root, false, "c"));
+        }
+        var slice = new MinecraftProgress().snapshot(world.source());
+
+        assertTrue(slice.step());
+        var lookups = world.lookups;
+        assertTrue(lookups > 0);
+        world.generation = new Object();
+        while (slice.step()) {
+            // Runs until the slice notices the reload.
+        }
+
+        assertEquals(lookups, world.lookups);
+        var snapshot = slice.result();
+        assertEquals(RELOADED, snapshot.note());
+        assertFalse(snapshot.entries().isEmpty());
+        assertTrue(snapshot.entries().size() <= 64);
+        assertTrue(snapshot.trees().isEmpty());
+    }
+
+    private static ProgressSnapshot run(ServerWork.Slice<ProgressSnapshot> slice, int[] steps) {
+        do {
+            steps[0]++;
+        } while (slice.step());
+        return slice.result();
+    }
+
+    private static ProgressEntry entry(ProgressSnapshot snapshot, String local) {
+        return snapshot.entries().stream().filter(entry -> entry.handle().id().local().equals(local)).findFirst().orElseThrow();
+    }
+
+    private static Map<String, Map<String, Optional<Instant>>> criteria(World world) {
+        var states = new LinkedHashMap<String, Map<String, Optional<Instant>>>();
+        world.progress.entrySet().stream().sorted(Comparator.comparing(entry -> entry.getKey().id().toString())).forEach(entry -> {
+            var criteria = new LinkedHashMap<String, Optional<Instant>>();
+            for (var name : entry.getKey().value().requirements().names()) {
+                var criterion = entry.getValue().getCriterion(name);
+                assertEquals(criterion.isDone(), criterion.getObtained() != null);
+                criteria.put(name, Optional.ofNullable(criterion.getObtained()));
+            }
+            states.put(entry.getKey().id().toString(), criteria);
+        });
+        return states;
+    }
+
+    private static ProgressId id(String local) {
+        return new ProgressId("minecraft", local);
+    }
+
+    private static AdvancementHolder displayed(String id, AdvancementHolder parent, boolean hidden, String... criteria) {
+        var builder = Advancement.Builder.advancement().display(display(id + " title", id + " description", AdvancementType.TASK, hidden));
+        if (parent != null) builder.parent(parent);
+        for (var criterion : criteria) {
+            builder.addCriterion(criterion, impossible());
+        }
+        return builder.build(ResourceLocation.parse(id));
+    }
+
+    private static AdvancementHolder displayless(String id, AdvancementHolder parent) {
+        var builder = Advancement.Builder.recipeAdvancement().addCriterion("c", impossible());
+        if (parent != null) builder.parent(parent);
+        return builder.build(ResourceLocation.parse(id));
+    }
+
+    private static DisplayInfo display(String title, String description, AdvancementType type, boolean hidden) {
+        return new DisplayInfo(new ItemStack(Items.STONE), Component.literal(title), Component.literal(description), Optional.empty(),
+                type, true, true, hidden);
+    }
+
+    private static net.minecraft.advancements.Criterion<ImpossibleTrigger.TriggerInstance> impossible() {
+        return CriteriaTriggers.IMPOSSIBLE.createCriterion(new ImpossibleTrigger.TriggerInstance());
+    }
+
+    /** A loaded advancement set with the player's progress; looking up a holder outside the map fails the test. */
+    private static final class World {
+        final AdvancementTree tree = new AdvancementTree();
+        final Map<AdvancementHolder, AdvancementProgress> progress = new HashMap<>();
+        Object generation = new Object();
+        int lookups;
+
+        AdvancementHolder add(AdvancementHolder holder, String... granted) {
+            tree.addAll(List.of(holder));
+            var entry = new AdvancementProgress();
+            entry.update(holder.value().requirements());
+            for (var criterion : granted) {
+                entry.grantProgress(criterion);
+            }
+            progress.put(holder, entry);
+            return holder;
+        }
+
+        MinecraftProgress.Source source() {
+            return new MinecraftProgress.Source(() -> generation, () -> tree, holder -> {
+                lookups++;
+                var entry = progress.get(holder);
+                if (entry == null) fail("progress looked up for an unknown holder " + holder.id());
+                return entry;
+            }, name -> "label " + name);
+        }
+    }
+}

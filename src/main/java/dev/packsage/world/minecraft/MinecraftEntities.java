@@ -17,6 +17,7 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.gossip.GossipType;
 import net.minecraft.world.entity.animal.IronGolem;
 import net.minecraft.world.entity.animal.horse.AbstractHorse;
+import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.entity.npc.Villager;
 
 import java.lang.reflect.Field;
@@ -76,6 +77,10 @@ public final class MinecraftEntities implements EntityInspector {
             values.put("passengers", new Evidence.JsonArray(passengers));
         }
         if (entity instanceof Villager villager) villager(villager, values);
+        if (entity instanceof AbstractVillager merchant) {
+            var server = merchant.level().getServer();
+            MinecraftTrades.facts(merchant, server == null ? null : MinecraftInventories.host(server), values);
+        }
         if (entity instanceof IronGolem golem) values.put("playerCreated", new Evidence.JsonBoolean(golem.isPlayerCreated()));
         return values.isEmpty() ? null : new Evidence.JsonObject(values);
     }

@@ -62,6 +62,20 @@ public final class NativeItemFacts {
         }
     }
 
+    /** The components that differ from the item's defaults, as a status object when over {@code maxBytes} or not encodable. */
+    public static Evidence.JsonObject componentChanges(ItemStack stack, HolderLookup.Provider registries, int maxBytes) {
+        try {
+            var encoded = DataComponentPatch.CODEC.encodeStart(registries.createSerializationContext(JsonOps.INSTANCE),
+                    stack.getComponentsPatch()).result();
+            if (encoded.isEmpty() || !encoded.get().isJsonObject()) return status("unknown");
+            var text = encoded.get().toString();
+            if (text.getBytes(StandardCharsets.UTF_8).length > maxBytes) return status("bounded");
+            return Evidence.deserializeObject(text);
+        } catch (RuntimeException failure) {
+            return status("unknown");
+        }
+    }
+
     private static Evidence.JsonObject status(String status) {
         return new Evidence.JsonObject(Map.of("status", new Evidence.JsonString(status)));
     }

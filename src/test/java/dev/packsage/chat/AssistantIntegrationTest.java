@@ -229,93 +229,6 @@ class AssistantIntegrationTest {
     }
 
     @Test
-    void readProgressRequeriesObservedQuestAndPreservesProviderUnavailable() throws Exception {
-        var initial = questRecord(false);
-        var refreshed = questRecord(true);
-        var current = new AtomicReference<Evidence.Result>(new Evidence.Result(List.of(refreshed), Evidence.Coverage.COMPLETE,
-                Evidence.Outcome.COMPLETE, null));
-        var queries = new ArrayList<Evidence.Query>();
-        KnowledgeProvider provider = new Provider("quests", List.of(initial), false) {
-            @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
-                queries.add(query);
-                return query.operation() == Evidence.Operation.SEARCH
-                        ? CompletableFuture.completedFuture(new Evidence.Result(List.of(initial), Evidence.Coverage.COMPLETE,
-                        Evidence.Outcome.COMPLETE, null)) : CompletableFuture.completedFuture(current.get());
-            }
-        };
-        var service = new KnowledgeService(List.of(provider), () -> SCOPE);
-
-        service.execute(new PackSageTools.ReadRequest("search_document",
-                new Evidence.JsonObject(Map.of("query", new Evidence.JsonString("quest"))), SCOPE))
-                .toCompletableFuture().get();
-        var progress = service.execute(new PackSageTools.ReadRequest("read_progress",
-                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString("quests:quest"))))), SCOPE))
-                .toCompletableFuture().get();
-        assertEquals(List.of(refreshed), progress.records());
-        assertEquals(Evidence.Operation.GET, queries.get(1).operation());
-        assertEquals("quest", ((Evidence.JsonString) queries.get(1).arguments().values().get("id")).value());
-
-        current.set(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null));
-        var unavailable = service.execute(new PackSageTools.ReadRequest("read_progress",
-                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(new Evidence.JsonString("quests:quest"))))), SCOPE))
-                .toCompletableFuture().get();
-        assertEquals(Evidence.Coverage.PARTIAL, unavailable.coverage());
-        assertEquals(Evidence.Outcome.PARTIAL, unavailable.outcome());
-        assertEquals(1, unavailable.records().size());
-        assertEquals(Evidence.Coverage.UNAVAILABLE, unavailable.records().get(0).source().coverage());
-        assertEquals(Evidence.RecordKind.OTHER, unavailable.records().get(0).kind());
-    }
-
-    @Test
-    void readProgressKeepsFreshHandlesWhenAnotherSelectedProviderIsUnavailable() throws Exception {
-        var unavailableInitial = questRecord("quest-a", "quests", false);
-        var freshInitial = questRecord("quest-b", "other_quests", false);
-        var freshCurrent = questRecord("quest-b", "other_quests", true);
-        var unavailableQueries = new ArrayList<Evidence.Query>();
-        var freshQueries = new ArrayList<Evidence.Query>();
-        KnowledgeProvider unavailableProvider = new Provider("quests", List.of(unavailableInitial), false) {
-            @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
-                unavailableQueries.add(query);
-                return query.operation() == Evidence.Operation.SEARCH
-                        ? CompletableFuture.completedFuture(new Evidence.Result(List.of(unavailableInitial), Evidence.Coverage.COMPLETE,
-                        Evidence.Outcome.COMPLETE, null))
-                        : CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
-                        Evidence.Outcome.UNKNOWN, null));
-            }
-        };
-        KnowledgeProvider freshProvider = new Provider("other_quests", List.of(freshInitial), false) {
-            @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
-                freshQueries.add(query);
-                return query.operation() == Evidence.Operation.SEARCH
-                        ? CompletableFuture.completedFuture(new Evidence.Result(List.of(freshInitial), Evidence.Coverage.COMPLETE,
-                        Evidence.Outcome.COMPLETE, null))
-                        : CompletableFuture.completedFuture(new Evidence.Result(List.of(freshCurrent), Evidence.Coverage.COMPLETE,
-                        Evidence.Outcome.COMPLETE, null));
-            }
-        };
-        var service = new KnowledgeService(List.of(unavailableProvider, freshProvider), () -> SCOPE);
-
-        service.execute(new PackSageTools.ReadRequest("search_document",
-                new Evidence.JsonObject(Map.of("query", new Evidence.JsonString("quest"))), SCOPE))
-                .toCompletableFuture().get();
-        var progress = service.execute(new PackSageTools.ReadRequest("read_progress",
-                new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(
-                        new Evidence.JsonString("quests:quest-a"), new Evidence.JsonString("other_quests:quest-b"))))), SCOPE))
-                .toCompletableFuture().get();
-
-        assertEquals(Evidence.Coverage.PARTIAL, progress.coverage());
-        assertEquals(Evidence.Outcome.PARTIAL, progress.outcome());
-        assertTrue(progress.records().contains(freshCurrent));
-        assertFalse(progress.records().contains(unavailableInitial));
-        var failure = progress.records().stream().filter(record -> record.source().providerId().equals("quests")).findFirst().orElseThrow();
-        assertEquals(Evidence.RecordKind.OTHER, failure.kind());
-        assertEquals(Evidence.Coverage.UNAVAILABLE, failure.source().coverage());
-        assertEquals("quest-a", ((Evidence.JsonString) failure.payload().values().get("handle")).value());
-        assertEquals(Evidence.Operation.GET, unavailableQueries.get(1).operation());
-        assertEquals(Evidence.Operation.GET, freshQueries.get(1).operation());
-    }
-
-    @Test
     void preservesUnaffectedEvidenceWhenAnotherProviderFails() throws Exception {
         var loaded = record("native", "torch", Evidence.Authority.LOADED, "7 torches");
         var service = new KnowledgeService(List.of(new Provider("broken", List.of(), true),
@@ -1116,16 +1029,6 @@ class AssistantIntegrationTest {
         return record(SCOPE, provider, handle, authority, title);
     }
 
-    private static Evidence.Record questRecord(boolean completed) {
-        return questRecord("quest", "quests", completed);
-    }
-
-    private static Evidence.Record questRecord(String handle, String provider, boolean completed) {
-        return new Evidence.Record(new Evidence.Source(SCOPE, provider, "fixture", handle, SCOPE.requestGeneration(),
-                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
-                Evidence.RecordKind.QUEST, "Quest", new Evidence.JsonObject(Map.of("completed", new Evidence.JsonBoolean(completed))), List.of());
-    }
-
     private static Evidence.Record record(Evidence.Scope scope, String provider, String handle, Evidence.Authority authority,
                                           String title, Evidence.NavigationTarget... targets) {
         return new Evidence.Record(new Evidence.Source(scope, provider, "fixture", handle, scope.requestGeneration(), Instant.EPOCH,
@@ -1156,7 +1059,6 @@ class AssistantIntegrationTest {
             if (!reference.providerId().equals(id)) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "other source"));
             return query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(reference.sourceHandle()))), 1, null, null), request.scope());
         }
-        @Override public CompletionStage<Evidence.Result> readProgress(PackSageTools.ReadRequest request, Context context) { return readEvidence(request, context); }
         @Override public String id() { return id; }
         @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
         @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {

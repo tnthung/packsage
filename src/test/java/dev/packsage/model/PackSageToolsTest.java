@@ -18,6 +18,8 @@ class PackSageToolsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
     private static final List<String> NAMES = List.of("search_recipe", "search_registry", "read_evidence", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
             "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
+            "list_progress", "inspect_progress", "list_statistics",
+            "read_loot", "locate", "search_commands", "read_command",
             "search_journal", "remember", "update_note", "forget_note");
 
     @Test
@@ -58,14 +60,14 @@ class PackSageToolsTest {
     }
 
     @Test
-    void exposesExactlyTwentyOneToolsAndKeepsOptionalArgumentsOptional() {
+    void exposesExactlyTwentyEightToolsAndKeepsOptionalArgumentsOptional() {
         var definitions = PackSageTools.definitions();
         assertEquals(NAMES, definitions.stream().map(ModelBackend.ToolDefinition::name).toList());
         for (var definition : definitions) {
             var schema = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject();
             assertFalse(schema.get("additionalProperties").getAsBoolean());
             assertTrue(schema.getAsJsonArray("required").size() < schema.getAsJsonObject("properties").size()
-                    || List.of("read_evidence", "read_history", "inspect_block", "inspect_entity", "inspect_item", "forget_note").contains(definition.name()));
+                    || List.of("read_evidence", "read_history", "inspect_block", "inspect_entity", "inspect_item", "inspect_progress", "forget_note").contains(definition.name()));
         }
         for (var name : List.of("search_recipe", "search_registry")) {
             var schema = definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow();
@@ -490,5 +492,64 @@ class PackSageToolsTest {
         assertFalse(tools.execute(new ModelBackend.ToolCall("near", "find_items",
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"center\":{\"type\":\"player\"},\"radius\":32,\"includeNested\":false}"), SCOPE)
                 .toCompletableFuture().get().result().error());
+    }
+
+    @Test void listsProgressAndStatisticTools() throws Exception {
+        var expected = Map.of(
+                "list_progress", List.of(List.of("tree", "status", "text", "cursor"), List.<String>of()),
+                "inspect_progress", List.of(List.of("id"), List.of("id")),
+                "list_statistics", List.of(List.of("categories", "subjects", "cursor"), List.<String>of()));
+        var definitions = PackSageTools.definitions();
+        for (var tool : expected.entrySet()) {
+            var definition = definitions.stream().filter(value -> value.name().equals(tool.getKey())).findFirst().orElseThrow();
+            var schema = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject();
+            assertFalse(schema.get("additionalProperties").getAsBoolean(), tool.getKey());
+            assertEquals(java.util.Set.copyOf(tool.getValue().get(0)), schema.getAsJsonObject("properties").keySet(), tool.getKey());
+            assertEquals(tool.getValue().get(1), schema.getAsJsonArray("required").asList().stream().map(value -> value.getAsString()).toList(), tool.getKey());
+            assertFalse(definition.description().startsWith("Read current evidence for"), tool.getKey());
+        }
+        var progress = JsonParser.parseString(definitions.stream().filter(value -> value.name().equals("list_progress")).findFirst().orElseThrow()
+                .serializedSchema()).getAsJsonObject().getAsJsonObject("properties");
+        assertEquals(JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"maxItems\":5,\"items\":{\"type\":\"string\",\"enum\":[\"done\",\"in_progress\",\"available\",\"locked\",\"hidden\"]}}"), progress.get("status"));
+        var statistics = definitions.stream().filter(value -> value.name().equals("list_statistics")).findFirst().orElseThrow();
+        var properties = JsonParser.parseString(statistics.serializedSchema()).getAsJsonObject().getAsJsonObject("properties");
+        assertEquals(JsonParser.parseString("[\"object\",\"null\"]"), properties.getAsJsonObject("subjects").get("type"));
+        assertFalse(properties.getAsJsonObject("subjects").getAsJsonObject("properties").has("tooltip"));
+        assertTrue(statistics.description().contains("categories together with subjects"));
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(
+                new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+        for (var call : List.of(new ModelBackend.ToolCall("progress", "list_progress", "{}"),
+                new ModelBackend.ToolCall("inspect", "inspect_progress", "{\"id\":\"minecraft/minecraft:story/root\"}"),
+                new ModelBackend.ToolCall("stats", "list_statistics", "{\"categories\":[\"mined\"],\"subjects\":{\"ids\":[\"minecraft:diamond_ore\"]}}"))) {
+            assertFalse(tools.execute(call, SCOPE).toCompletableFuture().get().result().error(), call.name());
+        }
+    }
+
+    @Test void progressStatusRejectsUnknownValues() throws Exception {
+        var calls = new AtomicInteger();
+        var tools = new PackSageTools(request -> { calls.incrementAndGet(); return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)); });
+        assertTrue(tools.execute(new ModelBackend.ToolCall("finished", "list_progress", "{\"status\":[\"finished\"]}"), SCOPE).toCompletableFuture().get().result().error());
+        assertEquals(0, calls.get());
+    }
+
+    @Test void listsWorldKnowledgeTools() {
+        var expected = Map.of(
+                "read_loot", List.of(List.of("table", "block", "entity", "place", "cursor"), List.<String>of()),
+                "locate", List.of(List.of("biome", "structure", "center", "radius", "cursor"), List.<String>of()),
+                "search_commands", List.of(List.of("text", "cursor"), List.<String>of()),
+                "read_command", List.of(List.of("name", "cursor"), List.of("name")));
+        var definitions = PackSageTools.definitions();
+        for (var tool : expected.entrySet()) {
+            var definition = definitions.stream().filter(value -> value.name().equals(tool.getKey())).findFirst().orElseThrow();
+            var schema = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject();
+            assertEquals(java.util.Set.copyOf(tool.getValue().get(0)), schema.getAsJsonObject("properties").keySet(), tool.getKey());
+            assertEquals(tool.getValue().get(1), schema.getAsJsonArray("required").asList().stream().map(value -> value.getAsString()).toList(), tool.getKey());
+            assertFalse(definition.description().startsWith("Read current evidence for"), tool.getKey());
+        }
+        var locate = JsonParser.parseString(definitions.stream().filter(value -> value.name().equals("locate")).findFirst().orElseThrow()
+                .serializedSchema()).getAsJsonObject().getAsJsonObject("properties");
+        assertEquals(1, locate.getAsJsonObject("radius").get("minimum").getAsInt());
+        assertEquals(512, locate.getAsJsonObject("radius").get("maximum").getAsInt());
+        assertTrue("#minecraft:village".matches(locate.getAsJsonObject("structure").get("pattern").getAsString()));
     }
 }

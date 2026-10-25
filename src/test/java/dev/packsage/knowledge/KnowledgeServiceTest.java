@@ -361,17 +361,14 @@ class KnowledgeServiceTest {
     }
 
     @Test
-    void progressFailuresReturnCurrentStatusAndKeepOtherFreshResults() {
-        var failed = new PagedProvider("quests_a", query -> query.operation() == Evidence.Operation.GET
-                ? new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE, Evidence.Outcome.UNKNOWN, null)
-                : page(List.of(record("quests_a", "a", Evidence.RecordKind.QUEST)), null));
-        var good = new PagedProvider("quests_b", query -> page(List.of(record("quests_b", "b", Evidence.RecordKind.QUEST)), null));
-        var service = service(failed, good);
+    void readProgressIsNotAToolAnyMore() {
+        var service = service(new PagedProvider("quests", query -> page(List.of(record("quests", "a", Evidence.RecordKind.QUEST)), null)));
         search(service, Map.of("query", text("")));
-        var result = execute(service, "read_progress", Map.of("handles", strings("quests_a:a", "quests_b:b")));
-        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
-        assertEquals(List.of("progress-status:a", "b"), handles(result));
-        assertEquals(Evidence.Coverage.UNAVAILABLE, result.records().getFirst().source().coverage());
+        for (var arguments : List.of(Map.<String, Evidence.JsonValue>of("handles", strings("quests:a")), Map.<String, Evidence.JsonValue>of())) {
+            var failure = assertThrows(java.util.concurrent.CompletionException.class, () -> service.execute(
+                    new PackSageTools.ReadRequest("read_progress", new Evidence.JsonObject(arguments), SCOPE)).toCompletableFuture().join());
+            assertEquals(Toolbox.Code.NOT_HANDLED, ((Toolbox.Failure) failure.getCause()).code());
+        }
     }
 
     @Test
@@ -383,9 +380,6 @@ class KnowledgeServiceTest {
                     : page(List.of(record("quests", "a", Evidence.RecordKind.QUEST)), null));
             var service = service(failed);
             search(service, Map.of("query", text("")));
-            var progress = execute(service, "read_progress", Map.of("handles", strings("quests:a")));
-            assertEquals(List.of("progress-status:a"), handles(progress));
-            assertEquals(Evidence.Coverage.PARTIAL, progress.coverage());
             var evidence = execute(service, "read_evidence", Map.of("handles", strings("quests:a")));
             assertEquals(Evidence.Outcome.ERROR, evidence.outcome());
             assertTrue(evidence.records().isEmpty());
@@ -434,7 +428,6 @@ class KnowledgeServiceTest {
             if (!id.equals(reference.providerId())) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "other source"));
             return query(new Evidence.Query(Evidence.Operation.GET, new Evidence.JsonObject(Map.of("id", text(reference.sourceHandle()))), 1, null, null), request.scope());
         }
-        @Override public CompletionStage<Evidence.Result> readProgress(PackSageTools.ReadRequest request, Context context) { return readEvidence(request, context); }
         @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) { return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "fixture"); }
     }
 

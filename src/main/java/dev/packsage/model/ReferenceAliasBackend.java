@@ -295,7 +295,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
         private boolean transformArguments(String name, JsonObject arguments, boolean encode) {
             boolean changed = false;
             Map<String, String> references = encode ? evidenceAliases : evidence;
-            if (List.of("read_evidence", "read_progress", "read_history").contains(name)
+            if (List.of("read_evidence", "read_history").contains(name)
                     && arguments.get("handles") instanceof com.google.gson.JsonArray handles) {
                 for (int index = 0; index < handles.size(); index++) {
                     if (handles.get(index) instanceof com.google.gson.JsonPrimitive handle && handle.isString()
@@ -423,6 +423,10 @@ public final class ReferenceAliasBackend implements ModelBackend {
                     if (mode == 1 && character == ']') {
                         if (resolve(token.substring(1, token.length() - 1)) != null) mode = 6;
                         else mode = 2;
+                    } else if (mode == 1 && character == ')'
+                            && evidence.containsKey(token.substring(1, token.length() - 1))) {
+                        token.setCharAt(token.length() - 1, ']');
+                        emit(output);
                     } else if (mode == 2 && Character.isWhitespace(character)) mode = 7;
                     else if (mode == 2) mode = 3;
                     else if (mode == 6 && Character.isWhitespace(character)) mode = 7;
@@ -465,6 +469,9 @@ public final class ReferenceAliasBackend implements ModelBackend {
                     if (canonical != null) {
                         if (open > close + 1) changes.add(new Replacement(close + 1, open, ""));
                         changes.add(new Replacement(start, end, canonical));
+                    } else {
+                        canonical = resolve(token.substring(1, close));
+                        if (canonical != null) changes.add(new Replacement(1, close, canonical));
                     }
                 }
             } else {

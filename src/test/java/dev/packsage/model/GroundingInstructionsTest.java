@@ -28,6 +28,11 @@ class GroundingInstructionsTest {
         assertTrue(text.contains("search_recipe reads Minecraft's loaded recipes."));
         assertTrue(text.contains("find_items"));
         assertTrue(text.contains("inspect_area"));
+        assertTrue(text.contains("For advancement progress, use list_progress, then inspect_progress for the criteria still missing."));
+        assertTrue(text.contains("how long they played, use list_statistics; it counts since the world began."));
+        assertTrue(text.contains("read_loot"));
+        assertTrue(text.contains("use locate"));
+        assertTrue(text.contains("read_command"));
         var removedSources = java.util.regex.Pattern.compile("\\b(JEI|search_document|read_progress|Ponder|Curios|[Qq]uests?|[Gg]uides?)\\b")
                 .matcher(text);
         assertFalse(removedSources.find(), () -> removedSources.group());
@@ -105,7 +110,7 @@ class GroundingInstructionsTest {
         assertEquals(ModelBackend.Role.USER, current.role());
         assertEquals(1, current.content().size());
         assertEquals("hi", ((ModelBackend.TextContent) current.content().getFirst()).text());
-        assertEquals(21, request.tools().size());
+        assertEquals(28, request.tools().size());
     }
 
     @Test

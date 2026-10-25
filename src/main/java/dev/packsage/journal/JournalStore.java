@@ -60,6 +60,10 @@ public final class JournalStore implements AutoCloseable {
     public record Session(long id, long startedWall, long startedGameTime, Long endedWall, Long endedGameTime) {
     }
 
+    /** A conservative interval where recording lost events or details. */
+    record RecordingLoss(String kind, long count, long firstWall, long lastWall, long firstGameTime, long lastGameTime) {
+    }
+
     private final Connection writer;
     private final Connection reader;
     private final long schemaVersion;
@@ -91,6 +95,10 @@ public final class JournalStore implements AutoCloseable {
             }
             try (var statement = writer.createStatement()) {
                 statement.executeUpdate("CREATE INDEX IF NOT EXISTS events_count_only_time ON events(first_wall) WHERE count_only = 1");
+                statement.executeUpdate("CREATE TABLE IF NOT EXISTS recording_losses(session_id INTEGER NOT NULL, kind TEXT NOT NULL,"
+                        + " count INTEGER NOT NULL, first_wall INTEGER NOT NULL, last_wall INTEGER NOT NULL,"
+                        + " first_game_time INTEGER NOT NULL, last_game_time INTEGER NOT NULL)");
+                statement.executeUpdate("CREATE INDEX IF NOT EXISTS recording_losses_time ON recording_losses(first_wall, last_wall)");
             }
             var reader = connect(file);
             return new JournalStore(writer, reader, version);
@@ -187,6 +195,30 @@ public final class JournalStore implements AutoCloseable {
             statement.setLong(2, gameTime);
             statement.setLong(3, sessionId);
             statement.executeUpdate();
+        }
+    }
+
+    /** Persists a loss checkpoint atomically. Writer thread only; the caller retains it for retry on failure. */
+    void writeRecordingLosses(long sessionId, List<RecordingLoss> losses) throws SQLException {
+        checkWriterThread();
+        writer.setAutoCommit(false);
+        try (var statement = writer.prepareStatement("INSERT INTO recording_losses(session_id, kind, count, first_wall, last_wall,"
+                + " first_game_time, last_game_time) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+            for (var loss : losses) {
+                statement.setLong(1, sessionId);
+                statement.setString(2, loss.kind());
+                statement.setLong(3, loss.count());
+                statement.setLong(4, loss.firstWall());
+                statement.setLong(5, loss.lastWall());
+                statement.setLong(6, loss.firstGameTime());
+                statement.setLong(7, loss.lastGameTime());
+                statement.addBatch();
+            }
+            statement.executeBatch();
+            commit();
+        } catch (SQLException | RuntimeException e) {
+            abort(writer, e);
+            throw e;
         }
     }
 

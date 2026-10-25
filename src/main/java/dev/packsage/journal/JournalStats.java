@@ -1,5 +1,6 @@
 package dev.packsage.journal;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -8,6 +9,16 @@ import java.util.concurrent.atomic.LongAdder;
  * rows), failed, dropped after close or still queued.
  */
 public final class JournalStats {
+    static final List<String> LOSS_KINDS = List.of("events failed to record", "overflow events without positions",
+            "hook failures", "dropped explosion positions", "unread explosion positions", "tracker evictions",
+            "oversized container snapshots");
+
+    /** Counters already persisted by the writer and the beginning of its next conservative sampling interval. */
+    record LossCheckpoint(long sinceWall, long sinceGameTime, long[] counts) {
+    }
+
+    volatile LossCheckpoint lossCheckpoint = new LossCheckpoint(Long.MIN_VALUE, Long.MIN_VALUE, new long[7]);
+
     /** Events handed to the queue. */
     final LongAdder offered = new LongAdder();
     /** Events that reached the writer as count-only overflow tallies. */

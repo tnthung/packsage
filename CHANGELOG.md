@@ -4,6 +4,7 @@
 
 ### 2026-10-26
 
+- Journal recording losses now persist across clean restarts. Historical searches report overlapping failed batches, overflow, hook failures, truncated explosions and tracker/container losses as partial; existing schema-v1 databases gain the loss table without changing their version or recorded data.
 - Distant location columns now remain visible through Nether terrain. Installed Nether and Overworld checks passed at render distance 12, including the Nether marker's 30-second lifetime; the earlier 8-chunk Overworld check also passed ([acceptance record](docs/validation/2026-10-25-v2-acceptance.md#acceptance-summary)).
 - Hidden advancements now use anonymous world-session references until earned, including in lists, dependencies, evidence rereads and hidden tree roots. Looking up an unearned entry by its real id reveals nothing, and its ordering does not hint at its identity. Installed P5 reacceptance passed with nine anonymous entries and no hidden names, ids or criteria exposed.
 

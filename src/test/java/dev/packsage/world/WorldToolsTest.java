@@ -796,6 +796,43 @@ class WorldToolsTest {
     }
 
     @Test
+    void listBlocksServesTheSavedPartialPageBeforeResumingTheScan() throws Exception {
+        var field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        // No live levels or player: touching either would prove the public path rescanned instead of serving pending data.
+        var server = (net.minecraft.client.server.IntegratedServer) ((sun.misc.Unsafe) field.get(null))
+                .allocateInstance(net.minecraft.client.server.IntegratedServer.class);
+        var provider = new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
+                () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
+        var arguments = Evidence.deserializeObject("{\"filter\":{}}");
+        var block = new BlockHandle("minecraft:stone", new BlockPlace("minecraft:overworld", 5, 64, 8));
+        var type = Class.forName("dev.packsage.world.WorldTools$ListState");
+        var constructor = type.getDeclaredConstructor(WorldTools.Center.class, String.class, Page.class, WorldTools.ReadSpan.class);
+        constructor.setAccessible(true);
+        var token = provider.remember("list_blocks", arguments, SCOPE, constructor.newInstance(
+                new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), "scan-after-pending",
+                new Page<>(List.of(block), "scan-after-pending", Evidence.Coverage.PARTIAL, "2 unloaded chunks were not searched"),
+                new WorldTools.ReadSpan(10, 20)));
+
+        var pending = provider.handle(new PackSageTools.ReadRequest("list_blocks", Evidence.deserializeObject(
+                "{\"filter\":{},\"cursor\":\"" + token + "\"}"), SCOPE),
+                new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null)).toCompletableFuture();
+
+        assertTrue(pending.isDone(), "a saved page must not queue another server scan");
+        var result = pending.get();
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertEquals("2 unloaded chunks were not searched", result.detail());
+        assertEquals(1, result.records().size());
+        assertEquals(new Evidence.JsonString(block.place().text()), result.records().getFirst().payload().values().get("place"));
+        assertEquals(WorldTools.spanPayload(new WorldTools.ReadSpan(10, 20)), result.records().getFirst().payload().values().get("readSpan"));
+        var continued = provider.cursor(new PackSageTools.ReadRequest("list_blocks", Evidence.deserializeObject(
+                "{\"filter\":{},\"cursor\":\"" + result.nextCursor() + "\"}"), SCOPE));
+        var scan = type.getDeclaredMethod("scan");
+        scan.setAccessible(true);
+        assertEquals("scan-after-pending", scan.invoke(continued));
+    }
+
+    @Test
     void anEntryWithMoreHoldersThanFitLinksTheFirstOnesAndSaysHowManyAreLeft() {
         var tools = tools();
         var request = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject("{\"filter\":{\"ids\":[\"minecraft:stone\"]}}"), SCOPE);

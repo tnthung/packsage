@@ -574,9 +574,6 @@ class PackSageToolsTest {
         var next = json.getAsJsonObject("nextCall");
         assertTrue(next != null);
         var fresh = new PackSageTools(request -> { fail("pending rows must not reacquire provider data"); return null; }, List.of(), pages);
-        var response = fresh.execute(new ModelBackend.ToolCall("next", "search_recipe", next.get("arguments").toString()), SCOPE)
-                .toCompletableFuture().get();
-        assertFalse(response.records().isEmpty());
         var changed = next.getAsJsonObject("arguments").deepCopy();
         changed.add("filter", JsonParser.parseString("{\"text\":\"other\"}"));
         assertTrue(fresh.execute(new ModelBackend.ToolCall("changed", "search_recipe", changed.toString()), SCOPE)
@@ -584,6 +581,33 @@ class PackSageToolsTest {
         assertTrue(fresh.execute(new ModelBackend.ToolCall("stale", "search_recipe", next.get("arguments").toString()),
                 new Evidence.Scope("other-world", "resources", "team", "runtime", 1)).toCompletableFuture().get()
                 .result().serializedResult().contains("STALE_SCOPE"));
+        var response = fresh.execute(new ModelBackend.ToolCall("next", "search_recipe", next.get("arguments").toString()), SCOPE)
+                .toCompletableFuture().get();
+        assertFalse(response.records().isEmpty());
+    }
+
+    @Test
+    void pendingRowsRetainBoundedContentAndEvictByBytes() throws Exception {
+        var rows = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Evidence.Record(new Evidence.Source(SCOPE,
+                "fixture", "1", "row:" + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of("p".repeat(10_000))), Evidence.RecordKind.OTHER, "Row", new Evidence.JsonObject(Map.of(
+                "text", new Evidence.JsonString("\u754c".repeat(10_000)))), List.of())).toList();
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(rows,
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+        var first = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("first", "search_recipe", "{}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        var call = new ModelBackend.ToolCall("next", "search_recipe", first.getAsJsonObject("nextCall").get("arguments").toString());
+        var response = tools.execute(call, SCOPE).toCompletableFuture().get();
+        assertFalse(response.records().isEmpty());
+        for (var record : response.records()) {
+            assertTrue(Evidence.serialize(record.payload()).getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= PackSageTools.MAX_RECORD_BYTES);
+            assertTrue(record.source().provenance().stream().allMatch(value -> value.length() <= 2048));
+        }
+        var retained = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject().getAsJsonObject("nextCall");
+        assertNotNull(retained);
+        for (int i = 0; i < 40; i++) tools.execute(new ModelBackend.ToolCall("more", "search_recipe", "{}"), SCOPE).toCompletableFuture().get();
+        assertTrue(tools.execute(new ModelBackend.ToolCall("evicted", "search_recipe", retained.get("arguments").toString()), SCOPE)
+                .toCompletableFuture().get().result().serializedResult().contains("INVALID_CURSOR"));
     }
 
     @Test

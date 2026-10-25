@@ -75,6 +75,49 @@ class JournalToolsTest {
     }
 
     @Test
+    void maximumLengthNotesKeepContinuationThroughTheToolResponsePipeline() throws Exception {
+        var journal = open();
+        try {
+            journal.write(store -> {
+                for (int i = 1; i <= 150; i++) {
+                    store.putNote(new Note(String.format(java.util.Locale.ROOT, "n%08x", i), "\u0001".repeat(1_000),
+                            "\u0002".repeat(1_000), List.of("build"), PLACE, 1_000, 400, 1_000, "conversation", "request"));
+                }
+                return null;
+            }).toCompletableFuture().get();
+            var provider = tools(journal);
+            var tools = new PackSageTools(request -> provider.handle(request, context()));
+            var arguments = "{\"filter\":{\"notesOnly\":true}}";
+            var seen = new java.util.HashSet<String>();
+            var pages = 0;
+            while (true) {
+                assertTrue(++pages <= 150, "continuation did not advance");
+                var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("notes", "search_journal", arguments), SCOPE)
+                        .toCompletableFuture().get();
+                assertFalse(response.result().error());
+                assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 131_072);
+                var json = com.google.gson.JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+                assertFalse(json.get("detail").getAsString().contains("tool output limit"), json.toString());
+                assertFalse(response.records().isEmpty());
+                for (var record : response.records()) {
+                    assertTrue(seen.add(record.source().sourceHandle()), "repeated " + record.source().sourceHandle());
+                    assertEquals(new Evidence.JsonString("\u0001".repeat(1_000)), record.payload().values().get("text"));
+                    assertEquals(new Evidence.JsonString("\u0002".repeat(1_000)), record.payload().values().get("playerWords"));
+                }
+                if (!json.has("nextCall")) {
+                    assertEquals(150, seen.size(), "the cursor was lost before all notes were delivered");
+                    break;
+                }
+                assertFalse(json.get("nextCursor").isJsonNull());
+                arguments = json.getAsJsonObject("nextCall").getAsJsonObject("arguments").toString();
+            }
+            assertTrue(pages > 1);
+        } finally {
+            journal.close().get();
+        }
+    }
+
+    @Test
     void toolsAreUnavailableWithoutAnIntegratedServerOrBeforeTheJournalOpens() {
         var journal = new Journal(Runnable::run);
         var tools = new JournalTools(journal, () -> SCOPE, Runnable::run, () -> null,

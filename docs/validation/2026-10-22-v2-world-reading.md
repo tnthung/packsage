@@ -1433,3 +1433,271 @@ world-block|minecraft:overworld|1003,250,1008
 ### Round 2 final state
 
 Minecraft remains open in the same world, paused on the earlier check-4b stone conversation after the successful restart-link check; the play control is visible. F3 display is hidden. openPaused=true and absence of developerPrompt were rechecked after restart. The nine filled lower chests and all earlier fixtures remain. The installed JAR was unchanged. Only this validation file was edited in the repository; no code/prompt edit, formatter, rebuild, reinstall or push was performed.
+
+## Round 3: item page limit fix and Show labels
+
+Date: 2026-10-25 (Asia/Taipei). Live recheck of N1 and the world-highlight labels on the installed default prompt; one fresh-chat question completed and supplied both checks.
+
+### Build, native control and evidence
+
+- Repository: D:/Project/packsage, branch feat/packsage-v2, checkout HEAD d01a26af42ab8e5f21dcd5544eb5041dee29ae72; clean worktree/index before this validation edit. The requested installed build provenance was commit d01a26a.
+- Instance: C:/Users/hung1/curseforge/minecraft/Instances/Packsage. Installed mods/packsage.jar SHA-256 before launch and after the live checks: **57EEF034A4A4D9F830590D874C61B787A1A5D9B4372ACFE3E8A0A5E860C0DAB1**, matching the required build. No rebuild, reinstall, code edit or prompt edit occurred.
+- config/packsage.properties had no developerPrompt property before launch or after testing. The installed default, gpt-6-sol, medium reasoning, automatic Search and the existing enabled Screenshot setting were used. openPaused=true remained set. No developer prompt editor was opened.
+- Native gate passed: mcp__node_repl__js imported @oai/sky; sky.list_apps() and sky.list_windows() returned real native windows. get_window, activate_window and get_window_state captured CurseForge; sky.click on its Content tab succeeded. CurseForge Packsage profile -> Play launched Minecraft. The returned Java window (ID 6097652, Minecraft NeoForge* 1.21.1) was captured and controlled with the same native API. No browser substitute was used, and no native-control error occurred.
+- Minecraft was closed before launch. The observed client was Minecraft 1.21.1 / NeoForge 21.1.259. Singleplayer -> New World selected the entry whose folder label was PackSage Adapter Filter Live Test. The PackSage world label and saved gameplay context matched it.
+- One question was submitted once in a new chat; no follow-up or second question was needed for B. All game commands were length-checked before entry and were 31 or 32 characters, below 256. They only inspected block NBT; no refill was needed. No automated build/test suite was rerun for this live-validation documentation task.
+- Saved evidence base: C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/. The turn is in 83dc97a2-333f-4def-bdc5-825993d4d86c-82d2a2f75549aeeb.jsonl:2. Calls, arguments, result metadata, item/holder facts, navigation targets and verbatim reply below came from that saved JSONL.
+- Timing source: the current instance logs/latest.log, with line numbers below from this process. Request acceptance to phase=model_terminal is the reported total; persistence is separate. Native screenshots establish labels, tooltip text, click behavior and the final pause state.
+
+### Acceptance on this installed default
+
+- [x] **A. Big storage / N1 - PASS under the requested cursor-available criterion:** all nine fixture chests retain eight distinct types each (72 total). The broad page has 64 records = 52 ITEM + 12 holders (11 BLOCK + one entity encoded as OTHER), with every returned world item location covered by a holder record. It preserves a non-null cursor and nextCall. All three list_items results have 2 records = one item + one chest holder, COMPLETE with null cursor. No result exceeds 64 records or reports "tool output limit reached". The model received 43/72 fixture types and left the continuation unused; the retained cursor is the allowed route to the remaining 29, rather than a demonstrated full traversal. Its reply explicitly says the inventory is incomplete. A rendered chest link outlined the correct chest.
+- [x] **B. Show labels - PASS:** world chips visibly read "Show Highlight the chest you're facing", "Show Highlight the stone chest", "Show in world" and "Show Highlight a chest with diamonds". Hovering the first chip shows "Click: Show in world: minecraft:overworld|1003,250,1006"; clicking it and closing chat shows a yellow outline on that exact chest. No world chip in this reply says "Open". No non-world link appeared, so unchanged non-world "Open" labels were not exercised.
+
+### Fixture and observations by check
+
+**A. Fixture.** The player stayed at (1003.5,250,1002.5), near the nine lower chests at x=999, y=247, z=996..1004, facing the original room's chest (1003,250,1006). The first and last lower chests were inspected before the question; the other seven were inspected afterward to independently confirm all 72 types without changing the fixture. For each z below, the native game command was /data get block 999 247 <z> Items. Every result contained exactly eight entries, slots 0..7, each count=1, matching the Round 2 fixture; no /fill command was issued. The following IDs omit the common minecraft: prefix. Inspection times and logs/latest.log lines are retained for audit:
+
+- z=996: dirt, sand, gravel, granite, diorite, andesite, calcite, tuff. 25Oct2026 10:18:28.420; log line 156.
+- z=997: deepslate, basalt, obsidian, netherrack, end_stone, terracotta, clay, coal. 25Oct2026 10:21:07.021; log line 203.
+- z=998: charcoal, iron_ingot, gold_ingot, copper_ingot, diamond, emerald, lapis_lazuli, redstone. 25Oct2026 10:21:18.162; log line 204.
+- z=999: quartz, amethyst_shard, flint, stick, string, feather, leather, rabbit_hide. 25Oct2026 10:21:32.351; log line 205.
+- z=1000: bone, gunpowder, paper, book, wheat, carrot, potato, beetroot. 25Oct2026 10:21:46.361; log line 206.
+- z=1001: apple, melon_slice, sweet_berries, glow_berries, cod, salmon, pufferfish, tropical_fish. 25Oct2026 10:22:01.031; log line 207.
+- z=1002: beef, porkchop, chicken, mutton, rabbit, bread, cookie, pumpkin_pie. 25Oct2026 10:22:13.765; log line 208.
+- z=1003: sugar, egg, honeycomb, slime_ball, magma_cream, ender_pearl, blaze_rod, ghast_tear. 25Oct2026 10:22:24.990; log line 209.
+- z=1004: glass, ice, snowball, oak_log, birch_log, spruce_log, jungle_log, acacia_log. 25Oct2026 10:18:57.360; log line 157.
+
+**A. Page and answer.** inspect_area counted 313 chests in radius 16, with 0 unloaded chunks. find_items returned a valid capped first page and a ready-to-use nextCall. The page contains all nine lower chest holders, the two original stone-room chest holders and V2Mule's entity holder. The 52 item records include 43 fixture types plus pre-existing inventory/room/mob items; 29 fixture types are not in the consumed page. Comparing each returned item's block/entity root against holder records found zero missing holders, including the nested stone and mule paths. The model did not use the broad cursor: it instead inspected the targeted chest, listed both stone chests and then listed the shulker. Each list_items result has its own chest holder record. The final answer summarizes assorted storage and states "this isn't a complete inventory of the area"; it does not claim to have listed all 72 types. A is accepted by the task's explicit preserved-cursor alternative, with exhaustive model paging left unverified.
+
+Fixture types absent from the consumed page (all present in direct NBT inspections; minecraft: prefix omitted):
+
+lapis_lazuli, leather, magma_cream, melon_slice, mutton, netherrack, obsidian, paper, porkchop, potato, pufferfish, pumpkin_pie, quartz, rabbit, rabbit_hide, redstone, salmon, sand, slime_ball, snowball, spruce_log, stick, string, sugar, sweet_berries, terracotta, tropical_fish, tuff, wheat.
+
+**A/B. Highlight and labels.** Hovering the first chip displayed the exact first tooltip line "Click: Show in world: minecraft:overworld|1003,250,1006", followed by "Recorded with this answer; current values may differ." and "Item holder at minecraft:overworld|1003,250,1006". The chip was clicked. Closing PackSage showed the yellow outline on the central chest under the crosshair, matching the hovered/targeted chest (1003,250,1006), not its adjacent stone chest. This one click supplies the required chest-highlight proof for A and B. Other chips were rendered but not clicked. No unavailable-link notice or wrong outline was observed.
+
+**Unexpected output.** The answer ended with the malformed raw source token [ref:e36be868.1.1f), also visible in the UI instead of a source chip. The raw item reference in the first paragraph did render as "Show in world". These observations do not change the specific page-budget or world-label acceptance, but the malformed source token remains a separate presentation defect. The multi-holder truncation-note branch (one item in more holders than fit) was not triggered by this fixture.
+
+### Saved calls, result coverage and verbatim reply
+
+Question: `what items are stored around here?`
+
+- Evidence: `83dc97a2-333f-4def-bdc5-825993d4d86c-82d2a2f75549aeeb.jsonl:2`; request `7c95a9d1-2106-42cf-b5a7-bf2e7a1bee44`; outcome `COMPLETED`.
+- Sent: `2026-10-25T02:19:22.259188500Z`. logs/latest.log:163 accepted at 10:19:22.259; :200 model_terminal at 10:19:52.560, elapsed_ms=30301, backendMs=30220; :202 persist_done at 10:19:53.224, elapsed_ms=30965, persistMs=663. Total model-terminal time **30.301 s**; persisted **30.965 s**.
+- Four provider rounds (:179, :185, :191, :199): dispatchToTerminalMs 7827 + 7244 + 7742 + 7111 = **29.924 s**. Backend non-provider/tool-handoff remainder is **0.296 s**, with **0.081 s** before backend start. This remainder is not isolated server CPU/tool time. Source observedAt values below are UTC; the log clock is Asia/Taipei.
+- The six calls below are every saved model tool call, in order. There were no hosted web-search calls. "absent" denotes an omitted metadata field, not a supplied null. Selected record facts preserve all returned item identities/locations and holder identities; full payloads remain in the cited JSONL.
+
+**1. inspect_area** (`call_tUYaUTU78qan6d0LLp2O5K4W`)
+
+```json
+{"center":null,"radius":16}
+```
+
+Result metadata:
+
+```json
+{"coverage":"COMPLETE","outcome":"COMPLETE","recordCount":1,"itemRecords":0,"holderRecords":0,"holderKinds":{},"otherRecords":1,"nextCursor":null,"detail":"absent","notes":"absent","nextCall":"absent","error":false,"observedAt":["2026-10-25T02:19:30.354011400Z"]}
+```
+
+Returned record facts (selected fields):
+
+```json
+[
+{"kind":"OTHER","reference":"world:area|player|16","title":"Area within 16 blocks of player","navigable":false,"readSpan":{"toGameTime":656767,"fromGameTime":656767},"radius":16,"center":{"dimension":"minecraft:overworld","z":1002.5,"y":250,"x":1003.5},"blockCounts":{"minecraft:red_bed":4,"minecraft:white_stained_glass":578,"minecraft:chest":313,"minecraft:composter":3},"unloadedChunks":0,"notableCount":320}
+]
+```
+
+**2. find_items** (`call_oS4boSNJ68T4qNKiJ6dTHx4l`)
+
+```json
+{"filter":{"ids":null,"tags":null,"text":null},"center":null,"radius":16,"includeNested":true,"cursor":null}
+```
+
+Result metadata:
+
+```json
+{"coverage":"PARTIAL","outcome":"PARTIAL","recordCount":64,"itemRecords":52,"holderRecords":12,"holderKinds":{"BLOCK":11,"OTHER":1},"otherRecords":0,"nextCursor":"dca44328-a555-45de-ba01-05044839db84","detail":"This page shows 52 entries, the page limit with their holders; continue with the cursor","notes":"absent","nextCall":{"name":"find_items","arguments":{"filter":{"ids":null,"tags":null,"text":null},"center":null,"radius":16,"includeNested":true,"cursor":"dca44328-a555-45de-ba01-05044839db84"}},"error":false,"observedAt":["2026-10-25T02:19:30.398719900Z","2026-10-25T02:19:30.400224400Z"]}
+```
+
+Returned record facts (selected fields):
+
+```json
+[
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|1002,250,1006>minecraft/container#0@minecraft:stone","title":"Stone x71","navigable":true,"count":71,"locations":["block:minecraft:overworld|1002,250,1006>minecraft/container#0@minecraft:stone","block:minecraft:overworld|1003,250,1006>minecraft/container#0@minecraft:shulker_box>minecraft/container#0@minecraft:stone"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:stone","holdsItems":false,"variants":1,"name":"Stone"},
+{"kind":"ITEM","reference":"world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:coal","title":"Coal x65","navigable":false,"count":65,"locations":["player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#0@minecraft:coal","block:minecraft:overworld|999,247,997>minecraft/container#7@minecraft:coal"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:coal","holdsItems":false,"variants":1,"name":"Coal"},
+{"kind":"ITEM","reference":"world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#2@minecraft:oak_log","title":"Oak Log x65","navigable":false,"count":65,"locations":["player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#2@minecraft:oak_log","block:minecraft:overworld|999,247,1004>minecraft/container#3@minecraft:oak_log"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:oak_log","holdsItems":false,"variants":1,"name":"Oak Log"},
+{"kind":"ITEM","reference":"world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#1@minecraft:stripped_oak_wood","title":"Stripped Oak Wood x64","navigable":false,"count":64,"locations":["player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#1@minecraft:stripped_oak_wood"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:stripped_oak_wood","holdsItems":false,"variants":1,"name":"Stripped Oak Wood"},
+{"kind":"ITEM","reference":"world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#9@minecraft:shulker_box>minecraft/container#3@minecraft:diamond","title":"Diamond x11","navigable":false,"count":11,"locations":["player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#9@minecraft:shulker_box>minecraft/container#3@minecraft:diamond","block:minecraft:overworld|999,247,998>minecraft/container#4@minecraft:diamond","entity:f552a90e-0659-4ace-bcab-b992addda6b0>minecraft/chest#0@minecraft:shulker_box>minecraft/container#0@minecraft:bundle>minecraft/bundle#0@minecraft:diamond"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:diamond","holdsItems":false,"variants":1,"name":"Diamond"},
+{"kind":"ITEM","reference":"world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#9@minecraft:shulker_box","title":"Shulker Box x3","navigable":false,"count":3,"locations":["player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#9@minecraft:shulker_box","block:minecraft:overworld|1003,250,1006>minecraft/container#0@minecraft:shulker_box","entity:f552a90e-0659-4ace-bcab-b992addda6b0>minecraft/chest#0@minecraft:shulker_box"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:shulker_box","holdsItems":true,"variants":3,"name":"Shulker Box"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1004>minecraft/container#7@minecraft:acacia_log","title":"Acacia Log x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1004>minecraft/container#7@minecraft:acacia_log"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:acacia_log","holdsItems":false,"variants":1,"name":"Acacia Log"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,999>minecraft/container#1@minecraft:amethyst_shard","title":"Amethyst Shard x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,999>minecraft/container#1@minecraft:amethyst_shard"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:amethyst_shard","holdsItems":false,"variants":1,"name":"Amethyst Shard"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,996>minecraft/container#5@minecraft:andesite","title":"Andesite x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,996>minecraft/container#5@minecraft:andesite"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:andesite","holdsItems":false,"variants":1,"name":"Andesite"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1001>minecraft/container#0@minecraft:apple","title":"Apple x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1001>minecraft/container#0@minecraft:apple"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:apple","holdsItems":false,"variants":1,"name":"Apple"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,997>minecraft/container#1@minecraft:basalt","title":"Basalt x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,997>minecraft/container#1@minecraft:basalt"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:basalt","holdsItems":false,"variants":1,"name":"Basalt"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1002>minecraft/container#0@minecraft:beef","title":"Raw Beef x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1002>minecraft/container#0@minecraft:beef"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:beef","holdsItems":false,"variants":1,"name":"Raw Beef"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1000>minecraft/container#7@minecraft:beetroot","title":"Beetroot x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1000>minecraft/container#7@minecraft:beetroot"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:beetroot","holdsItems":false,"variants":1,"name":"Beetroot"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1004>minecraft/container#4@minecraft:birch_log","title":"Birch Log x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1004>minecraft/container#4@minecraft:birch_log"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:birch_log","holdsItems":false,"variants":1,"name":"Birch Log"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1003>minecraft/container#6@minecraft:blaze_rod","title":"Blaze Rod x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1003>minecraft/container#6@minecraft:blaze_rod"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:blaze_rod","holdsItems":false,"variants":1,"name":"Blaze Rod"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1000>minecraft/container#0@minecraft:bone","title":"Bone x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1000>minecraft/container#0@minecraft:bone"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:bone","holdsItems":false,"variants":1,"name":"Bone"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1000>minecraft/container#3@minecraft:book","title":"Book x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1000>minecraft/container#3@minecraft:book"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:book","holdsItems":false,"variants":1,"name":"Book"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1002>minecraft/container#5@minecraft:bread","title":"Bread x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1002>minecraft/container#5@minecraft:bread"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:bread","holdsItems":false,"variants":1,"name":"Bread"},
+{"kind":"ITEM","reference":"world:item|entity:f552a90e-0659-4ace-bcab-b992addda6b0>minecraft/chest#0@minecraft:shulker_box>minecraft/container#0@minecraft:bundle","title":"Bundle x1","navigable":true,"count":1,"locations":["entity:f552a90e-0659-4ace-bcab-b992addda6b0>minecraft/chest#0@minecraft:shulker_box>minecraft/container#0@minecraft:bundle"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:bundle","holdsItems":true,"variants":1,"name":"Bundle"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,996>minecraft/container#6@minecraft:calcite","title":"Calcite x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,996>minecraft/container#6@minecraft:calcite"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:calcite","holdsItems":false,"variants":1,"name":"Calcite"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1000>minecraft/container#5@minecraft:carrot","title":"Carrot x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1000>minecraft/container#5@minecraft:carrot"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:carrot","holdsItems":false,"variants":1,"name":"Carrot"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,998>minecraft/container#0@minecraft:charcoal","title":"Charcoal x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,998>minecraft/container#0@minecraft:charcoal"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:charcoal","holdsItems":false,"variants":1,"name":"Charcoal"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1002>minecraft/container#2@minecraft:chicken","title":"Raw Chicken x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1002>minecraft/container#2@minecraft:chicken"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:chicken","holdsItems":false,"variants":1,"name":"Raw Chicken"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,997>minecraft/container#6@minecraft:clay","title":"Clay x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,997>minecraft/container#6@minecraft:clay"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:clay","holdsItems":false,"variants":1,"name":"Clay"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1001>minecraft/container#4@minecraft:cod","title":"Raw Cod x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1001>minecraft/container#4@minecraft:cod"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:cod","holdsItems":false,"variants":1,"name":"Raw Cod"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1002>minecraft/container#6@minecraft:cookie","title":"Cookie x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1002>minecraft/container#6@minecraft:cookie"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:cookie","holdsItems":false,"variants":1,"name":"Cookie"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,998>minecraft/container#3@minecraft:copper_ingot","title":"Copper Ingot x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,998>minecraft/container#3@minecraft:copper_ingot"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:copper_ingot","holdsItems":false,"variants":1,"name":"Copper Ingot"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,997>minecraft/container#0@minecraft:deepslate","title":"Deepslate x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,997>minecraft/container#0@minecraft:deepslate"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:deepslate","holdsItems":false,"variants":1,"name":"Deepslate"},
+{"kind":"ITEM","reference":"world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/armor#0@minecraft:diamond_boots","title":"Diamond Boots x1","navigable":false,"count":1,"locations":["player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/armor#0@minecraft:diamond_boots"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:diamond_boots","holdsItems":false,"variants":1,"name":"Diamond Boots"},
+{"kind":"ITEM","reference":"world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/armor#2@minecraft:diamond_chestplate","title":"Diamond Chestplate x1","navigable":false,"count":1,"locations":["player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/armor#2@minecraft:diamond_chestplate"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:diamond_chestplate","holdsItems":false,"variants":1,"name":"Diamond Chestplate"},
+{"kind":"ITEM","reference":"world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/armor#3@minecraft:diamond_helmet","title":"Diamond Helmet x1","navigable":false,"count":1,"locations":["player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/armor#3@minecraft:diamond_helmet"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:diamond_helmet","holdsItems":false,"variants":1,"name":"Diamond Helmet"},
+{"kind":"ITEM","reference":"world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/armor#1@minecraft:diamond_leggings","title":"Diamond Leggings x1","navigable":false,"count":1,"locations":["player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/armor#1@minecraft:diamond_leggings"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:diamond_leggings","holdsItems":false,"variants":1,"name":"Diamond Leggings"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,996>minecraft/container#4@minecraft:diorite","title":"Diorite x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,996>minecraft/container#4@minecraft:diorite"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:diorite","holdsItems":false,"variants":1,"name":"Diorite"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,996>minecraft/container#0@minecraft:dirt","title":"Dirt x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,996>minecraft/container#0@minecraft:dirt"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:dirt","holdsItems":false,"variants":1,"name":"Dirt"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1003>minecraft/container#1@minecraft:egg","title":"Egg x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1003>minecraft/container#1@minecraft:egg"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:egg","holdsItems":false,"variants":1,"name":"Egg"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,998>minecraft/container#5@minecraft:emerald","title":"Emerald x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,998>minecraft/container#5@minecraft:emerald"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:emerald","holdsItems":false,"variants":1,"name":"Emerald"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,997>minecraft/container#4@minecraft:end_stone","title":"End Stone x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,997>minecraft/container#4@minecraft:end_stone"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:end_stone","holdsItems":false,"variants":1,"name":"End Stone"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1003>minecraft/container#5@minecraft:ender_pearl","title":"Ender Pearl x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1003>minecraft/container#5@minecraft:ender_pearl"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:ender_pearl","holdsItems":false,"variants":1,"name":"Ender Pearl"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,999>minecraft/container#5@minecraft:feather","title":"Feather x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,999>minecraft/container#5@minecraft:feather"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:feather","holdsItems":false,"variants":1,"name":"Feather"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,999>minecraft/container#2@minecraft:flint","title":"Flint x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,999>minecraft/container#2@minecraft:flint"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:flint","holdsItems":false,"variants":1,"name":"Flint"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1003>minecraft/container#7@minecraft:ghast_tear","title":"Ghast Tear x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1003>minecraft/container#7@minecraft:ghast_tear"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:ghast_tear","holdsItems":false,"variants":1,"name":"Ghast Tear"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1004>minecraft/container#0@minecraft:glass","title":"Glass x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1004>minecraft/container#0@minecraft:glass"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:glass","holdsItems":false,"variants":1,"name":"Glass"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1001>minecraft/container#3@minecraft:glow_berries","title":"Glow Berries x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1001>minecraft/container#3@minecraft:glow_berries"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:glow_berries","holdsItems":false,"variants":1,"name":"Glow Berries"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,998>minecraft/container#2@minecraft:gold_ingot","title":"Gold Ingot x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,998>minecraft/container#2@minecraft:gold_ingot"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:gold_ingot","holdsItems":false,"variants":1,"name":"Gold Ingot"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,996>minecraft/container#3@minecraft:granite","title":"Granite x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,996>minecraft/container#3@minecraft:granite"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:granite","holdsItems":false,"variants":1,"name":"Granite"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,996>minecraft/container#2@minecraft:gravel","title":"Gravel x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,996>minecraft/container#2@minecraft:gravel"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:gravel","holdsItems":false,"variants":1,"name":"Gravel"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1000>minecraft/container#1@minecraft:gunpowder","title":"Gunpowder x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1000>minecraft/container#1@minecraft:gunpowder"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:gunpowder","holdsItems":false,"variants":1,"name":"Gunpowder"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1003>minecraft/container#2@minecraft:honeycomb","title":"Honeycomb x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1003>minecraft/container#2@minecraft:honeycomb"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:honeycomb","holdsItems":false,"variants":1,"name":"Honeycomb"},
+{"kind":"ITEM","reference":"world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#3@minecraft:horse_spawn_egg","title":"Horse Spawn Egg x1","navigable":false,"count":1,"locations":["player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#3@minecraft:horse_spawn_egg"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:horse_spawn_egg","holdsItems":false,"variants":1,"name":"Horse Spawn Egg"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1004>minecraft/container#1@minecraft:ice","title":"Ice x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1004>minecraft/container#1@minecraft:ice"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:ice","holdsItems":false,"variants":1,"name":"Ice"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,998>minecraft/container#1@minecraft:iron_ingot","title":"Iron Ingot x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,998>minecraft/container#1@minecraft:iron_ingot"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:iron_ingot","holdsItems":false,"variants":1,"name":"Iron Ingot"},
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|999,247,1004>minecraft/container#6@minecraft:jungle_log","title":"Jungle Log x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|999,247,1004>minecraft/container#6@minecraft:jungle_log"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:jungle_log","holdsItems":false,"variants":1,"name":"Jungle Log"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|1002,250,1006","title":"Item holder at minecraft:overworld|1002,250,1006","navigable":true,"holder":"block:minecraft:overworld|1002,250,1006","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|1002,250,1006"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|1003,250,1006","title":"Item holder at minecraft:overworld|1003,250,1006","navigable":true,"holder":"block:minecraft:overworld|1003,250,1006","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|1003,250,1006"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|999,247,997","title":"Item holder at minecraft:overworld|999,247,997","navigable":true,"holder":"block:minecraft:overworld|999,247,997","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|999,247,997"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|999,247,1004","title":"Item holder at minecraft:overworld|999,247,1004","navigable":true,"holder":"block:minecraft:overworld|999,247,1004","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|999,247,1004"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|999,247,998","title":"Item holder at minecraft:overworld|999,247,998","navigable":true,"holder":"block:minecraft:overworld|999,247,998","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|999,247,998"},
+{"kind":"OTHER","reference":"world:entity|f552a90e-0659-4ace-bcab-b992addda6b0","title":"Item holder entity f552a90e-0659-4ace-bcab-b992addda6b0","navigable":true,"holder":"entity:f552a90e-0659-4ace-bcab-b992addda6b0","readSpan":{"toGameTime":656767,"fromGameTime":656767},"id":"f552a90e-0659-4ace-bcab-b992addda6b0"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|999,247,999","title":"Item holder at minecraft:overworld|999,247,999","navigable":true,"holder":"block:minecraft:overworld|999,247,999","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|999,247,999"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|999,247,996","title":"Item holder at minecraft:overworld|999,247,996","navigable":true,"holder":"block:minecraft:overworld|999,247,996","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|999,247,996"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|999,247,1001","title":"Item holder at minecraft:overworld|999,247,1001","navigable":true,"holder":"block:minecraft:overworld|999,247,1001","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|999,247,1001"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|999,247,1002","title":"Item holder at minecraft:overworld|999,247,1002","navigable":true,"holder":"block:minecraft:overworld|999,247,1002","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|999,247,1002"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|999,247,1000","title":"Item holder at minecraft:overworld|999,247,1000","navigable":true,"holder":"block:minecraft:overworld|999,247,1000","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|999,247,1000"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|999,247,1003","title":"Item holder at minecraft:overworld|999,247,1003","navigable":true,"holder":"block:minecraft:overworld|999,247,1003","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|999,247,1003"}
+]
+```
+
+**3. inspect_block** (`call_OQkzpVk7YqBGUa8HtJKoZK1j`)
+
+```json
+{"place":"minecraft:overworld|1003,250,1006"}
+```
+
+Result metadata:
+
+```json
+{"coverage":"COMPLETE","outcome":"COMPLETE","recordCount":1,"itemRecords":0,"holderRecords":1,"holderKinds":{"BLOCK":1},"otherRecords":0,"nextCursor":null,"detail":"absent","notes":"absent","nextCall":"absent","error":false,"observedAt":["2026-10-25T02:19:37.694032400Z"]}
+```
+
+Returned record facts (selected fields):
+
+```json
+[
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|1003,250,1006","title":"minecraft:chest at minecraft:overworld|1003,250,1006","navigable":true,"gameTime":656767,"sections":{"minecraft":{"facts":{"skyLight":15,"redstoneSignal":0,"blockLight":0,"state":{"waterlogged":"false","type":"single","facing":"north"}},"coverage":"COMPLETE"}},"block":"minecraft:chest","holder":"block:minecraft:overworld|1003,250,1006","name":"Chest","inventories":[{"role":"storage","slots":27,"label":"Container","inventory":"minecraft/container"}],"dayTime":656767,"place":"minecraft:overworld|1003,250,1006"}
+]
+```
+
+**4. list_items** (`call_ZwqbwaPUSB9UgsFVnegjQ1xW`)
+
+```json
+{"holder":"block:minecraft:overworld|1003,250,1006","inventory":null,"filter":null,"cursor":null}
+```
+
+Result metadata:
+
+```json
+{"coverage":"COMPLETE","outcome":"COMPLETE","recordCount":2,"itemRecords":1,"holderRecords":1,"holderKinds":{"BLOCK":1},"otherRecords":0,"nextCursor":null,"detail":"absent","notes":"absent","nextCall":"absent","error":false,"observedAt":["2026-10-25T02:19:37.696027300Z"]}
+```
+
+Returned record facts (selected fields):
+
+```json
+[
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|1003,250,1006>minecraft/container#0@minecraft:shulker_box","title":"Shulker Box x1","navigable":true,"count":1,"locations":["block:minecraft:overworld|1003,250,1006>minecraft/container#0@minecraft:shulker_box"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:shulker_box","holdsItems":true,"variants":1,"name":"Shulker Box"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|1003,250,1006","title":"Item holder at minecraft:overworld|1003,250,1006","navigable":true,"holder":"block:minecraft:overworld|1003,250,1006","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|1003,250,1006"}
+]
+```
+
+**5. list_items** (`call_04XjzESFWeFN50YD8FwEuP1j`)
+
+```json
+{"holder":"block:minecraft:overworld|1002,250,1006","inventory":null,"filter":null,"cursor":null}
+```
+
+Result metadata:
+
+```json
+{"coverage":"COMPLETE","outcome":"COMPLETE","recordCount":2,"itemRecords":1,"holderRecords":1,"holderKinds":{"BLOCK":1},"otherRecords":0,"nextCursor":null,"detail":"absent","notes":"absent","nextCall":"absent","error":false,"observedAt":["2026-10-25T02:19:37.696027300Z"]}
+```
+
+Returned record facts (selected fields):
+
+```json
+[
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|1002,250,1006>minecraft/container#0@minecraft:stone","title":"Stone x64","navigable":true,"count":64,"locations":["block:minecraft:overworld|1002,250,1006>minecraft/container#0@minecraft:stone"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:stone","holdsItems":false,"variants":1,"name":"Stone"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|1002,250,1006","title":"Item holder at minecraft:overworld|1002,250,1006","navigable":true,"holder":"block:minecraft:overworld|1002,250,1006","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|1002,250,1006"}
+]
+```
+
+**6. list_items** (`call_LGtxJni1OZvnUI3jrFALcAxc`)
+
+```json
+{"holder":"block:minecraft:overworld|1003,250,1006>minecraft/container#0@minecraft:shulker_box","inventory":null,"filter":null,"cursor":null}
+```
+
+Result metadata:
+
+```json
+{"coverage":"COMPLETE","outcome":"COMPLETE","recordCount":2,"itemRecords":1,"holderRecords":1,"holderKinds":{"BLOCK":1},"otherRecords":0,"nextCursor":null,"detail":"absent","notes":"absent","nextCall":"absent","error":false,"observedAt":["2026-10-25T02:19:45.444304300Z"]}
+```
+
+Returned record facts (selected fields):
+
+```json
+[
+{"kind":"ITEM","reference":"world:item|block:minecraft:overworld|1003,250,1006>minecraft/container#0@minecraft:shulker_box>minecraft/container#0@minecraft:stone","title":"Stone x7","navigable":true,"count":7,"locations":["block:minecraft:overworld|1003,250,1006>minecraft/container#0@minecraft:shulker_box>minecraft/container#0@minecraft:stone"],"readSpan":{"toGameTime":656767,"fromGameTime":656767},"item":"minecraft:stone","holdsItems":false,"variants":1,"name":"Stone"},
+{"kind":"BLOCK","reference":"world:block|minecraft:overworld|1003,250,1006","title":"Item holder at minecraft:overworld|1003,250,1006","navigable":true,"holder":"block:minecraft:overworld|1003,250,1006","readSpan":{"toGameTime":656767,"fromGameTime":656767},"place":"minecraft:overworld|1003,250,1006"}
+]
+```
+
+Reply, verbatim from saved JSONL:
+
+```text
+The chest you’re looking at, at **(1003, 250, 1006)**, holds a shulker box with **7 stone** inside. The chest immediately to its left, at **(1002, 250, 1006)**, holds **64 stone**—**71 stone** across those two chests. [Highlight the chest you’re facing](world:block|minecraft:overworld|1003,250,1006) · [Highlight the stone chest](world:block|minecraft:overworld|1002,250,1006) [world:item|block:minecraft:overworld|1003,250,1006>minecraft/container#0@minecraft:shulker_box>minecraft/container#0@minecraft:stone]
+
+There are also many storage chests nearby at **Y=247**. The scan found assorted items in them, including **diamonds, iron and gold ingots, an emerald, food, logs, and building blocks**; that wider item list was only partially scanned, so this isn’t a complete inventory of the area. [Highlight a chest with diamonds](world:block|minecraft:overworld|999,247,998) [ref:e36be868.1.1f)
+```
+
+Saved navigation destinations (deduplicated; only chest 1003,250,1006 was clicked):
+
+```text
+world-block|minecraft:overworld|1002,250,1006
+world-block|minecraft:overworld|999,247,1004
+world-block|minecraft:overworld|999,247,999
+world-block|minecraft:overworld|999,247,996
+world-block|minecraft:overworld|999,247,1001
+world-block|minecraft:overworld|999,247,997
+world-block|minecraft:overworld|999,247,1002
+world-block|minecraft:overworld|999,247,1000
+world-block|minecraft:overworld|999,247,1003
+world-entity|f552a90e-0659-4ace-bcab-b992addda6b0
+world-block|minecraft:overworld|999,247,998
+world-block|minecraft:overworld|1003,250,1006
+```
+
+### Round 3 final state
+
+Minecraft remains open in the same New World save, paused on the vanilla Game Menu, with Back to Game visible. The player stayed at (1003.5,250,1002.5); F3 is hidden. The nine lower fixture chests and original room were unchanged. Installed JAR hash, absence of developerPrompt and openPaused=true were rechecked after testing. Only this validation file was edited in the repository and is the sole file committed for this round. No formatter, rebuild, reinstall, code/prompt edit or push was performed.

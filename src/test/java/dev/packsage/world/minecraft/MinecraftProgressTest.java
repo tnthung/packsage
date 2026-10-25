@@ -30,6 +30,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -37,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -67,40 +69,39 @@ class MinecraftProgressTest {
     @Test
     void snapshotListsDisplayedTreesAndEntriesAndSkipsDisplaylessAdvancements() {
         var world = new World();
-        var root = world.add(displayed("test:a/root", null, false, "c"), "c");
-        var first = world.add(displayed("test:a/first", root, false, "c"), "c");
-        world.add(displayed("test:a/first_child", first, false, "c"));
-        world.add(displayed("test:a/second", root, false, "c"));
-        world.add(displayed("test:a/hidden", root, true, "c"));
-        world.add(displayless("test:a/recipe", root));
-        var recipes = world.add(displayless("test:recipes/root", null));
-        world.add(displayless("test:recipes/torch", recipes));
         var other = world.add(displayed("test:b/root", null, false, "c"));
-        for (var i = 0; i < 144; i++) {
+        for (var i = 0; i < 143; i++) {
             world.add(displayed("test:b/child_" + i, other, false, "c"));
         }
+        var recipes = world.add(displayless("test:recipes/root", null));
+        world.add(displayless("test:recipes/torch", recipes));
+        var root = world.add(displayed("test:a/root", null, false, "c"), "c");
+        world.add(displayed("test:a/second", root, false, "c"));
+        var middle = world.add(displayless("test:a/recipe", root));
+        world.add(displayed("test:a/recipe_child", middle, false, "c"));
+        world.add(displayed("test:a/hidden", root, true, "c"));
+        var first = world.add(displayed("test:a/first", root, false, "c"), "c");
+        world.add(displayed("test:a/first_child", first, false, "c"));
 
         var steps = new int[1];
         var snapshot = run(new MinecraftProgress().snapshot(world.source()), steps);
 
         assertNull(snapshot.note());
-        assertEquals(List.of(new ProgressTree(id("test:a/root"), "test:a/root title", 2, 5),
-                new ProgressTree(id("test:b/root"), "test:b/root title", 0, 145)), snapshot.trees());
+        assertEquals(List.of(new ProgressTree(id("test:a/root"), "test:a/root title", 2, 6),
+                new ProgressTree(id("test:b/root"), "test:b/root title", 0, 144)), snapshot.trees());
         var locals = snapshot.entries().stream().map(entry -> entry.handle().id().local()).toList();
-        assertEquals(150, locals.size());
-        assertEquals("test:a/root", locals.get(0));
-        assertEquals(locals.indexOf("test:a/first") + 1, locals.indexOf("test:a/first_child"));
-        assertEquals("test:b/root", locals.get(5));
-        assertTrue(locals.subList(6, 150).stream().allMatch(local -> local.startsWith("test:b/child_")));
-        assertFalse(locals.contains("test:a/recipe"));
-        assertFalse(locals.contains("test:recipes/root"));
+        var expected = new ArrayList<>(List.of("test:a/root", "test:a/first", "test:a/first_child", "test:a/hidden", "test:a/recipe_child",
+                "test:a/second", "test:b/root"));
+        IntStream.range(0, 143).mapToObj(i -> "test:b/child_" + i).sorted().forEach(expected::add);
+        assertEquals(expected, locals);
         assertTrue(steps[0] >= 3, "steps: " + steps[0]);
         var firstEntry = snapshot.entries().get(locals.indexOf("test:a/first"));
         assertEquals(new ProgressEntry(new ProgressHandle(id("test:a/first"), id("test:a/root"), "test:a/first title", ProgressStatus.DONE),
                 "test:a/first description"), firstEntry);
         assertEquals(ProgressStatus.AVAILABLE, snapshot.entries().get(locals.indexOf("test:a/first_child")).handle().status());
-        assertEquals(ProgressStatus.AVAILABLE, snapshot.entries().get(5).handle().status());
-        assertEquals(ProgressStatus.LOCKED, snapshot.entries().get(6).handle().status());
+        assertEquals(ProgressStatus.AVAILABLE, snapshot.entries().get(locals.indexOf("test:a/recipe_child")).handle().status());
+        assertEquals(ProgressStatus.AVAILABLE, snapshot.entries().get(6).handle().status());
+        assertEquals(ProgressStatus.LOCKED, snapshot.entries().get(7).handle().status());
     }
 
     @Test
@@ -108,6 +109,7 @@ class MinecraftProgressTest {
         var world = new World();
         var root = world.add(displayed("test:a/root", null, false, "c"), "c");
         var hidden = world.add(displayed("test:a/secret", root, true, "x", "y"), "x");
+        world.add(displayed("test:a/after_secret", hidden, false, "c"));
         var reader = new MinecraftProgress();
 
         var entry = entry(run(reader.snapshot(world.source()), new int[1]), "test:a/secret");
@@ -115,6 +117,7 @@ class MinecraftProgressTest {
         assertEquals(new ProgressEntry(handle, null), entry);
         assertEquals(Progress.hidden(handle), reader.inspect(world.source(), "test:a/secret"));
         assertEquals(List.of(handle), reader.inspect(world.source(), "test:a/root").unlocks());
+        assertEquals(List.of(handle), reader.inspect(world.source(), "test:a/after_secret").requires());
 
         world.progress.get(hidden).grantProgress("y");
         var done = entry(run(reader.snapshot(world.source()), new int[1]), "test:a/secret");
@@ -134,7 +137,8 @@ class MinecraftProgressTest {
                 .addCriterion("minecraft:plains", impossible()).addCriterion("minecraft:desert", impossible())
                 .build(ResourceLocation.parse("test:adventure/adventuring_time")), "minecraft:plains");
         world.add(displayed("test:adventure/next", adventuring, false, "c"));
-        world.add(displayless("test:adventure/recipe", adventuring));
+        var middle = world.add(displayless("test:adventure/recipe", adventuring));
+        world.add(displayed("test:adventure/recipe_child", middle, false, "c"));
         var alternatives = world.add(Advancement.Builder.advancement().parent(root)
                 .display(display("Either", "Any one of two", AdvancementType.GOAL, false))
                 .addCriterion("a", impossible()).addCriterion("b", impossible()).addCriterion("c", impossible())
@@ -152,7 +156,10 @@ class MinecraftProgressTest {
         assertEquals(List.of(new ProgressCriterion("minecraft:plains", "label minecraft:plains", true, plains),
                 new ProgressCriterion("minecraft:desert", "label minecraft:desert", false, null)), progress.criteria());
         assertEquals(List.of(new ProgressHandle(tree, tree, "test:adventure/root title", ProgressStatus.DONE)), progress.requires());
-        assertEquals(List.of(new ProgressHandle(id("test:adventure/next"), tree, "test:adventure/next title", ProgressStatus.LOCKED)), progress.unlocks());
+        assertEquals(List.of(new ProgressHandle(id("test:adventure/next"), tree, "test:adventure/next title", ProgressStatus.LOCKED),
+                new ProgressHandle(id("test:adventure/recipe_child"), tree, "test:adventure/recipe_child title", ProgressStatus.LOCKED)),
+                progress.unlocks());
+        assertEquals(List.of(progress.handle()), reader.inspect(world.source(), "test:adventure/recipe_child").requires());
         assertEquals(List.of("experience: 100", "recipe: minecraft:torch"), progress.rewards());
         assertNull(progress.doneAt());
         var facts = progress.facts().get("minecraft");
@@ -221,6 +228,7 @@ class MinecraftProgressTest {
         assertEquals(RELOADED, snapshot.note());
         assertFalse(snapshot.entries().isEmpty());
         assertTrue(snapshot.entries().size() <= 64);
+        assertTrue(snapshot.trees().isEmpty());
     }
 
     private static ProgressSnapshot run(ServerWork.Slice<ProgressSnapshot> slice, int[] steps) {

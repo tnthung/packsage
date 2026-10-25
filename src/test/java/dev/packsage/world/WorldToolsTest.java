@@ -140,7 +140,8 @@ class WorldToolsTest {
             var mapped = (Toolbox.Failure) assertThrows(ExecutionException.class, result::get).getCause();
             assertEquals(failure instanceof IllegalArgumentException ? Toolbox.Code.INVALID_ARGUMENTS : Toolbox.Code.EXTRACTION_FAILED,
                     mapped.code());
-            assertEquals(failure.getMessage(), mapped.getMessage());
+            assertEquals(failure instanceof IllegalArgumentException ? "INVALID_ARGUMENTS: bad" : "EXTRACTION_FAILED: x",
+                    mapped.getMessage());
         }
     }
 

@@ -18,6 +18,54 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldToolsTest {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"air", "cave_air", "void_air", "stone"})
+    void inspectedAirDoesNotAdvertiseABlockHighlight(String kind) throws Exception {
+        net.minecraft.SharedConstants.tryDetectVersion();
+        net.minecraft.server.Bootstrap.bootStrap();
+        class Chunks extends net.minecraft.server.level.ServerChunkCache {
+            net.minecraft.world.level.chunk.LevelChunk chunk;
+
+            Chunks() { super(null, null, null, null, null, null, 0, 0, false, null, null, null); }
+            @Override public net.minecraft.world.level.chunk.LevelChunk getChunkNow(int x, int z) { return chunk; }
+        }
+        class Level extends net.minecraft.server.level.ServerLevel {
+            Chunks chunks;
+            net.minecraft.world.level.block.state.BlockState state;
+
+            Level() { super(null, null, null, null, null, null, null, false, 0, java.util.List.of(), false, null); }
+            @Override public net.minecraft.server.level.ServerChunkCache getChunkSource() { return chunks; }
+            @Override public net.minecraft.world.level.block.state.BlockState getBlockState(net.minecraft.core.BlockPos pos) { return state; }
+            @Override public long getGameTime() { return 400; }
+            @Override public long getDayTime() { return 600; }
+        }
+        var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var allocate = unsafe.getClass().getMethod("allocateInstance", Class.class);
+        var chunks = (Chunks) allocate.invoke(unsafe, Chunks.class);
+        chunks.chunk = (net.minecraft.world.level.chunk.LevelChunk) allocate.invoke(unsafe, net.minecraft.world.level.chunk.LevelChunk.class);
+        var level = (Level) allocate.invoke(unsafe, Level.class);
+        level.chunks = chunks;
+        level.state = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(net.minecraft.resources.ResourceLocation.withDefaultNamespace(kind)).defaultBlockState();
+        var server = (net.minecraft.client.server.IntegratedServer) allocate.invoke(unsafe, net.minecraft.client.server.IntegratedServer.class);
+        var levels = net.minecraft.server.MinecraftServer.class.getDeclaredField("levels");
+        levels.setAccessible(true);
+        levels.set(server, Map.of(net.minecraft.world.level.Level.OVERWORLD, level));
+        var inspect = WorldTools.class.getDeclaredMethod("inspectBlock", net.minecraft.server.MinecraftServer.class, BlockPlace.class, Evidence.Scope.class);
+        inspect.setAccessible(true);
+        var record = (Evidence.Record) inspect.invoke(new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE,
+                Runnable::run, new ServerWork(System::nanoTime), () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE),
+                place -> false, id -> null, null), server, new BlockPlace("minecraft:overworld", 1, 64, 2), SCOPE);
+        assertEquals(new Evidence.JsonString("minecraft:" + kind), record.payload().values().get("block"));
+        if (kind.equals("stone")) {
+            assertEquals(1, record.targets().size());
+            assertEquals("world-block|minecraft:overworld|1,64,2", record.targets().getFirst().targetId());
+        } else {
+            assertTrue(record.targets().isEmpty(), "air cannot resolve through block navigation");
+        }
+    }
+
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
     private static final String ENTITY = "3f1c2a4e-0000-4000-8000-000000000001";
 

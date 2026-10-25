@@ -37,17 +37,25 @@ public record ItemPath(PathRoot root, List<PathStep> steps) {
         if (text == null) {
             throw new IllegalArgumentException("Item path is missing");
         }
-        var parts = text.split(">", -1);
+        var step = text.indexOf('>');
+        var root = step < 0 ? text : text.substring(0, step);
+        return new ItemPath(parseRoot(root), parseSteps(text.substring(root.length())));
+    }
+
+    /** Parses the steps after a root: empty, or one {@code >adapter/section#entry@kind} token per step. */
+    static List<PathStep> parseSteps(String text) {
         var steps = new ArrayList<PathStep>();
-        for (var i = 1; i < parts.length; i++) {
-            var hash = parts[i].indexOf('#');
-            var at = parts[i].lastIndexOf('@');
+        if (text.isEmpty()) return steps;
+        if (text.charAt(0) != '>') throw new IllegalArgumentException("Invalid path steps: " + text);
+        for (var part : text.substring(1).split(">", -1)) {
+            var hash = part.indexOf('#');
+            var at = part.lastIndexOf('@');
             if (hash < 0 || at < hash) {
-                throw new IllegalArgumentException("Invalid path step: " + parts[i]);
+                throw new IllegalArgumentException("Invalid path step: " + part);
             }
-            steps.add(new PathStep(InventoryId.parse(parts[i].substring(0, hash)), parts[i].substring(hash + 1, at), parts[i].substring(at + 1)));
+            steps.add(new PathStep(InventoryId.parse(part.substring(0, hash)), part.substring(hash + 1, at), part.substring(at + 1)));
         }
-        return new ItemPath(parseRoot(parts[0]), steps);
+        return steps;
     }
 
     private static PathRoot parseRoot(String text) {

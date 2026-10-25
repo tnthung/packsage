@@ -6,6 +6,7 @@ import com.mojang.serialization.JsonOps;
 import dev.packsage.PackSageLog;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.world.ClientFocus;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.core.RegistryAccess;
@@ -382,6 +383,27 @@ public final class GameplayContextCapture {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    /**
+     * The crosshair holder and the open container screen, whose menu must be the player's open one, for the world
+     * tools' holder words; client thread only.
+     */
+    public static ClientFocus focus(Minecraft minecraft) {
+        var player = minecraft.player;
+        var level = minecraft.level;
+        if (player == null || level == null) return ClientFocus.NONE;
+        var targeted = ClientFocus.targetedRoot(minecraft.hitResult, level.dimension().location().toString());
+        var screen = minecraft.screen;
+        if (screen instanceof AssistantScreen assistant) screen = assistant.containerScreen();
+        if (player.containerMenu != player.inventoryMenu
+                && screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> container
+                && container.getMenu() == player.containerMenu) {
+            var title = container.getTitle().getString();
+            return new ClientFocus(targeted, player.containerMenu.containerId,
+                    title.length() > OPENED_MENU_TITLE_LIMIT ? title.substring(0, OPENED_MENU_TITLE_LIMIT) : title);
+        }
+        return new ClientFocus(targeted, -1, null);
     }
 
     static String openedMenuKey(AbstractContainerMenu menu, AbstractContainerMenu inventoryMenu) {

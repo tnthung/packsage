@@ -376,7 +376,7 @@ public final class ClientAssistant {
         world.register(new MinecraftInventories(() -> client.getSingleplayerServer().registryAccess()));
         world.register(new MinecraftWorld());
         world.register(new MinecraftEntities());
-        providers.add(new WorldTools(client, world, scope, workerExecutor, serverWork));
+        providers.add(new WorldTools(client, world, scope, workerExecutor, serverWork, () -> client.submit(() -> GameplayContextCapture.focus(client))));
         return new KnowledgeService(providers, scope);
     }
 

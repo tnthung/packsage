@@ -85,10 +85,26 @@ public final class WorldTools implements KnowledgeProvider {
      * and note are sticky: a later page of the same listing or search is never more complete than an earlier one. Span
      * is the game-time span of the read the pending entries came from, or null when unknown.
      */
-    record EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note, ReadSpan span) {
+    record EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note, ReadSpan span,
+                        HolderSummary summary, Map<String, Evidence.JsonObject> slotFacts) {
+        EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note, ReadSpan span) {
+            this(pending, search, coverage, note, span, null, Map.of());
+        }
+
         EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note) {
             this(pending, search, coverage, note, null);
         }
+    }
+
+    /**
+     * The listed holder and its inventories, shown as the first record of a listing's first page. Facts are the
+     * holder's own, such as the player's selected hotbar slot.
+     */
+    record HolderSummary(PathRoot root, List<InventorySummary> inventories, Evidence.JsonObject facts) {
+    }
+
+    /** EmptySlots is null for keyed sections, which have no fixed slots, and for sections that could not be read. */
+    record InventorySummary(InventoryInfo info, Integer emptySlots) {
     }
 
     /** The game times a sliced read started and ended at; the world can change between its slices. */
@@ -101,8 +117,19 @@ public final class WorldTools implements KnowledgeProvider {
     private record AreaRead(Center center, Page<BlockSummary> blocks, Page<EntityHandle> entities) {
     }
 
-    /** Note is sticky for later pages; bound says why only this page was cut. */
-    private record ItemsRead(List<ItemEntry> entries, FindState search, Evidence.Coverage coverage, String note, String bound) {
+    /**
+     * Note is sticky for later pages; bound says why only this page was cut. Summary is null for searches and nested
+     * holders; slot facts are keyed by location path text.
+     */
+    private record ItemsRead(List<ItemEntry> entries, FindState search, Evidence.Coverage coverage, String note, String bound,
+                             HolderSummary summary, Map<String, Evidence.JsonObject> slotFacts) {
+        ItemsRead(List<ItemEntry> entries, FindState search, Evidence.Coverage coverage, String note, String bound) {
+            this(entries, search, coverage, note, bound, null, Map.of());
+        }
+    }
+
+    /** A read behind a holder word, or why the word did not resolve. */
+    private record Worded<T>(T value, String unresolved) {
     }
 
     private final Supplier<MinecraftServer> server;
@@ -112,25 +139,28 @@ public final class WorldTools implements KnowledgeProvider {
     private final Executor worker;
     private final ServerWork work;
     private final WorldNavigation navigation;
+    private final Supplier<CompletionStage<ClientFocus>> focus;
     private final Map<String, Cursor> cursors = new LinkedHashMap<>(16, 0.75f, true);
 
     /**
      * The worker runs everything after a server read, so record building never lands on the server thread. Reads queue
-     * on {@code work}, which the server ticks drive.
+     * on {@code work}, which the server ticks drive. {@code focus} captures the client's crosshair and open screen.
      */
-    public WorldTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work) {
-        this(client::getSingleplayerServer, registry, scope, worker, work, WorldNavigation.blockLookup(client::getSingleplayerServer),
+    public WorldTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
+                      Supplier<CompletionStage<ClientFocus>> focus) {
+        this(client::getSingleplayerServer, registry, scope, worker, work, focus, WorldNavigation.blockLookup(client::getSingleplayerServer),
                 WorldNavigation.entityLookup(client::getSingleplayerServer), WorldNavigation.client(client));
     }
 
     /** Highlights check {@code blockExists} and {@code entityPlace} before drawing through {@code client}. */
     WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
-               Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace, WorldNavigation.Client client) {
+               Supplier<CompletionStage<ClientFocus>> focus, Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace, WorldNavigation.Client client) {
         this.server = server;
         this.registry = registry;
         this.scope = scope;
         this.worker = worker;
         this.work = work;
+        this.focus = focus;
         this.scan = new AreaScan(registry);
         this.navigation = new WorldNavigation(blockExists, entityPlace, client);
     }
@@ -162,7 +192,7 @@ public final class WorldTools implements KnowledgeProvider {
                 case "inspect_block" -> inspect(request, "block|" + place(requiredText(request, "place")).text());
                 case "inspect_entity" -> inspect(request, "entity|" + uuid(requiredText(request, "id")));
                 case "list_items" -> listItems(request);
-                case "inspect_item" -> inspect(request, "item|" + itemPath(requiredText(request, "path")).text());
+                case "inspect_item" -> inspectItem(request);
                 case "find_items" -> findItems(request);
                 default -> CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, request.tool()));
             };
@@ -280,18 +310,80 @@ public final class WorldTools implements KnowledgeProvider {
 
     private CompletionStage<Evidence.Result> listItems(PackSageTools.ReadRequest request) {
         var holderText = requiredText(request, "holder");
-        var holder = holderText.equals("player") ? null : itemPath(holderText);
-        if (holder != null && holder.steps().size() >= ItemPath.MAX_STEPS) {
-            throw invalid("items nested deeper than " + ItemPath.MAX_STEPS + " steps cannot be listed");
-        }
+        var phrase = holderText.equals("player") ? null : phrase(holderText);
+        var holder = holderText.equals("player") || phrase != null ? null : itemPath(holderText);
+        if (holder != null) listable(holder);
         var inventory = argument(request, "inventory") == null ? null : inventoryId(requiredText(request, "inventory"));
         var filter = argument(request, "filter") == null ? KindFilter.ANY : filter(argument(request, "filter"), true);
         var cursor = cursor(request);
         var server = server();
         if (cursor != null) return CompletableFuture.completedFuture(entries(request, state(cursor, EntriesState.class), Evidence.Coverage.COMPLETE, null));
-        return run(server, spanned(gameTime(server), once(() -> items(server, holder, inventory, filter))))
-                .thenApply(read -> entries(request, new EntriesState(read.value().entries(), null, Evidence.Coverage.COMPLETE, null, read.span()),
-                        read.value().coverage(), read.value().note()));
+        return focus(phrase).thenCompose(focus -> run(server, spanned(gameTime(server), once(() -> {
+            var path = holder;
+            if (phrase != null) {
+                var resolved = resolveWord(server, phrase, focus);
+                if (resolved instanceof HolderWords.Resolved.Unresolved unresolved) return new Worded<ItemsRead>(null, unresolved.reason());
+                path = listable(((HolderWords.Resolved.Path) resolved).path());
+            }
+            return new Worded<>(items(server, path, inventory, filter), null);
+        })))).thenApply(read -> {
+            var worded = read.value();
+            if (worded.unresolved() != null) return unresolved(worded.unresolved());
+            var items = worded.value();
+            return entries(request, new EntriesState(items.entries(), null, Evidence.Coverage.COMPLETE, null, read.span(), items.summary(), items.slotFacts()),
+                    items.coverage(), items.note());
+        });
+    }
+
+    private static ItemPath listable(ItemPath holder) {
+        if (holder.steps().size() >= ItemPath.MAX_STEPS) {
+            throw invalid("items nested deeper than " + ItemPath.MAX_STEPS + " steps cannot be listed");
+        }
+        return holder;
+    }
+
+    /** Reads one item by a concrete path or a word such as held; a word that names a holder is not an item. */
+    private CompletionStage<Evidence.Result> inspectItem(PackSageTools.ReadRequest request) {
+        var text = requiredText(request, "path");
+        var phrase = phrase(text);
+        if (phrase == null) return inspect(request, "item|" + itemPath(text).text());
+        if (phrase.steps().isEmpty() && phrase.word() != HolderWords.Word.HELD && phrase.word() != HolderWords.Word.OFFHAND) {
+            throw invalid(text + " names a holder, not an item; list its items with list_items");
+        }
+        var server = server();
+        return focus(phrase).thenCompose(focus -> run(server, once(() -> {
+            var resolved = resolveWord(server, phrase, focus);
+            if (resolved instanceof HolderWords.Resolved.Unresolved unresolved) return new Worded<Evidence.Record>(null, unresolved.reason());
+            return new Worded<>(inspectItem(server, ((HolderWords.Resolved.Path) resolved).path(), request.scope()), null);
+        }))).thenApply(read -> read.unresolved() != null ? unresolved(read.unresolved()) : single(read.value()));
+    }
+
+    /** A word that did not resolve, such as held with an empty hand: no records, complete, and the reason. */
+    static Evidence.Result unresolved(String reason) {
+        return new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null, reason);
+    }
+
+    /** The client's focus, awaited only for the words that need it. */
+    private CompletionStage<ClientFocus> focus(HolderWords.Phrase phrase) {
+        if (phrase == null || (phrase.word() != HolderWords.Word.TARGETED && phrase.word() != HolderWords.Word.OPENED)) {
+            return CompletableFuture.completedFuture(ClientFocus.NONE);
+        }
+        return focus.get().toCompletableFuture().orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).exceptionally(failure -> {
+            throw new Failure(Code.UNAVAILABLE, "the game did not report what is under the crosshair or open");
+        });
+    }
+
+    /** Resolves a word against the host player as it is now; server thread only. */
+    private static HolderWords.Resolved resolveWord(MinecraftServer server, HolderWords.Phrase phrase, ClientFocus focus) {
+        var host = host(server);
+        var vehicle = host.getVehicle();
+        var menu = host.containerMenu == host.inventoryMenu ? -1 : host.containerMenu.containerId;
+        return HolderWords.resolve(phrase, new HolderWords.Situation(host.getUUID(), host.getInventory().selected, kind(host.getMainHandItem()),
+                kind(host.getOffhandItem()), focus.targeted(), vehicle == null ? null : vehicle.getUUID(), menu));
+    }
+
+    private static String kind(net.minecraft.world.item.ItemStack stack) {
+        return stack.isEmpty() ? null : BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
     }
 
     private CompletionStage<Evidence.Result> findItems(PackSageTools.ReadRequest request) {
@@ -332,24 +424,30 @@ public final class WorldTools implements KnowledgeProvider {
         var merged = notes.isEmpty() ? null : String.join("; ", notes);
         // Entries and their holder records share one page of LIST_PAGE records, the tool output limit, so nothing on
         // the page is cut after it is built. A page always shows at least one entry.
+        // The holder summary leads the first page and counts toward it; its root already has its record there.
+        var summary = state.summary();
+        var lead = summary == null ? 0 : 1;
         var roots = new LinkedHashSet<PathRoot>();
         var shownCount = 0;
         for (var entry : state.pending()) {
             var added = new LinkedHashSet<PathRoot>();
             for (var location : entry.locations()) {
-                if (!(location.root() instanceof PathRoot.Player) && !roots.contains(location.root())) added.add(location.root());
+                var root = location.root();
+                if (!(root instanceof PathRoot.Player) && !roots.contains(root) && (summary == null || !summary.root().equals(root))) added.add(root);
             }
-            if (shownCount > 0 && shownCount + 1 + roots.size() + added.size() > AreaScan.LIST_PAGE) break;
+            if (shownCount > 0 && lead + shownCount + 1 + roots.size() + added.size() > AreaScan.LIST_PAGE) break;
             roots.addAll(added);
             shownCount++;
         }
         var shown = state.pending().subList(0, shownCount);
         var rest = List.copyOf(state.pending().subList(shown.size(), state.pending().size()));
-        var next = rest.isEmpty() && state.search() == null ? null : remember(request, new EntriesState(rest, state.search(), sticky, merged, state.span()));
+        var next = rest.isEmpty() && state.search() == null ? null
+                : remember(request, new EntriesState(rest, state.search(), sticky, merged, state.span(), null, state.slotFacts()));
         if (bound != null) notes.add(bound);
         if (!rest.isEmpty()) notes.add("This page shows " + shown.size() + " entries, the page limit with their holders; continue with the cursor");
         var records = new ArrayList<Evidence.Record>();
-        for (var entry : shown) records.add(entryRecord(request.scope(), entry, state.span()));
+        if (summary != null) records.add(summaryRecord(request.scope(), summary, state.span()));
+        for (var entry : shown) records.add(entryRecord(request.scope(), entry, state.slotFacts(), state.span()));
         // One record per block or entity holder on the page, so each holder has its own highlight link.
         var linked = 0;
         for (var root : roots) {
@@ -468,6 +566,8 @@ public final class WorldTools implements KnowledgeProvider {
         var grouper = new ItemGrouper();
         var tooltips = ItemTooltips.of(host(server));
         var unreadTooltips = new int[1];
+        var summaries = new ArrayList<InventorySummary>();
+        var slotFacts = new LinkedHashMap<String, Evidence.JsonObject>();
         for (var info : selected) {
             var reader = registry.inventoryReader(info.id().adapter());
             LiveInventory live;
@@ -475,15 +575,19 @@ public final class WorldTools implements KnowledgeProvider {
                 live = reader == null ? null : reader.open(resolution.holder(), info.id().section());
             } catch (RuntimeException exception) {
                 notes.add("Reading " + info.id().text() + " failed: " + describe(exception));
+                summaries.add(new InventorySummary(info, null));
                 continue;
             }
             if (live == null) {
                 notes.add("Inventory " + info.id().text() + " could not be opened");
+                summaries.add(new InventorySummary(info, null));
                 continue;
             }
+            var occupied = 0;
             for (var entry : live.entries()) {
                 var stack = entry.getValue();
                 if (stack == null || stack.isEmpty()) continue;
+                occupied++;
                 var kind = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
                 if (!filter.matches(kind, stack.getTags().map(tag -> tag.location().toString()).toList(), stack.getHoverName().getString(), () -> {
                     var tooltip = tooltips.lines(stack);
@@ -492,12 +596,23 @@ public final class WorldTools implements KnowledgeProvider {
                 })) continue;
                 var nested = registry.inventories(new LiveHolder.OfItem(stack));
                 if (nested.note() != null) notes.add(nested.note());
-                grouper.add(path.child(new PathStep(info.id(), entry.getKey(), kind)), stack, !nested.items().isEmpty());
+                var location = path.child(new PathStep(info.id(), entry.getKey(), kind));
+                grouper.add(location, stack, !nested.items().isEmpty());
+                try {
+                    var facts = reader.entryFacts(resolution.holder(), info.id().section(), entry.getKey());
+                    if (facts != null) slotFacts.put(location.text(), facts);
+                } catch (RuntimeException exception) {
+                    notes.add("Slot facts of " + info.id().text() + " failed: " + describe(exception));
+                }
             }
+            summaries.add(new InventorySummary(info, info.slots() >= 0 ? info.slots() - occupied : null));
         }
         if (unreadTooltips[0] > 0) notes.add(ItemSearch.unreadTooltipsNote(unreadTooltips[0]));
+        // Only a block, entity or player holder has a summary record; an item's inventories show on inspect_item.
+        var summary = !path.steps().isEmpty() ? null : new HolderSummary(path.root(), summaries, resolution.holder() instanceof LiveHolder.OfPlayer of
+                ? new Evidence.JsonObject(Map.of("selectedSlot", number(of.player().getInventory().selected))) : new Evidence.JsonObject(Map.of()));
         return new ItemsRead(grouper.entries(), null, notes.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
-                notes.isEmpty() ? null : String.join("; ", notes), null);
+                notes.isEmpty() ? null : String.join("; ", notes), null, summary, slotFacts);
     }
 
     /**
@@ -1075,6 +1190,15 @@ public final class WorldTools implements KnowledgeProvider {
         return path;
     }
 
+    /** The holder word the text starts with, or null when it starts with none. */
+    private static HolderWords.Phrase phrase(String text) {
+        try {
+            return HolderWords.parse(text);
+        } catch (IllegalArgumentException exception) {
+            throw invalid("invalid item path: " + text);
+        }
+    }
+
     private static InventoryId inventoryId(String text) {
         try {
             return InventoryId.parse(text);
@@ -1193,7 +1317,34 @@ public final class WorldTools implements KnowledgeProvider {
                 Evidence.Coverage.COMPLETE, WorldNavigation.entityId(entity.id()));
     }
 
-    private Evidence.Record entryRecord(Evidence.Scope scope, ItemEntry entry, ReadSpan span) {
+    /** The listed holder's inventories with their empty slots, and the holder's own facts; only blocks and entities link. */
+    private static Evidence.Record summaryRecord(Evidence.Scope scope, HolderSummary summary, ReadSpan span) {
+        var holder = new ItemPath(summary.root(), List.of()).text();
+        var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+        payload.put("holder", text(holder));
+        payload.put("inventories", new Evidence.JsonArray(summary.inventories().stream().map(inventory -> {
+            var value = new LinkedHashMap<String, Evidence.JsonValue>();
+            value.put("inventory", text(inventory.info().id().text()));
+            value.put("label", text(inventory.info().label()));
+            value.put("slots", number(inventory.info().slots()));
+            value.put("role", text(inventory.info().role().name().toLowerCase(java.util.Locale.ROOT)));
+            value.put("emptySlots", inventory.emptySlots() == null ? new Evidence.JsonNull() : number(inventory.emptySlots()));
+            return (Evidence.JsonValue) new Evidence.JsonObject(value);
+        }).toList()));
+        payload.putAll(summary.facts().values());
+        putSpan(payload, span);
+        var title = "Inventories of " + holder;
+        return switch (summary.root()) {
+            case PathRoot.Block of -> evidence(scope, "block|" + of.place().text(), Evidence.RecordKind.BLOCK, title, payload,
+                    Evidence.Coverage.COMPLETE, WorldNavigation.blockId(of.place()));
+            case PathRoot.Entity of -> evidence(scope, "entity|" + of.id(), Evidence.RecordKind.OTHER, title, payload,
+                    Evidence.Coverage.COMPLETE, WorldNavigation.entityId(of.id()));
+            case PathRoot.Player player -> evidence(scope, "holder|" + holder, Evidence.RecordKind.OTHER, title, payload,
+                    Evidence.Coverage.COMPLETE, null);
+        };
+    }
+
+    private Evidence.Record entryRecord(Evidence.Scope scope, ItemEntry entry, Map<String, Evidence.JsonObject> slotFacts, ReadSpan span) {
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("item", text(entry.item()));
         payload.put("name", text(entry.name()));
@@ -1201,6 +1352,16 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("variants", number(entry.variants()));
         payload.put("holdsItems", new Evidence.JsonBoolean(entry.holdsItems()));
         payload.put("locations", new Evidence.JsonArray(entry.locations().stream().map(path -> (Evidence.JsonValue) text(path.text())).toList()));
+        var slots = new ArrayList<Evidence.JsonValue>();
+        for (var location : entry.locations()) {
+            var facts = slotFacts.get(location.text());
+            if (facts == null) continue;
+            var slot = new LinkedHashMap<String, Evidence.JsonValue>();
+            slot.put("path", text(location.text()));
+            slot.putAll(facts.values());
+            slots.add(new Evidence.JsonObject(slot));
+        }
+        if (!slots.isEmpty()) payload.put("slots", new Evidence.JsonArray(slots));
         putSpan(payload, span);
         var first = entry.locations().getFirst();
         return evidence(scope, "item|" + first.text(), Evidence.RecordKind.ITEM, entry.name() + " x" + entry.count(), payload,

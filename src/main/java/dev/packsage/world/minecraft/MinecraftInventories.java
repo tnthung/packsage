@@ -314,6 +314,33 @@ public final class MinecraftInventories implements InventoryReader {
     }
 
     @Override
+    public Evidence.JsonObject entryFacts(LiveHolder holder, String section, String entry) {
+        if (!(holder instanceof LiveHolder.OfPlayer of)) return null;
+        var index = Opened.index(entry);
+        return index < 0 ? null : playerSlotFacts(section, index, of.player().getInventory().selected);
+    }
+
+    /** The slot index of main and armor entries, the selected hotbar slot and the equipment slot; null for other sections. */
+    static Evidence.JsonObject playerSlotFacts(String section, int index, int selected) {
+        var values = new LinkedHashMap<String, Evidence.JsonValue>();
+        switch (section) {
+            case "main" -> {
+                values.put("slot", number(index));
+                if (index == selected) values.put("selected", new Evidence.JsonBoolean(true));
+            }
+            case "armor" -> {
+                values.put("slot", number(index));
+                if (index < ARMOR.length) values.put("equipmentSlot", new Evidence.JsonString(ARMOR[index].getName()));
+            }
+            case "offhand" -> values.put("equipmentSlot", new Evidence.JsonString(EquipmentSlot.OFFHAND.getName()));
+            default -> {
+                return null;
+            }
+        }
+        return new Evidence.JsonObject(values);
+    }
+
+    @Override
     public Section inspectItem(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return null;
         var gaps = new ArrayList<String>();

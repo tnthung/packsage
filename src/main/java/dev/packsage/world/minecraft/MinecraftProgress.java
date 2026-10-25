@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -44,6 +45,7 @@ import java.util.function.Supplier;
 public final class MinecraftProgress implements ProgressReader {
     static final int STEP_NODES = 64;
     static final String RELOADED_NOTE = "advancements were reloaded during the read; repeat it";
+    private static final Comparator<AdvancementNode> BY_ID = Comparator.comparing(node -> node.holder().id().toString());
 
     /**
      * What a read needs from the server. {@code generation} is an identity token for the loaded advancement set, which a
@@ -109,14 +111,15 @@ public final class MinecraftProgress implements ProgressReader {
         if (node == null || node.advancement().display().isEmpty() || node.root().advancement().display().isEmpty()) return null;
         var tree = id(node.root());
         var parent = displayedParent(node);
+        var parentProgress = parent == null ? null : source.progress().apply(parent.holder());
         var progress = source.progress().apply(node.holder());
-        var handle = handle(node, tree, progress, parent == null ? null : source.progress().apply(parent.holder()).isDone());
+        var handle = handle(node, tree, progress, parentProgress == null ? null : parentProgress.isDone());
         if (handle.status() == ProgressStatus.HIDDEN) return Progress.hidden(handle);
 
         var requires = new ArrayList<ProgressHandle>();
         if (parent != null) {
             var grandparent = displayedParent(parent);
-            requires.add(handle(parent, tree, source.progress().apply(parent.holder()),
+            requires.add(handle(parent, tree, parentProgress,
                     grandparent == null ? null : source.progress().apply(grandparent.holder()).isDone()));
         }
         var unlocks = new ArrayList<ProgressHandle>();
@@ -166,8 +169,9 @@ public final class MinecraftProgress implements ProgressReader {
     }
 
     /**
-     * Walks each displayed root depth-first, at most {@link #STEP_NODES} nodes a step. A node without a display is not
-     * listed, but its displayed descendants are, under its nearest displayed ancestor.
+     * Walks each displayed root depth-first, at most {@link #STEP_NODES} nodes a step, roots and siblings in id order.
+     * A node without a display is not listed, but its displayed descendants are, under its nearest displayed ancestor.
+     * A partial read lists only the trees it finished counting.
      */
     private static final class Read implements ServerWork.Slice<ProgressSnapshot> {
         /** {@code parentDone} is whether the nearest displayed ancestor is done; null for a root. */
@@ -198,6 +202,7 @@ public final class MinecraftProgress implements ProgressReader {
                 for (var node : source.tree().get().roots()) {
                     if (node.advancement().display().isPresent()) roots.add(node);
                 }
+                roots.sort(BY_ID);
             } else if (source.generation().get() != generation) {
                 note = RELOADED_NOTE;
                 return false;
@@ -231,8 +236,7 @@ public final class MinecraftProgress implements ProgressReader {
                 if (progress.isDone()) done++;
                 parentDone = progress.isDone();
             }
-            var children = new ArrayList<AdvancementNode>();
-            node.children().forEach(children::add);
+            var children = sorted(node.children());
             for (var i = children.size() - 1; i >= 0; i--) {
                 pending.push(new Pending(children.get(i), parentDone));
             }
@@ -274,7 +278,7 @@ public final class MinecraftProgress implements ProgressReader {
 
     private static List<AdvancementNode> displayedChildren(AdvancementNode node) {
         var children = new ArrayList<AdvancementNode>();
-        for (var child : node.children()) {
+        for (var child : sorted(node.children())) {
             if (child.advancement().display().isPresent()) {
                 children.add(child);
             } else {
@@ -282,6 +286,14 @@ public final class MinecraftProgress implements ProgressReader {
             }
         }
         return children;
+    }
+
+    /** Vanilla keeps children in an identity-hash set; id order makes the listing a function of content. */
+    private static List<AdvancementNode> sorted(Iterable<AdvancementNode> nodes) {
+        var list = new ArrayList<AdvancementNode>();
+        nodes.forEach(list::add);
+        list.sort(BY_ID);
+        return list;
     }
 
     /** Criterion names in requirement order. */

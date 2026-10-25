@@ -1,5 +1,109 @@
 # PackSage v2 acceptance
 
+## Acceptance summary
+
+Final assessment: 2026-10-26, applying the controller rulings in [the progress ledger](../../.superpowers/sdd/2026-10-25-v2-prompt-acceptance/progress.md). The chronological records below preserve the original scores and failures; this summary gives the final disposition after rulings, corrected fixtures and installed rechecks. Acceptance remains incomplete: **E6 and M1 FAIL; M5, P9, J7 and P11 NOT RUN**. Aliases M2–M4 and J1–J3 inherit their covering checks below.
+
+### Builds and promoted prompt
+
+- Environment: Minecraft **1.21.1**, NeoForge **21.1.259**, Windows, Java 21; build/source artifacts use NeoForge **21.1.202**. Model **gpt-6-sol**, **medium**, automatic Search, Screenshot=true. Save: `PackSage Adapter Filter Live Test`.
+- Candidate 1 tested `999ac78`, installed SHA-256 `A3AFCE496047933A9C18A4ED745F0324FDFD4DE8712DCEAF79B195F7EF0CA7BB`. Candidates used evolving code/fixtures, so scores are single-run observations rather than a controlled benchmark.
+- **Promoted prompt: Candidate 6**, commit `0c77af1`; 21,853 characters, SHA-256 `DD455D40627CE42E67FDB204B4FE91E42040403BFA1BE26BC3C1020D0733DA76`. Compiled default equality was verified. The policy covers every v2 tool, whole-set/per-piece answers, continued storage discovery, exact evidence/navigation binding, coordinates, clock interpretation, distinct event actors, silent note actions and bracket citations.
+- Installed-default verification and Part A used build HEAD `48e59e8`, SHA-256 `731C8442CFD230A24B33E4E2770C4C2675469366F74692F00D8535C6E7090242` (verification record commit `396bd3a`). Part B used `48e8d2c`, SHA-256 `FC8C27671A0C52DDDF4C878A2F0C82381E424028E96623F7349F6A1BF5E3237F`.
+- Final L1 recheck used renderer fix `edbf6c0` and tests `4937c69`, installed SHA-256 `7E0C517E7371E84901D14D9932E459597482AE7A02B1A3913BC632CCD603F311`. It passed in the Nether and Overworld at render distance 12; L2's 8-chunk evidence belongs to Part B's earlier build. Each installed-default run verified `developerPrompt` absent / bridge `text:null`. Other checks were not all rerun on the final renderer build.
+
+### Prompt candidate history
+
+Scores count Q1–Q13 with Q8a/Q8b separate (14 probes); supplementary cactus/setup requests are excluded.
+
+| Candidate | Recorded score | Failing probes and cause | Final ruling |
+|---|---|---|---|
+| C1 | 6/14 | Q1 incomplete enchantments; Q2 missing mule coordinates; Q3 wrong chest reference; Q4 incomplete catalogue; Q5 missing work ages; Q9 wrong compass direction; Q10 missing price qualification; Q11 unavailable tab links. | Historical score retained. |
+| C2 | 7/14 | Q1 incomplete options; Q3 malformed citation; Q5 closed journal; Q8a closed journal and saving announcement; Q8b closed journal and air link; Q10 missing price basis; Q11 duplicate navigation id rejection. | Historical score retained; Q2/Q4 destination checks were bridge-blocked. |
+| C3 | 11/14 | Q4 nested-stone reference points at the other chest; Q5 work ages unstated; Q8b no duplicate note write under the original unconditional-write criterion. | Historical score retained; note-action criterion revised from C4. |
+| C4 | 13/14 | Q5 omits the returned bed-break event. | Q8b's identical-note no-write action is correct. |
+| C5 | 12/14 | Q1 saved provider citation markup; Q5 conflates different zombies across journal events. | Historical score retained. |
+| C6 | 13/14 recorded; **14/14 effective** | Original Q8a FAIL required a write despite an identical same-place note. | Controller applies the C4 note-action rule to Q8a and Q8b: repeat → no write; new report → remember; changed report → update. Fresh cactus separately proves silent located writes. No remaining scored candidate failure. |
+
+### Consolidated Task 7 acceptance
+
+The [Task 7 checklist](../plans/2026-10-22-v2-prompt-acceptance.md#task-7-full-acceptance-on-the-installed-default-orchestrator-codex-tester) defines the IDs. Part B supersedes Part A's fixture failures for C5/P1/P7/J5 and reaccepts P5 after its code fix. J4's deposits-only answer correctly answers the question; E2's `plan_recipe` piston answer is supported. These controller rulings supersede the over-specified original criteria, without changing historical evidence.
+
+| Check | Final result | Reason / final evidence |
+|---|---|---|
+| W1 | PASS | Part A: direct 64 stone and nested 7, both chest coordinates and working outlines. |
+| W2 | PASS | Part A: fresh bed break and zombie death cited, missing homes and gameTime deltas used. Expired zombie's death-position link opened. |
+| W3 | PASS | Part A: all four armor pieces, eligible sets and exclusions, including Swift Sneak and Thorns. |
+| W4 | PASS | Part A: mule coordinates and chest → shulker → bundle → 3 diamonds, working entity link. |
+| W5 | PASS | Part A: nextCall followed to COMPLETE, all 72 types and working chest destinations. |
+| W6 | PASS | Part A: correct 11-diamond answer across 320 chests, unloaded-chunk qualification; no visible stall in sampled frame/tick evidence. |
+| W7 | PASS | Part B: exact saved chest link outlines the same chest after full process restart. |
+| W8 | PASS | Part A: inspected/cited approximate 1.62-block mule jump. Coordinate omission is E6 FAIL. |
+| C1 | PASS | Part A: held sword options/exclusions; empty-hand repeat says nothing is held. |
+| C2 | PASS | Part A: real crafting grid input slots listed; output preview excluded. |
+| C3 | PASS | Part A: ridden donkey's 12 iron ingots and saddle, coordinates/link. |
+| C4 | PASS | Part A: one tooltip-filtered search finds rabbit foot; offhand bonus distinguished from current Luck. |
+| C5 | PASS | Part B corrected stationary fixture: offers/prices; never-opened librarian says not generated twice, then normal trades open. Natural-job fixture already had offers and proves no not-generated precondition. |
+| C6 | PASS | Part A: zombie loot definition, common and conditional rare drops, no roll implied. |
+| C7 | PASS | Part A: fresh prediction, visited found result, coordinates/link and unchanged region listing. Part B: saved place link works after full restart. |
+| C8 | PASS | Part A: cheats-off /fill usage, argument types and permission restriction without execution. |
+| M1 | FAIL | Part B: persistence/recall pass, but move uses clearPlace instead of the new position; old link unavailable and two pre-existing notes remain. Ambiguous wording/duplicate fixture does not turn this into a pass. |
+| M2 | PASS | Covered by W1. |
+| M3 | PASS | Covered by W2. |
+| M4 | PASS | Covered by W3. |
+| M5 | NOT RUN | Part B: 2,000 sand, merged run, TNT/explosion, frame samples and TPS pass; world-close summary was not captured, so hook <1 ms and overflow=0 are unverified. |
+| P1 | PASS | Part B: 51 missing biome names and working Adventure link with the tab visible; supersedes Part A fixture failure. |
+| P2 | PASS | Part A: exact mined counts of one diamond ore and one deepslate ore, distinguished from drops. |
+| P3 | PASS | Part A: walking counter converted to 38.37 blocks. |
+| P4 | PASS | Part A fresh world: explicit ancient-debris mined count 0. |
+| P5 | PASS | Part B fixed build: count 9, anonymous aliases, no real hidden names/IDs/criteria in saved reply or results. |
+| P6 | PASS | Part A: play_time converted to 12h20m37s. |
+| P7 | PASS | Part B: available Story goals with working links; supersedes Part A invisible-tab fixture failure. |
+| P8 | PASS | Part B: historical Sweet Dreams link opens Adventure after full process restart. |
+| P9 | NOT RUN | Vanilla localhost server rejected by installed client; requires a NeoForge dedicated-server fixture. |
+| P10 | PASS | Part A: 2,000-advancement tree, 85 ms tool read, no visible stall in sampled frame/tick evidence. |
+| P11 | NOT RUN | Logs expose tool count, not tool names; JSONL lacks offered-tool definitions. No observed read_progress call proves no absence. W7/P8 separately pass historical source/link reopening. |
+| J0 | PASS | Part A: journal.db/WAL present, fresh events readable, no SQLite native-library error. |
+| J1 | FAIL | Covered by M1, including its remaining move failure. |
+| J2 | PASS | Covered by W2. |
+| J3 | NOT RUN | Covered by M5; shutdown summary not captured. |
+| J4 | PASS | Controller ruling: “what did I put in chests” correctly selects deposits only; 10-stone deposit, coordinates and working chest link. Withdrawal omission is not a failure of this question. |
+| J5 | PASS | Part B empty-hand named questions: Nether portal entry and Sweet Dreams times with working links; supersedes Part A pronoun/held-item ambiguity. |
+| J6 | PASS | Part A reply scan: no note-saving announcement; recalled notes attributed to player reports with coordinates/links. |
+| J7 | NOT RUN | Vanilla connection rejected; requires a NeoForge dedicated server before journal-unavailable behavior can be exercised. |
+| L1 | PASS | Installed renderer recheck: Nether ground-view column visible through terrain at 472-block target's clamp, visible at 28.123 s and gone at 32.136 s; Overworld recheck also passes at distance 12. |
+| L2 | PASS | Part B at render distance 8: 786-block target visible at clamp through 28 s, gone by 31.5 s; no fog/render-edge hiding. |
+| E1 | PASS | Part A: ambient Haste/beacon labeled deduction, source unrecorded, no unsupported refreshing claim. |
+| E2 | PASS | Controller ruling: supported piston plan_recipe is acceptable; brewing search_recipe route passes, no JEI/guide/quest wording or invented recipe navigation. |
+| E3 | PASS | Part A: greeting and read-only crafting response, both zero tools. |
+| E4 | PASS | Part A: active_effect/player_attribute in one overlapping call group; bonuses correctly distinguished. |
+| E5 | PASS | Part A: all 42 saved replies scanned, no raw ref: or unmatched references; sampled UI chips clean. Unscored Part B unsupported fortress-link observation remains a follow-up below. |
+| E6 | FAIL | Part A W8 omits mule coordinates in text despite locating/citing it. No seventh prompt candidate was authorized. |
+| E7 | PASS | Part A W2/C7/P1: receipt, submission and summary timing lines; backend/tool wall totals recorded. |
+
+### Live-found code defects and fixes
+
+| Defect | Fix commits | Installed evidence |
+|---|---|---|
+| Journal never opens when hooks register after the world starts | `fbcc757` (report `d1e175e`) | C3 fresh break/event read and silent writes; installed-default fresh-launch smoke. |
+| Repeated equivalent navigation ids rejected by bridge | `d9cd7fb` | C3: all 43 navigation requests OPENED, including shared root/chest/mule targets. |
+| Inspected air advertises an unavailable Show link | `32727a9` | C3 air record nonnavigable, no air target; cane links still open. |
+| Advancement links offered for invisible vanilla tabs | `f5904de`, `5e88b13` (access-transformer guard `f49da31`) | C2 suppression confirmed; C3/Q11 and Part B visible-tab/restart navigation pass. |
+| Provider citation markup leaks into saved replies; malformed groups can lose prose | `1f16e59`, `6b900d3`, `3b62c51` | Installed-default E5 passes; malformed-stream/prose preservation also has automated regressions. C6's clean markup predates installation of these fixes. |
+| Unearned hidden advancement ids leak through records/lookup/order | `18e8983`, `ad63be4` | Part B P5 redaction pass; real-id lookup and sibling ordering also covered by automated integration checks. |
+| Nether terrain depth test hides distant marker column | `edbf6c0` (tests `4937c69`) | L1 recheck: reproduced before, visible after, lifetime and Overworld checks pass. |
+
+Task 3 classified the original malformed alias as **G: model emitted `)` after a registered alias**. Alias translation/display guards (`3547128`, `5ee7f49`) preserve markdown navigation and canonicalize resolvable labels; the later provider-markup work above addresses a distinct output path.
+
+### Failures and unverified behavior
+
+- E6: include coordinates in every located-entity answer, including jump questions. M1: move one existing note to the new place without clearing its place or leaving duplicates.
+- M5: capture actual world-close hook/overflow summary; responsive gameplay does not establish those counters. P9/J7: repeat on a compatible NeoForge dedicated server. P11: expose/audit offered tool names and historical quest-source UI.
+- Part B's unscored wrong-dimension setup emitted an unsupported `minecraft:fortress` link, and a locate continuation changed radius while reusing a cursor before recovering. These observations remain open; L1's rendering pass does not repair prompt behavior.
+- Task 7 is narrower than the earlier stage checklists: it does not establish every journal event family, note forget/anchor/rapid-rejoin clause, wandering-trader case, pending-container loot case, biome id/tag continuation or every item/menu variant. Those broader items remain unchecked in the roadmaps.
+
+Final installed state from the L1 recheck: Overworld `(1003.5,250,1002.5)`, yaw 0/pitch 10, running, unpaused, no screen, render distance 12, empty main hand, F3 hidden, override cleared. No additional game action was taken for this documentation consolidation.
+
 Date: 2026-10-25 (Asia/Taipei).
 
 ## Candidate 1

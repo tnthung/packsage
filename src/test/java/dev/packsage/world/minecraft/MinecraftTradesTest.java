@@ -136,8 +136,8 @@ class MinecraftTradesTest {
 
     @Test
     void pricesNoteSaysTradingCostsAlreadyIncludeTheTradersDiscounts() {
-        assertTrue(MinecraftTrades.pricesNote(true).contains("already include"), MinecraftTrades.pricesNote(true));
-        assertFalse(MinecraftTrades.pricesNote(false).contains("already include"), MinecraftTrades.pricesNote(false));
+        assertTrue(MinecraftTrades.pricesNote(true).contains("the trading player"), MinecraftTrades.pricesNote(true));
+        assertFalse(MinecraftTrades.pricesNote(false).contains("the trading player"), MinecraftTrades.pricesNote(false));
     }
 
     private static Evidence.JsonNumber number(long value) {

@@ -11,6 +11,7 @@ import dev.packsage.world.ServerWork;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
@@ -79,19 +80,23 @@ public final class CommandReader<S> {
             ancestor = ancestor.getChild(part);
             canUse &= ancestor.canUse(source);
         }
-        record Walk<S>(Iterator<CommandNode<S>> children, String path, boolean canUse) { }
+        record Walk<S>(CommandNode<S> node, Iterator<CommandNode<S>> children, String path, boolean canUse) { }
         var stack = new ArrayDeque<Walk<S>>();
-        stack.push(new Walk<>(node.getChildren().iterator(), path, canUse));
+        var visited = Collections.newSetFromMap(new IdentityHashMap<CommandNode<S>, Boolean>());
+        visited.add(node);
+        stack.push(new Walk<>(node, node.getChildren().iterator(), path, canUse));
         var arguments = new ArrayList<Argument>();
         int skipped = 0;
         boolean bounded = false;
         while (!stack.isEmpty()) {
             var walk = stack.peek();
             if (!walk.children().hasNext()) {
+                visited.remove(walk.node());
                 stack.pop();
                 continue;
             }
             var child = walk.children().next();
+            if (!visited.add(child)) continue;
             var childPath = walk.path() + " " + child.getName();
             var allowed = walk.canUse() && child.canUse(source);
             Argument argument = null;
@@ -108,7 +113,7 @@ public final class CommandReader<S> {
                 }
                 arguments.add(new Argument(childPath, argument.name(), argument.type(), argument.examples(), allowed));
             }
-            stack.push(new Walk<>(child.getChildren().iterator(), childPath, allowed));
+            stack.push(new Walk<>(child, child.getChildren().iterator(), childPath, allowed));
         }
         var redirect = node.getRedirect() == null ? List.<String>of() : dispatcher.getPath(node.getRedirect());
         return new Detail(path, canUse, List.of(dispatcher.getAllUsage(node, source, false)),

@@ -16,6 +16,8 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 
 ### Player-reported notes (v2 journal branch)
 
+Review fixes cover current-session note anchors, explicit loading and missing-dimension failures, and invisibility in expanded activities. Journal availability and note navigation retain database failure reasons; unread Native evidence stays available, and the footer requires a visible, relevant journal row. Installed acceptance remains pending.
+
 - [ ] PackSage — `remember`, `update_note`, `forget_note` and note searches preserve the originating message and label notes as `PLAYER_REPORTED` / `player-said`. Database writes and mirror changes serialize on the writer, then complete on the worker with generic thinking activity. Automated checks cover failed writes, queued deletion/update, note anchors and persistent navigation following moved notes and refusing forgotten notes. Prompt integration and installed acceptance remain pending.
 
 ### World block, mob and storage reading (v2)

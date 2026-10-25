@@ -1791,6 +1791,34 @@ class RequestControllerTest {
                 limits, MODEL, searchMode, outputBudget);
     }
 
+    private static final class LogCapture implements AutoCloseable {
+        private final LoggerContext context = (LoggerContext) LogManager.getContext(false);
+        private final LoggerConfig config = context.getConfiguration().getLoggerConfig(PackSageLog.LOGGER.getName());
+        private final Level originalLevel = config.getLevel();
+        private final AbstractAppender appender;
+
+        LogCapture(Consumer<String> lines) {
+            appender = new AbstractAppender("request-controller-test", null, null, true, Property.EMPTY_ARRAY) {
+                @Override
+                public void append(LogEvent event) {
+                    lines.accept(event.getMessage().getFormattedMessage());
+                }
+            };
+            appender.start();
+            config.setLevel(Level.INFO);
+            config.addAppender(appender, Level.INFO, null);
+            context.updateLoggers();
+        }
+
+        @Override
+        public void close() {
+            config.removeAppender(appender.getName());
+            config.setLevel(originalLevel);
+            context.updateLoggers();
+            appender.stop();
+        }
+    }
+
     private static final class ManualExecutor implements Executor {
         private final Queue<Runnable> tasks = new ArrayDeque<>();
 

@@ -132,7 +132,7 @@ class MinecraftProgressTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"siblings", "roots"})
-    void veryWideTreesBoundAcquisitionPreparationAndVisitsPerStep(String shape) {
+    void veryWideTreesCopyReferencesFirstThenBoundPreparationAndVisitsPerStep(String shape) {
         var world = new World();
         var root = displayed("test:root", null, false, "c");
         var holders = new ArrayList<AdvancementHolder>();
@@ -146,7 +146,10 @@ class MinecraftProgressTest {
         }
         var reader = new MinecraftProgress();
         var slice = reader.snapshot(world.source());
-        var steps = 0;
+        assertTrue(slice.step(), "the first step copies node references without preparing progress");
+        assertEquals(0, world.lookups);
+        assertTrue(slice.result().entries().isEmpty());
+        var steps = 1;
         boolean more;
         do {
             var before = world.lookups;

@@ -589,38 +589,76 @@ public final class PackSageTools {
 
     /** Keep record identity and links, reducing bulky nested content before any compact scalar facts. */
     private static void trimRecord(JsonObject record, int budget) {
+        if (record.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= budget) return;
+        record.getAsJsonObject("source").addProperty("coverage", "PARTIAL");
+        record.addProperty("truncationNote", "record content exceeded its encoded byte budget; collection tails, oversized fields or source metadata were omitted");
         class Trimmer {
-            boolean trim(com.google.gson.JsonElement value) {
-                if (value.isJsonArray() && !value.getAsJsonArray().isEmpty()) {
+            record Field(String key, com.google.gson.JsonElement value, int keyBytes) { }
+            final java.util.Map<com.google.gson.JsonElement, Integer> sizes = new java.util.IdentityHashMap<>();
+            final java.util.Map<JsonObject, java.util.PriorityQueue<Field>> fields = new java.util.IdentityHashMap<>();
+
+            int bytes(com.google.gson.JsonElement value) {
+                var cached = sizes.get(value);
+                if (cached != null) return cached;
+                int size;
+                if (value.isJsonArray()) {
+                    size = 2 + Math.max(0, value.getAsJsonArray().size() - 1);
+                    for (var child : value.getAsJsonArray()) size += bytes(child);
+                } else if (value.isJsonObject()) {
+                    size = 2 + Math.max(0, value.getAsJsonObject().size() - 1);
+                    for (var entry : value.getAsJsonObject().entrySet()) size += new com.google.gson.JsonPrimitive(entry.getKey())
+                            .toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 1 + bytes(entry.getValue());
+                } else size = value.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+                sizes.put(value, size);
+                return size;
+            }
+
+            int trim(com.google.gson.JsonElement value, int excess) {
+                int before = bytes(value);
+                int removed = 0;
+                if (value.isJsonArray()) {
                     var array = value.getAsJsonArray();
-                    int keep = array.size() / 2;
-                    while (array.size() > keep) array.remove(array.size() - 1);
-                    return true;
-                }
-                if (value.isJsonObject() && !value.getAsJsonObject().isEmpty()) {
+                    while (!array.isEmpty() && removed < excess) {
+                        removed += bytes(array.get(array.size() - 1)) + (array.size() > 1 ? 1 : 0);
+                        array.remove(array.size() - 1);
+                    }
+                } else if (value.isJsonObject()) {
                     var object = value.getAsJsonObject();
-                    var largest = object.entrySet().stream().max(java.util.Comparator.comparingInt(entry ->
-                            entry.getKey().getBytes(java.nio.charset.StandardCharsets.UTF_8).length
-                                    + entry.getValue().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length)).orElseThrow();
-                    if (!trim(largest.getValue())) object.remove(largest.getKey());
-                    return true;
+                    var queue = fields.computeIfAbsent(object, current -> {
+                        var ordered = new java.util.PriorityQueue<Field>(java.util.Comparator.comparingInt(
+                                (Field field) -> field.keyBytes() + bytes(field.value())).reversed());
+                        current.entrySet().forEach(entry -> ordered.add(new Field(entry.getKey(), entry.getValue(),
+                                new com.google.gson.JsonPrimitive(entry.getKey()).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 1)));
+                        return ordered;
+                    });
+                    while (!queue.isEmpty() && removed < excess) {
+                        var largest = queue.remove();
+                        int cut = trim(largest.value(), excess - removed);
+                        if (cut == 0) {
+                            removed += largest.keyBytes() + bytes(largest.value()) + (object.size() > 1 ? 1 : 0);
+                            object.remove(largest.key());
+                        } else {
+                            removed += cut;
+                            queue.add(largest);
+                        }
+                    }
                 }
-                return false;
+                sizes.put(value, before - removed);
+                return removed;
             }
         }
         var trimmer = new Trimmer();
-        while (record.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > budget) {
+        while (trimmer.bytes(record) > budget) {
             var largest = java.util.stream.Stream.of(record.get("payload"), record.get("recipe"), record.getAsJsonObject("source").get("provenance"))
                     .filter(value -> value != null && (value.isJsonObject() && !value.getAsJsonObject().isEmpty()
                             || value.isJsonArray() && !value.getAsJsonArray().isEmpty()))
-                    .max(java.util.Comparator.comparingInt(value -> value.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length)).orElse(null);
-            if (largest == null || !trimmer.trim(largest)) {
+                    .max(java.util.Comparator.comparingInt(trimmer::bytes)).orElse(null);
+            if (largest == null || trimmer.trim(largest, trimmer.bytes(record) - budget) == 0) {
                 var title = record.get("title").getAsString();
                 if (title.isEmpty()) {
                     var source = record.getAsJsonObject("source");
                     var metadata = source.entrySet().stream().filter(entry -> !List.of("providerId", "sourceHandle", "coverage").contains(entry.getKey()))
-                            .max(java.util.Comparator.comparingInt(entry -> entry.getValue().toString()
-                                    .getBytes(java.nio.charset.StandardCharsets.UTF_8).length)).orElse(null);
+                            .max(java.util.Comparator.comparingInt(entry -> trimmer.bytes(entry.getValue())))).orElse(null);
                     if (metadata == null) break;
                     source.remove(metadata.getKey());
                 } else {
@@ -629,8 +667,8 @@ public final class PackSageTools {
                     record.addProperty("title", end == 0 ? "" : title.substring(0, end) + " [truncated]");
                 }
             }
-            record.getAsJsonObject("source").addProperty("coverage", "PARTIAL");
-            record.addProperty("truncationNote", "record content exceeded its encoded byte budget; collection tails, oversized fields or source metadata were omitted");
+            trimmer.sizes.remove(record.get("source"));
+            trimmer.sizes.remove(record);
         }
     }
 }

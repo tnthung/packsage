@@ -40,7 +40,7 @@ Candidate 2's duplicate-destination bridge rejection and inspected-air Show link
 
 ### Biome and structure locating (v2)
 
-- [ ] Minecraft — `locate` resolves biome and structure ids/tags, returns coordinates and persistent place links, and continues paced searches without loading or generating chunks. Structures distinguish found starts from predictions; unknown saved-start confirmation never proves absence. Place columns await visibility checks in the Nether at default render distance and the Overworld at 8 chunks, and saved links await a full-restart check. Implemented with automated tests, not yet checked in game ([final stage 3 checklist](2026-10-22-v2-minecraft-only.md)).
+- [ ] Minecraft — `locate` resolves biome and structure ids/tags, returns coordinates and persistent place links, and continues paced searches without loading or generating chunks. Structures distinguish found starts from predictions; unknown saved-start confirmation never proves absence. Nether and distant Overworld columns pass at render distance 12 after the depth-state fix ([L1 recheck](../validation/2026-10-25-v2-acceptance.md#l1-recheck)); the earlier Overworld check at 8 chunks is separate historical evidence. Saved links await a full-restart check, with other acceptance still pending ([final stage 3 checklist](2026-10-22-v2-minecraft-only.md)).
 
 ### Command discovery and usage (v2)
 

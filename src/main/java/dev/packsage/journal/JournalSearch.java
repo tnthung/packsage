@@ -93,6 +93,9 @@ public final class JournalSearch {
                     reasons.add("the journal began recording at " + Instant.ofEpochMilli(meta.createdWall()));
                 }
                 var sessions = store.sessions();
+                var gaps = 0;
+                var firstGap = Long.MAX_VALUE;
+                var lastGap = Long.MIN_VALUE;
                 for (int i = 1; i < sessions.size(); i++) {
                     var previous = sessions.get(i - 1);
                     var next = sessions.get(i);
@@ -114,9 +117,14 @@ public final class JournalSearch {
                     if (next.startedGameTime() - endedGame > 200
                             && (filter.afterWall() == null || filter.afterWall() < next.startedWall())
                             && (filter.beforeWall() == null ? nowWall : filter.beforeWall()) > endedWall) {
-                        reasons.add("the world ran without recording between " + Instant.ofEpochMilli(endedWall)
-                                + " and " + Instant.ofEpochMilli(next.startedWall()));
+                        gaps++;
+                        firstGap = Math.min(firstGap, endedWall);
+                        lastGap = Math.max(lastGap, next.startedWall());
                     }
+                }
+                if (gaps > 0) {
+                    reasons.add((gaps == 1 ? "the world ran without recording between " : gaps + " recording gaps between ")
+                            + Instant.ofEpochMilli(firstGap) + " and " + Instant.ofEpochMilli(lastGap));
                 }
                 try (var statement = connection.prepareStatement("SELECT kind, SUM(count) FROM recording_losses"
                         + " WHERE last_wall >= ? AND first_wall <= ? GROUP BY kind")) {

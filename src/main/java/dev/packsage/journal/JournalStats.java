@@ -13,7 +13,7 @@ public final class JournalStats {
             "hook failures", "dropped explosion positions", "unread explosion positions", "tracker evictions",
             "oversized container snapshots");
 
-    /** Counters already persisted by the writer and the beginning of its next conservative sampling interval. */
+    /** Persisted counters and the earliest possible unpersisted loss, including event timestamps before the last sample. */
     record LossCheckpoint(long sinceWall, long sinceGameTime, long[] counts) {
     }
 

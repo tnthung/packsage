@@ -44,6 +44,8 @@ public final class JournalWriter {
     private long sessionId;
     private long lastFailureLog;
     private boolean failureLogged;
+    private long lastMarkerFailureLog;
+    private boolean markerFailureLogged;
     private long lossFirstWall;
     private long lossLastWall;
     private long lossFirstGameTime;
@@ -181,7 +183,7 @@ public final class JournalWriter {
                     lossLastGameTime = Math.max(lossLastGameTime, event.gameTime());
                 }
                 merger.forget(changed);
-                logFailure(e);
+                logFailure(e, false);
             }
             stats.batchMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
         }
@@ -199,15 +201,20 @@ public final class JournalWriter {
                         lossFirstGameTime, lossLastGameTime));
             }
         }
-        try {
-            if (!losses.isEmpty()) {
-                store.writeRecordingLosses(sessionId, losses);
-            }
+        stats.lossCheckpoint = new JournalStats.LossCheckpoint(lossFirstWall, lossFirstGameTime, stats.lossCheckpoint.counts());
+        Runnable onCommitted = () -> {
             stats.lossCheckpoint = new JournalStats.LossCheckpoint(sampledWall, sampledGameTime, counts);
             lossFirstWall = lossLastWall = sampledWall;
             lossFirstGameTime = lossLastGameTime = sampledGameTime;
+        };
+        try {
+            if (!losses.isEmpty()) {
+                store.writeRecordingLosses(sessionId, losses, onCommitted);
+            } else {
+                onCommitted.run();
+            }
         } catch (SQLException | RuntimeException e) {
-            logFailure(e);
+            logFailure(e, true);
         }
         merger.closeIdle(gameTime.getAsLong());
         return events.size();
@@ -307,8 +314,16 @@ public final class JournalWriter {
         closed.complete(null);
     }
 
-    private void logFailure(Exception e) {
+    private void logFailure(Exception e, boolean marker) {
         var now = wallClock.getAsLong();
+        if (marker) {
+            if (!markerFailureLogged || now - lastMarkerFailureLog >= FAILURE_LOG_MILLIS) {
+                markerFailureLogged = true;
+                lastMarkerFailureLog = now;
+                PackSageLog.LOGGER.warn("PackSage journal loss marker persistence failed: {}", PackSageLog.describe(e));
+            }
+            return;
+        }
         if (!failureLogged || now - lastFailureLog >= FAILURE_LOG_MILLIS) {
             failureLogged = true;
             lastFailureLog = now;

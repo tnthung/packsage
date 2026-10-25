@@ -363,7 +363,7 @@ public final class JournalTools implements KnowledgeProvider {
             payload.addProperty("type", "note");
             payload.addProperty("id", note.id());
             payload.addProperty("text", note.text());
-            if (note.playerWords() != null && !note.playerWords().equals(note.text())) {
+            if (note.playerWords() != null) {
                 payload.addProperty("playerWords", note.playerWords().length() <= 1_000 ? note.playerWords()
                         : note.playerWords().substring(0, Character.isHighSurrogate(note.playerWords().charAt(999)) ? 999 : 1_000));
                 if (note.playerWords().length() > 1_000) payload.addProperty("playerWordsTruncated", true);

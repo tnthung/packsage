@@ -46,6 +46,14 @@ class StatisticListingTest {
         assertEquals("no counter matches; unlisted counters are zero", page.note());
     }
 
+    @Test
+    void anEmptyPartialListingDoesNotClaimUnlistedCountersAreZero() {
+        var page = StatisticListing.page(List.of(List.of()), 0, List.of("adapter x failed: boom"));
+        assertTrue(page.items().isEmpty());
+        assertEquals(Evidence.Coverage.PARTIAL, page.coverage());
+        assertEquals("no counter matches; adapter x failed: boom", page.note());
+    }
+
     private static Statistic count(String category, String subject) {
         return new Statistic("minecraft", category, subject, subject, 1, StatisticUnit.COUNT, 1);
     }

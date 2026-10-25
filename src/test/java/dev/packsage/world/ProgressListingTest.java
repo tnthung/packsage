@@ -41,7 +41,9 @@ class ProgressListingTest {
         var visible = entry(new ProgressId("minecraft", "minecraft:adventure/sleep_in_bed"), tree, "Sweet Dreams", ProgressStatus.DONE);
         var snapshots = List.of(new ProgressSnapshot(List.of(new ProgressTree(tree, "Adventure", 1, 2)), List.of(visible, hidden), null));
         var byText = ProgressListing.page(snapshots, new ProgressListing.Filter(null, Set.of(), "LEVITATE"), 0);
-        assertTrue(byText.items().stream().noneMatch(item -> item.entry() != null));
+        assertTrue(byText.items().isEmpty());
+        assertEquals(Evidence.Coverage.COMPLETE, byText.coverage());
+        assertEquals("no progress entry matches", byText.note());
         var byStatus = ProgressListing.page(snapshots, new ProgressListing.Filter(null, Set.of(ProgressStatus.HIDDEN), ""), 0);
         var entries = byStatus.items().stream().map(ProgressListing.Item::entry).filter(e -> e != null).toList();
         assertEquals(List.of(hidden), entries);
@@ -75,6 +77,14 @@ class ProgressListingTest {
         assertEquals(9, page.items().size());
         assertEquals(Evidence.Coverage.PARTIAL, page.coverage());
         assertEquals("the advancements were reloaded; quests are still loading", page.note());
+    }
+
+    @Test
+    void anEmptyPartialListingKeepsTheSnapshotNote() {
+        var page = ProgressListing.page(List.of(new ProgressSnapshot(List.of(), List.of(), "the advancements were reloaded")), ALL, 0);
+        assertTrue(page.items().isEmpty());
+        assertEquals(Evidence.Coverage.PARTIAL, page.coverage());
+        assertEquals("no progress entry matches; the advancements were reloaded", page.note());
     }
 
     private static ProgressSnapshot snapshot(String adapter, int trees, int entries, String note) {

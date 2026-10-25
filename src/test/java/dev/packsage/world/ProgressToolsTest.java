@@ -116,6 +116,39 @@ class ProgressToolsTest {
     }
 
     @Test
+    void savedTreeEvidenceRereadsFreshCountsAndRejectsRemovedTrees() throws Exception {
+        var fixture = new Fixture();
+        var reader = new Reader("minecraft", new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 0, 2, true)), List.of(), null), null);
+        fixture.registry.register(reader);
+        var saved = fixture.call("list_progress", "{}").records().getFirst();
+        var context = new Toolbox.Context(() -> SCOPE, Map.of("saved", new Toolbox.Reference("progress",
+                saved.source().sourceHandle(), saved.kind(), SCOPE)), new AdapterRegistry(), new Toolbox.DocumentBudget(), null);
+        reader.snapshot = new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 2, 2, true)), List.of(), null);
+        var request = new PackSageTools.ReadRequest("read_evidence", Evidence.deserializeObject("{\"handles\":[\"saved\"]}"), SCOPE);
+
+        var reread = fixture.finish(fixture.tools.readEvidence(request, context));
+
+        assertEquals(1, reread.records().size());
+        assertEquals(saved.source().sourceHandle(), reread.records().getFirst().source().sourceHandle());
+        assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(2)), reread.records().getFirst().payload().values().get("done"));
+        assertEquals(saved.targets(), reread.records().getFirst().targets());
+        reader.snapshot = new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 0, 65, true)),
+                java.util.stream.IntStream.range(0, 65).mapToObj(index -> new ProgressEntry(new ProgressHandle(
+                        new ProgressId("minecraft", "minecraft:story/entry_" + index), ROOT, "Entry " + index,
+                        ProgressStatus.AVAILABLE, true), "Entry")).toList(), null);
+        var largeTree = fixture.finish(fixture.tools.readEvidence(request, context));
+        assertEquals(Evidence.Coverage.COMPLETE, largeTree.coverage());
+        assertEquals(1, largeTree.records().size());
+        assertNull(largeTree.nextCursor());
+        assertTrue(largeTree.detail() == null || !largeTree.detail().contains("cursor"), largeTree.detail());
+        reader.snapshot = new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 1, 2, true)), List.of(), "snapshot incomplete");
+        assertEquals(Evidence.Coverage.PARTIAL, fixture.finish(fixture.tools.readEvidence(request, context)).coverage());
+        reader.snapshot = new ProgressSnapshot(List.of(), List.of(), null);
+        var failure = assertThrows(CompletionException.class, () -> fixture.finish(fixture.tools.readEvidence(request, context)));
+        assertEquals(Toolbox.Code.INVALID_REFERENCE, ((Toolbox.Failure) failure.getCause()).code());
+    }
+
+    @Test
     void listProgressCombinesAdaptersTreesFirstWithLinksExceptHidden() throws Exception {
         var fixture = new Fixture();
         fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 1, 2, true)), List.of(new ProgressEntry(STONE, "Mine stone"), new ProgressEntry(HIDDEN, null)), null), null));
@@ -322,7 +355,7 @@ class ProgressToolsTest {
         }
         var tree = fixture.finish(fixture.tools.query(new Evidence.Query(Evidence.Operation.GET, Evidence.deserializeObject("{\"id\":\"tree|minecraft/minecraft:story/root\"}"), 1, null, null), SCOPE));
         assertEquals(Evidence.Outcome.ERROR, tree.outcome());
-        assertTrue(tree.detail().contains("INVALID_REFERENCE: repeat list_progress"));
+        assertTrue(tree.detail().contains("INVALID_REFERENCE: progress tree is no longer available"));
     }
 
     @Test

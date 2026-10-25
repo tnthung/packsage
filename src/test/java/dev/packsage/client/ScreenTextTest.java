@@ -21,6 +21,38 @@ class ScreenTextTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
 
     @Test
+    void savedV1CitationsKeepTheirExactSourcesAndDestinations(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) {
+        var sources = new ArrayList<Evidence.Source>();
+        var targets = new ArrayList<Evidence.NavigationTarget>();
+        for (String provider : List.of("jei", "ftb_quests", "patchouli", "modonomicon", "guideme",
+                "immersiveengineering", "actuallyadditions", "relics", "artifacts", "ponder", "curios")) {
+            sources.add(new Evidence.Source(SCOPE, provider, "v1", "saved/record", 1, java.time.Instant.EPOCH,
+                    Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()));
+            targets.add(new Evidence.NavigationTarget(SCOPE, provider, "saved/record", "saved/destination"));
+        }
+        var store = new dev.packsage.chat.ConversationStore(directory, Runnable::run);
+        var world = new ChatContracts.WorldIdentity("world", "World");
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        String answer = targets.stream().map(target -> "[" + target.providerId() + ":saved/record]")
+                .collect(java.util.stream.Collectors.joining(" "))
+                + "\n\uE200cite\uE202jei:saved/record\uE202ftb_quests:saved/record\uE201";
+        store.appendTurn(world, SCOPE, conversation.id(), new ChatContracts.Turn(new ChatContracts.RequestId("v1"),
+                "Old question", answer, List.of(), new ChatContracts.Context("{}", null, SCOPE), sources, targets,
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
+        var saved = new dev.packsage.chat.ConversationStore(directory, Runnable::run)
+                .openConversation(world, conversation.id()).toCompletableFuture().join().turns().getFirst();
+        var lines = ScreenText.inlineLines(saved.answer(), saved.navigationTargets(), List.of(), saved.sources());
+        assertEquals(sources, lines.getFirst().spans().stream().map(ScreenText.InlineSpan::source)
+                .filter(java.util.Objects::nonNull).toList());
+        assertEquals(targets, lines.getFirst().spans().stream().map(ScreenText.InlineSpan::target)
+                .filter(java.util.Objects::nonNull).toList());
+        assertEquals(targets.subList(0, 2), lines.get(1).spans().stream().map(ScreenText.InlineSpan::target)
+                .filter(java.util.Objects::nonNull).toList());
+        assertEquals(sources.subList(0, 2), lines.get(1).spans().stream().map(ScreenText.InlineSpan::source)
+                .filter(java.util.Objects::nonNull).toList());
+    }
+
+    @Test
     void legacyQuestToolResultsStillRenderStoredSourcesAndLinks() {
         var source = new Evidence.Source(SCOPE, "native", "1", "quest:1000000000000002", 1, java.time.Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
@@ -493,8 +525,7 @@ class ScreenTextTest {
 
     @Test
     void citationsFromEveryRegisteredProviderBecomeChips() {
-        // ClientAssistant.knowledge registers native/config/world/progress; AssistantRuntime adds history.
-        assertEquals(List.of("native", "config", "history", "world", "progress", "journal"), ScreenText.CITATION_PROVIDERS);
+        // Current providers include native/config/world/progress/journal and conversation history.
         for (String provider : List.of("native", "config", "history", "world", "progress", "journal")) {
             var source = new Evidence.Source(SCOPE, provider, "1", "note:abc", 1, java.time.Instant.EPOCH,
                     Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());

@@ -564,11 +564,100 @@ class WorldToolsTest {
     }
 
     @Test
-    void holderSummariesPointBackToListItemsWhenReread() throws Exception {
-        var query = new Evidence.Query(Evidence.Operation.GET, Evidence.deserializeObject("{\"id\":\"holder|player:" + ENTITY + "\"}"), 1, null, null);
-        var result = tools().query(query, SCOPE).toCompletableFuture().get();
-        assertEquals(Evidence.Coverage.ERROR, result.coverage());
-        assertTrue(result.detail().contains("list_items") && result.detail().contains("player:" + ENTITY), result.detail());
+    void savedHolderEvidenceRereadsTheFreshListItemsSummary() throws Exception {
+        net.minecraft.SharedConstants.tryDetectVersion();
+        net.minecraft.server.Bootstrap.bootStrap();
+        class Players extends net.minecraft.server.players.PlayerList {
+            net.minecraft.server.level.ServerPlayer player;
+            Players() { super(null, null, null, 0); }
+            @Override public net.minecraft.server.level.ServerPlayer getPlayer(java.util.UUID id) { return player; }
+        }
+        class Server extends net.minecraft.client.server.IntegratedServer {
+            Players players;
+            Server() { super(null, null, null, null, null, null, null); }
+            @Override public com.mojang.authlib.GameProfile getSingleplayerProfile() {
+                return new com.mojang.authlib.GameProfile(java.util.UUID.fromString(ENTITY), "Host");
+            }
+            @Override public net.minecraft.server.players.PlayerList getPlayerList() { return players; }
+        }
+        class Player extends net.minecraft.server.level.ServerPlayer {
+            net.minecraft.world.entity.player.Inventory inventory;
+            Player() { super(null, null, null, null); }
+            @Override public net.minecraft.world.entity.player.Inventory getInventory() { return inventory; }
+            @Override public java.util.UUID getUUID() { return java.util.UUID.fromString(ENTITY); }
+        }
+        var field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        var unsafe = field.get(null);
+        var allocate = unsafe.getClass().getMethod("allocateInstance", Class.class);
+        var player = (Player) allocate.invoke(unsafe, Player.class);
+        player.inventory = new net.minecraft.world.entity.player.Inventory(player);
+        var server = (Server) allocate.invoke(unsafe, Server.class);
+        server.players = (Players) allocate.invoke(unsafe, Players.class);
+        server.players.player = player;
+        var running = net.minecraft.server.MinecraftServer.class.getDeclaredField("running");
+        running.setAccessible(true);
+        running.setBoolean(server, true);
+        var level = (net.minecraft.server.level.ServerLevel) allocate.invoke(unsafe, net.minecraft.server.level.ServerLevel.class);
+        var levelData = net.minecraft.world.level.Level.class.getDeclaredField("levelData");
+        levelData.setAccessible(true);
+        levelData.set(level, java.lang.reflect.Proxy.newProxyInstance(net.minecraft.world.level.storage.WritableLevelData.class.getClassLoader(),
+                new Class<?>[]{net.minecraft.world.level.storage.WritableLevelData.class}, (proxy, method, arguments) -> 400L));
+        var levels = net.minecraft.server.MinecraftServer.class.getDeclaredField("levels");
+        levels.setAccessible(true);
+        levels.set(server, Map.of(net.minecraft.world.level.Level.OVERWORLD, level));
+        var work = new ServerWork(System::nanoTime);
+        var registry = new WorldRegistry();
+        var tools = new WorldTools(() -> server, registry, () -> SCOPE, Runnable::run, work,
+                () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
+        var listed = tools.handle(new PackSageTools.ReadRequest("list_items", Evidence.deserializeObject("{\"holder\":\"player\"}"), SCOPE), null);
+        for (int tick = 0; !listed.toCompletableFuture().isDone() && tick < 100; tick++) work.tick();
+        var saved = listed.toCompletableFuture().join().records().getFirst();
+        player.inventory.selected = 4;
+        var context = new Toolbox.Context(() -> SCOPE, Map.of("saved", new Toolbox.Reference("world",
+                saved.source().sourceHandle(), saved.kind(), SCOPE)), new AdapterRegistry(), new Toolbox.DocumentBudget(), null);
+        var reread = tools.readEvidence(new PackSageTools.ReadRequest("read_evidence", Evidence.deserializeObject("{\"handles\":[\"saved\"]}"), SCOPE), context);
+        for (int tick = 0; !reread.toCompletableFuture().isDone() && tick < 100; tick++) work.tick();
+        var result = reread.toCompletableFuture().join();
+        assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
+        assertEquals(1, result.records().size());
+        assertEquals(saved.source().sourceHandle(), result.records().getFirst().source().sourceHandle());
+        assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(4)), result.records().getFirst().payload().values().get("selectedSlot"));
+        assertEquals(new Evidence.JsonArray(java.util.List.of()), result.records().getFirst().payload().values().get("inventories"));
+        registry.register(new InventoryReader() {
+            @Override public String adapterId() { return "fixture"; }
+            @Override public java.util.List<InventoryInfo> inventories(LiveHolder holder) {
+                return holder instanceof LiveHolder.OfPlayer ? java.util.List.of(new InventoryInfo(
+                        new InventoryId("fixture", "storage"), "Storage", 65, SlotRole.STORAGE)) : java.util.List.of();
+            }
+            @Override public LiveInventory open(LiveHolder holder, String section) {
+                return new LiveInventory() {
+                    @Override public net.minecraft.world.item.ItemStack get(String entry) { return null; }
+                    @Override public java.util.List<Map.Entry<String, net.minecraft.world.item.ItemStack>> entries() {
+                        return net.minecraft.core.registries.BuiltInRegistries.ITEM.stream()
+                                .filter(item -> item != net.minecraft.world.item.Items.AIR).limit(65)
+                                .map(item -> Map.entry(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString(),
+                                        new net.minecraft.world.item.ItemStack(item))).toList();
+                    }
+                };
+            }
+            @Override public Section inspectItem(net.minecraft.world.item.ItemStack stack) { return null; }
+        });
+        var large = tools.readEvidence(new PackSageTools.ReadRequest("read_evidence", Evidence.deserializeObject("{\"handles\":[\"saved\"]}"), SCOPE), context);
+        for (int tick = 0; !large.toCompletableFuture().isDone() && tick < 100; tick++) work.tick();
+        assertEquals(1, large.toCompletableFuture().join().records().size());
+        var cursors = WorldTools.class.getDeclaredField("cursors");
+        cursors.setAccessible(true);
+        assertTrue(((Map<?, ?>) cursors.get(tools)).isEmpty(), "a holder reread must not retain an unused item page");
+        registry.register(new InventoryReader() {
+            @Override public String adapterId() { return "broken"; }
+            @Override public java.util.List<InventoryInfo> inventories(LiveHolder holder) { throw new IllegalStateException("inventory unavailable"); }
+            @Override public LiveInventory open(LiveHolder holder, String section) { return null; }
+            @Override public Section inspectItem(net.minecraft.world.item.ItemStack stack) { return null; }
+        });
+        var partial = tools.readEvidence(new PackSageTools.ReadRequest("read_evidence", Evidence.deserializeObject("{\"handles\":[\"saved\"]}"), SCOPE), context);
+        for (int tick = 0; !partial.toCompletableFuture().isDone() && tick < 100; tick++) work.tick();
+        assertEquals(Evidence.Coverage.PARTIAL, partial.toCompletableFuture().join().coverage());
     }
 
     @Test

@@ -116,6 +116,9 @@ Stages 1–5 are implemented. Checked entries below describe the accepted scope,
 ## Open
 
 - Journal final-review fixes preserve recording-loss intervals across restarts with an additive schema-v1 table and keep byte-bounded pages resumable after their last delivered record. The [validation record](../validation/2026-10-26-v2-journal-final-review-fixes.md) records the follow-up shared encoder, marker retry/checkpoint and bounded-detail fixes with 1,079 passing tests, five skips and unverified live acceptance; these fixes do not close the broader journal checklist.
+Final client-review fixes have automated coverage for historical v1 citation chips and unavailable destinations, worker-side debug prompt saves with concurrent screen updates, and fresh holder/progress-tree evidence rereads. Their installed acceptance remains pending; the promoted prompt text is unchanged.
+
+Fix round 1 adds regressions for large progress-tree reread coverage, unused holder-reread cursors, atomic settings replacement and bounded prompt-save conflicts. The fixes preserve the existing feature and installed-acceptance scope.
 
 The [cross-stage follow-ups](../../.superpowers/sdd/final-followups.md) include both deferred work and already completed integration items. Keep the deferred items below open; this list does not reopen the completed WorldTools.run delegation, merged tool-count updates or whole-prompt rewrite.
 

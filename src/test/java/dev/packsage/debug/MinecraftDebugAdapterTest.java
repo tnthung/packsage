@@ -26,7 +26,106 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class MinecraftDebugAdapterTest {
     @ParameterizedTest
-    @ValueSource(strings = {"chest", "advancement", "collision", "missing"})
+    @ValueSource(strings = {"settings", "prompt", "save", "failure", "default", "clear", "invalid", "conflict"})
+    void promptSaveLeavesTheClientResponsiveAndPreservesConcurrentScreenSaves(String concurrent, @TempDir Path directory) throws Exception {
+        class Client extends Minecraft {
+            java.util.concurrent.Executor executor;
+            Client() { super(null); }
+            @Override public void execute(Runnable task) { executor.execute(task); }
+        }
+        var field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        var unsafe = field.get(null);
+        var client = (Client) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Client.class);
+        var backend = (ModelBackend) Proxy.newProxyInstance(ModelBackend.class.getClassLoader(), new Class<?>[]{ModelBackend.class},
+                (proxy, method, args) -> { throw new AssertionError("prompt editing must not call the model"); });
+        var runtime = new AssistantRuntime(new ConversationStore(directory, Runnable::run), backend,
+                current -> { throw new AssertionError("prompt editing must not capture context"); }, Runnable::run, Runnable::run,
+                current -> new KnowledgeService(List.of(), current), turn -> 0,
+                prepared -> { throw new AssertionError("prompt editing must not submit requests"); }, model -> 0, paused -> { }, url -> { });
+        var path = directory.resolve("settings.properties");
+        var started = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var writes = new java.util.concurrent.atomic.AtomicInteger();
+        try (var clientThread = java.util.concurrent.Executors.newSingleThreadExecutor();
+             var worker = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+            client.executor = clientThread;
+            if (concurrent.equals("default") || concurrent.equals("clear")) runtime.settings().setDeveloperPrompt("previous prompt");
+            var adapter = new MinecraftDebugAdapter(client, runtime, () -> { }, new DebugRequestLog(), (settings, text) -> {
+                if (writes.incrementAndGet() == 1) {
+                    // Also cover a screen save after the worker wrote but before the client can publish.
+                    if (concurrent.equals("save")) settings.saveDeveloperPrompt(path, text);
+                    started.countDown();
+                    try { assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS)); }
+                    catch (InterruptedException failure) { throw new RuntimeException(failure); }
+                    if (concurrent.equals("save")) return;
+                }
+                if (concurrent.equals("failure")) throw new IllegalStateException("writer failed");
+                if (concurrent.equals("conflict")) {
+                    if (writes.get() > 3) throw new AssertionError("prompt save retry limit exceeded");
+                    try { clientThread.submit(() -> runtime.settings().save(path)).get(1, java.util.concurrent.TimeUnit.SECONDS); }
+                    catch (Exception failure) { throw new RuntimeException(failure); }
+                }
+                settings.saveDeveloperPrompt(path, text);
+            });
+            var body = new com.google.gson.JsonObject();
+            body.addProperty("text", concurrent.equals("default") ? dev.packsage.model.GroundingInstructions.defaultInstructions()
+                    : concurrent.equals("clear") ? null : concurrent.equals("invalid") ? " " : "bridge prompt");
+            var response = worker.submit(() -> adapter.execute(DebugRouter.Operation.PROMPT_SET, body));
+            if (concurrent.equals("invalid")) {
+                assertThrows(java.util.concurrent.ExecutionException.class, () -> response.get(5, java.util.concurrent.TimeUnit.SECONDS));
+                assertEquals(0, writes.get());
+                assertNull(runtime.settings().developerPrompt());
+                assertFalse(java.nio.file.Files.exists(path));
+                return;
+            }
+            try {
+                assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                clientThread.submit(() -> {
+                    assertEquals(concurrent.equals("default") || concurrent.equals("clear") ? "previous prompt" : null,
+                            runtime.settings().developerPrompt(), "unpersisted prompt must not be published");
+                    if (concurrent.equals("settings")) {
+                        runtime.settings().setOpenPaused(false);
+                        runtime.settings().setHistoryTurns(25);
+                    } else if (concurrent.equals("prompt")) {
+                        runtime.settings().saveDeveloperPrompt(path, "screen prompt");
+                    }
+                    runtime.settings().save(path);
+                }).get(1, java.util.concurrent.TimeUnit.SECONDS);
+            } finally {
+                release.countDown();
+            }
+            if (concurrent.equals("failure")) {
+                assertThrows(java.util.concurrent.ExecutionException.class, () -> response.get(5, java.util.concurrent.TimeUnit.SECONDS));
+                assertNull(runtime.settings().developerPrompt());
+                assertNull(dev.packsage.chat.PackSageSettings.load(path).developerPrompt());
+                return;
+            }
+            if (concurrent.equals("conflict")) {
+                var failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                        () -> response.get(5, java.util.concurrent.TimeUnit.SECONDS));
+                assertInstanceOf(IllegalStateException.class, failure.getCause());
+                assertTrue(failure.getCause().getMessage().contains("conflict"));
+                assertEquals(3, writes.get());
+                assertNull(runtime.settings().developerPrompt());
+                return;
+            }
+            assertEquals(concurrent.equals("default") || concurrent.equals("clear")
+                    ? dev.packsage.model.GroundingInstructions.defaultInstructions()
+                    : concurrent.equals("prompt") ? "screen prompt" : "bridge prompt",
+                    response.get(5, java.util.concurrent.TimeUnit.SECONDS).get("effectiveText").getAsString());
+            var saved = dev.packsage.chat.PackSageSettings.load(path);
+            assertEquals(concurrent.equals("default") || concurrent.equals("clear") ? null
+                    : concurrent.equals("prompt") ? "screen prompt" : "bridge prompt", saved.developerPrompt());
+            assertEquals(saved.developerPrompt(), runtime.settings().developerPrompt());
+            assertEquals(!concurrent.equals("settings"), saved.openPaused());
+            assertEquals(concurrent.equals("settings") ? 25 : 10, saved.historyTurns());
+            assertEquals(saved.historyTurns(), runtime.settings().historyTurns());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"chest", "advancement", "collision", "missing", "jei", "ftb_quests"})
     void replyNavigationAcceptsOnlyOneDestination(String scenario, @TempDir Path directory) throws Exception {
         class Client extends Minecraft {
             Client() { super(null); }
@@ -39,8 +138,8 @@ class MinecraftDebugAdapterTest {
         var scope = new Evidence.Scope("world", "resources", "player", "runtime", 0);
         var world = new ChatContracts.WorldIdentity("world", "World");
         var targetId = scenario.equals("advancement") ? "advancement|minecraft:story/root" : "world-block|minecraft:overworld|1,64,2";
-        var first = new Evidence.NavigationTarget(scope, "fixture", "first", targetId);
-        var second = new Evidence.NavigationTarget(scope, scenario.equals("collision") ? "other" : "fixture", "second", targetId);
+        var first = new Evidence.NavigationTarget(scope, scenario.equals("jei") || scenario.equals("ftb_quests") ? scenario : "fixture", "first", targetId);
+        var second = new Evidence.NavigationTarget(scope, scenario.equals("collision") ? "other" : first.providerId(), "second", targetId);
         var store = new ConversationStore(directory, Runnable::run);
         var conversation = store.newConversation(world).toCompletableFuture().join();
         store.appendTurn(world, scope, conversation.id(), new ChatContracts.Turn(new ChatContracts.RequestId("reply"),
@@ -83,6 +182,10 @@ class MinecraftDebugAdapterTest {
         if (scenario.equals("collision") || scenario.equals("missing")) {
             assertEquals(400, response.status());
             assertTrue(opened.isEmpty());
+        } else if (scenario.equals("jei") || scenario.equals("ftb_quests")) {
+            assertEquals(200, response.status(), response.body().toString());
+            assertEquals("UNAVAILABLE", response.body().get("status").getAsString());
+            assertTrue(opened.isEmpty(), "an installed provider must not substitute for the saved provider");
         } else {
             assertEquals(200, response.status(), response.body().toString());
             assertEquals("OPENED", response.body().get("status").getAsString());

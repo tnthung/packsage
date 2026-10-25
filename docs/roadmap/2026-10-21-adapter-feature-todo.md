@@ -33,6 +33,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### Held, offhand and item facts (v2)
 
+- [ ] Minecraft — fresh holder-summary evidence rereads, including incomplete-inventory coverage: implemented with automated regressions; installed acceptance pending.
 - [x] Minecraft — held sword eligibility/exclusions, empty-hand response, four-piece armor eligibility and offhand Luck facts found by tooltip search (C1/C4/W3).
 - [ ] Minecraft — every component/fingerprint/potion variant, other missing-holder cases and legacy inventory/storage handle rereads: implemented, complete installed coverage not captured.
 
@@ -72,6 +73,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### Progress and statistics (v2)
 
+- [ ] Minecraft — fresh progress-tree evidence rereads with current counts and removed-tree refusal: implemented with automated regressions; installed acceptance pending.
 - [x] Minecraft — per-criterion missing biome names, available goals, anonymous hidden entries after the P5 fix, visible-tab links and restart reopening (P1/P5/P7/P8). Q11 confirms invisible tabs stay source-only.
 - [x] Minecraft — exact mined counts, walking in blocks, explicit never-mined zero, play time and sampled 2,000-advancement performance (P2/P3/P4/P6/P10).
 - [ ] Minecraft — multiplayer progress/statistics unavailability: P9 NOT RUN, requires a NeoForge dedicated server. Broader interrupted/missing-destination/unit branches remain unexercised live.
@@ -79,9 +81,14 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### Whole-policy prompt, citations and timing (v2)
 
+- [ ] PackSage — saved v1 provider citations bind recorded sources and targets; removed providers return unavailable without substitution: automated store/render/navigation regressions pass; installed acceptance pending.
 - [x] PackSage — six live prompt rounds, C6 promoted byte-for-byte and effectively 14/14 under Q8a/Q8b note-action ruling; installed default verified with override cleared. Whole-set armor, continued storage, grounded farm diagnosis, silent notes and supported Minecraft recipe/plan answers pass (W2/W3/W5/J6/E2). Provider citation fixes pass installed E5 scans and sampled UI checks.
 - [ ] PackSage — every located thing has text coordinates: E6 FAIL, W8 mule jump answer omits them. Part B's unscored unsupported fortress link and changed-radius cursor reuse remain prompt follow-ups; no seventh candidate was run.
 - [x] PackSage — safe tool receipt/submission/summary logs distinguish backend and tool wall time (E7), and independent effect/attribute reads overlap (E4).
+
+### Developer prompt persistence (v2)
+
+- [ ] PackSage — debug prompt saves persist off the client thread and retain concurrent screen saves: blocking-writer, failure, validation and reset regressions pass; installed acceptance pending.
 
 ### Inventory and equipment inspection
 

@@ -486,7 +486,7 @@ public final class WorldTools implements KnowledgeProvider {
         if (bound != null) notes.add(bound);
         if (!rest.isEmpty()) notes.add("This page shows " + shown.size() + " entries, the page limit with their holders; continue with the cursor");
         var records = new ArrayList<Evidence.Record>();
-        if (summary != null) records.add(summaryRecord(request.scope(), summary, state.span()));
+        if (summary != null) records.add(summaryRecord(request.scope(), summary, state.span(), sticky));
         for (var entry : shown) records.add(entryRecord(request.scope(), entry, state.slotFacts(), state.span()));
         // One record per block or entity holder on the page, so each holder has its own highlight link.
         var linked = 0;
@@ -509,7 +509,7 @@ public final class WorldTools implements KnowledgeProvider {
                 complete ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, next, note);
     }
 
-    /** Reads one block, entity, item, loot or command handle fresh. */
+    /** Reads one block, entity, item, holder, loot or command handle fresh. */
     private CompletionStage<Evidence.Record> reread(String handle, Evidence.Scope scope) {
         if (handle.startsWith("block|")) {
             var place = place(handle.substring(6));
@@ -529,9 +529,18 @@ public final class WorldTools implements KnowledgeProvider {
         }
         if (handle.startsWith("loot|") || handle.startsWith("command|")) return knowledge.reread(handle, scope);
         if (handle.startsWith("holder|")) {
-            throw new Failure(Code.INVALID_REFERENCE, "a holder summary is not reread; repeat list_items with holder " + handle.substring(7));
+            return listItems(new PackSageTools.ReadRequest("list_items", new Evidence.JsonObject(Map.of(
+                    "holder", text(handle.substring(7)))), scope)).thenApply(result -> {
+                if (result.nextCursor() != null) {
+                    synchronized (cursors) {
+                        cursors.remove(result.nextCursor());
+                    }
+                }
+                return result.records().stream().filter(record -> record.source().sourceHandle().equals(handle)).findFirst()
+                        .orElseThrow(() -> new Failure(Code.INVALID_REFERENCE, "holder summary is no longer available; repeat list_items"));
+            });
         }
-        throw new Failure(Code.INVALID_REFERENCE, "only block, entity, item, loot and command records can be reread; repeat the lookup that produced it");
+        throw new Failure(Code.INVALID_REFERENCE, "only block, entity, item, holder, loot and command records can be reread; repeat the lookup that produced it");
     }
 
     // Server-thread reads
@@ -1457,7 +1466,7 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     /** The listed holder's inventories with their empty slots, and the holder's own facts; only blocks and entities link. */
-    private static Evidence.Record summaryRecord(Evidence.Scope scope, HolderSummary summary, ReadSpan span) {
+    private static Evidence.Record summaryRecord(Evidence.Scope scope, HolderSummary summary, ReadSpan span, Evidence.Coverage coverage) {
         var holder = new ItemPath(summary.root(), List.of()).text();
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("holder", text(holder));
@@ -1475,13 +1484,13 @@ public final class WorldTools implements KnowledgeProvider {
         var title = "Inventories of " + holder;
         return switch (summary.root()) {
             case PathRoot.Block of -> evidence(scope, "block|" + of.place().text(), Evidence.RecordKind.BLOCK, title, payload,
-                    Evidence.Coverage.COMPLETE, WorldNavigation.blockId(of.place()));
+                    coverage, WorldNavigation.blockId(of.place()));
             case PathRoot.Entity of -> evidence(scope, "entity|" + of.id(), Evidence.RecordKind.OTHER, title, payload,
-                    Evidence.Coverage.COMPLETE, WorldNavigation.entityId(of.id()));
+                    coverage, WorldNavigation.entityId(of.id()));
             case PathRoot.Player player -> evidence(scope, "holder|" + holder, Evidence.RecordKind.OTHER, title, payload,
-                    Evidence.Coverage.COMPLETE, null);
+                    coverage, null);
             case PathRoot.Opened opened -> evidence(scope, "holder|" + holder, Evidence.RecordKind.OTHER, title, payload,
-                    Evidence.Coverage.COMPLETE, null);
+                    coverage, null);
         };
     }
 

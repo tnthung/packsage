@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Properties;
 
 public final class PackSageSettings {
@@ -32,6 +33,7 @@ public final class PackSageSettings {
     private String modelId;
     private ModelBackend.ReasoningEffort reasoningEffort;
     private volatile String developerPrompt;
+    private long saveGeneration;
 
     public PackSageSettings(boolean openPaused, boolean automaticWebSearch, int historyTurns, int historicalTokens) {
         this.openPaused = openPaused;
@@ -95,6 +97,30 @@ public final class PackSageSettings {
     }
 
     public void save(Path path) {
+        Properties properties = properties();
+        try {
+            if (path.getParent() != null) Files.createDirectories(path.getParent());
+            var temporary = Files.createTempFile(path.toAbsolutePath().getParent(), "packsage-", ".properties.tmp");
+            try {
+                try (OutputStream output = Files.newOutputStream(temporary)) {
+                    properties.store(output, "PackSage settings");
+                }
+                Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } finally {
+                Files.deleteIfExists(temporary);
+            }
+            saveGeneration++;
+        } catch (IOException exception) {
+            throw new IllegalStateException("could not save PackSage settings", exception);
+        }
+    }
+
+    /** Compares a client-thread snapshot, including saves that did not change a setting's value. */
+    public boolean sameSnapshot(PackSageSettings snapshot) {
+        return saveGeneration == snapshot.saveGeneration && properties().equals(snapshot.properties());
+    }
+
+    private Properties properties() {
         Properties properties = new Properties();
         if (debugBridge != null) properties.setProperty("debugBridge", Boolean.toString(debugBridge));
         if (debugBridgePort != null) properties.setProperty("debugBridgePort", Integer.toString(debugBridgePort));
@@ -108,14 +134,7 @@ public final class PackSageSettings {
         if (modelId != null) properties.setProperty("modelId", modelId);
         if (developerPrompt != null) properties.setProperty("developerPrompt", developerPrompt);
         properties.setProperty("reasoningEffort", reasoningEffort.name().toLowerCase(java.util.Locale.ROOT));
-        try {
-            if (path.getParent() != null) Files.createDirectories(path.getParent());
-            try (OutputStream output = Files.newOutputStream(path)) {
-                properties.store(output, "PackSage settings");
-            }
-        } catch (IOException exception) {
-            throw new IllegalStateException("could not save PackSage settings", exception);
-        }
+        return properties;
     }
 
     public boolean openPaused() { return openPaused; }
@@ -148,6 +167,7 @@ public final class PackSageSettings {
         PackSageSettings candidate = withDeveloperPrompt(dev.packsage.model.GroundingInstructions.defaultInstructions().equals(value) ? null : value);
         candidate.save(path);
         setDeveloperPrompt(candidate.developerPrompt());
+        saveGeneration++;
     }
 
     public PackSageSettings withDeveloperPrompt(String value) {
@@ -159,6 +179,7 @@ public final class PackSageSettings {
         copy.hideInactiveAdapters = hideInactiveAdapters;
         copy.debugBridge = debugBridge;
         copy.debugBridgePort = debugBridgePort;
+        copy.saveGeneration = saveGeneration;
         if (!copy.setDeveloperPrompt(value)) throw new IllegalArgumentException("developerPrompt is out of bounds");
         return copy;
     }

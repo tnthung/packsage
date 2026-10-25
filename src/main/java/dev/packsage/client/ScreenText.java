@@ -29,7 +29,11 @@ final class ScreenText {
     static final int CODE_COLOR = 0xffd27f;
     static final int DIM_COLOR = 0x808080;
     private static final String CELL_GAP = "   ";
-    static final List<String> CITATION_PROVIDERS = List.of("native", "config", "history", "world", "progress", "journal");
+    // Saved answers retain their providers even when the corresponding adapter is no longer registered.
+    // When updating AssistantScreen.ADAPTERS, retain those citation provider ids here for saved answers.
+    static final List<String> CITATION_PROVIDERS = List.of("native", "config", "history", "world", "progress", "journal",
+            "jei", "ftb_quests", "patchouli", "modonomicon", "guideme", "immersiveengineering",
+            "actuallyadditions", "relics", "artifacts", "ponder", "curios");
     private static final Pattern CITATION_MARKER = Pattern.compile("\\[(" + String.join("|", CITATION_PROVIDERS) + "):([^\\]\\s]+)\\]");
     private static final Pattern UNRESOLVED_MODEL_ALIAS = Pattern.compile("\\[ref:[0-9a-f]{8}\\.[0-9a-z]+\\.[0-9a-z]+(?:\\](?!\\s*\\()|\\))");
     private static final Pattern CITATION_GROUP = Pattern.compile("\uE200cite\uE202([^\uE201\uE200\\p{javaWhitespace}\\[]*)\uE201");

@@ -120,6 +120,19 @@ class LocateStructureTest {
     }
 
     @Test
+    void placementFailuresDoNotHideBiomeRejectionsWhenThereAreNoHits() {
+        var world = new World() {
+            public boolean placementPasses(StructurePlacement placement, int x, int z) { return checked != 1; }
+        };
+        world.biome = false;
+        var result = finish(search(world, placement, 0, 0, 100, 0));
+        assertTrue(world.checked > 1);
+        assertTrue(!world.biomePositions.isEmpty());
+        assertTrue(result.hits().isEmpty());
+        assertTrue(result.notes().stream().anyMatch(note -> note.contains("biome") && note.contains("minecraft:desert_pyramid")));
+    }
+
+    @Test
     void stopsAfterTheRingThatReachesFiveHits() {
         var world = new World();
         var result = finish(search(world, placement, 0, 0, 100, 0));

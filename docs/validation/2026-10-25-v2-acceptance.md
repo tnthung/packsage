@@ -22143,12 +22143,12 @@ Part A totals (35 requested IDs): 25 PASS, 8 FAIL, 2 DEFERRED. Eight additional 
 | P1 | PASS | 51 missing biome names from inspect_progress; Adventure link OPENED with tab visible. |
 | P7 | PASS | Two available Story goals; both advancement links OPENED. |
 | J5 | PASS | Empty-hand named questions return Nether entry 15:48:49 UTC and Sweet Dreams 15:49:14 UTC; links OPENED. |
-| M5 | NOT RUN | Pending this acceptance session. |
-| L2 | NOT RUN | Pending this acceptance session. |
+| M5 | NOT RUN | Mining/journal/TPS/frame subchecks PASS; world-close hook <1 ms and overflow=0 summary unavailable in logs, so full acceptance is unverified. |
+| L2 | PASS | At render distance 8, 786-block village column remains visible at 28s, expires by 31.5s; fog/render edge do not hide it. |
 | L1 | NOT RUN | Pending this acceptance session. |
 | P9 | NOT RUN | Pending this acceptance session. |
 | J7 | NOT RUN | Pending this acceptance session. |
-| P11 | NOT RUN | Pending this acceptance session. |
+| P11 | NOT RUN | request_built exposes count 28 only; saved JSONL has no offered-tool definitions. No observed read_progress call is insufficient proof. Historical source/link reopening PASS via W7/P8. |
 
 ### Run conditions and restart evidence
 
@@ -22592,6 +22592,46 @@ Verbatim saved reply:
 B-Unread, the librarian at (1124.5, 100, 1124.5), **doesn’t have trade offers generated yet**, so I can’t tell what they sell. Interact with them to open the trading screen, then ask me again and I can read their offers. [B-Unread](world:entity|4380d0fb-e62e-4bc8-aee1-2d0b8b76bb43)
 ```
 
+### M5
+
+Question: `what did I just dig up and blow up?`
+
+Request `5984ae71-cb53-4095-beda-77ae085be0f4`; conversation `6b907eae-04f5-4e5d-b484-57cd7ba95879`; status=completed, saved=true. Submitted 2026-10-25T16:43:51.138Z. Raw: `build/task7-part-b/M5.json`.
+
+Timing: {"elapsed_ms":"17969","backendMs":"17924","toolWallMs":"4","toolCalls":"1"}.
+
+G1 search_journal (`call_is0FZwOSMLBoa8TsZws2CuDa`), toolMs=4:
+
+```json
+{"arguments":{"filter":{"time":{"after":null,"before":null,"lastMinutes":30},"area":null,"dimension":null,"types":["break","explosion"],"subjects":null,"text":null,"notesOnly":null},"cursor":null},"error":false,"coverage":"COMPLETE","recordCount":4,"detail":"recording since 2026-10-25T10:23:33.174Z"}
+```
+
+Verbatim saved reply:
+
+```text
+You dug up **2,000 sand blocks** across the area. Then a **TNT explosion at (1156, 141, 1171)** destroyed another **75 sand and 26 sandstone blocks**—101 blocks total. The opening appears to expose the treetops below. [journal:event:47] [journal:event:48] [journal:event:49] [journal:event:50]
+```
+
+### L2
+
+Question: `where is the nearest village?`
+
+Request `8983c72f-8b4c-41c2-a641-64486ec32f60`; conversation `7a65ec6d-943e-4b18-a4d6-3994c2d23219`; status=completed, saved=true. Submitted 2026-10-25T16:46:54.446Z. Raw: `build/task7-part-b/L2.json`.
+
+Timing: {"elapsed_ms":"8880","backendMs":"8812","toolWallMs":"398","toolCalls":"1"}.
+
+G1 locate (`call_IJ9w4NU4eYQxyU4PrBwNfJHU`), toolMs=398:
+
+```json
+{"arguments":{"biome":null,"structure":"#minecraft:village","center":null,"radius":null,"cursor":null},"error":false,"coverage":"COMPLETE","recordCount":5,"detail":"searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; biome checks rejected candidate columns for minecraft:village_desert, minecraft:village_savanna, minecraft:village_snowy; sampled columns do not prove structure absence; 2 more hits found on this page; showing the nearest 5"}
+```
+
+Verbatim saved reply:
+
+```text
+The nearest village location is a **predicted plains village** at **(1872, 66, 864)**, about **786 blocks** from your position—mostly east, then north. The Y coordinate is estimated. It hasn’t been confirmed in a generated chunk, so terrain could prevent the village from appearing. [Village location](world:locate|minecraft:overworld|minecraft:village_plains|1872,864)
+```
+
 
 ### Corrected fixture observations
 
@@ -22602,3 +22642,23 @@ C5: supported stone platform y=99 was placed before teleport. `/state` immediate
 Natural B-Fresh acquired librarian employment beside a lectern; both reads already had Feather Falling III/bookshelf offers. This attempt did not establish a not-generated precondition; no side-effect conclusion is drawn. `/save-all` is unavailable in integrated singleplayer and its failed feedback is retained. The corrected no-AI B-Unread fixture was summoned with librarian profession and never interacted with. Its two COMPLETE inspect_entity reads both returned offers=not generated yet; no data-get/NBT serialization was used to pre-inspect it. Both answers say so, and both entity links OPENED. A subsequent normal interaction returned CONSUME, opened=true, MerchantScreen, menuId=3, and displayed two ordinary trades. [Trade screen](../../build/task7-part-b/C5-unread-trading.png). Natural-employment and stationary-fixture outcomes remain separate.
 
 J5: main hand explicitly replaced with air. Nether journal event 41 states entry 2026-10-25T15:48:49Z at Overworld portal (1051,252,1000); its journal-place link OPENED. Sweet Dreams inspect_progress criterion doneAt is 2026-10-25T15:49:14Z; its saved advancement link OPENED. These named questions remove Part A's pronoun/held-item ambiguity. Earlier Part A FAIL records are preserved.
+
+### M5 performance and journal observations
+
+A supported 50x40 sand layer at x=1150..1199,y=140,z=1150..1189 was broken through 2,000 actual `/player/break` server-player operations. All succeeded, from 16:43:05.482Z to 16:43:23.047Z (17.565 seconds). No server fixture was running during this measurement. Idle samples immediately after loading/placing were 5.3,6.8,7.7 ms; after settling, 5.8 ms. Twenty samples taken every 100 breaks were 5.8,5.7,5.5,5.6,5.7,5.8,5.6,5.8,5.9,5.8,5.6,5.5,5.5,5.3,5.6,6.3,6.3,6.5,6.4,6.3 ms, all 20 TPS. P99 during the run peaked at 16.0 ms.
+
+[Idle F3 graph](../../build/task7-part-b/M5-idle-frame.png), [tail of mining graph](../../build/task7-part-b/M5-mining-frame.png). The second screenshot was captured immediately after the loop completed; its recent frame history includes the tail of mining, but it is not a continuous recording of every frame. Graph samples show no visible stall. Full numbers/progress: `M5-mining.json`.
+
+TNT was summoned with a 60-tick fuse at (1155.5,141,1170.5) in a fresh 75-sand pile. COMPLETE search_journal returned one 2,000-sand merged player-break event plus the explosion and its 75-sand/26-sandstone break runs (four records total, events 47..50). All four returned journal-place links OPENED. Hook/overflow shutdown summary will be recorded after this world close.
+
+### M5 shutdown observability limit
+
+Clean world close completed 00:44:57 local, and all dimensions were saved. `mining-session.log` preserves that run. No journal offered/written/overflow/slowest-tick summary was present in available latest.log, debug.log or stdout-logs.txt. The bridge exposes request timing only, not journal hook counters. Thus maxHookNanosPerTick <1 ms and overflowed=0 are NOT RUN/unverified; no counter value is inferred from responsive gameplay. M5 is NOT RUN overall with the completed behavioral/performance clauses above, not a claimed full pass.
+
+### L2 column
+
+With Minecraft fully closed, changed only renderDistance:12 -> renderDistance:8 in options.txt, then relaunched via CurseForge. `/prompt` still text:null. At player (1148.5,140,1170.5), locate returned predicted plains village (1872,66,864), 786 blocks away. Exact reply target OPENED. [0s](../../build/task7-part-b/L2-0s.png), [25s](../../build/task7-part-b/L2-25s.png), [32s](../../build/task7-part-b/L2-32s.png): cyan column visible through 25.009s and gone by 43.687s (the file named 32s was captured late). A tighter repeat shows the column at 28.0s and gone at 31.5s: [28s](../../build/task7-part-b/L2-28s.png), [31.5s](../../build/task7-part-b/L2-31s.png). It is visible at the 128-block clamp; no fog/render-edge occlusion in this view.
+
+### P11 visibility limit
+
+Saved P5 JSONL has keys type/world/requestId/question/answer/tokenCount/sentAt/outcome/replayItems/context/sources/navigationTargets/activities/steeringMessages, and no offered tools-definition field. Request-built metadata says tools=28, not names. No read_progress was observed in Part B calls; that does not establish it was not offered. Historical W1/advancement source chips and links were reopened after restart. Raw interface audit: `P11.json`.

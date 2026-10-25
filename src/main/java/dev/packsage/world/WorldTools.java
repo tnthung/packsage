@@ -1031,16 +1031,7 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     <T> CompletionStage<T> run(BooleanSupplier worldOpen, ServerWork.Slice<T> slice) {
-        // ServerWork completes on the server thread; handing off first keeps every later stage, such as record
-        // building and serialization, off it.
-        return work.run(slice, worldOpen).toCompletableFuture().orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).handleAsync((value, failure) -> {
-            if (failure == null) return value;
-            while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
-            if (failure instanceof Failure typed) throw typed;
-            if (failure instanceof TimeoutException) throw new Failure(Code.UNAVAILABLE, "the world did not answer in time");
-            if (failure instanceof IllegalArgumentException) throw invalid(failure.getMessage());
-            throw new Failure(Code.EXTRACTION_FAILED, failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
-        }, worker);
+        return ServerReads.run(work, worker, worldOpen, slice);
     }
 
     static <T> ServerWork.Slice<T> once(Supplier<T> read) {

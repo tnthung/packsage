@@ -63,12 +63,14 @@ class AreaScanTest {
 
     @Test
     void aSmallRadiusNeverTraversesTheGlobalEntityLookup() throws Exception {
-        var world = DenseWorld.create(1);
+        var world = DenseWorld.create(129);
+        for (var entity : world.entities.subList(1, world.entities.size())) entity.setPos(1000, 64, 1000);
         world.forbidGlobal = true;
         var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, null);
         while (slice.step()) {
         }
         assertEquals(1, slice.result().items().size());
+        assertEquals(1, world.visited, "distant loaded entities are never revalidated");
     }
 
     @Test

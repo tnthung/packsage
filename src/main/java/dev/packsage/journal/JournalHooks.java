@@ -365,7 +365,7 @@ public final class JournalHooks {
     }
 
     private void closeContainer(ServerPlayer player, AbstractContainerMenu menu) {
-        if (!session.containers.openPlayers().contains("player:" + player.getUUID())) return;
+        if (!session.containers.has("player:" + player.getUUID())) return;
         session.containers.close("player:" + player.getUUID(), player.getScoreboardName(), menu.containerId, contents(menu),
                 new JournalEvents.Stamp(player.getServer().overworld().getGameTime(), System.currentTimeMillis(),
                         player.level().dimension().location().toString())).forEach(journal::record);

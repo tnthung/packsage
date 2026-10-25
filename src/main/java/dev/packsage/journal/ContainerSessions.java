@@ -64,6 +64,10 @@ public final class ContainerSessions {
         return Set.copyOf(sessions.keySet());
     }
 
+    public boolean has(String playerRef) {
+        return sessions.containsKey(playerRef);
+    }
+
     public long evictions() {
         return evictions;
     }

@@ -50,7 +50,7 @@ class ScreenTextTest {
                 .filter(java.util.Objects::nonNull).toList());
         assertEquals(sources.subList(0, 2), lines.get(1).spans().stream().map(ScreenText.InlineSpan::source)
                 .filter(java.util.Objects::nonNull).toList());
-        var knowledge = new dev.packsage.knowledge.KnowledgeService(List.of(), SCOPE);
+        var knowledge = new dev.packsage.knowledge.KnowledgeService(List.of(), () -> SCOPE);
         for (var target : saved.navigationTargets()) {
             assertEquals(null, knowledge.refreshNavigation(target, SCOPE).toCompletableFuture().join());
         }

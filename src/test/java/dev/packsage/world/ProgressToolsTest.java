@@ -279,4 +279,24 @@ class ProgressToolsTest {
             if (failure instanceof Toolbox.Failure) assertSame(failure, caught.getCause());
         }
     }
+
+    @Test
+    void missingHostFailsStatisticsInsteadOfClaimingAPartialRead() throws Exception {
+        var fixture = new Fixture();
+        fixture.registry.register(new StatisticReader() {
+            @Override
+            public String adapterId() { return "minecraft"; }
+            @Override
+            public List<String> categories() { return List.of("mined"); }
+            @Override
+            public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+                throw new AssertionError("no adapter read should start without the host");
+            }
+        });
+        var tools = new ProgressTools(() -> fixture.server, ignored -> { throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, "the singleplayer host is not in the world"); },
+                fixture.registry, () -> SCOPE, Runnable::run, fixture.work, new ProgressNavigation(null));
+        var read = tools.handle(new PackSageTools.ReadRequest("list_statistics", new Evidence.JsonObject(Map.of()), SCOPE), null);
+        var failure = assertThrows(CompletionException.class, () -> fixture.finish(read));
+        assertEquals(Toolbox.Code.UNAVAILABLE, ((Toolbox.Failure) failure.getCause()).code());
+    }
 }

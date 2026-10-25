@@ -217,6 +217,7 @@ This is PackSage core work, rather than a missing third-party mod adapter.
 
 - [ ] PackSage — remaining assistant behaviour: prompt wording for the refreshing short-duration effect-source cue, which needs two reads (see the [tool roadmap](2026-10-13-todo.md)); freshness/continuation audits, version dispatch, coverage diagnostics, latency, citations, source presentation, search behavior and remaining parallel-chat checks. The eligibility, opened-menu, targeted-entity and brewing-plan tool-selection items passed ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [ ] PackSage — adapter query execution through each provider's own live search and paging, and target references that keep their registered type.
+- [ ] PackSage — installed recheck of complete leading recipe routes with concrete omitted counts, bounded output tails, stale-world cursor errors and bounded settings shutdown; [automated validation](../validation/2026-10-26-world-review-fixes.md) passes, live acceptance pending.
 - [ ] PackSage — installed recheck of the merged adapter-popup width and scrollbar.
 
 ## 2. Does not have an adapter at all

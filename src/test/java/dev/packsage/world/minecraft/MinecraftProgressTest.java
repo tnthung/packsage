@@ -24,6 +24,7 @@ import net.minecraft.advancements.critereon.ImpossibleTrigger;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.server.PlayerAdvancements;
 import net.minecraft.server.advancements.AdvancementVisibilityEvaluator;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -39,6 +40,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -55,6 +57,11 @@ class MinecraftProgressTest {
     static void bootstrap() {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
+    }
+
+    @Test
+    void vanillaTabVisibilityFieldIsPublicAndAvailable() throws NoSuchFieldException {
+        assertEquals(Set.class, PlayerAdvancements.class.getField("visible").getType());
     }
 
     @Test

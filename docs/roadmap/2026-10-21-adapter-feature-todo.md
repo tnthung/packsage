@@ -17,7 +17,7 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 - [x] Minecraft — mob storage paths, mule chest to shulker box to bundle; installed acceptance passed.
 - [x] Minecraft — every mob attribute, and horse jump height and speed in blocks; installed acceptance passed for a mule and a horse.
 - [x] Minecraft — saved highlight links across a full restart, and pacing with the world running and paused; installed acceptance passed.
-- [ ] PackSage — full item pages over the 64-record tool-output limit lose holder links and their continuation (N1, open; reproduced in game with 55 of 72 item types).
+- [ ] PackSage — full item pages over the 64-record tool-output limit lose holder links and their continuation (N1; reproduced in game with 55 of 72 item types; fixed with automated checks passing, installed recheck pending).
 - [ ] PackSage — prompt: the armor reply omitted eligible enchantments from returned evidence, and the mule reply gave no coordinates, and the farm reply did not reason from villager times.
 
 ### Inventory and equipment inspection

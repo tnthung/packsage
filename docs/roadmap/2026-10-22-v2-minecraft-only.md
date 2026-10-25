@@ -41,7 +41,7 @@ The [plan](../plans/2026-10-22-v2-world-reading.md) is implemented. The [validat
 - [x] Final-review fixes on the installed build: pacing with the world running and paused, and per-holder links for stone, passed (Round 2).
 - [ ] Villager time fields: facts were cited, but the reply did not reason from `gameTime`, and `golemDetectedUntil` was not exercised (Round 2, partial). Belongs with the prompt plan.
 - [x] Saved highlight links across a full Minecraft restart: installed check passed (Round 2).
-- [ ] Fix N1 before merging. Reproduced in game in Round 2: 72 item types returned 55, with no holder records and a null cursor. A full page of found items with holder records exceeds the 64-record tool-output limit. That drops holder links and the continuation, and replaces the page notes. See the final re-review in `.superpowers/sdd/2026-10-22-v2-world-reading/final-rereview.md`.
+- [ ] N1: fixed, and automated tests pass. Installed recheck pending with the big-storage question. Reproduced in game in Round 2: 72 item types returned 55, with no holder records and a null cursor. A full page of found items with holder records exceeds the 64-record tool-output limit. That drops holder links and the continuation, and replaces the page notes. See the final re-review in `.superpowers/sdd/2026-10-22-v2-world-reading/final-rereview.md`.
 - [ ] Minor review backlog:
   - N2: the paused-work flag can stay set.
   - N3: a tick can run on the client thread when the server has stopped.

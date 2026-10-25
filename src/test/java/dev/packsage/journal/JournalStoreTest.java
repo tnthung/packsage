@@ -94,6 +94,19 @@ class JournalStoreTest {
     }
 
     @Test
+    void aMetaValueThatIsNotANumberIsReportedAsSqlException() throws Exception {
+        try (var store = JournalStore.open(dir.resolve("journal.db"))) {
+            store.startSession(1_000L, 20L);
+            try (var statement = store.writer().createStatement()) {
+                statement.executeUpdate("UPDATE meta SET value = 'soon' WHERE key = 'created_wall'");
+            }
+            var failure = assertThrows(SQLException.class, store::meta);
+            assertTrue(failure.getCause() instanceof NumberFormatException, failure::toString);
+        }
+    }
+
+    /** Deleting an open SQLite file fails only on Windows, so elsewhere this passes without proving the release. */
+    @Test
     void aRefusedOpenReleasesTheFile() throws Exception {
         var file = dir.resolve("journal.db");
         try (var store = JournalStore.open(file)) {

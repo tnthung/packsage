@@ -15,7 +15,8 @@ public final class Positions {
     }
 
     public static long pack(int x, int y, int z) {
-        if (Math.abs(x) > MAX_HORIZONTAL || Math.abs(z) > MAX_HORIZONTAL || Math.abs(y) > MAX_VERTICAL) {
+        if (x < -MAX_HORIZONTAL || x > MAX_HORIZONTAL || z < -MAX_HORIZONTAL || z > MAX_HORIZONTAL
+                || y < -MAX_VERTICAL || y > MAX_VERTICAL) {
             throw new IllegalArgumentException("position " + x + "," + y + "," + z + " is out of range");
         }
         return ((long) x << 38) | (((long) z & 0x3FFFFFFL) << 12) | ((long) y & 0xFFFL);
@@ -58,8 +59,8 @@ public final class Positions {
     public static long[] decode(byte[] blob) {
         var reader = new Reader(blob);
         var count = reader.varint();
-        if (count > blob.length) {
-            throw new IllegalArgumentException("position blob count " + count + " exceeds its " + blob.length + " bytes");
+        if (count < 0 || count > blob.length) {
+            throw new IllegalArgumentException("position blob count " + count + " is outside 0.." + blob.length + ", its byte length");
         }
         var positions = new long[(int) count];
         long x = 0;

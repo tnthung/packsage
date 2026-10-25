@@ -204,18 +204,22 @@ public final class JournalHooks {
             if (server == null || !(victim.level() instanceof ServerLevel level) || level.isClientSide() || level.getServer() != server) return;
             var cause = event.getSource();
             var killer = cause.getEntity();
+            var tamed = victim instanceof TamableAnimal animal && animal.isTame()
+                    || victim instanceof AbstractHorse horse && horse.isTamed();
+            var recordDeath = victim instanceof ServerPlayer || victim instanceof Villager || tamed || victim.hasCustomName();
+            if (!recordDeath && !(killer instanceof ServerPlayer)) return;
             var direct = cause.getDirectEntity();
             var pos = victim.blockPosition();
             var facts = new JournalEvents.DeathFacts(BuiltInRegistries.ENTITY_TYPE.getKey(victim.getType()).toString(),
                     victim.getStringUUID(), victim.hasCustomName() ? victim.getCustomName().getString() : null,
                     victim instanceof ServerPlayer, victim instanceof Villager,
-                    victim instanceof TamableAnimal animal && animal.isTame() || victim instanceof AbstractHorse horse && horse.isTamed(),
+                    tamed,
                     victim instanceof Villager villager ? BuiltInRegistries.VILLAGER_PROFESSION.getKey(villager.getVillagerData().getProfession()).toString() : null,
                     cause.typeHolder().unwrapKey().map(key -> key.location().toString()).orElse("unknown"),
                     killer instanceof ServerPlayer player ? "player:" + player.getUUID()
                             : killer == null ? null : "entity:" + BuiltInRegistries.ENTITY_TYPE.getKey(killer.getType()),
                     direct == null ? null : BuiltInRegistries.ENTITY_TYPE.getKey(direct.getType()).toString(),
-                    cause.getLocalizedDeathMessage(victim).getString(), pos.getX(), pos.getY(), pos.getZ());
+                    recordDeath ? cause.getLocalizedDeathMessage(victim).getString() : null, pos.getX(), pos.getY(), pos.getZ());
             var stamp = new JournalEvents.Stamp(server.overworld().getGameTime(), System.currentTimeMillis(), level.dimension().location().toString());
             JournalEvents.death(stamp, facts).ifPresent(journal::record);
             JournalEvents.kill(stamp, facts).ifPresent(journal::record);
@@ -360,6 +364,7 @@ public final class JournalHooks {
     }
 
     private void closeContainer(ServerPlayer player, AbstractContainerMenu menu) {
+        if (!session.containers.openPlayers().contains("player:" + player.getUUID())) return;
         session.containers.close("player:" + player.getUUID(), player.getScoreboardName(), menu.containerId, contents(menu),
                 new JournalEvents.Stamp(player.getServer().overworld().getGameTime(), System.currentTimeMillis(),
                         player.level().dimension().location().toString())).forEach(journal::record);

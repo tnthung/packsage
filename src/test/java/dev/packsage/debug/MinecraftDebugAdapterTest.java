@@ -53,9 +53,12 @@ class MinecraftDebugAdapterTest {
             if (concurrent.equals("default") || concurrent.equals("clear")) runtime.settings().setDeveloperPrompt("previous prompt");
             var adapter = new MinecraftDebugAdapter(client, runtime, () -> { }, new DebugRequestLog(), (settings, text) -> {
                 if (writes.incrementAndGet() == 1) {
+                    // Also cover a screen save after the worker wrote but before the client can publish.
+                    if (concurrent.equals("save")) settings.saveDeveloperPrompt(path, text);
                     started.countDown();
                     try { assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS)); }
                     catch (InterruptedException failure) { throw new RuntimeException(failure); }
+                    if (concurrent.equals("save")) return;
                 }
                 if (concurrent.equals("failure")) throw new IllegalStateException("writer failed");
                 settings.saveDeveloperPrompt(path, text);

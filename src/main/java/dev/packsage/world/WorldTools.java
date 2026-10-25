@@ -17,6 +17,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.DoubleBlockCombiner;
@@ -24,10 +25,12 @@ import net.minecraft.world.level.block.EnderChestBlock;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
+import java.lang.ref.WeakReference;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -143,6 +146,12 @@ public final class WorldTools implements KnowledgeProvider {
     private final WorldNavigation navigation;
     private final Supplier<CompletionStage<ClientFocus>> focus;
     private final Map<String, Cursor> cursors = new LinkedHashMap<>(16, 0.75f, true);
+    /**
+     * The menu each opened id was issued for, on the server in openedOn. Ids restart for every new player and wrap after
+     * 100, so an id alone can name a later menu.
+     */
+    private final Map<Integer, WeakReference<AbstractContainerMenu>> openedMenus = new HashMap<>();
+    private WeakReference<MinecraftServer> openedOn = new WeakReference<>(null);
 
     /**
      * The worker runs everything after a server read, so record building never lands on the server thread. Reads queue
@@ -366,29 +375,33 @@ public final class WorldTools implements KnowledgeProvider {
         return new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null, reason);
     }
 
-    /** The client's focus, awaited only for the targeted word and for listing an open menu, whose screen title it has. */
-    private CompletionStage<ClientFocus> focus(HolderWords.Phrase phrase, boolean opened) {
-        if (!opened && (phrase == null || phrase.word() != HolderWords.Word.TARGETED)) {
-            return CompletableFuture.completedFuture(ClientFocus.NONE);
-        }
+    /**
+     * The client's focus, awaited only for the targeted word, which needs it, and for listing an open menu, which takes
+     * only its optional screen title from it and goes on without the title when the capture fails.
+     */
+    CompletionStage<ClientFocus> focus(HolderWords.Phrase phrase, boolean opened) {
+        var required = phrase != null && phrase.word() == HolderWords.Word.TARGETED;
+        if (!required && !opened) return CompletableFuture.completedFuture(ClientFocus.NONE);
         var unavailable = "the game did not report what is under the crosshair or open";
         CompletableFuture<ClientFocus> captured;
         try {
             captured = focus.get().toCompletableFuture();
         } catch (RuntimeException exception) {
             // The client can reject the capture, for example while it shuts down.
-            return CompletableFuture.failedFuture(new Failure(Code.UNAVAILABLE, unavailable));
+            return required ? CompletableFuture.failedFuture(new Failure(Code.UNAVAILABLE, unavailable)) : CompletableFuture.completedFuture(ClientFocus.NONE);
         }
         return captured.orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).exceptionally(failure -> {
+            if (!required) return ClientFocus.NONE;
             throw new Failure(Code.UNAVAILABLE, unavailable);
         });
     }
 
-    /** Resolves a word against the host player as it is now; server thread only. */
-    private static HolderWords.Resolved resolveWord(MinecraftServer server, HolderWords.Phrase phrase, ClientFocus focus) {
+    /** Resolves a word against the host player as it is now, issuing the opened id for the open menu; server thread only. */
+    private HolderWords.Resolved resolveWord(MinecraftServer server, HolderWords.Phrase phrase, ClientFocus focus) {
         var host = host(server);
         var vehicle = host.getVehicle();
         var menu = host.containerMenu == host.inventoryMenu ? -1 : host.containerMenu.containerId;
+        if (phrase.word() == HolderWords.Word.OPENED && menu >= 0) issueOpened(server, host.containerMenu);
         return HolderWords.resolve(phrase, new HolderWords.Situation(host.getUUID(), host.getInventory().selected, kind(host.getMainHandItem()),
                 kind(host.getOffhandItem()), focus.targeted(), vehicle == null ? null : vehicle.getUUID(), menu));
     }
@@ -930,7 +943,7 @@ public final class WorldTools implements KnowledgeProvider {
         return null;
     }
 
-    private static LiveHolder root(MinecraftServer server, PathRoot root) {
+    private LiveHolder root(MinecraftServer server, PathRoot root) {
         return switch (root) {
             case PathRoot.Player player -> {
                 var found = server.getPlayerList().getPlayer(player.id());
@@ -945,21 +958,42 @@ public final class WorldTools implements KnowledgeProvider {
                 var pos = new BlockPos(block.place().x(), block.place().y(), block.place().z());
                 yield level == null || !loaded(level, pos) ? null : new LiveHolder.OfBlock(level, pos);
             }
-            case PathRoot.Opened of -> openedRoot(hostOrNull(server), of.containerId());
+            case PathRoot.Opened of -> openedRoot(server, hostOrNull(server), of.containerId());
         };
     }
 
-    /** The host's open menu while it is still the one with this container id; null once it closed or another opened. */
-    static LiveHolder openedRoot(Player host, int containerId) {
-        if (host == null || host.containerMenu == host.inventoryMenu || host.containerMenu.containerId != containerId) return null;
+    /** Remembers that the opened id of this menu names this menu instance. */
+    synchronized void issueOpened(MinecraftServer server, AbstractContainerMenu menu) {
+        forServer(server);
+        openedMenus.put(menu.containerId, new WeakReference<>(menu));
+    }
+
+    /**
+     * The host's open menu while it is still the instance this id was issued for; null for an id never issued on this
+     * server, and once the menu closed or any other menu opened, even one that reuses the id.
+     */
+    synchronized LiveHolder openedRoot(MinecraftServer server, Player host, int containerId) {
+        forServer(server);
+        var issued = openedMenus.get(containerId);
+        if (host == null || issued == null || host.containerMenu == host.inventoryMenu || host.containerMenu != issued.get()
+                || host.containerMenu.containerId != containerId) {
+            return null;
+        }
         return new LiveHolder.OfMenu(host.containerMenu, host.getInventory());
+    }
+
+    /** Forgets every issued id once another server, such as a newly opened world, is asked about. */
+    private void forServer(MinecraftServer server) {
+        if (openedOn.get() == server) return;
+        openedMenus.clear();
+        openedOn = new WeakReference<>(server);
     }
 
     private PathResolver resolver(MinecraftServer server) {
         return new PathResolver(registry, root -> root(server, root));
     }
 
-    private static Failure pathFailure(ItemPath path, PathResolver.Resolution resolution) {
+    static Failure pathFailure(ItemPath path, PathResolver.Resolution resolution) {
         var root = new ItemPath(path.root(), List.of()).text();
         return switch (resolution.failure()) {
             case ROOT_GONE -> new Failure(Code.UNAVAILABLE, path.root() instanceof PathRoot.Opened ? "the menu is no longer open"

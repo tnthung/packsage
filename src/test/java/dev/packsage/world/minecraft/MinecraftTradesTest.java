@@ -135,6 +135,33 @@ class MinecraftTradesTest {
     }
 
     @Test
+    void boundedOffersReportTheTotalCount() throws Exception {
+        var villager = bareVillager();
+        var offers = new MerchantOffers();
+        for (int index = 0; index < MinecraftTrades.MAX_OFFERS + 3; index++) offers.add(offer());
+        MinecraftTrades.OFFERS.set(villager, offers);
+        var values = new LinkedHashMap<String, Evidence.JsonValue>();
+        MinecraftTrades.facts(villager, null, values);
+        assertEquals(64, ((Evidence.JsonArray) values.get("offers")).values().size());
+        assertEquals(new Evidence.JsonString("bounded"), values.get("offersStatus"));
+        assertEquals(number(67), values.get("offerCount"));
+
+        offers.clear();
+        offers.add(offer());
+        values.clear();
+        MinecraftTrades.facts(villager, null, values);
+        assertEquals(1, ((Evidence.JsonArray) values.get("offers")).values().size());
+        assertEquals(number(1), values.get("offerCount"));
+        assertFalse(values.containsKey("offersStatus"));
+
+        offers.clear();
+        values.clear();
+        MinecraftTrades.facts(villager, null, values);
+        assertEquals(number(0), values.get("offerCount"));
+        assertFalse(values.containsKey("offersStatus"));
+    }
+
+    @Test
     void pricesNoteSaysTradingCostsAlreadyIncludeTheTradersDiscounts() {
         assertTrue(MinecraftTrades.pricesNote(true).contains("the trading player"), MinecraftTrades.pricesNote(true));
         assertFalse(MinecraftTrades.pricesNote(false).contains("the trading player"), MinecraftTrades.pricesNote(false));

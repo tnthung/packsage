@@ -898,7 +898,7 @@ public final class WorldTools implements KnowledgeProvider {
         public boolean stopEarly() {
             if (search != null) return search.stopEarly();
             if (chunks == null) return false;
-            if (blocks != null) return false;
+            if (blocks != null || denseBlocks || snapshot != null) return false;
             if (!gatherCanStop(chunks.size(), next, startChunk)) return false;
             stopped = true;
             return true;

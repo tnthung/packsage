@@ -608,6 +608,7 @@ public final class AreaScan {
 
         @Override
         public boolean stopEarly() {
+            if (snapshot != null && entities == null) return false;
             stopped = true;
             if (chunk < chunks.size()) nextCursor = chunk + ":" + (anchor == null ? "" : anchor);
             notes.add("Stopped at the per-call work limit while traversing chunk snapshots; continue with the cursor");

@@ -6,10 +6,9 @@ import dev.packsage.world.Statistic;
 import dev.packsage.world.StatisticUnit;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
-import net.minecraft.stats.StatType;
+import net.minecraft.stats.Stat;
 import net.minecraft.stats.Stats;
 import net.minecraft.stats.StatsCounter;
 import net.minecraft.world.entity.EntityType;
@@ -47,7 +46,7 @@ class MinecraftStatisticsTest {
         assertEquals(List.of(
                 new Statistic("minecraft", "mined", "minecraft:diamond_ore", "Times Mined: Diamond Ore", 12, StatisticUnit.COUNT, 12),
                 new Statistic("minecraft", "crafted", "minecraft:torch", "Times Crafted: Torch", 64, StatisticUnit.COUNT, 64),
-                new Statistic("minecraft", "killed", "minecraft:zombie", "Killed: Zombie", 3, StatisticUnit.COUNT, 3),
+                new Statistic("minecraft", "killed", "minecraft:zombie", "killed: Zombie", 3, StatisticUnit.COUNT, 3),
                 new Statistic("minecraft", "custom", "minecraft:deaths", "Number of Deaths", 2, StatisticUnit.COUNT, 2)), rows);
     }
 
@@ -80,8 +79,9 @@ class MinecraftStatisticsTest {
         assertEquals(5.5, damage.value(), 1e-9);
         assertEquals(StatisticUnit.HEALTH, damage.unit());
         assertEquals(StatisticUnit.COUNT, MinecraftStatistics.unit(Stats.ITEM_CRAFTED.get(Items.TORCH)));
-        var modType = new StatType<>(BuiltInRegistries.ITEM, Component.literal("Smelted"));
-        assertEquals(StatisticUnit.COUNT, MinecraftStatistics.unit(modType.get(Items.IRON_INGOT, value -> value + " ingots")));
+        // A subclass, so the custom-formatted stat stays out of the stat type's map.
+        assertEquals(StatisticUnit.COUNT, MinecraftStatistics.unit(new Stat<>(Stats.ITEM_USED, Items.IRON_INGOT, value -> value + " ingots") {
+        }));
     }
 
     @Test

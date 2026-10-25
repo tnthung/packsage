@@ -24709,3 +24709,1666 @@ The [bridge screenshot](../../build/final-review-live/round2-R2-highlight.png) w
 Final `/prompt` still has `text:null` and the byte-identical candidate-8 default; `developerPrompt` is absent from the properties file. Recorded model/search/bridge properties match their pre-restart values (`modelId=gpt-6-sol`, `automaticWebSearch=true`, `debugBridge=true`). No model/search/screenshot setting was changed, and no prompt override was written during this round. [Final checks](../../build/final-review-live/round2-final-checks.json).
 
 Blockers: no PackSage failure in the requested short recheck. The uncached-POI PARTIAL-section branch remains unexercised by the one W1 question; its NOT RUN status is separate from the passing job-site answer. Checks outside this round were not rerun and retain their earlier acceptance status. The disposable save retains the added fixtures.
+
+### Final-review installed recheck, round 3
+
+Date: 2026-10-26 (Asia/Taipei). Main checkout `D:/Project/packsage`, branch `feat/packsage-v2`, tested HEAD **1445bd2b1c152d79257628301a372a8506e354bd**. Followed [the final-review checks](../testing/2026-10-26-final-review-fixes.md) and [debug bridge procedure](../testing/2026-10-25-debug-bridge.md). Computer use was limited to Save and Quit to Title, Quit Game, launching instance Packsage through CurseForge and entering save PackSage Adapter Filter Live Test. All fixture commands, questions, navigation and test screenshots used the bridge at `127.0.0.1:25599`; its token was never printed or copied into evidence. No source code changed.
+
+Shutdown was clean: the log records saving players/worlds, all dimensions saved and normal `Stopping!`; no `javaw` remained before the build. Ran `powershell -ExecutionPolicy Bypass -File D:/Project/packsage/scripts/build.ps1`, exit 0. Gradle reported **BUILD SUCCESSFUL in 1s**, all 11 tasks up to date, including `test build`. Installed `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/mods/packsage.jar` SHA-256: **409948035AB33D533F130DC0EFF6E4892085807D1A1EDE990EC33F374536D6A3**, matching `dist/packsage.jar`. [round3-shutdown.log](../../build/final-review-live/round3-shutdown.log), [round3-build.log](../../build/final-review-live/round3-build.log), [round3-build-metadata.json](../../build/final-review-live/round3-build-metadata.json).
+
+Verbatim replies below preserve the returned wording; trailing Markdown hard-break spaces are omitted, and the raw JSON retains exact whitespace. Raw submissions, full responses/calls/timings, fixture feedback and audits are retained as `round3-*` files under [build/final-review-live/](../../build/final-review-live/) (ignored). Questions used new chats, except one explicit continuation of the already-open advancement cursor. No model, search or screenshot setting/override was changed. Every accepted request recorded model `gpt-6-sol`, effort `MEDIUM`, screenshot `true`, search `AUTOMATIC`. There were **no provider_terminal transport_failure outcomes**, so no transport retry was needed. No failed question was restarted. The premature advancement stop remains FAIL; the follow-up consumed only the remaining cursor to satisfy the requested paging audit. The item failure was not retried.
+
+| Check | Result | Evidence |
+|---|---|---|
+| D1 | PASS | text:null; effective prompt equals candidate 8 byte for byte. |
+| P1, tree summary | PASS | Seven trees remain listed; Minecraft 4/16, Nether 2/24, Adventure 2/44; the reply ranks their percentages correctly. |
+| P1, first exhaustive request | FAIL | Stopped after 191 of 2,000 entries despite explicit instructions to read every page; cursor 192.6f9101a6 remained. Preserved as a failure. |
+| P1, continued cursor contract | PASS | Continued the existing cursor, without restarting: 31 pages of 64 plus 17 records, one tree summary plus all 2,000 entries exactly once, final COMPLETE with no cursor/nextCall. |
+| Items, one full chest | PASS | All 27 item IDs, counts and slot paths exactly once, plus one holder summary; COMPLETE. |
+| Items, across holders | FAIL | All 162 fixture item IDs/counts/paths are correct and delivered once, but 15 holder records repeat across pages: 192 records, only 177 distinct references. Fails the requested every-record-exactly-once criterion. |
+| inspect_area | PASS | COMPLETE result, block counts and notable blocks present; six chests, one furnace and one lectern in notable; crafting table also counted. |
+| W3 | PASS | All three iron chests; 76 total ingots (71 stored + 5 carried), find_items COMPLETE with explicit readSpan 1227100..1227100. |
+| W2, 160 in one chunk | PASS | 64 + 64 + 32; all 160 fixture UUIDs exactly once, no missing/unexpected IDs, final COMPLETE. |
+| C1 | PASS | Short prompt saved/read/cleared successfully; game kept ticking; no developer-prompt property remains; default still equals candidate 8. |
+
+Other checks from the broader testing document (R1, R2, W1, W4, full W5, S1, J1 and J2) are **NOT RUN** in this scoped round. One W2 navigation smoke check is recorded below.
+
+#### D1 - PASS
+
+GET `/prompt` returned `text:null`; `effectiveText` exactly matches `build/prompt-candidates/candidate-8.txt`: 22,192 UTF-8 bytes, SHA-256 **64815DD5FE24B2CCA7E042F26E0AAB12FFD58AC50C808D1BAB29F99359E240DD**. No chat request, tool call, reply or navigation applies. [round3-D1-prompt.json](../../build/final-review-live/round3-D1-prompt.json), [round3-D1-comparison.json](../../build/final-review-live/round3-D1-comparison.json).
+
+#### P1 - summary PASS; first exhaustive request FAIL; continued cursor contract PASS
+
+The seven tree summaries match the preceding installed baseline (no advancement grants/revokes were made in this round). The new table reader returned nonempty advancement data, with no listing error. The 2,000-entry fixture independently checks the total and exact ID set. Summary counts:
+
+| Tree | Done | Total |
+|---|---:|---:|
+| Adventure | 2 | 44 |
+| The End | 0 | 9 |
+| Husbandry | 0 | 29 |
+| Nether | 2 | 24 |
+| Minecraft | 4 | 16 |
+| Nature's Aura | 0 | 25 |
+| Acceptance 0 | 0 | 2000 |
+
+The first exhaustive request explicitly asked to follow every page, but stopped after three pages (one tree summary plus 191 entries), acknowledged the unread remainder and left a nextCall. This is a model continuation failure, not a provider transport failure or an empty/failed advancement listing. Its FAIL is retained. One follow-up in the same conversation started at the exact pending cursor `192.6f9101a6`, then issued 29 more list_progress calls through cursor `1984.6f9101a6`; the final page held 17 records and was COMPLETE, with no cursor or nextCall. Across both turns, all 2,000 expected IDs (root and node_0001..node_1999) appear exactly once, with no missing/unexpected IDs or duplicate references. [round3-P1-pages-audit.json](../../build/final-review-live/round3-P1-pages-audit.json).
+
+##### Tree summary
+
+Question: `which advancement trees have I made the most progress in?`
+
+Request `2e893ff7-04f2-42dc-90b6-af21dc703fe2`, conversation `7f5ced0a-ab5b-4e4e-86de-ae6448812103`, status `completed`, model terminal 11837 ms. [round3-P1.json](../../build/final-review-live/round3-P1.json), [round3-P1-input.json](../../build/final-review-live/round3-P1-input.json).
+
+Calls, exact arguments, coverage, detail, pagination and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": null,
+      "status": null,
+      "text": null,
+      "cursor": null
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "64.774184d3",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": null,
+        "status": null,
+        "text": null,
+        "cursor": "64.774184d3"
+      }
+    },
+    "readSpans": []
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Your **Minecraft** advancement tree is furthest along: **4 of 16 completed (25%)**. [Open Minecraft](progress:tree|minecraft/minecraft:story/root)
+
+Next are **Nether**, with **2 of 24 (8%)** [Open Nether](progress:tree|minecraft/minecraft:nether/root), and **Adventure**, with **2 of 44 (5%)** [Open Adventure](progress:tree|minecraft/minecraft:adventure/root). The End, Husbandry, Nature’s Aura, and Acceptance 0 each show **0 completed**. [The End](progress:tree|minecraft/minecraft:end/root) [Husbandry](progress:tree|minecraft/minecraft:husbandry/root) [Nature’s Aura](progress:tree|minecraft/naturesaura:root) [Acceptance 0](progress:tree|minecraft/packsage_acceptance:root)
+```
+
+##### First exhaustive request - FAIL
+
+Question: `Use list_progress to read the Acceptance 0 advancement tree (minecraft/packsage_acceptance:root). Continue every page to the end, then report its done/total counts and how many advancement entries you read. You do not need to print every entry.`
+
+Request `be162e5a-545f-4d31-84d5-7c3db4d23c4d`, conversation `18754de8-7bad-4079-b9eb-dbf2fac6e6a2`, status `completed`, model terminal 27898 ms. [round3-P1-pages.json](../../build/final-review-live/round3-P1-pages.json), [round3-P1-pages-input.json](../../build/final-review-live/round3-P1-pages-input.json).
+
+Calls, exact arguments, coverage, detail, pagination and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": null
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "64.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "64.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "64.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "128.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "128.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "128.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "192.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "192.6f9101a6"
+      }
+    },
+    "readSpans": []
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The **Acceptance 0** tree reports **0 done out of 2,000**. [progress:tree|minecraft/packsage_acceptance:root]
+
+I read **191 advancement entries** (Acceptance 0 through Acceptance 190), but the listing still has more pages. I couldn’t complete your request to read every page, so 191 is the number read—not the tree’s full entry count. [progress:progress|minecraft/packsage_acceptance:node_0190]
+```
+
+##### Existing cursor continuation - paging contract PASS
+
+Question: `Continue the existing Acceptance 0 listing from exactly this nextCall, without restarting earlier pages: {"name":"list_progress","arguments":{"tree":"minecraft/packsage_acceptance:root","status":null,"text":null,"cursor":"192.6f9101a6"}}. Follow every subsequent nextCall to the end. Give only the number of entries read and whether the end was reached; do not stop just because the done/total count is already known.`
+
+Request `81acc9e3-af42-47ac-8984-8ef4a4efdc72`, conversation `18754de8-7bad-4079-b9eb-dbf2fac6e6a2`, status `completed`, model terminal 235196 ms. [round3-P1-continue-1.json](../../build/final-review-live/round3-P1-continue-1.json), [round3-P1-continue-1-input.json](../../build/final-review-live/round3-P1-continue-1-input.json).
+
+Calls, exact arguments, coverage, detail, pagination and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "192.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "256.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "256.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "256.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "320.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "320.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "320.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "384.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "384.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "384.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "448.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "448.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "448.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "512.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "512.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "512.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "576.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "576.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "576.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "640.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "640.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "640.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "704.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "704.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "704.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "768.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "768.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "768.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "832.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "832.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "832.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "896.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "896.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "896.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "960.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "960.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "960.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1024.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1024.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1024.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1088.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1088.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1088.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1152.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1152.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1152.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1216.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1216.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1216.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1280.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1280.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1280.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1344.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1344.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1344.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1408.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1408.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1408.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1472.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1472.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1472.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1536.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1536.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1536.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1600.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1600.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1600.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1664.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1664.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1664.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1728.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1728.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1728.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1792.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1792.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1792.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1856.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1856.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1856.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1920.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1920.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1920.6f9101a6"
+    },
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "1984.6f9101a6",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": "minecraft/packsage_acceptance:root",
+        "status": null,
+        "text": null,
+        "cursor": "1984.6f9101a6"
+      }
+    },
+    "readSpans": []
+  },
+  {
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": "1984.6f9101a6"
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 17,
+    "nextCursor": null,
+    "nextCall": null,
+    "readSpans": []
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+1,809 entries read. End reached: **yes**. [progress:progress|minecraft/packsage_acceptance:node_1999]
+```
+
+#### Item fixture and paging - single chest PASS; cross-holder exact-once FAIL
+
+Created six separate full 27-slot chests at x=1296,1298,1300,1302,1304,1306, y=250,z=1204. Their 162 distinct item IDs comprise all 16 colors of wool, carpet, terracotta, concrete, concrete powder, stained glass, stained glass pane, bed, banner and shulker box, plus stone and dirt. Each chest slot n holds n+1 items (378 per chest, 2,268 total). `/data get block ... Items` confirmed 27 slots in each chest with the intended IDs/counts; no fixture write failed. Added a crafting table, furnace and lectern for the area check. Moved from the first setup center to (1296.5,250,1201.5) so the first chest was actually in crosshair range before submitting any chest question. [round3-items-fixture.json](../../build/final-review-live/round3-items-fixture.json), [round3-items-expected.json](../../build/final-review-live/round3-items-expected.json), [round3-items-target.json](../../build/final-review-live/round3-items-target.json), [round3-items-ready-state.json](../../build/final-review-live/round3-items-ready-state.json).
+
+The targeted chest returned exactly 28 distinct records (27 items plus its holder), COMPLETE, no cursor. Across holders, four pages returned 61,61,62,8 records. Item rows were 55,55,56,5: all 171 item references are unique (162 chest item IDs plus 9 player item IDs). Every fixture item count and exact slot path matches, and every expected chest item link appears once in the reply. All cursors and nextCall arguments chain correctly until the COMPLETE final page. However, holder rows total 21 for only six unique chest references; 15 repeated holder records violate the requested exact-once criterion for every record. This is not an item omission or duplicate item row. [round3-items-one-audit.json](../../build/final-review-live/round3-items-one-audit.json), [round3-items-all-audit.json](../../build/final-review-live/round3-items-all-audit.json).
+
+##### One full chest - PASS
+
+Question: `what's in this chest?`
+
+Request `d435f01e-8f12-4efe-bb32-354bf95a383a`, conversation `ae0dde91-db2d-404c-b932-b76909ae5225`, status `completed`, model terminal 18379 ms. [round3-items-one.json](../../build/final-review-live/round3-items-one.json), [round3-items-one-input.json](../../build/final-review-live/round3-items-one-input.json).
+
+Calls, exact arguments, coverage, detail, pagination and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 28,
+    "nextCursor": null,
+    "nextCall": null,
+    "readSpans": [
+      {
+        "fromGameTime": 1224740,
+        "toGameTime": 1224741
+      }
+    ]
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The chest at **(1296, 250, 1204)** is full. [Chest](world:block|minecraft:overworld|1296,250,1204) It contains:
+
+- **Wool:** [white ×1](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#0@minecraft:white_wool), [orange ×2](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#1@minecraft:orange_wool), [magenta ×3](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#2@minecraft:magenta_wool), [light blue ×4](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#3@minecraft:light_blue_wool), [yellow ×5](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#4@minecraft:yellow_wool), [lime ×6](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#5@minecraft:lime_wool), [pink ×7](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#6@minecraft:pink_wool), [gray ×8](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#7@minecraft:gray_wool), [light gray ×9](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#8@minecraft:light_gray_wool), [cyan ×10](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#9@minecraft:cyan_wool), [purple ×11](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#10@minecraft:purple_wool), [blue ×12](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#11@minecraft:blue_wool), [brown ×13](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#12@minecraft:brown_wool), [green ×14](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#13@minecraft:green_wool), [red ×15](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#14@minecraft:red_wool), [black ×16](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#15@minecraft:black_wool).
+- **Carpet:** [white ×17](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#16@minecraft:white_carpet), [orange ×18](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#17@minecraft:orange_carpet), [magenta ×19](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#18@minecraft:magenta_carpet), [light blue ×20](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#19@minecraft:light_blue_carpet), [yellow ×21](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#20@minecraft:yellow_carpet), [lime ×22](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#21@minecraft:lime_carpet), [pink ×23](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#22@minecraft:pink_carpet), [gray ×24](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#23@minecraft:gray_carpet), [light gray ×25](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#24@minecraft:light_gray_carpet), [cyan ×26](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#25@minecraft:cyan_carpet), [purple ×27](world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#26@minecraft:purple_carpet).
+```
+
+##### Across holders - FAIL
+
+Question: `List every item stored in chests within 16 blocks of me, with counts and chest locations. Continue every page until the search ends; I want all the items.`
+
+Request `38ae9122-ac1f-415f-816b-159afa8f9a87`, conversation `570554c5-215e-49bd-aec7-8ada3e2bde7c`, status `completed`, model terminal 100635 ms. [round3-items-all.json](../../build/final-review-live/round3-items-all.json), [round3-items-all-input.json](../../build/final-review-live/round3-items-all-input.json).
+
+Calls, exact arguments, coverage, detail, pagination and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "find_items",
+    "arguments": {
+      "filter": {
+        "ids": null,
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "center": null,
+      "radius": 16,
+      "includeNested": true,
+      "cursor": null
+    },
+    "coverage": "PARTIAL",
+    "detail": "The read spanned multiple server ticks; game-time span: 1225210..1225211; This page shows 55 entries, the page limit with their holders and encoded byte budget; continue with the cursor",
+    "recordCount": 61,
+    "nextCursor": "fba33613-f708-4372-ac18-cbca5517de67",
+    "nextCall": {
+      "name": "find_items",
+      "arguments": {
+        "filter": {
+          "ids": null,
+          "tags": null,
+          "text": null,
+          "tooltip": null
+        },
+        "center": null,
+        "radius": 16,
+        "includeNested": true,
+        "cursor": "fba33613-f708-4372-ac18-cbca5517de67"
+      }
+    },
+    "readSpans": [
+      {
+        "fromGameTime": 1225210,
+        "toGameTime": 1225211
+      }
+    ]
+  },
+  {
+    "name": "find_items",
+    "arguments": {
+      "filter": {
+        "ids": null,
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "center": null,
+      "radius": 16,
+      "includeNested": true,
+      "cursor": "fba33613-f708-4372-ac18-cbca5517de67"
+    },
+    "coverage": "PARTIAL",
+    "detail": "The read spanned multiple server ticks; game-time span: 1225210..1225211; This page shows 55 entries, the page limit with their holders and encoded byte budget; continue with the cursor",
+    "recordCount": 61,
+    "nextCursor": "abc80844-f647-4d5c-9993-ba2a4be39caf",
+    "nextCall": {
+      "name": "find_items",
+      "arguments": {
+        "filter": {
+          "ids": null,
+          "tags": null,
+          "text": null,
+          "tooltip": null
+        },
+        "center": null,
+        "radius": 16,
+        "includeNested": true,
+        "cursor": "abc80844-f647-4d5c-9993-ba2a4be39caf"
+      }
+    },
+    "readSpans": [
+      {
+        "fromGameTime": 1225210,
+        "toGameTime": 1225211
+      }
+    ]
+  },
+  {
+    "name": "find_items",
+    "arguments": {
+      "filter": {
+        "ids": null,
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "center": null,
+      "radius": 16,
+      "includeNested": true,
+      "cursor": "abc80844-f647-4d5c-9993-ba2a4be39caf"
+    },
+    "coverage": "PARTIAL",
+    "detail": "The read spanned multiple server ticks; game-time span: 1225210..1225211; This page shows 56 entries, the page limit with their holders and encoded byte budget; continue with the cursor",
+    "recordCount": 62,
+    "nextCursor": "e068b971-14a2-4132-ba1e-0da938561e45",
+    "nextCall": {
+      "name": "find_items",
+      "arguments": {
+        "filter": {
+          "ids": null,
+          "tags": null,
+          "text": null,
+          "tooltip": null
+        },
+        "center": null,
+        "radius": 16,
+        "includeNested": true,
+        "cursor": "e068b971-14a2-4132-ba1e-0da938561e45"
+      }
+    },
+    "readSpans": [
+      {
+        "fromGameTime": 1225210,
+        "toGameTime": 1225211
+      }
+    ]
+  },
+  {
+    "name": "find_items",
+    "arguments": {
+      "filter": {
+        "ids": null,
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "center": null,
+      "radius": 16,
+      "includeNested": true,
+      "cursor": "e068b971-14a2-4132-ba1e-0da938561e45"
+    },
+    "coverage": "COMPLETE",
+    "detail": "The read spanned multiple server ticks; game-time span: 1225210..1225211",
+    "recordCount": 8,
+    "nextCursor": null,
+    "nextCall": null,
+    "readSpans": [
+      {
+        "fromGameTime": 1225210,
+        "toGameTime": 1225211
+      }
+    ]
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I finished every page of the 16-block search. These are the items **stored in the six chests**; the search also returned items you’re carrying, which I’ve excluded. Counts below are per item, not slot numbers.
+
+**Chest at (1296, 250, 1204)** [Open chest](world:block|minecraft:overworld|1296,250,1204)
+Wool: white ×1 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#0@minecraft:white_wool], orange ×2 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#1@minecraft:orange_wool], magenta ×3 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#2@minecraft:magenta_wool], light blue ×4 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#3@minecraft:light_blue_wool], yellow ×5 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#4@minecraft:yellow_wool], lime ×6 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#5@minecraft:lime_wool], pink ×7 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#6@minecraft:pink_wool], gray ×8 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#7@minecraft:gray_wool], light gray ×9 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#8@minecraft:light_gray_wool], cyan ×10 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#9@minecraft:cyan_wool], purple ×11 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#10@minecraft:purple_wool], blue ×12 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#11@minecraft:blue_wool], brown ×13 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#12@minecraft:brown_wool], green ×14 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#13@minecraft:green_wool], red ×15 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#14@minecraft:red_wool], black ×16 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#15@minecraft:black_wool].
+Carpet: white ×17 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#16@minecraft:white_carpet], orange ×18 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#17@minecraft:orange_carpet], magenta ×19 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#18@minecraft:magenta_carpet], light blue ×20 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#19@minecraft:light_blue_carpet], yellow ×21 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#20@minecraft:yellow_carpet], lime ×22 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#21@minecraft:lime_carpet], pink ×23 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#22@minecraft:pink_carpet], gray ×24 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#23@minecraft:gray_carpet], light gray ×25 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#24@minecraft:light_gray_carpet], cyan ×26 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#25@minecraft:cyan_carpet], purple ×27 [world:item|block:minecraft:overworld|1296,250,1204>minecraft/container#26@minecraft:purple_carpet].
+
+**Chest at (1298, 250, 1204)** [Open chest](world:block|minecraft:overworld|1298,250,1204)
+Carpet: blue ×1 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#0@minecraft:blue_carpet], brown ×2 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#1@minecraft:brown_carpet], green ×3 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#2@minecraft:green_carpet], red ×4 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#3@minecraft:red_carpet], black ×5 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#4@minecraft:black_carpet].
+Terracotta: white ×6 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#5@minecraft:white_terracotta], orange ×7 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#6@minecraft:orange_terracotta], magenta ×8 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#7@minecraft:magenta_terracotta], light blue ×9 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#8@minecraft:light_blue_terracotta], yellow ×10 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#9@minecraft:yellow_terracotta], lime ×11 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#10@minecraft:lime_terracotta], pink ×12 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#11@minecraft:pink_terracotta], gray ×13 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#12@minecraft:gray_terracotta], light gray ×14 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#13@minecraft:light_gray_terracotta], cyan ×15 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#14@minecraft:cyan_terracotta], purple ×16 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#15@minecraft:purple_terracotta], blue ×17 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#16@minecraft:blue_terracotta], brown ×18 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#17@minecraft:brown_terracotta], green ×19 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#18@minecraft:green_terracotta], red ×20 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#19@minecraft:red_terracotta], black ×21 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#20@minecraft:black_terracotta].
+Concrete: white ×22 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#21@minecraft:white_concrete], orange ×23 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#22@minecraft:orange_concrete], magenta ×24 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#23@minecraft:magenta_concrete], light blue ×25 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#24@minecraft:light_blue_concrete], yellow ×26 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#25@minecraft:yellow_concrete], lime ×27 [world:item|block:minecraft:overworld|1298,250,1204>minecraft/container#26@minecraft:lime_concrete].
+
+**Chest at (1300, 250, 1204)** [Open chest](world:block|minecraft:overworld|1300,250,1204)
+Concrete: pink ×1 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#0@minecraft:pink_concrete], gray ×2 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#1@minecraft:gray_concrete], light gray ×3 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#2@minecraft:light_gray_concrete], cyan ×4 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#3@minecraft:cyan_concrete], purple ×5 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#4@minecraft:purple_concrete], blue ×6 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#5@minecraft:blue_concrete], brown ×7 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#6@minecraft:brown_concrete], green ×8 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#7@minecraft:green_concrete], red ×9 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#8@minecraft:red_concrete], black ×10 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#9@minecraft:black_concrete].
+Concrete powder: white ×11 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#10@minecraft:white_concrete_powder], orange ×12 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#11@minecraft:orange_concrete_powder], magenta ×13 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#12@minecraft:magenta_concrete_powder], light blue ×14 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#13@minecraft:light_blue_concrete_powder], yellow ×15 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#14@minecraft:yellow_concrete_powder], lime ×16 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#15@minecraft:lime_concrete_powder], pink ×17 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#16@minecraft:pink_concrete_powder], gray ×18 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#17@minecraft:gray_concrete_powder], light gray ×19 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#18@minecraft:light_gray_concrete_powder], cyan ×20 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#19@minecraft:cyan_concrete_powder], purple ×21 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#20@minecraft:purple_concrete_powder], blue ×22 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#21@minecraft:blue_concrete_powder], brown ×23 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#22@minecraft:brown_concrete_powder], green ×24 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#23@minecraft:green_concrete_powder], red ×25 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#24@minecraft:red_concrete_powder], black ×26 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#25@minecraft:black_concrete_powder].
+White stained glass ×27 [world:item|block:minecraft:overworld|1300,250,1204>minecraft/container#26@minecraft:white_stained_glass].
+
+**Chest at (1302, 250, 1204)** [Open chest](world:block|minecraft:overworld|1302,250,1204)
+Stained glass: orange ×1 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#0@minecraft:orange_stained_glass], magenta ×2 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#1@minecraft:magenta_stained_glass], light blue ×3 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#2@minecraft:light_blue_stained_glass], yellow ×4 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#3@minecraft:yellow_stained_glass], lime ×5 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#4@minecraft:lime_stained_glass], pink ×6 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#5@minecraft:pink_stained_glass], gray ×7 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#6@minecraft:gray_stained_glass], light gray ×8 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#7@minecraft:light_gray_stained_glass], cyan ×9 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#8@minecraft:cyan_stained_glass], purple ×10 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#9@minecraft:purple_stained_glass], blue ×11 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#10@minecraft:blue_stained_glass], brown ×12 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#11@minecraft:brown_stained_glass], green ×13 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#12@minecraft:green_stained_glass], red ×14 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#13@minecraft:red_stained_glass], black ×15 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#14@minecraft:black_stained_glass].
+Stained glass panes: white ×16 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#15@minecraft:white_stained_glass_pane], orange ×17 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#16@minecraft:orange_stained_glass_pane], magenta ×18 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#17@minecraft:magenta_stained_glass_pane], light blue ×19 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#18@minecraft:light_blue_stained_glass_pane], yellow ×20 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#19@minecraft:yellow_stained_glass_pane], lime ×21 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#20@minecraft:lime_stained_glass_pane], pink ×22 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#21@minecraft:pink_stained_glass_pane], gray ×23 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#22@minecraft:gray_stained_glass_pane], light gray ×24 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#23@minecraft:light_gray_stained_glass_pane], cyan ×25 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#24@minecraft:cyan_stained_glass_pane], purple ×26 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#25@minecraft:purple_stained_glass_pane], blue ×27 [world:item|block:minecraft:overworld|1302,250,1204>minecraft/container#26@minecraft:blue_stained_glass_pane].
+
+**Chest at (1304, 250, 1204)** [Open chest](world:block|minecraft:overworld|1304,250,1204)
+Stained glass panes: brown ×1 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#0@minecraft:brown_stained_glass_pane], green ×2 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#1@minecraft:green_stained_glass_pane], red ×3 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#2@minecraft:red_stained_glass_pane], black ×4 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#3@minecraft:black_stained_glass_pane].
+Beds: white ×5 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#4@minecraft:white_bed], orange ×6 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#5@minecraft:orange_bed], magenta ×7 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#6@minecraft:magenta_bed], light blue ×8 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#7@minecraft:light_blue_bed], yellow ×9 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#8@minecraft:yellow_bed], lime ×10 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#9@minecraft:lime_bed], pink ×11 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#10@minecraft:pink_bed], gray ×12 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#11@minecraft:gray_bed], light gray ×13 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#12@minecraft:light_gray_bed], cyan ×14 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#13@minecraft:cyan_bed], purple ×15 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#14@minecraft:purple_bed], blue ×16 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#15@minecraft:blue_bed], brown ×17 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#16@minecraft:brown_bed], green ×18 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#17@minecraft:green_bed], red ×19 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#18@minecraft:red_bed], black ×20 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#19@minecraft:black_bed].
+Banners: white ×21 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#20@minecraft:white_banner], orange ×22 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#21@minecraft:orange_banner], magenta ×23 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#22@minecraft:magenta_banner], light blue ×24 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#23@minecraft:light_blue_banner], yellow ×25 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#24@minecraft:yellow_banner], lime ×26 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#25@minecraft:lime_banner], pink ×27 [world:item|block:minecraft:overworld|1304,250,1204>minecraft/container#26@minecraft:pink_banner].
+
+**Chest at (1306, 250, 1204)** [Open chest](world:block|minecraft:overworld|1306,250,1204)
+Banners: gray ×1 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#0@minecraft:gray_banner], light gray ×2 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#1@minecraft:light_gray_banner], cyan ×3 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#2@minecraft:cyan_banner], purple ×4 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#3@minecraft:purple_banner], blue ×5 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#4@minecraft:blue_banner], brown ×6 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#5@minecraft:brown_banner], green ×7 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#6@minecraft:green_banner], red ×8 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#7@minecraft:red_banner], black ×9 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#8@minecraft:black_banner].
+Shulker boxes: white ×10 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#9@minecraft:white_shulker_box], orange ×11 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#10@minecraft:orange_shulker_box], magenta ×12 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#11@minecraft:magenta_shulker_box], light blue ×13 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#12@minecraft:light_blue_shulker_box], yellow ×14 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#13@minecraft:yellow_shulker_box], lime ×15 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#14@minecraft:lime_shulker_box], pink ×16 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#15@minecraft:pink_shulker_box], gray ×17 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#16@minecraft:gray_shulker_box], light gray ×18 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#17@minecraft:light_gray_shulker_box], cyan ×19 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#18@minecraft:cyan_shulker_box], purple ×20 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#19@minecraft:purple_shulker_box], blue ×21 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#20@minecraft:blue_shulker_box], brown ×22 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#21@minecraft:brown_shulker_box], green ×23 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#22@minecraft:green_shulker_box], red ×24 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#23@minecraft:red_shulker_box], black ×25 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#24@minecraft:black_shulker_box].
+Stone ×26 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#25@minecraft:stone]; dirt ×27 [world:item|block:minecraft:overworld|1306,250,1204>minecraft/container#26@minecraft:dirt].
+```
+
+#### inspect_area - PASS
+
+At the item fixture, inspect_area returned COMPLETE with no error, one area record, zero unloaded chunks and readSpan 1226296..1226297. Block counts: 748 stone, six chests, one crafting table, one furnace, one lectern. The notable map lists all six chest coordinates, the furnace and lectern (notableCount 8); the player is the only entity. The reply names and links the six chests and three workstations. The first broad list_blocks page was PARTIAL with a page-limit cursor; a subsequent narrower workstation/container query returned all nine relevant blocks COMPLETE. The requested area result itself is COMPLETE. Payload:
+
+```json
+{
+  "notable": {
+    "container": {
+      "minecraft:chest": [
+        "1296,250,1204",
+        "1298,250,1204",
+        "1300,250,1204",
+        "1302,250,1204",
+        "1304,250,1204",
+        "1306,250,1204"
+      ],
+      "minecraft:lectern": [
+        "1304,250,1198"
+      ],
+      "minecraft:furnace": [
+        "1302,250,1198"
+      ]
+    }
+  },
+  "readSpan": {
+    "fromGameTime": 1226296,
+    "toGameTime": 1226297
+  },
+  "blockCounts": {
+    "minecraft:crafting_table": 1,
+    "minecraft:lectern": 1,
+    "minecraft:stone": 748,
+    "minecraft:chest": 6,
+    "minecraft:furnace": 1
+  },
+  "radius": 16,
+  "notableCount": 8,
+  "unloadedChunks": 0,
+  "center": {
+    "dimension": "minecraft:overworld",
+    "x": 1296.5,
+    "y": 250,
+    "z": 1201.5
+  },
+  "entities": [
+    {
+      "z": 1201.5,
+      "id": "682d6bb8-6e5c-4b6e-877b-ba2d54222fa5",
+      "name": "TNThung",
+      "entity": "minecraft:player",
+      "nameTruncated": false,
+      "dimension": "minecraft:overworld",
+      "x": 1296.5,
+      "y": 250
+    }
+  ]
+}
+```
+
+##### Area question - PASS
+
+Question: `what's around me?`
+
+Request `f8653f27-8e8b-45d2-a88c-37e222152994`, conversation `e85fddd4-40e7-4480-bb87-0e6834633cfe`, status `completed`, model terminal 24700 ms. [round3-area.json](../../build/final-review-live/round3-area.json), [round3-area-input.json](../../build/final-review-live/round3-area-input.json).
+
+Calls, exact arguments, coverage, detail, pagination and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "inspect_area",
+    "arguments": {
+      "center": null,
+      "radius": 16
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null,
+    "nextCall": null,
+    "readSpans": [
+      {
+        "fromGameTime": 1226296,
+        "toGameTime": 1226297
+      }
+    ]
+  },
+  {
+    "name": "list_blocks",
+    "arguments": {
+      "center": null,
+      "radius": 16,
+      "filter": {
+        "ids": null,
+        "tags": null,
+        "text": null
+      },
+      "cursor": null
+    },
+    "coverage": "PARTIAL",
+    "detail": "This page holds 64 matches, the page limit; continue with the cursor",
+    "recordCount": 64,
+    "nextCursor": "b824aff2-97f2-404c-ad75-a85cc6a6af6c",
+    "nextCall": {
+      "name": "list_blocks",
+      "arguments": {
+        "center": null,
+        "radius": 16,
+        "filter": {
+          "ids": null,
+          "tags": null,
+          "text": null
+        },
+        "cursor": "b824aff2-97f2-404c-ad75-a85cc6a6af6c"
+      }
+    },
+    "readSpans": [
+      {
+        "fromGameTime": 1226407,
+        "toGameTime": 1226407
+      }
+    ]
+  },
+  {
+    "name": "list_blocks",
+    "arguments": {
+      "center": null,
+      "radius": 16,
+      "filter": {
+        "ids": [
+          "minecraft:chest",
+          "minecraft:lectern",
+          "minecraft:furnace",
+          "minecraft:crafting_table"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 9,
+    "nextCursor": null,
+    "nextCall": null,
+    "readSpans": [
+      {
+        "fromGameTime": 1226524,
+        "toGameTime": 1226524
+      }
+    ]
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You’re on a broad stone platform in the Overworld, around (1296, 250, 1201). Within 16 blocks, there are **six chests** in a row to your south: [(1296, 250, 1204)](world:block|minecraft:overworld|1296,250,1204), [(1298, 250, 1204)](world:block|minecraft:overworld|1298,250,1204), [(1300, 250, 1204)](world:block|minecraft:overworld|1300,250,1204), [(1302, 250, 1204)](world:block|minecraft:overworld|1302,250,1204), [(1304, 250, 1204)](world:block|minecraft:overworld|1304,250,1204), and [(1306, 250, 1204)](world:block|minecraft:overworld|1306,250,1204).
+
+To your northeast are a [crafting table at (1298, 250, 1198)](world:block|minecraft:overworld|1298,250,1198), a [furnace at (1302, 250, 1198)](world:block|minecraft:overworld|1302,250,1198), and a [lectern at (1304, 250, 1198)](world:block|minecraft:overworld|1304,250,1198). The area scan found no nearby entities besides you. [world:area|player|16]
+```
+
+#### W3 - PASS
+
+Reused the unchanged iron chests at (1094,250,1024), (1096,250,1024), (1098,250,1024). `/data` independently confirmed 31,23,17 ingots. Player center (1098.5,250,1022.5); the existing inventory adds five ingots. find_items returned 76, all three chest holders, COMPLETE and explicit readSpan 1227100..1227100. Its detail is null because this read finished within one game tick; all four subsequent list_items reads are also COMPLETE with explicit spans. [round3-W3-fixture.json](../../build/final-review-live/round3-W3-fixture.json).
+
+##### Iron chests - PASS
+
+Question: `find iron ingots near me`
+
+Request `fbb33867-746c-45db-bb36-eec641f1c4d9`, conversation `6eaebfcf-9c81-4193-a0b0-9151ca9ac904`, status `completed`, model terminal 17559 ms. [round3-W3.json](../../build/final-review-live/round3-W3.json), [round3-W3-input.json](../../build/final-review-live/round3-W3-input.json).
+
+Calls, exact arguments, coverage, detail, pagination and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "find_items",
+    "arguments": {
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "center": null,
+      "radius": 16,
+      "includeNested": true,
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 4,
+    "nextCursor": null,
+    "nextCall": null,
+    "readSpans": [
+      {
+        "fromGameTime": 1227100,
+        "toGameTime": 1227100
+      }
+    ]
+  },
+  {
+    "name": "list_items",
+    "arguments": {
+      "holder": "player",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null,
+    "nextCall": null,
+    "readSpans": [
+      {
+        "fromGameTime": 1227254,
+        "toGameTime": 1227254
+      }
+    ]
+  },
+  {
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1094,250,1024",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null,
+    "nextCall": null,
+    "readSpans": [
+      {
+        "fromGameTime": 1227254,
+        "toGameTime": 1227254
+      }
+    ]
+  },
+  {
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1096,250,1024",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null,
+    "nextCall": null,
+    "readSpans": [
+      {
+        "fromGameTime": 1227254,
+        "toGameTime": 1227254
+      }
+    ]
+  },
+  {
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1098,250,1024",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null,
+    "nextCall": null,
+    "readSpans": [
+      {
+        "fromGameTime": 1227254,
+        "toGameTime": 1227254
+      }
+    ]
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I found **76 iron ingots** within 16 blocks: **5 in your inventory** [world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#8@minecraft:iron_ingot] and **71 in three chests**:
+
+- **31** at (1094, 250, 1024) [Chest](world:block|minecraft:overworld|1094,250,1024)
+- **23** at (1096, 250, 1024) [Chest](world:block|minecraft:overworld|1096,250,1024)
+- **17** at (1098, 250, 1024)—the chest you’re looking at [Chest](world:block|minecraft:overworld|1098,250,1024)
+```
+
+#### W2, single chunk 160 entities - PASS
+
+Reused the stable round-2 no-AI/no-gravity dense chicken fixture, all within chunk (74,66), x=1186..1195,z=1059..1066,y=250. `/execute if entity` counted 160 and `/execute as ... data get entity @s UUID` independently returned all 160 UUIDs. Player (1191.5,250,1057.5), radius 24. Three pages returned 64+64+32, all UUIDs/names exactly once; no missing/unexpected IDs; final coverage COMPLETE and no cursor. [round3-W2-fixture.json](../../build/final-review-live/round3-W2-fixture.json), [round3-W2-analysis.json](../../build/final-review-live/round3-W2-analysis.json).
+
+##### Dense entities - PASS
+
+Question: `List all the chickens within 24 blocks, continuing every page until all of them are listed. Include their names and counts.`
+
+Request `c46b3911-ec7f-4206-8d79-988c96d7b0fc`, conversation `23c51e55-fd2c-489c-99e1-32cd1c00b050`, status `completed`, model terminal 30137 ms. [round3-W2.json](../../build/final-review-live/round3-W2.json), [round3-W2-input.json](../../build/final-review-live/round3-W2-input.json).
+
+Calls, exact arguments, coverage, detail, pagination and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "list_entities",
+    "arguments": {
+      "center": null,
+      "radius": 24,
+      "filter": {
+        "ids": [
+          "minecraft:chicken"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": null
+    },
+    "coverage": "PARTIAL",
+    "detail": "This page holds 64 matches, the page limit; continue with the cursor",
+    "recordCount": 64,
+    "nextCursor": "f9e1977b-736f-4fd1-9246-cc9d9f5b9acb",
+    "nextCall": {
+      "name": "list_entities",
+      "arguments": {
+        "center": null,
+        "radius": 24,
+        "filter": {
+          "ids": [
+            "minecraft:chicken"
+          ],
+          "tags": null,
+          "text": null
+        },
+        "cursor": "f9e1977b-736f-4fd1-9246-cc9d9f5b9acb"
+      }
+    },
+    "readSpans": [
+      {
+        "fromGameTime": 1227927,
+        "toGameTime": 1227927
+      }
+    ]
+  },
+  {
+    "name": "list_entities",
+    "arguments": {
+      "center": null,
+      "radius": 24,
+      "filter": {
+        "ids": [
+          "minecraft:chicken"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": "f9e1977b-736f-4fd1-9246-cc9d9f5b9acb"
+    },
+    "coverage": "PARTIAL",
+    "detail": "This page holds 64 matches, the page limit; continue with the cursor",
+    "recordCount": 64,
+    "nextCursor": "ddba347e-dc66-46a3-874c-ac33b71ae099",
+    "nextCall": {
+      "name": "list_entities",
+      "arguments": {
+        "center": null,
+        "radius": 24,
+        "filter": {
+          "ids": [
+            "minecraft:chicken"
+          ],
+          "tags": null,
+          "text": null
+        },
+        "cursor": "ddba347e-dc66-46a3-874c-ac33b71ae099"
+      }
+    },
+    "readSpans": [
+      {
+        "fromGameTime": 1228024,
+        "toGameTime": 1228024
+      }
+    ]
+  },
+  {
+    "name": "list_entities",
+    "arguments": {
+      "center": null,
+      "radius": 24,
+      "filter": {
+        "ids": [
+          "minecraft:chicken"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": "ddba347e-dc66-46a3-874c-ac33b71ae099"
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 32,
+    "nextCursor": null,
+    "nextCall": null,
+    "readSpans": [
+      {
+        "fromGameTime": 1228148,
+        "toGameTime": 1228148
+      }
+    ]
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I continued through every page and found **160 chickens within 24 blocks**. Each has a distinct name, **Dense Chicken 000** through **Dense Chicken 159**, with **1 chicken per name**—so the complete name-and-count list is:
+
+| Names (inclusive) | Count per name |
+|---|---:|
+| Dense Chicken 000–009 | 1 each |
+| Dense Chicken 010–019 | 1 each |
+| Dense Chicken 020–029 | 1 each |
+| Dense Chicken 030–039 | 1 each |
+| Dense Chicken 040–049 | 1 each |
+| Dense Chicken 050–059 | 1 each |
+| Dense Chicken 060–069 | 1 each |
+| Dense Chicken 070–079 | 1 each |
+| Dense Chicken 080–089 | 1 each |
+| Dense Chicken 090–099 | 1 each |
+| Dense Chicken 100–109 | 1 each |
+| Dense Chicken 110–119 | 1 each |
+| Dense Chicken 120–129 | 1 each |
+| Dense Chicken 130–139 | 1 each |
+| Dense Chicken 140–149 | 1 each |
+| Dense Chicken 150–159 | 1 each |
+
+The returned chickens are in the Overworld around **x 1186–1195, y 250, z 1059–1066**. For navigation, [Dense Chicken 000 at (1186, 250, 1059)](world:entity|d9a84ecc-a2a7-4152-a758-29d7a6d691b4) and [Dense Chicken 159 at (1195, 250, 1066)](world:entity|37148a01-e997-4c50-8127-d72c3d7b7400) mark two corners of that group.
+```
+
+Navigation smoke check (the only `/navigate` in this round):
+
+```json
+{
+  "request": {
+    "route": "/navigate",
+    "body": {
+      "requestId": "c46b3911-ec7f-4206-8d79-988c96d7b0fc",
+      "targetId": "world-entity|d9a84ecc-a2a7-4152-a758-29d7a6d691b4"
+    }
+  },
+  "started": "2026-10-25T20:58:43.042Z",
+  "finished": "2026-10-25T20:58:43.130Z",
+  "result": {
+    "status": "OPENED",
+    "detail": null
+  }
+}
+```
+
+Returned target belongs to Dense Chicken 000; navigation returned OPENED with detail:null. State afterward remained running/unpaused in the save. [round3-W2-navigation.json](../../build/final-review-live/round3-W2-navigation.json), [round3-W2-highlight.png](../../build/final-review-live/round3-W2-highlight.png).
+
+#### C1 - PASS
+
+After every chat completed, POST `/prompt` with `{"text":"Round 3 prompt-save responsiveness check."}`, GET it, then POST `{"text":null}`. Both saves and all GETs returned HTTP 200. Set/read/clear text matches; final effective default still equals candidate 8. Game time advances 1230734..1230736 during the sequence, and `/state` is running/unpaused. Config contains no developer-prompt property. No model reply/tool/navigation applies. [round3-C1.json](../../build/final-review-live/round3-C1.json), [round3-C1-summary.json](../../build/final-review-live/round3-C1-summary.json).
+
+```json
+{
+  "savedText": "Round 3 prompt-save responsiveness check.",
+  "readText": "Round 3 prompt-save responsiveness check.",
+  "clearedText": null,
+  "finalText": null,
+  "effectiveEqualsCandidate8": true,
+  "promptPropertyLines": [],
+  "running": true,
+  "paused": false,
+  "gameTimeBefore": 1230734,
+  "gameTimeAfter": 1230736,
+  "http": [
+    {
+      "method": "GET",
+      "route": "/state",
+      "status": 200,
+      "elapsedMs": 34
+    },
+    {
+      "method": "POST",
+      "route": "/prompt",
+      "status": 200,
+      "elapsedMs": 36
+    },
+    {
+      "method": "GET",
+      "route": "/prompt",
+      "status": 200,
+      "elapsedMs": 8
+    },
+    {
+      "method": "GET",
+      "route": "/state",
+      "status": 200,
+      "elapsedMs": 8
+    },
+    {
+      "method": "POST",
+      "route": "/prompt",
+      "status": 200,
+      "elapsedMs": 24
+    },
+    {
+      "method": "GET",
+      "route": "/prompt",
+      "status": 200,
+      "elapsedMs": 9
+    },
+    {
+      "method": "GET",
+      "route": "/state",
+      "status": 200,
+      "elapsedMs": 7
+    }
+  ]
+}
+```
+
+#### Final state and blockers
+
+Minecraft remains running/unpaused in save **PackSage Adapter Filter Live Test**, bridge enabled at `127.0.0.1:25599`. Returned the player to the initial location (1003.5,250,1002.5). No prompt override remains; model/search/screenshot properties match the pre-check snapshot, and accepted chat timing records retain their original settings. Installed JAR SHA-256 is unchanged. [round3-final.json](../../build/final-review-live/round3-final.json), [round3-final-state.png](../../build/final-review-live/round3-final-state.png), [round3-settings-before.txt](../../build/final-review-live/round3-settings-before.txt), [round3-settings-final.txt](../../build/final-review-live/round3-settings-final.txt).
+
+Two failures remain for review: (1) the first explicit exhaustive advancement request stopped early with a valid continuation still available; (2) cross-holder pagination repeats supporting holder records even though every item record/count/path is correct. Neither failure was retried from the beginning or relabeled as a pass. No build, install or provider transport blocker occurred. Only this validation document is included in the requested commit; fixtures/raw artifacts remain ignored.

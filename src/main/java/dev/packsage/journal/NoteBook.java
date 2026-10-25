@@ -60,7 +60,7 @@ public final class NoteBook {
                 .anyMatch(words::contains)).limit(Math.max(0, limit)).toList();
     }
 
-    /** Generate and put a new note on the writer thread, so another creation cannot overtake it. */
+    /** Generates an unreserved ID; callers write the note and update the mirror within the same writer command. */
     public synchronized String newId() {
         String id;
         do {

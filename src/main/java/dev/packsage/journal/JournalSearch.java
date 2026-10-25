@@ -149,7 +149,7 @@ public final class JournalSearch {
                 arguments.addAll(filter.types());
             }
             if (countOnly && filter.area() == null) {
-                sql.append(filter.subjects().isEmpty() && filter.text() != null
+                sql.append(filter.text() != null
                         ? " AND (subject = '*' OR actor = '*')" : " AND subject = '*'");
             } else if (!filter.subjects().isEmpty()) {
                 sql.append(" AND (subject IN (").append(String.join(",", Collections.nCopies(filter.subjects().size(), "?")))

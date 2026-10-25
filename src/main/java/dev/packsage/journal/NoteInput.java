@@ -2,9 +2,9 @@ package dev.packsage.journal;
 
 import dev.packsage.world.BlockPlace;
 
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.TreeSet;
 
 /** A player-reported note edit; null tags retain the existing tags. */
 public record NoteInput(String text, PlaceChange place, List<String> tags) {
@@ -32,7 +32,7 @@ public record NoteInput(String text, PlaceChange place, List<String> tags) {
         if (place == null) {
             throw new IllegalArgumentException("Invalid note place change: null");
         }
-        var normalized = new LinkedHashSet<String>();
+        var normalized = new TreeSet<String>();
         if (tags != null) {
             for (var tag : tags) {
                 if (tag == null || !tag.trim().toLowerCase(Locale.ROOT).matches("[a-z0-9_-]{1,32}")) {
@@ -44,7 +44,9 @@ public record NoteInput(String text, PlaceChange place, List<String> tags) {
                 throw new IllegalArgumentException("Too many note tags: " + tags);
             }
         }
-        return new NoteInput(text.length() > 1_000 ? text.substring(0, 1_000) : text, place,
-                tags == null ? null : List.copyOf(normalized));
+        if (text.length() > 1_000) {
+            text = text.substring(0, Character.isHighSurrogate(text.charAt(999)) ? 999 : 1_000);
+        }
+        return new NoteInput(text, place, tags == null ? null : List.copyOf(normalized));
     }
 }

@@ -277,12 +277,12 @@ public final class JournalStore implements AutoCloseable {
         }
     }
 
-    /** Forgets a player report. Writer thread only. */
-    public void deleteNote(String id) throws SQLException {
+    /** Forgets a player report and returns whether a row was deleted. Writer thread only. */
+    public boolean deleteNote(String id) throws SQLException {
         checkWriterThread();
         try (var statement = writer.prepareStatement("DELETE FROM notes WHERE id = ?")) {
             statement.setString(1, id);
-            statement.executeUpdate();
+            return statement.executeUpdate() > 0;
         }
     }
 

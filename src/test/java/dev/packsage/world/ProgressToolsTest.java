@@ -346,7 +346,7 @@ class ProgressToolsTest {
         }
         var tree = fixture.finish(fixture.tools.query(new Evidence.Query(Evidence.Operation.GET, Evidence.deserializeObject("{\"id\":\"tree|minecraft/minecraft:story/root\"}"), 1, null, null), SCOPE));
         assertEquals(Evidence.Outcome.ERROR, tree.outcome());
-        assertTrue(tree.detail().contains("INVALID_REFERENCE: repeat list_progress"));
+        assertTrue(tree.detail().contains("INVALID_REFERENCE: progress tree is no longer available"));
     }
 
     @Test

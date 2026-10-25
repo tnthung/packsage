@@ -4,6 +4,7 @@
 
 ### 2026-10-25
 
+- On the v2 branch, links that highlight a block or mob in the world now say **Show** instead of **Open**, for example `Show in world` or `Show chest`, because clicking them marks something in the world rather than opening a screen. Their tooltip reads `Show in world:` followed by the place or mob.
 - On the v2 branch, the assistant can read every attribute of a mob, such as its maximum health, armor, speed or jump strength, with the base value, the current value and each modifier behind it. Horses, donkeys, mules and other horse-like mobs also report an approximate jump height and running speed in blocks. Before this, asking how high a horse can jump got a refusal, because the mob read carried no attributes. The build passes 680 automated tests. This is not yet checked in game: the live retest could not control the Minecraft window ([validation record](docs/validation/2026-10-22-v2-world-reading.md)).
 
 ### 2026-10-22

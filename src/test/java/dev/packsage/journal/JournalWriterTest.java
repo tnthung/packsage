@@ -6,14 +6,20 @@ import org.junit.jupiter.api.io.TempDir;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JournalWriterTest {
     private static final String OVERWORLD = "minecraft:overworld";
@@ -126,6 +132,128 @@ class JournalWriterTest {
             assertEquals(1, sessions.size());
             assertNotNull(sessions.get(0).endedWall());
         }
+        assertEquals(500, stats.written.sum());
+        assertEquals(0, stats.failedEvents.sum());
+    }
+
+    @Test
+    void aSessionFailureClosesTheOpenedStore() throws Exception {
+        var file = dir.resolve("journal.db");
+        var opened = new AtomicReference<JournalStore>();
+        var writer = new JournalWriter(() -> {
+            var store = JournalStore.open(file);
+            opened.set(store);
+            try (var statement = store.writer().createStatement()) {
+                statement.execute("CREATE TEMP TRIGGER no_sessions BEFORE INSERT ON sessions BEGIN SELECT RAISE(ABORT, 'locked'); END");
+            }
+            return store;
+        }, new EventQueue(10, EventQueue.OVERFLOW_KEYS), stats, gameTime::get, () -> 5_000L, 1_000);
+        assertThrows(SQLException.class, writer::openNow);
+        assertTrue(opened.get().writer().isClosed());
+        assertTrue(opened.get().reader().isClosed());
+        try (var store = JournalStore.open(file)) {
+            assertEquals(0, store.sessions().size());
+        }
+    }
+
+    @Test
+    void anOpenerFailureCountsQueuedEventsAndRefusesCommands() throws Exception {
+        var queue = new EventQueue(3, EventQueue.OVERFLOW_KEYS);
+        for (int i = 0; i < 5; i++) {
+            queue.offer(sand(i, i));
+        }
+        var writer = new JournalWriter(() -> {
+            throw new LinkageError("no sqlite native library");
+        }, queue, stats, gameTime::get, () -> 5_000L, 1_000);
+        writer.start();
+        var failure = assertThrows(ExecutionException.class, () -> writer.ready().get(30, TimeUnit.SECONDS));
+        assertInstanceOf(LinkageError.class, failure.getCause());
+        writer.close().get(30, TimeUnit.SECONDS);
+        assertThrows(ExecutionException.class, () -> writer.submit(store -> 1).get(30, TimeUnit.SECONDS));
+        assertEquals(5, stats.failedEvents.sum());
+        assertFalse(queue.offer(sand(9, 9)));
+    }
+
+    @Test
+    void closeBeforeStartCompletesAndCountsQueuedEvents() throws Exception {
+        var queue = new EventQueue(EventQueue.CAPACITY, EventQueue.OVERFLOW_KEYS);
+        var writer = writer(queue);
+        var command = writer.submit(store -> 1);
+        queue.offer(sand(1, 1));
+        queue.offer(sand(2, 2));
+        writer.close().get(30, TimeUnit.SECONDS);
+        assertThrows(ExecutionException.class, () -> command.get(30, TimeUnit.SECONDS));
+        assertEquals(2, stats.failedEvents.sum());
+        writer.start();
+        assertTrue(writer.ready().isCompletedExceptionally());
+        assertFalse(queue.offer(sand(3, 3)));
+    }
+
+    @Test
+    void aRuntimeFailureInABatchIsCountedAndTheWriterContinues() throws Exception {
+        var queue = new EventQueue(EventQueue.CAPACITY, EventQueue.OVERFLOW_KEYS);
+        var writer = writer(queue);
+        var owner = Executors.newSingleThreadExecutor();
+        try {
+            var store = owner.submit(writer::openNow).get(30, TimeUnit.SECONDS);
+            for (int i = 0; i < 40; i++) {
+                queue.offer(sand(i, i));
+            }
+            assertEquals(40, writer.drainOnce());
+            assertEquals(40, stats.failedEvents.sum());
+            for (int i = 40; i < 60; i++) {
+                queue.offer(sand(i, i));
+            }
+            assertEquals(20, owner.submit(writer::drainOnce).get(30, TimeUnit.SECONDS));
+            assertEquals(20, stats.written.sum());
+            assertEquals(20, longValue(store, "SELECT SUM(count) FROM events"));
+            owner.submit(() -> {
+                store.close();
+                return null;
+            }).get(30, TimeUnit.SECONDS);
+        } finally {
+            owner.shutdown();
+        }
+    }
+
+    @Test
+    void commandsDoNotStarveThePeriodicDrain() throws Exception {
+        var queue = new EventQueue(EventQueue.CAPACITY, EventQueue.OVERFLOW_KEYS);
+        var writer = new JournalWriter(() -> JournalStore.open(dir.resolve("journal.db")), queue, stats, gameTime::get,
+                () -> 5_000L, 20);
+        writer.start();
+        writer.ready().get(30, TimeUnit.SECONDS);
+        var flooding = new AtomicBoolean(true);
+        for (int i = 0; i < 4; i++) {
+            flood(writer, flooding);
+        }
+        for (int i = 0; i < 10; i++) {
+            queue.offer(sand(i, i));
+        }
+        var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (stats.written.sum() < 10 && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
+        flooding.set(false);
+        assertEquals(10, stats.written.sum());
+        writer.close().get(30, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void structureEventsNeedASubjectAndAGroup() {
+        assertThrows(IllegalArgumentException.class, () -> new JournalEvent(EventType.STRUCTURE, 1, 1, OVERWORLD, "player:A",
+                "minecraft:village_plains", null, 1, new long[]{Positions.pack(0, 64, 0)}, null));
+        assertThrows(IllegalArgumentException.class, () -> new JournalEvent(EventType.STRUCTURE, 1, 1, OVERWORLD, "player:A",
+                null, "3,-7", 1, new long[]{Positions.pack(0, 64, 0)}, null));
+    }
+
+    private static void flood(JournalWriter writer, AtomicBoolean flooding) {
+        writer.submit(store -> {
+            if (flooding.get()) {
+                flood(writer, flooding);
+            }
+            return null;
+        });
     }
 
     @Test

@@ -1,12 +1,24 @@
 # PackSage adapter feature todo
 
-Updated: 2026-10-22.
+Updated: 2026-10-25.
 
 Feature-grouped summary of the [tool roadmap](2026-10-13-todo.md). A mod can appear under multiple features. Unchecked items include missing implementation and implemented features still awaiting the stated live acceptance. Detailed contracts, evidence and acceptance limits remain in the tool roadmap and its linked reports.
 
 Generic JEI displays or GuideME documentation do not establish dedicated mechanics or storage adapter coverage. Reliquified Artifacts shares the existing Artifacts logical integration.
 
+On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mods describe `feat/packsage-v1`; the [v2 note](2026-10-22-v2-minecraft-only.md) tracks v2 work.
+
 ## 1. Has adapter, not fully implemented
+
+### World block, mob and storage reading (v2)
+
+- [x] Minecraft — nearby storage search, including items nested inside other items, with block highlights; installed acceptance passed ([validation record](../validation/2026-10-22-v2-world-reading.md)).
+- [x] Minecraft — villager home, job site, sleep and work times and golem-spawning state; installed iron-farm diagnosis passed.
+- [x] Minecraft — mob storage paths, mule chest to shulker box to bundle; installed acceptance passed.
+- [ ] Minecraft — every mob attribute, and horse jump height and speed in blocks (implemented; automated checks pass; installed acceptance pending: the retest could not control the Minecraft window).
+- [ ] Minecraft — saved highlight links across a full restart, and the final-review pacing and link fixes on the installed build (installed acceptance pending).
+- [ ] PackSage — full item pages over the 64-record tool-output limit lose holder links and their continuation (N1, open).
+- [ ] PackSage — prompt: the armor reply omitted eligible enchantments from returned evidence, and the mule reply gave no coordinates.
 
 ### Inventory and equipment inspection
 

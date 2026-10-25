@@ -52,8 +52,9 @@ public final class CommandReader<S> {
             var usage = Arrays.asList(dispatcher.getAllUsage(node, source, false));
             if (text != null && !node.getName().toLowerCase(Locale.ROOT).contains(text.toLowerCase(Locale.ROOT))
                     && usage.stream().noneMatch(line -> line.toLowerCase(Locale.ROOT).contains(text.toLowerCase(Locale.ROOT)))) continue;
+            var redirect = node.getRedirect() == null ? List.<String>of() : dispatcher.getPath(node.getRedirect());
             matches.add(new Summary(node.getName(), node.canUse(source), List.copyOf(usage.subList(0, Math.min(USAGE_PREVIEW, usage.size()))),
-                    node.getRedirect() == null ? null : String.join(" ", dispatcher.getPath(node.getRedirect()))));
+                    node.getRedirect() == null || redirect.isEmpty() && node.getRedirect() != dispatcher.getRoot() ? null : String.join(" ", redirect)));
         }
         matches.sort(Comparator.comparing(Summary::name));
         return List.copyOf(matches);
@@ -109,9 +110,10 @@ public final class CommandReader<S> {
             }
             stack.push(new Walk<>(child.getChildren().iterator(), childPath, allowed));
         }
+        var redirect = node.getRedirect() == null ? List.<String>of() : dispatcher.getPath(node.getRedirect());
         return new Detail(path, canUse, List.of(dispatcher.getAllUsage(node, source, false)),
                 canUse ? List.copyOf(dispatcher.getSmartUsage(node, source).values()) : List.of(), List.copyOf(arguments), bounded,
-                node.getRedirect() == null ? null : String.join(" ", dispatcher.getPath(node.getRedirect())));
+                node.getRedirect() == null || redirect.isEmpty() && node.getRedirect() != dispatcher.getRoot() ? null : String.join(" ", redirect));
     }
 
     /**

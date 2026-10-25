@@ -1,0 +1,61 @@
+package dev.packsage.world;
+
+import dev.packsage.knowledge.AdapterRegistry;
+import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.Toolbox;
+import dev.packsage.model.PackSageTools;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
+
+class WorldKnowledgeToolsTest {
+    private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
+
+    private static WorldTools tools() {
+        return new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
+                () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
+    }
+
+    private static Toolbox.Code failure(WorldTools tools, String tool, String arguments) {
+        var context = new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null);
+        try {
+            tools.handle(new PackSageTools.ReadRequest(tool, Evidence.deserializeObject(arguments), SCOPE), context).toCompletableFuture().get();
+        } catch (Toolbox.Failure failure) {
+            return failure.code();
+        } catch (ExecutionException exception) {
+            if (exception.getCause() instanceof Toolbox.Failure failure) return failure.code();
+            fail(exception);
+        } catch (InterruptedException exception) {
+            fail(exception);
+        }
+        return fail(tool + " succeeded");
+    }
+
+    @Test
+    void toolsAreUnavailableWithoutAnIntegratedServer() {
+        var tools = tools();
+        var calls = Map.of(
+                "read_loot", "{\"table\":\"minecraft:entities/zombie\"}",
+                "locate", "{\"structure\":\"#minecraft:village\"}",
+                "search_commands", "{}",
+                "read_command", "{\"name\":\"fill\"}");
+        calls.forEach((tool, arguments) -> assertEquals(Toolbox.Code.UNAVAILABLE, failure(tools, tool, arguments), tool));
+    }
+
+    @Test
+    void argumentsNeedExactlyOneSource() {
+        var tools = tools();
+        var calls = List.of(
+                List.of("read_loot", "{}"),
+                List.of("read_loot", "{\"table\":\"a:b\",\"block\":\"minecraft:stone\"}"),
+                List.of("locate", "{}"),
+                List.of("locate", "{\"biome\":\"minecraft:plains\",\"structure\":\"minecraft:village_plains\"}"),
+                List.of("read_command", "{\"name\":\"  \"}"));
+        for (var call : calls) assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failure(tools, call.get(0), call.get(1)), call.toString());
+    }
+}

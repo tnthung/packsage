@@ -20,6 +20,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class MinecraftWorldTest {
     @BeforeAll
@@ -58,10 +59,27 @@ class MinecraftWorldTest {
 
     @Test
     void anUncachedPoiColumnNeverEntersTheStorageLoadingPath() throws Exception {
-        // No constructor or disk store: any getOrLoad call fails instead of accessing a real world.
+        // The sentinel rejects storage access without creating an IOWorker or touching a world file.
+        class Storage extends net.minecraft.world.level.chunk.storage.SimpleRegionStorage {
+            int reads;
+            Storage() { super(null, null, null, false, null); }
+            @Override
+            public java.util.concurrent.CompletableFuture<Optional<net.minecraft.nbt.CompoundTag>> read(ChunkPos pos) {
+                reads++;
+                throw new AssertionError("POI storage was accessed");
+            }
+        }
         var field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
         field.setAccessible(true);
-        var manager = (PoiManager) ((sun.misc.Unsafe) field.get(null)).allocateInstance(PoiManager.class);
+        var unsafe = (sun.misc.Unsafe) field.get(null);
+        var manager = (PoiManager) unsafe.allocateInstance(PoiManager.class);
+        var disk = (Storage) unsafe.allocateInstance(Storage.class);
+        var backing = SectionStorage.class.getDeclaredField("simpleRegionStorage");
+        backing.setAccessible(true);
+        backing.set(manager, disk);
+        var height = SectionStorage.class.getDeclaredField("levelHeightAccessor");
+        height.setAccessible(true);
+        height.set(manager, net.minecraft.world.level.LevelHeightAccessor.create(-64, 384));
         var storage = SectionStorage.class.getDeclaredField("storage");
         storage.setAccessible(true);
         var cached = new Long2ObjectOpenHashMap<Optional<PoiSection>>();
@@ -71,7 +89,11 @@ class MinecraftWorldTest {
 
         assertEquals(new Evidence.JsonString("unavailable: POI section is not cached"), facts.values().get("status"));
         assertEquals(0, cached.size());
+        assertEquals(0, disk.reads);
+        assertEquals("POI storage was accessed", assertThrows(AssertionError.class, () -> manager.getType(BlockPos.ZERO)).getMessage());
+        assertEquals(1, disk.reads, "the vanilla path proves the storage sentinel is armed");
         cached.put(SectionPos.asLong(BlockPos.ZERO), Optional.empty());
         assertNull(MinecraftWorld.poi(manager, BlockPos.ZERO), "a cached empty section is known to have no POI");
+        assertEquals(1, disk.reads);
     }
 }

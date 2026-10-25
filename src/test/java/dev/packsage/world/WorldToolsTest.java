@@ -617,11 +617,13 @@ class WorldToolsTest {
         var dirt = new ItemEntry("minecraft:dirt", "Dirt", 3, 1, java.util.List.of(
                 ItemPath.parse(chestA + ">minecraft/container#4@minecraft:dirt")), false);
 
-        var page = tools.entries(request, new WorldTools.EntriesState(java.util.List.of(stone, dirt), null, Evidence.Coverage.COMPLETE, null),
+        var page = tools.entries(request, new WorldTools.EntriesState(java.util.List.of(stone, dirt), null, Evidence.Coverage.COMPLETE, null, new WorldTools.ReadSpan(100, 105)),
                 Evidence.Coverage.COMPLETE, null);
 
+        assertEquals(Evidence.Coverage.COMPLETE, page.coverage());
         var linked = new java.util.HashMap<String, String>();
         for (var record : page.records()) {
+            assertEquals(Evidence.deserializeObject("{\"fromGameTime\":100,\"toGameTime\":105}"), record.payload().values().get("readSpan"));
             for (var target : record.targets()) {
                 assertEquals(record.source().sourceHandle(), target.sourceHandle(), "a link opens only from a record with its handle");
                 linked.put(target.sourceHandle(), target.targetId());

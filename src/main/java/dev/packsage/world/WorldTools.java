@@ -368,8 +368,16 @@ public final class WorldTools implements KnowledgeProvider {
         if (phrase == null || (phrase.word() != HolderWords.Word.TARGETED && phrase.word() != HolderWords.Word.OPENED)) {
             return CompletableFuture.completedFuture(ClientFocus.NONE);
         }
-        return focus.get().toCompletableFuture().orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).exceptionally(failure -> {
-            throw new Failure(Code.UNAVAILABLE, "the game did not report what is under the crosshair or open");
+        var unavailable = "the game did not report what is under the crosshair or open";
+        CompletableFuture<ClientFocus> captured;
+        try {
+            captured = focus.get().toCompletableFuture();
+        } catch (RuntimeException exception) {
+            // The client can reject the capture, for example while it shuts down.
+            return CompletableFuture.failedFuture(new Failure(Code.UNAVAILABLE, unavailable));
+        }
+        return captured.orTimeout(TIMEOUT_SECONDS, TimeUnit.SECONDS).exceptionally(failure -> {
+            throw new Failure(Code.UNAVAILABLE, unavailable);
         });
     }
 

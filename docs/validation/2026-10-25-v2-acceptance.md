@@ -22888,3 +22888,14 @@ Date: 2026-10-26. Candidate 7 adds one sentence to the note-keeping rule of the 
 | Retirement | `I tore down my gold farm, it's gone now` | forget_note | PASS: the player's position was not saved as a place |
 
 Remaining observations, not failures: the recall made one redundant second journal search, and its reply called the place "the position shown in your latest gameplay observation". Candidate 7 was promoted to the code default in 701162a, and the override was cleared. The installed-default recheck follows the next install.
+
+## Candidate 8 - E6 coordinates for the targeted subject
+
+Date: 2026-10-26. Candidate 8 extends candidate 7's coordinate rule so the coordinates cover the subject of the question, even one the player is looking at or riding. Same bridge setup and override as candidate 7. Fixture: a tamed no-AI mule summoned at (1003.5, 250, 1005.5), targeted by the crosshair. Raw JSON is in `build/m1-live/e6-*.json`.
+
+| Question | Calls | Result |
+|---|---|---|
+| `how high can this mule jump?` (W8 wording) | inspect_entity | PASS: "This mule at (1004, 250, 1006) can jump approximately 1.62 blocks high" with the mule link |
+| `how fast is this mule?` | inspect_entity | PASS: 7.38 blocks per second, "It's at (1004, 250, 1006)", with the mule link |
+
+The model copied the coordinates from the record's title. The title rounds entity positions to the nearest whole number, so 1003.5 became 1004, the neighbouring block, while F3 shows block 1003. That is a code defect in the entity title, not a prompt failure; it is fixed separately. Candidate 8 was promoted in f66b3e6, and the override was cleared.

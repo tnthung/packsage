@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class MinecraftDebugAdapterTest {
     @ParameterizedTest
-    @ValueSource(strings = {"settings", "prompt", "save"})
+    @ValueSource(strings = {"settings", "prompt", "save", "failure", "default", "clear", "invalid"})
     void promptSaveLeavesTheClientResponsiveAndPreservesConcurrentScreenSaves(String concurrent, @TempDir Path directory) throws Exception {
         class Client extends Minecraft {
             java.util.concurrent.Executor executor;
@@ -50,21 +50,32 @@ class MinecraftDebugAdapterTest {
         try (var clientThread = java.util.concurrent.Executors.newSingleThreadExecutor();
              var worker = java.util.concurrent.Executors.newSingleThreadExecutor()) {
             client.executor = clientThread;
+            if (concurrent.equals("default") || concurrent.equals("clear")) runtime.settings().setDeveloperPrompt("previous prompt");
             var adapter = new MinecraftDebugAdapter(client, runtime, () -> { }, new DebugRequestLog(), (settings, text) -> {
                 if (writes.incrementAndGet() == 1) {
                     started.countDown();
                     try { assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS)); }
                     catch (InterruptedException failure) { throw new RuntimeException(failure); }
                 }
+                if (concurrent.equals("failure")) throw new IllegalStateException("writer failed");
                 settings.saveDeveloperPrompt(path, text);
             });
             var body = new com.google.gson.JsonObject();
-            body.addProperty("text", "bridge prompt");
+            body.addProperty("text", concurrent.equals("default") ? dev.packsage.model.GroundingInstructions.defaultInstructions()
+                    : concurrent.equals("clear") ? null : concurrent.equals("invalid") ? " " : "bridge prompt");
             var response = worker.submit(() -> adapter.execute(DebugRouter.Operation.PROMPT_SET, body));
+            if (concurrent.equals("invalid")) {
+                assertThrows(java.util.concurrent.ExecutionException.class, () -> response.get(5, java.util.concurrent.TimeUnit.SECONDS));
+                assertEquals(0, writes.get());
+                assertNull(runtime.settings().developerPrompt());
+                assertFalse(java.nio.file.Files.exists(path));
+                return;
+            }
             try {
                 assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS));
                 clientThread.submit(() -> {
-                    assertNull(runtime.settings().developerPrompt(), "unpersisted prompt must not be published");
+                    assertEquals(concurrent.equals("default") || concurrent.equals("clear") ? "previous prompt" : null,
+                            runtime.settings().developerPrompt(), "unpersisted prompt must not be published");
                     if (concurrent.equals("settings")) {
                         runtime.settings().setOpenPaused(false);
                         runtime.settings().setHistoryTurns(25);
@@ -76,9 +87,19 @@ class MinecraftDebugAdapterTest {
             } finally {
                 release.countDown();
             }
-            response.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            if (concurrent.equals("failure")) {
+                assertThrows(java.util.concurrent.ExecutionException.class, () -> response.get(5, java.util.concurrent.TimeUnit.SECONDS));
+                assertNull(runtime.settings().developerPrompt());
+                assertNull(dev.packsage.chat.PackSageSettings.load(path).developerPrompt());
+                return;
+            }
+            assertEquals(concurrent.equals("default") || concurrent.equals("clear")
+                    ? dev.packsage.model.GroundingInstructions.defaultInstructions()
+                    : concurrent.equals("prompt") ? "screen prompt" : "bridge prompt",
+                    response.get(5, java.util.concurrent.TimeUnit.SECONDS).get("effectiveText").getAsString());
             var saved = dev.packsage.chat.PackSageSettings.load(path);
-            assertEquals(concurrent.equals("prompt") ? "screen prompt" : "bridge prompt", saved.developerPrompt());
+            assertEquals(concurrent.equals("default") || concurrent.equals("clear") ? null
+                    : concurrent.equals("prompt") ? "screen prompt" : "bridge prompt", saved.developerPrompt());
             assertEquals(saved.developerPrompt(), runtime.settings().developerPrompt());
             assertEquals(!concurrent.equals("settings"), saved.openPaused());
             assertEquals(concurrent.equals("settings") ? 25 : 10, saved.historyTurns());

@@ -99,7 +99,7 @@ Live checks for the final acceptance run, on the installed JAR with the develope
 - [ ] Diamonds: after mining diamond ore, ask "how many diamonds have I mined?" Expect the exact `mined` counts for `minecraft:diamond_ore` and `minecraft:deepslate_diamond_ore`; picked-up diamonds may also be counted if clearly distinguished.
 - [ ] Walking: ask "how far have I walked?" Expect `walk_one_cm` in blocks, or kilometres derived from blocks, rather than centimetres.
 - [ ] Never mined: in a fresh world, ask "how much ancient debris have I mined?" Expect an explicit zero counter value rather than unknown.
-- [ ] Hidden advancement: with a hidden advancement partly progressed, ask "what hidden advancements do I have left?" Expect a count with no names or criteria.
+- [ ] Hidden advancement: with a hidden advancement partly progressed, ask "what hidden advancements do I have left?" Expect a count with no names, real identifiers or criteria. Live P5 failed by exposing identifiers; the opaque world-session id fix passes automated regression checks, with live reacceptance pending.
 - [ ] Play time: ask "how long have I played this world?" Expect `play_time` in seconds, converted sensibly for the reply.
 - [ ] Next goal: ask "what should I do next for advancements?" Expect `available` entries from `list_progress`, each with a working link.
 - [ ] Saved link: open a saved advancement link after a full Minecraft restart and expect its tab to open.

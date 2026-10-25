@@ -38,7 +38,7 @@ The implementer re-checks any name that fails to compile against the same jar.
   - no `Stat` object is created in a `StatType`'s map;
   - no criterion is granted or revoked;
   - no packet is sent, except the `ServerboundSeenAdvancementsPacket.openedTab` that vanilla's own screen sends when a link opens a tab.
-- **Hidden advancements.** A hidden advancement that is not earned is listed with status `hidden` and no title, description, criteria, requirements, unlocks or rewards. Text filters never match it.
+- **Hidden advancements.** A hidden advancement that is not earned is listed with status `hidden` and no title, description, criteria, requirements, unlocks or rewards. Text filters never match it. The P5 live finding supersedes the original real-id ruling: use opaque world-session ids in listings, dependencies, inspection and evidence handles, including hidden tree roots, with generic tree titles and no hidden-root navigation. Counts remain unchanged; earning restores real ids and titles.
 - **Statistic units.** Distances are reported in blocks (raw centimetres / 100) and times in seconds (raw ticks / 20). Statistics count since the world began.
 - **Paging.** Pages hold at most 64 records, the tool output limit (`AreaScan.LIST_PAGE`), including tree records. Larger listings continue with a cursor.
 - **Coverage.** Every result reports coverage. A bounded or interrupted read is `PARTIAL` with a note, never a silent truncation.

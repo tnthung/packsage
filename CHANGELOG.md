@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### 2026-10-26
+
+- Unearned hidden advancements now use opaque world-session references instead of identifiers that reveal their names. Listings, dependencies, saved evidence rereads and hidden tree roots preserve redaction and counts; earning an entry restores its real identifier and title. Automated regression checks pass; the live P5 recheck is pending.
+
 ### 2026-10-25
 
 - Promoted live-tested prompt candidate 6 to the default, including complete returned-set answers, nested-item references, timestamp and journal-event grounding, silent note deduplication, citation syntax and coordinate-derived directions. The compiled default matches the candidate byte-for-byte. Installed-default acceptance is pending.

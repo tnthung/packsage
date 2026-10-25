@@ -242,7 +242,7 @@ trait ProgressReader {
 }
 ```
 
-The Minecraft adapter implements this for advancements, including per-criterion state such as the biomes still missing for *Adventuring Time*. *My call:* a hidden advancement is listed as hidden, without its title or criteria, until it is earned.
+The Minecraft adapter implements this for advancements, including per-criterion state such as the biomes still missing for *Adventuring Time*. A hidden advancement reveals only its existence and count until earned: use an opaque id stable within the world session for listings, dependencies, inspection and evidence rereads, with no real namespace or path in any returned field. Hidden roots also use opaque tree ids and generic titles, with no navigation target. Counts stay unchanged; once earned, an entry uses its real id and title. Opaque references remain resolvable after earning within the same session; they are not persistent navigation identities across server sessions.
 
 ## Statistics
 

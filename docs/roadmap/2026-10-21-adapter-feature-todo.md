@@ -64,7 +64,7 @@ Candidate 2's duplicate-destination bridge rejection and inspected-air Show link
 
 ### Progress and statistics (v2)
 
-- [ ] Minecraft — advancement progress with per-criterion state and tab links; live [Q11](../validation/2026-10-25-v2-acceptance.md#q11--fail) found links to absent tabs. Links now require server-tracked tab visibility; automated regression checks pass, with the live recheck pending ([remaining acceptance checks](2026-10-22-v2-minecraft-only.md#progress-and-statistics)).
+- [ ] Minecraft — advancement progress with per-criterion state and tab links; live [Q11](../validation/2026-10-25-v2-acceptance.md#q11--fail) found links to absent tabs. Links now require server-tracked tab visibility. Live P5 exposed hidden identifiers; opaque world-session ids now redact listings, dependencies, inspection, evidence handles and hidden roots. Automated regression checks pass; both live rechecks remain pending ([remaining acceptance checks](2026-10-22-v2-minecraft-only.md#progress-and-statistics)).
 - [ ] Minecraft — player statistics in blocks and seconds; implemented with automated tests, not yet checked in game. Acceptance runs once at the end of all stages, as listed in the [v2 note](2026-10-22-v2-minecraft-only.md#progress-and-statistics).
 
 ### Inventory and equipment inspection

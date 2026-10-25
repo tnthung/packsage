@@ -49,6 +49,26 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldKnowledgeToolsTest {
     @Test
+    void commandRereadsPreserveAStoppedSnapshotsContinuation() {
+        var partial = WorldTools.result(List.of(), Evidence.Coverage.PARTIAL, "command-cursor",
+                "command tree copy reached the 500 ms server work budget; playerPermissionLevel: 0");
+        var record = WorldKnowledgeTools.commandRereadRecord(SCOPE, "command|fill", partial);
+        assertEquals(Evidence.Coverage.PARTIAL, record.source().coverage());
+        assertEquals("command|fill", record.source().sourceHandle());
+        assertEquals(WorldTools.text("command-cursor"), record.payload().values().get("cursor"));
+        assertEquals(WorldTools.text("fill"), record.payload().values().get("path"));
+        assertEquals(WorldTools.text("PackSage does not run commands"), record.payload().values().get("note"));
+        assertTrue(record.targets().isEmpty());
+        assertSame(record, WorldKnowledgeTools.commandRereadRecord(SCOPE, "command|fill", WorldTools.single(record)));
+        var usagePage = WorldTools.result(List.of(record), Evidence.Coverage.PARTIAL, "usage-cursor", "more usage");
+        assertEquals(WorldTools.text("usage-cursor"),
+                WorldKnowledgeTools.commandRereadRecord(SCOPE, "command|fill", usagePage).payload().values().get("cursor"));
+        var missing = WorldTools.result(List.of(), Evidence.Coverage.COMPLETE, null, "no command missing; search_commands lists them");
+        assertEquals(Toolbox.Code.UNAVAILABLE, assertThrows(Toolbox.Failure.class,
+                () -> WorldKnowledgeTools.commandRereadRecord(SCOPE, "command|missing", missing)).code());
+    }
+
+    @Test
     void commandSearchPagesKeepForbiddenCommandsAndBindTheCursor() {
         var tools = tools();
         var knowledge = new WorldKnowledgeTools(tools);

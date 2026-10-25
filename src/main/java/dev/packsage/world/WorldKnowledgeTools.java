@@ -137,10 +137,8 @@ final class WorldKnowledgeTools {
         var server = calls.server();
         if (handle.startsWith("command|")) {
             return readCommand(new PackSageTools.ReadRequest("read_command",
-                    new Evidence.JsonObject(Map.of("name", WorldTools.text(handle.substring(8)))), scope)).thenApply(result -> {
-                if (result.records().isEmpty()) throw new Failure(Code.UNAVAILABLE, result.detail());
-                return result.records().getFirst();
-            });
+                    new Evidence.JsonObject(Map.of("name", WorldTools.text(handle.substring(8)))), scope))
+                    .thenApply(result -> commandRereadRecord(scope, handle, result));
         }
         ResourceKey<LootTable> key;
         try {
@@ -677,6 +675,19 @@ final class WorldKnowledgeTools {
         } catch (IllegalArgumentException exception) {
             return type.getClass().getSimpleName();
         }
+    }
+
+    /** read_evidence returns a record, so retain a pending copy's cursor in its payload for read_command. */
+    static Evidence.Record commandRereadRecord(Evidence.Scope scope, String handle, Evidence.Result result) {
+        if (!result.records().isEmpty() && result.nextCursor() == null) return result.records().getFirst();
+        if (result.coverage() != Evidence.Coverage.PARTIAL) throw new Failure(Code.UNAVAILABLE, result.detail());
+        var payload = result.records().isEmpty() ? new LinkedHashMap<String, Evidence.JsonValue>()
+                : new LinkedHashMap<>(result.records().getFirst().payload().values());
+        payload.put("path", WorldTools.text(handle.substring(8)));
+        payload.put("cursor", WorldTools.text(result.nextCursor()));
+        payload.put("note", WorldTools.text("PackSage does not run commands"));
+        payload.put("detail", WorldTools.text(result.detail() + "; continue with read_command using this path and cursor"));
+        return WorldTools.evidence(scope, handle, Evidence.RecordKind.OTHER, "/" + handle.substring(8), payload, Evidence.Coverage.PARTIAL, null);
     }
 
     private static void exactlyOne(PackSageTools.ReadRequest request, List<String> names) {

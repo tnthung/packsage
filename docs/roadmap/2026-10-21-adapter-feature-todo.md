@@ -12,11 +12,11 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 
 ### Recorded world history (v2 journal branch)
 
-- [ ] Minecraft — `journal` provider and `search_journal` return recorded event summaries, recording-period coverage and stable place targets. Implemented with automated tests; anchor resolution, highlight opening and installed acceptance remain pending ([plan](../plans/2026-10-22-v2-journal.md)).
+- [ ] Minecraft — `journal` provider and `search_journal` return recorded event summaries, recording-period coverage and stable place targets. Anchor resolution, exact area payloads and place-column highlights are implemented with automated tests; installed acceptance remains pending ([plan](../plans/2026-10-22-v2-journal.md)).
 
 ### Player-reported notes (v2 journal branch)
 
-- [ ] PackSage — `remember`, `update_note`, `forget_note` and note searches preserve the originating message and label notes as `PLAYER_REPORTED` / `player-said`. Database writes and mirror changes serialize on the writer; failed writes and queued deletion/update have automated coverage. Note anchor resolution, navigation, prompt integration and installed acceptance remain pending.
+- [ ] PackSage — `remember`, `update_note`, `forget_note` and note searches preserve the originating message and label notes as `PLAYER_REPORTED` / `player-said`. Database writes and mirror changes serialize on the writer, then complete on the worker with generic thinking activity. Automated checks cover failed writes, queued deletion/update, note anchors and persistent navigation following moved notes and refusing forgotten notes. Prompt integration and installed acceptance remain pending.
 
 ### World block, mob and storage reading (v2)
 

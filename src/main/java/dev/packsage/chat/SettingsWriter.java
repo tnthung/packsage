@@ -15,7 +15,7 @@ import java.util.function.BiConsumer;
 
 public final class SettingsWriter {
     public record Snapshot(long generation, Map<String, String> properties) {
-        Snapshot { properties = Map.copyOf(properties); }
+        public Snapshot { properties = Map.copyOf(properties); }
     }
 
     private final AtomicLong generations = new AtomicLong();

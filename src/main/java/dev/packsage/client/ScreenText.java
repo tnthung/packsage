@@ -30,7 +30,7 @@ final class ScreenText {
     private static final String CELL_GAP = "   ";
     static final List<String> CITATION_PROVIDERS = List.of("native", "config", "history", "world", "progress", "journal");
     private static final Pattern CITATION_MARKER = Pattern.compile("\\[(" + String.join("|", CITATION_PROVIDERS) + "):([^\\]\\s]+)\\]");
-    private static final Pattern UNRESOLVED_MODEL_ALIAS = Pattern.compile("\\[ref:[0-9a-f]{8}\\.[0-9a-z]+\\.[0-9a-z]+[\\])]");
+    private static final Pattern UNRESOLVED_MODEL_ALIAS = Pattern.compile("\\[ref:[0-9a-f]{8}\\.[0-9a-z]+\\.[0-9a-z]+(?:\\](?!\\s*\\()|\\))");
     private static final String BULLET = "• ";
     private static final String SEPARATOR = " · ";
     private static final Pattern HEADING = Pattern.compile("^(#{1,6}) +(.*)$");

@@ -469,6 +469,9 @@ public final class ReferenceAliasBackend implements ModelBackend {
                     if (canonical != null) {
                         if (open > close + 1) changes.add(new Replacement(close + 1, open, ""));
                         changes.add(new Replacement(start, end, canonical));
+                    } else {
+                        canonical = resolve(token.substring(1, close));
+                        if (canonical != null) changes.add(new Replacement(1, close, canonical));
                     }
                 }
             } else {

@@ -122,4 +122,21 @@ class PackSageSettingsTest {
                 () -> settings.withDeveloperPrompt("x".repeat(PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH + 1)));
         assertEquals("kept", settings.developerPrompt());
     }
+
+    @Test
+    void savingDeveloperPromptAppliesOnlyAfterPersistenceAndNormalizesTheDefault() throws Exception {
+        Path path = temporaryDirectory.resolve("prompt.properties");
+        var settings = PackSageSettings.defaults();
+        settings.saveDeveloperPrompt(path, "custom prompt");
+        assertEquals("custom prompt", settings.developerPrompt());
+        assertEquals("custom prompt", PackSageSettings.load(path).developerPrompt());
+        assertThrows(IllegalStateException.class, () -> settings.saveDeveloperPrompt(temporaryDirectory, "unsaved prompt"));
+        assertEquals("custom prompt", settings.developerPrompt());
+        settings.saveDeveloperPrompt(path, dev.packsage.model.GroundingInstructions.defaultInstructions());
+        assertEquals(null, settings.developerPrompt());
+        assertEquals(null, PackSageSettings.load(path).developerPrompt());
+        settings.saveDeveloperPrompt(path, "another prompt");
+        settings.saveDeveloperPrompt(path, null);
+        assertEquals(null, PackSageSettings.load(path).developerPrompt());
+    }
 }

@@ -20,7 +20,9 @@ class DebugChatStateTest {
         var second = new Evidence.NavigationTarget(scope, "fixture", "second", "same-target");
         var turns = List.of(first, second).stream().map(target -> new ChatContracts.Turn(
                 new ChatContracts.RequestId(target.sourceHandle()), "question", "answer", List.of(),
-                new ChatContracts.Context("{}", null, scope), List.of(), List.of(target),
+                new ChatContracts.Context("{}", null, scope), List.of(new Evidence.Source(scope, "fixture", "v1",
+                target.sourceHandle(), 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.EXTERNAL, List.of())), List.of(target),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1, Instant.EPOCH)).toList();
         var conversation = new ChatContracts.Conversation("conversation", world, turns, turns.getLast().outcome());
         var view = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_IN, false, conversation,

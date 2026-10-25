@@ -72,6 +72,26 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void trackedChatFlagsOverrideScreenDefaultsWithoutChangingTheScreen() throws Exception {
+        var backend = new FakeBackend();
+        var prepared = new AtomicReference<ChatContracts.PreparedRequest>();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(SCOPE), new AtomicReference<>(),
+                prepared, PackSageSettings.defaults(), ignored -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        var screen = runtime.openScreen();
+
+        assertNotNull(runtime.sendTracked("bridge question", false, true));
+
+        assertNull(prepared.get().capturedContext().context().screenshot());
+        assertEquals(ModelBackend.SearchMode.EXPLICIT_REQUEST, prepared.get().submission().searchMode());
+        assertTrue(screen.includeScreenshot());
+        assertFalse(screen.explicitWebSearch());
+    }
+
+    @Test
     void trackedRequestNavigationBelongsToItsOwnTurnEvenWhenScopesAndTargetIdsMatch() throws Exception {
         var store = new ConversationStore(Files.createTempDirectory("packsage-bridge-turn-navigation"), DIRECT);
         var conversation = store.newConversation(WORLD).toCompletableFuture().join();
@@ -80,7 +100,9 @@ class AssistantRuntimeTest {
         for (var target : List.of(first, second)) {
             store.appendTurn(WORLD, SCOPE, conversation.id(), new ChatContracts.Turn(
                     new ChatContracts.RequestId(target.sourceHandle()), "question", "answer", List.of(),
-                    new ChatContracts.Context("{}", null, SCOPE), List.of(), List.of(target),
+                    new ChatContracts.Context("{}", null, SCOPE), List.of(new Evidence.Source(SCOPE, "fixture", "v1",
+                    target.sourceHandle(), 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                    Evidence.Authority.EXTERNAL, List.of())), List.of(target),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1, Instant.EPOCH))
                     .toCompletableFuture().join();
         }

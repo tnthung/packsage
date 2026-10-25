@@ -241,7 +241,9 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                     if (view == null) throw new IllegalArgumentException("Unknown request");
                     String targetId = body.get("targetId").getAsString();
                     var matching = view.navigationTargets().stream().filter(target -> target.targetId().equals(targetId)).toList();
-                    if (matching.size() != 1) throw new IllegalArgumentException("Target id is missing or ambiguous for this reply");
+                    if (matching.isEmpty() || matching.stream().anyMatch(target -> !target.providerId().equals(matching.getFirst().providerId()))) {
+                        throw new IllegalArgumentException("Target id is missing or ambiguous for this reply");
+                    }
                     call(client, () -> {
                         if (!runtime.view().conversation().id().equals(view.conversation().id())) runtime.openSession(new ChatContracts.SessionSummary(
                                 view.conversation().world(), view.conversation().id(), "", "", java.time.Instant.now()));

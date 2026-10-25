@@ -4,6 +4,7 @@
 
 ### 2026-10-25
 
+- Fixed debug bridge navigation rejecting repeated links to the same destination in one reply. It selects the first source for the same provider and target id, while rejecting missing targets and collisions between providers.
 - Fixed the singleplayer journal staying closed when PackSage starts after the world. Hooks now recover the active world on its server thread, including while paused, without reopening an existing journal session. Automated startup-order regression checks cover registration before, during and after server start; installed verification is pending.
 
 - Corrected debug bridge chat submission to use the screen's screenshot/search defaults with optional per-request overrides, isolated navigation to each reply, preserved the pause preference through options saves and normal shutdown, and restored normal first-tick startup. Socket failures and stopped servers are handled separately, menu moves honor spectator/validity checks, and entity opens try position-specific interaction first. Live acceptance remains pending.

@@ -6,15 +6,18 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * The per-world SQLite journal: one write connection and one read connection over the same WAL database. Every
- * method is called from one thread at a time, and the write methods only from the journal writer thread.
+ * method is called from one thread at a time, and the write methods only from the thread that started the session
+ * (the journal writer thread); other threads get {@link IllegalStateException}.
  */
 public final class JournalStore implements AutoCloseable {
     static final long SCHEMA_VERSION = 1;
@@ -58,6 +61,8 @@ public final class JournalStore implements AutoCloseable {
     private final Connection writer;
     private final Connection reader;
     private final long schemaVersion;
+    private volatile Thread owner;
+    private int transactions;
 
     private JournalStore(Connection writer, Connection reader, long schemaVersion) {
         this.writer = writer;
@@ -121,6 +126,10 @@ public final class JournalStore implements AutoCloseable {
 
     /** Opens a session and, on a fresh database, records the journal's creation time. Writer thread only. */
     public long startSession(long wall, long gameTime) throws SQLException {
+        if (owner == null) {
+            owner = Thread.currentThread();
+        }
+        checkWriterThread();
         writer.setAutoCommit(false);
         try {
             try (var statement = writer.prepareStatement("INSERT OR IGNORE INTO meta(key, value) VALUES (?, ?)")) {
@@ -143,8 +152,7 @@ public final class JournalStore implements AutoCloseable {
                     id = keys.getLong(1);
                 }
             }
-            writer.commit();
-            writer.setAutoCommit(true);
+            commit();
             return id;
         } catch (SQLException | RuntimeException e) {
             abort(writer, e);
@@ -154,12 +162,70 @@ public final class JournalStore implements AutoCloseable {
 
     /** Closes a session. Writer thread only. */
     public void endSession(long sessionId, long wall, long gameTime) throws SQLException {
+        checkWriterThread();
         try (var statement = writer.prepareStatement("UPDATE sessions SET ended_wall = ?, ended_game_time = ? WHERE id = ?")) {
             statement.setLong(1, wall);
             statement.setLong(2, gameTime);
             statement.setLong(3, sessionId);
             statement.executeUpdate();
         }
+    }
+
+    /**
+     * Writes one batch in one transaction. New runs are inserted with their box and get their row id; runs that already
+     * have one are updated. A structure run is inserted only on the first entry into its structure start, and otherwise
+     * keeps row id -1. Overflow rows become count-only rows without place, box or positions. On failure nothing is
+     * written and the row ids are unchanged. Writer thread only.
+     */
+    public void writeBatch(List<Run> changed, List<OverflowRow> overflow) throws SQLException {
+        checkWriterThread();
+        var assigned = new ArrayList<Run>();
+        writer.setAutoCommit(false);
+        try (var insert = writer.prepareStatement("INSERT INTO events(type, actor, subject, dimension, grp, count, amount,"
+                + " first_game_time, last_game_time, first_wall, last_wall, at_x, at_y, at_z,"
+                + " min_x, min_y, min_z, max_x, max_y, max_z, positions, detail, count_only)"
+                + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
+             var insertBox = writer.prepareStatement("INSERT INTO events_box(id, min_x, max_x, min_y, max_y, min_z, max_z)"
+                     + " VALUES (?, ?, ?, ?, ?, ?, ?)");
+             var update = writer.prepareStatement("UPDATE events SET count = ?, amount = ?, last_game_time = ?, last_wall = ?,"
+                     + " min_x = ?, min_y = ?, min_z = ?, max_x = ?, max_y = ?, max_z = ?, positions = ? WHERE id = ?");
+             var updateBox = writer.prepareStatement("UPDATE events_box SET min_x = ?, max_x = ?, min_y = ?, max_y = ?,"
+                     + " min_z = ?, max_z = ? WHERE id = ?");
+             var visit = writer.prepareStatement("INSERT OR IGNORE INTO structure_visits(dimension, structure, start_chunk)"
+                     + " VALUES (?, ?, ?)")) {
+            for (var run : changed) {
+                if (run.rowId() >= 0) {
+                    updateRun(update, updateBox, run);
+                    continue;
+                }
+                var key = run.key();
+                if (key.type() == EventType.STRUCTURE) {
+                    visit.setString(1, key.dimension());
+                    visit.setString(2, key.subject());
+                    visit.setString(3, key.group());
+                    if (visit.executeUpdate() == 0) {
+                        continue;
+                    }
+                }
+                run.rowId(insertRun(insert, insertBox, run));
+                assigned.add(run);
+            }
+            for (var row : overflow) {
+                insertOverflow(insert, row);
+            }
+            commit();
+        } catch (SQLException | RuntimeException e) {
+            for (var run : assigned) {
+                run.rowId(-1);
+            }
+            abort(writer, e);
+            throw e;
+        }
+    }
+
+    /** The number of committed write transactions, for tests. */
+    int transactions() {
+        return transactions;
     }
 
     /** Every session, oldest first. */
@@ -179,6 +245,7 @@ public final class JournalStore implements AutoCloseable {
     /** Checkpoints the WAL into the database file and closes both connections. */
     @Override
     public void close() throws SQLException {
+        checkWriterThread();
         SQLException failure = null;
         try (var statement = writer.createStatement()) {
             statement.execute("PRAGMA wal_checkpoint(TRUNCATE)");
@@ -207,6 +274,111 @@ public final class JournalStore implements AutoCloseable {
 
     Connection reader() {
         return reader;
+    }
+
+    private void checkWriterThread() {
+        var thread = owner;
+        if (thread != null && thread != Thread.currentThread()) {
+            throw new IllegalStateException("journal writes run on " + thread.getName() + ", not " + Thread.currentThread().getName());
+        }
+    }
+
+    private void commit() throws SQLException {
+        writer.commit();
+        writer.setAutoCommit(true);
+        transactions++;
+    }
+
+    private static long insertRun(PreparedStatement insert, PreparedStatement insertBox, Run run) throws SQLException {
+        var key = run.key();
+        var box = run.box();
+        var first = run.first();
+        var positions = run.positions();
+        insert.setString(1, key.type().id());
+        insert.setString(2, key.actor());
+        insert.setString(3, key.subject());
+        insert.setString(4, key.dimension());
+        insert.setString(5, key.group());
+        insert.setLong(6, run.count());
+        insert.setLong(7, run.amount());
+        insert.setLong(8, run.firstGameTime());
+        insert.setLong(9, run.lastGameTime());
+        insert.setLong(10, run.firstWall());
+        insert.setLong(11, run.lastWall());
+        insert.setInt(12, Positions.x(first));
+        insert.setInt(13, Positions.y(first));
+        insert.setInt(14, Positions.z(first));
+        insert.setInt(15, box.minX());
+        insert.setInt(16, box.minY());
+        insert.setInt(17, box.minZ());
+        insert.setInt(18, box.maxX());
+        insert.setInt(19, box.maxY());
+        insert.setInt(20, box.maxZ());
+        insert.setBytes(21, Positions.encode(positions, positions.length));
+        insert.setString(22, run.detail());
+        insert.setInt(23, 0);
+        insert.executeUpdate();
+        long id;
+        try (var keys = insert.getGeneratedKeys()) {
+            keys.next();
+            id = keys.getLong(1);
+        }
+        insertBox.setLong(1, id);
+        setBox(insertBox, 2, box);
+        insertBox.executeUpdate();
+        return id;
+    }
+
+    private static void updateRun(PreparedStatement update, PreparedStatement updateBox, Run run) throws SQLException {
+        var box = run.box();
+        var positions = run.positions();
+        update.setLong(1, run.count());
+        update.setLong(2, run.amount());
+        update.setLong(3, run.lastGameTime());
+        update.setLong(4, run.lastWall());
+        update.setInt(5, box.minX());
+        update.setInt(6, box.minY());
+        update.setInt(7, box.minZ());
+        update.setInt(8, box.maxX());
+        update.setInt(9, box.maxY());
+        update.setInt(10, box.maxZ());
+        update.setBytes(11, Positions.encode(positions, positions.length));
+        update.setLong(12, run.rowId());
+        update.executeUpdate();
+        setBox(updateBox, 1, box);
+        updateBox.setLong(7, run.rowId());
+        updateBox.executeUpdate();
+    }
+
+    private static void insertOverflow(PreparedStatement insert, OverflowRow row) throws SQLException {
+        insert.setString(1, row.type().id());
+        insert.setString(2, row.actor());
+        insert.setString(3, row.subject());
+        insert.setString(4, row.dimension());
+        insert.setNull(5, Types.VARCHAR);
+        insert.setLong(6, row.count());
+        insert.setLong(7, row.amount());
+        insert.setLong(8, row.firstGameTime());
+        insert.setLong(9, row.lastGameTime());
+        insert.setLong(10, row.firstWall());
+        insert.setLong(11, row.lastWall());
+        for (int column = 12; column <= 20; column++) {
+            insert.setNull(column, Types.INTEGER);
+        }
+        insert.setNull(21, Types.BLOB);
+        insert.setNull(22, Types.VARCHAR);
+        insert.setInt(23, 1);
+        insert.executeUpdate();
+    }
+
+    /** Binds the box in the R*Tree's column order: x, then y, then z, each min then max. */
+    private static void setBox(PreparedStatement statement, int from, Box box) throws SQLException {
+        statement.setInt(from, box.minX());
+        statement.setInt(from + 1, box.maxX());
+        statement.setInt(from + 2, box.minY());
+        statement.setInt(from + 3, box.maxY());
+        statement.setInt(from + 4, box.minZ());
+        statement.setInt(from + 5, box.maxZ());
     }
 
     private static Connection connect(Path file) throws SQLException {

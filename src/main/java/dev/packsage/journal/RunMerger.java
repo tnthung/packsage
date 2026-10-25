@@ -42,6 +42,13 @@ public final class RunMerger {
         open.values().removeIf(run -> nowGameTime - run.lastGameTime() >= Run.IDLE_TICKS);
     }
 
+    /** Stops extending {@code runs}, so later events start new runs; used when the runs' batch failed to write. */
+    public void forget(List<Run> runs) {
+        for (var run : runs) {
+            open.remove(run.key(), run);
+        }
+    }
+
     public int openRuns() {
         return open.size();
     }

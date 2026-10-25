@@ -13324,22 +13324,36 @@ Final bridge state: `running=true`, `paused=false`, `screen=null`, world `PackSa
 | C4 | PASS | Exactly one filter.tooltip search finds inventory rabbit foot; reply distinguishes offhand +2 from current Luck 0. |
 | C5 | FAIL | First librarian question ran after the player fell from an unsupported y=250 teleport to y=96; no villagers in range. Fixture issue retained as FAIL; corrected subchecks follow. |
 | C6 | PASS | read_loot zombie gives rotten flesh, conditional rare ingot/carrot/potato drops and smelting; no roll implied. |
-| P1 | FAIL | Missing 51 biomes named correctly, but inspect_progress marks advancement navigable=false and returns no target. Required Open advancements navigation cannot be rendered/clicked. |
+| C7 | DEFERRED | Part A clauses PASS: fresh-world prediction labelled, coordinates/marker opened, region listing unchanged; visited repeat reports found with link. Saved-link full-process restart deferred to Part B. |
+| C8 | PASS | Cheats-off world: read_command fill gives syntax/coordinate and block arguments; explicitly says playerPermissionLevel 0 cannot execute it. |
+| P1 | FAIL | Missing biomes correct; required Adventure-tab link absent. Later evidence shows tab-visibility gating (MinecraftProgress.handle uses tabVisible); after J5 earns Sweet Dreams, Adventure links open. Locked-tab fixture issue; original FAIL retained. |
 | P2 | PASS | Actual survival breaks; mined counts exactly 1 diamond ore + 1 deepslate diamond ore; reply distinguishes blocks from drops. |
 | P3 | PASS | list_statistics walk_one_cm converts 3837 cm to 38.37 blocks; no centimetre output. |
+| P4 | PASS | New survival world with no mining; exact ancient-debris mined statistic returns explicit 0. |
 | P5 | FAIL | Reply exposes nine hidden advancement identifiers instead of count only. Brief F-hidden command also fails: all_effects has no minecraft:speed criterion; recorded fixture issue. Same disclosure occurred before fixture attempt. |
 | P6 | PASS | play_time ticks converted to 12h20m37s in reply. |
-| P7 | FAIL | Suggests available Enchanter and root steps, but Adventure/What a Deal references have no navigation targets; required working link for every suggestion is not met. Story advancement and villager links tested separately. |
+| P7 | FAIL | Story advancement/villager links open; Adventure suggestions lacked navigation while that tab was invisible. Tab-visibility fixture issue confirmed by later Adventure navigation; original FAIL retained. |
 | P10 | PASS | Generated 2000 advancements in one tree, loaded via datapack enable (initial bridge wait timed out; completion confirmed). list_progress reports all 2000 in tree summary; tool 85ms, reply 17.9s. Frame samples/tick query show no visible stall at 20 TPS (4.3-5.2ms). |
+| P11 | DEFERRED | request_built exposes tool count 28, not names; saved JSONL has no tools definitions field. No read_progress in observed calls, but offered-tool absence and historical quest-link UI were not established through these interfaces. |
 | J0 | PASS | journal.db and journal.db-wal exist; current launch has fresh readable journal events and no SQLite native-library error. |
 | J4 | FAIL | Fresh 10-stone deposit has coordinates and link, but the 5-iron withdrawal is omitted; query selected deposits only. Initial date-only argument failed then was corrected. |
 | J5 | FAIL | Portal entry and named Sweet Dreams timestamp checks pass. Exact new-chat question when did I get it? was asked after toast expired with a pickaxe held, so it resolved to the pickaxe; fixture ambiguity retained as FAIL. |
-| J6 | PASS | NotesOnly reply attributes all notes to what player said, with coordinates/links; no saving announcement observed so far. Final all-reply scan pending. |
+| J6 | PASS | All 42 replies scanned: no note-saving announcement; notesOnly answer attributes the notes to player reports, with coordinates and working note links. |
 | E1 | PASS | Ambient Haste I + nearby beacon used as labeled deduction; says source unrecorded; no unsupported refreshing claim. Beacon coordinates/link opened. |
 | E2 | FAIL | Strength brewing route from search_recipe passes with no JEI/guide/quest wording or invented links. Piston uses only plan_recipe; required search_recipe and any returned navigable recipe link were not exercised. |
 | E3 | PASS | hi is greeting only; craft request states cannot act and offers recipe guidance; both use zero tools. |
 | E4 | PASS | active_effect and player_attribute are in G1 with overlapping received-to-result intervals; reply distinguishes Haste, armor, creative reach and inactive luck item. |
+| E5 | PASS | All 42 saved replies scanned: no raw ref: tokens or references absent from returned records/citations. Captured UI samples render source/navigation chips; no malformed citation observed. |
 | E6 | FAIL | W8 locates/cites V2Mule but omits its coordinates in text. Other omissions and navigation failures are recorded per check. |
+| E7 | PASS | W2/C7-fresh/P1 each have tool_received, tool_result_sent and tool_summary. Model/backend versus tool wall recorded per check (43188/151, 19403/398, 23948/35 ms). |
+| W7 | DEFERRED | Full Minecraft process restart excluded from Part A. |
+| M1 | DEFERRED | Note persistence/move sequence requires full process restart; Part B. |
+| M5 | DEFERRED | 2000-sand/TNT performance run explicitly excluded; Part B. |
+| P8 | DEFERRED | Saved advancement link after full process restart; Part B. |
+| P9 | DEFERRED | Dedicated-server progress/statistics availability explicitly excluded; Part B. |
+| J7 | DEFERRED | Dedicated-server journal availability explicitly excluded; Part B. |
+| L1 | DEFERRED | Marker-column duration/distance acceptance explicitly deferred to Part B. |
+| L2 | DEFERRED | Render-distance 8 change explicitly excluded; Part B. |
 
 ### Run conditions and evidence
 
@@ -13351,9 +13365,9 @@ Raw bridge responses, navigation screenshots and timing records: `D:/Project/pac
 
 - **E6 — prompt:** W8 locates/cites V2Mule but omits its coordinates in text. Other omissions and navigation failures are recorded per check.
 - **C5 — fixture issue:** First librarian question ran after the player fell from an unsupported y=250 teleport to y=96; no villagers in range. Fixture issue retained as FAIL; corrected subchecks follow.
-- **P1 — code defect:** Missing 51 biomes named correctly, but inspect_progress marks advancement navigable=false and returns no target. Required Open advancements navigation cannot be rendered/clicked.
+- **P1 — fixture issue:** Missing biomes correct; required Adventure-tab link absent. Later evidence shows tab-visibility gating (MinecraftProgress.handle uses tabVisible); after J5 earns Sweet Dreams, Adventure links open. Locked-tab fixture issue; original FAIL retained.
 - **P5 — prompt:** Reply exposes nine hidden advancement identifiers instead of count only. Brief F-hidden command also fails: all_effects has no minecraft:speed criterion; recorded fixture issue. Same disclosure occurred before fixture attempt.
-- **P7 — code defect:** Suggests available Enchanter and root steps, but Adventure/What a Deal references have no navigation targets; required working link for every suggestion is not met. Story advancement and villager links tested separately.
+- **P7 — fixture issue:** Story advancement/villager links open; Adventure suggestions lacked navigation while that tab was invisible. Tab-visibility fixture issue confirmed by later Adventure navigation; original FAIL retained.
 - **J4 — prompt:** Fresh 10-stone deposit has coordinates and link, but the 5-iron withdrawal is omitted; query selected deposits only. Initial date-only argument failed then was corrected.
 - **J5 — fixture issue:** Portal entry and named Sweet Dreams timestamp checks pass. Exact new-chat question when did I get it? was asked after toast expired with a pickaxe held, so it resolved to the pickaxe; fixture ambiguity retained as FAIL.
 - **E2 — prompt:** Strength brewing route from search_recipe passes with no JEI/guide/quest wording or invented links. Piston uses only plan_recipe; required search_recipe and any returned navigable recipe link were not exercised.
@@ -14419,6 +14433,39 @@ Raw bridge responses, navigation screenshots and timing records: `D:/Project/pac
         "Percentiles: P50: 4.2ms P95: 5.4ms P99: 6.5ms, sample: 100"
       ]
     }
+  },
+  {
+    "at": "2026-10-25T16:00:26.666Z",
+    "command": "gamemode creative",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Set own game mode to Creative Mode"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T16:00:29.173Z",
+    "command": "tp @s 128.5 100 -543.5 0 0",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Teleported TNThung to 128.500000, 100.000000, -543.500000"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T16:00:30.982Z",
+    "command": "save-all",
+    "result": {
+      "success": false,
+      "feedback": [
+        "Unknown or incomplete command, see below for error",
+        "save-all<--[HERE]"
+      ]
+    }
   }
 ]
 ```
@@ -14428,6 +14475,8 @@ Raw bridge responses, navigation screenshots and timing records: `D:/Project/pac
 Question: `where is my stone?`
 
 Request `6edc16a7-319a-4445-a20d-c1830c602f88`; conversation `6de66b3c-03ae-409d-b7ba-42a71edd1af6`; status=completed, saved=true. Submitted 2026-10-25T15:30:06.054Z. Raw evidence `build/task7-part-a/W1.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/6de66b3c-03ae-409d-b7ba-42a71edd1af6-5c4a461ba828de56.jsonl:2`.
 
 Timing: elapsed_ms=19851, backendMs=19793, toolWallMs=97, toolCalls=3. Model/backend time less tool wall = 19696 ms (includes transport/serialization, not pure inference).
 
@@ -14601,6 +14650,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `why isn't my iron farm working?`
 
 Request `f170faee-0737-4aee-8323-f404c9192c25`; conversation `e58d3330-d0d2-4699-8437-fb82a7a47107`; status=completed, saved=true. Submitted 2026-10-25T15:30:47.496Z. Raw evidence `build/task7-part-a/W2.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/e58d3330-d0d2-4699-8437-fb82a7a47107-495f3f294c28d02f.jsonl:2`.
 
 Timing: elapsed_ms=43231, backendMs=43188, toolWallMs=151, toolCalls=8. Model/backend time less tool wall = 43037 ms (includes transport/serialization, not pure inference).
 
@@ -14912,6 +14963,8 @@ Question: `how can I make my armor stronger?`
 
 Request `14b29234-fab9-42c9-b9c0-531bd699e7ef`; conversation `cd8629e2-0fe2-4c04-a11f-d205d79458de`; status=completed, saved=true. Submitted 2026-10-25T15:31:57.890Z. Raw evidence `build/task7-part-a/W3.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/cd8629e2-0fe2-4c04-a11f-d205d79458de-ed7beb157fbf54d0.jsonl:2`.
+
 Timing: elapsed_ms=40394, backendMs=40351, toolWallMs=265, toolCalls=7. Model/backend time less tool wall = 40086 ms (includes transport/serialization, not pure inference).
 
 **G1 list_items** (`call_dAyf4Bsw9LDdB5mCCozJpOXj`)
@@ -15215,6 +15268,8 @@ Question: `what's in my mule?`
 
 Request `bfb860ed-4c24-453a-85aa-bd4ba6fabfdf`; conversation `90f3de63-c05d-4f2e-9190-8a6cda5bc3d4`; status=completed, saved=true. Submitted 2026-10-25T15:32:57.608Z. Raw evidence `build/task7-part-a/W4.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/90f3de63-c05d-4f2e-9190-8a6cda5bc3d4-2f4b62692daa2d6b.jsonl:2`.
+
 Timing: elapsed_ms=24036, backendMs=23991, toolWallMs=72, toolCalls=4. Model/backend time less tool wall = 23919 ms (includes transport/serialization, not pure inference).
 
 **G1 inspect_entity** (`call_oXCJ0VxXCsrUIJpVZULWl8V0`)
@@ -15431,6 +15486,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `what do I have stored in this room?`
 
 Request `3801472b-5b93-4af0-860b-b612ac12e2fb`; conversation `4dfbf50f-8588-43f3-a9c4-1ad543e51d3b`; status=completed, saved=true. Submitted 2026-10-25T15:33:36.401Z. Raw evidence `build/task7-part-a/W5.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/4dfbf50f-8588-43f3-a9c4-1ad543e51d3b-f6d3733ef03cf2d2.jsonl:2`.
 
 Timing: elapsed_ms=68779, backendMs=68740, toolWallMs=74, toolCalls=12. Model/backend time less tool wall = 68666 ms (includes transport/serialization, not pure inference).
 
@@ -15894,6 +15951,8 @@ Question: `where are my diamonds?`
 
 Request `b4271332-786d-4d11-8fe6-415e9fe353ec`; conversation `bf8d4148-9904-437f-b189-3825361369cc`; status=completed, saved=true. Submitted 2026-10-25T15:35:41.020Z. Raw evidence `build/task7-part-a/W6.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/bf8d4148-9904-437f-b189-3825361369cc-4bfd43b0fe8397f6.jsonl:2`.
+
 Timing: elapsed_ms=20696, backendMs=20649, toolWallMs=131, toolCalls=6. Model/backend time less tool wall = 20518 ms (includes transport/serialization, not pure inference).
 
 **G1 find_items** (`call_gLeCXyf99sOcWmJpjq5AKMfB`)
@@ -16148,6 +16207,8 @@ Question: `how high can this mule jump?`
 
 Request `ec22fb79-3db0-43f2-9816-ea8e9a8a3777`; conversation `ca8b91ce-ad1c-4c95-b707-001c7c4277f8`; status=completed, saved=true. Submitted 2026-10-25T15:36:18.499Z. Raw evidence `build/task7-part-a/W8.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/ca8b91ce-ad1c-4c95-b707-001c7c4277f8-2744a049d172c358.jsonl:2`.
+
 Timing: elapsed_ms=10618, backendMs=10573, toolWallMs=16, toolCalls=1. Model/backend time less tool wall = 10557 ms (includes transport/serialization, not pure inference).
 
 **G1 inspect_entity** (`call_hWyafcxv7vapgbBv7RIvOFSO`)
@@ -16259,6 +16320,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `what enchantments can I still add?`
 
 Request `ba8462f0-439c-4f1e-a358-72b473815d18`; conversation `2b68d10f-2e50-44a6-acc7-b61f2e65993b`; status=completed, saved=true. Submitted 2026-10-25T15:36:45.493Z. Raw evidence `build/task7-part-a/C1-held.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/2b68d10f-2e50-44a6-acc7-b61f2e65993b-e9640006a344942a.jsonl:2`.
 
 Timing: elapsed_ms=10404, backendMs=10359, toolWallMs=20, toolCalls=1. Model/backend time less tool wall = 10339 ms (includes transport/serialization, not pure inference).
 
@@ -16373,6 +16436,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `what enchantments can I still add?`
 
 Request `5ac8e60c-55d2-4664-90f9-7cecd0fe0cb3`; conversation `2880d249-0349-4d7e-819f-5a12c541b546`; status=completed, saved=true. Submitted 2026-10-25T15:37:03.968Z. Raw evidence `build/task7-part-a/C1-empty.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/2880d249-0349-4d7e-819f-5a12c541b546-86faf8af6ef79a37.jsonl:2`.
 
 Timing: elapsed_ms=20850, backendMs=20809, toolWallMs=80, toolCalls=2. Model/backend time less tool wall = 20729 ms (includes transport/serialization, not pure inference).
 
@@ -16523,6 +16588,8 @@ Request `36a924a1-24c5-4c97-8afe-7c772ee7f8d1`; conversation `e071c853-e31d-4ea8
 
 Fixture screenshot `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-ee08ebc4-c69d-44ce-839f-58858e591ba8.png`; moves in `C2-moves.json` (slots 39->1,41->2,42->3,40->5,43->8).
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/e071c853-e31d-4ea8-8c76-31dbb94c3f52-5d4b8014bd77e800.jsonl:2`.
+
 Timing: elapsed_ms=10831, backendMs=10792, toolWallMs=28, toolCalls=1. Model/backend time less tool wall = 10764 ms (includes transport/serialization, not pure inference).
 
 **G1 list_items** (`call_Yb58ByHDnUUTtzUWDfxbrdJL`)
@@ -16634,6 +16701,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `what's in my donkey?`
 
 Request `e83265ee-aa9a-4f10-a40f-b1b1e235f7b7`; conversation `dcbf322b-1114-4627-bd11-a2e40e3d5853`; status=completed, saved=true. Submitted 2026-10-25T15:38:19.429Z. Raw evidence `build/task7-part-a/C3.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/dcbf322b-1114-4627-bd11-a2e40e3d5853-2cd0ebafe0fc9b75.jsonl:2`.
 
 Timing: elapsed_ms=14668, backendMs=14623, toolWallMs=54, toolCalls=2. Model/backend time less tool wall = 14569 ms (includes transport/serialization, not pure inference).
 
@@ -16781,6 +16850,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `which of my items gives luck?`
 
 Request `bc481586-88c7-40b8-aa51-929995eb7063`; conversation `6570ce1f-e7f6-483e-96c8-ee154fb02b73`; status=completed, saved=true. Submitted 2026-10-25T15:38:47.940Z. Raw evidence `build/task7-part-a/C4.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/6570ce1f-e7f6-483e-96c8-ee154fb02b73-881619923d94971e.jsonl:2`.
 
 Timing: elapsed_ms=20663, backendMs=20620, toolWallMs=109, toolCalls=4. Model/backend time less tool wall = 20511 ms (includes transport/serialization, not pure inference).
 
@@ -16981,6 +17052,8 @@ Request `3fe8a6ce-4405-4be3-8fd9-ff1de38c7e89`; conversation `b417f89b-31f2-48f8
 
 Fixture failure: player had fallen to (1019.5,96,1005.5); villager remained at (1019.5,250,1003.5).
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/b417f89b-31f2-48f8-bd36-c3512cd1bbd2-840d6fe2110b1eaf.jsonl:2`.
+
 Timing: elapsed_ms=13217, backendMs=13141, toolWallMs=41, toolCalls=1. Model/backend time less tool wall = 13100 ms (includes transport/serialization, not pure inference).
 
 **G1 list_entities** (`call_obTs1zJ7gjzhHDrXU8i0IzZg`)
@@ -17092,6 +17165,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `what does this villager sell?`
 
 Request `dabb7ed3-183f-4920-8c73-1b3c7bb07829`; conversation `60be5933-3ef7-4728-b3ed-c5605c60d360`; status=completed, saved=true. Submitted 2026-10-25T15:40:07.386Z. Raw evidence `build/task7-part-a/C5-supported.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/60be5933-3ef7-4728-b3ed-c5605c60d360-f918d3376d0e3868.jsonl:2`.
 
 Timing: elapsed_ms=11486, backendMs=11442, toolWallMs=39, toolCalls=1. Model/backend time less tool wall = 11403 ms (includes transport/serialization, not pure inference).
 
@@ -17211,6 +17286,8 @@ Question: `what does this villager sell?`
 Request `732a388b-9ef5-45cc-9ddc-30450c44252b`; conversation `c5f5e323-3754-4c7d-89a1-480d77cc7cef`; status=completed, saved=true. Submitted 2026-10-25T15:40:37.109Z. Raw evidence `build/task7-part-a/C5-fresh1.json`.
 
 Fixture contaminated before asking: /data get entity serializes villager data and Offers already existed. This does not test ungenerated-offer reads.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/c5f5e323-3754-4c7d-89a1-480d77cc7cef-a9d88f812615bffc.jsonl:2`.
 
 Timing: elapsed_ms=26015, backendMs=25973, toolWallMs=35, toolCalls=3. Model/backend time less tool wall = 25938 ms (includes transport/serialization, not pure inference).
 
@@ -17399,6 +17476,8 @@ Question: `what does this villager sell?`
 
 Request `5a61070b-7f82-45a5-859c-87e50a5d0d84`; conversation `10ec8f9e-bece-4a6d-964e-e3f7566a7922`; status=completed, saved=true. Submitted 2026-10-25T15:41:57.371Z. Raw evidence `build/task7-part-a/C5-unread1.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/10ec8f9e-bece-4a6d-964e-e3f7566a7922-c1af3f29573d0105.jsonl:2`.
+
 Timing: elapsed_ms=27003, backendMs=26963, toolWallMs=41, toolCalls=3. Model/backend time less tool wall = 26922 ms (includes transport/serialization, not pure inference).
 
 **G1 list_entities** (`call_ujcaV7pRPhEQpSTl9VX73x8R`)
@@ -17570,6 +17649,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `what does this villager sell?`
 
 Request `3265dd05-4431-4b0d-b8f4-651d22c29bdc`; conversation `88e7f817-0457-4ccd-8e72-e095759e3318`; status=completed, saved=true. Submitted 2026-10-25T15:42:38.150Z. Raw evidence `build/task7-part-a/C5-unread2.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/88e7f817-0457-4ccd-8e72-e095759e3318-54309bdd19cc97be.jsonl:2`.
 
 Timing: elapsed_ms=26418, backendMs=26373, toolWallMs=63, toolCalls=3. Model/backend time less tool wall = 26310 ms (includes transport/serialization, not pure inference).
 
@@ -17758,6 +17839,8 @@ Question: `what does a zombie drop?`
 
 Request `6131988d-6940-41b1-bada-b3babfd1ba35`; conversation `86e30dfe-7a4f-4941-ada0-666e053efc77`; status=completed, saved=true. Submitted 2026-10-25T15:43:32.362Z. Raw evidence `build/task7-part-a/C6.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/86e30dfe-7a4f-4941-ada0-666e053efc77-cf4a8f1ce56a7e11.jsonl:2`.
+
 Timing: elapsed_ms=12669, backendMs=12627, toolWallMs=49, toolCalls=1. Model/backend time less tool wall = 12578 ms (includes transport/serialization, not pure inference).
 
 **G1 read_loot** (`call_luLqDINJGi3fn8NkzGEPvSVn`)
@@ -17871,6 +17954,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `what advancements am I missing for Adventuring Time?`
 
 Request `5b63be58-be66-4239-bf58-686684c28551`; conversation `6012c112-7c44-41cb-b8eb-7803147f8c0a`; status=completed, saved=true. Submitted 2026-10-25T15:44:20.309Z. Raw evidence `build/task7-part-a/P1.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/6012c112-7c44-41cb-b8eb-7803147f8c0a-8932b46b8a488b2c.jsonl:2`.
 
 Timing: elapsed_ms=23990, backendMs=23948, toolWallMs=35, toolCalls=2. Model/backend time less tool wall = 23913 ms (includes transport/serialization, not pure inference).
 
@@ -18028,6 +18113,8 @@ Question: `how many diamonds have I mined?`
 
 Request `89172e28-5aca-407d-8ae0-0372445565dd`; conversation `12c42dca-416c-4cec-a36a-b5f2de536a7c`; status=completed, saved=true. Submitted 2026-10-25T15:44:57.353Z. Raw evidence `build/task7-part-a/P2.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/12c42dca-416c-4cec-a36a-b5f2de536a7c-90ef3883dba75776.jsonl:2`.
+
 Timing: elapsed_ms=10819, backendMs=10770, toolWallMs=51, toolCalls=1. Model/backend time less tool wall = 10719 ms (includes transport/serialization, not pure inference).
 
 **G1 list_statistics** (`call_PhWo131yrJNrbadjrYpYGwKX`)
@@ -18139,6 +18226,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `how far have I walked?`
 
 Request `e1f6755b-2872-4f5a-8d66-563d7df0d65a`; conversation `3b1cbb45-a086-43df-8484-a03a7e5125b9`; status=completed, saved=true. Submitted 2026-10-25T15:45:25.072Z. Raw evidence `build/task7-part-a/P3.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/3b1cbb45-a086-43df-8484-a03a7e5125b9-13648145857ec4cd.jsonl:2`.
 
 Timing: elapsed_ms=9216, backendMs=9170, toolWallMs=15, toolCalls=1. Model/backend time less tool wall = 9155 ms (includes transport/serialization, not pure inference).
 
@@ -18253,6 +18342,8 @@ Question: `what hidden advancements do I have left?`
 Request `964de182-8145-4bfc-8de2-9e129784a930`; conversation `87fee3c7-99b0-4925-8067-99fc7c1a43bc`; status=completed, saved=true. Submitted 2026-10-25T15:45:38.202Z. Raw evidence `build/task7-part-a/P5-before-fixture.json`.
 
 Setup-only unscored attempt before the requested F-hidden grant; retained with raw evidence.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/87fee3c7-99b0-4925-8067-99fc7c1a43bc-739ca8baf43a1450.jsonl:2`.
 
 Timing: elapsed_ms=12700, backendMs=12651, toolWallMs=32, toolCalls=1. Model/backend time less tool wall = 12619 ms (includes transport/serialization, not pure inference).
 
@@ -18370,6 +18461,8 @@ Question: `what hidden advancements do I have left?`
 
 Request `d2461a26-1e4b-4cb8-a072-aec9faeb370b`; conversation `e3a69124-e331-4e08-bd57-9a05fed69e96`; status=completed, saved=true. Submitted 2026-10-25T15:45:57.879Z. Raw evidence `build/task7-part-a/P5.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/e3a69124-e331-4e08-bd57-9a05fed69e96-af8bb6e65615bb33.jsonl:2`.
+
 Timing: elapsed_ms=16292, backendMs=16251, toolWallMs=35, toolCalls=1. Model/backend time less tool wall = 16216 ms (includes transport/serialization, not pure inference).
 
 **G1 list_progress** (`call_jKKPGqm3wPFvwFZia68nvN6R`)
@@ -18486,6 +18579,8 @@ Question: `how long have I played this world?`
 
 Request `43b00871-0489-41be-a4ca-90a4d4f5d28c`; conversation `5f7c1342-271b-4719-8021-d1fc7b69d423`; status=completed, saved=true. Submitted 2026-10-25T15:46:27.779Z. Raw evidence `build/task7-part-a/P6.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/5f7c1342-271b-4719-8021-d1fc7b69d423-3e5513efe9aeff44.jsonl:2`.
+
 Timing: elapsed_ms=9165, backendMs=9123, toolWallMs=7, toolCalls=1. Model/backend time less tool wall = 9116 ms (includes transport/serialization, not pure inference).
 
 **G1 list_statistics** (`call_y26w1YeavXqnMJWS7VjTGINe`)
@@ -18597,6 +18692,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `what should I do next for advancements?`
 
 Request `61409ce2-fc9c-492c-ab79-c08c2529cad6`; conversation `e9ff7a18-a121-47df-8468-0f52c35a4fa6`; status=completed, saved=true. Submitted 2026-10-25T15:46:41.045Z. Raw evidence `build/task7-part-a/P7.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/e9ff7a18-a121-47df-8468-0f52c35a4fa6-9a23def917733293.jsonl:2`.
 
 Timing: elapsed_ms=47872, backendMs=47832, toolWallMs=153, toolCalls=9. Model/backend time less tool wall = 47679 ms (includes transport/serialization, not pure inference).
 
@@ -18959,6 +19056,8 @@ Question: `what did I put in chests today?`
 
 Request `506983f3-7c60-48c7-9933-3746f40b8361`; conversation `e6932706-df1f-489a-9e70-3530367dc1dd`; status=completed, saved=true. Submitted 2026-10-25T15:47:58.559Z. Raw evidence `build/task7-part-a/J4.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/e6932706-df1f-489a-9e70-3530367dc1dd-fc960db0bdfb1033.jsonl:2`.
+
 Timing: elapsed_ms=23695, backendMs=23653, toolWallMs=5, toolCalls=2. Model/backend time less tool wall = 23648 ms (includes transport/serialization, not pure inference).
 
 **G1 search_journal** (`call_zscfKIQLquIectbsJ3can2U1`)
@@ -19112,6 +19211,8 @@ Question: `where did I enter the Nether?`
 
 Request `24b5baeb-f60d-428d-b595-54ee4211bebe`; conversation `ba239370-7eff-4a79-8dc1-a5f410571900`; status=completed, saved=true. Submitted 2026-10-25T15:48:53.266Z. Raw evidence `build/task7-part-a/J5-portal.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/ba239370-7eff-4a79-8dc1-a5f410571900-0b09c068914de52a.jsonl:2`.
+
 Timing: elapsed_ms=10279, backendMs=10193, toolWallMs=2, toolCalls=1. Model/backend time less tool wall = 10191 ms (includes transport/serialization, not pure inference).
 
 **G1 search_journal** (`call_NEk4rqhVJG5Y0Rf4KmrZ5SPz`)
@@ -19223,6 +19324,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `when did I get Sweet Dreams?`
 
 Request `9149c4bf-43c6-47f8-a443-a69a61982a40`; conversation `61080175-eb16-41ea-997c-7ce321d1a36a`; status=completed, saved=true. Submitted 2026-10-25T15:49:24.404Z. Raw evidence `build/task7-part-a/J5-earned.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/61080175-eb16-41ea-997c-7ce321d1a36a-cae412ec52e47997.jsonl:2`.
 
 Timing: elapsed_ms=14128, backendMs=14083, toolWallMs=38, toolCalls=2. Model/backend time less tool wall = 14045 ms (includes transport/serialization, not pure inference).
 
@@ -19371,6 +19474,8 @@ Question: `what do you remember about me?`
 
 Request `04f236d6-e034-4568-8921-656349134787`; conversation `0b2a0391-fbbd-41f3-ac75-fede2963a33b`; status=completed, saved=true. Submitted 2026-10-25T15:49:43.273Z. Raw evidence `build/task7-part-a/J6.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/0b2a0391-fbbd-41f3-ac75-fede2963a33b-eb5edcda19aa5648.jsonl:2`.
+
 Timing: elapsed_ms=12393, backendMs=12347, toolWallMs=3, toolCalls=1. Model/backend time less tool wall = 12344 ms (includes transport/serialization, not pure inference).
 
 **G1 search_journal** (`call_YJ9NCXFIWz1JHM4WTafik8mn`)
@@ -19489,6 +19594,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `when did I get it?`
 
 Request `e3e1fae5-6f68-4c86-9d7c-d606218c8095`; conversation `080183aa-bbcb-4534-8498-569ade0c6913`; status=completed, saved=true. Submitted 2026-10-25T15:51:15.652Z. Raw evidence `build/task7-part-a/J5-time.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/080183aa-bbcb-4534-8498-569ade0c6913-35af5b2e904d1e47.jsonl:2`.
 
 Timing: elapsed_ms=19150, backendMs=19107, toolWallMs=32, toolCalls=2. Model/backend time less tool wall = 19075 ms (includes transport/serialization, not pure inference).
 
@@ -19626,6 +19733,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `where is my Haste coming from?`
 
 Request `4bc9f311-b9f9-4ac7-aa33-11b7216bd3aa`; conversation `c0b47d3e-d53b-43e4-91e3-d04fce969ae8`; status=completed, saved=true. Submitted 2026-10-25T15:51:38.862Z. Raw evidence `build/task7-part-a/E1.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/c0b47d3e-d53b-43e4-91e3-d04fce969ae8-42842a8cfb596144.jsonl:2`.
 
 Timing: elapsed_ms=24648, backendMs=24604, toolWallMs=103, toolCalls=5. Model/backend time less tool wall = 24501 ms (includes transport/serialization, not pure inference).
 
@@ -19861,6 +19970,8 @@ Question: `when did I get it?`
 
 Request `a9c61d9f-7f26-4aaf-aa84-142b5d4a485f`; conversation `93275aaa-948a-4561-b9c5-8da30695f000`; status=completed, saved=true. Submitted 2026-10-25T15:52:26.379Z. Raw evidence `build/task7-part-a/J5-time-fresh.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/93275aaa-948a-4561-b9c5-8da30695f000-8559e53eb5ebcb11.jsonl:2`.
+
 Timing: elapsed_ms=12874, backendMs=12829, toolWallMs=2, toolCalls=1. Model/backend time less tool wall = 12827 ms (includes transport/serialization, not pure inference).
 
 **G1 search_journal** (`call_L6umA1aGW13bbzrJIVxkT96j`)
@@ -19972,6 +20083,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `how do I make a potion of strength?`
 
 Request `70656a50-f9bf-4d67-b2d0-5ba9fedb8b7f`; conversation `1dcdf40e-0050-477b-9c44-f58a293a96dd`; status=completed, saved=true. Submitted 2026-10-25T15:52:56.951Z. Raw evidence `build/task7-part-a/E2-strength.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/1dcdf40e-0050-477b-9c44-f58a293a96dd-f7abd9e2186c8f86.jsonl:2`.
 
 Timing: elapsed_ms=21569, backendMs=21527, toolWallMs=136, toolCalls=2. Model/backend time less tool wall = 21391 ms (includes transport/serialization, not pure inference).
 
@@ -20125,6 +20238,8 @@ Question: `how do I craft a piston?`
 
 Request `096bb1d8-65e9-4d8f-b124-02e28829e55d`; conversation `98b91f45-6855-4f42-99aa-c969ff831836`; status=completed, saved=true. Submitted 2026-10-25T15:53:29.420Z. Raw evidence `build/task7-part-a/E2-piston.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/98b91f45-6855-4f42-99aa-c969ff831836-66c854c515aeee6e.jsonl:2`.
+
 Timing: elapsed_ms=12840, backendMs=12801, toolWallMs=30, toolCalls=1. Model/backend time less tool wall = 12771 ms (includes transport/serialization, not pure inference).
 
 **G1 plan_recipe** (`call_Uv61agErzNzW0Hij0sKPxT29`)
@@ -20243,6 +20358,8 @@ Question: `hi`
 
 Request `bf7be18c-a92d-4d45-b5c3-3e981c7ded13`; conversation `41bad5e8-09f3-4a98-98b6-32acea32d810`; status=completed, saved=true. Submitted 2026-10-25T15:53:46.476Z. Raw evidence `build/task7-part-a/E3-hi.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/41bad5e8-09f3-4a98-98b6-32acea32d810-c64bdb465c390fdc.jsonl:2`.
+
 Timing: elapsed_ms=3808, backendMs=3769, toolWallMs=0, toolCalls=0. Model/backend time less tool wall = 3769 ms (includes transport/serialization, not pure inference).
 
 Verbatim reply:
@@ -20320,6 +20437,8 @@ Question: `craft me a diamond pickaxe`
 
 Request `5539bfdf-a372-47f6-9326-0df27cbbc2d2`; conversation `923d6177-742a-4199-8f5d-c42143e8e3ba`; status=completed, saved=true. Submitted 2026-10-25T15:54:04.811Z. Raw evidence `build/task7-part-a/E3-craft.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/923d6177-742a-4199-8f5d-c42143e8e3ba-d239dde1dff76057.jsonl:2`.
+
 Timing: elapsed_ms=5114, backendMs=5074, toolWallMs=0, toolCalls=0. Model/backend time less tool wall = 5074 ms (includes transport/serialization, not pure inference).
 
 Verbatim reply:
@@ -20396,6 +20515,8 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 Question: `what effects do I have and where do my bonuses come from?`
 
 Request `95e5ee05-1246-4de1-83e4-96017a449743`; conversation `f52ab2af-70d7-4b6a-986f-a44b0f03fddf`; status=completed, saved=true. Submitted 2026-10-25T15:54:13.984Z. Raw evidence `build/task7-part-a/E4.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/f52ab2af-70d7-4b6a-986f-a44b0f03fddf-bae8211f8a02e250.jsonl:2`.
 
 Timing: elapsed_ms=41803, backendMs=41764, toolWallMs=146, toolCalls=7. Model/backend time less tool wall = 41618 ms (includes transport/serialization, not pure inference).
 
@@ -20687,6 +20808,8 @@ Question: `what advancements am I missing?`
 
 Request `d841bded-6cef-4861-a723-15b4919fab6b`; conversation `6e57764b-9331-431b-92b0-ff25d2d7ca47`; status=completed, saved=true. Submitted 2026-10-25T15:55:59.077Z. Raw evidence `build/task7-part-a/P10.json`.
 
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Adapter_Filter_Live_Test-e341466b58d81012/6e57764b-9331-431b-92b0-ff25d2d7ca47-1f147d92ce726c32.jsonl:2`.
+
 Timing: elapsed_ms=17888, backendMs=17832, toolWallMs=85, toolCalls=1. Model/backend time less tool wall = 17747 ms (includes transport/serialization, not pure inference).
 
 **G1 list_progress** (`call_mprMjP4sLGBciWqmJl4l1L8N`)
@@ -20805,6 +20928,540 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
     "event_ns": "168866114457700",
     "elapsed_ms": "17888",
     "backendMs": "17832",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### P4 — PASS
+
+Question: `how much ancient debris have I mined?`
+
+Request `a5b1c583-1f82-4757-a4a4-8ff86cfa60e8`; conversation `231aa988-de40-4b52-a171-72ccc8f9e74f`; status=completed, saved=true. Submitted 2026-10-25T15:58:28.198Z. Raw evidence `build/task7-part-a/P4.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Part_A_Fresh-42969f6c96cc6531/231aa988-de40-4b52-a171-72ccc8f9e74f-c5295c19d022f96d.jsonl:2`.
+
+Timing: elapsed_ms=8796, backendMs=8707, toolWallMs=49, toolCalls=1. Model/backend time less tool wall = 8658 ms (includes transport/serialization, not pure inference).
+
+**G1 list_statistics** (`call_tRKhLP154EiBnvHi1fcxbYbm`)
+
+```json
+{"arguments":{"categories":["mined"],"subjects":{"ids":["minecraft:ancient_debris"],"tags":null,"text":null},"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+You’ve mined **0 ancient debris** in this world, according to your mining statistic. [progress:stat|minecraft|mined|minecraft:ancient_debris]
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-675f7da1-8948-49a0-a147-cfc02bbfebc6.png`.
+
+No reply-owned navigable target returned or used; source citations may be non-navigable.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "a5b1c583-1f82-4757-a4a4-8ff86cfa60e8",
+    "phase": "accepted",
+    "start_ns": "168997346654200",
+    "event_ns": "168997346654200",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "a5b1c583-1f82-4757-a4a4-8ff86cfa60e8",
+    "phase": "history_ready",
+    "event_ns": "168997346708300",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "a5b1c583-1f82-4757-a4a4-8ff86cfa60e8",
+    "phase": "request_built",
+    "event_ns": "168997435242300",
+    "buildMs": "1",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "a5b1c583-1f82-4757-a4a4-8ff86cfa60e8",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "169001961042100",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "4522"
+  },
+  {
+    "request": "a5b1c583-1f82-4757-a4a4-8ff86cfa60e8",
+    "phase": "tool_received",
+    "call": "call_tRKhLP154EiBnvHi1fcxbYbm",
+    "tool": "list_statistics",
+    "step": "1",
+    "event_ns": "169001961243400",
+    "elapsed_ms": "4614"
+  },
+  {
+    "request": "a5b1c583-1f82-4757-a4a4-8ff86cfa60e8",
+    "phase": "tool_result_sent",
+    "call": "call_tRKhLP154EiBnvHi1fcxbYbm",
+    "tool": "list_statistics",
+    "event_ns": "169002010679000",
+    "toolMs": "49",
+    "resultBytes": "937",
+    "error": "false"
+  },
+  {
+    "request": "a5b1c583-1f82-4757-a4a4-8ff86cfa60e8",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "169006142877400",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "4129"
+  },
+  {
+    "request": "a5b1c583-1f82-4757-a4a4-8ff86cfa60e8",
+    "phase": "tool_summary",
+    "toolCalls": "1",
+    "toolWallMs": "49",
+    "event_ns": "169006143101000"
+  },
+  {
+    "request": "a5b1c583-1f82-4757-a4a4-8ff86cfa60e8",
+    "phase": "model_terminal",
+    "event_ns": "169006143101000",
+    "elapsed_ms": "8796",
+    "backendMs": "8707",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### C8 — PASS
+
+Question: `how do I use /fill?`
+
+Request `e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4`; conversation `1a4ff0a2-8d10-47f1-a25c-5dbd2c22020d`; status=completed, saved=true. Submitted 2026-10-25T15:58:55.764Z. Raw evidence `build/task7-part-a/C8.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Part_A_Fresh-42969f6c96cc6531/1a4ff0a2-8d10-47f1-a25c-5dbd2c22020d-762a36536f6dee57.jsonl:2`.
+
+Timing: elapsed_ms=17772, backendMs=17696, toolWallMs=192, toolCalls=2. Model/backend time less tool wall = 17504 ms (includes transport/serialization, not pure inference).
+
+**G1 search_commands** (`call_2nj82yyenPKfvVOnKPlv76dO`)
+
+```json
+{"arguments":{"text":"fill","cursor":null},"error":false,"coverage":"COMPLETE","detail":"playerPermissionLevel: 0","recordCount":2,"nextCursor":null}
+```
+
+**G2 read_command** (`call_rvoCIfprBtXbvAS32hUx8itk`)
+
+```json
+{"arguments":{"name":"fill","cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+`/fill` changes every block in a box between two corner positions. The basic form is:
+
+```text
+/fill <from x y z> <to x y z> <block>
+```
+
+For example, `/fill ~ ~ ~ ~4 ~ ~4 minecraft:stone` makes a 5×5 stone layer at your current height. `~` means relative to your position; you can also use exact coordinates. Add `keep` to fill only empty spaces, or `replace minecraft:dirt` to change only dirt in the box. [world:command|fill]
+
+**You can’t run `/fill` with your current permission level (0).** You’d need command permission enabled by the world or server before trying it. [world:command|fill]
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-9bd8d0fe-c81f-4e16-b584-dd5a2c30f4dd.png`.
+
+No reply-owned navigable target returned or used; source citations may be non-navigable.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4",
+    "phase": "accepted",
+    "start_ns": "169024913167700",
+    "event_ns": "169024913167700",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4",
+    "phase": "history_ready",
+    "event_ns": "169024913232100",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4",
+    "phase": "request_built",
+    "event_ns": "169024988483800",
+    "buildMs": "1",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "169031391085300",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "6400"
+  },
+  {
+    "request": "e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4",
+    "phase": "tool_received",
+    "call": "call_2nj82yyenPKfvVOnKPlv76dO",
+    "tool": "search_commands",
+    "step": "1",
+    "event_ns": "169031391165600",
+    "elapsed_ms": "6477"
+  },
+  {
+    "request": "e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4",
+    "phase": "tool_result_sent",
+    "call": "call_2nj82yyenPKfvVOnKPlv76dO",
+    "tool": "search_commands",
+    "event_ns": "169031508660000",
+    "toolMs": "117",
+    "resultBytes": "1763",
+    "error": "false"
+  },
+  {
+    "request": "e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "169035433134100",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "3922"
+  },
+  {
+    "request": "e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4",
+    "phase": "tool_received",
+    "call": "call_rvoCIfprBtXbvAS32hUx8itk",
+    "tool": "read_command",
+    "step": "2",
+    "event_ns": "169035433206300",
+    "elapsed_ms": "10520"
+  },
+  {
+    "request": "e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4",
+    "phase": "tool_result_sent",
+    "call": "call_rvoCIfprBtXbvAS32hUx8itk",
+    "tool": "read_command",
+    "event_ns": "169035508051100",
+    "toolMs": "74",
+    "resultBytes": "1683",
+    "error": "false"
+  },
+  {
+    "request": "e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4",
+    "round": "3",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "169042685023000",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "7174"
+  },
+  {
+    "request": "e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4",
+    "phase": "tool_summary",
+    "toolCalls": "2",
+    "toolWallMs": "192",
+    "event_ns": "169042685473000"
+  },
+  {
+    "request": "e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4",
+    "phase": "model_terminal",
+    "event_ns": "169042685473000",
+    "elapsed_ms": "17772",
+    "backendMs": "17696",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### C7-fresh — DEFERRED
+
+Question: `where is the nearest village?`
+
+Request `45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1`; conversation `ecb67f59-26d3-42e2-a385-5518288134c3`; status=completed, saved=true. Submitted 2026-10-25T15:59:31.283Z. Raw evidence `build/task7-part-a/C7-fresh.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Part_A_Fresh-42969f6c96cc6531/ecb67f59-26d3-42e2-a385-5518288134c3-1a8ce8f8af901fd3.jsonl:2`.
+
+Timing: elapsed_ms=19479, backendMs=19403, toolWallMs=398, toolCalls=2. Model/backend time less tool wall = 19005 ms (includes transport/serialization, not pure inference).
+
+**G1 locate** (`call_4qI0lQb47JtkgIa7cj4Rh1Uf`)
+
+```json
+{"arguments":{"biome":null,"structure":"#minecraft:village","center":null,"radius":null,"cursor":null},"error":false,"coverage":"PARTIAL","detail":"searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; biome checks rejected candidate columns for minecraft:village_desert, minecraft:village_savanna, minecraft:village_snowy, minecraft:village_taiga; sampled columns do not prove structure absence; 2 more hits found on this page; showing the nearest 5; search paused at ring 3, entry 0, candidate 0 after a result page; continue with the cursor","recordCount":5,"nextCursor":"91637ee6-9522-4713-8712-d3a96a3345e9","nextCall":{"name":"locate","arguments":{"biome":null,"structure":"#minecraft:village","center":null,"radius":null,"cursor":"91637ee6-9522-4713-8712-d3a96a3345e9"}}}
+```
+
+**G2 locate** (`call_ECusDTkJOy7OQDRH5nKuyX9J`)
+
+```json
+{"arguments":{"biome":null,"structure":"#minecraft:village","center":null,"radius":null,"cursor":"91637ee6-9522-4713-8712-d3a96a3345e9"},"error":false,"coverage":"COMPLETE","detail":"searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; biome checks rejected candidate columns for minecraft:village_plains, minecraft:village_desert, minecraft:village_snowy; sampled columns do not prove structure absence","recordCount":2,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+The nearest village location is a **predicted plains village at (128, ~85, -544)** in the Overworld, about **549 blocks** from you. Head mostly **north**, then east. The Y level is estimated, and terrain may prevent the village from generating there. [Village location](world:locate|minecraft:overworld|minecraft:village_plains|128,-544)
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-ca6e4802-8b61-4e36-a57c-6b6758de2c5d.png`.
+
+- `world-place|minecraft:overworld|128,85,-544` -> `{"status":"OPENED","detail":null}`; screenshot `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-fa12b971-c537-4d57-9ca2-f637fc6e4229.png`; destination state {"screen":null,"position":[3.5,88,-9.5]}.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "phase": "accepted",
+    "start_ns": "169060432326800",
+    "event_ns": "169060432326800",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "phase": "history_ready",
+    "event_ns": "169060432376700",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "phase": "request_built",
+    "event_ns": "169060508007900",
+    "buildMs": "1",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "169064278440200",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "3768"
+  },
+  {
+    "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "phase": "tool_received",
+    "call": "call_4qI0lQb47JtkgIa7cj4Rh1Uf",
+    "tool": "locate",
+    "step": "1",
+    "event_ns": "169064278677300",
+    "elapsed_ms": "3846"
+  },
+  {
+    "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "phase": "tool_result_sent",
+    "call": "call_4qI0lQb47JtkgIa7cj4Rh1Uf",
+    "tool": "locate",
+    "event_ns": "169064558530400",
+    "toolMs": "279",
+    "resultBytes": "6223",
+    "error": "false"
+  },
+  {
+    "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "169074786806900",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "10226"
+  },
+  {
+    "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "phase": "tool_received",
+    "call": "call_ECusDTkJOy7OQDRH5nKuyX9J",
+    "tool": "locate",
+    "step": "2",
+    "event_ns": "169074786861700",
+    "elapsed_ms": "14354"
+  },
+  {
+    "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "phase": "tool_result_sent",
+    "call": "call_ECusDTkJOy7OQDRH5nKuyX9J",
+    "tool": "locate",
+    "event_ns": "169074905827700",
+    "toolMs": "118",
+    "resultBytes": "2630",
+    "error": "false"
+  },
+  {
+    "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "round": "3",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "169079911542000",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "5003"
+  },
+  {
+    "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "phase": "tool_summary",
+    "toolCalls": "2",
+    "toolWallMs": "398",
+    "event_ns": "169079911660900"
+  },
+  {
+    "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "phase": "model_terminal",
+    "event_ns": "169079911660900",
+    "elapsed_ms": "19479",
+    "backendMs": "19403",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### C7-visited — DEFERRED
+
+Question: `where is the nearest village?`
+
+Request `d638b7e0-c041-44a1-aecf-da6d0ba5b685`; conversation `5dff2673-29a0-4cb9-a9e8-19f6aab7ecf7`; status=completed, saved=true. Submitted 2026-10-25T16:00:32.095Z. Raw evidence `build/task7-part-a/C7-visited.json`.
+
+Saved JSONL: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/packsage/PackSage_Part_A_Fresh-42969f6c96cc6531/5dff2673-29a0-4cb9-a9e8-19f6aab7ecf7-1df6fb5e1b580a6a.jsonl:2`.
+
+Timing: elapsed_ms=10676, backendMs=10554, toolWallMs=362, toolCalls=1. Model/backend time less tool wall = 10192 ms (includes transport/serialization, not pure inference).
+
+**G1 locate** (`call_2fFARS4J18YEpUaKipxANfwI`)
+
+```json
+{"arguments":{"biome":null,"structure":"#minecraft:village","center":null,"radius":null,"cursor":null},"error":false,"coverage":"PARTIAL","detail":"searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; biome checks rejected candidate columns for minecraft:village_desert, minecraft:village_savanna, minecraft:village_snowy; sampled columns do not prove structure absence; 4 more hits found on this page; showing the nearest 5; search paused at ring 3, entry 0, candidate 0 after a result page; continue with the cursor","recordCount":5,"nextCursor":"52e56e6e-5151-448b-980a-6703fa044da6","nextCall":{"name":"locate","arguments":{"biome":null,"structure":"#minecraft:village","center":null,"radius":null,"cursor":"52e56e6e-5151-448b-980a-6703fa044da6"}}}
+```
+
+Verbatim reply:
+
+```text
+You’re **already in a plains village**. The nearest confirmed village is at **(128, 85, −544)**—almost directly below your current position at (128, 90, −544). [Mark the village](world:locate|minecraft:overworld|minecraft:village_plains|128,-544)
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-2eb17323-e198-4b9c-8411-47fe332abf96.png`.
+
+- `world-place|minecraft:overworld|128,85,-544` -> `{"status":"OPENED","detail":null}`; screenshot `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-495725bf-fac7-4a79-84c8-65f5ec3c48a7.png`; destination state {"screen":null,"position":[128.5,90.9375,-543.5]}.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "d638b7e0-c041-44a1-aecf-da6d0ba5b685",
+    "phase": "accepted",
+    "start_ns": "169121238873300",
+    "event_ns": "169121238873300",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "d638b7e0-c041-44a1-aecf-da6d0ba5b685",
+    "phase": "history_ready",
+    "event_ns": "169121238932700",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "d638b7e0-c041-44a1-aecf-da6d0ba5b685",
+    "phase": "request_built",
+    "event_ns": "169121360287400",
+    "buildMs": "2",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "d638b7e0-c041-44a1-aecf-da6d0ba5b685",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "169125558535000",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "4192"
+  },
+  {
+    "request": "d638b7e0-c041-44a1-aecf-da6d0ba5b685",
+    "phase": "tool_received",
+    "call": "call_2fFARS4J18YEpUaKipxANfwI",
+    "tool": "locate",
+    "step": "1",
+    "event_ns": "169125558693100",
+    "elapsed_ms": "4319"
+  },
+  {
+    "request": "d638b7e0-c041-44a1-aecf-da6d0ba5b685",
+    "phase": "tool_result_sent",
+    "call": "call_2fFARS4J18YEpUaKipxANfwI",
+    "tool": "locate",
+    "event_ns": "169125921395600",
+    "toolMs": "362",
+    "resultBytes": "6104",
+    "error": "false"
+  },
+  {
+    "request": "d638b7e0-c041-44a1-aecf-da6d0ba5b685",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "169131914930000",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "5990"
+  },
+  {
+    "request": "d638b7e0-c041-44a1-aecf-da6d0ba5b685",
+    "phase": "tool_summary",
+    "toolCalls": "1",
+    "toolWallMs": "362",
+    "event_ns": "169131915307500"
+  },
+  {
+    "request": "d638b7e0-c041-44a1-aecf-da6d0ba5b685",
+    "phase": "model_terminal",
+    "event_ns": "169131915307500",
+    "elapsed_ms": "10676",
+    "backendMs": "10554",
     "outcome": "COMPLETED"
   }
 ]
@@ -21214,3 +21871,261 @@ Generated scratch `C:\Users\hung1\AppData\Local\Temp\packsage-task7-2000-advance
   }
 ]
 ```
+
+### C7 supplemental evidence
+
+Fresh cheats-off world created in-process through native menus, settings screenshot `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-0c4a2cd5-35d4-41f8-8829-4a1cb2ad1e62.png`; no process restart or options/render-distance change. Region listings before/after locate both equal ["r.-1.-1.mca","r.-1.0.mca","r.0.-1.mca","r.0.0.mca"]. Visited repeat after intentional teleport and save reports confirmed at (128,85,-544). Raw listing files `C7-regions-before.json` / `C7-regions-after.json`. Whole check remains DEFERRED only for its full-restart clause.
+
+### E7 supplemental evidence
+
+```json
+[
+  {
+    "id": "W2",
+    "requestId": "f170faee-0737-4aee-8323-f404c9192c25",
+    "received": 8,
+    "resultSent": 8,
+    "summary": {
+      "request": "f170faee-0737-4aee-8323-f404c9192c25",
+      "phase": "tool_summary",
+      "toolCalls": "8",
+      "toolWallMs": "151",
+      "event_ns": "167379876628200"
+    },
+    "terminal": {
+      "request": "f170faee-0737-4aee-8323-f404c9192c25",
+      "phase": "model_terminal",
+      "event_ns": "167379876628200",
+      "elapsed_ms": "43231",
+      "backendMs": "43188",
+      "outcome": "COMPLETED"
+    }
+  },
+  {
+    "id": "C7-fresh",
+    "requestId": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+    "received": 2,
+    "resultSent": 2,
+    "summary": {
+      "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+      "phase": "tool_summary",
+      "toolCalls": "2",
+      "toolWallMs": "398",
+      "event_ns": "169079911660900"
+    },
+    "terminal": {
+      "request": "45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1",
+      "phase": "model_terminal",
+      "event_ns": "169079911660900",
+      "elapsed_ms": "19479",
+      "backendMs": "19403",
+      "outcome": "COMPLETED"
+    }
+  },
+  {
+    "id": "P1",
+    "requestId": "5b63be58-be66-4239-bf58-686684c28551",
+    "received": 2,
+    "resultSent": 2,
+    "summary": {
+      "request": "5b63be58-be66-4239-bf58-686684c28551",
+      "phase": "tool_summary",
+      "toolCalls": "2",
+      "toolWallMs": "35",
+      "event_ns": "168173447904800"
+    },
+    "terminal": {
+      "request": "5b63be58-be66-4239-bf58-686684c28551",
+      "phase": "model_terminal",
+      "event_ns": "168173447904800",
+      "elapsed_ms": "23990",
+      "backendMs": "23948",
+      "outcome": "COMPLETED"
+    }
+  }
+]
+```
+Backend minus union tool wall includes transport and request work; it is not pure inference time.
+
+### P11 supplemental evidence
+
+Inspected saved turn `6de66b3c-03ae-409d-b7ba-42a71edd1af6-5c4a461ba828de56.jsonl:2` (W1), keys ["type","world","requestId","question","answer","tokenCount","sentAt","outcome","replayItems","context","sources","navigationTargets","activities","steeringMessages"]. Context keys ["requestId","world","worldLabel","hovered","held","targeted","dimension","position","biome","time","focusKind","cameraPerspective","openedMenu","targetedHolder","ridden","capturedAt"]. request_built: `{"request":"6edc16a7-319a-4445-a20d-c1830c602f88","phase":"request_built","event_ns":"167295260842400","buildMs":"1","inputItems":"2","tools":"28","model":"gpt-6-sol","effort":"MEDIUM"}`. This is insufficient to verify a complete advertised tool list; absent observed calls alone are not proof. Historical JSONL sources remain on disk, but historical UI inspection is deferred.
+
+### E5 supplemental evidence
+
+Audit `build/task7-part-a/audit.json`: [{"id":"W1","requestId":"6edc16a7-319a-4445-a20d-c1830c602f88","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"W2","requestId":"f170faee-0737-4aee-8323-f404c9192c25","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"W3","requestId":"14b29234-fab9-42c9-b9c0-531bd699e7ef","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"W4","requestId":"bfb860ed-4c24-453a-85aa-bd4ba6fabfdf","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"W5","requestId":"3801472b-5b93-4af0-860b-b612ac12e2fb","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"W6","requestId":"b4271332-786d-4d11-8fe6-415e9fe353ec","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"W8","requestId":"ec22fb79-3db0-43f2-9816-ea8e9a8a3777","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C1-held","requestId":"ba8462f0-439c-4f1e-a358-72b473815d18","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C1-empty","requestId":"5ac8e60c-55d2-4664-90f9-7cecd0fe0cb3","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C2","requestId":"36a924a1-24c5-4c97-8afe-7c772ee7f8d1","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C3","requestId":"e83265ee-aa9a-4f10-a40f-b1b1e235f7b7","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C4","requestId":"bc481586-88c7-40b8-aa51-929995eb7063","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C5-existing","requestId":"3fe8a6ce-4405-4be3-8fd9-ff1de38c7e89","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C5-supported","requestId":"dabb7ed3-183f-4920-8c73-1b3c7bb07829","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C5-fresh1","requestId":"732a388b-9ef5-45cc-9ddc-30450c44252b","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C5-unread1","requestId":"5a61070b-7f82-45a5-859c-87e50a5d0d84","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C5-unread2","requestId":"3265dd05-4431-4b0d-b8f4-651d22c29bdc","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C6","requestId":"6131988d-6940-41b1-bada-b3babfd1ba35","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"P1","requestId":"5b63be58-be66-4239-bf58-686684c28551","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"P2","requestId":"89172e28-5aca-407d-8ae0-0372445565dd","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"P3","requestId":"e1f6755b-2872-4f5a-8d66-563d7df0d65a","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"P5-before-fixture","requestId":"964de182-8145-4bfc-8de2-9e129784a930","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"P5","requestId":"d2461a26-1e4b-4cb8-a072-aec9faeb370b","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"P6","requestId":"43b00871-0489-41be-a4ca-90a4d4f5d28c","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"P7","requestId":"61409ce2-fc9c-492c-ab79-c08c2529cad6","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"J4","requestId":"506983f3-7c60-48c7-9933-3746f40b8361","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"J5-portal","requestId":"24b5baeb-f60d-428d-b595-54ee4211bebe","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"J5-earned","requestId":"9149c4bf-43c6-47f8-a443-a69a61982a40","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"J6","requestId":"04f236d6-e034-4568-8921-656349134787","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"J5-time","requestId":"e3e1fae5-6f68-4c86-9d7c-d606218c8095","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"E1","requestId":"4bc9f311-b9f9-4ac7-aa33-11b7216bd3aa","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"J5-time-fresh","requestId":"a9c61d9f-7f26-4aaf-aa84-142b5d4a485f","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"E2-strength","requestId":"70656a50-f9bf-4d67-b2d0-5ba9fedb8b7f","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"E2-piston","requestId":"096bb1d8-65e9-4d8f-b124-02e28829e55d","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"E3-hi","requestId":"bf7be18c-a92d-4d45-b5c3-3e981c7ded13","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"E3-craft","requestId":"5539bfdf-a372-47f6-9326-0df27cbbc2d2","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"E4","requestId":"95e5ee05-1246-4de1-83e4-96017a449743","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"P10","requestId":"d841bded-6cef-4861-a723-15b4919fab6b","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"P4","requestId":"a5b1c583-1f82-4757-a4a4-8ff86cfa60e8","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C8","requestId":"e6426dac-4f58-4c8c-8d3f-e52b18b9d6c4","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C7-fresh","requestId":"45551c3c-9e1f-4d0e-a7aa-9ebf14bb24f1","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]},{"id":"C7-visited","requestId":"d638b7e0-c041-44a1-aecf-da6d0ba5b685","rawRef":false,"unmatched":[],"newConversation":"0","saveAnnouncementCandidates":[]}]. Saved replies checked for raw ref tokens and exact citation membership. Reply screenshots captured for all questions; representative W1/P1/P7/C2/C7/W6/P10 screenshots visually inspected. Long replies were not scrolled through every viewport; no claim about unseen hover behavior.
+
+### Advancement navigation classification supplemental evidence
+
+P1 and P7 stay FAIL. Their initial code-defect classification is superseded by fixture issue: `src/main/java/dev/packsage/world/minecraft/MinecraftProgress.java:256-259` passes tabVisible as navigability. The Adventure tab was not visible before an earned advancement; later J5 and P10 returned/opened Adventure targets after Sweet Dreams. This is evidence of the fixture precondition, not a patched code defect.
+
+### Part B deferrals supplemental evidence
+
+W7, M1, M5, P8, P9, J7, L1 and L2 were not run in this part, for the scope reasons in the summary. C7 has only its full-process-restart clause outstanding. World switching in the same Minecraft process is not process-restart evidence.
+
+### W2 supplemental evidence
+
+Fresh events and game-time facts; golemDetectedUntil absent on all three villagers:
+
+```json
+{
+  "events": [
+    {
+      "reference": "journal:event:31",
+      "payload": {
+        "countOnly": false,
+        "inArea": [
+          "minecraft:overworld|1008,251,1010"
+        ],
+        "subject": "minecraft:villager",
+        "box": {
+          "max": [
+            1008,
+            251,
+            1010
+          ],
+          "min": [
+            1008,
+            251,
+            1010
+          ]
+        },
+        "to": "2026-10-25T15:30:41.802Z",
+        "summary": "minecraft:villager \"V2VictimA\" died in minecraft:overworld at 1008,251,1010 at 2026-10-25T15:30:41.802Z: V2VictimA was slain by V2ZombieA",
+        "amount": 1,
+        "minutesAgo": 0.19401666666666667,
+        "detail": {
+          "message": "V2VictimA was slain by V2ZombieA",
+          "name": "V2VictimA",
+          "killer": "entity:minecraft:zombie",
+          "profession": "minecraft:none",
+          "victimId": "4bf0ac0f-e4ae-4549-aa4d-79451cdb8307",
+          "direct": "minecraft:zombie",
+          "damageType": "minecraft:mob_attack"
+        },
+        "at": "minecraft:overworld|1008,251,1010",
+        "dimension": "minecraft:overworld",
+        "fromGameTime": 871037,
+        "from": "2026-10-25T15:30:41.802Z",
+        "actor": "entity:minecraft:zombie",
+        "count": 1,
+        "type": "death",
+        "inAreaCount": 1,
+        "toGameTime": 871037
+      }
+    },
+    {
+      "reference": "journal:event:30",
+      "payload": {
+        "at": "minecraft:overworld|1004,250,1010",
+        "fromGameTime": 871002,
+        "inArea": [
+          "minecraft:overworld|1004,250,1010"
+        ],
+        "box": {
+          "max": [
+            1004,
+            250,
+            1010
+          ],
+          "min": [
+            1004,
+            250,
+            1010
+          ]
+        },
+        "count": 1,
+        "detail": {
+          "actorName": "TNThung"
+        },
+        "type": "break",
+        "dimension": "minecraft:overworld",
+        "actorName": "TNThung",
+        "from": "2026-10-25T15:30:40.053Z",
+        "summary": "TNThung broke 1 minecraft:red_bed in minecraft:overworld at 1004,250,1010 at 2026-10-25T15:30:40.053Z",
+        "toGameTime": 871002,
+        "inAreaCount": 1,
+        "countOnly": false,
+        "minutesAgo": 0.22316666666666668,
+        "amount": 1,
+        "to": "2026-10-25T15:30:40.053Z",
+        "subject": "minecraft:red_bed",
+        "actor": "player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5"
+      }
+    }
+  ],
+  "villagers": [
+    {
+      "name": "V2A",
+      "gameTime": 871464,
+      "home": null,
+      "lastSlept": 809979,
+      "lastWorkedAtPoi": 869813,
+      "golemDetectedUntil": "not present",
+      "wantsToSpawnGolem": false
+    },
+    {
+      "name": "V2B",
+      "gameTime": 871465,
+      "home": "minecraft:overworld|1003,250,1011",
+      "lastSlept": 849109,
+      "lastWorkedAtPoi": 869787,
+      "golemDetectedUntil": "not present",
+      "wantsToSpawnGolem": true
+    },
+    {
+      "name": "V2C",
+      "gameTime": 871465,
+      "home": null,
+      "lastSlept": 838015,
+      "lastWorkedAtPoi": 869819,
+      "golemDetectedUntil": "not present",
+      "wantsToSpawnGolem": false
+    }
+  ]
+}
+```
+
+### W5 supplemental evidence
+
+The two find_items pages supply 69 primary fixture item references; follow-up list_items reads account for grouped items whose primary path was elsewhere. Across all W5 calls there are 72 distinct fixture item references at the nine x=999,y=247 chest positions. The reply enumerates eight types per chest (72 total).
+
+### Final installed state supplemental evidence
+
+Verified at 2026-10-25T16:03:24.777Z UTC (local date crossed to 2026-10-26 during the run). GET /prompt text=null, effective length=21853; no developerPrompt property in config. Installed SHA-256 rechecked: **731C8442CFD230A24B33E4E2770C4C2675469366F74692F00D8535C6E7090242**. Same bridge PID/process throughout; Minecraft was never exited or restarted. Final state:
+
+```json
+{
+  "world": "PackSage Adapter Filter Live Test",
+  "save": "PackSage Adapter Filter Live Test",
+  "paused": false,
+  "running": true,
+  "screen": null,
+  "dimension": "minecraft:overworld",
+  "position": [
+    1003.5,
+    250,
+    1002.5
+  ],
+  "yaw": 0,
+  "pitch": 10,
+  "health": 20,
+  "gamemode": "creative",
+  "gameTime": 900936,
+  "dayTime": 19125,
+  "selectedHotbarSlot": 1,
+  "crosshairTarget": {
+    "place": {
+      "dimension": "minecraft:overworld",
+      "x": 1003,
+      "y": 250,
+      "z": 1006
+    }
+  },
+  "riddenEntity": null,
+  "menuId": 0
+}
+```
+The game remains running, unpaused, on the original fixture save with its main hand empty. F3 display is hidden. The new cheats-off test save and enabled performance datapack remain available. No render-distance/options change, code modification, build, installation, dedicated server or push. Only this validation file is staged/committed. Earlier checkpoint commits: dc6b1c1, 3548c72, 6936109.
+
+Part A totals (35 requested IDs): 25 PASS, 8 FAIL, 2 DEFERRED. Eight additional expressly excluded Part B IDs are DEFERRED. Forty-two new-chat questions include corrected fixture attempts; successful clauses never replace an earlier FAIL. Headings for subquestions inherit the aggregate check result; the summary and notes identify successful subclauses.

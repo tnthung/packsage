@@ -1105,21 +1105,26 @@ public final class WorldTools implements KnowledgeProvider {
 
     // Records
 
-    private Evidence.Result area(Evidence.Scope scope, Anchor anchor, int radius, AreaRead read, ReadSpan span) {
-        var summary = read.blocks().items().getFirst();
+    /** The block page's note, the notable cap, a cut entity list's list_entities pointer, then the entity page's own note. */
+    static List<String> areaNotes(Page<BlockSummary> blocks, Page<EntityHandle> entities) {
         var notes = new LinkedHashSet<String>();
-        if (read.blocks().note() != null) notes.add(read.blocks().note());
-        if (summary.notable().size() >= AreaScan.SUMMARY_NOTABLE) {
+        if (blocks.note() != null) notes.add(blocks.note());
+        if (blocks.items().getFirst().notable().size() >= AreaScan.SUMMARY_NOTABLE) {
             notes.add("Notable blocks reached the " + AreaScan.SUMMARY_NOTABLE + " cap; use list_blocks with a filter for the rest");
         }
-        // inspect_area has no cursor, so a cut entity page points at list_entities instead of its own cursor note.
-        if (read.entities().nextCursor() != null) {
-            notes.add(read.entities().items().size() >= AreaScan.LIST_PAGE
+        // inspect_area has no cursor, so a cut entity page points at list_entities instead of returning a cursor.
+        if (entities.nextCursor() != null) {
+            notes.add(entities.items().size() >= AreaScan.LIST_PAGE
                     ? "More than " + AreaScan.LIST_PAGE + " entities are in range; use list_entities with a filter for the rest"
                     : "The entity scan stopped at the per-call work limit; use list_entities for the rest");
-        } else if (read.entities().note() != null) {
-            notes.add(read.entities().note());
         }
+        if (entities.note() != null) notes.add(entities.note());
+        return List.copyOf(notes);
+    }
+
+    private Evidence.Result area(Evidence.Scope scope,Anchor anchor, int radius, AreaRead read, ReadSpan span) {
+        var summary = read.blocks().items().getFirst();
+        var notes = areaNotes(read.blocks(), read.entities());
         var notable = new TreeMap<String, Map<String, List<Evidence.JsonValue>>>();
         for (var block : summary.notable()) {
             var place = block.handle().place();

@@ -140,7 +140,7 @@ class DebugBridgeTest {
         Files.writeString(path, "debugBridge=true\ndebugBridgePort=25601\n");
         var settings = PackSageSettings.load(path);
         assertTrue(settings.debugBridge());
-        settings.withDeveloperPrompt("test prompt").save(path);
+        settings.withDeveloperPrompt("test prompt").save(path).join();
         assertTrue(PackSageSettings.load(path).debugBridge());
         assertEquals(25601, PackSageSettings.load(path).debugBridgePort());
         Files.writeString(path, "debugBridgePort=-1\n");
@@ -169,13 +169,13 @@ class DebugBridgeTest {
     @Test
     void ordinarySettingsSavesDoNotAddDebugBridgeProperties() throws Exception {
         Path path = directory.resolve("ordinary.properties");
-        PackSageSettings.defaults().save(path);
+        PackSageSettings.defaults().save(path).join();
         var properties = new java.util.Properties();
         try (var input = Files.newInputStream(path)) { properties.load(input); }
         assertFalse(properties.containsKey("debugBridge"));
         assertFalse(properties.containsKey("debugBridgePort"));
         Files.writeString(path, "debugBridge=false\ndebugBridgePort=25599\n");
-        PackSageSettings.load(path).withDeveloperPrompt("test").save(path);
+        PackSageSettings.load(path).withDeveloperPrompt("test").save(path).join();
         try (var input = Files.newInputStream(path)) { properties.load(input); }
         assertEquals("false", properties.getProperty("debugBridge"));
         assertEquals("25599", properties.getProperty("debugBridgePort"));

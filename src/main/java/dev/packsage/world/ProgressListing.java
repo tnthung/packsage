@@ -1,7 +1,5 @@
 package dev.packsage.world;
 
-import dev.packsage.knowledge.Evidence;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -35,7 +33,8 @@ public final class ProgressListing {
             return !statuses.isEmpty() || !text.isEmpty();
         }
 
-        boolean matches(ProgressEntry entry) {
+        /** {@code needle} is {@code text} in lower case, computed once per page. */
+        boolean matches(ProgressEntry entry, String needle) {
             var handle = entry.handle();
             if (!matchesTree(handle.tree()) || !statuses.isEmpty() && !statuses.contains(handle.status())) {
                 return false;
@@ -46,7 +45,6 @@ public final class ProgressListing {
             if (handle.status() == ProgressStatus.HIDDEN) {
                 return false;
             }
-            var needle = text.toLowerCase(Locale.ROOT);
             return contains(handle.title(), needle) || contains(entry.description(), needle) || contains(handle.id().local(), needle);
         }
 
@@ -70,14 +68,12 @@ public final class ProgressListing {
      * {@link AreaScan#LIST_PAGE} items from {@code offset}; the cursor is the next offset.
      */
     public static Page<Item> page(List<ProgressSnapshot> snapshots, Filter filter, int offset) {
-        if (offset < 0) {
-            throw new IllegalArgumentException("Invalid progress offset: " + offset);
-        }
+        var needle = filter.text().toLowerCase(Locale.ROOT);
         var entries = new ArrayList<ProgressEntry>();
         var entryTrees = new HashSet<ProgressId>();
         for (var snapshot : snapshots) {
             for (var entry : snapshot.entries()) {
-                if (filter.matches(entry)) {
+                if (filter.matches(entry, needle)) {
                     entries.add(entry);
                     entryTrees.add(entry.handle().tree());
                 }
@@ -95,21 +91,6 @@ public final class ProgressListing {
             items.add(new Item(null, entry));
         }
         var notes = snapshots.stream().map(ProgressSnapshot::note).filter(Objects::nonNull).toList();
-        return slice(items, offset, notes, NO_MATCH_NOTE);
-    }
-
-    /** Pages {@code items}; {@code notes} make the page partial, and an empty listing says {@code emptyNote}. */
-    static <T> Page<T> slice(List<T> items, int offset, List<String> notes, String emptyNote) {
-        var coverage = notes.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
-        var noteParts = new ArrayList<String>();
-        if (items.isEmpty()) {
-            noteParts.add(emptyNote);
-        }
-        noteParts.addAll(notes);
-        var note = noteParts.isEmpty() ? null : String.join("; ", noteParts);
-        var start = Math.min(offset, items.size());
-        var end = Math.min(start + AreaScan.LIST_PAGE, items.size());
-        var next = end < items.size() ? Integer.toString(end) : null;
-        return new Page<>(items.subList(start, end), next, coverage, note);
+        return ListingPages.slice(items, offset, notes, NO_MATCH_NOTE);
     }
 }

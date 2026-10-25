@@ -8,7 +8,8 @@ import java.util.List;
 
 /** Orders, merges and pages statistics off the server thread. */
 public final class StatisticListing {
-    static final String NO_MATCH_NOTE = "no counter matches; unlisted counters are zero";
+    static final String NO_MATCH_NOTE = "no counter matches";
+    static final String ZERO_NOTE = "unlisted counters are zero";
     private static final List<String> CATEGORY_ORDER = List.of("mined", "crafted", "used", "broken", "picked_up", "dropped", "killed", "killed_by", "custom");
     private static final Comparator<Statistic> ORDER = Comparator.<Statistic>comparingInt(row -> rank(row.category()))
             .thenComparing(Statistic::category)
@@ -19,13 +20,10 @@ public final class StatisticListing {
 
     /**
      * Orders rows by category (the vanilla order, then other categories alphabetically) and then subject, dropping
-     * repeats of an (adapter, category, subject). A page holds {@link AreaScan#LIST_PAGE} rows from {@code offset};
-     * the cursor is the next offset, and any {@code notes} make the page partial.
+     * repeats of an (adapter, category, subject), then pages them as {@link ListingPages#slice} does. An empty complete
+     * listing says unlisted counters are zero; an empty partial one does not.
      */
     public static Page<Statistic> page(List<List<Statistic>> perAdapter, int offset, List<String> notes) {
-        if (offset < 0) {
-            throw new IllegalArgumentException("Invalid statistic offset: " + offset);
-        }
         var seen = new HashSet<List<String>>();
         var rows = new ArrayList<Statistic>();
         for (var adapterRows : perAdapter) {
@@ -36,7 +34,8 @@ public final class StatisticListing {
             }
         }
         rows.sort(ORDER);
-        return ProgressListing.slice(rows, offset, notes, NO_MATCH_NOTE);
+        // A partial read may have missed counters, so only a complete one says the unlisted counters are zero.
+        return ListingPages.slice(rows, offset, notes, notes.isEmpty() ? NO_MATCH_NOTE + "; " + ZERO_NOTE : NO_MATCH_NOTE);
     }
 
     private static int rank(String category) {

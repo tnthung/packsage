@@ -12,7 +12,7 @@ import net.minecraft.world.level.chunk.status.ChunkStatus;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Saved-NBT decisions without opening chunk storage or datafixing the collected tag. */
+/** Selective NBT visitor and classifier for PackSage's read-only region reader; never uses vanilla chunk storage scans. */
 public final class SavedStarts {
     public enum Verdict { FOUND, ABSENT, UNKNOWN }
 
@@ -23,8 +23,11 @@ public final class SavedStarts {
         return dimensionFolder.resolve("region").resolve("r." + chunk.getRegionX() + "." + chunk.getRegionZ() + ".mca");
     }
 
-    /** Run on the worker: even a file-existence check may wait on disk. This never opens a region file. */
-    public static boolean saved(Path dimensionFolder, ChunkPos chunk) {
+    /**
+     * Optional worker-side pre-check: metadata may wait on disk. This never opens a region file and never replaces
+     * the reader's own error handling, because the file can change between this check and opening it.
+     */
+    public static boolean regionExists(Path dimensionFolder, ChunkPos chunk) {
         return Files.isRegularFile(regionFile(dimensionFolder, chunk));
     }
 
@@ -36,8 +39,9 @@ public final class SavedStarts {
     public static Verdict classify(Tag collected, String structureId, int currentDataVersion) {
         if (!(collected instanceof CompoundTag tag) || !tag.contains("DataVersion", Tag.TAG_INT)
                 || tag.getInt("DataVersion") != currentDataVersion) return Verdict.UNKNOWN;
-        var status = ChunkStatus.byName(tag.getString("Status"));
-        if (status == null || !status.isOrAfter(ChunkStatus.STRUCTURE_STARTS)) return Verdict.UNKNOWN;
+        if (!ChunkStatus.byName(tag.getString("Status")).isOrAfter(ChunkStatus.STRUCTURE_STARTS)
+                || !tag.contains("structures", Tag.TAG_COMPOUND)
+                || !tag.getCompound("structures").contains("starts", Tag.TAG_COMPOUND)) return Verdict.UNKNOWN;
         var start = tag.getCompound("structures").getCompound("starts").getCompound(structureId);
         return !start.isEmpty() && !"INVALID".equals(start.getString("id")) ? Verdict.FOUND : Verdict.ABSENT;
     }

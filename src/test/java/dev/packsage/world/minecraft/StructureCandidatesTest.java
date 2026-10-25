@@ -50,10 +50,10 @@ class StructureCandidatesTest {
     @Test
     void lastRingCoversTheRadiusInclusively() {
         var placement = new RandomSpreadStructurePlacement(34, 8, RandomSpreadType.LINEAR, 10387312);
-        assertEquals(3, StructureCandidates.rings(placement, 100));
-        assertEquals(0, StructureCandidates.rings(placement, 0));
-        assertEquals(1, StructureCandidates.rings(placement, 34));
-        assertEquals(2, StructureCandidates.rings(placement, 35));
+        assertEquals(3, StructureCandidates.lastRing(placement, 100));
+        assertEquals(0, StructureCandidates.lastRing(placement, 0));
+        assertEquals(1, StructureCandidates.lastRing(placement, 34));
+        assertEquals(2, StructureCandidates.lastRing(placement, 35));
     }
 
     @Test
@@ -63,7 +63,7 @@ class StructureCandidatesTest {
         assertTrue(Math.hypot((double) candidate.x - 33, candidate.z) <= 100);
         assertTrue(StructureCandidates.ring(placement, 42L, 33, 0, 3).contains(candidate));
         var candidates = new ArrayList<ChunkPos>();
-        for (int ring = 0; ring <= StructureCandidates.rings(placement, 100); ring++) {
+        for (int ring = 0; ring <= StructureCandidates.lastRing(placement, 100); ring++) {
             candidates.addAll(StructureCandidates.ring(placement, 42L, 33, 0, ring));
         }
         assertTrue(candidates.contains(candidate));
@@ -79,6 +79,7 @@ class StructureCandidatesTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation") // The fixture's constructor signature uses ExclusionZone; no placement hooks run.
     void unknownPlacementTypesAreUnsupported() {
         assertFalse(StructureCandidates.supported(new StructurePlacement(Vec3i.ZERO,
                 StructurePlacement.FrequencyReductionMethod.DEFAULT, 1.0F, 0, Optional.empty()) {

@@ -106,8 +106,8 @@ class SavedStartsTest {
     }
 
     @Test
-    void noRegionFileMeansNotSavedAndCreatesNothing(@TempDir Path directory) throws IOException {
-        assertFalse(SavedStarts.saved(directory, new ChunkPos(40, 40)));
+    void noRegionFileMeansRegionDoesNotExistAndCreatesNothing(@TempDir Path directory) throws IOException {
+        assertFalse(SavedStarts.regionExists(directory, new ChunkPos(40, 40)));
         try (var files = Files.list(directory)) {
             assertEquals(0, files.count());
         }
@@ -118,10 +118,10 @@ class SavedStartsTest {
         var region = directory.resolve("region/r.-1.-2.mca");
         assertEquals(region, SavedStarts.regionFile(directory, new ChunkPos(-1, -33)));
         Files.createDirectories(region);
-        assertFalse(SavedStarts.saved(directory, new ChunkPos(-1, -33)));
+        assertFalse(SavedStarts.regionExists(directory, new ChunkPos(-1, -33)));
         Files.delete(region);
         Files.write(region, new byte[] { 1, 2, 3 });
-        assertTrue(SavedStarts.saved(directory, new ChunkPos(-1, -33)));
+        assertTrue(SavedStarts.regionExists(directory, new ChunkPos(-1, -33)));
         assertEquals(3, Files.size(region));
     }
 }

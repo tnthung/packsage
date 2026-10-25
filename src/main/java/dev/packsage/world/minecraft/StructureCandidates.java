@@ -31,14 +31,22 @@ public final class StructureCandidates {
         return candidates;
     }
 
-    public static int rings(RandomSpreadStructurePlacement placement, int radiusChunks) {
+    /** Returns the inclusive last ring index; callers must iterate from zero through this index. */
+    public static int lastRing(RandomSpreadStructurePlacement placement, int radiusChunks) {
         return Math.ceilDiv(radiusChunks, placement.spacing());
     }
 
+    /**
+     * Filters and sorts by 2D chunk distance from the center chunk. Vanilla instead measures 3D block distance
+     * from each candidate's (x * 16 + 8, 32, z * 16 + 8) to the search position.
+     */
     public static List<ChunkPos> concentric(List<ChunkPos> ringPositions, int centerChunkX, int centerChunkZ, int radiusChunks) {
+        record Candidate(ChunkPos chunk, double distance) {}
         return ringPositions.stream()
-                .filter(chunk -> Math.hypot((double) chunk.x - centerChunkX, (double) chunk.z - centerChunkZ) <= radiusChunks)
-                .sorted(Comparator.comparingDouble(chunk -> Math.hypot((double) chunk.x - centerChunkX, (double) chunk.z - centerChunkZ)))
+                .map(chunk -> new Candidate(chunk, Math.hypot((double) chunk.x - centerChunkX, (double) chunk.z - centerChunkZ)))
+                .filter(candidate -> candidate.distance() <= radiusChunks)
+                .sorted(Comparator.comparingDouble(Candidate::distance))
+                .map(Candidate::chunk)
                 .toList();
     }
 }

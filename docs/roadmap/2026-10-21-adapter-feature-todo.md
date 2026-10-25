@@ -20,6 +20,22 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 - [x] PackSage — item pages keep holder links and their continuation within the 64-record tool-output limit (N1); installed recheck passed with 52 items, 12 holders and a cursor.
 - [ ] PackSage — prompt: the armor reply omitted eligible enchantments from returned evidence, and the mule reply gave no coordinates, the farm reply did not reason from villager times, a broad storage reply did not continue its cursor, and one reply ended with a malformed source token.
 
+### Held and offhand item facts (v2)
+
+- [ ] Minecraft — `inspect_item` and `list_items` read the held and offhand items through `held` and `offhand`, with full item facts, tooltip lines and always-present `enchantmentEligibility`; implemented with automated tests, not yet checked in game ([plan](../plans/2026-10-25-v2-item-reading-consolidation.md)).
+
+### Open-menu reading (v2)
+
+- [ ] Minecraft — `list_items` reads the open menu through `opened`, with menu sections, output previews listed under `excludedSlots` instead of contents, and modded menus listed under `minecraft/menu` as PARTIAL; implemented with automated tests, not yet checked in game.
+
+### Targeted and ridden holders (v2)
+
+- [ ] Minecraft — `list_items` reads the block or mob under the crosshair through `targeted` and the ridden mob through `ridden`, and gameplay context names `targetedHolder` and `ridden`; implemented with automated tests, not yet checked in game.
+
+### Tooltip item search (v2)
+
+- [ ] Minecraft — `filter.tooltip` in `list_items` and `find_items` matches the tooltip lines shown to the player, and unreadable tooltips make the page PARTIAL; implemented with automated tests, not yet checked in game.
+
 ### Inventory and equipment inspection
 
 - [ ] Minecraft — opened-path entity-menu checks (implemented; automated checks pass; installed acceptance pending: the opened target was not exercised for donkey or mule screens, and the reachability re-test again used the targeted path; see the [completion record](../validation/2026-10-21-minecraft-adapter-completion.md) and the [validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)). Targeted, ridden and mount-switch fixtures passed.

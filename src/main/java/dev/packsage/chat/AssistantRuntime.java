@@ -844,6 +844,13 @@ public final class AssistantRuntime implements ChatActions {
             var view = holder.controller.view();
             if (requestId.value().equals(view.activeRequestId()) || view.conversation().turns().stream()
                     .anyMatch(turn -> turn.requestId().equals(requestId))) return wrap(view, holder);
+            ChatContracts.Turn failed;
+            synchronized (stateLock) {
+                failed = holder.failedStarts.get(requestId);
+            }
+            if (failed != null) return wrap(new ChatContracts.View(false, view.signIn(), view.paused(),
+                    new ChatContracts.Conversation(view.conversation().id(), holder.world, List.of(failed), failed.outcome()),
+                    failed.context(), List.of(), List.of(), view.errors(), "", ""), holder);
         }
         return null;
     }
@@ -856,7 +863,12 @@ public final class AssistantRuntime implements ChatActions {
         for (Holder holder : current) {
             if (holder.controller == null) continue;
             var view = holder.controller.view();
-            if (view.conversation().turns().stream().noneMatch(turn -> turn.requestId().equals(requestId))) continue;
+            if (view.conversation().turns().stream().noneMatch(turn -> turn.requestId().equals(requestId))) {
+                synchronized (stateLock) {
+                    if (holder.failedStarts.containsKey(requestId)) return CompletableFuture.completedFuture(null);
+                }
+                continue;
+            }
             return holder.controller.awaitPersistence().thenCompose(ignored ->
                     store.openConversation(view.conversation().world(), view.conversation().id()));
         }
@@ -1001,8 +1013,18 @@ public final class AssistantRuntime implements ChatActions {
         PackSageLog.LOGGER.info("PackSage timing request={} phase=runtime_dispatch start_ns={} event_ns={} elapsed_ms={}",
                 submission.requestId().value(), sendStartedAtNanos, dispatchAtNanos,
                 (dispatchAtNanos - sendStartedAtNanos) / 1_000_000);
+        Consumer<Throwable> recordStartFailure = failure -> {
+            synchronized (stateLock) {
+                if (holder.failedStarts.size() >= 256) holder.failedStarts.remove(holder.failedStarts.keySet().iterator().next());
+                holder.failedStarts.put(submission.requestId(), new ChatContracts.Turn(submission.requestId(), submission.question(),
+                        "", List.of(), new ChatContracts.Context("", null, submission.scope()), List.of(), List.of(),
+                        new ChatContracts.Outcome(requestActivation.get() ? ChatContracts.OutcomeStatus.FAILED : ChatContracts.OutcomeStatus.CANCELLED,
+                                failureMessage(failure)), 0, Instant.now()));
+            }
+        };
         try {
             holder.controller.begin(submission, requestActivation::get).whenCompleteAsync((ignored, failure) -> {
+                if (failure != null) recordStartFailure.accept(failure);
                 boolean publish = false;
                 boolean refreshSessions = false;
                 boolean reconcile = false;
@@ -1029,6 +1051,7 @@ public final class AssistantRuntime implements ChatActions {
                 if (publish) publishCurrentView(epoch);
             }, controllerExecutor);
         } catch (RuntimeException failure) {
+            recordStartFailure.accept(failure);
             boolean publish = false;
             boolean refreshSessions = false;
             boolean reconcile = false;
@@ -1810,6 +1833,7 @@ public final class AssistantRuntime implements ChatActions {
         private long loadGeneration;
         private final List<String> errors = new ArrayList<>();
         private final Map<ChatContracts.RequestId, Long> requestAuthEpochs = new java.util.LinkedHashMap<>();
+        private final Map<ChatContracts.RequestId, ChatContracts.Turn> failedStarts = new java.util.LinkedHashMap<>();
         private final Set<ChatContracts.RequestId> notifiedCompletions = new java.util.LinkedHashSet<>();
         private ChatContracts.RequestId unreadRequestId;
         private ChatContracts.RequestId readAttemptRequestId;

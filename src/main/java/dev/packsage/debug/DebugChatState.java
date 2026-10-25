@@ -21,12 +21,14 @@ public final class DebugChatState {
     private DebugChatState() { }
 
     public static JsonObject read(ChatContracts.View view, String requestId, JsonArray timing, ChatContracts.Conversation saved) {
-        var turn = saved.turns().stream().filter(value -> value.requestId().value().equals(requestId)).findFirst().orElse(null);
+        var turn = (saved == null ? view.conversation() : saved).turns().stream()
+                .filter(value -> value.requestId().value().equals(requestId)).findFirst().orElse(null);
         boolean active = view.active() && requestId.equals(view.activeRequestId());
         if (turn == null && !active) throw new IllegalArgumentException("Unknown request");
         var json = new JsonObject();
         json.addProperty("requestId", requestId);
         json.addProperty("conversationId", view.conversation().id());
+        json.addProperty("saved", saved != null);
         json.addProperty("status", active ? "active" : turn.outcome().status().name().toLowerCase(Locale.ROOT));
         json.addProperty("reply", active ? view.streamingAnswer() : turn.answer());
         json.addProperty("detail", active ? view.activity() : turn.outcome().detail());

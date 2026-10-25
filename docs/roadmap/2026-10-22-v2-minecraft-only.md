@@ -51,7 +51,9 @@ The [plan](../plans/2026-10-22-v2-world-reading.md) is implemented. The [validat
 
 ### Journal and notes
 
-Stage 4's [plan](../plans/2026-10-22-v2-journal.md) is implemented, including automatic recording, run merging, `search_journal`, silent `remember` / `update_note` / `forget_note`, note anchors and persistent note/place highlights. The full build reports 1,014 automated tests: 1,010 passed, 4 skipped, no failures or errors. Minimal prompt rules are included; the whole-prompt rewrite remains Stage 5. Not yet checked in game; awaiting in-game acceptance in the single final run after all stages. Keep every item below unchecked until it passes.
+Stage 4's [plan](../plans/2026-10-22-v2-journal.md) is implemented, including automatic recording, run merging, `search_journal`, silent `remember` / `update_note` / `forget_note`, note anchors and persistent note/place highlights. The stage's build reported 1,014 automated tests: 1,010 passed, 4 skipped, no failures or errors. Minimal prompt rules are included; the whole-prompt rewrite remains Stage 5. Full installed acceptance remains pending. Keep every item below unchecked until it passes.
+
+The 999ac78 smoke run recorded and wrote 26/26 events, but Candidate 2 exposed a closed journal after late hook registration. Startup recovery, duplicate-destination bridge navigation and inspected-air target advertising now have failing-then-passing regressions. The full build reports 1,051 passed and 4 skipped; the new JAR is not installed, so full acceptance and installed rechecks remain pending ([fix report](../../.superpowers/sdd/2026-10-25-v2-prompt-acceptance/fix-journal-closed-report.md)).
 
 Live checks for that final run, on the installed JAR in singleplayer with the default prompt and the developer override cleared (except the multiplayer check):
 

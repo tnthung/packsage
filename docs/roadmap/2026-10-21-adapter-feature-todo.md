@@ -36,6 +36,11 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 
 - [ ] Minecraft — `filter.tooltip` in `list_items` and `find_items` matches the tooltip lines shown to the player, and unreadable tooltips make the page PARTIAL; implemented with automated tests, not yet checked in game.
 
+### Progress and statistics (v2)
+
+- [ ] Minecraft — advancement progress with per-criterion state and tab links; implemented with automated tests, not yet checked in game ([final acceptance checks](2026-10-22-v2-minecraft-only.md#progress-and-statistics)).
+- [ ] Minecraft — player statistics in blocks and seconds; implemented with automated tests, not yet checked in game. Acceptance runs once at the end of all stages, as listed in the [v2 note](2026-10-22-v2-minecraft-only.md#progress-and-statistics).
+
 ### Inventory and equipment inspection
 
 - [ ] Minecraft — opened-path entity-menu checks (implemented; automated checks pass; installed acceptance pending: the opened target was not exercised for donkey or mule screens, and the reachability re-test again used the targeted path; see the [completion record](../validation/2026-10-21-minecraft-adapter-completion.md) and the [validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)). Targeted, ridden and mount-switch fixtures passed.

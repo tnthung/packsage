@@ -38,3 +38,19 @@ Commands ran in Git Bash from the assigned worktree, with `JAVA_HOME=D:/Project/
 - `git diff --check` passes. No formatting tools, push or merge were used.
 
 The tests establish bounded operation counts, no-load POI access, coverage/output behavior and nonblocking lookup scheduling. They do not establish an installed-world latency measurement or live acceptance of these new cases.
+
+## Fix round 2
+
+The second review found that the original entity and block-entity iterators were unsafe across ticks. The following supersedes the traversal, statistics-growth and oversized-record behavior described above.
+
+- Entity listing and holder gathering query the engine's spatial index per chunk in range, copy plain UUIDs/positions, and revalidate at most 64 holders per step. No entity or block-entity map iterator survives a step. UUID sets suppress repeated entity visits. Snapshots copy at most 4,096 keys per chunk; reaching that bound reports PARTIAL, and multi-step snapshots explicitly warn that additions or movement may be absent. Holder reads use existing block-entity map entries because even `getBlockEntity(..., CHECK)` can promote pending NBT.
+- Entity pages resume after a sorted UUID anchor in the cursor's chunk. Removal of an earlier entity cannot shift an ordinal; a missing anchor resumes at its sorted insertion point with an explicit PARTIAL note. Holder gathering resumes only between chunks, with no entity ordinal in its continuation.
+- Block inspectors now return `Section`, preserving unavailable POI facts as PARTIAL through the registry. Oversized entity inspections trim the largest facts first, retain smaller sections/facts and navigation identity, and mark omitted facts PARTIAL.
+- Statistics share one 1,024-operation step budget across counter entries and named-zero work. Counter growth restarts the walk at most three times; continued growth returns partial copied rows with a retry note that reaches `list_statistics`. `StatisticListing` ordering is tested directly on the copied large-counter rows.
+- Regression test declarations/imports follow the surrounding layout. Tests mutate entities and a fastutil block-entity map between steps, remove entities before and at a page anchor, reject global enumeration for a small-radius query, and verify retained health facts beside oversized offers.
+
+Engine evidence was checked in the requested NeoForge 21.1.202 source JAR and fastutil 8.5.12 source/binary JARs in the Gradle cache. `LevelEntityGetterAdapter.get(EntityTypeTest, AABB, consumer)` delegates to `EntitySectionStorage`, which visits accessible spatial sections and propagates aborts; the global iterable instead exposes `EntityLookup.byId`. Fastutil iterators retain slot indices that removal, `shiftKeys` and rehash can invalidate. `StatsCounter.setValue` adds keys or updates values; size changes are checked before a retained statistics iterator advances. Tests execute the real Minecraft entity-section index.
+
+Verification at `6988c67`: Git Bash `JAVA_HOME=D:/Project/packsage/.tools/jdk/jdk-21.0.12.1 ./gradlew build -q` passed. XML results: **97 suites, 1,088 tests, 1,083 passed, 5 skipped, 0 failures/errors**. The five skips are unchanged from the first round. The first targeted run reproduced six failures; the statistics-only budget run reproduced two; the POI coverage regression failed COMPLETE before its fix. A restart-test assertion was corrected to select the mined row rather than the crafted row with the same subject.
+
+Installed/live acceptance, arbitrary concurrent-world completeness and measured 5 ms tick timing remain unverified. No Minecraft launch, JAR installation, merge or push was performed.

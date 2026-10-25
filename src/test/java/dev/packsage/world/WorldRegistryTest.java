@@ -2,6 +2,7 @@ package dev.packsage.world;
 
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -86,5 +88,51 @@ class WorldRegistryTest {
         assertEquals(Evidence.Coverage.ERROR, sections.get("bad").coverage());
         assertEquals("broken adapter", sections.get("bad").note());
         assertSame(good, registry.inventoryReader("good"));
+    }
+
+    private record FakeProgressAndStatistics(String adapterId, Evidence.JsonObject facts) implements ProgressReader, StatisticReader {
+        public ServerWork.Slice<ProgressSnapshot> snapshot(ServerPlayer player) {
+            return null;
+        }
+
+        public Progress inspect(ServerPlayer player, String local) {
+            return null;
+        }
+
+        public Evidence.JsonObject progressFacts(ServerPlayer player, ProgressId id) {
+            if (facts == null) {
+                throw new IllegalStateException("facts failed");
+            }
+            return facts;
+        }
+
+        public List<String> categories() {
+            return List.of();
+        }
+
+        public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+            return null;
+        }
+    }
+
+    @Test
+    void registersProgressAndStatisticReadersAndIsolatesAFailingFactsAdapter() {
+        var registry = new WorldRegistry();
+        var facts = new Evidence.JsonObject(Map.of("quest", new Evidence.JsonString("linked")));
+        var owner = new FakeProgressAndStatistics("a", facts);
+        registry.register(owner);
+        registry.register(new FakeProgressAndStatistics("b", facts));
+        registry.register(new FakeProgressAndStatistics("c", null));
+        assertEquals(List.of("a", "b", "c"), registry.progressReaders().stream().map(ProgressReader::adapterId).toList());
+        assertEquals(List.of("a", "b", "c"), registry.statisticReaders().stream().map(StatisticReader::adapterId).toList());
+        assertSame(owner, registry.progressReaders().get(0));
+        assertSame(owner, registry.statisticReaders().get(0));
+        var sections = registry.progressFacts(null, new ProgressId("a", "minecraft:story/root"), "a");
+        assertEquals(List.of("b", "c"), List.copyOf(sections.keySet()));
+        assertFalse(sections.containsKey("a"));
+        assertEquals(Evidence.Coverage.COMPLETE, sections.get("b").coverage());
+        assertEquals(facts, sections.get("b").facts());
+        assertEquals(Evidence.Coverage.ERROR, sections.get("c").coverage());
+        assertEquals("facts failed", sections.get("c").note());
     }
 }

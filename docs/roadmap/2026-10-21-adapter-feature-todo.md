@@ -62,7 +62,7 @@ Stage 4 is implemented with automated tests; not yet checked in game. Keep these
 
 ### Progress and statistics (v2)
 
-- [ ] Minecraft — advancement progress with per-criterion state and tab links; implemented with automated tests, not yet checked in game ([final acceptance checks](2026-10-22-v2-minecraft-only.md#progress-and-statistics)).
+- [ ] Minecraft — advancement progress with per-criterion state and tab links; live [Q11](../validation/2026-10-25-v2-acceptance.md#q11--fail) found links to absent tabs. Links now require server-tracked tab visibility; automated regression checks pass, with the live recheck pending ([remaining acceptance checks](2026-10-22-v2-minecraft-only.md#progress-and-statistics)).
 - [ ] Minecraft — player statistics in blocks and seconds; implemented with automated tests, not yet checked in game. Acceptance runs once at the end of all stages, as listed in the [v2 note](2026-10-22-v2-minecraft-only.md#progress-and-statistics).
 
 ### Inventory and equipment inspection

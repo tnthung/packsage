@@ -56,6 +56,7 @@ public final class LocateStructure implements ServerWork.Slice<LocateStructure.R
     private final List<String> unsupported = new ArrayList<>();
     private final List<String> notes = new ArrayList<>();
     private final LinkedHashSet<String> biomeRejected = new LinkedHashSet<>();
+    private final HashSet<String> notBiomeRejected = new HashSet<>();
     private final List<Hit> hits = new ArrayList<>();
     private final HashSet<String> seen = new HashSet<>();
     private int ring;
@@ -149,6 +150,7 @@ public final class LocateStructure implements ServerWork.Slice<LocateStructure.R
         if (seen.contains(identity)) return true;
         var pos = current.placement().getLocatePos(chunk);
         if (world.loaded(chunk.x, chunk.z)) {
+            notBiomeRejected.add(current.target().id());
             var start = world.loadedStart(chunk.x, chunk.z, current.target().structure());
             if (start != null && start.isValid()) {
                 seen.add(identity);
@@ -157,12 +159,15 @@ public final class LocateStructure implements ServerWork.Slice<LocateStructure.R
             }
         } else if (world.placementPasses(current.placement(), chunk.x, chunk.z)) {
             if (world.biomePasses(current.target().structure(), chunk.getMiddleBlockPosition(0))) {
+                notBiomeRejected.add(current.target().id());
                 seen.add(identity);
                 hits.add(new Hit(current.target().id(), chunk.x, chunk.z, pos.getX(), world.surfaceY(pos.getX(), pos.getZ()), pos.getZ(),
                         Kind.PREDICTED, "placement and biome checks"));
             } else {
                 biomeRejected.add(current.target().id());
             }
+        } else {
+            notBiomeRejected.add(current.target().id());
         }
         return true;
     }
@@ -170,7 +175,9 @@ public final class LocateStructure implements ServerWork.Slice<LocateStructure.R
     @Override
     public Result result() {
         var details = new ArrayList<>(notes);
-        if (!biomeRejected.isEmpty()) details.add("biome checks rejected candidate columns for " + String.join(", ", biomeRejected)
+        var rejected = new LinkedHashSet<>(biomeRejected);
+        rejected.removeAll(notBiomeRejected);
+        if (!rejected.isEmpty()) details.add("biome checks rejected candidate columns for " + String.join(", ", rejected)
                 + "; sampled columns do not prove structure absence");
         return new Result(hits.stream().sorted(Comparator.comparingDouble(hit -> Math.hypot((double) hit.x() - centerX * 16.0,
                 (double) hit.z() - centerZ * 16.0))).toList(), nextRing, entry, candidate, List.copyOf(unsupported), List.copyOf(details), budget);

@@ -549,7 +549,7 @@ final class WorldKnowledgeTools {
         payload.put("dimension", WorldTools.text(center.dimension()));
         payload.put("place", WorldTools.text(place.text()));
         payload.put("distanceBlocks", WorldTools.number(Math.round(Math.hypot(hit.x() - center.position().x, hit.z() - center.position().z))));
-        payload.put("resolution", new Evidence.JsonObject(java.util.Map.of("horizontalBlocks", WorldTools.number(LocateBiome.HORIZONTAL_STEP),
+        payload.put("resolution", new Evidence.JsonObject(Map.of("horizontalBlocks", WorldTools.number(LocateBiome.HORIZONTAL_STEP),
                 "verticalBlocks", WorldTools.number(LocateBiome.VERTICAL_STEP))));
         return WorldTools.single(WorldTools.evidence(request.scope(), "locate|" + center.dimension() + "|" + hit.biome() + "|" + hit.x() + "," + hit.z(),
                 Evidence.RecordKind.OTHER, hit.biome() + " at " + hit.x() + ", " + hit.y() + ", " + hit.z(), payload, Evidence.Coverage.COMPLETE,

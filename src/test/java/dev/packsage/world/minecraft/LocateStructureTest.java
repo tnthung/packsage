@@ -110,6 +110,16 @@ class LocateStructureTest {
     }
 
     @Test
+    void oneBiomeRejectionDoesNotLabelTheWholeTargetRejected() {
+        var world = new World() {
+            public boolean biomePasses(Structure structure, BlockPos pos) { return checked != 1; }
+        };
+        var result = finish(search(world, placement, 0, 0, 100, 0));
+        assertTrue(!result.hits().isEmpty());
+        assertTrue(result.notes().isEmpty(), result.notes().toString());
+    }
+
+    @Test
     void stopsAfterTheRingThatReachesFiveHits() {
         var world = new World();
         var result = finish(search(world, placement, 0, 0, 100, 0));

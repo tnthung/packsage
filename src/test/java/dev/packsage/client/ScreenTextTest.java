@@ -22,15 +22,15 @@ class ScreenTextTest {
 
     @Test
     void legacyQuestToolResultsStillRenderStoredSourcesAndLinks() {
-        var source = new Evidence.Source(SCOPE, "quests", "1", "quest:1000000000000002", 1, java.time.Instant.EPOCH,
+        var source = new Evidence.Source(SCOPE, "native", "1", "quest:1000000000000002", 1, java.time.Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
-        var target = new Evidence.NavigationTarget(SCOPE, "quests", source.sourceHandle(), "1000000000000002");
+        var target = new Evidence.NavigationTarget(SCOPE, "native", source.sourceHandle(), "1000000000000002");
         var turn = new ChatContracts.Turn(new ChatContracts.RequestId("legacy-progress"), "Did I finish it?",
-                "[Old quest](quests:quest:1000000000000002)", List.of(
-                new ModelBackend.ToolCall("old-progress", "read_progress", "{\"handles\":[\"quests:quest:1000000000000002\"]}"),
+                "[Old quest](native:quest:1000000000000002)", List.of(
+                new ModelBackend.ToolCall("old-progress", "read_progress", "{\"handles\":[\"native:quest:1000000000000002\"]}"),
                 new ModelBackend.ToolResult("old-progress", """
                         {"coverage":"COMPLETE","outcome":"COMPLETE","records":[{
-                          "source":{"providerId":"quests","version":"1","sourceHandle":"quest:1000000000000002",
+                          "source":{"providerId":"native","providerVersion":"1","sourceHandle":"quest:1000000000000002",
                             "observedAt":"1970-01-01T00:00:00Z","observedGeneration":1,
                             "activity":"ACTIVE","coverage":"COMPLETE","authority":"LOADED","provenance":[],
                             "scope":{"worldSession":"world","resourcesLocale":"en_us","playerTeam":"team",

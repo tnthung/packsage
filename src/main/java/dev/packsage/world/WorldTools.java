@@ -37,6 +37,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -778,10 +779,12 @@ public final class WorldTools implements KnowledgeProvider {
         private boolean stopped;
         private ItemSearch search;
         private List<BlockPos> blocks;
-        private List<UUID> entities;
+        private AreaScan.EntitySnapshot snapshot;
+        private NavigableSet<UUID> entities;
         private final Set<UUID> seenEntities = new HashSet<>();
         private int blockIndex;
-        private int entityIndex;
+        private int blockCursor;
+        private boolean denseBlocks;
         private Long startedAt;
 
         FindSlice(MinecraftServer server, Anchor anchor, int radius, KindFilter filter, boolean includeNested, FindState resume) {
@@ -867,15 +870,25 @@ public final class WorldTools implements KnowledgeProvider {
                 unloaded++;
                 blocks = null;
                 entities = null;
+                snapshot = null;
+                blockCursor = 0;
+                denseBlocks = false;
                 return true;
             }
             if (blocks == null) {
                 blocks = new ArrayList<>();
-                for (var at : chunk.getBlockEntities().keySet()) {
-                    if (blocks.size() >= AreaScan.SNAPSHOT_LIMIT) break;
-                    blocks.add(at.immutable());
+                if (blockCursor == 0) denseBlocks = chunk.getBlockEntities().size() > AreaScan.SNAPSHOT_LIMIT;
+                if (denseBlocks) {
+                    // Dense chunks use a deterministic position anchor; no mutable map iterator survives a step.
+                    var end = Math.min(level.getHeight() * 256, blockCursor + AreaScan.SNAPSHOT_LIMIT);
+                    for (; blockCursor < end; blockCursor++) {
+                        var at = new BlockPos(pos.getMinBlockX() + blockCursor % 16, level.getMinBuildHeight() + blockCursor / 256,
+                                pos.getMinBlockZ() + blockCursor / 16 % 16);
+                        if (chunk.getBlockEntities().containsKey(at)) blocks.add(at);
+                    }
+                } else {
+                    for (var at : chunk.getBlockEntities().keySet()) blocks.add(at.immutable());
                 }
-                if (chunk.getBlockEntities().size() > AreaScan.SNAPSHOT_LIMIT) notes.add("Block entity snapshot reached the per-chunk bound; some holders were not searched");
                 blockIndex = 0;
                 return false;
             }
@@ -901,19 +914,27 @@ public final class WorldTools implements KnowledgeProvider {
                 }
                 return false;
             }
+            if (denseBlocks && blockCursor < level.getHeight() * 256) {
+                blocks = null;
+                return false;
+            }
             if (entities == null) {
                 if (!level.areEntitiesLoaded(pos.toLong())) {
                     entitiesUnloaded++;
                     blocks = null;
+                    snapshot = null;
+                    blockCursor = 0;
+                    denseBlocks = false;
                     return true;
                 }
-                entities = AreaScan.entitySnapshot(level, pos, notes);
-                entityIndex = 0;
+                if (snapshot == null) snapshot = new AreaScan.EntitySnapshot();
+                if (snapshot.step(level, pos, notes)) return false;
+                entities = snapshot.ids;
                 return false;
             }
             if (level.areEntitiesLoaded(pos.toLong())) {
-                for (int read = 0; read < RESOLVE_PER_STEP && entityIndex < entities.size(); read++) {
-                    var id = entities.get(entityIndex++);
+                for (int read = 0; read < RESOLVE_PER_STEP && !entities.isEmpty(); read++) {
+                    var id = entities.pollFirst();
                     var entity = level.getEntity(id);
                     if (entity == null || entity.isRemoved()) {
                         notes.add("An entity from a chunk snapshot disappeared during the read");
@@ -930,12 +951,15 @@ public final class WorldTools implements KnowledgeProvider {
                     if (!holds(holder)) continue;
                     holders.add(Map.entry(entity instanceof ServerPlayer ? new PathRoot.Player(id) : new PathRoot.Entity(id), holder));
                 }
-                if (entityIndex < entities.size()) return false;
+                if (!entities.isEmpty()) return false;
             } else {
                 entitiesUnloaded++;
             }
             blocks = null;
             entities = null;
+            snapshot = null;
+            blockCursor = 0;
+            denseBlocks = false;
             return true;
         }
 

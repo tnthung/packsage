@@ -11,21 +11,20 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.entity.EntityTypeTest;
-import net.minecraft.util.AbortableIterationConsumer;
-import net.minecraft.world.phys.AABB;
+import net.minecraft.world.level.entity.LevelEntityGetterAdapter;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 
 /**
@@ -68,20 +67,38 @@ public final class AreaScan {
         return new EntityListSlice(level, center, radius, filter, cursor);
     }
 
-    /** Copies only UUIDs through the engine's spatial index; no engine iterator escapes this step. */
-    static List<UUID> entitySnapshot(ServerLevel level, ChunkPos pos, Set<String> notes) {
-        var ids = new ArrayList<UUID>();
-        level.getEntities().get(EntityTypeTest.forClass(Entity.class),
-                new AABB(pos.getMinBlockX(), level.getMinBuildHeight(), pos.getMinBlockZ(),
-                        pos.getMinBlockX() + 16, level.getMaxBuildHeight(), pos.getMinBlockZ() + 16), entity -> {
-                    if (!entity.chunkPosition().equals(pos)) return AbortableIterationConsumer.Continuation.CONTINUE;
-                    ids.add(entity.getUUID());
-                    return ids.size() >= SNAPSHOT_LIMIT ? AbortableIterationConsumer.Continuation.ABORT
-                            : AbortableIterationConsumer.Continuation.CONTINUE;
-                });
-        if (ids.size() >= SNAPSHOT_LIMIT) notes.add("Entity snapshot reached the " + SNAPSHOT_LIMIT + " per-chunk bound; use a smaller area and retry");
-        ids.sort(UUID::compareTo);
-        return ids;
+    /** Copies at most 64 section candidates per step, including nonmatches. Only owned UUIDs survive a step. */
+    static final class EntitySnapshot {
+        final NavigableSet<UUID> ids = new TreeSet<>();
+        private Long section;
+        private int index;
+
+        boolean step(ServerLevel level, ChunkPos pos, Set<String> notes) {
+            if (!(level.getEntities() instanceof LevelEntityGetterAdapter<Entity> getter)) {
+                notes.add("The entity index is unavailable; entities in this chunk could not be read");
+                return false;
+            }
+            var storage = getter.sectionStorage;
+            for (int visited = 0; visited < LIST_PAGE; visited++) {
+                if (section == null) {
+                    var sections = storage.getChunkSections(pos.x, pos.z);
+                    if (sections.isEmpty()) return false;
+                    section = sections.firstLong();
+                }
+                var current = storage.getSection(section);
+                if (current != null && current.getStatus().isAccessible() && index < current.storage.allInstances.size()) {
+                    var entity = current.storage.allInstances.get(index++);
+                    if (entity.chunkPosition().equals(pos)) ids.add(entity.getUUID());
+                } else {
+                    // Obtain a fresh iterator only to choose the next section; never keep it across server steps.
+                    var remaining = storage.getChunkSections(pos.x, pos.z).tailSet(section + 1);
+                    if (remaining.isEmpty()) return false;
+                    section = remaining.firstLong();
+                    index = 0;
+                }
+            }
+            return true;
+        }
     }
 
     record Cursor(int chunk, int skip) {
@@ -502,10 +519,10 @@ public final class AreaScan {
         private final List<EntityHandle> items = new ArrayList<>();
         private final Set<String> notes = new LinkedHashSet<>();
         private final Set<UUID> seen = new HashSet<>();
-        private List<UUID> entities;
+        private EntitySnapshot snapshot;
+        private NavigableSet<UUID> entities;
         private UUID anchor;
         private int chunk;
-        private int index;
         private int unloaded;
         private int entitiesUnloaded;
         private String nextCursor;
@@ -536,23 +553,21 @@ public final class AreaScan {
                 if (level.getChunkSource().getChunkNow(pos.x, pos.z) == null) unloaded++;
                 else entitiesUnloaded++;
                 entities = null;
+                snapshot = null;
                 anchor = null;
                 chunk++;
                 return chunk < chunks.size();
             }
             if (entities == null) {
-                entities = entitySnapshot(level, pos, notes);
-                index = 0;
-                if (anchor != null) {
-                    var found = Collections.binarySearch(entities, anchor);
-                    index = found >= 0 ? found + 1 : -found - 1;
-                    if (found < 0) notes.add("Entity cursor anchor is gone or moved; continuing after its UUID with partial coverage");
-                }
-                // Keep snapshot copying and holder/detail reads in separate bounded steps for dense chunks.
+                if (snapshot == null) snapshot = new EntitySnapshot();
+                if (snapshot.step(level, pos, notes)) return true;
+                entities = snapshot.ids;
+                if (anchor != null && !entities.contains(anchor)) notes.add("Entity cursor anchor is gone or moved; continuing after its UUID with partial coverage");
                 if (entities.size() > LIST_PAGE) return true;
             }
-            for (int read = 0; read < LIST_PAGE && index < entities.size(); read++) {
-                var id = entities.get(index);
+            for (int read = 0; read < LIST_PAGE; read++) {
+                var id = anchor == null ? (entities.isEmpty() ? null : entities.first()) : entities.higher(anchor);
+                if (id == null) break;
                 var entity = level.getEntity(id);
                 if (entity == null || entity.isRemoved()) notes.add("An entity from a chunk snapshot disappeared during the read");
                 if (entity != null && !entity.isRemoved()) {
@@ -579,10 +594,10 @@ public final class AreaScan {
                 }
                 seen.add(id);
                 anchor = id;
-                index++;
             }
-            if (index == entities.size()) {
+            if (entities.isEmpty() || anchor != null && entities.higher(anchor) == null) {
                 entities = null;
+                snapshot = null;
                 anchor = null;
                 chunk++;
             }

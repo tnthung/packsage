@@ -399,6 +399,51 @@ class ProgressToolsTest {
     }
 
     @Test
+    void statisticsKeepOtherAdaptersWhenAnInnerSliceFailsToStopEarly() throws Exception {
+        for (var failing : List.of("stopEarly", "result")) {
+            var clock = new java.util.concurrent.atomic.AtomicLong();
+            var fixture = new Fixture(new ServerWork(clock::get));
+            fixture.registry.register(new StatisticReader() {
+                @Override
+                public String adapterId() { return "broken"; }
+                @Override
+                public List<String> categories() { return List.of("mined"); }
+                @Override
+                public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+                    return new ServerWork.Slice<>() {
+                        @Override
+                        public boolean step() {
+                            clock.addAndGet(ServerWork.CALL_BUDGET_NANOS);
+                            return true;
+                        }
+                        @Override
+                        public boolean stopEarly() {
+                            if (failing.equals("stopEarly")) throw new IllegalStateException("cannot stop " + failing);
+                            return true;
+                        }
+                        @Override
+                        public List<Statistic> result() { throw new IllegalStateException("cannot stop " + failing); }
+                    };
+                }
+            });
+            fixture.registry.register(new StatisticReader() {
+                @Override
+                public String adapterId() { return "minecraft"; }
+                @Override
+                public List<String> categories() { return List.of("mined"); }
+                @Override
+                public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+                    return ServerReads.once(() -> List.of(new Statistic("minecraft", "mined", "minecraft:diamond_ore", "Times Mined: Diamond Ore", 12, StatisticUnit.COUNT, 12)));
+                }
+            });
+            var result = fixture.call("list_statistics", "{}");
+            assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+            assertTrue(result.detail().contains("broken: cannot stop " + failing), result.detail());
+            assertEquals(List.of("stat|minecraft|mined|minecraft:diamond_ore"), result.records().stream().map(record -> record.source().sourceHandle()).toList());
+        }
+    }
+
+    @Test
     void workerRecordBuildingFailuresAreTypedExtractionFailures() throws Exception {
         var fixture = new Fixture();
         fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(), List.of(new ProgressEntry(new ProgressHandle(STONE.id(), null, STONE.title(), STONE.status()), "Mine stone")), null),

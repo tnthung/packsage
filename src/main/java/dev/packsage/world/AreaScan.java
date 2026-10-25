@@ -41,7 +41,7 @@ public final class AreaScan {
     static final String PAGE_LIMIT_NOTE = "This page holds " + LIST_PAGE + " matches, the page limit; continue with the cursor";
     private static final int SECTION_SIZE = 16;
     static final int SNAPSHOT_LIMIT = 4096;
-    static final String SNAPSHOT_NOTE = "The read spanned multiple server ticks; entities or block entities added or moved into already-read chunks may be absent; a smaller radius can be read within one tick";
+    static final String SNAPSHOT_NOTE = "The read spanned multiple server ticks; game-time span: %s..%s";
 
     private final WorldRegistry registry;
 
@@ -529,6 +529,7 @@ public final class AreaScan {
         private String nextCursor;
         private boolean stopped;
         private Long startedAt;
+        private long fromGameTime;
 
         EntityListSlice(ServerLevel level, Vec3 center, int radius, KindFilter filter, String cursor) {
             this.level = level;
@@ -548,7 +549,10 @@ public final class AreaScan {
         @Override
         public boolean step() {
             if (stopped || nextCursor != null || chunk >= chunks.size()) return false;
-            if (startedAt == null) startedAt = serverTick(level);
+            if (startedAt == null) {
+                startedAt = serverTick(level);
+                fromGameTime = level.getGameTime();
+            }
             var pos = chunks.get(chunk);
             if (level.getChunkSource().getChunkNow(pos.x, pos.z) == null || !level.areEntitiesLoaded(pos.toLong())) {
                 if (level.getChunkSource().getChunkNow(pos.x, pos.z) == null) unloaded++;
@@ -617,8 +621,10 @@ public final class AreaScan {
 
         @Override
         public Page<EntityHandle> result() {
-            if (startedAt != null && serverTick(level) != startedAt) notes.add(SNAPSHOT_NOTE);
-            return AreaScan.page(items, nextCursor, unloaded, entitiesUnloaded, notes);
+            var page = AreaScan.page(items, nextCursor, unloaded, entitiesUnloaded, notes);
+            if (startedAt == null || serverTick(level) == startedAt) return page;
+            return new Page<>(page.items(), page.nextCursor(), page.coverage(),
+                    (page.note() == null ? "" : page.note() + "; ") + SNAPSHOT_NOTE.formatted(fromGameTime, level.getGameTime()), page.loadNote());
         }
     }
 }

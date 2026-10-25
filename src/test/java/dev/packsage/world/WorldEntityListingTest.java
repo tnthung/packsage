@@ -49,6 +49,7 @@ class WorldEntityListingTest {
                 var record = row.getAsJsonObject();
                 var payload = record.getAsJsonObject("payload");
                 assertTrue(ids.add(payload.get("id").getAsString()));
+                assertNotNull(payload.get("nameTruncated"), "oversized names need an explicit truncation flag");
                 assertTrue(payload.get("nameTruncated").getAsBoolean());
                 assertTrue(payload.get("name").getAsString().length() <= 1024);
                 assertTrue(record.get("title").getAsString().length() < 1200);

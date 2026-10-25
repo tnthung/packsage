@@ -5,6 +5,9 @@ import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.storage.LevelResource;
+import net.minecraft.world.level.storage.WritableLevelData;
 import net.neoforged.bus.api.BusBuilder;
 import net.neoforged.bus.api.Event;
 import net.neoforged.bus.api.EventPriority;
@@ -13,6 +16,7 @@ import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -23,6 +27,8 @@ import org.apache.logging.log4j.core.config.Property;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Proxy;
 import java.nio.file.Path;
@@ -33,12 +39,14 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JournalHooksTest {
@@ -46,6 +54,77 @@ class JournalHooksTest {
     static void bootstrap() {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"before", "during", "after"})
+    void registrationAroundServerStartOpensOneJournalSession(@TempDir Path dir, String timing) throws Exception {
+        class Server extends IntegratedServer {
+            Path root;
+            List<Runnable> tasks;
+
+            Server() { super(null, null, null, null, null, null, null); }
+
+            @Override public Path getWorldPath(LevelResource resource) { return root; }
+            @Override public void execute(Runnable task) { tasks.add(task); }
+            @Override public Iterable<ServerLevel> getAllLevels() { return List.of(); }
+        }
+        var field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        var unsafe = field.get(null);
+        var server = (Server) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Server.class);
+        server.root = dir;
+        server.tasks = new ArrayList<>();
+        var serverThread = MinecraftServer.class.getDeclaredField("serverThread");
+        serverThread.setAccessible(true);
+        serverThread.set(server, Thread.currentThread());
+        var running = MinecraftServer.class.getDeclaredField("running");
+        running.setAccessible(true);
+        running.set(server, true);
+        var ready = MinecraftServer.class.getDeclaredField("isReady");
+        ready.setAccessible(true);
+        ready.set(server, timing.equals("after"));
+        var level = (ServerLevel) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, ServerLevel.class);
+        var levelData = net.minecraft.world.level.Level.class.getDeclaredField("levelData");
+        levelData.setAccessible(true);
+        levelData.set(level, Proxy.newProxyInstance(WritableLevelData.class.getClassLoader(), new Class<?>[]{WritableLevelData.class},
+                (proxy, method, args) -> 400L));
+        var levels = MinecraftServer.class.getDeclaredField("levels");
+        levels.setAccessible(true);
+        levels.set(server, Map.of(net.minecraft.world.level.Level.OVERWORLD, level));
+        var integrated = new AtomicReference<MinecraftServer>(timing.equals("before") ? null : server);
+        var bus = BusBuilder.builder().build();
+        if (!timing.equals("before")) bus.post(new ServerStartedEvent(server));
+        try (var worker = Executors.newSingleThreadExecutor()) {
+            var journal = new Journal(worker);
+            try {
+                new JournalHooks(journal, integrated::get).register(bus);
+                // Queued server work runs even when a late-joined world is paused and emits no ticks.
+                server.tasks.forEach(Runnable::run);
+                if (timing.equals("before")) {
+                    integrated.set(server);
+                    bus.post(new ServerStartedEvent(server));
+                } else if (timing.equals("during")) {
+                    // The event was missed, but the server has not published isReady yet.
+                    bus.post(new ServerTickEvent.Post(() -> true, server));
+                }
+                assertTrue(journal.recording(), "journal must open for registration " + timing + " server start");
+                journal.write(store -> null).toCompletableFuture().get(10, TimeUnit.SECONDS);
+                assertTrue(journal.ready());
+                assertTrue(java.nio.file.Files.exists(dir.resolve("packsage/journal.db")));
+                var stats = journal.stats();
+                journal.record(JournalEvents.broken(new JournalEvents.Stamp(400, 100, "minecraft:overworld"),
+                        "player:A", "Alex", "minecraft:sand", 1, 64, 2));
+                bus.post(new ServerStartedEvent(server));
+                bus.post(new ServerTickEvent.Post(() -> true, server));
+                assertSame(stats, journal.stats(), "catch-up and start events must not reopen the same world");
+                assertEquals(1, journal.stats().offered.sum());
+                bus.post(new ServerStoppedEvent(server));
+                assertFalse(journal.recording());
+            } finally {
+                journal.close().get(10, TimeUnit.SECONDS);
+            }
+        }
     }
 
     @Test

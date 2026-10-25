@@ -148,6 +148,12 @@ class JournalEventsTest {
     }
 
     @Test
+    void blockActionsWithoutAnActorNameHaveNoDetail() {
+        assertNull(JournalEvents.place(STAMP, "player:A", null, "minecraft:stone", 1, 64, 2).detail());
+        assertNull(JournalEvents.broken(STAMP, "player:A", null, "minecraft:stone", 1, 64, 2).detail());
+    }
+
+    @Test
     void transferKeepsContainerIdentityAndRejectsZeroOrUnrepresentableAmounts() {
         var deposit = JournalEvents.transfer(STAMP, "player:A", "Alex", "minecraft:stone", 5,
                 "minecraft:chest", 1, 64, 2, null);

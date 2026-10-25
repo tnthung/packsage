@@ -93,7 +93,9 @@ class TrackersTest {
         sessions.open("player:large", 7, CHEST, contents);
         contents.put("mod:extra", 1L);
         assertThrows(IllegalArgumentException.class, () -> sessions.open("player:huge", 7, CHEST, contents));
-        assertThrows(IllegalArgumentException.class, () -> sessions.close("player:large", "Alex", 7, contents, STAMP));
+        assertTrue(sessions.close("player:large", "Alex", 7, contents, STAMP).isEmpty());
+        assertEquals(1, sessions.oversizedSnapshots());
+        assertEquals(1, sessions.evictions());
         assertFalse(sessions.openPlayers().contains("player:large"));
     }
 
@@ -111,7 +113,10 @@ class TrackersTest {
         var tracker = new PortalTracker();
         tracker.leaving("player:A", "minecraft:overworld", new BlockPlace("minecraft:overworld", 80, 64, 80), 10);
         assertTrue(tracker.arrived("player:A", "minecraft:overworld", 211).isEmpty());
-        assertTrue(tracker.arrived("player:A", "minecraft:overworld", 20).isEmpty());
+        tracker.leaving("player:A", "minecraft:overworld", new BlockPlace("minecraft:overworld", 80, 64, 80), 10);
+        assertTrue(tracker.arrived("player:A", "minecraft:overworld", 9).isEmpty());
+        tracker.leaving("player:A", "minecraft:overworld", new BlockPlace("minecraft:overworld", 80, 64, 80), 10);
+        assertTrue(tracker.arrived("player:A", "minecraft:overworld", 20).isPresent());
     }
 
     @Test
@@ -127,6 +132,7 @@ class TrackersTest {
             tracker.leaving("player:" + i, "minecraft:overworld", portal, 10);
         }
         assertTrue(tracker.arrived("player:0", "minecraft:overworld", 20).isEmpty());
+        assertEquals(1, tracker.evictions());
         assertEquals(portal, tracker.arrived("player:64", "minecraft:overworld", 20).orElseThrow());
     }
 
@@ -152,6 +158,7 @@ class TrackersTest {
         }
         watch.observe("v0", "minecraft:none", 1, 64, 2, STAMP);
         watch.observe("extra", "minecraft:none", 1, 64, 2, STAMP);
+        assertEquals(1, watch.evictions());
         assertEquals(1, watch.observe("v0", "minecraft:farmer", 1, 64, 2, STAMP).size());
         assertTrue(watch.observe("v1", "minecraft:farmer", 1, 64, 2, STAMP).isEmpty());
     }
@@ -198,6 +205,7 @@ class TrackersTest {
             watch.observe(i, ongoing, STAMP);
         }
         assertEquals(1_024, watch.missing(Set.of(), STAMP).size());
+        assertEquals(1, watch.evictions());
     }
 
     @Test
@@ -207,6 +215,16 @@ class TrackersTest {
         assertEquals(List.of(EventType.RAID_STARTED, EventType.RAID_FINISHED),
                 watch.observe(7, state, STAMP).stream().map(JournalEvent::type).toList());
         assertTrue(watch.observe(7, state, STAMP).isEmpty());
+    }
+
+    @Test
+    void aRaidFirstSeenFinishedWithoutStartingHasOnlyAFinish() {
+        var watch = new RaidWatch();
+        var state = new RaidWatch.RaidState(false, "stopped", 1, 0, 1, 64, 2);
+        assertEquals(List.of(EventType.RAID_FINISHED),
+                watch.observe(7, state, STAMP).stream().map(JournalEvent::type).toList());
+        assertTrue(watch.observe(7, new RaidWatch.RaidState(true, null, 1, 1, 1, 64, 2), STAMP).isEmpty());
+        assertTrue(watch.missing(Set.of(), STAMP).isEmpty());
     }
 
     @Test
@@ -238,6 +256,7 @@ class TrackersTest {
             }
             assertTrue(watch.inside("player:A", "minecraft:village_plains", 1, 0, 16, 64, 0, STAMP).isEmpty());
             assertEquals(1, watch.inside("player:A", "minecraft:village_plains", 4_096, 0, 65_536, 64, 0, STAMP).size());
+            assertEquals(1, watch.evictions());
             var reentry = watch.inside("player:B", "minecraft:village_plains", 0, 0, 0, 64, 0, STAMP);
             assertEquals(1, reentry.size());
             queue.offer(reentry.getFirst());

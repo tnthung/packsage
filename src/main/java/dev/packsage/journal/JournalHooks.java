@@ -71,7 +71,7 @@ public final class JournalHooks {
 
         void updateStats(JournalStats stats) {
             var evictions = containers.evictions() + portals.evictions() + sources.evictions() + villagers.evictions()
-                    + raids.evictions() + structures.evictions() + interactionEvictions;
+                    + raids.evictions();
             stats.trackerEvictions.add(evictions - reportedEvictions);
             reportedEvictions = evictions;
             stats.oversizedSnapshots.add(containers.oversizedSnapshots() - reportedOversized);

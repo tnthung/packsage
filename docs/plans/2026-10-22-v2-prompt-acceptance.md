@@ -196,6 +196,8 @@ Investigate before fixing, under `superpowers:systematic-debugging`.
 - [ ] **Step 4: Implement** the fixes.
 - [ ] **Step 5: Run** `ReferenceAliasBackendTest` and `ScreenTextTest`, then the full build. Expect a pass. Commit the fix.
 
+- [x] **Candidate 5 follow-up: provider citation markup.** Translate each complete U+E200 `cite` U+E202 reference group into consecutive bracket citations for exact current-request aliases/references, dropping unknown references and delimiters. Preserve replay and web offsets across every two-delta split. Strip private-use characters on saved-reply display without rewriting stored text, retaining known chips even in mixed groups. Focused tests: 68 passed; full build: 1,057 tests, zero failures/errors, four skipped. Installed/live acceptance remains pending; the [Candidate 5 failure evidence](../validation/2026-10-25-v2-acceptance.md#candidate-5) is unchanged.
+
 ### Task 4: Whole-prompt rewrite and tool descriptions (candidate 1)
 
 **Files:**

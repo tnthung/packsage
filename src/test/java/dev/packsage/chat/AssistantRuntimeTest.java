@@ -47,6 +47,62 @@ class AssistantRuntimeTest {
             null, null, 16_000, 2_048);
 
     @Test
+    void trackedChatUsesTheScreensCurrentScreenshotAndSearchDefaults() throws Exception {
+        for (boolean customized : List.of(false, true)) {
+            var backend = new FakeBackend();
+            var prepared = new AtomicReference<ChatContracts.PreparedRequest>();
+            var runtime = runtime(backend, captureFactory(), new AtomicReference<>(SCOPE), new AtomicReference<>(),
+                    prepared, PackSageSettings.defaults(), ignored -> 512);
+            runtime.enterWorld(WORLD, SCOPE);
+            runtime.signIn();
+            backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+            backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+            if (customized) {
+                var screen = runtime.openScreen();
+                screen.setIncludeScreenshot(false);
+                screen.setExplicitWebSearch(true);
+            }
+
+            assertNotNull(runtime.sendTracked("bridge question"));
+
+            assertEquals(!customized, prepared.get().capturedContext().context().screenshot() != null);
+            assertEquals(customized ? ModelBackend.SearchMode.EXPLICIT_REQUEST : ModelBackend.SearchMode.AUTOMATIC,
+                    prepared.get().submission().searchMode());
+        }
+    }
+
+    @Test
+    void trackedRequestNavigationBelongsToItsOwnTurnEvenWhenScopesAndTargetIdsMatch() throws Exception {
+        var store = new ConversationStore(Files.createTempDirectory("packsage-bridge-turn-navigation"), DIRECT);
+        var conversation = store.newConversation(WORLD).toCompletableFuture().join();
+        var first = new Evidence.NavigationTarget(SCOPE, "fixture", "first-source", "same-target");
+        var second = new Evidence.NavigationTarget(SCOPE, "fixture", "second-source", "same-target");
+        for (var target : List.of(first, second)) {
+            store.appendTurn(WORLD, SCOPE, conversation.id(), new ChatContracts.Turn(
+                    new ChatContracts.RequestId(target.sourceHandle()), "question", "answer", List.of(),
+                    new ChatContracts.Context("{}", null, SCOPE), List.of(), List.of(target),
+                    new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1, Instant.EPOCH))
+                    .toCompletableFuture().join();
+        }
+        var backend = new FakeBackend();
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(MODEL.id(), "instructions", List.of(), List.of(),
+                        prepared.submission().searchMode(), prepared.submission().requestId().value(), 512),
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.openSession(new ChatContracts.SessionSummary(WORLD, conversation.id(), "", "", Instant.EPOCH));
+
+        assertEquals(List.of(first), runtime.requestView(new ChatContracts.RequestId("first-source")).navigationTargets());
+        assertEquals(List.of(second), runtime.requestView(new ChatContracts.RequestId("second-source")).navigationTargets());
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        var active = runtime.sendTracked("follow up");
+        assertTrue(runtime.requestView(active).navigationTargets().isEmpty());
+    }
+
+    @Test
     void bridgeTracksRequestsAcrossConversationSelectionAndSharesNavigationChecks() throws Exception {
         var backend = new FakeBackend();
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(SCOPE), new AtomicReference<>(),

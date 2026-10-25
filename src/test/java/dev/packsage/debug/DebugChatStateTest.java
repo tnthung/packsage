@@ -13,6 +13,32 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DebugChatStateTest {
     @Test
+    void completedRepliesExposeOnlyTheirOwnTargetsAcrossTwoTurnsWithTheSameScope() {
+        var scope = new Evidence.Scope("world", "resources", "player", "runtime", 1);
+        var world = new ChatContracts.WorldIdentity("world", "World");
+        var first = new Evidence.NavigationTarget(scope, "fixture", "first", "same-target");
+        var second = new Evidence.NavigationTarget(scope, "fixture", "second", "same-target");
+        var turns = List.of(first, second).stream().map(target -> new ChatContracts.Turn(
+                new ChatContracts.RequestId(target.sourceHandle()), "question", "answer", List.of(),
+                new ChatContracts.Context("{}", null, scope), List.of(), List.of(target),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1, Instant.EPOCH)).toList();
+        var conversation = new ChatContracts.Conversation("conversation", world, turns, turns.getLast().outcome());
+        var view = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_IN, false, conversation,
+                turns.getLast().context(), List.of(), List.of(first, second), List.of(), "", "", world, false);
+
+        for (var target : List.of(first, second)) {
+            var result = DebugChatState.read(view, target.sourceHandle(), new JsonArray(), conversation);
+            assertEquals(1, result.getAsJsonArray("navigationTargets").size());
+            assertEquals(target.sourceHandle(), result.getAsJsonArray("navigationTargets").get(0).getAsJsonObject()
+                    .get("sourceHandle").getAsString());
+        }
+        var unavailable = new ChatContracts.View(false, view.signIn(), false, conversation, view.context(),
+                List.of(), List.of(), List.of(), "", "", world, false);
+        assertEquals(1, DebugChatState.read(unavailable, "first", new JsonArray(), conversation)
+                .getAsJsonArray("navigationTargets").size(), "inspection keeps the reply's historical target");
+    }
+
+    @Test
     void exposesSavedToolsEvidenceNavigationCitationsAndTiming() {
         var scope = new Evidence.Scope("world", "resources", "player", "runtime", 1);
         var source = new Evidence.Source(scope, "fixture", "v1", "source", 1, Instant.EPOCH,

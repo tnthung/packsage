@@ -113,6 +113,7 @@ class DebugBridgeTest {
         for (String[] request : new String[][] {
                 {"/chat", "[1]"}, {"/chat", "{"}, {"/chat", "{}"}, {"/chat", "{\"question\":false}"},
                 {"/chat", "{\"question\":\"   \"}"}, {"/prompt", "{}"}, {"/prompt", "{\"text\":3}"},
+                {"/chat", "{\"question\":\"hello\",\"screenshot\":1}"}, {"/chat", "{\"question\":\"hello\",\"webSearch\":null}"},
                 {"/player/look", "{\"yaw\":3}"}, {"/player/break", "{\"x\":1.5,\"y\":2,\"z\":3}"},
                 {"/player/menu/move", "{\"slot\":-1}"}, {"/screenshot", "{\"hideGui\":1}"},
                 {"/chat-screen", "{\"open\":\"true\"}"} }) {
@@ -152,6 +153,32 @@ class DebugBridgeTest {
             if (previous == null) System.clearProperty("packsage.debugBridge");
             else System.setProperty("packsage.debugBridge", previous);
         }
+    }
+
+    @Test
+    void chatScreenshotAndSearchOverridesReachTheGameWithoutInventingDefaults() {
+        var router = new DebugRouter("secret", (operation, body) -> body);
+        for (String body : new String[] { "{\"question\":\"hello\"}",
+                "{\"question\":\"hello\",\"screenshot\":false,\"webSearch\":true}" }) {
+            var response = router.route(new DebugHttp.Request("POST", "/chat", Map.of("authorization", "Bearer secret"), body));
+            assertEquals(200, response.status());
+            assertEquals(JsonParser.parseString(body), response.body());
+        }
+    }
+
+    @Test
+    void ordinarySettingsSavesDoNotAddDebugBridgeProperties() throws Exception {
+        Path path = directory.resolve("ordinary.properties");
+        PackSageSettings.defaults().save(path);
+        var properties = new java.util.Properties();
+        try (var input = Files.newInputStream(path)) { properties.load(input); }
+        assertFalse(properties.containsKey("debugBridge"));
+        assertFalse(properties.containsKey("debugBridgePort"));
+        Files.writeString(path, "debugBridge=false\ndebugBridgePort=25599\n");
+        PackSageSettings.load(path).withDeveloperPrompt("test").save(path);
+        try (var input = Files.newInputStream(path)) { properties.load(input); }
+        assertEquals("false", properties.getProperty("debugBridge"));
+        assertEquals("25599", properties.getProperty("debugBridgePort"));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package dev.packsage.journal;
 
+import dev.packsage.world.BlockPlace;
 import org.sqlite.SQLiteConfig;
 
 import java.io.IOException;
@@ -12,6 +13,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -238,6 +240,70 @@ public final class JournalStore implements AutoCloseable {
             abort(writer, e);
             throw e;
         }
+    }
+
+    /** Inserts or replaces a player-reported note. Writer thread only. */
+    public void putNote(Note note) throws SQLException {
+        checkWriterThread();
+        try (var statement = writer.prepareStatement("INSERT INTO notes(id, text, player_words, tags, dimension, x, y, z,"
+                + " created_wall, created_game_time, updated_wall, origin_conversation, origin_request)"
+                + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET"
+                + " text = excluded.text, player_words = excluded.player_words, tags = excluded.tags,"
+                + " dimension = excluded.dimension, x = excluded.x, y = excluded.y, z = excluded.z,"
+                + " created_wall = excluded.created_wall, created_game_time = excluded.created_game_time,"
+                + " updated_wall = excluded.updated_wall, origin_conversation = excluded.origin_conversation,"
+                + " origin_request = excluded.origin_request")) {
+            statement.setString(1, note.id());
+            statement.setString(2, note.text());
+            statement.setString(3, note.playerWords());
+            statement.setString(4, String.join(",", note.tags()));
+            var place = note.place();
+            statement.setString(5, place == null ? null : place.dimension());
+            if (place == null) {
+                statement.setNull(6, Types.INTEGER);
+                statement.setNull(7, Types.INTEGER);
+                statement.setNull(8, Types.INTEGER);
+            } else {
+                statement.setInt(6, place.x());
+                statement.setInt(7, place.y());
+                statement.setInt(8, place.z());
+            }
+            statement.setLong(9, note.createdWall());
+            statement.setLong(10, note.createdGameTime());
+            statement.setLong(11, note.updatedWall());
+            statement.setString(12, note.originConversation());
+            statement.setString(13, note.originRequest());
+            statement.executeUpdate();
+        }
+    }
+
+    /** Forgets a player report. Writer thread only. */
+    public void deleteNote(String id) throws SQLException {
+        checkWriterThread();
+        try (var statement = writer.prepareStatement("DELETE FROM notes WHERE id = ?")) {
+            statement.setString(1, id);
+            statement.executeUpdate();
+        }
+    }
+
+    /** Player reports, newest creation first. Call from the writer on load or a worker, never the server thread. */
+    public List<Note> notes() throws SQLException {
+        return read(connection -> {
+            var notes = new ArrayList<Note>();
+            try (var statement = connection.prepareStatement("SELECT * FROM notes ORDER BY created_wall DESC, id DESC");
+                 var result = statement.executeQuery()) {
+                while (result.next()) {
+                    var dimension = result.getString("dimension");
+                    var tags = result.getString("tags");
+                    notes.add(new Note(result.getString("id"), result.getString("text"), result.getString("player_words"),
+                            tags.isEmpty() ? List.of() : List.copyOf(Arrays.asList(tags.split(","))),
+                            dimension == null ? null : new BlockPlace(dimension, result.getInt("x"), result.getInt("y"), result.getInt("z")),
+                            result.getLong("created_wall"), result.getLong("created_game_time"), result.getLong("updated_wall"),
+                            result.getString("origin_conversation"), result.getString("origin_request")));
+                }
+            }
+            return List.copyOf(notes);
+        });
     }
 
     /** The number of committed write transactions, for tests. */

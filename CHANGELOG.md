@@ -4,6 +4,7 @@
 
 ### 2026-10-26
 
+- Area summaries keep the most common block ids and as many notable blocks as fit a fixed byte budget, and name how many were omitted with a pointer to list_blocks, so a large modded base no longer loses the whole summary to the tool output limit.
 - Bounded area entity summaries and inspection names, replaced advancement reflection with owned reference snapshots, and added public block-cursor and deterministic restore-order regressions; full build passes, installed checks pending.
 - Fixed byte-aware item/block paging, wide advancement-tree pacing, worker-side conflict restoration with newer screen saves, and concrete entity-gap details in area summaries; automated regressions pass, installed checks pending.
 - Fixed entity snapshot resumption after section removals/recreation with bounded rescans and explicit PARTIAL coverage under repeated churn; debug conflict restoration now checks and writes in one client task. Shared world-list setup and documented snapshot paging cost; automated regressions pass, live checks pending.

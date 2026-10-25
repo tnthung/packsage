@@ -1,15 +1,22 @@
 package dev.packsage.world.minecraft;
 
+import dev.packsage.knowledge.AdapterRegistry;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.Toolbox;
+import dev.packsage.model.PackSageTools;
 import dev.packsage.world.Progress;
 import dev.packsage.world.ProgressCriterion;
 import dev.packsage.world.ProgressEntry;
 import dev.packsage.world.ProgressHandle;
 import dev.packsage.world.ProgressId;
+import dev.packsage.world.ProgressNavigation;
+import dev.packsage.world.ProgressReader;
 import dev.packsage.world.ProgressSnapshot;
 import dev.packsage.world.ProgressStatus;
+import dev.packsage.world.ProgressTools;
 import dev.packsage.world.ProgressTree;
 import dev.packsage.world.ServerWork;
+import dev.packsage.world.WorldRegistry;
 import net.minecraft.SharedConstants;
 import net.minecraft.advancements.Advancement;
 import net.minecraft.advancements.AdvancementHolder;
@@ -21,11 +28,14 @@ import net.minecraft.advancements.AdvancementType;
 import net.minecraft.advancements.CriteriaTriggers;
 import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.advancements.critereon.ImpossibleTrigger;
+import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.PlayerAdvancements;
 import net.minecraft.server.advancements.AdvancementVisibilityEvaluator;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,12 +51,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -98,10 +113,10 @@ class MinecraftProgressTest {
         assertEquals(List.of(new ProgressTree(id("test:a/root"), "test:a/root title", 2, 6, true),
                 new ProgressTree(id("test:b/root"), "test:b/root title", 0, 144, false)), snapshot.trees());
         var locals = snapshot.entries().stream().map(entry -> entry.handle().id().local()).toList();
-        var hiddenId = snapshot.entries().get(3).handle().id().local();
+        var hiddenId = snapshot.entries().get(5).handle().id().local();
         assertTrue(hiddenId.startsWith("hidden:"));
-        var expected = new ArrayList<>(List.of("test:a/root", "test:a/first", "test:a/first_child", hiddenId, "test:a/recipe_child",
-                "test:a/second", "test:b/root"));
+        var expected = new ArrayList<>(List.of("test:a/root", "test:a/first", "test:a/first_child", "test:a/recipe_child",
+                "test:a/second", hiddenId, "test:b/root"));
         IntStream.range(0, 143).mapToObj(i -> "test:b/child_" + i).sorted().forEach(expected::add);
         assertEquals(expected, locals);
         assertTrue(steps[0] >= 3, "steps: " + steps[0]);
@@ -157,7 +172,8 @@ class MinecraftProgressTest {
         assertFalse(new com.google.gson.Gson().toJson(snapshot).contains("test:a/secret"));
         assertEquals(new ProgressEntry(handle, null), entry);
         assertEquals(Progress.hidden(handle), reader.inspect(world.source(), handle.id().local()));
-        assertEquals(Progress.hidden(handle), reader.inspect(world.source(), "test:a/secret"));
+        assertNull(reader.inspect(world.source(), "test:a/secret"));
+        assertNull(reader.inspect(world.source(), "test:a/nonexistent"));
         assertEquals(List.of(handle), reader.inspect(world.source(), "test:a/root").unlocks());
         assertEquals(List.of(handle), reader.inspect(world.source(), "test:a/after_secret").requires());
         world.generation = new Object();
@@ -171,6 +187,99 @@ class MinecraftProgressTest {
         assertEquals("test:a/secret description", done.description());
         assertEquals(2, reader.inspect(world.source(), "test:a/secret").criteria().size());
         assertEquals(done.handle(), reader.inspect(world.source(), handle.id().local()).handle());
+    }
+
+    @Test
+    void unearnedHiddenSiblingsFollowVisibleSiblingsInListingsAndUnlocks() {
+        var world = new World();
+        var root = world.add(displayed("test:root", null, false, "c"), "c");
+        var hidden = world.add(displayed("test:a_secret", root, true, "c"));
+        world.add(displayed("test:b_earned", root, true, "c"), "c");
+        world.add(displayed("test:z_visible", root, false, "c"));
+        world.add(displayed("test:c_secret", root, true, "c"));
+        var reader = new MinecraftProgress();
+
+        var snapshot = run(reader.snapshot(world.source()), new int[1]);
+        var ids = snapshot.entries().stream().map(entry -> entry.handle().id().local()).toList();
+        assertEquals(List.of("test:root", "test:b_earned", "test:z_visible"), ids.subList(0, 3));
+        assertTrue(ids.get(3).startsWith("hidden:"));
+        assertTrue(ids.get(4).startsWith("hidden:"));
+        assertEquals(ids.subList(3, 5).stream().sorted().toList(), ids.subList(3, 5));
+        assertEquals(ids.subList(1, 5), reader.inspect(world.source(), "test:root").unlocks().stream().map(handle -> handle.id().local()).toList());
+        assertEquals(ids, run(reader.snapshot(world.source()), new int[1]).entries().stream().map(entry -> entry.handle().id().local()).toList());
+
+        world.progress.get(hidden).grantProgress("c");
+        assertEquals(List.of("test:root", "test:a_secret", "test:b_earned", "test:z_visible"),
+                run(reader.snapshot(world.source()), new int[1]).entries().stream().map(entry -> entry.handle().id().local()).limit(4).toList());
+    }
+
+    @Test
+    void realHiddenIdsNeverReachSerializedProgressToolResults() throws Exception {
+        var world = new World();
+        var root = world.add(displayed("test:root", null, false, "c"), "c");
+        var hidden = world.add(displayed("minecraft:nether/all_effects", root, true, "c"));
+        world.add(displayed("test:child", hidden, false, "c"));
+        for (var i = 0; i < 70; i++) world.add(displayed("test:entry_" + i, root, false, "c"));
+        var reader = new MinecraftProgress();
+        var registry = new WorldRegistry();
+        registry.register(new ProgressReader() {
+            @Override
+            public String adapterId() { return reader.adapterId(); }
+
+            @Override
+            public ServerWork.Slice<ProgressSnapshot> snapshot(ServerPlayer player) { return reader.snapshot(world.source()); }
+
+            @Override
+            public Progress inspect(ServerPlayer player, String local) { return reader.inspect(world.source(), local); }
+        });
+        var field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        var unsafe = field.get(null);
+        var server = (MinecraftServer) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, IntegratedServer.class);
+        var running = MinecraftServer.class.getDeclaredField("running");
+        running.setAccessible(true);
+        running.setBoolean(server, true);
+        var work = new ServerWork(System::nanoTime);
+        var scope = new Evidence.Scope("world", "resources", "team", "runtime", 1);
+        var constructor = ProgressTools.class.getDeclaredConstructor(Supplier.class, Function.class, WorldRegistry.class, Supplier.class,
+                Executor.class, ServerWork.class, ProgressNavigation.class);
+        constructor.setAccessible(true);
+        var tools = constructor.newInstance((Supplier<MinecraftServer>) () -> server, (Function<MinecraftServer, ServerPlayer>) ignored -> null,
+                registry, (Supplier<Evidence.Scope>) () -> scope, (Executor) Runnable::run, work, new ProgressNavigation(null));
+        var results = new ArrayList<Evidence.Result>();
+        String cursor = null;
+        do {
+            var read = tools.handle(new PackSageTools.ReadRequest("list_progress", Evidence.deserializeObject(cursor == null ? "{}" : "{\"cursor\":\"" + cursor + "\"}"), scope), null);
+            while (!read.toCompletableFuture().isDone()) work.tick();
+            results.add(read.toCompletableFuture().join());
+            cursor = results.getLast().nextCursor();
+        } while (cursor != null);
+        assertEquals(2, results.size());
+        assertNotNull(results.getFirst().nextCursor());
+        var record = results.stream().flatMap(result -> result.records().stream()).filter(value -> value.title().equals("Hidden progress entry")).findFirst().orElseThrow();
+        var alias = ((Evidence.JsonString) record.payload().values().get("id")).value();
+        for (var local : List.of(alias, "test:root", "test:child")) {
+            var read = tools.handle(new PackSageTools.ReadRequest("inspect_progress", Evidence.deserializeObject("{\"id\":\"" + local + "\"}"), scope), null);
+            while (!read.toCompletableFuture().isDone()) work.tick();
+            results.add(read.toCompletableFuture().join());
+        }
+        var context = new Toolbox.Context(() -> scope, Map.of("saved", new Toolbox.Reference("progress", record.source().sourceHandle(),
+                Evidence.RecordKind.QUEST, scope)), new AdapterRegistry(), new Toolbox.DocumentBudget(), null);
+        var reread = tools.readEvidence(new PackSageTools.ReadRequest("read_evidence", Evidence.deserializeObject("{\"handles\":[\"saved\"]}"), scope), context);
+        while (!reread.toCompletableFuture().isDone()) work.tick();
+        results.add(reread.toCompletableFuture().join());
+        var json = new com.google.gson.GsonBuilder().serializeNulls()
+                .registerTypeAdapter(Instant.class, (com.google.gson.JsonSerializer<Instant>) (value, type, serialization) -> new com.google.gson.JsonPrimitive(value.toString()))
+                .create();
+        for (var result : results) assertFalse(json.toJson(result).contains("all_effects"));
+
+        for (var local : List.of("minecraft:nether/all_effects", "minecraft:nether/nonexistent")) {
+            var read = tools.handle(new PackSageTools.ReadRequest("inspect_progress", Evidence.deserializeObject("{\"id\":\"" + local + "\"}"), scope), null);
+            while (!read.toCompletableFuture().isDone()) work.tick();
+            var failure = (Toolbox.Failure) assertThrows(CompletionException.class, () -> read.toCompletableFuture().join()).getCause();
+            assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failure.code());
+            assertEquals("no progress entry has id " + local + "; find ids with list_progress", failure.getMessage());
+        }
     }
 
     @Test

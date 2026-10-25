@@ -239,9 +239,6 @@ class ProgressToolsTest {
         entries.add(new ProgressEntry(hidden, null));
         var reader = new Reader("minecraft", new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 0, 71, true)), entries, null), Progress.hidden(hidden));
         fixture.registry.register(reader);
-        var json = new com.google.gson.GsonBuilder().serializeNulls()
-                .registerTypeAdapter(Instant.class, (com.google.gson.JsonSerializer<Instant>) (value, type, context) -> new com.google.gson.JsonPrimitive(value.toString()))
-                .create();
 
         var first = fixture.call("list_progress", "{\"status\":[\"hidden\"]}");
         var last = fixture.call("list_progress", "{\"status\":[\"hidden\"],\"cursor\":\"" + first.nextCursor() + "\"}");
@@ -263,10 +260,6 @@ class ProgressToolsTest {
         var child = fixture.call("inspect_progress", "{\"id\":\"" + STONE.id().text() + "\"}");
         for (var field : List.of("requires", "unlocks")) {
             assertEquals(new Evidence.JsonString(hidden.id().text()), ((Evidence.JsonObject) ((Evidence.JsonArray) child.records().getFirst().payload().values().get(field)).values().getFirst()).values().get("id"));
-        }
-        for (var result : List.of(first, last, inspected, reread, child)) {
-            assertFalse(json.toJson(result).contains("minecraft:story/hidden"));
-            assertFalse(json.toJson(result).contains("all_effects"));
         }
     }
 

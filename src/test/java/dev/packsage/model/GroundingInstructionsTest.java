@@ -4,6 +4,9 @@ import dev.packsage.chat.ChatContracts;
 import dev.packsage.knowledge.Evidence;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 
@@ -17,12 +20,19 @@ class GroundingInstructionsTest {
             "Request independent reads together in one turn",
             "By default, include relevant navigation",
             "coordinates in the text",
-            "every relevant returned entry",
+            "For each subject, name every relevant returned entry, not a few highlights",
+            "Before sending, check each subject's returned set against the reply.",
             "follow the useful nextCall",
             "find_items first",
             "gameTime minus the timestamp", "the expiry minus gameTime",
             "two reads at different times",
-            "without mentioning it",
+            "Before diagnosing, interpret every relevant returned timestamp of every inspected subject, not only the first one.",
+            "state every relevant computed age or remaining time as a number in seconds, minutes or Minecraft days",
+            "cite each returned event that bears on the cause",
+            "keep each actor and subject distinct by the name or id its own event returns, never attributing one entity's events to another of the same kind",
+            "With no known note for the same thing, save it with remember, with at for a place they mean.",
+            "a report that adds or changes a fact, such as its place, description or time, gets update_note on that note; one that only repeats the note needs no write; forget_note a duplicate you just created.",
+            "This note-keeping is silent whatever its result",
             "Notes are what the player said",
             "you never run commands",
             "found or predicted",
@@ -30,6 +40,10 @@ class GroundingInstructionsTest {
             "Minecraft does not record what applied an effect",
             "Do not state planner batches as operation counts.",
             "square brackets on both sides",
+            "as [reference] or [label](reference); never emit a partial or altered reference.",
+            "an item, including one inside a shulker box, bundle or other nested holder, cites its own record or its outermost holder's own record, never a similar item's or another holder's record.",
+            "a local reference in square brackets exactly as returned, or a web link with its exact URL; no other citation format, label or marker, and no web citation when no web result was returned.",
+            "State a compass direction only as derived from the target's coordinates minus the player's: +x is east, -x west, +z south, -z north, naming the larger change first; otherwise give coordinates and distance without direction.",
             "multiplayer");
 
     @Test
@@ -57,6 +71,14 @@ class GroundingInstructionsTest {
     @Test
     void policyFitsTheDeveloperEditor() {
         assertTrue(GroundingInstructions.defaultInstructions().length() <= dev.packsage.chat.PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH);
+    }
+
+    @Test
+    void defaultLengthMatchesLiveTestedCandidateWhenPresent() throws IOException {
+        // NeoForge runs tests from build/minecraft-junit.
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(Path.of("../prompt-candidates/candidate-6.txt")));
+        assertEquals(Files.readString(Path.of("../prompt-candidates/candidate-6.txt")).length(),
+                GroundingInstructions.defaultInstructions().length());
     }
 
     @Test
@@ -118,6 +140,7 @@ class GroundingInstructionsTest {
                 new ChatContracts.EvidenceSelection(List.of(), List.of())));
 
         assertFalse(request.instructions().isBlank());
+        assertEquals(GroundingInstructions.defaultInstructions(), request.instructions());
         assertEquals("catalog-model", request.modelId());
         assertEquals(ModelBackend.SearchMode.EXPLICIT_ONLY, request.searchMode());
         assertEquals("current", request.requestId());

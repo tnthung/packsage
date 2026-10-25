@@ -40,13 +40,18 @@ class ProgressToolsTest {
     }
 
     private static final class Fixture {
-        final ServerWork work = new ServerWork(System::nanoTime);
+        final ServerWork work;
         final WorldRegistry registry = new WorldRegistry();
         final MinecraftServer server;
         final ServerPlayer player;
         final ProgressTools tools;
 
         Fixture() throws Exception {
+            this(new ServerWork(System::nanoTime));
+        }
+
+        Fixture(ServerWork work) throws Exception {
+            this.work = work;
             var field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
             field.setAccessible(true);
             var unsafe = field.get(null);
@@ -122,6 +127,7 @@ class ProgressToolsTest {
         assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
         assertEquals(List.of("tree|minecraft/minecraft:story/root", "tree|quests/chapter", "progress|minecraft/minecraft:story/mine_stone", "progress|minecraft/minecraft:story/hidden", "progress|quests/first"), result.records().stream().map(record -> record.source().sourceHandle()).toList());
         assertEquals("advancement|minecraft:story/root|minecraft:story/root", result.records().get(0).targets().getFirst().targetId());
+        assertTrue(result.records().get(1).targets().isEmpty());
         assertEquals("advancement|minecraft:story/root|minecraft:story/mine_stone", result.records().get(2).targets().getFirst().targetId());
         assertTrue(result.records().get(3).targets().isEmpty());
         assertEquals(new Evidence.JsonNull(), result.records().get(3).payload().values().get("title"));
@@ -148,6 +154,8 @@ class ProgressToolsTest {
         assertEquals(7, second.records().size());
         assertNull(second.nextCursor());
         assertEquals("Entry 63", second.records().getFirst().title());
+        var crossTool = assertThrows(CompletionException.class, () -> fixture.call("list_statistics", "{\"cursor\":\"" + first.nextCursor() + "\"}"));
+        assertEquals(Toolbox.Code.INVALID_CURSOR, ((Toolbox.Failure) crossTool.getCause()).code());
         for (var cursor : List.of(first.nextCursor(), "broken", "-1.0", "2147483648.0", "1.0.extra")) {
             var failure = assertThrows(CompletionException.class, () -> fixture.call("list_progress", "{\"text\":\"changed\",\"cursor\":\"" + cursor + "\"}"));
             assertEquals(Toolbox.Code.INVALID_CURSOR, ((Toolbox.Failure) failure.getCause()).code());
@@ -169,7 +177,7 @@ class ProgressToolsTest {
     void inspectProgressMergesOtherAdaptersFactsAndRejectsUnknownIds() throws Exception {
         var fixture = new Fixture();
         var done = Instant.parse("2026-10-25T01:02:03Z");
-        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(), List.of(), null), new Progress(STONE, "Mine stone", List.of(new ProgressCriterion("stone", "Stone", true, done)), List.of(), List.of(HIDDEN), List.of("10 experience"), done, Map.of("minecraft", new Section(Evidence.deserializeObject("{\"own\":true}"), Evidence.Coverage.COMPLETE, null)))));
+        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(), List.of(), null), new Progress(STONE, "Mine stone", List.of(new ProgressCriterion("stone", "Stone", true, done)), List.of(STONE), List.of(HIDDEN, STONE), List.of("10 experience"), done, Map.of("minecraft", new Section(Evidence.deserializeObject("{\"own\":true}"), Evidence.Coverage.COMPLETE, null)))));
         var other = new Reader("quests", new ProgressSnapshot(List.of(), List.of(), null), null);
         other.facts = Evidence.deserializeObject("{\"chapter\":\"Start\"}");
         fixture.registry.register(other);
@@ -182,6 +190,11 @@ class ProgressToolsTest {
             assertEquals(Evidence.deserializeObject("{\"id\":\"stone\",\"label\":\"Stone\",\"done\":true,\"doneAt\":\"2026-10-25T01:02:03Z\"}"), ((Evidence.JsonArray) payload.get("criteria")).values().getFirst());
             var hidden = (Evidence.JsonObject) ((Evidence.JsonArray) payload.get("unlocks")).values().getFirst();
             assertEquals(new Evidence.JsonNull(), hidden.values().get("title"));
+            for (var field : List.of("requires", "unlocks")) {
+                for (var handle : ((Evidence.JsonArray) payload.get(field)).values()) {
+                    assertFalse(((Evidence.JsonObject) handle).values().containsKey("description"));
+                }
+            }
         }
         var failure = assertThrows(CompletionException.class, () -> fixture.call("inspect_progress", "{\"id\":\"missing\"}"));
         assertEquals(Toolbox.Code.INVALID_ARGUMENTS, ((Toolbox.Failure) failure.getCause()).code());
@@ -298,5 +311,112 @@ class ProgressToolsTest {
         var read = tools.handle(new PackSageTools.ReadRequest("list_statistics", new Evidence.JsonObject(Map.of()), SCOPE), null);
         var failure = assertThrows(CompletionException.class, () -> fixture.finish(read));
         assertEquals(Toolbox.Code.UNAVAILABLE, ((Toolbox.Failure) failure.getCause()).code());
+    }
+
+    @Test
+    void statisticRereadPreservesAdapterFailuresAndDistinguishesMissingRows() throws Exception {
+        var fixture = new Fixture();
+        fixture.registry.register(new StatisticReader() {
+            @Override
+            public String adapterId() { return "broken"; }
+            @Override
+            public List<String> categories() { return List.of("mined"); }
+            @Override
+            public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+                throw new IllegalStateException("counter cannot be reflected");
+            }
+        });
+        for (var adapter : List.of("broken", "missing")) {
+            var handle = "stat|" + adapter + "|mined|minecraft:diamond_ore";
+            var context = new Toolbox.Context(() -> SCOPE, Map.of("observed", new Toolbox.Reference("progress", handle, Evidence.RecordKind.OTHER, SCOPE)), new AdapterRegistry(), new Toolbox.DocumentBudget(), null);
+            var failure = assertThrows(CompletionException.class, () -> fixture.finish(fixture.tools.readEvidence(new PackSageTools.ReadRequest("read_evidence", Evidence.deserializeObject("{\"handles\":[\"observed\"]}"), SCOPE), context)));
+            assertEquals(adapter.equals("broken") ? Toolbox.Code.EXTRACTION_FAILED : Toolbox.Code.INVALID_REFERENCE, ((Toolbox.Failure) failure.getCause()).code());
+            if (adapter.equals("broken")) assertTrue(failure.getCause().getMessage().contains("broken: counter cannot be reflected"));
+        }
+    }
+
+    @Test
+    void compositeSlicesKeepPartialRowsWhenTheirInnerSliceStopsEarly() throws Exception {
+        for (var tool : List.of("list_progress", "list_statistics")) {
+            var clock = new java.util.concurrent.atomic.AtomicLong();
+            var fixture = new Fixture(new ServerWork(clock::get));
+            class BoundedReader implements ProgressReader, StatisticReader {
+                @Override
+                public String adapterId() { return "minecraft"; }
+                @Override
+                public List<String> categories() { return List.of("mined"); }
+                @Override
+                public Progress inspect(ServerPlayer player, String local) { return null; }
+                @Override
+                public ServerWork.Slice<ProgressSnapshot> snapshot(ServerPlayer player) {
+                    return new ServerWork.Slice<>() {
+                        boolean stepped;
+                        boolean stopped;
+                        @Override
+                        public boolean step() {
+                            if (stepped) throw new IllegalStateException("slice was stepped after its budget");
+                            stepped = true;
+                            clock.addAndGet(ServerWork.CALL_BUDGET_NANOS);
+                            return true;
+                        }
+                        @Override
+                        public boolean stopEarly() { stopped = true; return true; }
+                        @Override
+                        public ProgressSnapshot result() {
+                            assertTrue(stopped);
+                            return new ProgressSnapshot(List.of(), List.of(new ProgressEntry(STONE, "Mine stone")), "snapshot work budget reached");
+                        }
+                    };
+                }
+                @Override
+                public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+                    return new ServerWork.Slice<>() {
+                        boolean stepped;
+                        boolean stopped;
+                        @Override
+                        public boolean step() {
+                            if (stepped) throw new IllegalStateException("slice was stepped after its budget");
+                            stepped = true;
+                            clock.addAndGet(ServerWork.CALL_BUDGET_NANOS);
+                            return true;
+                        }
+                        @Override
+                        public boolean stopEarly() { stopped = true; return true; }
+                        @Override
+                        public List<Statistic> result() {
+                            assertTrue(stopped);
+                            return List.of(new Statistic("minecraft", "mined", "minecraft:diamond_ore", "Times Mined: Diamond Ore", 12, StatisticUnit.COUNT, 12));
+                        }
+                    };
+                }
+            }
+            fixture.registry.register(new BoundedReader());
+            var result = fixture.call(tool, "{}");
+            assertEquals(1, result.records().size());
+            assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+            assertTrue(result.detail().contains("budget"));
+        }
+    }
+
+    @Test
+    void workerRecordBuildingFailuresAreTypedExtractionFailures() throws Exception {
+        var fixture = new Fixture();
+        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(), List.of(new ProgressEntry(new ProgressHandle(STONE.id(), null, STONE.title(), STONE.status()), "Mine stone")), null),
+                new Progress(STONE, "Mine stone", List.of(new ProgressCriterion("stone", null, true, null)), List.of(), List.of(), List.of(), null, Map.of())));
+        fixture.registry.register(new StatisticReader() {
+            @Override
+            public String adapterId() { return "minecraft"; }
+            @Override
+            public List<String> categories() { return List.of("mined"); }
+            @Override
+            public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+                return ServerReads.once(() -> List.of(new Statistic("minecraft", "mined", "minecraft:diamond_ore", "Times Mined: Diamond Ore", Double.NaN, StatisticUnit.COUNT, 0)));
+            }
+        });
+        for (var request : Map.of("list_progress", "{}", "inspect_progress", "{\"id\":\"minecraft/minecraft:story/mine_stone\"}", "list_statistics", "{}").entrySet()) {
+            var failure = assertThrows(CompletionException.class, () -> fixture.call(request.getKey(), request.getValue()));
+            assertTrue(failure.getCause() instanceof Toolbox.Failure, request.getKey() + ": " + failure.getCause());
+            assertEquals(Toolbox.Code.EXTRACTION_FAILED, ((Toolbox.Failure) failure.getCause()).code());
+        }
     }
 }

@@ -7,6 +7,8 @@ import dev.packsage.PackSageLog;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.world.ClientFocus;
+import dev.packsage.world.ItemPath;
+import dev.packsage.world.PathRoot;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.core.RegistryAccess;
@@ -22,8 +24,10 @@ import net.minecraft.world.phys.HitResult;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
@@ -51,12 +55,20 @@ public final class GameplayContextCapture {
 
     public record Observation(String hovered, String held, String targeted, String dimension, String position,
                               String biome, String time, String focusKind, String cameraPerspective,
-                              String openedMenu, String openedMenuTitle) {
+                              String openedMenu, String openedMenuTitle, String targetedHolder, String ridden) {
         public Observation {
             if ("miss".equals(focusKind)) {
                 hovered = null;
                 targeted = null;
+                targetedHolder = null;
             }
+        }
+
+        public Observation(String hovered, String held, String targeted, String dimension, String position,
+                           String biome, String time, String focusKind, String cameraPerspective,
+                           String openedMenu, String openedMenuTitle) {
+            this(hovered, held, targeted, dimension, position, biome, time, focusKind, cameraPerspective,
+                    openedMenu, openedMenuTitle, null, null);
         }
 
         public Observation(String hovered, String held, String targeted, String dimension, String position,
@@ -180,10 +192,13 @@ public final class GameplayContextCapture {
                 if (screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> container
                         && container.getMenu() == player.containerMenu) openedMenuTitle = openedMenuTitle(container.getTitle());
             }
+            var vehicle = player.getVehicle();
             return new Observation(targeted, stack.isEmpty() ? null : heldItem(stack, level.registryAccess()),
                     targeted, dimension, position, biome,
                     Long.toString(level.getGameTime()), focusKind,
-                    minecraft.options.getCameraType().name().toLowerCase(Locale.ROOT), openedMenu, openedMenuTitle);
+                    minecraft.options.getCameraType().name().toLowerCase(Locale.ROOT), openedMenu, openedMenuTitle,
+                    targetedHolder(ClientFocus.targetedRoot(hitResult, dimension)),
+                    ridden(vehicle == null ? null : vehicle.getUUID()));
         };
         AsyncFrameCapture frame = request -> {
             CompletableFuture<CapturedFrame> result = new CompletableFuture<>();
@@ -424,6 +439,16 @@ public final class GameplayContextCapture {
         return text.isEmpty() || text.length() > OPENED_MENU_TITLE_LIMIT ? null : text;
     }
 
+    /** The root text of the holder under the crosshair, as the world tools name it; null when nothing is targeted. */
+    static String targetedHolder(PathRoot root) {
+        return root == null ? null : new ItemPath(root, List.of()).text();
+    }
+
+    /** The entity the player rides, as the world tools name it; null when the player rides nothing. */
+    static String ridden(UUID vehicle) {
+        return vehicle == null ? null : "entity:" + vehicle;
+    }
+
     static String heldItem(ItemStack stack, RegistryAccess registries) {
         String components;
         try {
@@ -458,6 +483,8 @@ public final class GameplayContextCapture {
         json.addProperty("cameraPerspective", observation.cameraPerspective() == null ? "unavailable" : observation.cameraPerspective());
         json.addProperty("openedMenu", observation.openedMenu() == null ? "none" : observation.openedMenu());
         if (observation.openedMenuTitle() != null) json.addProperty("openedMenuTitle", observation.openedMenuTitle());
+        json.addProperty("targetedHolder", observation.targetedHolder() == null ? "unavailable" : observation.targetedHolder());
+        json.addProperty("ridden", observation.ridden() == null ? "none" : observation.ridden());
         if (capturedAt != null) json.addProperty("capturedAt", capturedAt.toString());
         return new ChatContracts.Context(json.toString(), screenshot, currentScope);
     }

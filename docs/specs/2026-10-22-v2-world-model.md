@@ -251,15 +251,15 @@ The game's own counters answer "how many diamonds have I mined?" exactly: blocks
 ```rust
 struct Statistic { category: String, subject: Option<String>, label: String, value: i64, unit: Unit }
 // category: "mined", "crafted", "used", "broken", "picked_up", "dropped", "killed", "killed_by", "custom"
-// subject: block, item or entity id; None for custom counters
-enum Unit { Count, Distance, Time }
+// subject: block, item or entity id; for custom counters, the counter id (for example minecraft:walk_one_cm)
+enum Unit { Count, Distance, Time, Health }
 
 trait StatisticReader {
     fn list_statistics(&self, categories: Vec<String>, subjects: KindFilter, cursor: Option<Cursor>) -> Result<Page<Statistic>>;
 }
 ```
 
-The Minecraft adapter reads the player's server-side statistics. Distances are reported in blocks and times in seconds. Statistics count since the world began; the journal answers questions about when.
+The Minecraft adapter reads the player's server-side statistics. Distances are reported in blocks, times in seconds and damage in health points (the game stores tenths). Statistics count since the world began; the journal answers questions about when.
 
 ## Journal
 

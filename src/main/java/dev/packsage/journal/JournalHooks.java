@@ -66,7 +66,6 @@ public final class JournalHooks {
         boolean polling = true;
         boolean raidPolling = true;
         int ticks;
-        long interactionEvictions;
         long reportedEvictions;
         long reportedOversized;
 
@@ -332,7 +331,6 @@ public final class JournalHooks {
         session.interactions.put(player, new Interaction(holder, gameTime));
         if (session.interactions.size() > 64) {
             session.interactions.pollFirstEntry();
-            session.interactionEvictions++;
         }
     }
 

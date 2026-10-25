@@ -141,7 +141,6 @@ class JournalHooksTest {
             session.structures.inside("player:A", "minecraft:village_plains", i, 0, 0, 64, 0,
                     new JournalEvents.Stamp(0, 0, "minecraft:overworld"));
         }
-        session.interactionEvictions++;
         assertEquals(1, session.structures.evictions());
         session.updateStats(stats);
         session.updateStats(stats);

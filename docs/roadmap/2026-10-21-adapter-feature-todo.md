@@ -10,15 +10,13 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 
 ## 1. Has adapter, not fully implemented
 
-### Recorded world history (v2 journal branch)
+### Journal and notes (v2)
 
-- [ ] Minecraft — `journal` provider and `search_journal` return recorded event summaries, recording-period coverage and stable place targets. Anchor resolution, exact area payloads and place-column highlights are implemented with automated tests; installed acceptance remains pending ([plan](../plans/2026-10-22-v2-journal.md)).
+Stage 4 is implemented with automated tests; not yet checked in game. Keep these entries unchecked until the final acceptance run passes the corresponding checks in the [v2 note](2026-10-22-v2-minecraft-only.md#journal-and-notes).
 
-### Player-reported notes (v2 journal branch)
-
-Review fixes cover current-session note anchors, explicit loading and missing-dimension failures, and invisibility in expanded activities. Journal availability and note navigation retain database failure reasons; unread Native evidence stays available, and the footer requires a visible, relevant journal row. Installed acceptance remains pending.
-
-- [ ] PackSage — `remember`, `update_note`, `forget_note` and note searches preserve the originating message and label notes as `PLAYER_REPORTED` / `player-said`. Database writes and mirror changes serialize on the writer, then complete on the worker with generic thinking activity. Automated checks cover failed writes, queued deletion/update, note anchors and persistent navigation following moved notes and refusing forgotten notes. Prompt integration and installed acceptance remain pending.
+- [ ] Minecraft — automatic event journal with run merging; singleplayer recording and background flushing, without blocking the game on disk or the database.
+- [ ] Minecraft — player notes with place links; silent `remember`, `update_note` and `forget_note`, player-reported trust, note anchors and saved links that survive restarts and follow moved notes.
+- [ ] Minecraft — journal search over events and notes; `search_journal` with recording-since and honest partial coverage, plus persistent place highlights.
 
 ### World block, mob and storage reading (v2)
 

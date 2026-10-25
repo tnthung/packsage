@@ -111,9 +111,8 @@ public final class MinecraftProgress implements ProgressReader {
 
     /** Null when {@code local} is not a displayed advancement of a displayed root in the current tree. */
     Progress inspect(Source source, String local) {
-        var resolved = hiddenIds.getOrDefault(source.world(), Map.of()).entrySet().stream()
-                .filter(entry -> entry.getValue().equals(local)).map(Map.Entry::getKey).findFirst().orElse(local);
-        var id = ResourceLocation.tryParse(resolved);
+        var id = ResourceLocation.tryParse(hiddenIds.getOrDefault(source.world(), Map.of()).entrySet().stream()
+                .filter(entry -> entry.getValue().equals(local)).map(Map.Entry::getKey).findFirst().orElse(local));
         if (id == null) return null;
         var node = source.tree().get().get(id);
         if (node == null || node.advancement().display().isEmpty() || node.root().advancement().display().isEmpty()) return null;

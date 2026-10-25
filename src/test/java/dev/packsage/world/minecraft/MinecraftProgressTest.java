@@ -212,15 +212,12 @@ class MinecraftProgressTest {
         world.add(displayed("spoiler:second", root, true, "c"));
         var snapshot = run(reader.snapshot(world.source()), new int[1]);
         var first = snapshot.entries().get(1).handle().id().local();
-        var second = snapshot.entries().get(2).handle().id().local();
-        assertFalse(first.equals(second));
+        assertFalse(first.equals(snapshot.entries().get(2).handle().id().local()));
         assertFalse(new com.google.gson.Gson().toJson(snapshot).contains("spoiler"));
 
         var other = new World();
-        var otherRoot = other.add(displayed("test:root", null, false, "c"));
-        other.add(displayed("spoiler:first", otherRoot, true, "c"));
-        var otherSnapshot = run(reader.snapshot(other.source()), new int[1]);
-        assertFalse(first.equals(otherSnapshot.entries().get(1).handle().id().local()));
+        other.add(displayed("spoiler:first", other.add(displayed("test:root", null, false, "c")), true, "c"));
+        assertFalse(first.equals(run(reader.snapshot(other.source()), new int[1]).entries().get(1).handle().id().local()));
         assertNull(reader.inspect(other.source(), first));
         assertNotNull(reader.inspect(world.source(), first));
     }

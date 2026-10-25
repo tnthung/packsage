@@ -148,6 +148,21 @@ class JournalHooksTest {
     }
 
     @Test
+    void closingAnUntrackedMenuDoesNotReadThePlayerOrContents() throws ReflectiveOperationException {
+        var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var player = (net.minecraft.server.level.ServerPlayer) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, net.minecraft.server.level.ServerPlayer.class);
+        var hooks = new JournalHooks(new Journal(Runnable::run), () -> null);
+        var close = JournalHooks.class.getDeclaredMethod("closeContainer", net.minecraft.server.level.ServerPlayer.class,
+                net.minecraft.world.inventory.AbstractContainerMenu.class);
+        close.setAccessible(true);
+        // An uninitialized player and absent menu fail if extraction gets past the session guard.
+        assertDoesNotThrow(() -> close.invoke(hooks, player, null));
+    }
+
+    @Test
     void callbacksWithoutAnIntegratedServerDoNotTouchSessionTrackerCounters() {
         var journal = new Journal(Runnable::run);
         var hooks = new JournalHooks(journal, () -> null);

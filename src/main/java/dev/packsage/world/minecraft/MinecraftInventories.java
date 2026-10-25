@@ -471,7 +471,7 @@ public final class MinecraftInventories implements InventoryReader {
         return new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unavailable"), "detail", new Evidence.JsonString(detail)));
     }
 
-    private static void putEnchantments(Map<String, Evidence.JsonValue> values, String key, ItemEnchantments enchantments) {
+    static void putEnchantments(Map<String, Evidence.JsonValue> values, String key, ItemEnchantments enchantments) {
         if (enchantments == null || enchantments.isEmpty()) return;
         var levels = new LinkedHashMap<String, Evidence.JsonValue>();
         for (var entry : enchantments.entrySet()) {

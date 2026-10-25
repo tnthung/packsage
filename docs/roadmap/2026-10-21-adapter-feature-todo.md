@@ -74,6 +74,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### Progress and statistics (v2)
 
+- [ ] Minecraft — installed byte-aware progress/statistics pages with safe long-text truncation and exact continuation after delivered records; automated wire and completed-snapshot regressions pass in the [world review fixes](../validation/2026-10-26-world-review-fixes.md).
 - [ ] Minecraft — installed public-node advancement reference snapshots with bounded root/sibling processing and hidden-alias ordering; [20,000-node automated regressions pass](../validation/2026-10-26-world-review-fixes.md), live acceptance pending.
 - [ ] Minecraft — fresh progress-tree evidence rereads with current counts and removed-tree refusal: implemented with automated regressions; installed acceptance pending.
 - [ ] Minecraft — installed large-counter pacing and changing-counter retry checks after the bounded traversal fix; [automated batch-count and restart regressions pass](../validation/2026-10-26-world-review-fixes.md).
@@ -91,7 +92,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### Developer prompt persistence (v2)
 
-- [ ] PackSage — debug prompt saves and final conflict restores persist off the client thread and retain concurrent screen saves: blocked-restore responsiveness, both save orderings, failure, validation and reset regressions pass; installed acceptance pending.
+- [ ] PackSage — all settings saves use one asynchronous writer and bridge/developer prompts publish before persistence: stalled-writer client saves, generation ordering, stale copies, timeout consistency and shutdown flushing regressions pass; installed acceptance pending.
 
 ### Inventory and equipment inspection
 

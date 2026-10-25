@@ -175,6 +175,16 @@ class ScreenTextTest {
     }
 
     @Test
+    void progressTargetsReadOpenAdvancements() {
+        var target = new Evidence.NavigationTarget(SCOPE, "progress", "progress|minecraft/minecraft:story/mine_stone",
+                "advancement|minecraft:story/root|minecraft:story/mine_stone");
+        assertEquals("Open advancements: mine_stone", ScreenText.navigationLabel(target));
+        var bare = new Evidence.NavigationTarget(SCOPE, "progress", "progress|examplemod/examplemod:root",
+                "advancement|examplemod:root|examplemod:root");
+        assertEquals("Open advancements: root", ScreenText.navigationLabel(bare));
+    }
+
+    @Test
     void registeredLocalControlsAppearAtTheirMarkersWithoutOpaqueIdsOrASeparateCollection() {
         var target = new Evidence.NavigationTarget(SCOPE, "config", "book#entry", "entry#1@lifecycle");
         var spans = ScreenText.inlineLines("Before [config:book#entry] after.", List.of(target)).getFirst().spans();

@@ -365,7 +365,7 @@ public final class ProgressTools implements KnowledgeProvider {
     private CompletionStage<Evidence.Result> reread(String handle, Evidence.Scope scope) {
         if (handle.startsWith("tree|")) {
             return listProgress(new PackSageTools.ReadRequest("list_progress", new Evidence.JsonObject(Map.of(
-                    "tree", new Evidence.JsonString(ProgressId.parse(handle.substring(5)).text())))), scope)).thenApply(result -> {
+                    "tree", new Evidence.JsonString(ProgressId.parse(handle.substring(5)).text()))), scope)).thenApply(result -> {
                 var records = result.records().stream().filter(record -> record.source().sourceHandle().equals(handle)).toList();
                 if (records.isEmpty()) {
                     if (result.coverage() != Evidence.Coverage.COMPLETE) throw new Failure(Code.EXTRACTION_FAILED, result.detail());

@@ -57,6 +57,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -387,11 +388,12 @@ public final class ClientAssistant {
         world.register(new MinecraftEntities());
         world.register(new MinecraftProgress());
         world.register(new MinecraftStatistics());
-        providers.add(new WorldTools(client, world, scope, workerExecutor, serverWork, () -> client.submit(() -> GameplayContextCapture.focus(client))));
+        var worldTools = new WorldTools(client, world, scope, workerExecutor, serverWork,
+                () -> client.submit(() -> GameplayContextCapture.focus(client)), journal.notes()::place);
+        providers.add(worldTools);
         providers.add(new ProgressTools(client, world, scope, workerExecutor, serverWork));
         providers.add(new JournalTools(journal, scope, workerExecutor, client::getSingleplayerServer,
-                anchor -> CompletableFuture.failedFuture(new dev.packsage.knowledge.Toolbox.Failure(
-                        dev.packsage.knowledge.Toolbox.Code.UNAVAILABLE, "journal anchor resolution is not available yet"))));
+                worldTools::resolveAnchor));
         return new KnowledgeService(providers, scope);
     }
 
@@ -404,7 +406,7 @@ public final class ClientAssistant {
             }));
             return;
         }
-        client.setScreen(new AssistantSettingsScreen(settings, settingsPath, net.minecraft.network.chat.Component.literal("PackSage Settings"),
+        client.setScreen(new AssistantSettingsScreen(settings, settingsPath, Component.literal("PackSage Settings"),
                 runtime, () -> {
                     settingsOpen = false;
                     if (assistantScreen != null) client.setScreen(assistantScreen);
@@ -427,7 +429,7 @@ public final class ClientAssistant {
             var result = new StringBuilder(bytes.length * 2);
             for (byte byteValue : bytes) result.append(String.format("%02x", byteValue));
             return result.toString();
-        } catch (java.security.NoSuchAlgorithmException impossible) {
+        } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("SHA-256 is unavailable", impossible);
         }
     }

@@ -1,5 +1,6 @@
 package dev.packsage.world;
 
+import dev.packsage.journal.NoteBook;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.Toolbox;
@@ -143,6 +144,7 @@ public final class WorldTools implements KnowledgeProvider {
     private final Executor worker;
     private final ServerWork work;
     private final WorldNavigation navigation;
+    private final Function<String, BlockPlace> notePlaces;
     private final Supplier<CompletionStage<ClientFocus>> focus;
     private final WorldKnowledgeTools knowledge;
     private final Map<String, Cursor> cursors = new LinkedHashMap<>(16, 0.75f, true);
@@ -159,13 +161,24 @@ public final class WorldTools implements KnowledgeProvider {
      */
     public WorldTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
                       Supplier<CompletionStage<ClientFocus>> focus) {
+        this(client, registry, scope, worker, work, focus, id -> null);
+    }
+
+    public WorldTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
+                      Supplier<CompletionStage<ClientFocus>> focus, Function<String, BlockPlace> notePlaces) {
         this(client::getSingleplayerServer, registry, scope, worker, work, focus, WorldNavigation.blockLookup(client::getSingleplayerServer),
-                WorldNavigation.entityLookup(client::getSingleplayerServer), WorldNavigation.client(client));
+                WorldNavigation.entityLookup(client::getSingleplayerServer), WorldNavigation.client(client), notePlaces);
     }
 
     /** Highlights check {@code blockExists} and {@code entityPlace} before drawing through {@code client}. */
     WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
                Supplier<CompletionStage<ClientFocus>> focus, Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace, WorldNavigation.Client client) {
+        this(server, registry, scope, worker, work, focus, blockExists, entityPlace, client, id -> null);
+    }
+
+    WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
+               Supplier<CompletionStage<ClientFocus>> focus, Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace,
+               WorldNavigation.Client client, Function<String, BlockPlace> notePlaces) {
         this.server = server;
         this.registry = registry;
         this.scope = scope;
@@ -174,6 +187,7 @@ public final class WorldTools implements KnowledgeProvider {
         this.focus = focus;
         this.scan = new AreaScan(registry);
         this.navigation = new WorldNavigation(blockExists, entityPlace, client);
+        this.notePlaces = notePlaces;
         this.knowledge = new WorldKnowledgeTools(this);
     }
 
@@ -894,6 +908,19 @@ public final class WorldTools implements KnowledgeProvider {
 
     // Live lookups; server thread only
 
+    public CompletionStage<BlockPlace> resolveAnchor(Anchor anchor) {
+        try {
+            var server = server();
+            return run(server, once(() -> {
+                var center = center(server, anchor);
+                var pos = BlockPos.containing(center.position());
+                return new BlockPlace(center.dimension(), pos.getX(), pos.getY(), pos.getZ());
+            }));
+        } catch (Failure failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
     Center center(MinecraftServer server, Anchor anchor) {
         return switch (anchor) {
             case Anchor.Player player -> {
@@ -908,6 +935,11 @@ public final class WorldTools implements KnowledgeProvider {
             case Anchor.OfBlock of -> {
                 level(server, of.place().dimension());
                 yield new Center(of.place().dimension(), Vec3.atCenterOf(new BlockPos(of.place().x(), of.place().y(), of.place().z())));
+            }
+            case Anchor.OfNote of -> {
+                var place = notePlaces.apply(of.id());
+                if (place == null) throw new Failure(Code.UNAVAILABLE, "note " + of.id() + " has no saved place");
+                yield new Center(place.dimension(), Vec3.atCenterOf(new BlockPos(place.x(), place.y(), place.z())));
             }
         };
     }
@@ -1256,7 +1288,12 @@ public final class WorldTools implements KnowledgeProvider {
                 }
                 yield new Anchor.OfBlock(place(place.value()));
             }
-            default -> throw invalid("anchor type must be player, entity or block");
+            case "note" -> {
+                if (!keys.equals(Set.of("type", "id")) || !(object.values().get("id") instanceof Evidence.JsonString id)
+                        || !NoteBook.isId(id.value())) throw invalid("a note anchor takes exactly a saved note id");
+                yield new Anchor.OfNote(id.value());
+            }
+            default -> throw invalid("anchor type must be player, entity, block or note");
         };
     }
 
@@ -1536,6 +1573,7 @@ public final class WorldTools implements KnowledgeProvider {
             case Anchor.Player player -> "player";
             case Anchor.OfEntity of -> "entity:" + of.id();
             case Anchor.OfBlock of -> "block:" + of.place().text();
+            case Anchor.OfNote of -> "note:" + of.id();
         };
     }
 

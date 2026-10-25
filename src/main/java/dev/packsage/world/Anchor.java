@@ -11,4 +11,7 @@ public sealed interface Anchor {
 
     record OfBlock(BlockPlace place) implements Anchor {
     }
+
+    record OfNote(String id) implements Anchor {
+    }
 }

@@ -137,7 +137,7 @@ final class ScreenText {
     private static String markerTag(String provider, String handle) {
         return "[" + switch (provider) {
             case "native" -> "game";
-            case "journal" -> "in world";
+            case "journal" -> handle.startsWith("note:") ? "note" : "journal";
             default -> provider; // config
         } + "]";
     }
@@ -688,11 +688,14 @@ final class ScreenText {
 
     /** World targets highlight something in place rather than opening a screen. */
     static String navigationVerb(Evidence.NavigationTarget target) {
-        return "world".equals(target.providerId()) ? "Show" : "Open";
+        return "world".equals(target.providerId()) || "journal".equals(target.providerId()) ? "Show" : "Open";
     }
 
     static String navigationLabel(Evidence.NavigationTarget target) {
         String id = target.targetId();
+        if ("journal".equals(target.providerId())) {
+            return id.startsWith("journal-note|") ? "Show noted place" : "Show in world: " + id.substring(id.indexOf('|') + 1);
+        }
         if ("world".equals(target.providerId())) return "Show in world: " + id.substring(id.indexOf('|') + 1);
         if ("progress".equals(target.providerId())) {
             String advancement = withoutNamespace(id.substring(id.lastIndexOf('|') + 1));

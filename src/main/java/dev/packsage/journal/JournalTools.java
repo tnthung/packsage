@@ -3,12 +3,14 @@ package dev.packsage.journal;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.packsage.client.highlight.WorldHighlighter;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.world.Anchor;
 import dev.packsage.world.BlockPlace;
 import dev.packsage.world.WorldTools;
+import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
 
 import java.time.Instant;
@@ -37,15 +39,33 @@ public final class JournalTools implements KnowledgeProvider {
     private final Executor worker;
     private final Supplier<MinecraftServer> server;
     private final Function<Anchor, CompletionStage<BlockPlace>> anchors;
+    private final JournalNavigation.Client client;
     private final Map<String, Cursor> cursors = new LinkedHashMap<>(16, 0.75f, true);
 
     public JournalTools(Journal journal, Supplier<Evidence.Scope> scope, Executor worker, Supplier<MinecraftServer> server,
                         Function<Anchor, CompletionStage<BlockPlace>> anchors) {
+        this(journal, scope, worker, server, anchors, new JournalNavigation.Client() {
+            @Override
+            public String dimension() {
+                var level = Minecraft.getInstance().level;
+                return level == null ? null : level.dimension().location().toString();
+            }
+
+            @Override
+            public void highlightBlock(BlockPlace place, long untilMillis) {
+                WorldHighlighter.highlightPlace(place, untilMillis);
+            }
+        });
+    }
+
+    JournalTools(Journal journal, Supplier<Evidence.Scope> scope, Executor worker, Supplier<MinecraftServer> server,
+                 Function<Anchor, CompletionStage<BlockPlace>> anchors, JournalNavigation.Client client) {
         this.journal = journal;
         this.scope = scope;
         this.worker = worker;
         this.server = server;
         this.anchors = anchors;
+        this.client = client;
     }
 
     @Override
@@ -273,8 +293,19 @@ public final class JournalTools implements KnowledgeProvider {
     }
 
     @Override
+    public CompletionStage<Evidence.NavigationTarget> refreshNavigation(Evidence.NavigationTarget target, Evidence.Scope requested) {
+        if (!requested.equals(scope.get())) return CompletableFuture.completedFuture(null);
+        return new JournalNavigation(journal.notes(), client).refresh(target, requested);
+    }
+
+    @Override
     public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope requested) {
-        return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "journal highlights are not available yet");
+        if (!requested.equals(scope.get()) || !target.scope().equals(requested)) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "journal scope changed; repeat the lookup");
+        }
+        if (!ID.equals(target.providerId())) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "different navigation owner");
+        if (!enabled()) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, status().detail());
+        return new JournalNavigation(journal.notes(), client).open(target);
     }
 
     private static Evidence.Record record(JournalEntry entry, Evidence.Scope scope, long now, boolean area, Evidence.Coverage coverage) {
@@ -287,7 +318,7 @@ public final class JournalTools implements KnowledgeProvider {
             var note = report.note();
             handle = "note:" + note.id();
             title = note.text();
-            target = note.place() == null ? null : "journal-note|" + note.id();
+            target = note.place() == null ? null : JournalNavigation.noteId(note.id());
             authority = report.authority();
             payload.addProperty("type", "note");
             payload.addProperty("id", note.id());

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -110,8 +111,10 @@ class JournalNavigationTest {
         var store = new ConversationStore(directory.resolve("chat"), Runnable::run);
         var conversation = store.newConversation(world).toCompletableFuture().join();
         var targets = List.of(target(JournalNavigation.noteId(ID)), target(JournalNavigation.placeId(PLACE)));
+        var source = new Evidence.Source(SCOPE, JournalTools.ID, JournalTools.VERSION, "note:" + ID, 1, Instant.EPOCH,
+                Evidence.Activity.INACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.PLAYER_REPORTED, List.of());
         store.appendTurn(world, SCOPE, conversation.id(), new ChatContracts.Turn(new ChatContracts.RequestId("saved"), "Where is my farm?",
-                "Here.", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(), targets,
+                "Here.", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(source), targets,
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
         var file = directory.resolve("journal.db");
         try (var database = JournalStore.open(file)) {

@@ -78,40 +78,22 @@ class RequestControllerTest {
                         prepared.submission().outputBudget()), ignored -> { }, completed::add);
         controller.showConversation(seeded, SCOPE_A);
 
-        LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
-        LoggerConfig loggerConfig = loggerContext.getConfiguration().getLoggerConfig(PackSageLog.LOGGER.getName());
-        Level originalLevel = loggerConfig.getLevel();
         AtomicBoolean armed = new AtomicBoolean(true);
         AtomicReference<Throwable> stopFailure = new AtomicReference<>();
         AtomicReference<Thread> callbackThread = new AtomicReference<>();
-        AbstractAppender appender = new AbstractAppender("request-controller-accepted-stop", null, null, true,
-                Property.EMPTY_ARRAY) {
-            @Override
-            public void append(LogEvent event) {
-                if (event.getMessage().getFormattedMessage().contains("request=accepted-stop phase=accepted")
-                        && armed.compareAndSet(true, false)) {
-                    callbackThread.set(Thread.currentThread());
-                    try {
-                        controller.stop();
-                    } catch (Throwable failure) {
-                        stopFailure.set(failure);
-                    }
+        CompletionStage<ChatContracts.RequestId> started;
+        try (var capture = new LogCapture(line -> {
+            if (line.contains("request=accepted-stop phase=accepted") && armed.compareAndSet(true, false)) {
+                callbackThread.set(Thread.currentThread());
+                try {
+                    controller.stop();
+                } catch (Throwable failure) {
+                    stopFailure.set(failure);
                 }
             }
-        };
-        appender.start();
-        loggerConfig.setLevel(Level.INFO);
-        loggerConfig.addAppender(appender, Level.INFO, null);
-        loggerContext.updateLoggers();
-        CompletionStage<ChatContracts.RequestId> started;
-        try {
+        })) {
             started = controller.begin(submission("accepted-stop", WORLD_A, SCOPE_A, false,
                     new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.DISABLED, 4_096));
-        } finally {
-            loggerConfig.removeAppender(appender.getName());
-            loggerConfig.setLevel(originalLevel);
-            loggerContext.updateLoggers();
-            appender.stop();
         }
 
         assertFalse(armed.get(), "the accepted phase was intercepted exactly once");
@@ -1298,20 +1280,7 @@ class RequestControllerTest {
                         new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
                 ignored -> response, ignored -> { });
         List<String> lines = new ArrayList<>();
-        LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
-        LoggerConfig loggerConfig = loggerContext.getConfiguration().getLoggerConfig(PackSageLog.LOGGER.getName());
-        Level originalLevel = loggerConfig.getLevel();
-        AbstractAppender appender = new AbstractAppender("tool-timing", null, null, true, Property.EMPTY_ARRAY) {
-            @Override
-            public void append(LogEvent event) {
-                lines.add(event.getMessage().getFormattedMessage());
-            }
-        };
-        appender.start();
-        loggerConfig.setLevel(Level.INFO);
-        loggerConfig.addAppender(appender, Level.INFO, null);
-        loggerContext.updateLoggers();
-        try {
+        try (var capture = new LogCapture(lines::add)) {
             controller.begin(submission("tool-timing", WORLD_A, SCOPE_A, false, new ChatContracts.HistoryLimits(10, 12_000),
                     ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
             ModelBackend.ToolCall call = new ModelBackend.ToolCall("first", "lookup", "{\"secret\":\"do-not-log\"}");
@@ -1332,11 +1301,6 @@ class RequestControllerTest {
             assertTrue(lines.get(lines.indexOf(summary) + 1).contains("phase=model_terminal"));
             assertEquals(ChatContracts.OutcomeStatus.COMPLETED, controller.view().conversation().turns().getFirst().outcome().status());
             assertFalse(lines.stream().anyMatch(line -> line.contains("do-not-log")));
-        } finally {
-            loggerConfig.removeAppender(appender.getName());
-            loggerConfig.setLevel(originalLevel);
-            loggerContext.updateLoggers();
-            appender.stop();
         }
     }
 
@@ -1350,26 +1314,13 @@ class RequestControllerTest {
                         new ModelBackend.ToolResult(request.call().callId(), "\u00e9", true),
                         new ChatContracts.EvidenceSelection(List.of(), List.of()))), ignored -> { });
         List<String> lines = new ArrayList<>();
-        LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
-        LoggerConfig loggerConfig = loggerContext.getConfiguration().getLoggerConfig(PackSageLog.LOGGER.getName());
-        Level originalLevel = loggerConfig.getLevel();
-        AbstractAppender appender = new AbstractAppender("pending-tool-timing", null, null, true, Property.EMPTY_ARRAY) {
-            @Override
-            public void append(LogEvent event) {
-                lines.add(event.getMessage().getFormattedMessage());
-            }
-        };
         backend.onStart = listener -> {
             listener.accept(toolEvent("early", "lookup", "{}"));
             assertEquals(ChatContracts.ActivityStatus.FAILED, controller.view().activities().getFirst().status());
             assertTrue(backend.submitted.isEmpty());
             assertFalse(lines.stream().anyMatch(line -> line.contains("phase=tool_result_sent")));
         };
-        appender.start();
-        loggerConfig.setLevel(Level.INFO);
-        loggerConfig.addAppender(appender, Level.INFO, null);
-        loggerContext.updateLoggers();
-        try {
+        try (var capture = new LogCapture(lines::add)) {
             controller.begin(submission("pending-tool-timing", WORLD_A, SCOPE_A, false,
                     new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))
                     .toCompletableFuture().join();
@@ -1377,11 +1328,6 @@ class RequestControllerTest {
             assertEquals(1, backend.submitted.size());
             assertEquals(1, lines.stream().filter(line -> line.contains("phase=tool_result_sent call=early tool=lookup event_ns=")
                     && line.contains(" toolMs=") && line.contains(" resultBytes=2 error=true")).count());
-        } finally {
-            loggerConfig.removeAppender(appender.getName());
-            loggerConfig.setLevel(originalLevel);
-            loggerContext.updateLoggers();
-            appender.stop();
         }
     }
 
@@ -1397,20 +1343,7 @@ class RequestControllerTest {
                     return response;
                 }, ignored -> { });
         List<String> lines = new ArrayList<>();
-        LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
-        LoggerConfig loggerConfig = loggerContext.getConfiguration().getLoggerConfig(PackSageLog.LOGGER.getName());
-        Level originalLevel = loggerConfig.getLevel();
-        AbstractAppender appender = new AbstractAppender("stale-tool-timing", null, null, true, Property.EMPTY_ARRAY) {
-            @Override
-            public void append(LogEvent event) {
-                lines.add(event.getMessage().getFormattedMessage());
-            }
-        };
-        appender.start();
-        loggerConfig.setLevel(Level.INFO);
-        loggerConfig.addAppender(appender, Level.INFO, null);
-        loggerContext.updateLoggers();
-        try {
+        try (var capture = new LogCapture(lines::add)) {
             controller.begin(submission("stale-tool-timing", WORLD_A, SCOPE_A, false,
                     new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))
                     .toCompletableFuture().join();
@@ -1434,11 +1367,6 @@ class RequestControllerTest {
             assertTrue(backend.submittedByRequest.get("stale-tool-timing").isEmpty());
             assertEquals(List.of("new"), backend.submittedByRequest.get("fresh-tool-timing").stream()
                     .map(ModelBackend.ToolResult::serializedResult).toList());
-        } finally {
-            loggerConfig.removeAppender(appender.getName());
-            loggerConfig.setLevel(originalLevel);
-            loggerContext.updateLoggers();
-            appender.stop();
         }
     }
 

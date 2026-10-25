@@ -70,10 +70,17 @@ public final class MinecraftInventories implements InventoryReader {
     private static final EquipmentSlot[] ARMOR = {EquipmentSlot.FEET, EquipmentSlot.LEGS, EquipmentSlot.CHEST, EquipmentSlot.HEAD};
     private static final EquipmentSlot[] HANDS = {EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND};
 
-    /** slots is the reported size (-1 = keyed); size bounds the entries actually readable. */
-    private record Part(String section, String label, SlotRole role, int slots, int size, IntFunction<ItemStack> slot) {
+    /**
+     * slots is the reported size (-1 = keyed); size bounds the entries actually readable. pendingLoot is the loot table
+     * of a section whose loot is not generated yet, or null.
+     */
+    record Part(String section, String label, SlotRole role, int slots, int size, IntFunction<ItemStack> slot, String pendingLoot) {
+        Part(String section, String label, SlotRole role, int slots, int size, IntFunction<ItemStack> slot) {
+            this(section, label, role, slots, size, slot, null);
+        }
+
         InventoryInfo info() {
-            return new InventoryInfo(new InventoryId(ADAPTER, section), label, slots, role);
+            return new InventoryInfo(new InventoryId(ADAPTER, section), label, slots, role, pendingLoot);
         }
     }
 
@@ -131,12 +138,13 @@ public final class MinecraftInventories implements InventoryReader {
         return new Part(section, label, role, count, count, slot);
     }
 
-    private static Part unopenedLoot(String label, int slots, RandomizableContainer... halves) {
+    static Part unopenedLoot(String label, int slots, RandomizableContainer... halves) {
         for (var half : halves) {
             if (half.getLootTable() != null) {
                 // Reading the slots would generate the loot, so report the pending table and no items.
-                return new Part("container", label + ", loot not generated (" + half.getLootTable().location() + ")",
-                        SlotRole.STORAGE, slots, 0, index -> ItemStack.EMPTY);
+                var table = half.getLootTable().location().toString();
+                return new Part("container", label + ", loot not generated (" + table + ")",
+                        SlotRole.STORAGE, slots, 0, index -> ItemStack.EMPTY, table);
             }
         }
         return null;
@@ -231,8 +239,9 @@ public final class MinecraftInventories implements InventoryReader {
         }
         if (entity instanceof ContainerEntity container) {
             if (container.getLootTable() != null) {
-                return List.of(new Part("container", "Container, loot not generated (" + container.getLootTable().location() + ")",
-                        SlotRole.STORAGE, container.getContainerSize(), 0, index -> ItemStack.EMPTY));
+                var table = container.getLootTable().location().toString();
+                return List.of(new Part("container", "Container, loot not generated (" + table + ")",
+                        SlotRole.STORAGE, container.getContainerSize(), 0, index -> ItemStack.EMPTY, table));
             }
             return List.of(container("container", "Container", SlotRole.STORAGE, container, 0, container.getContainerSize()));
         }

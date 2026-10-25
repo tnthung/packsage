@@ -605,7 +605,7 @@ public final class WorldTools implements KnowledgeProvider {
                     notes.add("Slot facts of " + info.id().text() + " failed: " + describe(exception));
                 }
             }
-            summaries.add(new InventorySummary(info, info.slots() >= 0 ? info.slots() - occupied : null));
+            summaries.add(inventorySummary(info, occupied, notes));
         }
         if (unreadTooltips[0] > 0) notes.add(ItemSearch.unreadTooltipsNote(unreadTooltips[0]));
         // Only a block, entity or player holder has a summary record; an item's inventories show on inspect_item.
@@ -613,6 +613,19 @@ public final class WorldTools implements KnowledgeProvider {
                 ? new Evidence.JsonObject(Map.of("selectedSlot", number(of.player().getInventory().selected))) : new Evidence.JsonObject(Map.of()));
         return new ItemsRead(grouper.entries(), null, notes.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
                 notes.isEmpty() ? null : String.join("; ", notes), null, summary, slotFacts);
+    }
+
+    /**
+     * One listed inventory with its empty slots: null for keyed sections, and for a section whose loot is not generated
+     * yet, which gets a note instead because its contents are not decided.
+     */
+    static InventorySummary inventorySummary(InventoryInfo info, int occupied, Set<String> notes) {
+        if (info.pendingLoot() != null) {
+            notes.add(info.id().text() + "'s loot has not been generated yet (table " + info.pendingLoot()
+                    + "); its contents are decided when it is first opened");
+            return new InventorySummary(info, null);
+        }
+        return new InventorySummary(info, info.slots() >= 0 ? info.slots() - occupied : null);
     }
 
     /**

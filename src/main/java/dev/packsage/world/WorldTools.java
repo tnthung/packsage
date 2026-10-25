@@ -1568,21 +1568,27 @@ public final class WorldTools implements KnowledgeProvider {
 
     // Records
 
-    /** The block page's note, the notable cap, a cut entity list's list_entities pointer, then the entity page's load notes. */
+    /** The block page's note, the notable cap, a cut entity list's list_entities pointer, then concrete entity gaps. */
     static List<String> areaNotes(Page<BlockSummary> blocks, Page<EntityHandle> entities) {
         var notes = new LinkedHashSet<String>();
         if (blocks.note() != null) notes.add(blocks.note());
         if (blocks.items().getFirst().notable().size() >= AreaScan.SUMMARY_NOTABLE) {
             notes.add("Notable blocks reached the " + AreaScan.SUMMARY_NOTABLE + " cap; use list_blocks with a filter for the rest");
         }
-        // inspect_area returns no cursor, so a cut entity page points at list_entities and keeps only its load notes,
-        // never its cursor instructions.
+        // inspect_area returns no cursor, so translate paging instructions and keep concrete omission reasons.
         if (entities.nextCursor() != null) {
             notes.add(entities.items().size() >= AreaScan.LIST_PAGE
                     ? "More than " + AreaScan.LIST_PAGE + " entities are in range; use list_entities with a filter for the rest"
                     : "The entity scan stopped at the per-call work limit; use list_entities for the rest");
         }
-        if (entities.loadNote() != null) notes.add(entities.loadNote());
+        if (entities.note() != null) {
+            for (var part : entities.note().split("; ")) {
+                if (part.equals(AreaScan.PAGE_LIMIT_NOTE.split("; ")[0]) || part.equals("continue with the cursor")
+                        || part.startsWith("Stopped at the per-call work limit") || part.startsWith("The read spanned multiple server ticks")
+                        || part.startsWith("game-time span:")) continue;
+                notes.add(part);
+            }
+        }
         return List.copyOf(notes);
     }
 

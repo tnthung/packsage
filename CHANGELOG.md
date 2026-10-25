@@ -4,7 +4,7 @@
 
 ### 2026-10-26
 
-- Unearned hidden advancements now use opaque world-session references instead of identifiers that reveal their names. Listings, dependencies, saved evidence rereads and hidden tree roots preserve redaction and counts; earning an entry restores its real identifier and title. Automated regression checks pass; the live P5 recheck is pending.
+- Unearned hidden advancements now use opaque world-session references instead of identifiers that reveal their names. Listings, dependencies, saved evidence rereads and hidden tree roots preserve redaction and counts. Real-id inspection returns not found, and hidden entries follow visible siblings in alias order so their position does not hint at their paths. Earning an entry restores its real identifier, title and visible ordering. Automated regression checks pass; the live P5 recheck is pending.
 
 ### 2026-10-25
 

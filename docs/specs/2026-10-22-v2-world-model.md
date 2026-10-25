@@ -244,6 +244,8 @@ trait ProgressReader {
 
 The Minecraft adapter implements this for advancements, including per-criterion state such as the biomes still missing for *Adventuring Time*. A hidden advancement reveals only its existence and count until earned: use an opaque id stable within the world session for listings, dependencies, inspection and evidence rereads, with no real namespace or path in any returned field. Hidden roots also use opaque tree ids and generic titles, with no navigation target. Counts stay unchanged; once earned, an entry uses its real id and title. Opaque references remain resolvable after earning within the same session; they are not persistent navigation identities across server sessions.
 
+While a hidden advancement is unearned, inspection resolves it only through its opaque alias. Looking it up by its real id returns the same not-found result as a nonexistent id. In each sibling group, visible entries retain content-stable real-id order, followed by unearned hidden entries in session-stable alias order; roots follow the same rule. Hidden entries therefore do not reveal their real paths through their position among visible siblings. Earned hidden advancements return to the visible ordering.
+
 ## Statistics
 
 The game's own counters answer "how many diamonds have I mined?" exactly: blocks mined, items crafted, used, picked up and dropped, mobs killed and killed by, distances, and custom counters such as deaths, jumps and time played.

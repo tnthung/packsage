@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class MinecraftDebugAdapterTest {
     @ParameterizedTest
-    @ValueSource(strings = {"settings", "prompt", "save", "failure", "default", "clear", "invalid"})
+    @ValueSource(strings = {"settings", "prompt", "save", "failure", "default", "clear", "invalid", "conflict"})
     void promptSaveLeavesTheClientResponsiveAndPreservesConcurrentScreenSaves(String concurrent, @TempDir Path directory) throws Exception {
         class Client extends Minecraft {
             java.util.concurrent.Executor executor;
@@ -61,6 +61,11 @@ class MinecraftDebugAdapterTest {
                     if (concurrent.equals("save")) return;
                 }
                 if (concurrent.equals("failure")) throw new IllegalStateException("writer failed");
+                if (concurrent.equals("conflict")) {
+                    if (writes.get() > 3) throw new AssertionError("prompt save retry limit exceeded");
+                    try { clientThread.submit(() -> runtime.settings().save(path)).get(1, java.util.concurrent.TimeUnit.SECONDS); }
+                    catch (Exception failure) { throw new RuntimeException(failure); }
+                }
                 settings.saveDeveloperPrompt(path, text);
             });
             var body = new com.google.gson.JsonObject();
@@ -94,6 +99,15 @@ class MinecraftDebugAdapterTest {
                 assertThrows(java.util.concurrent.ExecutionException.class, () -> response.get(5, java.util.concurrent.TimeUnit.SECONDS));
                 assertNull(runtime.settings().developerPrompt());
                 assertNull(dev.packsage.chat.PackSageSettings.load(path).developerPrompt());
+                return;
+            }
+            if (concurrent.equals("conflict")) {
+                var failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                        () -> response.get(5, java.util.concurrent.TimeUnit.SECONDS));
+                assertInstanceOf(IllegalStateException.class, failure.getCause());
+                assertTrue(failure.getCause().getMessage().contains("conflict"));
+                assertEquals(3, writes.get());
+                assertNull(runtime.settings().developerPrompt());
                 return;
             }
             assertEquals(concurrent.equals("default") || concurrent.equals("clear")

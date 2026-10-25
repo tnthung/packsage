@@ -625,6 +625,31 @@ class WorldToolsTest {
         assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(4)), result.records().getFirst().payload().values().get("selectedSlot"));
         assertEquals(new Evidence.JsonArray(java.util.List.of()), result.records().getFirst().payload().values().get("inventories"));
         registry.register(new InventoryReader() {
+            @Override public String adapterId() { return "fixture"; }
+            @Override public java.util.List<InventoryInfo> inventories(LiveHolder holder) {
+                return holder instanceof LiveHolder.OfPlayer ? java.util.List.of(new InventoryInfo(
+                        new InventoryId("fixture", "storage"), "Storage", 65, SlotRole.STORAGE)) : java.util.List.of();
+            }
+            @Override public LiveInventory open(LiveHolder holder, String section) {
+                return new LiveInventory() {
+                    @Override public net.minecraft.world.item.ItemStack get(String entry) { return null; }
+                    @Override public java.util.List<Map.Entry<String, net.minecraft.world.item.ItemStack>> entries() {
+                        return net.minecraft.core.registries.BuiltInRegistries.ITEM.stream()
+                                .filter(item -> item != net.minecraft.world.item.Items.AIR).limit(65)
+                                .map(item -> Map.entry(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString(),
+                                        new net.minecraft.world.item.ItemStack(item))).toList();
+                    }
+                };
+            }
+            @Override public Section inspectItem(net.minecraft.world.item.ItemStack stack) { return null; }
+        });
+        var large = tools.readEvidence(new PackSageTools.ReadRequest("read_evidence", Evidence.deserializeObject("{\"handles\":[\"saved\"]}"), SCOPE), context);
+        for (int tick = 0; !large.toCompletableFuture().isDone() && tick < 100; tick++) work.tick();
+        assertEquals(1, large.toCompletableFuture().join().records().size());
+        var cursors = WorldTools.class.getDeclaredField("cursors");
+        cursors.setAccessible(true);
+        assertTrue(((Map<?, ?>) cursors.get(tools)).isEmpty(), "a holder reread must not retain an unused item page");
+        registry.register(new InventoryReader() {
             @Override public String adapterId() { return "broken"; }
             @Override public java.util.List<InventoryInfo> inventories(LiveHolder holder) { throw new IllegalStateException("inventory unavailable"); }
             @Override public LiveInventory open(LiveHolder holder, String section) { return null; }

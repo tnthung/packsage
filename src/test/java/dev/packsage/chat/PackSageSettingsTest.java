@@ -62,6 +62,24 @@ class PackSageSettingsTest {
     }
 
     @Test
+    void savingReplacesTheFileWithoutChangingAnAlreadyOpenSnapshot() throws Exception {
+        Path path = temporaryDirectory.resolve("settings.properties");
+        var settings = PackSageSettings.defaults();
+        settings.setDeveloperPrompt("old prompt");
+        settings.save(path);
+        byte[] before = Files.readAllBytes(path);
+        try (InputStream reader = Files.newInputStream(path)) {
+            settings.setDeveloperPrompt("new prompt");
+            settings.save(path);
+            org.junit.jupiter.api.Assertions.assertArrayEquals(before, reader.readAllBytes());
+        }
+        assertEquals("new prompt", PackSageSettings.load(path).developerPrompt());
+        try (var files = Files.list(temporaryDirectory)) {
+            assertEquals(java.util.List.of(path), files.toList());
+        }
+    }
+
+    @Test
     void oneMalformedHistoryLimitDoesNotDiscardTheOtherValidLimit() throws Exception {
         Path path = temporaryDirectory.resolve("partial-settings.properties");
         Files.writeString(path, "historyTurns=31\nhistoricalTokens=not-a-number\n");

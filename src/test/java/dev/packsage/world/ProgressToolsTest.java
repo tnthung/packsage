@@ -132,6 +132,15 @@ class ProgressToolsTest {
         assertEquals(saved.source().sourceHandle(), reread.records().getFirst().source().sourceHandle());
         assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(2)), reread.records().getFirst().payload().values().get("done"));
         assertEquals(saved.targets(), reread.records().getFirst().targets());
+        reader.snapshot = new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 0, 65, true)),
+                java.util.stream.IntStream.range(0, 65).mapToObj(index -> new ProgressEntry(new ProgressHandle(
+                        new ProgressId("minecraft", "minecraft:story/entry_" + index), ROOT, "Entry " + index,
+                        ProgressStatus.AVAILABLE, true), "Entry")).toList(), null);
+        var largeTree = fixture.finish(fixture.tools.readEvidence(request, context));
+        assertEquals(Evidence.Coverage.COMPLETE, largeTree.coverage());
+        assertEquals(1, largeTree.records().size());
+        assertNull(largeTree.nextCursor());
+        assertTrue(largeTree.detail() == null || !largeTree.detail().contains("cursor"), largeTree.detail());
         reader.snapshot = new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 1, 2, true)), List.of(), "snapshot incomplete");
         assertEquals(Evidence.Coverage.PARTIAL, fixture.finish(fixture.tools.readEvidence(request, context)).coverage());
         reader.snapshot = new ProgressSnapshot(List.of(), List.of(), null);

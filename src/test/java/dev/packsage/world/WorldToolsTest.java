@@ -754,7 +754,7 @@ class WorldToolsTest {
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
         var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
-                new Page<>(List.of(new BlockSummary(Map.of("minecraft:stone", 15L), List.of(), 0)), null, Evidence.Coverage.COMPLETE, null),
+                new Page<>(List.of(new BlockSummary(Map.of("minecraft:stone", 15), List.of(), 0)), null, Evidence.Coverage.COMPLETE, null),
                 new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
         var method = WorldTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
         method.setAccessible(true);

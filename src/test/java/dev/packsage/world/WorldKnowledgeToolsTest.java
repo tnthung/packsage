@@ -43,6 +43,36 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldKnowledgeToolsTest {
+    @Test
+    void savedVerdictsConfirmDropOrKeepPredictions() {
+        var hits = java.util.stream.IntStream.range(0, 3).mapToObj(x -> new dev.packsage.world.minecraft.LocateStructure.Hit(
+                "minecraft:test", x, 0, x * 16, 72, 0, dev.packsage.world.minecraft.LocateStructure.Kind.PREDICTED,
+                "placement and biome checks")).toList();
+        var confirmed = WorldKnowledgeTools.confirm(hits, chunk -> dev.packsage.world.minecraft.SavedStarts.Verdict.values()[chunk.x]);
+        assertEquals(2, confirmed.size());
+        assertEquals(dev.packsage.world.minecraft.LocateStructure.Kind.FOUND, confirmed.getFirst().kind());
+        assertEquals("saved chunk", confirmed.getFirst().basis());
+        assertEquals(hits.get(2), confirmed.getLast());
+    }
+
+    @Test
+    void structureRecordsHaveEstimatedYHorizontalDistanceLinksAndPartialCoverage() {
+        var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"structure\":\"minecraft:test\"}"), SCOPE);
+        var hits = List.of(new dev.packsage.world.minecraft.LocateStructure.Hit("minecraft:test", 6, 8, 96, 72, 128,
+                dev.packsage.world.minecraft.LocateStructure.Kind.PREDICTED, "placement and biome checks"));
+        var result = new WorldKnowledgeTools(tools()).structureResult(request,
+                new WorldTools.Center("minecraft:overworld", new Vec3(0, 999, 0)), "minecraft:test", 100,
+                new dev.packsage.world.minecraft.LocateStructure.Result(hits, 2, List.of("packsage:unsupported")), false);
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertNotNull(result.nextCursor());
+        assertTrue(result.detail().contains("packsage:unsupported"));
+        var record = result.records().getFirst();
+        assertEquals("minecraft:test (predicted) at 96, 128", record.title());
+        assertEquals("world-place|minecraft:overworld|96,72,128", record.targets().getFirst().targetId());
+        assertEquals(new Evidence.JsonBoolean(true), record.payload().values().get("yEstimated"));
+        assertEquals(WorldTools.number(160), record.payload().values().get("distanceBlocks"));
+    }
+
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
 
     private static WorldTools tools() {

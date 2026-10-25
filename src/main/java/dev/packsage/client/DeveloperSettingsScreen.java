@@ -96,12 +96,16 @@ public final class DeveloperSettingsScreen extends Screen {
                     if (draft.length() > PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH) { error = "Prompt is too long"; return true; }
                     saving = true;
                     error = null;
-                    settings.saveDeveloperPrompt(path, draft).whenComplete((ignored, failure) -> onSaveComplete(() -> {
-                        saving = false;
-                        if (failure != null) { error = "Could not save settings"; return; }
-                        if (minecraft == null || minecraft.screen == this) finish();
-                        else settings.save(path);
-                    }));
+                    settings.saveDeveloperPrompt(path, draft).whenComplete((ignored, failure) -> {
+                        Runnable completed = () -> {
+                            saving = false;
+                            if (failure != null) { error = "Could not save settings"; return; }
+                            if (minecraft == null || minecraft.screen == this) finish();
+                            else settings.save(path);
+                        };
+                        if (minecraft == null) completed.run();
+                        else minecraft.execute(completed);
+                    });
                     return true;
                 }
             }
@@ -129,8 +133,4 @@ public final class DeveloperSettingsScreen extends Screen {
         returnToAssistant.run();
     }
 
-    private void onSaveComplete(Runnable action) {
-        if (minecraft == null) action.run();
-        else minecraft.execute(action);
-    }
 }

@@ -44,7 +44,6 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;

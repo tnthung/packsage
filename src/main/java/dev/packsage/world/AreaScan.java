@@ -11,6 +11,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.entity.EntitySection;
 import net.minecraft.world.level.entity.LevelEntityGetterAdapter;
 import net.minecraft.world.phys.Vec3;
 
@@ -67,11 +68,15 @@ public final class AreaScan {
         return new EntityListSlice(level, center, radius, filter, cursor);
     }
 
-    /** Copies at most 64 section candidates per step, including nonmatches. Only owned UUIDs survive a step. */
+    /** Visits at most 64 section candidates per step, including nonmatches and resume-anchor checks. */
     static final class EntitySnapshot {
         final NavigableSet<UUID> ids = new TreeSet<>();
         private Long section;
         private int index;
+        private EntitySection<Entity> previousSection;
+        private int previousSize;
+        private UUID previousId;
+        private int rescans;
 
         boolean step(ServerLevel level, ChunkPos pos, Set<String> notes) {
             if (!(level.getEntities() instanceof LevelEntityGetterAdapter<Entity> getter)) {
@@ -79,7 +84,25 @@ public final class AreaScan {
                 return false;
             }
             var storage = getter.sectionStorage;
-            for (int visited = 0; visited < LIST_PAGE; visited++) {
+            int visited = 0;
+            if (index > 0) {
+                var current = storage.getSection(section);
+                var changed = current != previousSection || current == null || !current.getStatus().isAccessible()
+                        || current.storage.allInstances.size() != previousSize;
+                if (!changed) {
+                    visited++;
+                    changed = !previousId.equals(current.storage.allInstances.get(index - 1).getUUID());
+                }
+                if (changed) {
+                    if (++rescans > 3) {
+                        notes.add("An entity section changed repeatedly during acquisition; this chunk snapshot is incomplete");
+                        return false;
+                    }
+                    // ArrayList removals shift unseen entities below the old index; owned UUIDs deduplicate rescans.
+                    index = 0;
+                }
+            }
+            for (; visited < LIST_PAGE; visited++) {
                 if (section == null) {
                     var sections = storage.getChunkSections(pos.x, pos.z);
                     if (sections.isEmpty()) return false;
@@ -88,6 +111,9 @@ public final class AreaScan {
                 var current = storage.getSection(section);
                 if (current != null && current.getStatus().isAccessible() && index < current.storage.allInstances.size()) {
                     var entity = current.storage.allInstances.get(index++);
+                    previousSection = current;
+                    previousSize = current.storage.allInstances.size();
+                    previousId = entity.getUUID();
                     if (entity.chunkPosition().equals(pos)) ids.add(entity.getUUID());
                 } else {
                     // Choose the next section from a fresh sorted view; no engine iterator survives a step.
@@ -95,6 +121,7 @@ public final class AreaScan {
                     if (remaining.isEmpty()) return false;
                     section = remaining.firstLong();
                     index = 0;
+                    rescans = 0;
                 }
             }
             return true;

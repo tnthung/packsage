@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class EventQueueTest {
@@ -74,7 +75,11 @@ class EventQueueTest {
 
     @Test
     void offerNeverBlocksWhileAnotherThreadDrains() throws InterruptedException {
-        var queue = new EventQueue(1_000, EventQueue.OVERFLOW_KEYS);
+        var queue = new EventQueue(16, EventQueue.OVERFLOW_KEYS);
+        var event = sand(1, 1);
+        for (int i = 0; i < 17; i++) {
+            queue.offer(event);
+        }
         var drained = new AtomicLong();
         var overflow = new AtomicLong();
         var done = new AtomicBoolean();
@@ -85,7 +90,6 @@ class EventQueueTest {
             }
         });
         drainer.start();
-        var event = sand(1, 1);
         var offerer = new Thread(() -> {
             for (int i = 0; i < 200_000; i++) {
                 if (i == 150_000) {
@@ -103,8 +107,17 @@ class EventQueueTest {
         drained.addAndGet(queue.drain(Integer.MAX_VALUE).size());
         overflow.addAndGet(queue.drainOverflow().stream().mapToLong(OverflowRow::count).sum());
         assertEquals(50_000, queue.dropped());
+        assertTrue(queue.overflowed() > 0);
         assertEquals(queue.overflowed(), overflow.get());
-        assertEquals(200_000, drained.get() + overflow.get() + queue.dropped());
+        assertEquals(200_017, drained.get() + overflow.get() + queue.dropped());
+    }
+
+    @Test
+    void negativeArgumentsAreRejected() {
+        assertThrows(IllegalArgumentException.class, () -> new EventQueue(-1, EventQueue.OVERFLOW_KEYS));
+        assertThrows(IllegalArgumentException.class, () -> new EventQueue(10, -1));
+        var queue = new EventQueue(10, EventQueue.OVERFLOW_KEYS);
+        assertThrows(IllegalArgumentException.class, () -> queue.drain(-1));
     }
 
     private static JournalEvent sand(long tick, int x) {

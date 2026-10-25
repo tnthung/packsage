@@ -35,10 +35,14 @@ public final class EventQueue {
     private final AtomicInteger size = new AtomicInteger();
     private final AtomicLong overflowed = new AtomicLong();
     private final AtomicLong dropped = new AtomicLong();
-    private final Map<TallyKey, Tally> tallies = new LinkedHashMap<>();
+    private final Object tallyLock = new Object();
+    private Map<TallyKey, Tally> tallies = new LinkedHashMap<>();
     private volatile boolean closed;
 
     public EventQueue(int capacity, int overflowKeys) {
+        if (capacity < 0 || overflowKeys < 0) {
+            throw new IllegalArgumentException("capacity and overflowKeys must not be negative");
+        }
         this.capacity = capacity;
         this.overflowKeys = overflowKeys;
     }
@@ -60,6 +64,9 @@ public final class EventQueue {
 
     /** Takes up to {@code max} queued events in offer order. */
     public List<JournalEvent> drain(int max) {
+        if (max < 0) {
+            throw new IllegalArgumentException("max must not be negative");
+        }
         var drained = new ArrayList<JournalEvent>(Math.min(max, 1_024));
         JournalEvent e;
         while (drained.size() < max && (e = events.poll()) != null) {
@@ -71,13 +78,18 @@ public final class EventQueue {
 
     /** Takes the overflow tallies gathered since the last call, in the order their keys first appeared. */
     public List<OverflowRow> drainOverflow() {
-        synchronized (tallies) {
-            var rows = new ArrayList<OverflowRow>(tallies.size());
-            tallies.forEach((key, tally) -> rows.add(new OverflowRow(key.type(), key.dimension(), key.actor(), key.subject(),
-                    tally.count, tally.amount, tally.firstGameTime, tally.lastGameTime, tally.firstWall, tally.lastWall)));
-            tallies.clear();
-            return rows;
+        Map<TallyKey, Tally> taken;
+        synchronized (tallyLock) {
+            if (tallies.isEmpty()) {
+                return List.of();
+            }
+            taken = tallies;
+            tallies = new LinkedHashMap<>();
         }
+        var rows = new ArrayList<OverflowRow>(taken.size());
+        taken.forEach((key, tally) -> rows.add(new OverflowRow(key.type(), key.dimension(), key.actor(), key.subject(),
+                tally.count, tally.amount, tally.firstGameTime, tally.lastGameTime, tally.firstWall, tally.lastWall)));
+        return rows;
     }
 
     /** The number of events folded into tallies so far. */
@@ -97,7 +109,7 @@ public final class EventQueue {
 
     private void fold(JournalEvent e) {
         var key = new TallyKey(e.type(), e.dimension(), e.actor(), e.subject());
-        synchronized (tallies) {
+        synchronized (tallyLock) {
             var tally = tallies.get(key);
             if (tally == null) {
                 if (tallies.size() >= overflowKeys) {

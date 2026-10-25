@@ -33,7 +33,6 @@ public final class PackSageSettings {
     private String modelId;
     private ModelBackend.ReasoningEffort reasoningEffort;
     private volatile String developerPrompt;
-    private long saveGeneration;
     private final SettingsWriter writer;
 
     public PackSageSettings(boolean openPaused, boolean automaticWebSearch, int historyTurns, int historicalTokens) {
@@ -104,13 +103,11 @@ public final class PackSageSettings {
     }
 
     public CompletableFuture<Void> save(Path path) {
-        saveGeneration = writer.nextGeneration();
-        return observed(writer.submit(path, new SettingsWriter.Snapshot(saveGeneration, properties())));
+        return observed(writer.submit(path, new SettingsWriter.Snapshot(writer.nextGeneration(), properties())));
     }
 
     public CompletableFuture<Void> flushAndClose(Path path) {
-        saveGeneration = writer.nextGeneration();
-        return observed(writer.flushAndClose(path, new SettingsWriter.Snapshot(saveGeneration, properties())));
+        return observed(writer.flushAndClose(path, new SettingsWriter.Snapshot(writer.nextGeneration(), properties())));
     }
 
     private CompletableFuture<Void> observed(CompletableFuture<Void> save) {
@@ -149,17 +146,16 @@ public final class PackSageSettings {
     public ModelBackend.ReasoningEffort reasoningEffort() { return reasoningEffort; }
     public String developerPrompt() { return developerPrompt; }
 
-    public void setOpenPaused(boolean value) { openPaused = value; saveGeneration = writer.nextGeneration(); }
-    public void setAutomaticWebSearch(boolean value) { automaticWebSearch = value; saveGeneration = writer.nextGeneration(); }
-    public void setHideInactiveAdapters(boolean value) { hideInactiveAdapters = value; saveGeneration = writer.nextGeneration(); }
-    public void setSendShortcut(SendShortcut value) { sendShortcut = value == null ? SendShortcut.ENTER : value; saveGeneration = writer.nextGeneration(); }
-    public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; saveGeneration = writer.nextGeneration(); }
-    public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; saveGeneration = writer.nextGeneration(); }
+    public void setOpenPaused(boolean value) { openPaused = value; }
+    public void setAutomaticWebSearch(boolean value) { automaticWebSearch = value; }
+    public void setHideInactiveAdapters(boolean value) { hideInactiveAdapters = value; }
+    public void setSendShortcut(SendShortcut value) { sendShortcut = value == null ? SendShortcut.ENTER : value; }
+    public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; }
+    public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; }
 
     public boolean setDeveloperPrompt(String value) {
         if (value != null && (value.isBlank() || value.length() > MAX_DEVELOPER_PROMPT_LENGTH)) return false;
         developerPrompt = value;
-        saveGeneration = writer.nextGeneration();
         return true;
     }
 
@@ -173,21 +169,18 @@ public final class PackSageSettings {
     public boolean setHistoryTurns(int value) {
         if (value < 1 || value > MAX_HISTORY_TURNS) return false;
         historyTurns = value;
-        saveGeneration = writer.nextGeneration();
         return true;
     }
 
     public boolean setHistoricalTokens(int value) {
         if (value < 1 || value > MAX_HISTORICAL_TOKENS) return false;
         historicalTokens = value;
-        saveGeneration = writer.nextGeneration();
         return true;
     }
 
     public boolean setSessionsBeforeCollapse(int value) {
         if (value < 1 || value > MAX_SESSIONS_BEFORE_COLLAPSE) return false;
         sessionsBeforeCollapse = value;
-        saveGeneration = writer.nextGeneration();
         return true;
     }
 

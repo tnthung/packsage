@@ -11,14 +11,19 @@ import net.minecraft.world.entity.Leashable;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.OwnableEntity;
 import net.minecraft.world.entity.ai.Brain;
+import net.minecraft.world.entity.ai.attributes.AttributeMap;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.ai.gossip.GossipType;
 import net.minecraft.world.entity.animal.IronGolem;
+import net.minecraft.world.entity.animal.horse.AbstractHorse;
 import net.minecraft.world.entity.npc.Villager;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -27,6 +32,7 @@ import java.util.Optional;
 public final class MinecraftEntities implements EntityInspector {
     /** Villager keeps today's restock count private with no accessor; null when the field cannot be read. */
     private static final Field RESTOCKS_TODAY = restocksField();
+    static final int MAX_MODIFIERS = 64;
 
     @Override
     public String adapterId() {
@@ -47,6 +53,11 @@ public final class MinecraftEntities implements EntityInspector {
                         "durationTicks", number(effect.getDuration()))));
             }
             values.put("effects", new Evidence.JsonArray(effects));
+            values.put("attributes", attributes(living.getAttributes()));
+            if (entity instanceof AbstractHorse horse) {
+                values.put("mount", mount(horse.getAttributeValue(Attributes.JUMP_STRENGTH),
+                        horse.getAttributeValue(Attributes.MOVEMENT_SPEED)));
+            }
         }
         var customName = entity.getCustomName();
         if (customName != null) values.put("customName", new Evidence.JsonString(customName.getString()));
@@ -105,6 +116,42 @@ public final class MinecraftEntities implements EntityInspector {
         values.put("gossip", new Evidence.JsonObject(totals));
     }
 
+    /** Every attribute the mob has, with base, current value and modifiers, sorted by id. */
+    static Evidence.JsonArray attributes(AttributeMap map) {
+        var entries = new ArrayList<Evidence.JsonValue>();
+        BuiltInRegistries.ATTRIBUTE.holders()
+                .filter(map::hasAttribute)
+                .sorted(Comparator.comparing(holder -> holder.key().location().toString()))
+                .forEach(holder -> {
+                    var instance = map.getInstance(holder);
+                    var modifiers = new ArrayList<Evidence.JsonValue>();
+                    instance.getModifiers().stream().sorted(Comparator.comparing(modifier -> modifier.id().toString()))
+                            .limit(MAX_MODIFIERS).forEach(modifier -> modifiers.add(new Evidence.JsonObject(Map.of(
+                                    "id", new Evidence.JsonString(modifier.id().toString()),
+                                    "amount", decimal(modifier.amount()),
+                                    "operation", new Evidence.JsonString(modifier.operation().getSerializedName())))));
+                    var fields = new LinkedHashMap<String, Evidence.JsonValue>();
+                    fields.put("id", new Evidence.JsonString(holder.key().location().toString()));
+                    fields.put("base", decimal(instance.getBaseValue()));
+                    fields.put("value", decimal(instance.getValue()));
+                    fields.put("modifiers", new Evidence.JsonArray(modifiers));
+                    if (instance.getModifiers().size() > MAX_MODIFIERS) fields.put("modifiersStatus", new Evidence.JsonString("bounded"));
+                    entries.add(new Evidence.JsonObject(fields));
+                });
+        return new Evidence.JsonArray(entries);
+    }
+
+    /** Jump height and flat-ground speed in blocks for horse-like mobs, from their attributes. */
+    static Evidence.JsonObject mount(double jumpStrength, double movementSpeed) {
+        double height = -0.1817584952 * Math.pow(jumpStrength, 3) + 3.689713992 * Math.pow(jumpStrength, 2)
+                + 2.128599134 * jumpStrength - 0.343930367;
+        var fields = new LinkedHashMap<String, Evidence.JsonValue>();
+        fields.put("jumpHeightBlocks", new Evidence.JsonNumber(BigDecimal.valueOf(height).setScale(2, RoundingMode.HALF_UP)));
+        fields.put("speedBlocksPerSecond", new Evidence.JsonNumber(BigDecimal.valueOf(movementSpeed * 42.16).setScale(2, RoundingMode.HALF_UP)));
+        fields.put("note", new Evidence.JsonString("approximate conversions from the jump_strength and movement_speed attributes"));
+        return new Evidence.JsonObject(fields);
+    }
+
     /** Empty when the memory is absent or not registered for this brain. */
     private static <U> Optional<U> memory(Brain<?> brain, MemoryModuleType<U> type) {
         var memory = brain.getMemoryInternal(type);
@@ -136,6 +183,10 @@ public final class MinecraftEntities implements EntityInspector {
 
     private static Evidence.JsonNumber number(long value) {
         return new Evidence.JsonNumber(BigDecimal.valueOf(value));
+    }
+
+    private static Evidence.JsonValue decimal(double value) {
+        return Double.isFinite(value) ? new Evidence.JsonNumber(BigDecimal.valueOf(value)) : new Evidence.JsonNull();
     }
 
     private static Evidence.JsonValue decimal(float value) {

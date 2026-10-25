@@ -5,6 +5,7 @@ import dev.packsage.knowledge.Evidence;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.MappedRegistry;
+import net.minecraft.core.RegistrationInfo;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.data.registries.VanillaRegistries;
@@ -13,6 +14,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.storage.loot.BuiltInLootTables;
 import net.minecraft.world.level.storage.loot.LootPool;
 import net.minecraft.world.level.storage.loot.LootTable;
 import net.minecraft.world.level.storage.loot.entries.LootItem;
@@ -40,6 +42,13 @@ class MinecraftLootTest {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
         registries = VanillaRegistries.createLookup();
+    }
+
+    /** A loot registry as the game reloads it: no data-pack tables, and the built-in empty table registered. */
+    static HolderLookup.Provider reloadedLoot() {
+        var loot = new MappedRegistry<LootTable>(Registries.LOOT_TABLE, Lifecycle.stable());
+        loot.register(BuiltInLootTables.EMPTY, LootTable.EMPTY, RegistrationInfo.BUILT_IN);
+        return HolderLookup.Provider.create(Stream.of(loot.asLookup()));
     }
 
     private static LootTable zombieLike() {
@@ -145,10 +154,11 @@ class MinecraftLootTest {
         var empty = HolderLookup.Provider.create(Stream.of(new MappedRegistry<>(Registries.LOOT_TABLE, Lifecycle.stable()).asLookup()));
         var unknown = ResourceKey.create(Registries.LOOT_TABLE, ResourceLocation.parse("packsage:nothing_here"));
         assertTrue(MinecraftLoot.lookup(empty, unknown).isEmpty());
+        assertTrue(MinecraftLoot.lookup(reloadedLoot(), unknown).isEmpty());
         assertTrue(MinecraftLoot.encode(LootTable.EMPTY, registries).pools().isEmpty());
         var air = MinecraftLoot.blockTable("minecraft:air");
         assertEquals("minecraft:empty", air.location().toString());
-        var airTable = MinecraftLoot.lookup(empty, air);
+        var airTable = MinecraftLoot.lookup(reloadedLoot(), air);
         assertTrue(airTable.isPresent());
         assertTrue(MinecraftLoot.encode(airTable.get(), registries).pools().isEmpty());
         var page = MinecraftLoot.page(MinecraftLoot.encode(LootTable.EMPTY, registries), 0);

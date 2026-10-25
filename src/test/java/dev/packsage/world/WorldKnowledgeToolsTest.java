@@ -5,20 +5,31 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.world.minecraft.MinecraftLoot;
+import com.mojang.serialization.Lifecycle;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.MappedRegistry;
+import net.minecraft.core.RegistrationInfo;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.level.storage.loot.BuiltInLootTables;
+import net.minecraft.world.level.storage.loot.LootPool;
 import net.minecraft.world.level.storage.loot.LootTable;
+import net.minecraft.world.level.storage.loot.entries.LootItem;
+import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -88,16 +99,104 @@ class WorldKnowledgeToolsTest {
         for (var kind : List.of("block", "entity", "item", "loot", "command")) assertTrue(detail.contains(kind), detail);
     }
 
-    @Test
-    void unknownEmptyAndNoDropTablesAreDistinct() {
+    private static void bootstrap() {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
+    }
+
+    /** A loot registry as the game reloads it, with the built-in empty table registered, plus the given tables. */
+    private static HolderLookup.Provider reloadedLoot(Map<String, LootTable> tables) {
+        var loot = new MappedRegistry<LootTable>(Registries.LOOT_TABLE, Lifecycle.stable());
+        loot.register(BuiltInLootTables.EMPTY, LootTable.EMPTY, RegistrationInfo.BUILT_IN);
+        tables.forEach((id, table) -> loot.register(MinecraftLoot.table(id), table, RegistrationInfo.BUILT_IN));
+        return HolderLookup.Provider.create(Stream.of(loot.asLookup()));
+    }
+
+    private static PackSageTools.ReadRequest lootRequest() {
+        return new PackSageTools.ReadRequest("read_loot", Evidence.deserializeObject("{\"table\":\"minecraft:chests/test\"}"), SCOPE);
+    }
+
+    private static MinecraftLoot.Encoded encoded(int pools, int poolBytes, boolean idsBounded) {
+        var list = new java.util.ArrayList<Evidence.JsonObject>();
+        for (int pool = 0; pool < pools; pool++) list.add(new Evidence.JsonObject(Map.of("filler", new Evidence.JsonString("x".repeat(poolBytes)))));
+        return new MinecraftLoot.Encoded(new Evidence.JsonObject(Map.of()), list, List.of("minecraft:stone"), List.of(), idsBounded);
+    }
+
+    @Test
+    void theServerStepLooksTheTableUpWithoutEncodingIt() {
+        bootstrap();
+        var table = LootTable.lootTable().withPool(LootPool.lootPool().add(LootItem.lootTableItem(Items.ROTTEN_FLESH))).build();
+        var registries = reloadedLoot(Map.of("packsage:test", table));
+        var fetched = WorldKnowledgeTools.fetch(registries, MinecraftLoot.table("packsage:test"), "table", null, null, 7);
+        assertSame(table, fetched.table().orElseThrow());
+        assertSame(registries, fetched.registries());
+        var read = WorldKnowledgeTools.encoded(fetched);
+        assertEquals(List.of("minecraft:rotten_flesh"), read.table().orElseThrow().itemIds());
+        assertEquals(7, read.readAt());
+        assertTrue(WorldKnowledgeTools.fetch(registries, MinecraftLoot.table("packsage:none"), "table", null, null, 7).table().isEmpty());
+    }
+
+    @Test
+    void lootCoverageNotesAndTargetsFollowThePage() {
+        var knowledge = new WorldKnowledgeTools(tools());
+        var bounded = knowledge.lootResult(lootRequest(), new WorldKnowledgeTools.LootRead("minecraft:chests/test", "table",
+                Optional.of(encoded(1, 10, true)), null, null, 5), 0);
+        assertEquals(Evidence.Coverage.PARTIAL, bounded.coverage());
+        assertNull(bounded.nextCursor());
+        assertTrue(bounded.detail().contains("first " + MinecraftLoot.MAX_IDS), bounded.detail());
+        assertEquals(Evidence.Coverage.PARTIAL, bounded.records().getFirst().source().coverage());
+        assertTrue(bounded.records().getFirst().targets().isEmpty());
+
+        var place = new BlockPlace("minecraft:overworld", 1, 2, 3);
+        var pending = knowledge.lootResult(lootRequest(), new WorldKnowledgeTools.LootRead("minecraft:chests/test", "place:" + place.text(),
+                Optional.of(encoded(1, 10, false)), place, 42L, 5), 0);
+        assertEquals(Evidence.Coverage.COMPLETE, pending.coverage());
+        assertTrue(pending.detail().contains("first opened"), pending.detail());
+        var payload = pending.records().getFirst().payload().values();
+        assertEquals(new Evidence.JsonBoolean(true), payload.get("pending"));
+        assertEquals(WorldTools.number(42), payload.get("seed"));
+        assertEquals(WorldNavigation.blockId(place), pending.records().getFirst().targets().getFirst().targetId());
+
+        var paged = knowledge.lootResult(lootRequest(), new WorldKnowledgeTools.LootRead("minecraft:chests/test", "table",
+                Optional.of(encoded(3, 10_000, false)), null, null, 5), 0);
+        assertEquals(Evidence.Coverage.PARTIAL, paged.coverage());
+        assertNotNull(paged.nextCursor());
+        assertTrue(paged.detail().contains("follow"), paged.detail());
+
+        var unknown = knowledge.lootResult(lootRequest(), new WorldKnowledgeTools.LootRead("minecraft:chests/test", "table",
+                Optional.empty(), null, null, 5), 0);
+        assertEquals(Evidence.Coverage.COMPLETE, unknown.coverage());
+        assertEquals(WorldKnowledgeTools.UNKNOWN_TABLE, unknown.detail());
+    }
+
+    @Test
+    void entityUuidsAreRecognizedInEitherCase() {
+        var id = java.util.UUID.fromString("1b4e28ba-2fa1-11d2-883f-0016d3cca427");
+        assertEquals(id, WorldKnowledgeTools.uuidOrNull("1B4E28BA-2FA1-11D2-883F-0016D3CCA427"));
+        assertEquals(id, WorldKnowledgeTools.uuidOrNull("1b4e28ba-2fa1-11d2-883f-0016d3cca427"));
+        assertNull(WorldKnowledgeTools.uuidOrNull("minecraft:zombie"));
+    }
+
+    @Test
+    void aContainerWithoutPendingLootIsABlockRecord() {
+        var place = new BlockPlace("minecraft:overworld", 1, 2, 3);
+        var record = WorldKnowledgeTools.noPendingRecord(SCOPE, new WorldKnowledgeTools.NoPendingLoot(place, "minecraft:chest", 5));
+        assertEquals(Evidence.RecordKind.BLOCK, record.kind());
+        assertEquals("block|" + place.text(), record.source().sourceHandle());
+        assertEquals(new Evidence.JsonBoolean(false), record.payload().values().get("pending"));
+        assertEquals(new Evidence.JsonString(WorldKnowledgeTools.NO_PENDING_LOOT), record.payload().values().get("note"));
+    }
+
+    @Test
+    void unknownEmptyAndNoDropTablesAreDistinct() {
+        bootstrap();
         HolderLookup.Provider registries = VanillaRegistries.createLookup();
+        var reloaded = reloadedLoot(Map.of());
         var unknown = WorldKnowledgeTools.lootPayload("packsage:nothing_here", Optional.empty(), null).values();
         assertEquals(new Evidence.JsonBoolean(false), unknown.get("exists"));
         assertEquals(new Evidence.JsonString("no loot table has this id in the loaded data packs"), unknown.get("note"));
         var noPools = MinecraftLoot.encode(LootTable.EMPTY, registries);
-        var air = MinecraftLoot.lookup(registries, MinecraftLoot.blockTable("minecraft:air")).map(table -> MinecraftLoot.encode(table, registries));
+        var air = MinecraftLoot.lookup(reloaded, MinecraftLoot.blockTable("minecraft:air")).map(table -> MinecraftLoot.encode(table, registries));
         assertEquals(BuiltInLootTables.EMPTY, MinecraftLoot.blockTable("minecraft:air"));
         for (var table : List.of(Optional.of(noPools), air)) {
             var payload = WorldKnowledgeTools.lootPayload("minecraft:empty", table, MinecraftLoot.page(table.orElseThrow(), 0)).values();

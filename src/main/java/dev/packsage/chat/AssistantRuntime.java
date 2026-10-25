@@ -352,11 +352,13 @@ public final class AssistantRuntime implements ChatActions {
 
     @Override
     public Map<String, String> adapterDetails() {
+        KnowledgeService knowledge;
         synchronized (stateLock) {
             if (world == null || selected == null || !selected.world.worldOrServer().equals(world.worldOrServer())
                     || !selected.loaded || selected.knowledge == null || selected.knowledgeUnavailable) return Map.of();
-            return selected.knowledge.adapterDetails();
+            knowledge = selected.knowledge;
         }
+        return knowledge.adapterDetails();
     }
 
     public void onRenderGuiPost() {

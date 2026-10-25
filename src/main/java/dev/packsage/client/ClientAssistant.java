@@ -11,6 +11,7 @@ import dev.packsage.journal.JournalTools;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.KnowledgeService;
+import dev.packsage.knowledge.Toolbox;
 import dev.packsage.knowledge.config.ConfigProvider;
 import dev.packsage.knowledge.nativegame.NativeProvider;
 import dev.packsage.model.GroundingInstructions;
@@ -389,7 +390,11 @@ public final class ClientAssistant {
         world.register(new MinecraftProgress());
         world.register(new MinecraftStatistics());
         var worldTools = new WorldTools(client, world, scope, workerExecutor, serverWork,
-                () -> client.submit(() -> GameplayContextCapture.focus(client)), journal.notes()::place);
+                () -> client.submit(() -> GameplayContextCapture.focus(client)), id -> {
+                    var notes = journal.notes();
+                    if (!notes.loaded()) throw new Toolbox.Failure(Toolbox.Code.UNAVAILABLE, journal.unavailableReason());
+                    return notes.place(id);
+                });
         providers.add(worldTools);
         providers.add(new ProgressTools(client, world, scope, workerExecutor, serverWork));
         providers.add(new JournalTools(journal, scope, workerExecutor, client::getSingleplayerServer,

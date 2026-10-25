@@ -56,6 +56,11 @@ class WorldToolsTest {
         var running = net.minecraft.server.MinecraftServer.class.getDeclaredField("running");
         running.setAccessible(true);
         running.set(server, true);
+        var level = (net.minecraft.server.level.ServerLevel) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, net.minecraft.server.level.ServerLevel.class);
+        var levels = net.minecraft.server.MinecraftServer.class.getDeclaredField("levels");
+        levels.setAccessible(true);
+        levels.set(server, Map.of(net.minecraft.world.level.Level.OVERWORLD, level));
         var place = new BlockPlace("minecraft:overworld", 40, 70, -8);
         var work = new ServerWork(System::nanoTime);
         var tools = new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE, Runnable::run, work,
@@ -66,11 +71,6 @@ class WorldToolsTest {
         var result = tools.resolveAnchor(anchor).toCompletableFuture();
         while (!result.isDone()) work.tick();
         assertEquals(place, result.get());
-        var level = (net.minecraft.server.level.ServerLevel) unsafe.getClass().getMethod("allocateInstance", Class.class)
-                .invoke(unsafe, net.minecraft.server.level.ServerLevel.class);
-        var levels = net.minecraft.server.MinecraftServer.class.getDeclaredField("levels");
-        levels.setAccessible(true);
-        levels.set(server, Map.of(net.minecraft.world.level.Level.OVERWORLD, level));
         var journal = new dev.packsage.journal.Journal(Runnable::run);
         journal.open(directory.resolve("journal.db"), () -> 400);
         journal.write(store -> null).toCompletableFuture().get();

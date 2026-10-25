@@ -109,9 +109,8 @@ public final class KnowledgeService {
     public Map<String, Boolean> adapterAvailability() {
         var availability = new LinkedHashMap<String, Boolean>();
         for (var provider : providers) {
-            var status = provider.status().availability();
-            availability.put(provider.id(), provider.enabled() && status != KnowledgeProvider.Availability.UNAVAILABLE
-                    && status != KnowledgeProvider.Availability.ERROR);
+            availability.put(provider.id(), provider.enabled() && (!provider.id().equals("journal")
+                    || provider.status().availability() == KnowledgeProvider.Availability.AVAILABLE));
         }
         return Map.copyOf(availability);
     }

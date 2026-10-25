@@ -964,6 +964,13 @@ public final class AssistantScreen extends Screen {
                 thumbHeight, overflowing ? clampedOffset * (trackHeight - thumbHeight) / (rows.size() - visibleRows) : 0);
     }
 
+    String adapterFooter(Map<String, Boolean> availability, AdapterTooltipRows layout) {
+        if (availability.getOrDefault("journal", false) || layout.rows().stream().noneMatch(row -> row.getKey().equals("journal"))) return "";
+        if (!availability.getOrDefault("world", false) && view.sources().stream().noneMatch(source -> source.providerId().equals("journal"))
+                && view.conversation().turns().stream().flatMap(turn -> turn.sources().stream()).noneMatch(source -> source.providerId().equals("journal"))) return "";
+        return actions.adapterDetails().getOrDefault("journal", "");
+    }
+
     List<ToolbarItem> toolbarItems() {
         int buttonWidth = Math.max(2, Math.min(86, readableWidth));
         List<ToolbarItem> items = new ArrayList<>();
@@ -1085,13 +1092,13 @@ public final class AssistantScreen extends Screen {
             } else if (item.kind().equals("adapters")) {
                 title = "Adapters";
                 Map<String, Boolean> availability = actions.adapterAvailability();
-                if (!availability.getOrDefault("journal", false)) footer = actions.adapterDetails().getOrDefault("journal", "");
                 String key = availability + ":" + settings.hideInactiveAdapters() + ":" + width + ":" + height;
                 if (!key.equals(adapterRowsKey)) {
                     adapterRowsKey = key;
                     adapterScroll = 0;
                 }
                 adapterLayout = adapterTooltipRows(font, availability, settings.hideInactiveAdapters(), adapterScroll, width, height);
+                footer = adapterFooter(availability, adapterLayout);
                 adapterScroll = adapterLayout.offset();
                 for (var adapter : adapterLayout.rows()) {
                     lines.add(Component.literal("• ").withStyle(style -> style.withColor(

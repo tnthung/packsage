@@ -314,7 +314,9 @@ public final class JournalTools implements KnowledgeProvider {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "journal scope changed; repeat the lookup");
         }
         if (!ID.equals(target.providerId())) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "different navigation owner");
-        if (!enabled()) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, status().detail());
+        if (!enabled() || target.targetId().startsWith("journal-note|") && !journal.ready()) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, status().detail());
+        }
         return new JournalNavigation(journal.notes(), client).open(target);
     }
 

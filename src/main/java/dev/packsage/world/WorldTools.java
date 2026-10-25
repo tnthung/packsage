@@ -939,6 +939,7 @@ public final class WorldTools implements KnowledgeProvider {
             case Anchor.OfNote of -> {
                 var place = notePlaces.apply(of.id());
                 if (place == null) throw new Failure(Code.UNAVAILABLE, "note " + of.id() + " has no saved place");
+                level(server, place.dimension());
                 yield new Center(place.dimension(), Vec3.atCenterOf(new BlockPos(place.x(), place.y(), place.z())));
             }
         };

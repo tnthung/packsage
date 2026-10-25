@@ -63,6 +63,7 @@ class ClientAssistantTest {
             journal.open(directory.resolve("first.db"), () -> 400);
             journal.write(store -> null).toCompletableFuture().get();
             journal.notes().put(new dev.packsage.journal.Note("n0000abcd", "old farm", "words", List.of(), place, 1, 1, 1, null, null));
+            journal.write(store -> { store.putNote(journal.notes().get("n0000abcd")); return null; }).toCompletableFuture().get();
             for (var entry : Map.of("client", client, "journal", journal, "workerExecutor", worker,
                     "clientExecutor", (Executor) Runnable::run, "serverWork", work).entrySet()) {
                 var field = ClientAssistant.class.getDeclaredField(entry.getKey());
@@ -80,8 +81,9 @@ class ClientAssistantTest {
             while (!old.isDone()) work.tick();
             assertEquals(place, old.get());
             journal.close().get();
-            journal.open(directory.resolve("second.db"), () -> 500);
+            journal.open(directory.resolve("first.db"), () -> 500);
             journal.write(store -> null).toCompletableFuture().get();
+            assertEquals(place, journal.notes().place("n0000abcd"));
             journal.notes().put(new dev.packsage.journal.Note("n00001234", "new farm", "words", List.of(), place, 2, 2, 2, null, null));
             var current = worldTools.resolveAnchor(new dev.packsage.world.Anchor.OfNote("n00001234")).toCompletableFuture();
             while (!current.isDone()) work.tick();

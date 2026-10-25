@@ -23,6 +23,7 @@ final class JournalNavigation {
     interface Client {
         String dimension();
 
+        /** Draws a place column, even when no block remains or the block is not loaded. */
         void highlightBlock(BlockPlace place, long untilMillis);
     }
 

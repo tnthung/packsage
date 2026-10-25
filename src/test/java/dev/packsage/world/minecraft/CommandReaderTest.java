@@ -136,4 +136,22 @@ class CommandReaderTest {
         assertEquals(4, reader.read("fill").arguments().size());
         assertEquals(6, reader.search(null).size());
     }
+
+    @Test
+    void snapshotKeepsArgumentsWhoseExamplesThrow() {
+        class BrokenExamples implements com.mojang.brigadier.arguments.ArgumentType<String> {
+            public String parse(com.mojang.brigadier.StringReader reader) { return reader.readUnquotedString(); }
+            public java.util.Collection<String> getExamples() { throw new IllegalStateException("broken examples"); }
+        }
+        dispatcher.register(LiteralArgumentBuilder.<Integer>literal("broken")
+                .then(RequiredArgumentBuilder.<Integer, String>argument("value", new BrokenExamples())
+                        .executes(context -> fail("executed broken"))));
+        var snapshot = new CommandReader<>(dispatcher, 0, type -> type.getClass().getSimpleName()).snapshot();
+        while (snapshot.step()) { }
+        var arguments = snapshot.result().read("broken").arguments();
+        assertEquals(1, arguments.size());
+        assertEquals("BrokenExamples", arguments.getFirst().type());
+        assertTrue(arguments.getFirst().examples().isEmpty());
+        assertEquals(4, snapshot.result().read("fill").arguments().size());
+    }
 }

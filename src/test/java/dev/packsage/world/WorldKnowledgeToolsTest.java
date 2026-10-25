@@ -49,6 +49,19 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldKnowledgeToolsTest {
     @Test
+    void commandArgumentTypesRegisteredOnlyByClassUseTheClassName() throws Exception {
+        bootstrap();
+        class ClassOnlyArgument implements com.mojang.brigadier.arguments.ArgumentType<String> {
+            public String parse(com.mojang.brigadier.StringReader reader) { return reader.readUnquotedString(); }
+        }
+        net.minecraft.commands.synchronization.ArgumentTypeInfos.registerByClass(ClassOnlyArgument.class,
+                net.minecraft.commands.synchronization.SingletonArgumentInfo.contextFree(ClassOnlyArgument::new));
+        var argumentType = WorldKnowledgeTools.class.getDeclaredMethod("argumentType", com.mojang.brigadier.arguments.ArgumentType.class);
+        argumentType.setAccessible(true);
+        assertEquals("ClassOnlyArgument", argumentType.invoke(null, new ClassOnlyArgument()));
+    }
+
+    @Test
     void commandRereadsPreserveAStoppedSnapshotsContinuation() {
         var partial = WorldTools.result(List.of(), Evidence.Coverage.PARTIAL, "command-cursor",
                 "command tree copy reached the 500 ms server work budget; playerPermissionLevel: 0");

@@ -37,10 +37,11 @@ The [plan](../plans/2026-10-22-v2-world-reading.md) is implemented. The [validat
 - [x] Iron-farm facts: installed check passed (Round 1).
 - [x] Nested mob storage, mule chest to shulker box to bundle: installed check passed (Round 1).
 - [x] Performance over about 320 chests with the world running: installed check passed (Round 1).
-- [ ] Mob attributes, and horse jump height and speed in blocks. Implemented, and automated tests pass. The installed check has not run yet: Round 2 was blocked by native control.
-- [ ] Re-check the final-review fixes on the installed build: tick pacing, the 500 ms per-call budget, per-holder links, villager time fields and the 1 s navigation wait. Blocked in Round 2.
-- [ ] Saved highlight links across a full Minecraft restart. Blocked in Round 2.
-- [ ] Fix N1 before merging: a full page of found items with holder records exceeds the 64-record tool-output limit. That drops holder links and the continuation, and replaces the page notes. See the final re-review in `.superpowers/sdd/2026-10-22-v2-world-reading/final-rereview.md`.
+- [x] Mob attributes, and horse jump height and speed in blocks: installed check passed (Round 2), with a mule jump of 1.62 blocks and a horse speed of 10.77 blocks per second.
+- [x] Final-review fixes on the installed build: pacing with the world running and paused, and per-holder links for stone, passed (Round 2).
+- [ ] Villager time fields: facts were cited, but the reply did not reason from `gameTime`, and `golemDetectedUntil` was not exercised (Round 2, partial). Belongs with the prompt plan.
+- [x] Saved highlight links across a full Minecraft restart: installed check passed (Round 2).
+- [ ] Fix N1 before merging. Reproduced in game in Round 2: 72 item types returned 55, with no holder records and a null cursor. A full page of found items with holder records exceeds the 64-record tool-output limit. That drops holder links and the continuation, and replaces the page notes. See the final re-review in `.superpowers/sdd/2026-10-22-v2-world-reading/final-rereview.md`.
 - [ ] Minor review backlog:
   - N2: the paused-work flag can stay set.
   - N3: a tick can run on the client thread when the server has stopped.

@@ -15,10 +15,10 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 - [x] Minecraft — nearby storage search, including items nested inside other items, with block highlights; installed acceptance passed ([validation record](../validation/2026-10-22-v2-world-reading.md)).
 - [x] Minecraft — villager home, job site, sleep and work times and golem-spawning state; installed iron-farm diagnosis passed.
 - [x] Minecraft — mob storage paths, mule chest to shulker box to bundle; installed acceptance passed.
-- [ ] Minecraft — every mob attribute, and horse jump height and speed in blocks (implemented; automated checks pass; installed acceptance pending: the retest could not control the Minecraft window).
-- [ ] Minecraft — saved highlight links across a full restart, and the final-review pacing and link fixes on the installed build (installed acceptance pending).
-- [ ] PackSage — full item pages over the 64-record tool-output limit lose holder links and their continuation (N1, open).
-- [ ] PackSage — prompt: the armor reply omitted eligible enchantments from returned evidence, and the mule reply gave no coordinates.
+- [x] Minecraft — every mob attribute, and horse jump height and speed in blocks; installed acceptance passed for a mule and a horse.
+- [x] Minecraft — saved highlight links across a full restart, and pacing with the world running and paused; installed acceptance passed.
+- [ ] PackSage — full item pages over the 64-record tool-output limit lose holder links and their continuation (N1, open; reproduced in game with 55 of 72 item types).
+- [ ] PackSage — prompt: the armor reply omitted eligible enchantments from returned evidence, and the mule reply gave no coordinates, and the farm reply did not reason from villager times.
 
 ### Inventory and equipment inspection
 

@@ -22139,10 +22139,10 @@ Part A totals (35 requested IDs): 25 PASS, 8 FAIL, 2 DEFERRED. Eight additional 
 | P8 | PASS | Historical Sweet Dreams link opens the Adventure tab after the full restart. |
 | M1 | FAIL | Persistence/recall PASS; move clearsPlace instead of following current position, old link UNAVAILABLE, and two iron-farm notes remain. Prompt behavior plus ambiguous move wording/pre-existing duplicate fixture. |
 | P5 | PASS | Count 9; saved reply/tool results contain no real hidden names, IDs or criteria. Nine anonymous aliases verified. |
-| C5 | NOT RUN | Pending this acceptance session. |
-| P1 | NOT RUN | Pending this acceptance session. |
-| P7 | NOT RUN | Pending this acceptance session. |
-| J5 | NOT RUN | Pending this acceptance session. |
+| C5 | PASS | Corrected stationary librarian offers/prices pass; never-opened librarian reports not generated twice, then normal trades open. Natural-job acquisition attempt already had offers (fixture mismatch, retained). |
+| P1 | PASS | 51 missing biome names from inspect_progress; Adventure link OPENED with tab visible. |
+| P7 | PASS | Two available Story goals; both advancement links OPENED. |
+| J5 | PASS | Empty-hand named questions return Nether entry 15:48:49 UTC and Sweet Dreams 15:49:14 UTC; links OPENED. |
 | M5 | NOT RUN | Pending this acceptance session. |
 | L2 | NOT RUN | Pending this acceptance session. |
 | L1 | NOT RUN | Pending this acceptance session. |
@@ -22311,3 +22311,294 @@ You have **9 hidden advancements left**: 3 in Adventure [progress:progress|minec
 They’re still hidden, so your progress list doesn’t reveal their names or requirements.
 ```
 
+### P1
+
+Question: `what advancements am I missing for Adventuring Time?`
+
+Request `ae78d60b-9309-4138-b802-9971e9fe83ad`; conversation `5958d86a-9874-4ae0-a894-ef4f9a38f338`; status=completed, saved=true. Submitted 2026-10-25T16:38:23.702Z. Raw: `build/task7-part-b/P1.json`.
+
+Timing: {"elapsed_ms":"18368","backendMs":"18302","toolWallMs":"91","toolCalls":"2"}.
+
+G1 list_progress (`call_6wpxmzsXrDZXMeyiHruAYjTS`), toolMs=82:
+
+```json
+{"arguments":{"tree":null,"status":null,"text":"Adventuring Time","cursor":null},"error":false,"coverage":"COMPLETE","recordCount":2,"detail":null}
+```
+
+G2 inspect_progress (`call_NiEZvnZeRKcjTgjk03SEIyxl`), toolMs=9:
+
+```json
+{"arguments":{"id":"minecraft/minecraft:adventure/adventuring_time"},"error":false,"coverage":"COMPLETE","recordCount":1,"detail":null}
+```
+
+Verbatim saved reply:
+
+```text
+For **Adventuring Time**, you’ve discovered **2 of 53 required biomes**: Taiga and Forest. You’re missing these **51**. [Open Adventuring Time](progress:progress|minecraft/minecraft:adventure/adventuring_time)
+
+- **Oceans and shores:** Deep Frozen Ocean, Frozen Ocean, Deep Cold Ocean, Cold Ocean, Deep Ocean, Ocean, Deep Lukewarm Ocean, Lukewarm Ocean, Warm Ocean, Stony Shore, Snowy Beach, Beach.
+- **Snowy and mountain biomes:** Snowy Slopes, Snowy Plains, Windswept Gravelly Hills, Grove, Windswept Hills, Snowy Taiga, Windswept Forest, Meadow, Jagged Peaks, Stony Peaks, Frozen River, Ice Spikes, Frozen Peaks.
+- **Forests, plains and rivers:** Plains, Old Growth Spruce Taiga, Flower Forest, Birch Forest, Dark Forest, River, Old Growth Pine Taiga, Sunflower Plains, Old Growth Birch Forest, Cherry Grove.
+- **Warm and wet biomes:** Swamp, Mangrove Swamp, Savanna Plateau, Savanna, Jungle, Badlands, Desert, Wooded Badlands, Sparse Jungle, Bamboo Jungle, Eroded Badlands, Windswept Savanna.
+- **Other and underground:** Mushroom Fields, Dripstone Caves, Lush Caves, Deep Dark. [Adventuring Time criteria](progress:progress|minecraft/minecraft:adventure/adventuring_time)
+```
+
+### P7
+
+Question: `what should I do next for advancements?`
+
+Request `e5458509-e1e2-4f09-90dd-34647a31908f`; conversation `0c958877-ca02-45df-8f5b-c4e542b01853`; status=completed, saved=true. Submitted 2026-10-25T16:39:26.437Z. Raw: `build/task7-part-b/P7.json`.
+
+Timing: {"elapsed_ms":"44162","backendMs":"44094","toolWallMs":"449","toolCalls":"9"}.
+
+G1 list_progress (`call_35gPDsUWiDp3G8vdEdbo8FSC`), toolMs=96:
+
+```json
+{"arguments":{"tree":null,"status":null,"text":null,"cursor":null},"error":false,"coverage":"PARTIAL","recordCount":64,"detail":null}
+```
+
+G2 list_progress (`call_m9EK1u1KHTJ0DqSwzn6p4UHM`), toolMs=18:
+
+```json
+{"arguments":{"tree":"minecraft/minecraft:story/root","status":null,"text":null,"cursor":null},"error":false,"coverage":"COMPLETE","recordCount":17,"detail":null}
+```
+
+G3 inspect_progress (`call_h2c9pUCdmUljkZJ43r8pb5yQ`), toolMs=19:
+
+```json
+{"arguments":{"id":"minecraft/minecraft:story/iron_tools"},"error":false,"coverage":"COMPLETE","recordCount":1,"detail":null}
+```
+
+G3 list_items (`call_sBYCByPUMfDMbKnaaQ18Ld2R`), toolMs=74:
+
+```json
+{"arguments":{"holder":"player","inventory":null,"filter":null,"cursor":null},"error":false,"coverage":"COMPLETE","recordCount":10,"detail":null}
+```
+
+G4 plan_recipe (`call_19zs76SPApntqzlysUoLdqRl`), toolMs=144:
+
+```json
+{"arguments":{"identity":"minecraft:bucket","quantity":1,"depth":1},"error":false,"coverage":"PARTIAL","recordCount":0,"detail":"bounded-live-recipe-scan"}
+```
+
+G4 inspect_progress (`call_gxWL9smLmfW46otGMLqEnihH`), toolMs=3:
+
+```json
+{"arguments":{"id":"minecraft/minecraft:story/lava_bucket"},"error":false,"coverage":"COMPLETE","recordCount":1,"detail":null}
+```
+
+G4 plan_recipe (`call_iXAG0jzVkpV2LOeEiZylkK3J`), toolMs=192:
+
+```json
+{"arguments":{"identity":"minecraft:iron_pickaxe","quantity":1,"depth":1},"error":false,"coverage":"PARTIAL","recordCount":0,"detail":"bounded-live-recipe-scan"}
+```
+
+G5 search_recipe (`call_VHvvxyjpboOTpAViuF0gXBK4`), toolMs=41:
+
+```json
+{"arguments":{"filter":{"text":null,"outputItem":"minecraft:bucket","provider":null},"limit":16,"cursor":null},"error":false,"coverage":"PARTIAL","recordCount":1,"detail":"native: scanned=0-1820 of 1820 (ordinary recipes 1539, brewing candidates 281); phase=brewing; matches=1"}
+```
+
+G5 search_recipe (`call_ZW8IYPBNXXsYtxX5YM43B9XC`), toolMs=52:
+
+```json
+{"arguments":{"filter":{"text":null,"outputItem":"minecraft:iron_pickaxe","provider":null},"limit":16,"cursor":null},"error":false,"coverage":"PARTIAL","recordCount":1,"detail":"native: scanned=0-1820 of 1820 (ordinary recipes 1539, brewing candidates 281); phase=brewing; matches=1"}
+```
+
+Verbatim saved reply:
+
+```text
+**Do “Hot Stuff” next:** craft a bucket with three of the five iron ingots you’re carrying, then fill it with lava. That advancement is available and leads toward “Ice Bucket Challenge.” [Hot Stuff](progress:progress|minecraft/minecraft:story/lava_bucket) [Bucket recipe](native:minecraft:bucket) [Iron ingots](world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#8@minecraft:iron_ingot)
+
+Another short goal is **“Isn’t It Iron Pick”**: craft an iron pickaxe with three iron ingots and two sticks. Its criterion is still unfinished; I confirmed the ingots, but not whether you have sticks in your carried shulker box. [Isn’t It Iron Pick](progress:progress|minecraft/minecraft:story/iron_tools) [Iron pickaxe recipe](native:minecraft:iron_pickaxe) [Carried shulker box](world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#9@minecraft:shulker_box)
+```
+
+### C5-librarian
+
+Question: `what does this villager sell?`
+
+Request `ff444abe-1ea0-49e4-a220-69e759c3038f`; conversation `06d717cb-93e6-4604-8f31-995e9821ae90`; status=completed, saved=true. Submitted 2026-10-25T16:39:52.652Z. Raw: `build/task7-part-b/C5-librarian.json`.
+
+Timing: {"elapsed_ms":"17948","backendMs":"17872","toolWallMs":"110","toolCalls":"2"}.
+
+G1 inspect_entity (`call_GLNwEwkR6KtNphKn3mqkJ5Rc`), toolMs=104:
+
+```json
+{"arguments":{"id":"308b550f-a492-4ad2-acb6-f27e26484759"},"error":false,"coverage":"COMPLETE","recordCount":1,"detail":null}
+```
+
+G2 search_registry (`call_m9dhPr4oRdIn0LjLrXQ4vILy`), toolMs=5:
+
+```json
+{"arguments":{"registry":"active_effect","filter":{"text":null,"ids":null,"tags":null,"provider":null},"limit":64,"cursor":null},"error":false,"coverage":"COMPLETE","recordCount":0,"detail":null}
+```
+
+Verbatim saved reply:
+
+```text
+B-Librarian at **(1101.5, 100, 1100.5)** has two trades: [B-Librarian](world:entity|308b550f-a492-4ad2-acb6-f27e26484759)
+
+- **4 books → 1 emerald**
+- **20 emeralds + 1 book → 1 Frost Walker I enchanted book**
+
+Those are the prices shown for you. The book-trade cost includes demand; your reputation is currently neutral, and you have no active Hero of the Village discount. Prices can be recalculated when trading starts. [B-Librarian](world:entity|308b550f-a492-4ad2-acb6-f27e26484759)
+```
+
+### J5-Nether
+
+Question: `when did I enter the Nether?`
+
+Request `a3238582-a00a-4957-84e0-33e5a12ff4e1`; conversation `49274d52-05df-4717-9d19-6b390eeb3757`; status=completed, saved=true. Submitted 2026-10-25T16:39:53.746Z. Raw: `build/task7-part-b/J5-Nether.json`.
+
+Timing: {"elapsed_ms":"11552","backendMs":"11473","toolWallMs":"9","toolCalls":"1"}.
+
+G1 search_journal (`call_1O4gJzOKYllaU2x4C0moW5sh`), toolMs=9:
+
+```json
+{"arguments":{"filter":{"time":null,"area":null,"dimension":null,"types":["dimension"],"subjects":null,"text":null,"notesOnly":false},"cursor":null},"error":false,"coverage":"PARTIAL","recordCount":2,"detail":"recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z"}
+```
+
+Verbatim saved reply:
+
+```text
+You entered the Nether on **October 25, 2026, at 15:48:49 UTC**, through the Overworld portal at (1051, 252, 1000). [journal:event:41]
+```
+
+### J5-Sweet
+
+Question: `when did I earn Sweet Dreams?`
+
+Request `6ff02a51-2368-4d8d-938f-c5e75f349241`; conversation `64d4d312-00e9-4497-9c2e-c25168ffc8eb`; status=completed, saved=true. Submitted 2026-10-25T16:39:57.415Z. Raw: `build/task7-part-b/J5-Sweet.json`.
+
+Timing: {"elapsed_ms":"18589","backendMs":"18507","toolWallMs":"36","toolCalls":"2"}.
+
+G1 list_progress (`call_DMt0YovpOQteI9xHaYggZdue`), toolMs=14:
+
+```json
+{"arguments":{"tree":null,"status":null,"text":"Sweet Dreams","cursor":null},"error":false,"coverage":"COMPLETE","recordCount":2,"detail":null}
+```
+
+G2 inspect_progress (`call_1MTrvp0oOseBwVFjwA85Yuj0`), toolMs=22:
+
+```json
+{"arguments":{"id":"minecraft/minecraft:adventure/sleep_in_bed"},"error":false,"coverage":"COMPLETE","recordCount":1,"detail":null}
+```
+
+Verbatim saved reply:
+
+```text
+You earned [Sweet Dreams](progress:progress|minecraft/minecraft:adventure/sleep_in_bed) on **October 25, 2026, at 15:49:14 UTC**.
+```
+
+### C5-fresh1
+
+Question: `what does this villager sell?`
+
+Request `de261dff-f1d8-4948-9ba0-118393a165ff`; conversation `1f4e648b-d994-4e92-a882-d9109e9fdc8f`; status=completed, saved=true. Submitted 2026-10-25T16:40:49.911Z. Raw: `build/task7-part-b/C5-fresh1.json`.
+
+Timing: {"elapsed_ms":"17089","backendMs":"17007","toolWallMs":"19","toolCalls":"2"}.
+
+G1 inspect_entity (`call_0KfXxliUefAZrnXRS3ivPISe`), toolMs=10:
+
+```json
+{"arguments":{"id":"9a0f3464-8ee1-4b6a-8a28-ad56e4142e8e"},"error":false,"coverage":"COMPLETE","recordCount":1,"detail":null}
+```
+
+G2 search_registry (`call_8uaJzV43Fa0jgGV4uCNKhFxL`), toolMs=8:
+
+```json
+{"arguments":{"registry":"active_effect","filter":null,"limit":64,"cursor":null},"error":false,"coverage":"COMPLETE","recordCount":0,"detail":null}
+```
+
+Verbatim saved reply:
+
+```text
+**B-Fresh**, the librarian at (1121.5, 100, 1121.5), currently sells: [B-Fresh](world:entity|9a0f3464-8ee1-4b6a-8a28-ad56e4142e8e)
+
+- **Feather Falling III enchanted book** — 15 emeralds **and** 1 book.
+- **Bookshelf** — 9 emeralds.
+
+Both trades are in stock. Those emerald prices include current demand; your reputation with B-Fresh is 0, and you have no active Hero of the Village effect. Discounts are applied when trading starts, so check the trade screen for the final price. [B-Fresh](world:entity|9a0f3464-8ee1-4b6a-8a28-ad56e4142e8e)
+```
+
+### C5-fresh2
+
+Question: `what does this villager sell?`
+
+Request `9361a5d2-257f-485f-9ddb-d2fdc9fc63b6`; conversation `56ba458a-8d6b-496b-89ea-52ccf386fa6a`; status=completed, saved=true. Submitted 2026-10-25T16:40:50.726Z. Raw: `build/task7-part-b/C5-fresh2.json`.
+
+Timing: {"elapsed_ms":"19043","backendMs":"18987","toolWallMs":"33","toolCalls":"2"}.
+
+G1 inspect_entity (`call_SqmwLB622ONN1L2rxoP48Sr0`), toolMs=24:
+
+```json
+{"arguments":{"id":"9a0f3464-8ee1-4b6a-8a28-ad56e4142e8e"},"error":false,"coverage":"COMPLETE","recordCount":1,"detail":null}
+```
+
+G2 search_registry (`call_A9fr67Ig36F2liQL3qhgX8yz`), toolMs=8:
+
+```json
+{"arguments":{"registry":"active_effect","filter":null,"limit":64,"cursor":null},"error":false,"coverage":"COMPLETE","recordCount":0,"detail":null}
+```
+
+Verbatim saved reply:
+
+```text
+B-Fresh, the librarian at **(1121, 100, 1121)**, currently sells: [B-Fresh](world:entity|9a0f3464-8ee1-4b6a-8a28-ad56e4142e8e)
+
+- **Feather Falling III enchanted book** — 15 emeralds **and** 1 book.
+- **Bookshelf** — 9 emeralds.
+
+Both trades are in stock. Those are the prices shown for you now: the listed emerald costs already include demand, and the price when trading starts can also reflect reputation and Hero of the Village. Your reputation with B-Fresh is **0**, and you currently have **no active effects**. [B-Fresh](world:entity|9a0f3464-8ee1-4b6a-8a28-ad56e4142e8e)
+```
+
+### C5-unread1
+
+Question: `what does this villager sell?`
+
+Request `c6150914-97b4-4b9f-8269-c17e6e1666e9`; conversation `6b93e5f6-6635-4565-a584-9720e9e5f50f`; status=completed, saved=true. Submitted 2026-10-25T16:42:05.379Z. Raw: `build/task7-part-b/C5-unread1.json`.
+
+Timing: {"elapsed_ms":"13815","backendMs":"13745","toolWallMs":"28","toolCalls":"1"}.
+
+G1 inspect_entity (`call_iXFR5lKpTwcwo0uXrr1fbOTG`), toolMs=28:
+
+```json
+{"arguments":{"id":"4380d0fb-e62e-4bc8-aee1-2d0b8b76bb43"},"error":false,"coverage":"COMPLETE","recordCount":1,"detail":null}
+```
+
+Verbatim saved reply:
+
+```text
+This librarian’s trades **haven’t been generated yet**, so I can’t tell what it sells. Open a trade with B-Unread at (1124.5, 100, 1124.5) [B-Unread](world:entity|4380d0fb-e62e-4bc8-aee1-2d0b8b76bb43), then ask me again and I can check its offers.
+```
+
+### C5-unread2
+
+Question: `what does this villager sell?`
+
+Request `97da29f1-de22-4966-83ac-9158bc0363ae`; conversation `241f6775-4be5-4fbb-b51e-e179c6469ed6`; status=completed, saved=true. Submitted 2026-10-25T16:42:06.258Z. Raw: `build/task7-part-b/C5-unread2.json`.
+
+Timing: {"elapsed_ms":"12743","backendMs":"12673","toolWallMs":"17","toolCalls":"1"}.
+
+G1 inspect_entity (`call_VPK7UiOr06B3phUF8J0hm8Xg`), toolMs=17:
+
+```json
+{"arguments":{"id":"4380d0fb-e62e-4bc8-aee1-2d0b8b76bb43"},"error":false,"coverage":"COMPLETE","recordCount":1,"detail":null}
+```
+
+Verbatim saved reply:
+
+```text
+B-Unread, the librarian at (1124.5, 100, 1124.5), **doesn’t have trade offers generated yet**, so I can’t tell what they sell. Interact with them to open the trading screen, then ask me again and I can read their offers. [B-Unread](world:entity|4380d0fb-e62e-4bc8-aee1-2d0b8b76bb43)
+```
+
+
+### Corrected fixture observations
+
+Adventure was visible after the earlier earned Sweet Dreams advancement and P8 confirmed the tab before P1/P7. P1 reports 2/53 complete and names all 51 missing criteria. P7 inspected available Hot Stuff and Isn't It Iron Pick and offered each link; both opened the Minecraft tab. P1 navigation: `P1-navigation.json`; P7: `P7-0-navigation.json`, `P7-1-navigation.json`. [P1 tab](../../build/task7-part-b/P1.png).
+
+C5: supported stone platform y=99 was placed before teleport. `/state` immediately before the question proves player (1101.5,100,1103.5), crosshair UUID 308b550f-a492-4ad2-acb6-f27e26484759, empty main hand. Normal bridge interaction opened MerchantScreen before the first librarian read. B-Librarian returned 4 books -> emerald and 20 emeralds + book -> Frost Walker I; demand/reputation pricing explained.
+
+Natural B-Fresh acquired librarian employment beside a lectern; both reads already had Feather Falling III/bookshelf offers. This attempt did not establish a not-generated precondition; no side-effect conclusion is drawn. `/save-all` is unavailable in integrated singleplayer and its failed feedback is retained. The corrected no-AI B-Unread fixture was summoned with librarian profession and never interacted with. Its two COMPLETE inspect_entity reads both returned offers=not generated yet; no data-get/NBT serialization was used to pre-inspect it. Both answers say so, and both entity links OPENED. A subsequent normal interaction returned CONSUME, opened=true, MerchantScreen, menuId=3, and displayed two ordinary trades. [Trade screen](../../build/task7-part-b/C5-unread-trading.png). Natural-employment and stationary-fixture outcomes remain separate.
+
+J5: main hand explicitly replaced with air. Nether journal event 41 states entry 2026-10-25T15:48:49Z at Overworld portal (1051,252,1000); its journal-place link OPENED. Sweet Dreams inspect_progress criterion doneAt is 2026-10-25T15:49:14Z; its saved advancement link OPENED. These named questions remove Part A's pronoun/held-item ambiguity. Earlier Part A FAIL records are preserved.

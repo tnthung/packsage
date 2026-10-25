@@ -363,7 +363,17 @@ public final class ProgressTools implements KnowledgeProvider {
     }
 
     private CompletionStage<Evidence.Result> reread(String handle, Evidence.Scope scope) {
-        if (handle.startsWith("tree|")) throw new Failure(Code.INVALID_REFERENCE, "repeat list_progress");
+        if (handle.startsWith("tree|")) {
+            return listProgress(new PackSageTools.ReadRequest("list_progress", new Evidence.JsonObject(Map.of(
+                    "tree", new Evidence.JsonString(ProgressId.parse(handle.substring(5)).text())))), scope)).thenApply(result -> {
+                var records = result.records().stream().filter(record -> record.source().sourceHandle().equals(handle)).toList();
+                if (records.isEmpty()) {
+                    if (result.coverage() != Evidence.Coverage.COMPLETE) throw new Failure(Code.EXTRACTION_FAILED, result.detail());
+                    throw new Failure(Code.INVALID_REFERENCE, "progress tree is no longer available; repeat list_progress");
+                }
+                return result(records, result.coverage(), null, result.detail());
+            });
+        }
         if (handle.startsWith("progress|")) return inspect(ProgressId.parse(handle.substring(9)), scope);
         if (handle.startsWith("stat|")) {
             var parts = handle.split("\\|", -1);

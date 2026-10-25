@@ -509,7 +509,7 @@ public final class WorldTools implements KnowledgeProvider {
                 complete ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, next, note);
     }
 
-    /** Reads one block, entity, item, loot or command handle fresh. */
+    /** Reads one block, entity, item, holder, loot or command handle fresh. */
     private CompletionStage<Evidence.Record> reread(String handle, Evidence.Scope scope) {
         if (handle.startsWith("block|")) {
             var place = place(handle.substring(6));
@@ -529,9 +529,12 @@ public final class WorldTools implements KnowledgeProvider {
         }
         if (handle.startsWith("loot|") || handle.startsWith("command|")) return knowledge.reread(handle, scope);
         if (handle.startsWith("holder|")) {
-            throw new Failure(Code.INVALID_REFERENCE, "a holder summary is not reread; repeat list_items with holder " + handle.substring(7));
+            return listItems(new PackSageTools.ReadRequest("list_items", new Evidence.JsonObject(Map.of(
+                    "holder", text(handle.substring(7)))), scope)).thenApply(result -> result.records().stream()
+                    .filter(record -> record.source().sourceHandle().equals(handle)).findFirst()
+                    .orElseThrow(() -> new Failure(Code.INVALID_REFERENCE, "holder summary is no longer available; repeat list_items")));
         }
-        throw new Failure(Code.INVALID_REFERENCE, "only block, entity, item, loot and command records can be reread; repeat the lookup that produced it");
+        throw new Failure(Code.INVALID_REFERENCE, "only block, entity, item, holder, loot and command records can be reread; repeat the lookup that produced it");
     }
 
     // Server-thread reads

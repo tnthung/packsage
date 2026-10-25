@@ -50,6 +50,18 @@ class LocateBiomeTest {
     }
 
     @Test
+    void centersOutsideTheBuildHeightStillFindAMatchingBiome() {
+        for (var y : new int[] { 500, -64, -100 }) {
+            var search = new LocateBiome("minecraft:desert"::equals, (x, height, z) -> "minecraft:desert",
+                    0, y, 0, 4, -64, 320, 0);
+            while (search.step()) { }
+
+            assertEquals(new LocateBiome.Hit("minecraft:desert", 0, y > 320 ? 320 : -63, 0), search.result().hit());
+            assertEquals(-1, search.result().nextIndex());
+        }
+    }
+
+    @Test
     void earlyStopResumesFromTheNextColumn() {
         var sampled = new ArrayList<BlockPos>();
         LocateBiome.Sampler sampler = (x, y, z) -> {

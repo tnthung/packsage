@@ -229,7 +229,7 @@ class WorldKnowledgeToolsTest {
         assertEquals(Set.of("minecraft:desert"), WorldKnowledgeTools.biomeTargets(registry, possible, "#packsage:dry"));
         assertTrue(WorldKnowledgeTools.biomeTargets(registry, Set.of(plains), "minecraft:desert").isEmpty());
         assertTrue(WorldKnowledgeTools.biomeTargets(registry, Set.of(plains), "#packsage:dry").isEmpty());
-        for (var query : List.of("packsage:des", "#packsage:des")) {
+        for (var query : List.of("packsage:des", "#packsage:des", "MINECRAFT:DES", "#PACKSAGE:DES")) {
             var failure = assertThrows(Toolbox.Failure.class, () -> WorldKnowledgeTools.biomeTargets(registry, possible, query));
             assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failure.code());
             assertTrue(failure.getMessage().contains("minecraft:desert"), failure.getMessage());
@@ -265,6 +265,7 @@ class WorldKnowledgeToolsTest {
         assertEquals(Evidence.Coverage.PARTIAL, partial.coverage());
         assertTrue(partial.records().isEmpty());
         assertTrue(partial.detail().contains("500 ms"), partial.detail());
+        assertTrue(partial.detail().contains("approximately 64 blocks"), partial.detail());
         var resumed = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"biome\":\"minecraft:desert\",\"radius\":4,\"cursor\":\""
                 + partial.nextCursor() + "\"}"), SCOPE);
         var state = WorldTools.state(tools.cursor(resumed), WorldKnowledgeTools.BiomeState.class);
@@ -276,6 +277,113 @@ class WorldKnowledgeToolsTest {
         assertEquals(Evidence.Coverage.COMPLETE, complete.coverage());
         assertTrue(complete.records().isEmpty());
         assertNull(complete.nextCursor());
-        assertEquals("no matching biome within 4 chunks", complete.detail());
+        assertTrue(complete.detail().contains("no matching biome within 4 chunks"), complete.detail());
+    }
+
+    @Test
+    void oddBiomeRadiiReportTheRoundedDownSamplingDistance() {
+        var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"biome\":\"minecraft:desert\",\"radius\":3}"), SCOPE);
+        var result = new WorldKnowledgeTools(tools()).biomeResult(request, new WorldTools.Center("minecraft:overworld", new Vec3(0, 64, 0)),
+                "minecraft:desert", 3, new LocateBiome.Result(null, -1, 9));
+        assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
+        assertTrue(result.detail().contains("radius rounded down to 32-block rings"), result.detail());
+        assertTrue(result.detail().contains("ring 1 at 32 blocks from the center"), result.detail());
+    }
+
+    /** A read-only server graph: unused chunk machinery stays uninitialized so accidental chunk reads fail. */
+    private record BiomeWorld(WorldTools tools, ServerWork work) {
+        static BiomeWorld create(boolean keylessSamples) throws ReflectiveOperationException {
+            bootstrap();
+            var lookup = VanillaRegistries.createLookup();
+            var registry = new MappedRegistry<Biome>(Registries.BIOME, Lifecycle.stable());
+            var plains = registry.register(Biomes.PLAINS, lookup.lookupOrThrow(Registries.BIOME).getOrThrow(Biomes.PLAINS).value(), RegistrationInfo.BUILT_IN);
+            var desert = registry.register(Biomes.DESERT, lookup.lookupOrThrow(Registries.BIOME).getOrThrow(Biomes.DESERT).value(), RegistrationInfo.BUILT_IN);
+            var source = new net.minecraft.world.level.biome.BiomeSource() {
+                @Override
+                protected com.mojang.serialization.MapCodec<? extends net.minecraft.world.level.biome.BiomeSource> codec() {
+                    return net.minecraft.world.level.biome.FixedBiomeSource.CODEC;
+                }
+
+                @Override
+                protected Stream<Holder<Biome>> collectPossibleBiomes() {
+                    return keylessSamples ? Stream.of(plains, desert) : Stream.of(plains);
+                }
+
+                @Override
+                public Holder<Biome> getNoiseBiome(int x, int y, int z, net.minecraft.world.level.biome.Climate.Sampler sampler) {
+                    if (!keylessSamples) return fail("an impossible biome must finish without sampling");
+                    return x == 8 && z == 0 ? desert : Holder.direct(plains.value());
+                }
+            };
+            var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            var unsafe = unsafeField.get(null);
+            var allocate = unsafe.getClass().getMethod("allocateInstance", Class.class);
+            var server = (net.minecraft.client.server.IntegratedServer) allocate.invoke(unsafe, net.minecraft.client.server.IntegratedServer.class);
+            var level = (net.minecraft.server.level.ServerLevel) allocate.invoke(unsafe, net.minecraft.server.level.ServerLevel.class);
+            var chunks = (net.minecraft.server.level.ServerChunkCache) allocate.invoke(unsafe, net.minecraft.server.level.ServerChunkCache.class);
+            var chunkMap = (net.minecraft.server.level.ChunkMap) allocate.invoke(unsafe, net.minecraft.server.level.ChunkMap.class);
+            var random = allocate.invoke(unsafe, net.minecraft.world.level.levelgen.RandomState.class);
+            var generator = new net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator(source,
+                    lookup.lookupOrThrow(Registries.NOISE_SETTINGS).getOrThrow(net.minecraft.world.level.levelgen.NoiseGeneratorSettings.OVERWORLD));
+            for (var binding : List.of(
+                    new Object[] { net.minecraft.server.MinecraftServer.class, server, "running", true },
+                    new Object[] { net.minecraft.server.MinecraftServer.class, server, "levels", Map.of(net.minecraft.world.level.Level.OVERWORLD, level) },
+                    new Object[] { net.minecraft.world.level.Level.class, level, "registryAccess", new net.minecraft.core.RegistryAccess.ImmutableRegistryAccess(List.of(registry)) },
+                    new Object[] { net.minecraft.world.level.Level.class, level, "dimensionTypeRegistration",
+                            lookup.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(net.minecraft.world.level.dimension.BuiltinDimensionTypes.OVERWORLD) },
+                    new Object[] { net.minecraft.server.level.ServerLevel.class, level, "chunkSource", chunks },
+                    new Object[] { net.minecraft.server.level.ServerChunkCache.class, chunks, "chunkMap", chunkMap },
+                    new Object[] { net.minecraft.server.level.ChunkMap.class, chunkMap, "randomState", random },
+                    new Object[] { net.minecraft.server.level.ChunkMap.class, chunkMap, "worldGenContext",
+                            new net.minecraft.world.level.chunk.status.WorldGenContext(level, generator, null, null, null) })) {
+                var field = ((Class<?>) binding[0]).getDeclaredField((String) binding[2]);
+                field.setAccessible(true);
+                field.set(binding[1], binding[3]);
+            }
+            var work = new ServerWork(System::nanoTime);
+            return new BiomeWorld(new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE, Runnable::run, work,
+                    () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null), work);
+        }
+    }
+
+    @Test
+    void locateReportsWhenTheSourceCannotProduceTheBiome() throws Exception {
+        var world = BiomeWorld.create(false);
+        var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("""
+                {"biome":"minecraft:desert","center":{"type":"block","place":"minecraft:overworld|0,64,0"}}
+                """), SCOPE);
+        var result = world.tools().handle(request, null).toCompletableFuture();
+        while (!result.isDone()) world.work().tick();
+        assertEquals(Evidence.Coverage.COMPLETE, result.get().coverage());
+        assertTrue(result.get().records().isEmpty());
+        assertNull(result.get().nextCursor());
+        assertEquals("this dimension's biome source never produces it", result.get().detail());
+    }
+
+    @Test
+    void locateSkipsKeylessSamplesAndNullRadiusUsesTheDefault() throws Exception {
+        var world = BiomeWorld.create(true);
+        var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("""
+                {"biome":"minecraft:desert","radius":null,"center":{"type":"block","place":"minecraft:overworld|0,64,0"}}
+                """), SCOPE);
+        var result = world.tools().handle(request, null).toCompletableFuture();
+        while (!result.isDone()) world.work().tick();
+        assertEquals(Evidence.Coverage.COMPLETE, result.get().coverage());
+        assertEquals("minecraft:desert at 32, 64, 0", result.get().records().getFirst().title());
+    }
+
+    @Test
+    void locateRejectsInvalidRadiiAndMismatchedCursors() throws Exception {
+        var world = BiomeWorld.create(false);
+        for (var radius : List.of("0", "513", "1.5")) {
+            assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failure(world.tools(), "locate",
+                    "{\"biome\":\"minecraft:desert\",\"radius\":" + radius + "}"), radius);
+        }
+        var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"biome\":\"minecraft:desert\",\"radius\":4}"), SCOPE);
+        var partial = new WorldKnowledgeTools(world.tools()).biomeResult(request,
+                new WorldTools.Center("minecraft:overworld", new Vec3(0, 64, 0)), "minecraft:desert", 4, new LocateBiome.Result(null, 10, 10));
+        assertEquals(Toolbox.Code.INVALID_CURSOR, failure(world.tools(), "locate",
+                "{\"biome\":\"minecraft:plains\",\"radius\":4,\"cursor\":\"" + partial.nextCursor() + "\"}"));
     }
 }

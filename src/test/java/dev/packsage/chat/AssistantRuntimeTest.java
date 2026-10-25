@@ -68,6 +68,7 @@ class AssistantRuntimeTest {
         runtime.newChat();
         assertTrue(runtime.sessionReady());
         assertEquals("bridge answer", runtime.requestView(id).conversation().turns().getFirst().answer());
+        assertEquals("bridge answer", runtime.savedRequest(id).toCompletableFuture().join().turns().getFirst().answer());
         assertNull(runtime.requestView(new ChatContracts.RequestId("missing")));
         var target = new Evidence.NavigationTarget(SCOPE, "fixture", "source", "missing");
         assertEquals(Evidence.NavigationStatus.STALE, runtime.navigateWithResult(target).toCompletableFuture().join().status());

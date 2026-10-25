@@ -42,4 +42,22 @@ class DebugChatStateTest {
         assertEquals(timing, result.get("timing"));
         assertThrows(IllegalArgumentException.class, () -> DebugChatState.read(view, "missing", timing));
     }
+
+    @Test
+    void failedToolArgumentsRemainInspectableEvenWhenTheyAreNotJson() {
+        var scope = new Evidence.Scope("world", "resources", "player", "runtime", 1);
+        var world = new ChatContracts.WorldIdentity("world", "World");
+        var turn = new ChatContracts.Turn(new ChatContracts.RequestId("failed"), "question", "", List.of(
+                new ModelBackend.ToolCall("call", "read", "{"), new ModelBackend.ToolResult("call", "unavailable", true)),
+                new ChatContracts.Context("{}", null, scope), List.of(), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, "failure"), 0, Instant.EPOCH);
+        var view = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_IN, false,
+                new ChatContracts.Conversation("conversation", world, List.of(turn), turn.outcome()), turn.context(),
+                List.of(), List.of(), List.of(), "", "", world, false);
+        var result = DebugChatState.read(view, "failed", new JsonArray());
+        assertEquals("failed", result.get("status").getAsString());
+        var tool = result.getAsJsonArray("toolCalls").get(0).getAsJsonObject();
+        assertEquals("{", tool.get("arguments").getAsString());
+        assertTrue(tool.get("error").getAsBoolean());
+    }
 }

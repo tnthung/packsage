@@ -19,6 +19,8 @@ public final class PackSageTools {
     private static final String WORLD_RADIUS = "{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":256}";
     private static final String WORLD_FILTER = "{\"type\":\"object\",\"properties\":{\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256}},\"additionalProperties\":false}";
     private static final String WORLD_ITEM_FILTER = "{\"type\":\"object\",\"properties\":{\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256},\"tooltip\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}}},\"additionalProperties\":false}";
+    private static final String WORLD_ID = "{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}";
+    private static final String WORLD_ID_OR_TAG = "{\"type\":[\"string\",\"null\"],\"maxLength\":257,\"pattern\":\"^#?[a-z0-9_.-]+:[a-z0-9/._-]+$\"}";
     private static final String WORLD_CURSOR = "{\"type\":[\"string\",\"null\"],\"maxLength\":1024}";
     private static final List<String> NATIVE_REGISTRIES = List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion", "active_effect", "player_attribute", "dimension", "dimension_type");
     private static final com.google.gson.Gson JSON = new com.google.gson.GsonBuilder().serializeNulls()
@@ -64,7 +66,8 @@ public final class PackSageTools {
         var definitions = new ArrayList<ModelBackend.ToolDefinition>();
         for (var name : List.of("search_recipe", "search_registry", "read_evidence",
                 "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
-                "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items")) {
+                "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
+                "read_loot", "locate", "search_commands", "read_command")) {
             var properties = new JsonObject();
             var required = new JsonArray();
             switch (name) {
@@ -129,6 +132,29 @@ public final class PackSageTools {
                     properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
                     required.add("filter");
                 }
+                case "read_loot" -> {
+                    properties.add("table", JsonParser.parseString(WORLD_ID));
+                    properties.add("block", JsonParser.parseString(WORLD_ID));
+                    properties.add("entity", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256}"));
+                    properties.add("place", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":300}"));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                }
+                case "locate" -> {
+                    properties.add("biome", JsonParser.parseString(WORLD_ID_OR_TAG));
+                    properties.add("structure", JsonParser.parseString(WORLD_ID_OR_TAG));
+                    properties.add("center", JsonParser.parseString(WORLD_ANCHOR));
+                    properties.add("radius", JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":512}"));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                }
+                case "search_commands" -> {
+                    properties.add("text", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256}"));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                }
+                case "read_command" -> {
+                    properties.add("name", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":512}"));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                    required.add("name");
+                }
                 default -> throw new IllegalStateException(name);
             }
             if (List.of("search_recipe", "search_registry").contains(name)) {
@@ -166,6 +192,10 @@ public final class PackSageTools {
                 case "list_items" -> "List the items in one holder (player, a returned holder, an item path whose item holdsItems, or a word: held, offhand, targeted for the block or entity under the crosshair, ridden, opened for the open menu, optionally followed by >steps) grouped by item with counts, variants, up to 8 location paths and slot facts (selected hotbar slot, equipmentSlot, menuSlot); the first record summarizes the holder's inventories with emptySlots and the player's selectedSlot, or an open menu's menuType, title and excludedSlots, the output previews such as a crafting result that are never listed as contents; opened:<id> paths last only while that menu stays open; a word that cannot resolve, such as held with an empty hand, returns no records and says why; inventory limits it to one section; filter.tooltip matches the tooltip lines shown to the player, for example [\"Luck\"]. Inspect a location with inspect_item, or list_items it again to step inside.";
                 case "inspect_item" -> "Read one item by its location path or by held or offhand (optionally followed by >steps, as can targeted and ridden): its tooltip lines as the player sees them (tooltipStatus bounded or unknown when cut or unreadable), enchantments, durability, full potion contents, custom name, attribute modifiers, enchantment eligibility (always present, with a none note when nothing applies), raw components, a component fingerprint that tells same-id variants apart, and the inventories it has.";
                 case "find_items" -> "Search every inventory in range at once: the player's own, containers and entities, including items nested in shulker boxes and bundles, grouped by item with location paths; filter.tooltip matches the tooltip lines shown to the player, for example [\"Luck\"]. Prefer it over opening containers one by one; then inspect_item a returned path. Each container or entity holding a match comes back as its own record with a highlight link.";
+                case "read_loot" -> "Read a loot table as the game defines it, from a table id, a block id (its drops), an entity type id or loaded entity id (its death drops) or a container place (its pending loot and seed, before it is opened). Returns pools, rolls, entries, conditions and functions with item and tag ids, plus the item ids it can produce. It never rolls the table; explain chances from rolls, weights and conditions.";
+                case "locate" -> "Find the nearest biome or structure (ids or tags such as #minecraft:village) around center within radius chunks (default 100), without loading or generating chunks. Biomes are sampled from the biome source; structures come back as found (present in a generated chunk) or predicted (placement and biome checks pass for an ungenerated chunk), up to 5 nearest first, each with a link that marks the place. Say which kind each result is.";
+                case "search_commands" -> "List the server's commands matching text in their name or usage, with whether the player can run them and short usage. Read one with read_command. PackSage never runs commands; explain what to type.";
+                case "read_command" -> "Read one command or subcommand path such as fill or execute if block: its usage forms for the player's permission level, every argument with its type and examples, redirects and whether the player can run it.";
                 default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
             }, schema.toString()));
         }

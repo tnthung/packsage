@@ -1347,6 +1347,60 @@ class RequestControllerTest {
     }
 
     @Test
+    void cancellationDuringPendingResultByteCountCannotAdmitAnIntervalAfterSummary() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        AtomicBoolean pendingInstall = new AtomicBoolean();
+        CountDownLatch counting = new CountDownLatch(1);
+        CountDownLatch releaseCount = new CountDownLatch(1);
+        RequestController controller = new RequestController(new ConversationStore(temporaryDirectory, DIRECT), backend, DIRECT,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()),
+                request -> CompletableFuture.completedFuture(new ChatContracts.ToolResponse(
+                        new ModelBackend.ToolResult(request.call().callId(), "ready", false),
+                        new ChatContracts.EvidenceSelection(List.of(), List.of()))), turn -> turn.tokenCount(),
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()), ignored -> { }, ignored -> { },
+                result -> {
+                    if (pendingInstall.get()) {
+                        counting.countDown();
+                        try {
+                            if (!releaseCount.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("byte count not released");
+                        } catch (InterruptedException exception) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(exception);
+                        }
+                    }
+                    return result.getBytes(StandardCharsets.UTF_8).length;
+                });
+        backend.onStart = listener -> {
+            listener.accept(toolEvent("early", "lookup", "{}"));
+            assertTrue(backend.submitted.isEmpty());
+            pendingInstall.set(true);
+        };
+        List<String> lines = new ArrayList<>();
+        try (var capture = new LogCapture(lines::add)) {
+            CompletableFuture<Void> starting = CompletableFuture.runAsync(() -> controller.begin(
+                    submission("cancel-pending-byte-count", WORLD_A, SCOPE_A, false,
+                            new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)));
+            try {
+                assertTrue(counting.await(5, TimeUnit.SECONDS));
+                CompletableFuture.runAsync(controller::stop).get(5, TimeUnit.SECONDS);
+                assertEquals(1, lines.stream().filter(line -> line.contains("phase=tool_summary toolCalls=1 toolWallMs=0 ")).count());
+            } finally {
+                releaseCount.countDown();
+                starting.get(5, TimeUnit.SECONDS);
+            }
+            assertTrue(backend.submitted.isEmpty());
+            assertFalse(lines.stream().anyMatch(line -> line.contains("phase=tool_result_sent ")));
+            assertEquals(1, lines.stream().filter(line -> line.contains("phase=tool_result_dropped call=early ")).count());
+            assertEquals(1, lines.stream().filter(line -> line.contains("phase=tool_summary ")).count());
+        }
+    }
+
+    @Test
     void startFailureLogsToolSummaryBeforeFailure() {
         for (boolean callsTool : new boolean[] { false, true }) {
             FakeBackend backend = new FakeBackend();

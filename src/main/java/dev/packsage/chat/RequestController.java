@@ -653,7 +653,7 @@ public final class RequestController {
         }
         if (!install) startedExchange.cancel();
         else for (ModelBackend.ToolResult result : pending) {
-            int resultBytes = result.serializedResult().getBytes(StandardCharsets.UTF_8).length;
+            int resultBytes = toolResultBytes.applyAsInt(result.serializedResult());
             ToolTiming.Interval timing;
             String tool;
             synchronized (stateLock) {

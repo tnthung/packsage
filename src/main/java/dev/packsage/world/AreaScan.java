@@ -599,7 +599,7 @@ public final class AreaScan {
                 if (snapshot == null) snapshot = new EntitySnapshot();
                 if (snapshot.step(level, pos, notes)) return true;
                 entities = snapshot.ids;
-                if (anchor != null && !entities.contains(anchor)) notes.add("Entity cursor anchor is gone or moved; continuing after its UUID with partial coverage");
+                // Pages resume after the anchor in UUID order, so an anchor that has since gone skips nothing.
                 // Deliver progress before the call budget can stop us and discard this acquired snapshot.
             }
             for (int read = 0; read < LIST_PAGE; read++) {

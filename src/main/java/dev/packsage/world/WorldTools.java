@@ -772,6 +772,7 @@ public final class WorldTools implements KnowledgeProvider {
         private final Set<UUID> seenEntities = new HashSet<>();
         private int blockIndex;
         private int entityIndex;
+        private Long startedAt;
 
         FindSlice(MinecraftServer server, Anchor anchor, int radius, KindFilter filter, boolean includeNested, FindState resume) {
             this.server = server;
@@ -785,6 +786,7 @@ public final class WorldTools implements KnowledgeProvider {
         @Override
         public boolean step() {
             if (stopped) return false;
+            if (level != null && startedAt == null) startedAt = level.getGameTime();
             if (search != null) return search.step();
             if (resume != null && chunks == null) {
                 resolveRoots();
@@ -864,7 +866,6 @@ public final class WorldTools implements KnowledgeProvider {
                     blocks.add(at.immutable());
                 }
                 if (chunk.getBlockEntities().size() > AreaScan.SNAPSHOT_LIMIT) notes.add("Block entity snapshot reached the per-chunk bound; some holders were not searched");
-                if (!blocks.isEmpty()) notes.add(AreaScan.SNAPSHOT_NOTE);
                 blockIndex = 0;
                 if (!level.areEntitiesLoaded(pos.toLong())) entitiesUnloaded++;
                 return false;
@@ -893,7 +894,6 @@ public final class WorldTools implements KnowledgeProvider {
             }
             if (entities == null) {
                 entities = level.areEntitiesLoaded(pos.toLong()) ? AreaScan.entitySnapshot(level, pos, notes) : List.of();
-                if (!entities.isEmpty()) notes.add(AreaScan.SNAPSHOT_NOTE);
                 entityIndex = 0;
                 return false;
             }
@@ -937,6 +937,7 @@ public final class WorldTools implements KnowledgeProvider {
             if (unloaded > 0) all.add(unloaded + " chunks in range were not loaded and were not searched");
             if (entitiesUnloaded > 0) all.add(entitiesUnloaded + " chunks in range did not have their entities loaded yet, so entities there were not searched");
             if (gone > 0) all.add(gone + " holders from earlier pages are gone or no longer loaded");
+            if (startedAt != null && level.getGameTime() != startedAt) all.add(AreaScan.SNAPSHOT_NOTE);
             all.addAll(notes);
             List<ItemEntry> entries = List.of();
             FindState continuation = null;

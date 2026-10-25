@@ -42,7 +42,7 @@ public final class AreaScan {
     static final String PAGE_LIMIT_NOTE = "This page holds " + LIST_PAGE + " matches, the page limit; continue with the cursor";
     private static final int SECTION_SIZE = 16;
     static final int SNAPSHOT_LIMIT = 4096;
-    static final String SNAPSHOT_NOTE = "Chunk snapshots span server steps; entities or block entities added or moved during the read may be absent; repeat the query";
+    static final String SNAPSHOT_NOTE = "The read spanned multiple server ticks; entities or block entities added or moved into already-read chunks may be absent";
 
     private final WorldRegistry registry;
 
@@ -73,7 +73,6 @@ public final class AreaScan {
                             : AbortableIterationConsumer.Continuation.CONTINUE;
                 });
         if (ids.size() >= SNAPSHOT_LIMIT) notes.add("Entity snapshot reached the " + SNAPSHOT_LIMIT + " per-chunk bound; use a smaller area and retry");
-        if (ids.size() > LIST_PAGE) notes.add(SNAPSHOT_NOTE);
         ids.sort(UUID::compareTo);
         return ids;
     }
@@ -504,6 +503,7 @@ public final class AreaScan {
         private int entitiesUnloaded;
         private String nextCursor;
         private boolean stopped;
+        private Long startedAt;
 
         EntityListSlice(ServerLevel level, Vec3 center, int radius, KindFilter filter, String cursor) {
             this.level = level;
@@ -517,13 +517,13 @@ public final class AreaScan {
                 chunk = Integer.parseInt(parts[0]);
                 if (chunk < 0 || chunk > chunks.size()) throw new IllegalArgumentException("Invalid entity cursor: " + cursor);
                 anchor = parts[1].isEmpty() ? null : UUID.fromString(parts[1]);
-                notes.add("Continuing chunk snapshots; changes before the cursor may be absent; repeat the query for fresh coverage");
             }
         }
 
         @Override
         public boolean step() {
             if (stopped || nextCursor != null || chunk >= chunks.size()) return false;
+            if (startedAt == null) startedAt = level.getGameTime();
             var pos = chunks.get(chunk);
             if (level.getChunkSource().getChunkNow(pos.x, pos.z) == null || !level.areEntitiesLoaded(pos.toLong())) {
                 if (level.getChunkSource().getChunkNow(pos.x, pos.z) == null) unloaded++;
@@ -592,6 +592,7 @@ public final class AreaScan {
 
         @Override
         public Page<EntityHandle> result() {
+            if (startedAt != null && level.getGameTime() != startedAt) notes.add(SNAPSHOT_NOTE);
             return AreaScan.page(items, nextCursor, unloaded, entitiesUnloaded, notes);
         }
     }

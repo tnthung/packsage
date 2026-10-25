@@ -35,7 +35,7 @@ class JournalHooksTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void everyRegisteredHandlerContainsRuntimeExceptionsAndAccountsItsTime() {
+    void everyRegisteredHandlerContainsRuntimeExceptionsWithoutTimingNonServerWork() {
         record Listener(EventPriority priority, boolean receiveCanceled, Consumer<Event> action) {
         }
         var listeners = new HashMap<Class<?>, Listener>();
@@ -58,7 +58,7 @@ class JournalHooksTest {
         }
         assertEquals(17, journal.stats().hookFailures());
         journal.stats().endTick();
-        assertTrue(journal.stats().maxHookNanosPerTick.get() > 0);
+        assertEquals(0, journal.stats().maxHookNanosPerTick.get());
         for (var type : List.of(BlockEvent.BreakEvent.class, BlockEvent.EntityPlaceEvent.class,
                 LivingDeathEvent.class, EntityTravelToDimensionEvent.class)) {
             assertEquals(EventPriority.LOWEST, listeners.get(type).priority());
@@ -160,5 +160,7 @@ class JournalHooksTest {
         hooks.register(bus);
         bus.post(new BlockEvent.BreakEvent(null, BlockPos.ZERO, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), null));
         assertEquals(0, journal.stats().trackerEvictions());
+        journal.stats().endTick();
+        assertEquals(0, journal.stats().maxHookNanosPerTick.get());
     }
 }

@@ -140,6 +140,23 @@ class ProgressToolsTest {
     }
 
     @Test
+    void availableProgressWithoutAVisibleTabHasNoLinks() throws Exception {
+        var fixture = new Fixture();
+        var root = new ProgressId("minecraft", "minecraft:adventure/root");
+        var available = new ProgressHandle(root, root, "Adventure", ProgressStatus.AVAILABLE);
+        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(new ProgressTree(root, "Adventure", 0, 1)),
+                List.of(new ProgressEntry(available, "Kill or be killed")), null),
+                new Progress(available, "Kill or be killed", List.of(), List.of(), List.of(), List.of(), null, Map.of())));
+
+        var listed = fixture.call("list_progress", "{}");
+
+        assertEquals(2, listed.records().size());
+        for (var record : listed.records()) assertTrue(record.targets().isEmpty(), record.source().sourceHandle());
+        assertEquals(new Evidence.JsonString("available"), listed.records().get(1).payload().values().get("status"));
+        assertTrue(fixture.call("inspect_progress", "{\"id\":\"minecraft:adventure/root\"}").records().getFirst().targets().isEmpty());
+    }
+
+    @Test
     void listProgressCursorContinuesAndRejectsAChangedFilter() throws Exception {
         var fixture = new Fixture();
         var entries = new ArrayList<ProgressEntry>();

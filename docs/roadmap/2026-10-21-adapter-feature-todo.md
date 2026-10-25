@@ -10,62 +10,78 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 
 ## 1. Has adapter, not fully implemented
 
-### Journal and notes (v2)
+### Journal recording and search (v2)
 
-Stage 4 is implemented with automated tests; full installed acceptance is pending. Candidate 2 exposed a closed journal after late hook registration. Startup recovery now has failing-then-passing regressions, with the installed recheck pending ([fix report](../../.superpowers/sdd/2026-10-25-v2-prompt-acceptance/fix-journal-closed-report.md)). Keep these entries unchecked until the final acceptance run passes the corresponding checks in the [v2 note](2026-10-22-v2-minecraft-only.md#journal-and-notes).
+Minecraft remains in this adapter-status group because full coverage and acceptance are incomplete. Checked rows describe accepted features only; remaining clauses have their own unchecked rows. The [single acceptance record](../validation/2026-10-25-v2-acceptance.md#acceptance-summary) applies the controller rulings and supersedes earlier fixture failures; the [v2 note](2026-10-22-v2-minecraft-only.md) retains the broader checklist and cross-stage follow-ups.
 
-- [ ] Minecraft — automatic event journal with run merging; singleplayer recording and background flushing, without blocking the game on disk or the database.
-- [ ] Minecraft — player notes with place links; silent `remember`, `update_note` and `forget_note`, player-reported trust, note anchors and saved links that survive restarts and follow moved notes.
-- [ ] Minecraft — journal search over events and notes; `search_journal` with recording-since and honest partial coverage, plus persistent place highlights.
+- [x] Minecraft — journal startup/SQLite, fresh break/death evidence, deposits with chest coordinates/links and portal/advancement times (J0/W2/J4/J5). Recording start/gaps are honestly qualified in candidate reads; journal startup recovery passed live. J4's deposits-only answer is correct under the controller ruling.
+- [x] Minecraft — bulk run search: 2,000 player sand breaks merge into one run; TNT explosion and break runs appear with working links (M5 completed subchecks).
+- [ ] Minecraft — complete journal performance: M5 NOT RUN overall because world-close hook <1 ms / overflow=0 summary was not captured; broader event families, exceptional menu ownership and final-burst/rapid-rejoin flush remain unverified.
+- [ ] Minecraft — multiplayer journal/note unavailability: J7 NOT RUN; installed client rejects vanilla localhost, so a NeoForge dedicated server is needed.
+
+### Silent notes and persistent recall (v2)
+
+- [x] Minecraft — new located reports saved silently, identical existing reports need no write, recalled notes remain player reports, and restart recall has coordinates and an opening place link (C4–C6/J6/M1 persistence subcheck).
+- [ ] Minecraft — moving one note and following its saved link: M1 FAIL; clearPlace loses the location and the old link becomes unavailable, with two pre-existing notes still present. Forget/anchor/other-dimension clauses remain unverified live.
 
 ### World block, mob and storage reading (v2)
 
-Candidate 2's duplicate-destination bridge rejection and inspected-air Show link are fixed with automated regressions; installed rechecks remain pending in the [fix report](../../.superpowers/sdd/2026-10-25-v2-prompt-acceptance/fix-journal-closed-report.md).
+- [x] Minecraft — nearby/nested storage search, both stone stores and per-holder highlights, continued complete 72-type catalogue, sampled responsive 320-chest search and exact saved chest link after full restart (W1/W4/W5/W6/W7).
+- [x] Minecraft — villager home/job/sleep/work facts and gameTime interpretation combined with fresh bed-break/zombie-death evidence (C6/Q5, W2); specific golem expiry conversion remains unexercised.
+- [x] Minecraft — mob attributes and horse-like jump/speed facts, including cited 1.62-block mule jump (W8) and earlier horse acceptance. Its omitted coordinates remain a separate E6 failure below.
+- [x] PackSage — item pages retain holder links and continuation within the 64-record limit (N1/W5); repeated equivalent bridge navigation ids and inspected-air link suppression passed live rechecks (C3).
 
-- [x] Minecraft — nearby storage search, including items nested inside other items, with block highlights; installed acceptance passed ([validation record](../validation/2026-10-22-v2-world-reading.md)).
-- [x] Minecraft — villager home, job site, sleep and work times and golem-spawning state; installed iron-farm diagnosis passed.
-- [x] Minecraft — mob storage paths, mule chest to shulker box to bundle; installed acceptance passed.
-- [x] Minecraft — every mob attribute, and horse jump height and speed in blocks; installed acceptance passed for a mule and a horse.
-- [x] Minecraft — saved highlight links across a full restart, and pacing with the world running and paused; installed acceptance passed.
-- [x] PackSage — item pages keep holder links and their continuation within the 64-record tool-output limit (N1); installed recheck passed with 52 items, 12 holders and a cursor.
-- [ ] PackSage — prompt: the armor reply omitted eligible enchantments from returned evidence, and the mule reply gave no coordinates, the farm reply did not reason from villager times, a broad storage reply did not continue its cursor, and one reply ended with a malformed source token.
+### Held, offhand and item facts (v2)
 
-### Villager trades (v2)
-
-- [ ] Minecraft — villager and wandering-trader offers, distinguishing item facts and prices for the player through `inspect_entity`, without generating trades; implemented with automated tests, not yet checked in game ([world knowledge plan](../plans/2026-10-25-v2-world-knowledge.md)).
-
-### Loot tables (v2)
-
-- [ ] Minecraft — `read_loot` reads table definitions, block/entity drops and pending container loot without rolling or unpacking it; implemented with automated tests, not yet checked in game.
-
-### Biome and structure locating (v2)
-
-- [ ] Minecraft — `locate` resolves biome and structure ids/tags, returns coordinates and persistent place links, and continues paced searches without loading or generating chunks. Structures distinguish found starts from predictions; unknown saved-start confirmation never proves absence. Nether and distant Overworld columns pass at render distance 12 after the depth-state fix ([L1 recheck](../validation/2026-10-25-v2-acceptance.md#l1-recheck)); the earlier Overworld check at 8 chunks is separate historical evidence. Saved links await a full-restart check, with other acceptance still pending ([final stage 3 checklist](2026-10-22-v2-minecraft-only.md)).
-
-### Command discovery and usage (v2)
-
-- [ ] Minecraft — `search_commands` and `read_command` read a paced detached command snapshot, with usage, argument names/types and player permissions, without running commands; implemented with automated tests, not yet checked in game.
-
-### Held and offhand item facts (v2)
-
-- [ ] Minecraft — `inspect_item` and `list_items` read the held and offhand items through `held` and `offhand`, with full item facts, tooltip lines and always-present `enchantmentEligibility`; implemented with automated tests, not yet checked in game ([plan](../plans/2026-10-25-v2-item-reading-consolidation.md)).
+- [x] Minecraft — held sword eligibility/exclusions, empty-hand response, four-piece armor eligibility and offhand Luck facts found by tooltip search (C1/C4/W3).
+- [ ] Minecraft — every component/fingerprint/potion variant, other missing-holder cases and legacy inventory/storage handle rereads: implemented, complete installed coverage not captured.
 
 ### Open-menu reading (v2)
 
-- [ ] Minecraft — `list_items` reads the open menu through `opened`, with menu sections, output previews listed under `excludedSlots` instead of contents, and modded menus listed under `minecraft/menu` as PARTIAL; implemented with automated tests, not yet checked in game.
+- [x] Minecraft — opened crafting-grid inputs with output preview excluded (C2).
+- [ ] Minecraft — other menu types, modded-menu PARTIAL behavior and menu-close path staleness: not exercised by C2.
 
 ### Targeted and ridden holders (v2)
 
-- [ ] Minecraft — `list_items` reads the block or mob under the crosshair through `targeted` and the ridden mob through `ridden`, and gameplay context names `targetedHolder` and `ridden`; implemented with automated tests, not yet checked in game.
+- [x] Minecraft — targeted mule/librarian and ridden donkey reads return nested contents/offers and actual cargo; coordinates and links work (W4/C3/C5).
 
 ### Tooltip item search (v2)
 
-- [ ] Minecraft — `filter.tooltip` in `list_items` and `find_items` matches the tooltip lines shown to the player, and unreadable tooltips make the page PARTIAL; implemented with automated tests, not yet checked in game.
+- [x] Minecraft — one tooltip-filtered search finds the rabbit's foot and distinguishes its offhand bonus from current Luck (C4).
+- [ ] Minecraft — unreadable-tooltip PARTIAL behavior and every listing/search variant: automated coverage, not fully exercised live.
+
+### Villager trades (v2)
+
+- [x] Minecraft — stationary librarian offers/prices/item distinctions and never-opened librarian not-generated reads twice, then ordinary trade opening (C5 corrected fixture). The natural-job fixture already had offers and is not the no-generation proof.
+- [ ] Minecraft — wandering-trader live acceptance and bounded-inspector payload/PARTIAL follow-ups remain open.
+
+### Loot tables (v2)
+
+- [x] Minecraft — zombie common/conditional rare drops read from its loot definition, without rolling (C6).
+- [ ] Minecraft — pending-container table/seed without unpacking, unknown/empty tables and broader loot variants: installed acceptance not captured.
+
+### Structure locating and place markers (v2)
+
+- [x] Minecraft — fresh village predicted/visited found results with coordinates, unchanged region listing and saved place link after full restart (C7). Nether column visibility/lifetime passes after the depth-test fix at distance 12 (L1); earlier Overworld distance-8 clamp/expiry passes (L2), and fixed-build Overworld visibility passes at 12.
+- [ ] Minecraft — biome id/tag sampling/continuation and different-dimension place handling: broader installed acceptance not captured.
+
+### Command discovery and usage (v2)
+
+- [x] Minecraft — cheats-off /fill usage/argument types/permissions from read_command, without execution (C8).
+- [ ] Minecraft — broader search_commands discovery/continuation and snapshot caching/performance follow-ups remain open.
 
 ### Progress and statistics (v2)
 
-- [ ] Minecraft — advancement progress with per-criterion state and tab links; live [Q11](../validation/2026-10-25-v2-acceptance.md#q11--fail) found links to absent tabs. Links now require server-tracked tab visibility. Live P5 exposed hidden identifiers; opaque world-session ids now redact listings, dependencies, inspection, evidence handles and hidden roots. Review fixes reject unearned hidden real-id lookups and order hidden siblings after visible ones by alias. Automated regression checks pass; both live rechecks remain pending ([remaining acceptance checks](2026-10-22-v2-minecraft-only.md#progress-and-statistics)).
-- [ ] Minecraft — player statistics in blocks and seconds; implemented with automated tests, not yet checked in game. Acceptance runs once at the end of all stages, as listed in the [v2 note](2026-10-22-v2-minecraft-only.md#progress-and-statistics).
+- [x] Minecraft — per-criterion missing biome names, available goals, anonymous hidden entries after the P5 fix, visible-tab links and restart reopening (P1/P5/P7/P8). Q11 confirms invisible tabs stay source-only.
+- [x] Minecraft — exact mined counts, walking in blocks, explicit never-mined zero, play time and sampled 2,000-advancement performance (P2/P3/P4/P6/P10).
+- [ ] Minecraft — multiplayer progress/statistics unavailability: P9 NOT RUN, requires a NeoForge dedicated server. Broader interrupted/missing-destination/unit branches remain unexercised live.
+- [ ] PackSage — offered-tool removal and historical quest-source UI audit: P11 NOT RUN, logs show tool count without names and JSONL has no definitions. W7/P8 separately pass historical chest/advancement link reopening.
+
+### Whole-policy prompt, citations and timing (v2)
+
+- [x] PackSage — six live prompt rounds, C6 promoted byte-for-byte and effectively 14/14 under Q8a/Q8b note-action ruling; installed default verified with override cleared. Whole-set armor, continued storage, grounded farm diagnosis, silent notes and supported Minecraft recipe/plan answers pass (W2/W3/W5/J6/E2). Provider citation fixes pass installed E5 scans and sampled UI checks.
+- [ ] PackSage — every located thing has text coordinates: E6 FAIL, W8 mule jump answer omits them. Part B's unscored unsupported fortress link and changed-radius cursor reuse remain prompt follow-ups; no seventh candidate was run.
+- [x] PackSage — safe tool receipt/submission/summary logs distinguish backend and tool wall time (E7), and independent effect/attribute reads overlap (E4).
 
 ### Inventory and equipment inspection
 

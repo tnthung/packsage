@@ -14,6 +14,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BarrelBlockEntity;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.HashSet;
 import java.util.List;
@@ -33,6 +35,60 @@ import static org.junit.jupiter.api.Assertions.fail;
 class WorldToolsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
     private static final String ENTITY = "3f1c2a4e-0000-4000-8000-000000000001";
+
+    @ParameterizedTest
+    @ValueSource(strings = {"stable", "next_tick", "unloaded", "unloaded_at_snapshot", "unloaded_after_snapshot"})
+    void holderCoverageReflectsTickSpansAndCountsEachUnloadedChunkOnce(String scenario) throws Exception {
+        var world = DenseWorld.create(1);
+        world.entitiesUnloaded = scenario.equals("unloaded");
+        var pos = new BlockPos(8, 64, 8);
+        ((DenseWorld.Chunk) world.chunks.chunk).blockEntities.put(pos, new BarrelBlockEntity(pos, Blocks.BARREL.defaultBlockState()));
+        var registry = new WorldRegistry();
+        var tools = new WorldTools(() -> null, registry, () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
+                () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
+        var type = Class.forName("dev.packsage.world.WorldTools$FindSlice");
+        var constructor = type.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        var slice = (ServerWork.Slice<?>) constructor.newInstance(tools, null, new Anchor.Player(), 4, KindFilter.ANY, false, null);
+        for (var entry : Map.<String, Object>of("level", world, "center", new Vec3(8, 64, 8),
+                "chunks", List.of(new ChunkPos(0, 0))).entrySet()) {
+            var field = type.getDeclaredField(entry.getKey());
+            field.setAccessible(true);
+            field.set(slice, entry.getValue());
+        }
+        assertTrue(slice.step(), "copy block positions");
+        assertTrue(slice.step(), "revalidate block positions");
+        if (scenario.equals("next_tick")) world.gameTime++;
+        if (scenario.equals("unloaded_at_snapshot")) world.entitiesUnloaded = true;
+        assertTrue(slice.step(), "decide whether entity snapshots are available");
+        if (scenario.equals("unloaded_at_snapshot")) world.entitiesUnloaded = false;
+        if (scenario.equals("unloaded_after_snapshot")) world.entitiesUnloaded = true;
+        var next = type.getDeclaredField("next");
+        next.setAccessible(true);
+        var steps = 0;
+        while (next.getInt(slice) == 0) {
+            assertTrue(slice.step());
+            assertTrue(++steps < 10);
+        }
+        // Finish the actual item search without the client-tooltip setup, which requires a running host.
+        var search = type.getDeclaredField("search");
+        search.setAccessible(true);
+        search.set(slice, new ItemSearch(registry, List.of(), KindFilter.ANY, false, null));
+        assertFalse(slice.step());
+        var result = slice.result();
+        var coverage = result.getClass().getDeclaredMethod("coverage");
+        coverage.setAccessible(true);
+        var note = result.getClass().getDeclaredMethod("note");
+        note.setAccessible(true);
+        if (scenario.equals("stable")) {
+            assertEquals(Evidence.Coverage.COMPLETE, coverage.invoke(result));
+            assertEquals(null, note.invoke(result));
+        } else {
+            assertEquals(Evidence.Coverage.PARTIAL, coverage.invoke(result));
+            if (scenario.equals("next_tick")) assertTrue(note.invoke(result).toString().contains("ticks"), note.invoke(result).toString());
+            else assertEquals("1 chunks in range did not have their entities loaded yet, so entities there were not searched", note.invoke(result));
+        }
+    }
 
     @Test
     void findingHoldersInADenseChunkBoundsEnumerationAndInventoryChecks() throws Exception {

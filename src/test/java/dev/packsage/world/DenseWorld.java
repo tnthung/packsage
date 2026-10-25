@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-/** A loaded single chunk with counted entity visits and no world files. Constructors are bypassed. */
+/** Loaded chunks with counted entity visits and no world files. Constructors are bypassed. */
 final class DenseWorld {
     static final class Chunk extends LevelChunk {
         Map<BlockPos, BlockEntity> blockEntities;
@@ -39,8 +39,9 @@ final class DenseWorld {
 
     static final class Chunks extends ServerChunkCache {
         LevelChunk chunk;
+        LevelChunk neighbor;
         Chunks() { super(null, null, null, null, null, null, 0, 0, false, null, null, null); }
-        @Override public LevelChunk getChunkNow(int x, int z) { return x == 0 && z == 0 ? chunk : null; }
+        @Override public LevelChunk getChunkNow(int x, int z) { return z == 0 ? (x == 0 ? chunk : x == 1 ? neighbor : null) : null; }
     }
 
     static final class World extends ServerLevel {
@@ -48,12 +49,14 @@ final class DenseWorld {
         List<Entity> entities;
         int visited;
         boolean forbidGlobal;
+        boolean entitiesUnloaded;
+        long gameTime;
         World() { super(null, null, null, null, null, null, null, false, 0, List.of(), false, null); }
         @Override public ServerChunkCache getChunkSource() { return chunks; }
         @Override public int getMinBuildHeight() { return -64; }
         @Override public int getHeight() { return 384; }
-        @Override public boolean areEntitiesLoaded(long chunk) { return true; }
-        @Override public long getGameTime() { return 400; }
+        @Override public boolean areEntitiesLoaded(long chunk) { return !entitiesUnloaded; }
+        @Override public long getGameTime() { return gameTime; }
         @Override public long getDayTime() { return 600; }
         @Override public Entity getEntity(java.util.UUID id) { visited++; return entities.stream().filter(entity -> entity.getUUID().equals(id)).findFirst().orElse(null); }
         @Override public LevelEntityGetter<Entity> getEntities() {
@@ -90,6 +93,7 @@ final class DenseWorld {
         world.chunks.chunk = (Chunk) unsafe.allocateInstance(Chunk.class);
         ((Chunk) world.chunks.chunk).blockEntities = new Object2ObjectOpenHashMap<>();
         world.entities = new ArrayList<>();
+        world.gameTime = 400;
         var dimension = Level.class.getDeclaredField("dimension");
         dimension.setAccessible(true);
         dimension.set(world, Level.OVERWORLD);

@@ -2,6 +2,7 @@ package dev.packsage.world;
 
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.entity.EntityType;
@@ -50,15 +51,80 @@ class AreaScanTest {
     @Test
     void entityMutationBetweenStepsReturnsUniqueRevalidatedResultsWithHonestCoverage() throws Exception {
         var world = DenseWorld.create(130);
+        var removed = world.entities.stream().max((left, right) -> left.getUUID().compareTo(right.getUUID())).orElseThrow();
+        var expected = new HashSet<UUID>();
+        world.entities.stream().sorted((left, right) -> right.getUUID().compareTo(left.getUUID())).limit(64).forEach(entity -> {
+            entity.setCustomName(Component.literal("selected"));
+            expected.add(entity.getUUID());
+        });
+        expected.remove(removed.getUUID());
         var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4,
-                new KindFilter(List.of("minecraft:zombie"), List.of(), ""), null);
+                new KindFilter(List.of(), List.of(), "selected"), null);
         while (world.visited == 0) assertTrue(slice.step());
-        world.entities.remove(world.entities.size() - 1);
+        world.entities.remove(removed);
         world.entities.add(new ItemEntity(EntityType.ITEM, world));
         while (slice.step()) {
         }
         assertEquals(Evidence.Coverage.PARTIAL, slice.result().coverage());
-        assertTrue(slice.result().note().contains("snapshot"));
+        assertTrue(slice.result().note().contains("disappeared"), slice.result().note());
+        assertEquals(130, world.visited, "all original UUIDs are revalidated, including the disappeared one");
+        var actual = new HashSet<UUID>();
+        slice.result().items().forEach(entity -> assertTrue(actual.add(entity.id())));
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    void aDenseStableSingleTickReadCanProveNoMatches() throws Exception {
+        var world = DenseWorld.create(130);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4,
+                new KindFilter(List.of("minecraft:zombie"), List.of(), ""), null);
+        while (slice.step()) {
+        }
+        assertTrue(slice.result().items().isEmpty());
+        assertEquals(Evidence.Coverage.COMPLETE, slice.result().coverage());
+        assertEquals(null, slice.result().note());
+    }
+
+    @Test
+    void anEntityMovingIntoAnAlreadyReadChunkMakesTheReadPartial() throws Exception {
+        var world = DenseWorld.create(1);
+        world.chunks.neighbor = world.chunks.chunk;
+        world.entities.getFirst().setPos(20, 64, 8);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(16, 64, 8), 6, KindFilter.ANY, null);
+        assertTrue(slice.step(), "the empty first chunk is read before the move");
+        world.gameTime++;
+        world.entities.getFirst().setPos(12, 64, 8);
+        while (slice.step()) {
+        }
+        assertTrue(slice.result().items().isEmpty(), "the entity moved behind the traversal");
+        assertEquals(Evidence.Coverage.PARTIAL, slice.result().coverage());
+        assertTrue(slice.result().note().contains("ticks"), slice.result().note());
+    }
+
+    @Test
+    void aBorderEntityIsReturnedOnlyOnceAcrossPages() throws Exception {
+        var world = DenseWorld.create(65);
+        world.chunks.neighbor = world.chunks.chunk;
+        for (int i = 0; i < 64; i++) {
+            world.entities.get(i).setUUID(new UUID(0, i + 1));
+            world.entities.get(i).setPos(i == 0 ? 15.95 : 12, 64, 8);
+        }
+        world.entities.getLast().setUUID(new UUID(0, 65));
+        world.entities.getLast().setPos(20, 64, 8);
+        var ids = new HashSet<UUID>();
+        String cursor = null;
+        int pages = 0;
+        do {
+            var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(16, 64, 8), 6, KindFilter.ANY, cursor);
+            while (slice.step()) {
+            }
+            for (var entity : slice.result().items()) assertTrue(ids.add(entity.id()), "repeated border entity " + entity.id());
+            cursor = slice.result().nextCursor();
+            if (cursor == null) assertEquals(Evidence.Coverage.COMPLETE, slice.result().coverage());
+            assertTrue(++pages <= 2);
+        } while (cursor != null);
+        assertEquals(65, ids.size());
+        assertEquals(2, pages);
     }
 
     @Test
@@ -103,6 +169,10 @@ class AreaScanTest {
             var page = slice.result();
             for (var entity : page.items()) assertTrue(ids.add(entity.id()), "repeated " + entity.id());
             cursor = page.nextCursor();
+            if (cursor == null) {
+                assertEquals(Evidence.Coverage.COMPLETE, page.coverage());
+                assertEquals(null, page.note());
+            }
             assertTrue(++pages <= 3);
         } while (cursor != null);
         assertEquals(130, ids.size());
@@ -125,7 +195,7 @@ class AreaScanTest {
         assertTrue(steps > 60);
         assertEquals(4000, world.visited);
         assertTrue(slice.result().items().isEmpty());
-        assertEquals(Evidence.Coverage.PARTIAL, slice.result().coverage());
+        assertEquals(Evidence.Coverage.COMPLETE, slice.result().coverage());
     }
 
     @Test

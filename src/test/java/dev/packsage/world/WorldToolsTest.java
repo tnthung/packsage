@@ -741,6 +741,60 @@ class WorldToolsTest {
         assertTrue(pages > 1);
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {1, 64})
+    void inspectAreaKeepsBlockFactsWhenEntityNamesExceedTheWireBudget(int count) throws Exception {
+        var provider = tools();
+        var entities = new java.util.ArrayList<EntityHandle>();
+        for (var i = 0; i < count; i++) {
+            entities.add(new EntityHandle("minecraft:cow", new java.util.UUID(0, i + 1), "minecraft:overworld", 8, 64, 8,
+                    count == 1 ? "x".repeat(1023) + "\uD83D\uDE00" + "x".repeat(300_000) : "\u0001\u4e16".repeat(2100)));
+        }
+        var type = Class.forName("dev.packsage.world.WorldTools$AreaRead");
+        var constructor = type.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
+                new Page<>(List.of(new BlockSummary(Map.of("minecraft:stone", 15L), List.of(), 0)), null, Evidence.Coverage.COMPLETE, null),
+                new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
+        var method = WorldTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
+        method.setAccessible(true);
+        var tools = new PackSageTools(request -> {
+            try {
+                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider, SCOPE, new Anchor.Player(), 16, read, null));
+            } catch (ReflectiveOperationException failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+
+        var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("area", "inspect_area", "{}"), SCOPE).toCompletableFuture().get();
+
+        assertFalse(response.result().error(), response.result().serializedResult());
+        assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
+        var json = com.google.gson.JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals(1, json.getAsJsonArray("records").size(), "the area record and block counts must survive the outer encoder");
+        var record = json.getAsJsonArray("records").get(0).getAsJsonObject();
+        assertEquals("PARTIAL", json.get("coverage").getAsString());
+        assertEquals("PARTIAL", record.getAsJsonObject("source").get("coverage").getAsString());
+        var payload = record.getAsJsonObject("payload");
+        assertEquals(15, payload.getAsJsonObject("blockCounts").get("minecraft:stone").getAsInt());
+        var shown = payload.getAsJsonArray("entities");
+        assertFalse(shown.isEmpty());
+        for (var value : shown) {
+            var entity = value.getAsJsonObject();
+            var name = entity.get("name").getAsString();
+            assertTrue(name.length() <= 1024);
+            assertFalse(Character.isHighSurrogate(name.charAt(name.length() - 1)));
+            assertTrue(entity.get("nameTruncated").getAsBoolean());
+        }
+        assertTrue(json.get("detail").getAsString().contains("truncated"));
+        if (count == 1) assertEquals(1, shown.size());
+        else {
+            assertTrue(shown.size() < count, "escaped names must trigger the encoded byte budget");
+            assertTrue(json.get("detail").getAsString().contains("list_entities"));
+            assertTrue(json.get("detail").getAsString().contains(Integer.toString(count - shown.size())), "the omitted tail count must be concrete");
+        }
+    }
+
     @Test
     void anEntryWithMoreHoldersThanFitLinksTheFirstOnesAndSaysHowManyAreLeft() {
         var tools = tools();

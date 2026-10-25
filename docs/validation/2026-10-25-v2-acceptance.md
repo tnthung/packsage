@@ -22129,3 +22129,185 @@ Verified at 2026-10-25T16:03:24.777Z UTC (local date crossed to 2026-10-26 durin
 The game remains running, unpaused, on the original fixture save with its main hand empty. F3 display is hidden. The new cheats-off test save and enabled performance datapack remain available. No render-distance/options change, code modification, build, installation, dedicated server or push. Only this validation file is staged/committed. Earlier checkpoint commits: dc6b1c1, 3548c72, 6936109.
 
 Part A totals (35 requested IDs): 25 PASS, 8 FAIL, 2 DEFERRED. Eight additional expressly excluded Part B IDs are DEFERRED. Forty-two new-chat questions include corrected fixture attempts; successful clauses never replace an earlier FAIL. Headings for subquestions inherit the aggregate check result; the summary and notes identify successful subclauses.
+
+## Acceptance part B (installed default)
+
+| Check | Result | Reason / classification |
+|---|---|---|
+| W7 | PASS | Saved W1 chest outline reopens after a full process restart. |
+| C7 | PASS | Saved same-world predicted-village target reopens; cyan column visually confirmed from ground. Part A fresh-world/visited clauses remain as recorded. |
+| P8 | PASS | Historical Sweet Dreams link opens the Adventure tab after the full restart. |
+| M1 | FAIL | Persistence/recall PASS; move clearsPlace instead of following current position, old link UNAVAILABLE, and two iron-farm notes remain. Prompt behavior plus ambiguous move wording/pre-existing duplicate fixture. |
+| P5 | PASS | Count 9; saved reply/tool results contain no real hidden names, IDs or criteria. Nine anonymous aliases verified. |
+| C5 | NOT RUN | Pending this acceptance session. |
+| P1 | NOT RUN | Pending this acceptance session. |
+| P7 | NOT RUN | Pending this acceptance session. |
+| J5 | NOT RUN | Pending this acceptance session. |
+| M5 | NOT RUN | Pending this acceptance session. |
+| L2 | NOT RUN | Pending this acceptance session. |
+| L1 | NOT RUN | Pending this acceptance session. |
+| P9 | NOT RUN | Pending this acceptance session. |
+| J7 | NOT RUN | Pending this acceptance session. |
+| P11 | NOT RUN | Pending this acceptance session. |
+
+### Run conditions and restart evidence
+
+Date: 2026-10-26 Asia/Taipei. Code unchanged. Only this validation file is committed. Raw bridge JSON, fixture feedback, screenshots and audits are retained in `build/task7-part-b/` (ignored). Every scored question uses a new chat. Model `gpt-6-sol`, MEDIUM; existing Screenshot=true and automatic search settings retained. `GET /prompt` returned `text:null` before shutdown and after restart; no override was set. Original render distance: 12 chunks.
+
+Clean Save and Quit to Title, then Quit Game, via `@oai/sky`. The prescribed `powershell -ExecutionPolicy Bypass -File D:/Project/packsage/scripts/build.ps1` completed successfully (test/build tasks up-to-date), at HEAD `48e8d2c`. Installed and built SHA-256: **FC8C27671A0C52DDDF4C878A2F0C82381E424028E96623F7349F6A1BF5E3237F**. No javaw process remained before relaunch. Relaunched through CurseForge into UI New World, save PackSage Adapter Filter Live Test. Bridge token re-read privately after launch. Native capture initially failed with `foreground window did not report a process id`; resetting node_repl restored control.
+
+Restart seeds were verified OPENED before quitting: W7 request `6edc16a7-319a-4445-a20d-c1830c602f88`, target `world-block|minecraft:overworld|1002,250,1006`; C7 request `482b0a59-9a62-480b-b77b-559af21d6e2d`, target `world-place|minecraft:overworld|336,69,1232`; P8 request `9149c4bf-43c6-47f8-a443-a69a61982a40`, target `advancement|minecraft:adventure/root|minecraft:adventure/sleep_in_bed`. W7/P8 initially returned Unknown request because the documented bridge indexes only loaded historical chats; selecting the original conversations through native history search made the exact saved requests navigable. No new W1/P8 reply was generated.
+
+### Restart link observations
+
+- W7: OPENED; same stone chest at (1002,250,1006), yellow outline visually confirmed. [Screenshot](../../build/task7-part-b/W7.png).
+- C7 restart clause: OPENED for (336,69,1232); cyan marker visible from (1035.5,96,1008.5). Initial elevated-room capture did not show the below-player column; ground capture does. [Screenshot](../../build/task7-part-b/C7-ground.png).
+- P8: OPENED; `/state` reports AdvancementsScreen and screenshot labels Adventure. [Screenshot](../../build/task7-part-b/P8.png).
+- M1: recall link OPENED at (1003,250,1008). After exact move report, old link returns UNAVAILABLE, `this note has no saved place`. [Before move](../../build/task7-part-b/M1-recall.png), [after move](../../build/task7-part-b/M1-old-after-move.png). The move teleport to (1035.5,250,1008.5) lacked support and fell to y=96; either position is different from the old farm. No destination was inferred by the model.
+
+### Hidden-record audit
+
+P5 uses the existing nine incomplete hidden advancements; the invalid Part A all_effects/speed criterion command was not repeated. COMPLETE result: 3 Adventure, 5 Husbandry, 1 Nether. Every hidden record is non-navigable, title Hidden progress entry, payload title null, with only adapter/id/status/title/tree fields; IDs are minecraft/hidden UUID aliases. Compared the entire new saved bridge reply/results against all nine real IDs and titles returned by Part A: zero matches. `P5-audit.json` records 9 checked, 9 anonymous, zero leaks. Anonymous citation handles are retained below exactly as saved.
+
+### M1-before
+
+Question: `I built an iron farm here`
+
+Request `800ff3de-6bdf-4213-a026-ec4da50400f9`; conversation `b16fa932-ee71-4fb2-afc8-70f39345a868`; status=completed, saved=true. Submitted 2026-10-25T16:31:17.339Z. Raw: `build/task7-part-b/M1-before.json`.
+
+Timing: {"elapsed_ms":"18591","backendMs":"18534","toolWallMs":"68","toolCalls":"2"}.
+
+G1 remember (`call_n5sRFPqWUIQooR59Ri23ssSg`), toolMs=66:
+
+```json
+{"arguments":{"text":"I built an iron farm here.","at":{"type":"player","id":null,"place":null},"tags":["build","iron_farm"]},"error":false,"coverage":"COMPLETE","recordCount":1,"detail":null}
+```
+
+G2 forget_note (`call_hBWlL6Qb93PSp8eLSCn0IiUQ`), toolMs=2:
+
+```json
+{"arguments":{"id":"n3ee98017"},"error":false,"coverage":"COMPLETE","recordCount":0,"detail":"note n3ee98017 forgotten"}
+```
+
+Verbatim saved reply:
+
+```text
+Nice! Let me know if you want help checking how the iron farm is working.
+```
+
+### C7-seed
+
+Question: `where is the nearest village?`
+
+Request `482b0a59-9a62-480b-b77b-559af21d6e2d`; conversation `376e8b51-3f54-405d-8570-ae13585ba0c3`; status=completed, saved=true. Submitted 2026-10-25T16:31:39.551Z. Raw: `build/task7-part-b/C7-seed.json`.
+
+Timing: {"elapsed_ms":"20062","backendMs":"20017","toolWallMs":"546","toolCalls":"2"}.
+
+G1 locate (`call_0hGwtvthHfDUHcG1773LZrGt`), toolMs=482:
+
+```json
+{"arguments":{"biome":null,"structure":"#minecraft:village","center":null,"radius":null,"cursor":null},"error":false,"coverage":"PARTIAL","recordCount":5,"detail":"searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; biome checks rejected candidate columns for minecraft:village_desert, minecraft:village_savanna, minecraft:village_snowy; sampled columns do not prove structure absence; 2 more hits found on this page; showing the nearest 5; search paused at ring 3, entry 0, candidate 0 after a result page; continue with the cursor"}
+```
+
+G2 locate (`call_ujZqeDQSlk9Qt0dgAM3eLT7g`), toolMs=63:
+
+```json
+{"arguments":{"biome":null,"structure":"#minecraft:village","center":null,"radius":null,"cursor":"dcd8bbc3-4c71-491d-9313-26e97f648bfe"},"error":false,"coverage":"COMPLETE","recordCount":0,"detail":"searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; biome checks rejected candidate columns for minecraft:village_plains, minecraft:village_desert, minecraft:village_savanna, minecraft:village_snowy, minecraft:village_taiga; sampled columns do not prove structure absence; no matching starts found in loaded or saved data and no remaining predictions"}
+```
+
+Verbatim saved reply:
+
+```text
+The nearest village **candidate** is a predicted plains village at **(336, ~69, 1232)**, about **706 blocks** from you—mostly west, then south. [Mark the location](world:locate|minecraft:overworld|minecraft:village_plains|336,1232)
+
+It hasn’t been confirmed in a generated chunk. The seed and biome checks suggest it should generate there, but terrain could prevent it.
+```
+
+### M1-after
+
+Question: `where was my iron farm?`
+
+Request `9f14b01e-e8f7-4f7d-b5e8-7c5051a48770`; conversation `8bc0e2cc-f7ab-4852-97e6-c9727ac28de5`; status=completed, saved=true. Submitted 2026-10-25T16:35:22.845Z. Raw: `build/task7-part-b/M1-after.json`.
+
+Timing: {"elapsed_ms":"11799","backendMs":"11739","toolWallMs":"18","toolCalls":"1"}.
+
+G1 search_journal (`call_dc11ZujXZQ1FZyzoANPt9FQf`), toolMs=18:
+
+```json
+{"arguments":{"filter":{"time":null,"area":null,"dimension":null,"types":null,"subjects":null,"text":"iron farm","notesOnly":null},"cursor":null},"error":false,"coverage":"PARTIAL","recordCount":2,"detail":"recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z"}
+```
+
+Verbatim saved reply:
+
+```text
+You told me your iron farm is at **(1003, 250, 1008)** in the Overworld [iron farm](journal:note:n02e8ca4d). From your current position at (1003, 250, 1002), that’s **6 blocks south**.
+```
+
+### M1-move
+
+Question: `I moved my iron farm`
+
+Request `755a5c5d-816d-42ff-806b-36f9bdb3f06d`; conversation `0124288d-bb8b-4009-beca-17bd9af55152`; status=completed, saved=true. Submitted 2026-10-25T16:36:36.942Z. Raw: `build/task7-part-b/M1-move.json`.
+
+Timing: {"elapsed_ms":"17634","backendMs":"17582","toolWallMs":"10","toolCalls":"2"}.
+
+G1 search_journal (`call_YwV2aBuAECl6EpQ4WUgNGWOu`), toolMs=4:
+
+```json
+{"arguments":{"filter":{"time":null,"area":null,"dimension":null,"types":null,"subjects":null,"text":"iron farm","notesOnly":true},"cursor":null},"error":false,"coverage":"PARTIAL","recordCount":2,"detail":"recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z"}
+```
+
+G2 update_note (`call_st8av9eDYfogUf80VGPhspkq`), toolMs=6:
+
+```json
+{"arguments":{"text":"I built an iron farm and later moved it; its new location wasn't specified.","at":null,"tags":["build","iron_farm"],"id":"n02e8ca4d","clearPlace":true},"error":false,"coverage":"COMPLETE","recordCount":1,"detail":null}
+```
+
+Verbatim saved reply:
+
+```text
+Got it—you moved your iron farm.
+```
+
+### M1-notes
+
+Question: `what do you remember about my iron farm?`
+
+Request `081b937d-3cae-404a-9374-40f6dcf9adc6`; conversation `d82a3353-d613-40b3-b2e8-149dee07cf48`; status=completed, saved=true. Submitted 2026-10-25T16:37:12.306Z. Raw: `build/task7-part-b/M1-notes.json`.
+
+Timing: {"elapsed_ms":"16931","backendMs":"16857","toolWallMs":"2","toolCalls":"1"}.
+
+G1 search_journal (`call_t3Dm1EWH9jLIT7fLjqBkmTXz`), toolMs=2:
+
+```json
+{"arguments":{"filter":{"time":null,"area":null,"dimension":null,"types":null,"subjects":null,"text":"iron farm","notesOnly":true},"cursor":null},"error":false,"coverage":"PARTIAL","recordCount":2,"detail":"recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z"}
+```
+
+Verbatim saved reply:
+
+```text
+You told me you built an iron farm and later moved it, but you didn’t give me its new location. [journal:note:n02e8ca4d] I also have an older note placing an iron farm at (1003, 250, 1008) in the Overworld; I can’t tell whether that location still applies. [Iron farm’s older location](journal:note:n40ef0da1)
+```
+
+### P5
+
+Question: `what hidden advancements do I have left?`
+
+Request `a5a18e6a-0ce8-4843-a6c2-16ff64f777c2`; conversation `5b8dfd7b-1a3e-4a66-802f-dc52daa8405a`; status=completed, saved=true. Submitted 2026-10-25T16:37:43.249Z. Raw: `build/task7-part-b/P5.json`.
+
+Timing: {"elapsed_ms":"16176","backendMs":"16110","toolWallMs":"121","toolCalls":"1"}.
+
+G1 list_progress (`call_zYaxZLUxcSQndKTmPJhsITqz`), toolMs=121:
+
+```json
+{"arguments":{"tree":null,"status":["hidden"],"text":null,"cursor":null},"error":false,"coverage":"COMPLETE","recordCount":12,"detail":null}
+```
+
+Verbatim saved reply:
+
+```text
+You have **9 hidden advancements left**: 3 in Adventure [progress:progress|minecraft/hidden:851c99a8-90da-4a36-a4ea-232062fd856e] [progress:progress|minecraft/hidden:ef043e4a-7cfe-4277-96e8-c586caf0e4cc] [progress:progress|minecraft/hidden:588f071e-6150-4a22-af4b-b5d1e65b5e77], 5 in Husbandry [progress:progress|minecraft/hidden:83b220f4-3ea7-4862-a10b-7ac5b51cf631] [progress:progress|minecraft/hidden:3bdf0e36-9bf7-4267-b09a-c9329eaf22e9] [progress:progress|minecraft/hidden:f6e184fd-24b7-4f88-9d5c-d5cce49bf806] [progress:progress|minecraft/hidden:90f0c270-daac-475b-a007-515f2d65b498] [progress:progress|minecraft/hidden:9cef2806-7d36-4796-8a0d-564d94d494ca], and 1 in Nether [progress:progress|minecraft/hidden:00d71611-549a-40c6-9089-334c8fef052f].
+
+They’re still hidden, so your progress list doesn’t reveal their names or requirements.
+```
+

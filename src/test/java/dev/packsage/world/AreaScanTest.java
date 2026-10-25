@@ -282,20 +282,20 @@ class AreaScanTest {
     }
 
     @Test
-    void aMissingUuidAnchorContinuesWithAnExplicitPartialNote() throws Exception {
+    void aMissingUuidAnchorResumesInUuidOrderWithoutSkippingOrAGapNote() throws Exception {
         var world = DenseWorld.create(130);
         var scan = new AreaScan(new WorldRegistry());
         var first = scan.listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, null);
         while (first.step()) {
         }
-        world.entities.removeIf(entity -> entity.getUUID().equals(first.result().items().getLast().id()));
+        var anchor = first.result().items().getLast().id();
+        world.entities.removeIf(entity -> entity.getUUID().equals(anchor));
         var next = scan.listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, first.result().nextCursor());
         while (next.step()) {
         }
-        assertEquals(64, next.result().items().size());
-        assertEquals(Evidence.Coverage.PARTIAL, next.result().coverage());
-        assertTrue(next.result().note().contains("anchor is gone"));
-        assertTrue(next.result().items().stream().noneMatch(entity -> first.result().items().stream().anyMatch(previous -> previous.id().equals(entity.id()))));
+        var expected = world.entities.stream().map(entity -> entity.getUUID()).filter(id -> id.compareTo(anchor) > 0).sorted().limit(64).toList();
+        assertEquals(expected, next.result().items().stream().map(EntityHandle::id).toList(), "resuming after a vanished anchor skips nothing");
+        assertFalse(next.result().note().contains("anchor is gone"), next.result().note());
     }
 
     @Test

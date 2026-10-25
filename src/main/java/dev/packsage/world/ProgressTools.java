@@ -181,9 +181,8 @@ public final class ProgressTools implements KnowledgeProvider {
                 return true;
             }
         }).thenApply(snapshots -> {
-            var page = ProgressListing.page(snapshots, filter, offset);
-            var records = new ArrayList<Evidence.Record>();
-            for (var item : page.items()) {
+            var coverage = snapshots.stream().allMatch(snapshot -> snapshot.note() == null) ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
+            java.util.function.Function<ProgressListing.Item, Evidence.Record> record = item -> {
                 if (item.tree() != null) {
                     var value = item.tree();
                     var payload = new LinkedHashMap<String, Evidence.JsonValue>();
@@ -192,15 +191,16 @@ public final class ProgressTools implements KnowledgeProvider {
                     payload.put("title", new Evidence.JsonString(value.title()));
                     payload.put("done", new Evidence.JsonNumber(BigDecimal.valueOf(value.done())));
                     payload.put("total", new Evidence.JsonNumber(BigDecimal.valueOf(value.total())));
-                    records.add(evidence(request.scope(), "tree|" + value.id().text(), Evidence.RecordKind.OTHER, value.title(), payload, page.coverage(),
-                            ProgressNavigation.targetId(new ProgressHandle(value.id(), value.id(), value.title(), ProgressStatus.AVAILABLE, value.tabVisible()))));
-                } else {
-                    var value = item.entry();
-                    records.add(evidence(request.scope(), "progress|" + value.handle().id().text(), Evidence.RecordKind.QUEST,
-                            value.handle().title() == null ? "Hidden progress entry" : value.handle().title(), entryPayload(value.handle(), value.description()), page.coverage(), ProgressNavigation.targetId(value.handle())));
+                    return evidence(request.scope(), "tree|" + value.id().text(), Evidence.RecordKind.OTHER, value.title(), payload, coverage,
+                            ProgressNavigation.targetId(new ProgressHandle(value.id(), value.id(), value.title(), ProgressStatus.AVAILABLE, value.tabVisible())));
                 }
-            }
-            return result(records, page.coverage(), page.nextCursor() == null ? null : page.nextCursor() + "." + Integer.toHexString(List.of(request.tool(), signature(request.arguments())).hashCode()), page.note());
+                var value = item.entry();
+                return evidence(request.scope(), "progress|" + value.handle().id().text(), Evidence.RecordKind.QUEST,
+                        value.handle().title() == null ? "Hidden progress entry" : value.handle().title(), entryPayload(value.handle(), value.description()), coverage, ProgressNavigation.targetId(value.handle()));
+            };
+            var page = ProgressListing.page(snapshots, filter, offset, item -> PackSageTools.encodeRecord(record.apply(item))
+                    .toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 1);
+            return result(page.items().stream().map(record).toList(), page.coverage(), page.nextCursor() == null ? null : page.nextCursor() + "." + Integer.toHexString(List.of(request.tool(), signature(request.arguments())).hashCode()), page.note());
         }).exceptionally(failure -> {
             while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
             if (failure instanceof Failure typed) throw typed;
@@ -343,8 +343,8 @@ public final class ProgressTools implements KnowledgeProvider {
                 notes.add(readers.get(index).adapterId() + ": " + (failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage()));
             }
         }).thenApply(rows -> {
-            var page = StatisticListing.page(rows, offset, notes);
-            return result(page.items().stream().map(row -> {
+            var coverage = notes.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
+            java.util.function.Function<Statistic, Evidence.Record> record = row -> {
                 var payload = new LinkedHashMap<String, Evidence.JsonValue>();
                 payload.put("adapter", new Evidence.JsonString(row.adapter()));
                 payload.put("category", new Evidence.JsonString(row.category()));
@@ -354,8 +354,12 @@ public final class ProgressTools implements KnowledgeProvider {
                 payload.put("unit", new Evidence.JsonString(row.unit().name().toLowerCase(Locale.ROOT)));
                 payload.put("raw", new Evidence.JsonNumber(BigDecimal.valueOf(row.raw())));
                 return evidence(scope, "stat|" + row.adapter() + "|" + row.category() + "|" + row.subject(), Evidence.RecordKind.OTHER,
-                        row.label() + " = " + BigDecimal.valueOf(row.value()).stripTrailingZeros().toPlainString(), payload, page.coverage(), null);
-            }).toList(), page.coverage(), page.nextCursor() == null ? null : page.nextCursor() + "." + Integer.toHexString(signature), page.note());
+                        row.label() + " = " + BigDecimal.valueOf(row.value()).stripTrailingZeros().toPlainString(), payload, coverage, null);
+            };
+            var page = StatisticListing.page(rows, offset, notes, row -> PackSageTools.encodeRecord(record.apply(row))
+                    .toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 1);
+            return result(page.items().stream().map(record).toList(), page.coverage(), page.nextCursor() == null ? null
+                    : page.nextCursor() + "." + Integer.toHexString(signature), page.note());
         }).exceptionally(failure -> {
             while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
             if (failure instanceof Failure typed) throw typed;

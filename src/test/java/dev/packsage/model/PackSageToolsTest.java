@@ -433,13 +433,276 @@ class PackSageToolsTest {
         assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131072);
         assertTrue(response.result().serializedResult().contains("PARTIAL"));
         var truncated = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
-        assertTrue(truncated.get("nextCursor").isJsonNull());
-        assertFalse(truncated.has("nextCall"));
+        assertEquals("after-hidden-record", truncated.get("nextCursor").getAsString());
+        assertTrue(truncated.has("nextCall"));
+        assertEquals(1, truncated.getAsJsonArray("records").size());
         var error = new PackSageTools(request -> CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "repeat lookup")))
                 .execute(new ModelBackend.ToolCall("bad", "search_recipe", "{}"), SCOPE).toCompletableFuture().get();
         assertTrue(error.result().error());
         assertTrue(error.result().serializedResult().contains("INVALID_CURSOR"));
         assertTrue(error.result().serializedResult().contains("repeat lookup"));
+    }
+
+    @Test
+    void largeExactRecipePlansKeepLeadingRoutesAndCountTheOmittedTail() throws Exception {
+        for (int count : List.of(128, 256)) {
+            var inputs = java.util.stream.IntStream.range(0, 9).mapToObj(i -> new Evidence.RecipeSlot("slot:" + i,
+                    List.of(new Evidence.RecipeAlternative("item", "minecraft:ingredient_" + i,
+                            new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED)))).toList();
+            var records = java.util.stream.IntStream.range(0, count).mapToObj(i -> new Evidence.Record(new Evidence.Source(
+                    SCOPE, "native", "1", "recipe:route_" + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE,
+                    Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.RECIPE,
+                    "Route " + i, new Evidence.JsonObject(Map.of("requestedQuantity", new Evidence.JsonNumber(java.math.BigDecimal.TEN),
+                    "inputs", new Evidence.JsonArray(java.util.stream.IntStream.range(0, 9).mapToObj(slot -> (Evidence.JsonValue)
+                            new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("minecraft:ingredient_" + slot),
+                                    "description", new Evidence.JsonString("Recipe ingredient " + slot + " ".repeat(80))))).toList()))), List.of(),
+                    new Evidence.RecipePayload("minecraft:route_" + i, inputs, List.of(new Evidence.RecipeOutput("item",
+                            "minecraft:result", new Evidence.JsonObject(Map.of()), 1)), List.of(), List.of(), List.of(),
+                            Evidence.DecodingStatus.VERIFIED))).toList();
+            var response = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
+                    Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))).execute(new ModelBackend.ToolCall(
+                    "plan", "plan_recipe", "{\"identity\":\"minecraft:result\",\"quantity\":10}"), SCOPE).toCompletableFuture().get();
+            assertFalse(response.result().error());
+            assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
+            var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+            var delivered = json.getAsJsonArray("records");
+            assertTrue(delivered.size() > 1 && delivered.size() <= 64);
+            for (int i = 0; i < delivered.size() - 1; i++) {
+                var route = delivered.get(i).getAsJsonObject();
+                assertFalse(route.has("truncationNote"));
+                assertEquals("Route " + i, route.get("title").getAsString());
+                assertEquals(9, route.getAsJsonObject("payload").getAsJsonArray("inputs").size());
+                assertEquals(9, route.getAsJsonObject("recipe").getAsJsonArray("inputs").size());
+                assertEquals(9, route.getAsJsonObject("recipe").getAsJsonArray("requiredInputTotals").size());
+            }
+            assertEquals("PARTIAL", json.get("coverage").getAsString());
+            assertTrue(json.has("nextCall") || json.get("detail").getAsString().contains((count - delivered.size()) + " records omitted"));
+        }
+    }
+
+    @Test
+    void exactRecordCapAndUnshrinkableIdentitiesNeverOverflowTheResponse() throws Exception {
+        for (var handle : List.of("route", "x".repeat(140_000))) {
+            var records = java.util.stream.IntStream.range(0, 256).mapToObj(i -> new Evidence.Record(new Evidence.Source(
+                    SCOPE, "native", "1", handle + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                    Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.RECIPE, "Route " + i,
+                    new Evidence.JsonObject(Map.of()), List.of())).toList();
+            var response = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
+                    Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null, "\u0000".repeat(2048)))).execute(new ModelBackend.ToolCall(
+                    "plan", "plan_recipe", "{\"identity\":\"minecraft:result\",\"quantity\":1}"), SCOPE).toCompletableFuture().get();
+            assertFalse(response.result().error());
+            assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
+            var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+            assertEquals(handle.equals("route") ? 64 : 0, json.getAsJsonArray("records").size());
+            assertTrue(json.get("detail").getAsString().contains((256 - response.records().size()) + " records omitted"));
+        }
+    }
+
+    @Test
+    void oversizedProviderEnvelopeReturnsBoundedPartialJson() throws Exception {
+        var response = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, "\u754c".repeat(100_000)))).execute(
+                new ModelBackend.ToolCall("large", "search_recipe", "{}"), SCOPE).toCompletableFuture().get();
+        assertFalse(response.result().error());
+        assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
+        var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals("PARTIAL", json.get("coverage").getAsString());
+        assertTrue(json.get("detail").getAsString().contains("response envelope"));
+        assertTrue(response.records().isEmpty());
+    }
+
+    @Test
+    void consumedOutputCursorsReleaseTheirRetainedTail() throws Exception {
+        var records = java.util.stream.IntStream.range(0, 65).mapToObj(i -> new Evidence.Record(new Evidence.Source(SCOPE,
+                "fixture", "1", "row:" + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.OTHER, "Row", new Evidence.JsonObject(Map.of()), List.of())).toList();
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+        var first = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("first", "search_recipe", "{}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        var call = new ModelBackend.ToolCall("next", "search_recipe", first.getAsJsonObject("nextCall").get("arguments").toString());
+        assertEquals(1, tools.execute(call, SCOPE).toCompletableFuture().get().records().size());
+        assertTrue(tools.execute(call, SCOPE).toCompletableFuture().get().result().serializedResult().contains("INVALID_CURSOR"));
+    }
+
+    @Test
+    void everyListingFamilyKeepsByteOverflowTailsAndProviderContinuation() throws Exception {
+        for (var query : Map.ofEntries(Map.entry("search_recipe", "{}"), Map.entry("search_registry", "{\"registry\":\"item\"}"),
+                Map.entry("list_blocks", "{\"filter\":{}}"), Map.entry("list_entities", "{\"filter\":{}}"),
+                Map.entry("list_items", "{\"holder\":\"player\"}"), Map.entry("find_items", "{\"filter\":{}}"),
+                Map.entry("list_progress", "{}"), Map.entry("list_statistics", "{}"), Map.entry("search_journal", "{\"filter\":{}}"),
+                Map.entry("read_loot", "{\"table\":\"minecraft:fixture\"}"), Map.entry("locate", "{\"biome\":\"minecraft:plains\"}"),
+                Map.entry("search_commands", "{}"), Map.entry("read_command", "{\"name\":\"help\"}"),
+                Map.entry("list_configs", "{}"), Map.entry("search_config", "{\"text\":\"fixture\"}"),
+                Map.entry("search_history", "{\"text\":\"fixture\"}")).entrySet()) {
+            var records = new java.util.ArrayList<Evidence.Record>();
+            for (int i = 0; i < 65; i++) records.add(new Evidence.Record(new Evidence.Source(SCOPE, "fixture", "1", "row:" + i,
+                    1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                    Evidence.RecordKind.OTHER, "Row " + i, new Evidence.JsonObject(Map.of("text", new Evidence.JsonString("\u754c\\\"".repeat(3000)))), List.of()));
+            var dispatches = new AtomicInteger();
+            var tools = new PackSageTools(request -> {
+                dispatches.incrementAndGet();
+                if (request.arguments().values().get("cursor") instanceof Evidence.JsonString cursor) {
+                    assertEquals("provider-tail", cursor.value());
+                    return CompletableFuture.completedFuture(new Evidence.Result(List.of(records.getLast()), Evidence.Coverage.COMPLETE,
+                            Evidence.Outcome.COMPLETE, null));
+                }
+                return CompletableFuture.completedFuture(new Evidence.Result(records.subList(0, 64), Evidence.Coverage.COMPLETE,
+                        Evidence.Outcome.COMPLETE, "provider-tail"));
+            });
+            var call = new ModelBackend.ToolCall("first", query.getKey(), query.getValue());
+            var seen = new java.util.HashSet<String>();
+            int pages = 0;
+            while (call != null) {
+                assertTrue(++pages <= 65, query.getKey());
+                var response = tools.execute(call, SCOPE).toCompletableFuture().get();
+                assertFalse(response.result().error(), query.getKey() + ": " + response.result().serializedResult());
+                assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072, query.getKey());
+                var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+                for (var record : json.getAsJsonArray("records")) {
+                    assertTrue(seen.add(record.getAsJsonObject().get("reference").getAsString()), query.getKey());
+                    assertEquals("PARTIAL", record.getAsJsonObject().getAsJsonObject("source").get("coverage").getAsString());
+                }
+                if (seen.size() < 65) assertFalse(json.get("nextCursor").isJsonNull(), query.getKey());
+                var next = json.getAsJsonObject("nextCall");
+                call = next == null ? null : new ModelBackend.ToolCall("next", next.get("name").getAsString(), next.get("arguments").toString());
+            }
+            assertEquals(65, seen.size(), query.getKey());
+            assertEquals(2, dispatches.get(), query.getKey());
+            assertTrue(pages > 2, query.getKey());
+        }
+    }
+
+    @Test
+    void outputContinuationSurvivesFreshFacadesAndRejectsChangedQueryOrScope() throws Exception {
+        var pages = new PackSageTools.OutputPages();
+        var records = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Evidence.Record(new Evidence.Source(SCOPE,
+                "fixture", "1", "row:" + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.OTHER, "Row", new Evidence.JsonObject(Map.of(
+                "text", new Evidence.JsonString("\u754c".repeat(2048)))), List.of())).toList();
+        var first = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)), List.of(), pages);
+        var json = JsonParser.parseString(first.execute(new ModelBackend.ToolCall("first", "search_recipe", "{}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        var next = json.getAsJsonObject("nextCall");
+        assertTrue(next != null);
+        var fresh = new PackSageTools(request -> { fail("pending rows must not reacquire provider data"); return null; }, List.of(), pages);
+        var changed = next.getAsJsonObject("arguments").deepCopy();
+        changed.add("filter", JsonParser.parseString("{\"text\":\"other\"}"));
+        assertTrue(fresh.execute(new ModelBackend.ToolCall("changed", "search_recipe", changed.toString()), SCOPE)
+                .toCompletableFuture().get().result().serializedResult().contains("INVALID_CURSOR"));
+        assertTrue(fresh.execute(new ModelBackend.ToolCall("stale", "search_recipe", next.get("arguments").toString()),
+                new Evidence.Scope("other-world", "resources", "team", "runtime", 1)).toCompletableFuture().get()
+                .result().serializedResult().contains("STALE_SCOPE"));
+        var response = fresh.execute(new ModelBackend.ToolCall("next", "search_recipe", next.get("arguments").toString()), SCOPE)
+                .toCompletableFuture().get();
+        assertFalse(response.records().isEmpty());
+    }
+
+    @Test
+    void pendingRowsRetainBoundedContentAndEvictByBytes() throws Exception {
+        var rows = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Evidence.Record(new Evidence.Source(SCOPE,
+                "fixture", "1", "row:" + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of("p".repeat(10_000))), Evidence.RecordKind.OTHER, "Row", new Evidence.JsonObject(Map.of(
+                "text", new Evidence.JsonString("\u754c".repeat(10_000)))), List.of())).toList();
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(rows,
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+        var first = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("first", "search_recipe", "{}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        var call = new ModelBackend.ToolCall("next", "search_recipe", first.getAsJsonObject("nextCall").get("arguments").toString());
+        var response = tools.execute(call, SCOPE).toCompletableFuture().get();
+        assertFalse(response.records().isEmpty());
+        for (var record : response.records()) {
+            assertTrue(Evidence.serialize(record.payload()).getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= PackSageTools.MAX_RECORD_BYTES);
+            assertTrue(record.source().provenance().stream().allMatch(value -> value.length() <= 2048));
+        }
+        var retained = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject().getAsJsonObject("nextCall");
+        assertNotNull(retained);
+        for (int i = 0; i < 40; i++) tools.execute(new ModelBackend.ToolCall("more", "search_recipe", "{}"), SCOPE).toCompletableFuture().get();
+        assertTrue(tools.execute(new ModelBackend.ToolCall("evicted", "search_recipe", retained.get("arguments").toString()), SCOPE)
+                .toCompletableFuture().get().result().serializedResult().contains("INVALID_CURSOR"));
+    }
+
+    @Test
+    void stringBackstopKeepsSurrogatesAndExactItemIdentityAndFacts() throws Exception {
+        var name = "x".repeat(2035) + "\uD83D\uDE00" + "x".repeat(40000);
+        var source = new Evidence.Source(SCOPE, "fixture", "1", "item|player/main/0", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.SERVER_READ, List.of(name));
+        var target = new Evidence.NavigationTarget(SCOPE, "fixture", source.sourceHandle(), "item|minecraft:diamond_sword");
+        var record = new Evidence.Record(source, Evidence.RecordKind.ITEM, name, new Evidence.JsonObject(Map.of(
+                "id", new Evidence.JsonString("minecraft:diamond_sword"), "path", new Evidence.JsonString("player/main/0"),
+                "damage", new Evidence.JsonNumber(java.math.BigDecimal.TEN), "name", new Evidence.JsonString(name),
+                "native", new Evidence.JsonObject(Map.of("customName", new Evidence.JsonString(name))))), List.of(target));
+        var response = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(record),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))).execute(
+                new ModelBackend.ToolCall("item", "inspect_item", "{\"path\":\"player/main/0\"}"), SCOPE).toCompletableFuture().get();
+        var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals(1, json.getAsJsonArray("records").size());
+        var encoded = json.getAsJsonArray("records").get(0).getAsJsonObject();
+        var title = encoded.get("title").getAsString();
+        assertTrue(title.length() <= 2048);
+        assertTrue(title.contains(" [truncated]"));
+        assertFalse(Character.isHighSurrogate(title.charAt(title.indexOf(" [truncated]") - 1)));
+        assertEquals("fixture:item|player/main/0", encoded.get("reference").getAsString());
+        assertEquals(10, encoded.getAsJsonObject("payload").get("damage").getAsInt());
+        assertEquals("PARTIAL", encoded.getAsJsonObject("source").get("coverage").getAsString());
+        assertEquals("PARTIAL", json.get("coverage").getAsString());
+        assertTrue(json.get("detail").getAsString().contains("2048"));
+        assertEquals(List.of(target), response.records().getFirst().targets());
+    }
+
+    @Test
+    void oversizedSourceMetadataCannotDefeatTheRecordByteBudget() {
+        var text = "\u0000".repeat(2048);
+        var scope = new Evidence.Scope(text, text, text, text, 1);
+        var source = new Evidence.Source(scope, "fixture", text, "stable", 1, Instant.EPOCH, Evidence.Activity.ACTIVE,
+                Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var record = new Evidence.Record(source, Evidence.RecordKind.ITEM, text, new Evidence.JsonObject(Map.of()), List.of());
+        var encoded = PackSageTools.encodeRecord(record);
+        assertTrue(encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= PackSageTools.MAX_RECORD_BYTES);
+        assertEquals("fixture:stable", encoded.get("reference").getAsString());
+        assertEquals("stable", encoded.getAsJsonObject("source").get("sourceHandle").getAsString());
+        assertEquals("PARTIAL", encoded.getAsJsonObject("source").get("coverage").getAsString());
+        assertTrue(encoded.has("truncationNote"));
+    }
+
+    @Test
+    void wideObjectsTrimWithinBudgetWithoutRepeatedWholeRecordSerialization() {
+        var fields = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+        for (int i = 0; i < 5000; i++) fields.put("field:" + i, new Evidence.JsonString("\u754c\\\"".repeat(150)));
+        var record = new Evidence.Record(new Evidence.Source(SCOPE, "fixture", "1", "wide", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.OTHER, "Wide object", new Evidence.JsonObject(fields), List.of());
+        var encoded = assertTimeout(java.time.Duration.ofSeconds(10), () -> PackSageTools.encodeRecord(record));
+        assertTrue(encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= PackSageTools.MAX_RECORD_BYTES);
+        assertEquals("fixture:wide", encoded.get("reference").getAsString());
+        assertEquals("PARTIAL", encoded.getAsJsonObject("source").get("coverage").getAsString());
+        assertTrue(encoded.has("truncationNote"));
+    }
+
+    @Test
+    void oversizedCollectionsKeepExactRecordAndCompactFacts() throws Exception {
+        var values = java.util.stream.IntStream.range(0, 1000).mapToObj(i -> (Evidence.JsonValue)
+                new Evidence.JsonString("\u754c".repeat(2048))).toList();
+        var source = new Evidence.Source(SCOPE, "fixture", "1", "exact", 1, Instant.EPOCH, Evidence.Activity.ACTIVE,
+                Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var target = new Evidence.NavigationTarget(SCOPE, "fixture", "exact", "stable-destination");
+        var record = new Evidence.Record(source, Evidence.RecordKind.ITEM, "Item", new Evidence.JsonObject(Map.of(
+                "id", new Evidence.JsonString("minecraft:stone"), "damage", new Evidence.JsonNumber(java.math.BigDecimal.TEN),
+                "lore", new Evidence.JsonArray(values))), List.of(target));
+        var response = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(record),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))).execute(
+                new ModelBackend.ToolCall("exact", "read_evidence", "{\"handles\":[\"fixture:exact\"]}"), SCOPE).toCompletableFuture().get();
+        assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
+        var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals(1, json.getAsJsonArray("records").size());
+        var encoded = json.getAsJsonArray("records").get(0).getAsJsonObject();
+        assertEquals("fixture:exact", encoded.get("reference").getAsString());
+        assertEquals("minecraft:stone", encoded.getAsJsonObject("payload").get("id").getAsString());
+        assertEquals(10, encoded.getAsJsonObject("payload").get("damage").getAsInt());
+        assertEquals("PARTIAL", encoded.getAsJsonObject("source").get("coverage").getAsString());
+        assertTrue(encoded.get("navigable").getAsBoolean());
+        assertEquals(List.of(target), response.records().getFirst().targets());
     }
 
     @Test void registrySchemaOffersActiveEffect() {

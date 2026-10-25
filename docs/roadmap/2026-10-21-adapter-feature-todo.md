@@ -74,6 +74,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### Progress and statistics (v2)
 
+- [ ] Minecraft — installed byte-aware progress/statistics pages with safe long-text truncation and exact continuation after delivered records; automated wire and completed-snapshot regressions pass in the [world review fixes](../validation/2026-10-26-world-review-fixes.md).
 - [ ] Minecraft — installed public-node advancement reference snapshots with bounded root/sibling processing and hidden-alias ordering; [20,000-node automated regressions pass](../validation/2026-10-26-world-review-fixes.md), live acceptance pending.
 - [ ] Minecraft — fresh progress-tree evidence rereads with current counts and removed-tree refusal: implemented with automated regressions; installed acceptance pending.
 - [ ] Minecraft — installed large-counter pacing and changing-counter retry checks after the bounded traversal fix; [automated batch-count and restart regressions pass](../validation/2026-10-26-world-review-fixes.md).
@@ -91,7 +92,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### Developer prompt persistence (v2)
 
-- [ ] PackSage — debug prompt saves and final conflict restores persist off the client thread and retain concurrent screen saves: blocked-restore responsiveness, both save orderings, failure, validation and reset regressions pass; installed acceptance pending.
+- [ ] PackSage — all settings saves use one asynchronous writer and bridge/developer prompts publish before persistence: stalled-writer client saves, generation ordering, stale copies, timeout consistency and shutdown flushing regressions pass; installed acceptance pending.
 
 ### Inventory and equipment inspection
 
@@ -216,6 +217,7 @@ This is PackSage core work, rather than a missing third-party mod adapter.
 
 - [ ] PackSage — remaining assistant behaviour: prompt wording for the refreshing short-duration effect-source cue, which needs two reads (see the [tool roadmap](2026-10-13-todo.md)); freshness/continuation audits, version dispatch, coverage diagnostics, latency, citations, source presentation, search behavior and remaining parallel-chat checks. The eligibility, opened-menu, targeted-entity and brewing-plan tool-selection items passed ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [ ] PackSage — adapter query execution through each provider's own live search and paging, and target references that keep their registered type.
+- [ ] PackSage — installed recheck of complete leading recipe routes with concrete omitted counts, bounded output tails, stale-world cursor errors and bounded settings shutdown; [automated validation](../validation/2026-10-26-world-review-fixes.md) passes, live acceptance pending.
 - [ ] PackSage — installed recheck of the merged adapter-popup width and scrollbar.
 
 ## 2. Does not have an adapter at all

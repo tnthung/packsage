@@ -1684,7 +1684,7 @@ public final class WorldTools implements KnowledgeProvider {
             payload.put("entities", new Evidence.JsonArray(entities));
             // Measure the entire record with the real encoder, including escaped names and the block summary.
             if (PackSageTools.encodeRecord(evidence(scope, handle, Evidence.RecordKind.OTHER, title, payload,
-                    Evidence.Coverage.PARTIAL, null)).toString().getBytes(StandardCharsets.UTF_8).length > 64 * 1024) {
+                    Evidence.Coverage.PARTIAL, null), Integer.MAX_VALUE).toString().getBytes(StandardCharsets.UTF_8).length > PackSageTools.MAX_RECORD_BYTES - 512) {
                 entities.removeLast();
                 notes.add("Area entity byte budget reached; " + (read.entities().items().size() - entities.size())
                         + " entities omitted from this summary; use list_entities for the rest");

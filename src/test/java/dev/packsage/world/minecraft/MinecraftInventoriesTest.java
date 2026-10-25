@@ -106,6 +106,34 @@ class MinecraftInventoriesTest {
     }
 
     @Test
+    void longCustomNamesKeepNativeDamageAndEligibilityThroughTheSharedEncoder() throws Exception {
+        var sword = new ItemStack(Items.IRON_SWORD);
+        sword.setDamageValue(10);
+        sword.set(DataComponents.CUSTOM_NAME, Component.literal("x".repeat(40_000)));
+        var section = inventories.inspectItem(sword);
+        var scope = new Evidence.Scope("world", "resources", "team", "runtime", 1);
+        var source = new Evidence.Source(scope, "world", "1", "item|held", 1, java.time.Instant.EPOCH,
+                Evidence.Activity.ACTIVE, section.coverage(), Evidence.Authority.SERVER_READ, List.of());
+        var target = new Evidence.NavigationTarget(scope, "world", "item|held", "stable-item-target");
+        var record = new Evidence.Record(source, Evidence.RecordKind.ITEM, sword.getHoverName().getString(),
+                new Evidence.JsonObject(java.util.Map.of("path", new Evidence.JsonString("held"),
+                        "name", new Evidence.JsonString(sword.getHoverName().getString()), "native", section.facts())), List.of(target));
+        var response = new dev.packsage.model.PackSageTools(request -> java.util.concurrent.CompletableFuture.completedFuture(
+                new Evidence.Result(List.of(record), section.coverage(), Evidence.Outcome.PARTIAL, null)))
+                .execute(new dev.packsage.model.ModelBackend.ToolCall("item", "inspect_item", "{\"path\":\"held\"}"), scope)
+                .toCompletableFuture().get();
+        assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 131_072);
+        var json = com.google.gson.JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals(1, json.getAsJsonArray("records").size());
+        var encoded = json.getAsJsonArray("records").get(0).getAsJsonObject();
+        assertEquals("PARTIAL", encoded.getAsJsonObject("source").get("coverage").getAsString());
+        assertEquals("world:item|held", encoded.get("reference").getAsString());
+        assertEquals(10, encoded.getAsJsonObject("payload").getAsJsonObject("native").get("damage").getAsInt());
+        assertTrue(encoded.getAsJsonObject("payload").getAsJsonObject("native").has("enchantmentEligibility"));
+        assertEquals(List.of(target), response.records().getFirst().targets());
+    }
+
+    @Test
     void inspectItemReportsEnchantmentsDamageAndEligibility() {
         var sword = new ItemStack(Items.IRON_SWORD);
         sword.enchant(enchantments.getHolderOrThrow(ResourceKey.create(Registries.ENCHANTMENT,

@@ -7,9 +7,12 @@ import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.Properties;
 import java.io.InputStream;
+import java.lang.reflect.Modifier;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -41,7 +44,7 @@ class PackSageSettingsTest {
         settings.setHistoricalTokens(20_000);
         settings.setSendShortcut(PackSageSettings.SendShortcut.CTRL_ENTER);
         settings.setSessionsBeforeCollapse(5);
-        settings.save(path);
+        settings.save(path).join();
 
         PackSageSettings loaded = PackSageSettings.load(path);
         assertFalse(loaded.openPaused());
@@ -66,11 +69,11 @@ class PackSageSettingsTest {
         Path path = temporaryDirectory.resolve("settings.properties");
         var settings = PackSageSettings.defaults();
         settings.setDeveloperPrompt("old prompt");
-        settings.save(path);
+        settings.save(path).join();
         byte[] before = Files.readAllBytes(path);
         Path snapshot = Files.createLink(temporaryDirectory.resolve("snapshot.properties"), path);
         settings.setDeveloperPrompt("new prompt");
-        settings.save(path);
+        settings.save(path).join();
         org.junit.jupiter.api.Assertions.assertArrayEquals(before, Files.readAllBytes(snapshot));
         assertEquals("new prompt", PackSageSettings.load(path).developerPrompt());
         try (var files = Files.list(temporaryDirectory)) {
@@ -95,7 +98,7 @@ class PackSageSettingsTest {
         Files.writeString(input, "modelId=gpt-5-mini\nreasoningEffort=high\n");
         Path output = temporaryDirectory.resolve("saved.properties");
 
-        PackSageSettings.load(input).save(output);
+        PackSageSettings.load(input).save(output).join();
 
         Properties properties = new Properties();
         try (InputStream stream = Files.newInputStream(output)) {
@@ -122,11 +125,20 @@ class PackSageSettingsTest {
         PackSageSettings settings = PackSageSettings.defaults();
         String prompt = "Line one\n世界 🌍";
         assertTrue(settings.setDeveloperPrompt(prompt));
-        settings.save(path);
+        settings.save(path).join();
         assertEquals(prompt, PackSageSettings.load(path).developerPrompt());
 
-        PackSageSettings.defaults().withDeveloperPrompt(null).save(path);
+        var cleared = PackSageSettings.defaults();
+        cleared.setDeveloperPrompt(null);
+        cleared.save(path).join();
         assertEquals(null, PackSageSettings.load(path).developerPrompt());
+    }
+
+    @Test
+    void developerPromptIsVisibleAcrossControllerThreads() throws Exception {
+        var prompt = PackSageSettings.class.getDeclaredField("developerPrompt");
+
+        assertTrue(Modifier.isVolatile(prompt.getModifiers()));
     }
 
     @Test
@@ -135,79 +147,87 @@ class PackSageSettingsTest {
         assertTrue(settings.setDeveloperPrompt("kept"));
         assertFalse(settings.setDeveloperPrompt(" \n"));
         assertFalse(settings.setDeveloperPrompt("x".repeat(PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH + 1)));
-        assertThrows(IllegalArgumentException.class,
-                () -> settings.withDeveloperPrompt("x".repeat(PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH + 1)));
         assertEquals("kept", settings.developerPrompt());
     }
 
     @Test
-    void savingDeveloperPromptAppliesOnlyAfterPersistenceAndNormalizesTheDefault() throws Exception {
+    void savingDeveloperPromptPublishesBeforePersistenceAndNormalizesTheDefault() throws Exception {
         Path path = temporaryDirectory.resolve("prompt.properties");
         var settings = PackSageSettings.defaults();
-        settings.saveDeveloperPrompt(path, "custom prompt");
+        settings.saveDeveloperPrompt(path, "custom prompt").join();
         assertEquals("custom prompt", settings.developerPrompt());
         assertEquals("custom prompt", PackSageSettings.load(path).developerPrompt());
-        assertThrows(IllegalStateException.class, () -> settings.saveDeveloperPrompt(temporaryDirectory, "unsaved prompt"));
-        assertEquals("custom prompt", settings.developerPrompt());
-        settings.saveDeveloperPrompt(path, dev.packsage.model.GroundingInstructions.defaultInstructions());
+        assertThrows(java.util.concurrent.CompletionException.class,
+                () -> settings.saveDeveloperPrompt(temporaryDirectory, "unsaved prompt").join());
+        assertEquals("unsaved prompt", settings.developerPrompt(), "a failed write does not publish a second value later");
+        settings.saveDeveloperPrompt(path, dev.packsage.model.GroundingInstructions.defaultInstructions()).join();
         assertEquals(null, settings.developerPrompt());
         assertEquals(null, PackSageSettings.load(path).developerPrompt());
-        settings.saveDeveloperPrompt(path, "another prompt");
-        settings.saveDeveloperPrompt(path, null);
+        settings.saveDeveloperPrompt(path, "another prompt").join();
+        settings.saveDeveloperPrompt(path, null).join();
         assertEquals(null, PackSageSettings.load(path).developerPrompt());
     }
 
     @Test
-    void aScreenSaveBeforeRestoreSkipsTheStaleWorkerWrite() throws Exception {
-        var settings = PackSageSettings.defaults();
-        var path = temporaryDirectory.resolve("settings.properties");
-        var snapshot = settings.withDeveloperPrompt(settings.developerPrompt());
-        settings.saveDeveloperPrompt(path, "screen prompt");
-        assertFalse(settings.saveIfUnchanged(snapshot, () -> snapshot.save(path)));
-        assertEquals("screen prompt", PackSageSettings.load(path).developerPrompt());
-        var changed = settings.withDeveloperPrompt(settings.developerPrompt());
-        settings.setHistoryTurns(25);
-        assertFalse(settings.saveIfUnchanged(changed, () -> changed.save(path)));
-        var saved = settings.withDeveloperPrompt(settings.developerPrompt());
-        settings.save(path);
-        assertFalse(settings.saveIfUnchanged(saved, () -> saved.save(path)));
-    }
-
-    @Test
-    void aScreenSaveDuringRestoreWritesLastUnderTheSameSaveLock() throws Exception {
-        var settings = PackSageSettings.defaults();
-        var path = temporaryDirectory.resolve("settings.properties");
-        var snapshot = settings.withDeveloperPrompt(settings.developerPrompt());
+    void settingsSnapshotsQueueWithoutWaitingForTheWriterAndLatestGenerationIsFlushed() throws Exception {
         var started = new java.util.concurrent.CountDownLatch(1);
         var release = new java.util.concurrent.CountDownLatch(1);
-        var screenStarted = new java.util.concurrent.CountDownLatch(1);
-        var screenThread = new java.util.concurrent.atomic.AtomicReference<Thread>();
-        try (var worker = java.util.concurrent.Executors.newSingleThreadExecutor();
-             var client = java.util.concurrent.Executors.newSingleThreadExecutor()) {
-            var restore = worker.submit(() -> settings.saveIfUnchanged(snapshot, () -> {
+        var writer = new SettingsWriter((target, snapshot) -> {
+            if (started.getCount() > 0) {
                 started.countDown();
                 try { assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS)); }
                 catch (InterruptedException failure) { throw new RuntimeException(failure); }
-                snapshot.save(path);
-            }));
-            assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS));
-            var save = client.submit(() -> {
-                screenThread.set(Thread.currentThread());
-                screenStarted.countDown();
-                settings.saveDeveloperPrompt(path, "newest screen prompt");
-            });
-            try {
-                assertTrue(screenStarted.await(5, java.util.concurrent.TimeUnit.SECONDS));
-                var deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
-                while (!save.isDone() && screenThread.get().getState() != Thread.State.BLOCKED && System.nanoTime() < deadline) Thread.onSpinWait();
-                assertEquals(Thread.State.BLOCKED, screenThread.get().getState(), "the screen save must wait for the restore's save lock");
-            } finally {
-                release.countDown();
             }
-            assertEquals(true, restore.get(5, java.util.concurrent.TimeUnit.SECONDS));
-            save.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            SettingsWriter.write(target, snapshot);
+        });
+        var settings = new PackSageSettings(true, true, 10, 12_000, writer);
+        var path = temporaryDirectory.resolve("settings.properties");
+        var client = java.util.concurrent.Executors.newSingleThreadExecutor();
+        CompletableFuture<Void> promptSave;
+        CompletableFuture<Void> latestSave;
+        try {
+            client.submit(() -> settings.save(path)).get(1, java.util.concurrent.TimeUnit.SECONDS);
+            assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            promptSave = client.submit(() -> settings.saveDeveloperPrompt(path, "older screen prompt"))
+                    .get(1, java.util.concurrent.TimeUnit.SECONDS);
+            latestSave = client.submit(() -> {
+                settings.setDeveloperPrompt("newest screen prompt");
+                return settings.save(path);
+            }).get(1, java.util.concurrent.TimeUnit.SECONDS);
+            client.submit(() -> { }).get(1, java.util.concurrent.TimeUnit.SECONDS);
+        } finally {
+            release.countDown();
+            client.shutdownNow();
         }
+        promptSave.join();
+        latestSave.join();
+        assertEquals("newest screen prompt", settings.developerPrompt());
+        settings.save(path).join();
+        settings.flushAndClose(path).join();
         assertEquals("newest screen prompt", settings.developerPrompt());
         assertEquals("newest screen prompt", PackSageSettings.load(path).developerPrompt());
+    }
+
+    @Test
+    void outOfOrderSnapshotSubmissionsCannotReplaceNewerDiskData() throws Exception {
+        var path = temporaryDirectory.resolve("settings.properties");
+        var writer = new SettingsWriter();
+        var older = java.util.Map.of("developerPrompt", "old");
+        var newer = java.util.Map.of("developerPrompt", "new");
+        writer.submit(path, new SettingsWriter.Snapshot(2, newer)).join();
+        writer.submit(path, new SettingsWriter.Snapshot(1, older)).join();
+        writer.flushAndClose(path, new SettingsWriter.Snapshot(2, newer)).join();
+        assertEquals("new", PackSageSettings.load(path).developerPrompt());
+    }
+
+    @Test
+    void shutdownFlushWritesLatestSettingsEvenWithoutAnEarlierSave() throws Exception {
+        var path = temporaryDirectory.resolve("settings.properties");
+        var settings = PackSageSettings.defaults();
+        settings.setDeveloperPrompt("shutdown prompt");
+
+        settings.flushAndClose(path).join();
+
+        assertEquals("shutdown prompt", PackSageSettings.load(path).developerPrompt());
     }
 }

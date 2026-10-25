@@ -23,42 +23,41 @@ import net.minecraft.world.phys.Vec3;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiConsumer;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /** Only bridge workers wait. Every game object is read or changed on its owning thread. */
 public final class MinecraftDebugAdapter implements DebugRouter.Game {
     private record ServerSession(IntegratedServer server, UUID player) { }
     private record PendingScreenshot(boolean previousHideGui, CompletableFuture<NativeImage> image) { }
-    private record PendingPrompt(PackSageSettings live, PackSageSettings before, PackSageSettings candidate) { }
-
     private final Minecraft client;
     private final AssistantRuntime runtime;
+    private final Path settingsPath;
     private final Runnable openChat;
     private final DebugRequestLog timing;
-    private final BiConsumer<PackSageSettings, String> promptWriter;
+    private final int clientCallTimeoutMillis;
     private final Object conversationLock = new Object();
-    private final Object promptLock = new Object();
     private PendingScreenshot screenshot;
 
     public MinecraftDebugAdapter(Minecraft client, AssistantRuntime runtime, Path settingsPath, Runnable openChat,
                                  DebugRequestLog timing) {
-        this(client, runtime, openChat, timing, (settings, text) -> settings.saveDeveloperPrompt(settingsPath, text));
+        this(client, runtime, settingsPath, openChat, timing, 10_000);
     }
 
-    MinecraftDebugAdapter(Minecraft client, AssistantRuntime runtime, Runnable openChat,
-                          DebugRequestLog timing, BiConsumer<PackSageSettings, String> promptWriter) {
+    MinecraftDebugAdapter(Minecraft client, AssistantRuntime runtime, Path settingsPath, Runnable openChat,
+                          DebugRequestLog timing, int clientCallTimeoutMillis) {
         this.client = client;
         this.runtime = runtime;
         this.openChat = openChat;
         this.timing = timing;
-        this.promptWriter = promptWriter;
+        this.settingsPath = settingsPath;
+        if (clientCallTimeoutMillis < 1) throw new IllegalArgumentException("client call timeout must be positive");
+        this.clientCallTimeoutMillis = clientCallTimeoutMillis;
     }
 
     @Override
@@ -234,36 +233,18 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                 yield DebugChatState.read(view, id, timing.read(id), saved);
             }
             case PROMPT_SET -> {
-                synchronized (promptLock) {
-                    var pending = call(client, () -> {
-                        var settings = runtime.settings();
-                        String text = body.get("text").isJsonNull() ? null : body.get("text").getAsString();
-                        return new PendingPrompt(settings, settings.withDeveloperPrompt(settings.developerPrompt()), settings.withDeveloperPrompt(
-                                dev.packsage.model.GroundingInstructions.defaultInstructions().equals(text) ? null : text));
-                    });
-                    for (int attempt = 0; pending != null && attempt < 3; attempt++) {
-                        var written = pending;
-                        promptWriter.accept(written.candidate(), written.candidate().developerPrompt());
-                        pending = call(client, () -> {
-                            var settings = runtime.settings();
-                            if (settings.sameSnapshot(written.before())) {
-                                settings.setDeveloperPrompt(written.candidate().developerPrompt());
-                                return null;
-                            }
-                            // A screen save wins for fields it changed; persist the latest snapshot before publishing.
-                            return new PendingPrompt(settings, settings.withDeveloperPrompt(settings.developerPrompt()), settings.withDeveloperPrompt(
-                                    Objects.equals(settings.developerPrompt(), written.before().developerPrompt())
-                                            ? written.candidate().developerPrompt() : settings.developerPrompt()));
-                        });
-                    }
-                    if (pending != null) {
-                        var latest = pending;
-                        var restore = call(client, () -> latest.live().sameSnapshot(latest.before()) ? latest.before() : null);
-                        if (restore != null) latest.live().saveIfUnchanged(restore, () -> promptWriter.accept(restore, restore.developerPrompt()));
-                        throw new IllegalStateException("Prompt save conflict: settings kept changing; retry the request");
-                    }
-                    yield execute(DebugRouter.Operation.PROMPT_GET, body);
+                String text = body.get("text").isJsonNull() ? null : body.get("text").getAsString();
+                String prompt = dev.packsage.model.GroundingInstructions.defaultInstructions().equals(text) ? null : text;
+                if (prompt != null && (prompt.isBlank() || prompt.length() > PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH)) {
+                    throw new IllegalArgumentException("developer prompt is out of bounds");
                 }
+                var saved = call(client, () -> {
+                    var settings = runtime.settings();
+                    if (!settings.setDeveloperPrompt(prompt)) throw new IllegalArgumentException("developer prompt is out of bounds");
+                    return settings.save(settingsPath);
+                });
+                saved.get(10, TimeUnit.SECONDS);
+                yield execute(DebugRouter.Operation.PROMPT_GET, body);
             }
             case PROMPT_GET -> call(client, () -> {
                 var settings = runtime.settings();
@@ -362,11 +343,12 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
         screenshot = null;
     }
 
-    private static <T> T call(Executor executor, Supplier<T> action) throws Exception {
+    private <T> T call(Executor executor, Supplier<T> action) throws Exception {
         var result = new CompletableFuture<T>();
+        var claimed = new AtomicBoolean();
         try {
             executor.execute(() -> {
-                if (result.isDone()) return;
+                if (!claimed.compareAndSet(false, true) || result.isDone()) return;
                 try { result.complete(action.get()); }
                 catch (Throwable failure) { result.completeExceptionally(failure); }
             });
@@ -374,9 +356,9 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
             throw new IllegalStateException("Game executor is unavailable", exception);
         }
         try {
-            return result.get(10, TimeUnit.SECONDS);
+            return result.get(executor == client ? clientCallTimeoutMillis : 10_000, TimeUnit.MILLISECONDS);
         } catch (TimeoutException | InterruptedException exception) {
-            result.cancel(false);
+            if (claimed.compareAndSet(false, true)) result.cancel(false);
             throw exception;
         }
     }

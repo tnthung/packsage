@@ -2,6 +2,7 @@ package dev.packsage.model;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.packsage.knowledge.Evidence;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -21,6 +22,38 @@ class ReferenceAliasBackendTest {
               "payload":{"text":"Quote native:inventory:07cd5168-5d6e-48b3-95ac-9f9889de7ef6:player:main exactly.",
                 "identity":"minecraft:bundle","count":1},"title":"Bundle"}]}
             """, false);
+
+    @Test
+    void sharedStringBoundsPreserveLongCanonicalReferencesUntilWireAliasing() throws Exception {
+        var scope = new Evidence.Scope("world", "resources", "team", "runtime", 1);
+        var handle = "item|" + "p".repeat(2048);
+        var record = new Evidence.Record(new Evidence.Source(scope, "world", "1", handle,
+                1, java.time.Instant.EPOCH, Evidence.Activity.ACTIVE,
+                Evidence.Coverage.COMPLETE, Evidence.Authority.SERVER_READ, List.of()),
+                Evidence.RecordKind.ITEM, "title".repeat(1000),
+                new Evidence.JsonObject(java.util.Map.of()), List.of());
+        var result = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(
+                List.of(record), Evidence.Coverage.COMPLETE,
+                Evidence.Outcome.COMPLETE, null))).execute(
+                new ModelBackend.ToolCall("item", "inspect_item", "{\"path\":\"held\"}"), scope).toCompletableFuture().get().result();
+        var actual = new FakeBackend();
+        var events = new ArrayList<ModelBackend.Event>();
+        var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(),
+                ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("item", "inspect_item", "{\"path\":\"held\"}"), List.of(), null));
+        exchange.submit(result);
+        var encoded = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject().getAsJsonArray("records").get(0).getAsJsonObject();
+        var alias = encoded.get("reference").getAsString();
+        assertTrue(alias.startsWith("ref:"));
+        assertTrue(alias.length() <= 2048);
+        assertTrue(encoded.get("title").getAsString().length() <= 2048);
+        assertEquals(alias, encoded.getAsJsonObject("source").get("sourceHandle").getAsString());
+        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("read", "read_evidence", "{\"handles\":[\"" + alias + "\"]}"), List.of(), null));
+        assertEquals("world:" + handle, JsonParser.parseString(events.getLast().toolCall().serializedArguments()).getAsJsonObject()
+                .getAsJsonArray("handles").get(0).getAsString());
+    }
 
     @Test
     void compactTypedReferencesRoundTripToExactReaderArgumentsWithoutChangingSourceText() {

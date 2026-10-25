@@ -1359,7 +1359,7 @@ public final class AssistantRuntime implements ChatActions {
         }
         PackSageTools currentTools = new PackSageTools(read -> currentKnowledge.execute(read,
                 request.submission().replacing() == null ? null : request.submission().replacing().value(),
-                new Toolbox.Origin(holder.id, request.submission().requestId().value(), request.submission().question())), currentKnowledge.metadata());
+                new Toolbox.Origin(holder.id, request.submission().requestId().value(), request.submission().question())), currentKnowledge.metadata(), currentKnowledge.outputPages());
         return currentTools.execute(request.call(), request.submission().scope()).thenApply(response -> {
             List<Evidence.Source> sources = response.records().stream().map(Evidence.Record::source).distinct().toList();
             List<Evidence.NavigationTarget> targets = response.records().stream().flatMap(record -> record.targets().stream())

@@ -321,7 +321,8 @@ class JournalSearchTest {
                 var result = search.search(filter, null, 10);
                 assertTrue(result.items().isEmpty());
                 assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
-                assertTrue(result.note().contains("2 overflow rows without a recorded subject or actor in this period cannot be ruled out"));
+                assertTrue(result.note().contains((filter.subjects().isEmpty() ? "2" : "1")
+                        + " overflow rows without a recorded subject or actor in this period cannot be ruled out"));
                 assertNull(result.nextCursor());
             }
             for (var filter : List.of(
@@ -333,6 +334,20 @@ class JournalSearchTest {
                     new JournalFilter(null, null, null, null, Set.of(), List.of(), null, false))) {
                 assertEquals(Evidence.Coverage.COMPLETE, search.search(filter, null, 10).coverage());
             }
+        }
+    }
+
+    @Test
+    void actorOnlyOverflowDoesNotMakeAnUnrelatedSubjectSearchPartial() throws Exception {
+        try (var store = JournalStore.open(dir.resolve("journal.db"))) {
+            store.startSession(0, 0);
+            store.writeBatch(List.of(), List.of(new OverflowRow(EventType.BREAK, "minecraft:overworld", "*", "minecraft:stone",
+                    10, 10, 1, 2, 1, 2)));
+            var result = new JournalSearch(store).search(new JournalFilter(null, null, null, null,
+                    Set.of("break"), List.of("minecraft:sand"), null, false), null, 10);
+            assertTrue(result.items().isEmpty());
+            assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
+            assertNull(result.note());
         }
     }
 

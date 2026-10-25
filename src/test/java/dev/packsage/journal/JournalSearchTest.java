@@ -226,6 +226,20 @@ class JournalSearchTest {
     }
 
     @Test
+    void coarsenedOverflowCannotRuleOutASpecificSubjectInAnArea() throws Exception {
+        try (var store = JournalStore.open(dir.resolve("journal.db"))) {
+            store.startSession(0, 0);
+            store.writeBatch(List.of(), List.of(new OverflowRow(EventType.BREAK, "minecraft:overworld", "*", "*",
+                    20, 20, 1, 2, 1, 2)));
+            var result = new JournalSearch(store).search(new JournalFilter(null, null,
+                    new JournalFilter.Area("minecraft:overworld", 0, 64, 0, 8), null, Set.of("break"),
+                    List.of("minecraft:sand"), null, false), null, 10);
+            assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+            assertTrue(result.note().contains("1 count-only rows"));
+        }
+    }
+
+    @Test
     void candidateLimitAdvancesPastNonmatchingRuns() throws Exception {
         try (var store = JournalStore.open(dir.resolve("journal.db"))) {
             store.startSession(0, 0);

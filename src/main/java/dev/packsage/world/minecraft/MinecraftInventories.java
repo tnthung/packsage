@@ -3,12 +3,14 @@ package dev.packsage.world.minecraft;
 import com.google.common.base.Suppliers;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.nativegame.NativeEnchantmentEligibility;
+import dev.packsage.knowledge.nativegame.NativeItemFacts;
 import dev.packsage.world.BlockPlace;
 import dev.packsage.world.InventoryId;
 import dev.packsage.world.InventoryInfo;
 import dev.packsage.world.InventoryReader;
 import dev.packsage.world.LiveHolder;
 import dev.packsage.world.LiveInventory;
+import dev.packsage.world.Section;
 import dev.packsage.world.SlotRole;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -312,8 +314,9 @@ public final class MinecraftInventories implements InventoryReader {
     }
 
     @Override
-    public Evidence.JsonObject inspectItem(ItemStack stack) {
+    public Section inspectItem(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return null;
+        var gaps = new ArrayList<String>();
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
         values.put("id", new Evidence.JsonString(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString()));
         values.put("name", new Evidence.JsonString(stack.getHoverName().getString()));
@@ -327,20 +330,10 @@ public final class MinecraftInventories implements InventoryReader {
         }
         putEnchantments(values, "enchantments", stack.get(DataComponents.ENCHANTMENTS));
         putEnchantments(values, "storedEnchantments", stack.get(DataComponents.STORED_ENCHANTMENTS));
-        var potion = stack.get(DataComponents.POTION_CONTENTS);
-        if (potion != null) {
-            var effects = new ArrayList<Evidence.JsonValue>();
-            for (var effect : potion.getAllEffects()) {
-                effects.add(new Evidence.JsonObject(Map.of(
-                        "id", new Evidence.JsonString(effect.getEffect().getRegisteredName()),
-                        "amplifier", number(effect.getAmplifier()),
-                        "durationTicks", number(effect.getDuration()))));
-            }
-            var potionValues = new LinkedHashMap<String, Evidence.JsonValue>();
-            potionValues.put("id", potion.potion().<Evidence.JsonValue>map(holder -> new Evidence.JsonString(holder.getRegisteredName()))
-                    .orElseGet(Evidence.JsonNull::new));
-            potionValues.put("effects", new Evidence.JsonArray(effects));
-            values.put("potion", new Evidence.JsonObject(potionValues));
+        if (stack.has(DataComponents.POTION_CONTENTS)) {
+            var potion = NativeItemFacts.potionContents(stack);
+            values.put("potion", potion);
+            if (potion.values().containsKey("effectsStatus")) gaps.add("potion effects are bounded");
         }
         var attributes = stack.get(DataComponents.ATTRIBUTE_MODIFIERS);
         if (attributes != null && !attributes.modifiers().isEmpty()) {
@@ -356,12 +349,43 @@ public final class MinecraftInventories implements InventoryReader {
             values.put("attributeModifiers", new Evidence.JsonArray(modifiers));
         }
         var eligibility = eligibility(stack);
-        if (eligibility != null) values.put("enchantmentEligibility", eligibility);
+        values.put("enchantmentEligibility", eligibility);
+        if (!NativeEnchantmentEligibility.complete(eligibility)) {
+            gaps.add("enchantment eligibility is " + ((Evidence.JsonString) eligibility.values().get("status")).value());
+        }
         var container = stack.get(DataComponents.CONTAINER);
         if (container != null) values.put("containerSlots", number(container.nonEmptyStream().count()));
         var bundle = stack.get(DataComponents.BUNDLE_CONTENTS);
         if (bundle != null) values.put("bundleCount", number(bundle.size()));
-        return new Evidence.JsonObject(values);
+        var provider = provider();
+        var components = provider == null ? new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown")))
+                : NativeItemFacts.components(stack, provider);
+        values.put("components", components);
+        if (components.values().get("status") instanceof Evidence.JsonString status) {
+            gaps.add(status.value().equals("bounded") ? "raw components exceed " + NativeItemFacts.MAX_COMPONENT_BYTES + " bytes"
+                    : "raw components could not be encoded");
+        }
+        var fingerprint = provider == null ? null : NativeItemFacts.componentFingerprint(stack, provider);
+        if (fingerprint == null) {
+            values.put("componentFingerprint", new Evidence.JsonNull());
+            values.put("componentFingerprintStatus", new Evidence.JsonString("unknown"));
+            gaps.add("the component fingerprint is unknown");
+        } else {
+            values.put("componentFingerprint", new Evidence.JsonString(fingerprint));
+        }
+        var facts = new Evidence.JsonObject(values);
+        if (gaps.isEmpty()) return new Section(facts, Evidence.Coverage.COMPLETE, null);
+        var note = String.join("; ", gaps);
+        return new Section(facts, Evidence.Coverage.PARTIAL, Character.toUpperCase(note.charAt(0)) + note.substring(1));
+    }
+
+    /** Null when registry access fails; eligibility reports the failure itself. */
+    private HolderLookup.Provider provider() {
+        try {
+            return registries.get();
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     private Evidence.JsonObject eligibility(ItemStack stack) {
@@ -374,8 +398,10 @@ public final class MinecraftInventories implements InventoryReader {
         }
         if (lookup == null) return unavailable("enchantment registry is not available");
         var result = NativeEnchantmentEligibility.read(stack, lookup);
-        var supported = result.values().get("supported");
-        return supported instanceof Evidence.JsonArray array && !array.values().isEmpty() ? result : null;
+        if (!(result.values().get("supported") instanceof Evidence.JsonArray array) || !array.values().isEmpty()) return result;
+        var values = new LinkedHashMap<>(result.values());
+        values.put("none", new Evidence.JsonString("No enchantment can be applied to this item"));
+        return new Evidence.JsonObject(values);
     }
 
     private static Evidence.JsonObject unavailable(String detail) {

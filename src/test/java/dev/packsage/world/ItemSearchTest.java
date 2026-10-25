@@ -70,7 +70,7 @@ class ItemSearchTest {
             };
         }
 
-        public Evidence.JsonObject inspectItem(ItemStack stack) {
+        public Section inspectItem(ItemStack stack) {
             return null;
         }
     }
@@ -320,7 +320,7 @@ class ItemSearchTest {
                 return null;
             }
 
-            public Evidence.JsonObject inspectItem(ItemStack stack) {
+            public Section inspectItem(ItemStack stack) {
                 return null;
             }
         });

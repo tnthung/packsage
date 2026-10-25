@@ -53,7 +53,7 @@ public final class WorldRegistry {
     public Map<String, Section> inspectItem(ItemStack stack) {
         var sections = new LinkedHashMap<String, Section>();
         for (var reader : readers) {
-            collect(sections, reader.adapterId(), () -> reader.inspectItem(stack));
+            collectSection(sections, reader.adapterId(), () -> reader.inspectItem(stack));
         }
         return sections;
     }
@@ -87,10 +87,17 @@ public final class WorldRegistry {
     }
 
     private static void collect(Map<String, Section> sections, String id, Supplier<Evidence.JsonObject> inspection) {
-        try {
+        collectSection(sections, id, () -> {
             var facts = inspection.get();
-            if (facts != null) {
-                sections.put(id, new Section(facts, Evidence.Coverage.COMPLETE, null));
+            return facts == null ? null : new Section(facts, Evidence.Coverage.COMPLETE, null);
+        });
+    }
+
+    private static void collectSection(Map<String, Section> sections, String id, Supplier<Section> inspection) {
+        try {
+            var section = inspection.get();
+            if (section != null) {
+                sections.put(id, section);
             }
         } catch (RuntimeException exception) {
             sections.put(id, new Section(new Evidence.JsonObject(Map.of()), Evidence.Coverage.ERROR, describe(exception)));

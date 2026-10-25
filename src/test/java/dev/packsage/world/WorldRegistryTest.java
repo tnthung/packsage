@@ -30,11 +30,11 @@ class WorldRegistryTest {
             return null;
         }
 
-        public Evidence.JsonObject inspectItem(ItemStack stack) {
+        public Section inspectItem(ItemStack stack) {
             if (facts == null) {
                 throw new IllegalStateException("broken adapter");
             }
-            return facts;
+            return new Section(facts, Evidence.Coverage.COMPLETE, null);
         }
     }
 
@@ -50,7 +50,7 @@ class WorldRegistryTest {
             return null;
         }
 
-        public Evidence.JsonObject inspectItem(ItemStack stack) {
+        public Section inspectItem(ItemStack stack) {
             return null;
         }
     }

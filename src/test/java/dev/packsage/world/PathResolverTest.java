@@ -44,7 +44,7 @@ class PathResolverTest {
             };
         }
 
-        public Evidence.JsonObject inspectItem(ItemStack stack) {
+        public Section inspectItem(ItemStack stack) {
             return null;
         }
     }

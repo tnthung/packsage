@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.mojang.serialization.JsonOps;
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.component.DataComponentMap;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -27,6 +28,7 @@ import java.util.TreeMap;
 
 public final class NativeItemFacts {
     private static final int MAX_EFFECTS = 32;
+    public static final int MAX_COMPONENT_BYTES = 8192;
 
     private NativeItemFacts() {
     }
@@ -50,7 +52,8 @@ public final class NativeItemFacts {
         return partial;
     }
 
-    static String componentFingerprint(ItemStack stack, HolderLookup.Provider registries) {
+    /** Returns null when the components cannot be encoded. */
+    public static String componentFingerprint(ItemStack stack, HolderLookup.Provider registries) {
         try {
             var encoded = DataComponentPatch.CODEC.encodeStart(registries.createSerializationContext(JsonOps.INSTANCE),
                     stack.getComponentsPatch()).result();
@@ -62,6 +65,24 @@ public final class NativeItemFacts {
         } catch (RuntimeException | NoSuchAlgorithmException failure) {
             return null;
         }
+    }
+
+    /** All components except nested contents, which are read through inventories; a status object when bounded or not encodable. */
+    public static Evidence.JsonObject components(ItemStack stack, HolderLookup.Provider registries) {
+        try {
+            var map = stack.getComponents().filter(type -> type != DataComponents.CONTAINER && type != DataComponents.BUNDLE_CONTENTS);
+            var encoded = DataComponentMap.CODEC.encodeStart(registries.createSerializationContext(JsonOps.INSTANCE), map).result();
+            if (encoded.isEmpty() || !encoded.get().isJsonObject()) return status("unknown");
+            var text = encoded.get().toString();
+            if (text.getBytes(StandardCharsets.UTF_8).length > MAX_COMPONENT_BYTES) return status("bounded");
+            return Evidence.deserializeObject(text);
+        } catch (RuntimeException failure) {
+            return status("unknown");
+        }
+    }
+
+    private static Evidence.JsonObject status(String status) {
+        return new Evidence.JsonObject(Map.of("status", new Evidence.JsonString(status)));
     }
 
     private static JsonElement sorted(JsonElement value) {
@@ -80,7 +101,7 @@ public final class NativeItemFacts {
         return value;
     }
 
-    static Evidence.JsonObject potionContents(ItemStack stack) {
+    public static Evidence.JsonObject potionContents(ItemStack stack) {
         var contents = stack.get(DataComponents.POTION_CONTENTS);
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
         values.put("potion", contents == null || contents.potion().isEmpty() ? new Evidence.JsonNull()

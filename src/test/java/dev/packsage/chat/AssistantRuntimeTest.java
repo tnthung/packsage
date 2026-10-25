@@ -47,6 +47,32 @@ class AssistantRuntimeTest {
             null, null, 16_000, 2_048);
 
     @Test
+    void bridgeTracksRequestsAcrossConversationSelectionAndSharesNavigationChecks() throws Exception {
+        var backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(SCOPE), new AtomicReference<>(),
+                PackSageSettings.defaults(), ignored -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+        assertTrue(runtime.sessionReady());
+        assertNull(runtime.sendTracked("signed out"));
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        var id = runtime.sendTracked("bridge question");
+        assertNotNull(id);
+        assertEquals(id.value(), backend.requests.getFirst().requestId());
+        assertTrue(runtime.requestView(id).active());
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("bridge answer", List.of())))), null));
+        runtime.newChat();
+        assertTrue(runtime.sessionReady());
+        assertEquals("bridge answer", runtime.requestView(id).conversation().turns().getFirst().answer());
+        assertNull(runtime.requestView(new ChatContracts.RequestId("missing")));
+        var target = new Evidence.NavigationTarget(SCOPE, "fixture", "source", "missing");
+        assertEquals(Evidence.NavigationStatus.STALE, runtime.navigateWithResult(target).toCompletableFuture().join().status());
+    }
+
+    @Test
     void toolCallsCarryTheirConversationRequestAndQuestion() throws Exception {
         var received = new AtomicReference<Toolbox.Origin>();
         var provider = new KnowledgeProvider() {

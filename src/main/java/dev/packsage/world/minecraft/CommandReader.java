@@ -148,8 +148,13 @@ public final class CommandReader<S> {
                     if (copy == null) {
                         Argument argument = null;
                         if (node instanceof ArgumentCommandNode<?, ?> typed) {
-                            argument = new Argument("", node.getName(), typeId.apply(typed.getType()),
-                                    typed.getType().getExamples().stream().limit(4).toList(), false);
+                            List<String> examples;
+                            try {
+                                examples = typed.getType().getExamples().stream().limit(4).toList();
+                            } catch (RuntimeException exception) {
+                                examples = List.of();
+                            }
+                            argument = new Argument("", node.getName(), typeId.apply(typed.getType()), examples, false);
                         }
                         copy = new SnapshotNode<>(node.getName(), node.getUsageText(), node.getCommand() != null, node.canUse(source), argument);
                         copies.put(node, copy);

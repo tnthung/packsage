@@ -671,7 +671,8 @@ final class WorldKnowledgeTools {
 
     private static String argumentType(ArgumentType<?> type) {
         try {
-            return BuiltInRegistries.COMMAND_ARGUMENT_TYPE.getKey(ArgumentTypeInfos.byClass(type)).toString();
+            var id = BuiltInRegistries.COMMAND_ARGUMENT_TYPE.getKey(ArgumentTypeInfos.byClass(type));
+            return id == null ? type.getClass().getSimpleName() : id.toString();
         } catch (IllegalArgumentException exception) {
             return type.getClass().getSimpleName();
         }

@@ -142,7 +142,9 @@ class ProgressToolsTest {
         assertNull(largeTree.nextCursor());
         assertTrue(largeTree.detail() == null || !largeTree.detail().contains("cursor"), largeTree.detail());
         reader.snapshot = new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 1, 2, true)), List.of(), "snapshot incomplete");
-        assertEquals(Evidence.Coverage.PARTIAL, fixture.finish(fixture.tools.readEvidence(request, context)).coverage());
+        var incomplete = fixture.finish(fixture.tools.readEvidence(request, context));
+        assertEquals(Evidence.Coverage.PARTIAL, incomplete.coverage());
+        assertTrue(incomplete.detail() != null && incomplete.detail().contains("incomplete"), incomplete.detail());
         reader.snapshot = new ProgressSnapshot(List.of(), List.of(), null);
         var failure = assertThrows(CompletionException.class, () -> fixture.finish(fixture.tools.readEvidence(request, context)));
         assertEquals(Toolbox.Code.INVALID_REFERENCE, ((Toolbox.Failure) failure.getCause()).code());

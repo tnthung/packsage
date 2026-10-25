@@ -47,15 +47,13 @@ public final class KnowledgeService {
             context = new Toolbox.Context(currentScope, Map.copyOf(observed), registry, new Toolbox.DocumentBudget(), replacingRequestId);
         }
         CompletionStage<Evidence.Result> read;
-        if (request.tool().equals("read_evidence") || request.tool().equals("read_progress")) {
+        if (request.tool().equals("read_evidence")) {
             if (!(request.arguments().values().get("handles") instanceof Evidence.JsonArray handles)
                     || handles.values().isEmpty() || handles.values().size() > 16) return CompletableFuture.failedFuture(
                     new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "select 1..16 observed handles"));
             for (var handle : handles.values()) {
-                var reference = context.reference(new PackSageTools.ReadRequest(request.tool(),
+                context.reference(new PackSageTools.ReadRequest(request.tool(),
                         new Evidence.JsonObject(Map.of("handles", new Evidence.JsonArray(List.of(handle)))), request.scope()));
-                if (request.tool().equals("read_progress") && reference.kind() != Evidence.RecordKind.QUEST) return CompletableFuture.failedFuture(
-                        new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "progress requires observed quest or chapter references"));
             }
             read = CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
             for (var handle : handles.values()) {
@@ -71,22 +69,11 @@ public final class KnowledgeService {
                                 || !record.source().sourceHandle().equals(reference.sourceHandle()) || record.kind() != reference.kind());
                         boolean unavailable = result != null && (result.coverage() == Evidence.Coverage.ERROR
                                 || result.coverage() == Evidence.Coverage.UNAVAILABLE || result.outcome() == Evidence.Outcome.ERROR);
-                        if (request.tool().equals("read_progress") && (failure != null || result == null || result.records().isEmpty() || mismatched || unavailable)) {
-                            String detail = failure != null ? failure.getMessage() : result != null && result.detail() != null ? result.detail()
-                                    : "current quest progress is unavailable or its identity changed";
-                            result = new Evidence.Result(List.of(new Evidence.Record(new Evidence.Source(request.scope(), reference.providerId(),
-                                    "unknown", "progress-status:" + reference.sourceHandle(), request.scope().requestGeneration(), java.time.Instant.now(),
-                                    Evidence.Activity.UNKNOWN, Evidence.Coverage.UNAVAILABLE, Evidence.Authority.UNKNOWN, List.of()),
-                                    Evidence.RecordKind.OTHER, "Current progress unavailable", new Evidence.JsonObject(Map.of(
-                                    "handle", new Evidence.JsonString(reference.sourceHandle()), "detail", new Evidence.JsonString(detail))), List.of())),
-                                    Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, null, detail);
-                        } else {
-                            if (failure != null) throw new CompletionException(failure);
-                            if (result == null || unavailable) throw new Toolbox.Failure(result != null && result.coverage() == Evidence.Coverage.UNAVAILABLE
-                                    ? Toolbox.Code.UNAVAILABLE : Toolbox.Code.EXTRACTION_FAILED,
-                                    result != null && result.detail() != null ? result.detail() : "current evidence is unavailable");
-                            if (mismatched) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "adapter returned a different reference identity");
-                        }
+                        if (failure != null) throw new CompletionException(failure);
+                        if (result == null || unavailable) throw new Toolbox.Failure(result != null && result.coverage() == Evidence.Coverage.UNAVAILABLE
+                                ? Toolbox.Code.UNAVAILABLE : Toolbox.Code.EXTRACTION_FAILED,
+                                result != null && result.detail() != null ? result.detail() : "current evidence is unavailable");
+                        if (mismatched) throw new Toolbox.Failure(Toolbox.Code.INVALID_REFERENCE, "adapter returned a different reference identity");
                         var records = new ArrayList<>(previous.records());
                         records.addAll(result.records());
                         boolean partial = previous.coverage() != Evidence.Coverage.COMPLETE || result.coverage() != Evidence.Coverage.COMPLETE;

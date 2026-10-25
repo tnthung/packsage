@@ -99,7 +99,6 @@ public interface Toolbox {
     default CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "recipe")); }
     default CompletionStage<Evidence.Result> searchRegistry(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "registry")); }
     default CompletionStage<Evidence.Result> readEvidence(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "evidence")); }
-    default CompletionStage<Evidence.Result> readProgress(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "progress")); }
     default CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "plan")); }
     default CompletionStage<Evidence.Result> listConfigs(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "configs")); }
     default CompletionStage<Evidence.Result> searchConfig(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "config search")); }

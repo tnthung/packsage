@@ -295,7 +295,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
         private boolean transformArguments(String name, JsonObject arguments, boolean encode) {
             boolean changed = false;
             Map<String, String> references = encode ? evidenceAliases : evidence;
-            if (List.of("read_evidence", "read_progress", "read_history").contains(name)
+            if (List.of("read_evidence", "read_history").contains(name)
                     && arguments.get("handles") instanceof com.google.gson.JsonArray handles) {
                 for (int index = 0; index < handles.size(); index++) {
                     if (handles.get(index) instanceof com.google.gson.JsonPrimitive handle && handle.isString()

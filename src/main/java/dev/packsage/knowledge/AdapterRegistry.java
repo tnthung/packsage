@@ -36,7 +36,6 @@ public final class AdapterRegistry {
                 case "search_recipe" -> adapters.get(index).searchRecipe(request, context);
                 case "search_registry" -> adapters.get(index).searchRegistry(request, context);
                 case "read_evidence" -> adapters.get(index).readEvidence(request, context);
-                case "read_progress" -> adapters.get(index).readProgress(request, context);
                 case "plan_recipe" -> adapters.get(index).planRecipe(request, context);
                 case "list_configs" -> adapters.get(index).listConfigs(request, context);
                 case "search_config" -> adapters.get(index).searchConfig(request, context);

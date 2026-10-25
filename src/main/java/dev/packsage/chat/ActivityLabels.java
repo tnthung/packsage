@@ -30,7 +30,6 @@ final class ActivityLabels {
             case "read_evidence" -> "Reading evidence";
             case "read_history" -> "Reading history";
             case "read_inventory" -> "Reading inventory";
-            case "read_progress" -> "Reading quest progress";
             case "list_configs" -> "Listing configs";
             default -> "Using tool: " + safeName(call.name());
         };

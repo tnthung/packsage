@@ -849,13 +849,13 @@ public final class AssistantRuntime implements ChatActions {
             var view = holder.controller.view();
             if (requestId.value().equals(view.activeRequestId()) || view.conversation().turns().stream()
                     .anyMatch(turn -> turn.requestId().equals(requestId))) {
-                var current = wrap(view, holder);
+                var wrapped = wrap(view, holder);
                 var turn = view.conversation().turns().stream().filter(value -> value.requestId().equals(requestId)).findFirst().orElse(null);
-                return new ChatContracts.View(current.active(), current.signIn(), current.paused(), current.conversation(),
-                        current.context(), current.sources(), (turn == null ? view.navigationTargets() : turn.navigationTargets()).stream()
-                        .filter(current.navigationTargets()::contains).toList(), current.errors(), current.streamingAnswer(),
-                        current.activity(), current.activeWorld(), current.readOnly(), current.activeQuestion(), current.activeSentAt(),
-                        current.activities(), current.activeRequestId(), current.activeSteeringMessages());
+                return new ChatContracts.View(wrapped.active(), wrapped.signIn(), wrapped.paused(), wrapped.conversation(),
+                        wrapped.context(), wrapped.sources(), (turn == null ? view.navigationTargets() : turn.navigationTargets()).stream()
+                        .filter(wrapped.navigationTargets()::contains).toList(), wrapped.errors(), wrapped.streamingAnswer(),
+                        wrapped.activity(), wrapped.activeWorld(), wrapped.readOnly(), wrapped.activeQuestion(), wrapped.activeSentAt(),
+                        wrapped.activities(), wrapped.activeRequestId(), wrapped.activeSteeringMessages());
             }
             ChatContracts.Turn failed;
             synchronized (stateLock) {

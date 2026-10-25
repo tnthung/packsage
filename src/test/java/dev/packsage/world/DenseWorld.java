@@ -43,6 +43,8 @@ final class DenseWorld {
         @Override public boolean areEntitiesLoaded(long chunk) { return true; }
         @Override public long getGameTime() { return 400; }
         @Override public long getDayTime() { return 600; }
+        @Override public Entity getEntity(java.util.UUID id) { return entities.stream().filter(entity -> entity.getUUID().equals(id)).findFirst().orElse(null); }
+        @Override public net.minecraft.core.RegistryAccess registryAccess() { return net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY); }
         @Override public Iterable<Entity> getAllEntities() {
             return () -> new Iterator<>() {
                 final Iterator<Entity> iterator = entities.iterator();

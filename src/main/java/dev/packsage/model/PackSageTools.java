@@ -697,7 +697,7 @@ public final class PackSageTools {
                 if (title.isEmpty()) {
                     var source = record.getAsJsonObject("source");
                     var metadata = source.entrySet().stream().filter(entry -> !List.of("providerId", "sourceHandle", "coverage").contains(entry.getKey()))
-                            .max(java.util.Comparator.comparingInt(entry -> trimmer.bytes(entry.getValue())))).orElse(null);
+                            .max(java.util.Comparator.comparingInt(entry -> trimmer.bytes(entry.getValue()))).orElse(null);
                     if (metadata == null) break;
                     source.remove(metadata.getKey());
                 } else {

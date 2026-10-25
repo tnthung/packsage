@@ -51,17 +51,17 @@ class NoteBookTest {
 
     @Test
     void inputValidationRejectsBlankTextAndBadTags() {
-        assertEquals(List.of("build", "iron_farm", "base-1"), NoteInput.validated("farm", new NoteInput.Keep(),
+        assertEquals(List.of("base-1", "build", "iron_farm"), NoteInput.validated("farm", new NoteInput.Keep(),
                 List.of("Build", " build ", "IRON_FARM", "base-1")).tags());
         for (var text : new String[]{null, "", " \t\n"}) {
-            assertTrue(assertThrows(IllegalArgumentException.class,
-                    () -> NoteInput.validated(text, new NoteInput.Keep(), null)).getMessage().contains(String.valueOf(text)));
+            assertEquals("Invalid note text: " + text, assertThrows(IllegalArgumentException.class,
+                    () -> NoteInput.validated(text, new NoteInput.Keep(), null)).getMessage());
         }
         for (var tag : new String[]{null, "", "has space", "bad!", "a".repeat(33)}) {
             var tags = new ArrayList<String>();
             tags.add(tag);
-            assertTrue(assertThrows(IllegalArgumentException.class,
-                    () -> NoteInput.validated("farm", new NoteInput.Keep(), tags)).getMessage().contains(String.valueOf(tag)));
+            assertEquals("Invalid note tag: " + tag, assertThrows(IllegalArgumentException.class,
+                    () -> NoteInput.validated("farm", new NoteInput.Keep(), tags)).getMessage());
         }
         assertThrows(IllegalArgumentException.class, () -> NoteInput.validated("farm", new NoteInput.Keep(),
                 IntStream.range(0, 9).mapToObj(i -> "tag" + i).toList()));
@@ -69,6 +69,15 @@ class NoteBookTest {
         assertThrows(IllegalArgumentException.class, () -> new NoteInput.Set(null));
         assertEquals("x".repeat(1_000), NoteInput.validated("x".repeat(1_001), new NoteInput.Keep(), null).text());
         assertNull(NoteInput.validated("farm", new NoteInput.Keep(), null).tags());
+    }
+
+    @Test
+    void textTruncationKeepsSurrogatePairsIntact() {
+        assertEquals("x".repeat(999), NoteInput.validated("x".repeat(999) + "\uD83D\uDE00", new NoteInput.Keep(), null).text());
+        assertEquals("x".repeat(998) + "\uD83D\uDE00",
+                NoteInput.validated("x".repeat(998) + "\uD83D\uDE00y", new NoteInput.Keep(), null).text());
+        assertEquals("x".repeat(999) + "y",
+                NoteInput.validated("x".repeat(999) + "y\uD83D\uDE00", new NoteInput.Keep(), null).text());
     }
 
     @Test

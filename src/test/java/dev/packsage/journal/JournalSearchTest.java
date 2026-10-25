@@ -338,6 +338,21 @@ class JournalSearchTest {
     }
 
     @Test
+    void actorOnlyOverflowMakesACombinedSubjectAndTextSearchPartial() throws Exception {
+        try (var store = JournalStore.open(dir.resolve("journal.db"))) {
+            store.startSession(0, 0);
+            store.writeBatch(List.of(), List.of(new OverflowRow(EventType.BREAK, "minecraft:overworld", "*", "minecraft:sand",
+                    10, 10, 1, 2, 1, 2)));
+            var result = new JournalSearch(store).search(new JournalFilter(null, null, null, null,
+                    Set.of("break"), List.of("minecraft:sand"), "Steve", false), null, 10);
+            assertTrue(result.items().isEmpty());
+            assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+            assertTrue(result.note().contains("1 overflow rows without a recorded subject or actor in this period cannot be ruled out"));
+            assertNull(result.nextCursor());
+        }
+    }
+
+    @Test
     void actorOnlyOverflowDoesNotMakeAnUnrelatedSubjectSearchPartial() throws Exception {
         try (var store = JournalStore.open(dir.resolve("journal.db"))) {
             store.startSession(0, 0);

@@ -377,45 +377,7 @@ public final class PackSageTools {
                 var accepted = new ArrayList<Evidence.Record>();
                 int outputBytes = json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
                 for (var record : result.records()) {
-                    var encoded = new JsonObject();
-                    encoded.addProperty("reference", record.source().providerId() + ":" + record.source().sourceHandle());
-                    encoded.add("source", JSON.toJsonTree(record.source()));
-                    encoded.addProperty("kind", record.kind().name());
-                    encoded.addProperty("navigable", !record.targets().isEmpty());
-                    encoded.addProperty("title", record.title());
-                    encoded.add("payload", JsonParser.parseString(Evidence.serialize(record.payload())));
-                    var recipe = JSON.toJsonTree(record.recipePayload());
-                    if (record.recipePayload() != null && !record.recipePayload().inputs().isEmpty()) {
-                        record RecipeTotalKey(String type, String comparisonIdentity, Evidence.JsonObject components) { }
-                        var totals = new java.util.LinkedHashMap<RecipeTotalKey, Long>();
-                        boolean canTotal = true;
-                        for (var slot : record.recipePayload().inputs()) {
-                            if (slot.alternatives().size() != 1) { canTotal = false; break; }
-                            var input = slot.alternatives().getFirst();
-                            if (!List.of("item", "item_stack").contains(input.type()) || input.quantity() == null
-                                    || input.quantity() < 1 || input.consumption() != Evidence.Consumption.CONSUMED) {
-                                canTotal = false;
-                                break;
-                            }
-                            var key = new RecipeTotalKey(input.type(), input.comparisonIdentity(), input.components());
-                            var previous = totals.getOrDefault(key, 0L);
-                            if (Long.MAX_VALUE - previous < input.quantity()) { canTotal = false; break; }
-                            totals.put(key, previous + input.quantity());
-                        }
-                        if (canTotal) {
-                            var requiredInputTotals = new JsonArray();
-                            totals.forEach((key, quantity) -> {
-                                var total = new JsonObject();
-                                total.addProperty("type", key.type());
-                                total.addProperty("comparisonIdentity", key.comparisonIdentity());
-                                total.add("components", JSON.toJsonTree(key.components()));
-                                total.addProperty("quantity", quantity);
-                                requiredInputTotals.add(total);
-                            });
-                            recipe.getAsJsonObject().add("requiredInputTotals", requiredInputTotals);
-                        }
-                    }
-                    encoded.add("recipe", recipe);
+                    var encoded = encodeRecord(record);
                     int recordBytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + (records.isEmpty() ? 0 : 1);
                     if (!record.source().sourceHandle().startsWith("status:")
                             && accepted.stream().filter(value -> !value.source().sourceHandle().startsWith("status:")).count() == 64
@@ -450,5 +412,49 @@ public final class PackSageTools {
             if (failure instanceof Toolbox.Failure typed) error.addProperty("code", typed.code().name());
             return CompletableFuture.completedFuture(new ToolResponse(new ModelBackend.ToolResult(call.callId(), error.toString(), true), List.of()));
         }
+    }
+
+    /** The wire representation shared by tool output and provider page budgets. */
+    public static JsonObject encodeRecord(Evidence.Record record) {
+        var encoded = new JsonObject();
+        encoded.addProperty("reference", record.source().providerId() + ":" + record.source().sourceHandle());
+        encoded.add("source", JSON.toJsonTree(record.source()));
+        encoded.addProperty("kind", record.kind().name());
+        encoded.addProperty("navigable", !record.targets().isEmpty());
+        encoded.addProperty("title", record.title());
+        encoded.add("payload", JsonParser.parseString(Evidence.serialize(record.payload())));
+        var recipe = JSON.toJsonTree(record.recipePayload());
+        if (record.recipePayload() != null && !record.recipePayload().inputs().isEmpty()) {
+            record RecipeTotalKey(String type, String comparisonIdentity, Evidence.JsonObject components) { }
+            var totals = new java.util.LinkedHashMap<RecipeTotalKey, Long>();
+            boolean canTotal = true;
+            for (var slot : record.recipePayload().inputs()) {
+                if (slot.alternatives().size() != 1) { canTotal = false; break; }
+                var input = slot.alternatives().getFirst();
+                if (!List.of("item", "item_stack").contains(input.type()) || input.quantity() == null
+                        || input.quantity() < 1 || input.consumption() != Evidence.Consumption.CONSUMED) {
+                    canTotal = false;
+                    break;
+                }
+                var key = new RecipeTotalKey(input.type(), input.comparisonIdentity(), input.components());
+                var previous = totals.getOrDefault(key, 0L);
+                if (Long.MAX_VALUE - previous < input.quantity()) { canTotal = false; break; }
+                totals.put(key, previous + input.quantity());
+            }
+            if (canTotal) {
+                var requiredInputTotals = new JsonArray();
+                totals.forEach((key, quantity) -> {
+                    var total = new JsonObject();
+                    total.addProperty("type", key.type());
+                    total.addProperty("comparisonIdentity", key.comparisonIdentity());
+                    total.add("components", JSON.toJsonTree(key.components()));
+                    total.addProperty("quantity", quantity);
+                    requiredInputTotals.add(total);
+                });
+                recipe.getAsJsonObject().add("requiredInputTotals", requiredInputTotals);
+            }
+        }
+        encoded.add("recipe", recipe);
+        return encoded;
     }
 }

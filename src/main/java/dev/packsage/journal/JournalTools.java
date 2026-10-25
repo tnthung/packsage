@@ -33,9 +33,6 @@ public final class JournalTools implements KnowledgeProvider {
     public static final String VERSION = "1";
     // Leave 32 KiB for the response envelope, coverage reasons and nextCall's repeated filter.
     private static final int PAGE_BYTES = 96 * 1024;
-    private static final com.google.gson.Gson JSON = new com.google.gson.GsonBuilder().serializeNulls()
-            .registerTypeAdapter(Instant.class, (com.google.gson.JsonSerializer<Instant>) (value, type, context) -> new com.google.gson.JsonPrimitive(value.toString()))
-            .create();
 
     private record Cursor(String tool, Evidence.JsonObject signature, Evidence.Scope scope, JournalFilter filter, String keyset, long nowWall) {
     }
@@ -165,15 +162,8 @@ public final class JournalTools implements KnowledgeProvider {
                 var note = page.note();
                 for (var entry : page.items()) {
                     var record = record(entry, request.scope(), now, query.area() != null, page.coverage());
-                    var encoded = new JsonObject();
-                    encoded.addProperty("reference", record.source().providerId() + ":" + record.source().sourceHandle());
-                    encoded.add("source", JSON.toJsonTree(record.source()));
-                    encoded.addProperty("kind", record.kind().name());
-                    encoded.addProperty("navigable", !record.targets().isEmpty());
-                    encoded.addProperty("title", record.title());
-                    encoded.add("payload", JsonParser.parseString(Evidence.serialize(record.payload())));
-                    encoded.add("recipe", com.google.gson.JsonNull.INSTANCE);
-                    var recordBytes = encoded.toString().getBytes(StandardCharsets.UTF_8).length + (records.isEmpty() ? 0 : 1);
+                    var recordBytes = PackSageTools.encodeRecord(record).toString().getBytes(StandardCharsets.UTF_8).length
+                            + (records.isEmpty() ? 0 : 1);
                     if (bytes + recordBytes > PAGE_BYTES) {
                         if (records.isEmpty()) throw new Failure(Code.EXTRACTION_FAILED, "one journal entry exceeds the page byte budget");
                         var last = page.items().get(records.size() - 1);

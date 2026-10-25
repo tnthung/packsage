@@ -1,8 +1,10 @@
 package dev.packsage.journal;
 
 import net.minecraft.SharedConstants;
+import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.server.MinecraftServer;
 import net.neoforged.bus.api.BusBuilder;
 import net.neoforged.bus.api.Event;
 import net.neoforged.bus.api.EventPriority;
@@ -10,13 +12,26 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.Logger;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Property;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.lang.reflect.Proxy;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -62,6 +77,76 @@ class JournalHooksTest {
         for (var type : List.of(BlockEvent.BreakEvent.class, BlockEvent.EntityPlaceEvent.class,
                 LivingDeathEvent.class, EntityTravelToDimensionEvent.class)) {
             assertEquals(EventPriority.LOWEST, listeners.get(type).priority());
+        }
+    }
+
+    @Test
+    void summariesLogAtStopAndAtMostOnceAMinuteWhileOverflowGrows(@TempDir Path dir) throws Exception {
+        var field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        var unsafe = field.get(null);
+        var server = (IntegratedServer) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, IntegratedServer.class);
+        var serverThread = MinecraftServer.class.getDeclaredField("serverThread");
+        serverThread.setAccessible(true);
+        serverThread.set(server, Thread.currentThread());
+        var levels = MinecraftServer.class.getDeclaredField("levels");
+        levels.setAccessible(true);
+        levels.set(server, Map.of());
+        var summaries = new ArrayList<String>();
+        var callingThread = Thread.currentThread().getName();
+        var logger = (Logger) LogManager.getLogger("PackSage");
+        var previousLevel = logger.getLevel();
+        var appender = new AbstractAppender("journal-hook-summaries", null, null, true, Property.EMPTY_ARRAY) {
+            @Override
+            public void append(LogEvent event) {
+                var message = event.getMessage().getFormattedMessage();
+                if (event.getThreadName().equals(callingThread) && message.startsWith("PackSage journal:")) summaries.add(message);
+            }
+        };
+        appender.start();
+        logger.addAppender(appender);
+        logger.setLevel(Level.INFO);
+        try (var worker = Executors.newSingleThreadExecutor()) {
+            var journal = new Journal(worker);
+            var hooks = new JournalHooks(journal, () -> server);
+            var session = hooks.newSession();
+            session.server = server;
+            var bus = BusBuilder.builder().build();
+            hooks.register(bus);
+            journal.open(dir.resolve("journal.db"), () -> 0);
+            try {
+                journal.write(store -> null).toCompletableFuture().get(10, TimeUnit.SECONDS);
+                bus.post(new ServerTickEvent.Post(() -> true, server));
+                assertTrue(summaries.isEmpty());
+                journal.stats().overflowed.increment();
+                session.lastOverflowLogNanos = System.nanoTime() - TimeUnit.SECONDS.toNanos(59);
+                bus.post(new ServerTickEvent.Post(() -> true, server));
+                assertTrue(summaries.isEmpty(), "wait a full minute before reporting overflow");
+                session.lastOverflowLogNanos = System.nanoTime() - TimeUnit.SECONDS.toNanos(61);
+                bus.post(new ServerTickEvent.Post(() -> true, server));
+                assertEquals(1, summaries.size());
+                assertTrue(summaries.getFirst().contains("overflowed 1"));
+                journal.stats().overflowed.increment();
+                bus.post(new ServerTickEvent.Post(() -> true, server));
+                assertEquals(1, summaries.size(), "growth must not bypass the rate limit");
+                session.lastOverflowLogNanos = System.nanoTime() - TimeUnit.SECONDS.toNanos(61);
+                bus.post(new ServerTickEvent.Post(() -> true, server));
+                assertEquals(2, summaries.size());
+                assertTrue(summaries.getLast().contains("overflowed 2"));
+                session.lastOverflowLogNanos = System.nanoTime() - TimeUnit.SECONDS.toNanos(61);
+                bus.post(new ServerTickEvent.Post(() -> true, server));
+                assertEquals(2, summaries.size(), "unchanged overflow must stay quiet");
+                bus.post(new ServerStoppedEvent(server));
+                assertEquals(3, summaries.size(), "world stop must log a summary even without new overflow");
+                assertEquals(0, journal.stats().hookFailures());
+                assertFalse(journal.recording());
+            } finally {
+                journal.close().get(10, TimeUnit.SECONDS);
+            }
+        } finally {
+            logger.removeAppender(appender);
+            appender.stop();
+            logger.setLevel(previousLevel);
         }
     }
 

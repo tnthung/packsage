@@ -510,6 +510,7 @@ public final class WorldTools implements KnowledgeProvider {
         private Vec3 center;
         private List<ChunkPos> chunks;
         private int next;
+        private int startChunk;
         private int resolved;
         private int unloaded;
         private int entitiesUnloaded;
@@ -574,13 +575,17 @@ public final class WorldTools implements KnowledgeProvider {
             center = gather.center();
             chunks = AreaScan.chunksInRange(center, radius);
             next = gather.nextChunk();
+            startChunk = next;
         }
 
-        /** Stops inside the search, or between chunks while gathering; resolving roots runs to its end first. */
+        /**
+         * Stops inside the search, or between chunks while gathering once this page has gathered at least one chunk;
+         * resolving roots runs to its end first.
+         */
         @Override
         public boolean stopEarly() {
             if (search != null) return search.stopEarly();
-            if (chunks == null || next >= chunks.size()) return false;
+            if (chunks == null || !gatherCanStop(chunks.size(), next, startChunk)) return false;
             stopped = true;
             return true;
         }
@@ -674,6 +679,14 @@ public final class WorldTools implements KnowledgeProvider {
         var parts = searchCursor.split("[.]");
         var from = Integer.parseInt(parts[0]);
         return new FindState(List.copyOf(roots.subList(from, roots.size())), parts.length == 2 ? Integer.parseInt(parts[1]) : 0, null);
+    }
+
+    /**
+     * Whether find_items gathering may stop before chunk {@code next}: only after this page gathered at least one chunk
+     * past {@code startChunk}, where it began, and while chunks remain.
+     */
+    static boolean gatherCanStop(int chunkCount, int next, int startChunk) {
+        return next > startChunk && next < chunkCount;
     }
 
     /**

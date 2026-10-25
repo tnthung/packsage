@@ -113,9 +113,15 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
                 : "Searched " + PAGE_CONTAINERS + " containers, the page limit; continue with the cursor";
     }
 
-    /** Stops between containers; the cursor continues at the next one. */
+    /**
+     * Stops between containers once this page has searched one that an earlier page did not, so every page makes
+     * progress; the cursor continues at the next one.
+     */
     @Override
     public boolean stopEarly() {
+        if (containers == 0) {
+            return false;
+        }
         stopped = true;
         return true;
     }

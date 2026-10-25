@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,6 +22,8 @@ class ProgressNavigationTest {
     private static final class FakeClient implements ProgressNavigation.Client {
         boolean inWorld = true;
         Set<String> visible = Set.of();
+        /** The server's current advancements: id to its root. */
+        Map<String, String> roots = Map.of("minecraft:story/mine_stone", "minecraft:story/root");
         final List<ResourceLocation> opened = new ArrayList<>();
 
         @Override
@@ -29,12 +32,21 @@ class ProgressNavigationTest {
         }
 
         @Override
+        public ResourceLocation currentRoot(ResourceLocation id) {
+            var root = roots.get(id.toString());
+            return root == null ? null : ResourceLocation.parse(root);
+        }
+
+        @Override
         public boolean visible(ResourceLocation id) {
             return visible.contains(id.toString());
         }
 
+        RuntimeException failure;
+
         @Override
         public void openTab(ResourceLocation root) {
+            if (failure != null) throw failure;
             opened.add(root);
         }
     }
@@ -65,12 +77,42 @@ class ProgressNavigationTest {
     }
 
     @Test
+    void reparentedAdvancementOpensItsCurrentRoot() {
+        var client = new FakeClient();
+        client.visible = Set.of("minecraft:story/root", "minecraft:adventure/root");
+        client.roots = Map.of("minecraft:story/mine_stone", "minecraft:adventure/root");
+
+        var result = new ProgressNavigation(client).open(target(TARGET));
+
+        assertEquals(Evidence.NavigationStatus.OPENED, result.status());
+        assertEquals(List.of(ResourceLocation.parse("minecraft:adventure/root")), client.opened);
+    }
+
+    @Test
+    void aFailureWithoutAMessageStillGetsADetail() {
+        var client = new FakeClient();
+        client.visible = Set.of("minecraft:story/root");
+        client.failure = new IllegalStateException();
+
+        var result = new ProgressNavigation(client).open(target(TARGET));
+
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, result.status());
+        assertEquals("java.lang.IllegalStateException", result.detail());
+    }
+
+    @Test
     void missingAdvancementIsUnavailableAndOpensNothing() {
         var client = new FakeClient();
         var navigation = new ProgressNavigation(client);
+        // The client still shows the stored root, but the server's current content no longer holds the advancement.
+        client.visible = Set.of("minecraft:story/root");
+        client.roots = Map.of();
 
         assertEquals(new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "advancement minecraft:story/mine_stone is not in this world"),
                 navigation.open(target(TARGET)));
+        client.roots = Map.of("minecraft:story/mine_stone", "minecraft:story/root");
+        client.visible = Set.of();
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, navigation.open(target(TARGET)).status());
         client.visible = Set.of("minecraft:story/root", "minecraft:story/mine_stone");
         client.inWorld = false;
         assertEquals(Evidence.NavigationStatus.UNAVAILABLE, navigation.open(target(TARGET)).status());

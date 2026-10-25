@@ -150,6 +150,18 @@ class MinecraftStatisticsTest {
     }
 
     @Test
+    void customUnitTableMatchesEveryVanillaCounterFormatter() {
+        // Vanilla's custom stats already exist in Stats.CUSTOM's map from Stats' own initialisation, so get creates none.
+        for (var entry : MinecraftStatistics.CUSTOM_UNITS.entrySet()) {
+            assertEquals(entry.getValue(), MinecraftStatistics.unit(Stats.CUSTOM.get(entry.getKey())), entry.getKey().toString());
+        }
+        for (var key : BuiltInRegistries.CUSTOM_STAT) {
+            if (!key.getNamespace().equals(ResourceLocation.DEFAULT_NAMESPACE)) continue;
+            assertEquals(MinecraftStatistics.CUSTOM_UNITS.getOrDefault(key, StatisticUnit.COUNT), MinecraftStatistics.unit(Stats.CUSTOM.get(key)), key.toString());
+        }
+    }
+
+    @Test
     void zeroRowsFollowTheTextFilterToo() {
         var subjects = new KindFilter(List.of("minecraft:ancient_debris"), List.of(), "diamond");
 

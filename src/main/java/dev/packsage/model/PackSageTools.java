@@ -534,6 +534,10 @@ public final class PackSageTools {
                 boolean changed = false;
                 if (value.isJsonObject()) {
                     for (var entry : value.getAsJsonObject().entrySet()) {
+                        // ReferenceAliasBackend compacts these transport identities before model delivery.
+                        // Truncating a canonical reference here would change the reread destination.
+                        if (value == encoded && entry.getKey().equals("reference") || value == encoded.get("source")
+                                && List.of("providerId", "sourceHandle").contains(entry.getKey())) continue;
                         if (entry.getValue().isJsonPrimitive() && entry.getValue().getAsJsonPrimitive().isString()
                                 && entry.getValue().getAsString().length() > 2048) {
                             entry.setValue(new com.google.gson.JsonPrimitive(boundedString(entry.getValue().getAsString())));

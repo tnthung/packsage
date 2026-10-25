@@ -867,7 +867,6 @@ public final class WorldTools implements KnowledgeProvider {
                 }
                 if (chunk.getBlockEntities().size() > AreaScan.SNAPSHOT_LIMIT) notes.add("Block entity snapshot reached the per-chunk bound; some holders were not searched");
                 blockIndex = 0;
-                if (!level.areEntitiesLoaded(pos.toLong())) entitiesUnloaded++;
                 return false;
             }
             if (blockIndex < blocks.size()) {
@@ -893,7 +892,12 @@ public final class WorldTools implements KnowledgeProvider {
                 return false;
             }
             if (entities == null) {
-                entities = level.areEntitiesLoaded(pos.toLong()) ? AreaScan.entitySnapshot(level, pos, notes) : List.of();
+                if (!level.areEntitiesLoaded(pos.toLong())) {
+                    entitiesUnloaded++;
+                    blocks = null;
+                    return true;
+                }
+                entities = AreaScan.entitySnapshot(level, pos, notes);
                 entityIndex = 0;
                 return false;
             }

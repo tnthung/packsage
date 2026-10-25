@@ -667,6 +667,20 @@ class PackSageToolsTest {
     }
 
     @Test
+    void wideObjectsTrimWithinBudgetWithoutRepeatedWholeRecordSerialization() {
+        var fields = new java.util.LinkedHashMap<String, Evidence.JsonValue>();
+        for (int i = 0; i < 5000; i++) fields.put("field:" + i, new Evidence.JsonString("\u754c\\\"".repeat(150)));
+        var record = new Evidence.Record(new Evidence.Source(SCOPE, "fixture", "1", "wide", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.OTHER, "Wide object", new Evidence.JsonObject(fields), List.of());
+        var encoded = assertTimeout(java.time.Duration.ofSeconds(10), () -> PackSageTools.encodeRecord(record));
+        assertTrue(encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= PackSageTools.MAX_RECORD_BYTES);
+        assertEquals("fixture:wide", encoded.get("reference").getAsString());
+        assertEquals("PARTIAL", encoded.getAsJsonObject("source").get("coverage").getAsString());
+        assertTrue(encoded.has("truncationNote"));
+    }
+
+    @Test
     void oversizedCollectionsKeepExactRecordAndCompactFacts() throws Exception {
         var values = java.util.stream.IntStream.range(0, 1000).mapToObj(i -> (Evidence.JsonValue)
                 new Evidence.JsonString("\u754c".repeat(2048))).toList();

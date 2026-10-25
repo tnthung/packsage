@@ -4,10 +4,10 @@ import dev.packsage.chat.AssistantRuntime;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.ConversationStore;
 import dev.packsage.chat.PackSageSettings;
+import dev.packsage.client.highlight.WorldHighlighter;
 import dev.packsage.debug.DebugBridge;
 import dev.packsage.debug.DebugRequestLog;
 import dev.packsage.debug.MinecraftDebugAdapter;
-import dev.packsage.client.highlight.WorldHighlighter;
 import dev.packsage.journal.Journal;
 import dev.packsage.journal.JournalHooks;
 import dev.packsage.journal.JournalTools;
@@ -234,7 +234,7 @@ public final class ClientAssistant {
 
     private void tick() {
         if (!client.isSameThread()) return;
-        if (debugBridge != null && debugTiming != null && debugTiming.isStarted()) client.options.pauseOnLostFocus = false;
+        if (debugTiming != null && debugTiming.isStarted()) client.options.pauseOnLostFocus = false;
         tickPausedServerWork();
         if (settingsOpen && client.screen == null && assistantScreen != null) {
             settingsOpen = false;

@@ -20,10 +20,6 @@ public final class DebugChatState {
 
     private DebugChatState() { }
 
-    public static JsonObject read(ChatContracts.View view, String requestId, JsonArray timing) {
-        return read(view, requestId, timing, view.conversation());
-    }
-
     public static JsonObject read(ChatContracts.View view, String requestId, JsonArray timing, ChatContracts.Conversation saved) {
         var turn = saved.turns().stream().filter(value -> value.requestId().value().equals(requestId)).findFirst().orElse(null);
         boolean active = view.active() && requestId.equals(view.activeRequestId());
@@ -36,7 +32,8 @@ public final class DebugChatState {
         json.addProperty("detail", active ? view.activity() : turn.outcome().detail());
         json.add("errors", GSON.toJsonTree(view.errors()));
         json.add("activities", GSON.toJsonTree(active ? view.activities() : turn.activities()));
-        json.add("navigationTargets", GSON.toJsonTree(active ? view.navigationTargets() : turn.navigationTargets()));
+        json.add("navigationTargets", GSON.toJsonTree(active ? view.navigationTargets() : view.navigationTargets().stream()
+                .filter(target -> target.scope().equals(turn.context().scope())).toList()));
         var citations = new JsonArray();
         (active ? view.sources() : turn.sources()).forEach(source -> citations.add(GSON.toJsonTree(source)));
         var tools = new JsonArray();

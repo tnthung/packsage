@@ -29,7 +29,7 @@ class DebugChatStateTest {
                 turn.sources(), turn.navigationTargets(), List.of(), "", "", world, false);
         var timing = new JsonArray();
         timing.add("timing");
-        var result = DebugChatState.read(view, "request", timing);
+        var result = DebugChatState.read(view, "request", timing, view.conversation());
         assertEquals("completed", result.get("status").getAsString());
         assertEquals("answer", result.get("reply").getAsString());
         var tool = result.getAsJsonArray("toolCalls").get(0).getAsJsonObject();
@@ -40,7 +40,7 @@ class DebugChatStateTest {
         assertEquals("target", result.getAsJsonArray("navigationTargets").get(0).getAsJsonObject().get("targetId").getAsString());
         assertEquals(1, result.getAsJsonArray("citations").size());
         assertEquals(timing, result.get("timing"));
-        assertThrows(IllegalArgumentException.class, () -> DebugChatState.read(view, "missing", timing));
+        assertThrows(IllegalArgumentException.class, () -> DebugChatState.read(view, "missing", timing, view.conversation()));
     }
 
     @Test
@@ -54,7 +54,7 @@ class DebugChatStateTest {
         var view = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_IN, false,
                 new ChatContracts.Conversation("conversation", world, List.of(turn), turn.outcome()), turn.context(),
                 List.of(), List.of(), List.of(), "", "", world, false);
-        var result = DebugChatState.read(view, "failed", new JsonArray());
+        var result = DebugChatState.read(view, "failed", new JsonArray(), view.conversation());
         assertEquals("failed", result.get("status").getAsString());
         var tool = result.getAsJsonArray("toolCalls").get(0).getAsJsonObject();
         assertEquals("{", tool.get("arguments").getAsString());

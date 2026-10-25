@@ -73,8 +73,7 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                     json.addProperty("gameTime", client.level.getGameTime());
                     json.addProperty("dayTime", client.level.getDayTime());
                     json.addProperty("selectedHotbarSlot", player.getInventory().selected);
-                    var focus = GameplayContextCapture.focus(client);
-                    json.add("crosshairTarget", DebugChatState.GSON.toJsonTree(focus.targeted()));
+                    json.add("crosshairTarget", DebugChatState.GSON.toJsonTree(GameplayContextCapture.focus(client).targeted()));
                     json.addProperty("riddenEntity", player.getVehicle() == null ? null : player.getVehicle().getStringUUID());
                     json.addProperty("menuId", player.containerMenu.containerId);
                 }
@@ -116,7 +115,8 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                     switch (operation) {
                         case COMMAND -> {
                             var feedback = new JsonArray();
-                            var source = player.createCommandSourceStack().withPermission(4).withSource(new CommandSource() {
+                            json.addProperty("success", false);
+                            server.getCommands().performPrefixedCommand(player.createCommandSourceStack().withPermission(4).withSource(new CommandSource() {
                                 @Override public void sendSystemMessage(Component message) { feedback.add(message.getString()); }
                                 @Override public boolean acceptsSuccess() { return true; }
                                 @Override public boolean acceptsFailure() { return true; }
@@ -124,9 +124,7 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                             }).withCallback((success, result) -> {
                                 json.addProperty("success", success);
                                 json.addProperty("result", result);
-                            });
-                            json.addProperty("success", false);
-                            server.getCommands().performPrefixedCommand(source, body.get("command").getAsString());
+                            }), body.get("command").getAsString());
                             json.add("feedback", feedback);
                         }
                         case BREAK -> json.addProperty("success", player.gameMode.destroyBlock(new BlockPos(
@@ -223,8 +221,9 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                     String id = body.get("requestId").getAsString();
                     var view = call(client, () -> runtime.requestView(new ChatContracts.RequestId(id)));
                     if (view == null) throw new IllegalArgumentException("Unknown request");
-                    var targets = view.conversation().turns().stream().filter(turn -> turn.requestId().value().equals(id))
-                            .flatMap(turn -> turn.navigationTargets().stream()).toList();
+                    var turn = view.conversation().turns().stream().filter(value -> value.requestId().value().equals(id)).findFirst().orElse(null);
+                    var targets = turn == null ? java.util.List.<dev.packsage.knowledge.Evidence.NavigationTarget>of()
+                            : view.navigationTargets().stream().filter(target -> target.scope().equals(turn.context().scope())).toList();
                     if (targets.isEmpty() && id.equals(view.activeRequestId())) targets = view.navigationTargets();
                     String targetId = body.get("targetId").getAsString();
                     var matching = targets.stream().filter(target -> target.targetId().equals(targetId)).toList();
@@ -239,8 +238,8 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                         if (System.nanoTime() >= deadline) throw new TimeoutException("Conversation load timeout");
                         Thread.sleep(10);
                     }
-                    var result = call(client, () -> runtime.navigateWithResult(matching.getFirst())).toCompletableFuture().get(10, TimeUnit.SECONDS);
-                    yield DebugChatState.GSON.toJsonTree(result).getAsJsonObject();
+                    yield DebugChatState.GSON.toJsonTree(call(client, () -> runtime.navigateWithResult(matching.getFirst()))
+                            .toCompletableFuture().get(10, TimeUnit.SECONDS)).getAsJsonObject();
                 }
             }
             case SCREENSHOT -> {
@@ -258,6 +257,12 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                     var json = new JsonObject();
                     json.addProperty("path", path.toAbsolutePath().toString());
                     yield json;
+                } catch (TimeoutException | InterruptedException exception) {
+                    if (!pending.image().cancel(false)) {
+                        var image = pending.image().getNow(null);
+                        if (image != null) image.close();
+                    }
+                    throw exception;
                 } finally {
                     client.execute(() -> {
                         if (screenshot == pending) {

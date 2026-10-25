@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -82,7 +83,10 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     /** The find_items sphere and the index of the next chunk in range to gather holders from. */
-    record Gather(String dimension, Vec3 center, int nextChunk) {
+    record Gather(String dimension, Vec3 center, int nextChunk, int entitySkip) {
+        Gather(String dimension, Vec3 center, int nextChunk) {
+            this(dimension, center, nextChunk, 0);
+        }
     }
 
     /**
@@ -727,6 +731,9 @@ public final class WorldTools implements KnowledgeProvider {
         private boolean firstRootFound;
         private boolean stopped;
         private ItemSearch search;
+        private Iterator<BlockPos> blocks;
+        private Iterator<Entity> entities;
+        private int entitySeen;
 
         FindSlice(MinecraftServer server, Anchor anchor, int radius, KindFilter filter, boolean includeNested, FindState resume) {
             this.server = server;
@@ -751,7 +758,9 @@ public final class WorldTools implements KnowledgeProvider {
                 holders.add(Map.entry(new PathRoot.Player(host.getUUID()), new LiveHolder.OfPlayer(host)));
                 chunks = AreaScan.chunksInRange(center, radius);
             } else if (next < chunks.size()) {
-                collect(chunks.get(next++));
+                if (collect(chunks.get(next))) next++;
+            } else if (collectEntities()) {
+                return true;
             } else {
                 search = new ItemSearch(registry, holders, filter, ItemTooltips.of(host(server))::lines, includeNested, resumedCursor(resume, firstRootFound));
             }
@@ -794,52 +803,61 @@ public final class WorldTools implements KnowledgeProvider {
         @Override
         public boolean stopEarly() {
             if (search != null) return search.stopEarly();
-            if (chunks == null || !gatherCanStop(chunks.size(), next, startChunk)) return false;
+            if (chunks == null || !gatherCanStop(chunks.size(), next, startChunk) && entitySeen == 0) return false;
             stopped = true;
             return true;
         }
 
-        private void collect(ChunkPos pos) {
+        /** Visits at most one batch of existing block entities; never sorts a chunk on the server thread. */
+        private boolean collect(ChunkPos pos) {
             var chunk = level.getChunkSource().getChunkNow(pos.x, pos.z);
             if (chunk == null) {
                 unloaded++;
-                return;
+                blocks = null;
+                return true;
+            }
+            if (blocks == null) {
+                blocks = chunk.getBlockEntities().keySet().iterator();
+                if (!level.areEntitiesLoaded(pos.toLong())) entitiesUnloaded++;
             }
             var radiusSquared = (double) radius * radius;
             var dimension = level.dimension().location().toString();
-            var blocks = new ArrayList<>(chunk.getBlockEntities().keySet());
-            blocks.sort(Comparator.comparingLong(BlockPos::asLong));
-            for (var at : blocks) {
+            for (int read = 0; read < RESOLVE_PER_STEP && blocks.hasNext(); read++) {
+                var at = blocks.next();
                 if (Vec3.atCenterOf(at).distanceToSqr(center) > radiusSquared) continue;
                 var state = chunk.getBlockState(at);
                 // The player's ender chest is searched once, under the player.
                 if (state.getBlock() instanceof EnderChestBlock) continue;
                 var doubleChest = state.getBlock() instanceof ChestBlock && ChestBlock.getBlockType(state) != DoubleBlockCombiner.BlockType.SINGLE;
-                // Either half of a double chest reads the whole chest, so only one half is searched.
                 if (doubleChest && chestHalves.contains(at.relative(ChestBlock.getConnectedDirection(state)))) continue;
                 var holder = new LiveHolder.OfBlock(level, at.immutable());
                 if (!holds(holder)) continue;
                 if (doubleChest) chestHalves.add(at.immutable());
                 holders.add(Map.entry(new PathRoot.Block(new BlockPlace(dimension, at.getX(), at.getY(), at.getZ())), holder));
             }
-            // A loaded chunk can still be waiting for its entities; count it rather than report them absent.
-            if (!level.areEntitiesLoaded(pos.toLong())) {
-                entitiesUnloaded++;
-                return;
-            }
-            var box = new AABB(pos.getMinBlockX(), center.y - radius, pos.getMinBlockZ(),
-                    pos.getMinBlockX() + 16, center.y + radius, pos.getMinBlockZ() + 16);
-            var entities = new ArrayList<>(level.getEntities((Entity) null, box, entity -> entity != host
-                    && SectionPos.blockToSectionCoord(entity.getBlockX()) == pos.x && SectionPos.blockToSectionCoord(entity.getBlockZ()) == pos.z
-                    && entity.position().distanceToSqr(center) <= radiusSquared));
-            entities.sort(Comparator.comparing(Entity::getUUID));
-            for (var entity : entities) {
+            if (blocks.hasNext()) return false;
+            blocks = null;
+            return true;
+        }
+
+        /** The engine's loaded lookup is an iterable view; retain its traversal and cap holder checks per step. */
+        private boolean collectEntities() {
+            if (entities == null) entities = level.getAllEntities().iterator();
+            if (!entities.hasNext()) return false;
+            var skip = resume == null || resume.gather() == null ? 0 : resume.gather().entitySkip();
+            for (int read = 0; read < RESOLVE_PER_STEP && entities.hasNext(); read++) {
+                var entity = entities.next();
+                if (entitySeen++ < skip || entity == host || entity.isRemoved()
+                        || entity.position().distanceToSqr(center) > (double) radius * radius) continue;
+                var x = SectionPos.blockToSectionCoord(entity.getBlockX());
+                var z = SectionPos.blockToSectionCoord(entity.getBlockZ());
+                if (level.getChunkSource().getChunkNow(x, z) == null || !level.areEntitiesLoaded(ChunkPos.asLong(x, z))) continue;
                 LiveHolder holder = entity instanceof ServerPlayer player ? new LiveHolder.OfPlayer(player) : new LiveHolder.OfEntity(entity);
                 if (!holds(holder)) continue;
                 holders.add(Map.entry(entity instanceof ServerPlayer ? new PathRoot.Player(entity.getUUID()) : new PathRoot.Entity(entity.getUUID()), holder));
             }
+            return true;
         }
-
         private boolean holds(LiveHolder holder) {
             var inventories = registry.inventories(holder);
             if (inventories.note() != null) notes.add(inventories.note());
@@ -860,7 +878,7 @@ public final class WorldTools implements KnowledgeProvider {
             if (search == null) {
                 // Stopped while gathering: nothing was searched yet, so every holder so far carries over.
                 continuation = new FindState(holders.stream().map(Map.Entry::getKey).toList(), firstRootFound ? resume.ordinal() : 0,
-                        new Gather(level.dimension().location().toString(), center, next));
+                        new Gather(level.dimension().location().toString(), center, next, entitySeen));
                 bound = "Stopped at the per-call work limit while gathering holders, after " + next + " of " + chunks.size()
                         + " chunks; continue with the cursor";
                 coverage = Evidence.Coverage.PARTIAL;

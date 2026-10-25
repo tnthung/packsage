@@ -11,12 +11,11 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
+import java.util.Iterator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
@@ -463,45 +462,77 @@ public final class AreaScan {
         }
     }
 
-    private static final class EntityListSlice extends ListSlice<EntityHandle> {
+    /** Traverses the loaded lookup directly, retaining its iterator instead of materializing a dense chunk. */
+    private static final class EntityListSlice implements ServerWork.Slice<Page<EntityHandle>> {
+        private final ServerLevel level;
+        private final Vec3 center;
+        private final double radiusSquared;
         private final KindFilter filter;
+        private final Cursor start;
+        private final List<ChunkPos> chunks;
+        private final List<EntityHandle> items = new ArrayList<>();
+        private final Set<String> notes = new LinkedHashSet<>();
+        private Iterator<Entity> entities;
+        private int chunk;
+        private int seen;
+        private int unloaded;
+        private int entitiesUnloaded;
+        private String nextCursor;
+        private boolean stopped;
 
         EntityListSlice(ServerLevel level, Vec3 center, int radius, KindFilter filter, Cursor start) {
-            super(level, center, radius, start);
+            this.level = level;
+            this.center = center;
+            this.radiusSquared = (double) radius * radius;
             this.filter = filter;
+            this.start = start;
+            this.chunks = chunksInRange(center, radius);
         }
 
         @Override
-        boolean bySection() {
-            return false;
-        }
-
-        @Override
-        void scanChunk(LevelChunk chunk, int index) {
-            var chunkPos = chunk.getPos();
-            var box = new AABB(chunkPos.getMinBlockX(), center.y - radius, chunkPos.getMinBlockZ(),
-                    chunkPos.getMinBlockX() + SECTION_SIZE, center.y + radius, chunkPos.getMinBlockZ() + SECTION_SIZE);
-            var found = new ArrayList<>(level.getEntities((Entity) null, box, entity -> inChunk(entity, chunkPos)
-                    && entity.position().distanceToSqr(center) <= radiusSquared && matches(entity)));
-            found.sort(Comparator.comparing(Entity::getUUID));
-            for (var seen = skip(index); seen < found.size(); seen++) {
-                var entity = found.get(seen);
-                var kind = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
-                if (!offer(index, seen, new EntityHandle(kind, entity.getUUID(), dimension(), entity.getX(), entity.getY(), entity.getZ(), entity.getName().getString()))) {
-                    return;
-                }
+        public boolean step() {
+            if (stopped || nextCursor != null) return false;
+            if (chunk < chunks.size()) {
+                var pos = chunks.get(chunk++);
+                if (level.getChunkSource().getChunkNow(pos.x, pos.z) == null) unloaded++;
+                else if (!level.areEntitiesLoaded(pos.toLong())) entitiesUnloaded++;
+                return true;
             }
+            if (entities == null) entities = level.getAllEntities().iterator();
+            for (int read = 0; read < LIST_PAGE && entities.hasNext(); read++) {
+                var entity = entities.next();
+                var ordinal = seen++;
+                if (ordinal < start.skip() || entity.isRemoved() || entity.position().distanceToSqr(center) > radiusSquared) continue;
+                var x = SectionPos.blockToSectionCoord(entity.getBlockX());
+                var z = SectionPos.blockToSectionCoord(entity.getBlockZ());
+                if (level.getChunkSource().getChunkNow(x, z) == null || !level.areEntitiesLoaded(ChunkPos.asLong(x, z))) continue;
+                var kind = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
+                var tags = filter.tags().isEmpty() ? List.<String>of()
+                        : BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(entity.getType()).tags().map(tag -> tag.location().toString()).toList();
+                if (!filter.matches(kind, tags, entity.getName().getString())) continue;
+                if (items.size() >= LIST_PAGE) {
+                    nextCursor = new Cursor(0, ordinal).text();
+                    notes.add(PAGE_LIMIT_NOTE);
+                    return false;
+                }
+                items.add(new EntityHandle(kind, entity.getUUID(), level.dimension().location().toString(),
+                        entity.getX(), entity.getY(), entity.getZ(), entity.getName().getString()));
+            }
+            return entities.hasNext();
         }
 
-        private static boolean inChunk(Entity entity, ChunkPos chunk) {
-            return SectionPos.blockToSectionCoord(entity.getBlockX()) == chunk.x && SectionPos.blockToSectionCoord(entity.getBlockZ()) == chunk.z;
+        @Override
+        public boolean stopEarly() {
+            if (seen < start.skip()) return false;
+            stopped = true;
+            nextCursor = new Cursor(0, seen).text();
+            notes.add("Stopped at the per-call work limit while traversing loaded entities; continue with the cursor");
+            return true;
         }
 
-        private boolean matches(Entity entity) {
-            var kind = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
-            var tags = filter.tags().isEmpty() ? List.<String>of()
-                    : BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(entity.getType()).tags().map(tag -> tag.location().toString()).toList();
-            return filter.matches(kind, tags, entity.getName().getString());
+        @Override
+        public Page<EntityHandle> result() {
+            return AreaScan.page(items, nextCursor, unloaded, entitiesUnloaded, notes);
         }
     }
 }

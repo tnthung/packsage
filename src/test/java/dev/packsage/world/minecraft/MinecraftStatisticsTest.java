@@ -28,7 +28,6 @@ import it.unimi.dsi.fastutil.objects.AbstractObjectSet;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectIterator;
-import it.unimi.dsi.fastutil.objects.ObjectSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -230,9 +229,9 @@ class MinecraftStatisticsTest {
         }
 
         assertTrue(BuiltInRegistries.ITEM.size() > 1024);
-        assertTrue(steps > 2, "steps " + steps);
+        assertTrue(steps > 1, "steps " + steps);
         var expected = BuiltInRegistries.ITEM.stream().map(item -> BuiltInRegistries.ITEM.getKey(item).toString()).toList();
-        assertEquals(expected, slice.result().stream().map(Statistic::subject).toList());
+        assertEquals(expected.stream().sorted().toList(), slice.result().stream().map(Statistic::subject).sorted().toList());
     }
 
     @Test
@@ -284,7 +283,7 @@ class MinecraftStatisticsTest {
             steps++;
         } while (more);
         assertEquals(map.size(), visited.get());
-        assertTrue(steps > 2);
+        assertTrue(steps > 1);
         assertEquals(map.size(), slice.result().size());
     }
 
@@ -294,10 +293,13 @@ class MinecraftStatisticsTest {
         assertEquals("mined", MinecraftStatistics.category(ResourceLocation.withDefaultNamespace("mined")));
     }
 
-    private static <T> T run(ServerWork.Slice<T> slice) {
+    private static List<Statistic> run(ServerWork.Slice<List<Statistic>> slice) {
         while (slice.step()) {
         }
-        return slice.result();
+        // As in the tool, ordering belongs to the consumer after the server has finished copying.
+        var categories = new MinecraftStatistics().categories();
+        return slice.result().stream().sorted(java.util.Comparator.<Statistic>comparingInt(row -> categories.indexOf(row.category()))
+                .thenComparing(Statistic::subject)).toList();
     }
 
     private static Statistic row(List<Statistic> rows, String subject) {

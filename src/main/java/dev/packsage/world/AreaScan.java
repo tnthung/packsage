@@ -15,6 +15,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
@@ -33,6 +34,7 @@ import java.util.Set;
 public final class AreaScan {
     public static final int SUMMARY_NOTABLE = 4096;
     public static final int LIST_PAGE = 64;
+    static final String PAGE_LIMIT_NOTE = "This page holds " + LIST_PAGE + " matches, the page limit; continue with the cursor";
     private static final int SECTION_SIZE = 16;
 
     private final WorldRegistry registry;
@@ -118,6 +120,22 @@ public final class AreaScan {
     static String stopNote(int scanned, int total, boolean continues) {
         return "Stopped at the per-call work limit after scanning " + scanned + " of " + total + " chunks; "
                 + (continues ? "continue with the cursor" : "use a smaller radius, or list_blocks with a filter");
+    }
+
+    /** A scan page: the load notes first, then the scan's own notes; coverage is complete only with no cursor and no notes. */
+    static <R> Page<R> page(List<R> items, String nextCursor, int unloaded, int entitiesUnloaded, Collection<String> notes) {
+        var load = new ArrayList<String>();
+        if (unloaded > 0) {
+            load.add(unloaded + " chunks in range were not loaded and were not fully read");
+        }
+        if (entitiesUnloaded > 0) {
+            load.add(entitiesUnloaded + " chunks in range did not have their entities loaded yet, so entities there were not read");
+        }
+        var all = new ArrayList<>(load);
+        all.addAll(notes);
+        var coverage = nextCursor == null && all.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
+        return new Page<>(items, nextCursor, coverage, all.isEmpty() ? null : String.join("; ", all),
+                load.isEmpty() ? null : String.join("; ", load));
     }
 
     /** Whether the section starting at baseY has any block within minY..maxY. */
@@ -252,16 +270,7 @@ public final class AreaScan {
         }
 
         <R> Page<R> page(List<R> items) {
-            var all = new ArrayList<String>();
-            if (unloaded > 0) {
-                all.add(unloaded + " chunks in range were not loaded and were not fully read");
-            }
-            if (entitiesUnloaded > 0) {
-                all.add(entitiesUnloaded + " chunks in range did not have their entities loaded yet, so entities there were not read");
-            }
-            all.addAll(notes);
-            var coverage = nextCursor == null && all.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
-            return new Page<>(items, nextCursor, coverage, all.isEmpty() ? null : String.join("; ", all));
+            return AreaScan.page(items, nextCursor, unloaded, entitiesUnloaded, notes);
         }
 
         String dimension() {
@@ -337,7 +346,7 @@ public final class AreaScan {
         @Override
         public Page<T> result() {
             if (nextCursor != null && !stopped) {
-                notes.add("This page holds " + LIST_PAGE + " matches, the page limit; continue with the cursor");
+                notes.add(PAGE_LIMIT_NOTE);
             }
             return page(items);
         }

@@ -1105,24 +1105,25 @@ public final class WorldTools implements KnowledgeProvider {
 
     // Records
 
-    /** The block page's note, the notable cap, a cut entity list's list_entities pointer, then the entity page's own note. */
+    /** The block page's note, the notable cap, a cut entity list's list_entities pointer, then the entity page's load notes. */
     static List<String> areaNotes(Page<BlockSummary> blocks, Page<EntityHandle> entities) {
         var notes = new LinkedHashSet<String>();
         if (blocks.note() != null) notes.add(blocks.note());
         if (blocks.items().getFirst().notable().size() >= AreaScan.SUMMARY_NOTABLE) {
             notes.add("Notable blocks reached the " + AreaScan.SUMMARY_NOTABLE + " cap; use list_blocks with a filter for the rest");
         }
-        // inspect_area has no cursor, so a cut entity page points at list_entities instead of returning a cursor.
+        // inspect_area returns no cursor, so a cut entity page points at list_entities and keeps only its load notes,
+        // never its cursor instructions.
         if (entities.nextCursor() != null) {
             notes.add(entities.items().size() >= AreaScan.LIST_PAGE
                     ? "More than " + AreaScan.LIST_PAGE + " entities are in range; use list_entities with a filter for the rest"
                     : "The entity scan stopped at the per-call work limit; use list_entities for the rest");
         }
-        if (entities.note() != null) notes.add(entities.note());
+        if (entities.loadNote() != null) notes.add(entities.loadNote());
         return List.copyOf(notes);
     }
 
-    private Evidence.Result area(Evidence.Scope scope,Anchor anchor, int radius, AreaRead read, ReadSpan span) {
+    private Evidence.Result area(Evidence.Scope scope, Anchor anchor, int radius, AreaRead read, ReadSpan span) {
         var summary = read.blocks().items().getFirst();
         var notes = areaNotes(read.blocks(), read.entities());
         var notable = new TreeMap<String, Map<String, List<Evidence.JsonValue>>>();

@@ -28,6 +28,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.lang.ref.WeakReference;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -73,6 +74,9 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private record ListState(Center center, String scan) {
+    }
+
+    private record EntityRead(Center center, Page<EntityHandle> page, List<String> cursors) {
     }
 
     /**
@@ -313,7 +317,44 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private CompletionStage<Evidence.Result> listEntities(PackSageTools.ReadRequest request) {
-        return list(request, (level, center, radius, filter, cursor) -> scan.listEntities(level, center, radius, filter, cursor), this::entityRecord);
+        var anchor = anchor(argument(request, "center"));
+        var radius = radius(argument(request, "radius"));
+        var filter = filter(argument(request, "filter"), false);
+        var cursor = cursor(request);
+        var server = server();
+        var state = cursor == null ? null : state(cursor, ListState.class);
+        return run(server, spanned(gameTime(server), then(() -> state == null ? center(server, anchor) : state.center(), center -> {
+            var slice = scan.listEntities(level(server, center.dimension()), center.position(), radius, filter, state == null ? null : state.scan());
+            return mapped(slice, page -> new EntityRead(center, page, List.copyOf(slice.cursors)));
+        }))).thenApply(read -> {
+            var page = read.value().page();
+            var records = new ArrayList<Evidence.Record>();
+            var bytes = 0;
+            var nextScan = page.nextCursor();
+            var coverage = page.coverage();
+            var notes = new LinkedHashSet<String>();
+            if (page.note() != null) notes.add(page.note());
+            for (var entity : page.items()) {
+                var record = entityRecord(request.scope(), entity, read.span());
+                var recordBytes = PackSageTools.encodeRecord(record).toString().getBytes(StandardCharsets.UTF_8).length
+                        + (records.isEmpty() ? 0 : 1);
+                if (bytes + recordBytes > 64 * 1024) {
+                    if (records.isEmpty()) throw new Failure(Code.EXTRACTION_FAILED, "one entity record exceeds the page byte budget");
+                    nextScan = read.value().cursors().get(records.size() - 1);
+                    coverage = Evidence.Coverage.PARTIAL;
+                    notes.add("Entity page byte budget reached; continue with the cursor");
+                    break;
+                }
+                records.add(record);
+                bytes += recordBytes;
+                if (record.source().coverage() == Evidence.Coverage.PARTIAL) {
+                    coverage = Evidence.Coverage.PARTIAL;
+                    notes.add("Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records");
+                }
+            }
+            var next = nextScan == null ? null : remember(request, new ListState(read.value().center(), nextScan));
+            return result(records, coverage, next, notes.isEmpty() ? null : String.join("; ", notes));
+        });
     }
 
     private interface ListScan<T> {
@@ -1574,10 +1615,14 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private Evidence.Record entityRecord(Evidence.Scope scope, EntityHandle entity, ReadSpan span) {
+        var truncated = entity.name() != null && entity.name().length() > 1024;
+        if (truncated) entity = new EntityHandle(entity.kind(), entity.id(), entity.dimension(), entity.x(), entity.y(), entity.z(),
+                entity.name().substring(0, Character.isHighSurrogate(entity.name().charAt(1023)) ? 1023 : 1024));
         var payload = new LinkedHashMap<>(entityFacts(entity));
+        payload.put("nameTruncated", new Evidence.JsonBoolean(truncated));
         putSpan(payload, span);
         return evidence(scope, "entity|" + entity.id(), Evidence.RecordKind.OTHER, entityTitle(entity), payload,
-                Evidence.Coverage.COMPLETE, WorldNavigation.entityId(entity.id()));
+                truncated ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, WorldNavigation.entityId(entity.id()));
     }
 
     /** The listed holder's inventories with their empty slots, and the holder's own facts; only blocks and entities link. */

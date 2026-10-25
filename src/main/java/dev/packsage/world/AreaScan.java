@@ -63,7 +63,7 @@ public final class AreaScan {
         return new BlockListSlice(level, center, radius, filter, Cursor.parse(cursor));
     }
 
-    public ServerWork.Slice<Page<EntityHandle>> listEntities(ServerLevel level, Vec3 center, int radius, KindFilter filter, String cursor) {
+    EntityListSlice listEntities(ServerLevel level, Vec3 center, int radius, KindFilter filter, String cursor) {
         return new EntityListSlice(level, center, radius, filter, cursor);
     }
 
@@ -510,7 +510,8 @@ public final class AreaScan {
     }
 
     /** Revalidates a bounded per-chunk UUID snapshot, resuming pages after a stable sorted anchor. */
-    private static final class EntityListSlice implements ServerWork.Slice<Page<EntityHandle>> {
+    static final class EntityListSlice implements ServerWork.Slice<Page<EntityHandle>> {
+        final List<String> cursors = new ArrayList<>();
         private final ServerLevel level;
         private final Vec3 center;
         private final double radiusSquared;
@@ -590,6 +591,7 @@ public final class AreaScan {
                         }
                         items.add(new EntityHandle(kind, id, level.dimension().location().toString(),
                                 entity.getX(), entity.getY(), entity.getZ(), entity.getName().getString()));
+                        cursors.add(chunk + ":" + id);
                     }
                 }
                 seen.add(id);

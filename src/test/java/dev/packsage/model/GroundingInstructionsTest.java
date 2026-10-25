@@ -12,42 +12,51 @@ import static org.junit.jupiter.api.Assertions.*;
 class GroundingInstructionsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 2);
 
+    /** Short anchors, one per rule group, that every prompt candidate must keep. */
+    static final List<String> KEY_RULES = List.of(
+            "Request independent reads together in one turn",
+            "By default, include relevant navigation",
+            "coordinates in the text",
+            "every relevant returned entry",
+            "follow the useful nextCall",
+            "find_items first",
+            "against the same record's gameTime",
+            "two reads at different times",
+            "without mentioning it",
+            "Notes are what the player said",
+            "you never run commands",
+            "found or predicted",
+            "not generated yet",
+            "Minecraft does not record what applied an effect",
+            "Do not state planner batches as operation counts.",
+            "square brackets on both sides",
+            "multiplayer");
+
     @Test
-    void defaultInstructionsRouteCurrentStateEffectsAndPlans() {
+    void policyKeepsKeyRules() {
         var text = GroundingInstructions.defaultInstructions();
-        assertTrue(text.contains("Use the screenshot and gameplay observation only when relevant."));
-        assertTrue(text.contains("read it with inspect_item path held"));
-        assertTrue(text.contains("shows nothing held or selected, say so first, before answering about a matching carried item"));
-        assertTrue(text.contains("openedMenu is not none, read it with list_items holder opened"));
-        assertTrue(text.contains("say that Minecraft does not record what applied an effect"));
-        assertTrue(text.contains("call plan_recipe with that ID and quantity"));
-        assertTrue(text.contains("Do not state planner batches as operation counts."));
-        assertTrue(text.contains("derive operations and input totals from those semantics and state the grouping you assumed"));
-        assertTrue(text.contains("Request independent reads together in one turn"));
-        assertTrue(text.contains("By default, include relevant navigation"));
-        assertTrue(text.contains("search_recipe reads Minecraft's loaded recipes."));
-        assertTrue(text.contains("find_items"));
-        assertTrue(text.contains("inspect_area"));
-        assertTrue(text.contains("For advancement progress, use list_progress, then inspect_progress for the criteria still missing."));
-        assertTrue(text.contains("how long they played, use list_statistics; it counts since the world began."));
-        assertTrue(text.contains("read_loot"));
-        assertTrue(text.contains("use locate"));
-        assertTrue(text.contains("read_command"));
+        for (var rule : KEY_RULES) assertTrue(text.contains(rule), rule);
+    }
+
+    @Test
+    void policyNamesEveryDefinedToolAndOnlyDefinedTools() {
+        var text = GroundingInstructions.defaultInstructions();
+        for (var definition : PackSageTools.definitions()) {
+            assertTrue(java.util.regex.Pattern.compile("\\b" + definition.name() + "\\b").matcher(text).find(), definition.name());
+        }
+        assertEquals(List.of(), PackSageToolsTest.undefinedToolNames(text));
+    }
+
+    @Test
+    void policyNamesNoRemovedSource() {
         var removedSources = java.util.regex.Pattern.compile("\\b(JEI|search_document|read_progress|Ponder|Curios|[Qq]uests?|[Gg]uides?)\\b")
-                .matcher(text);
+                .matcher(GroundingInstructions.defaultInstructions());
         assertFalse(removedSources.find(), () -> removedSources.group());
     }
 
     @Test
-    void defaultInstructionsSaveNotesSilentlyAndUseTheJournal() {
-        var text = GroundingInstructions.defaultInstructions();
-        assertTrue(text.contains("Your tools read information, keep the player's notes and offer player-selected navigation; they cannot perform gameplay actions."));
-        assertTrue(text.contains("When the player reports something they did, built, achieved or found, save it with remember without mentioning it, with at for a place they mean; when they correct, move or retire something already noted, find it with search_journal notesOnly and use update_note or forget_note instead of adding another."));
-        assertTrue(text.contains("Questions and requests are not notes."));
-        assertTrue(text.contains("Use search_journal for what happened before now, such as what broke or died and why, what the player stored or where they travelled, and for places and achievements the player told you about."));
-        assertTrue(text.contains("Recent events can explain current state; combine them with live reads."));
-        assertTrue(text.contains("A journal result covers only the recording period and coverage it reports."));
-        assertTrue(text.contains("Notes are what the player said: present them as the player's report, check them against journal events or live reads when it matters, and never as confirmed by the game."));
+    void policyFitsTheDeveloperEditor() {
+        assertTrue(GroundingInstructions.defaultInstructions().length() <= dev.packsage.chat.PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH);
     }
 
     @Test

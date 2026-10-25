@@ -128,6 +128,17 @@ class PackSageToolsTest {
         assertTrue(registry.contains("with description when the mod provides one"));
         assertTrue(registry.contains("descriptionStatus reports not_provided, unknown, or bounded"));
         assertTrue(registry.contains("player_attribute lists current attribute base and value with modifiers whose IDs name their sources"));
+        assertTrue(registry.contains("one read shows a duration, not whether it refreshes"));
+        var find = definitions.stream().filter(value -> value.name().equals("find_items")).findFirst().orElseThrow().description();
+        assertTrue(find.contains("For a question about everything stored, follow nextCall until it ends or the answer cannot change, and say what remains unread."));
+        var list = definitions.stream().filter(value -> value.name().equals("list_items")).findFirst().orElseThrow().description();
+        assertTrue(list.contains("To locate an item across holders, use find_items first."));
+        var entity = definitions.stream().filter(value -> value.name().equals("inspect_entity")).findFirst().orElseThrow().description();
+        for (var phrase : List.of("lastSlept", "lastWorkedAtPoi", "golemDetectedUntil", "gameTime", "offers", "offerCount")) {
+            assertTrue(entity.contains(phrase), phrase);
+        }
+        var item = definitions.stream().filter(value -> value.name().equals("inspect_item")).findFirst().orElseThrow().description();
+        assertTrue(item.contains("enchantmentEligibility lists each enchantment that can still apply, with its conflicts"));
         var plan = definitions.stream().filter(value -> value.name().equals("plan_recipe")).findFirst().orElseThrow().description();
         assertTrue(plan.contains("including brewing routes"));
         assertTrue(plan.contains("Brewing routes withhold operation counts"));
@@ -162,11 +173,18 @@ class PackSageToolsTest {
         }
     }
 
+    @Test
+    void everyToolHasItsOwnDescription() {
+        for (var definition : PackSageTools.definitions()) {
+            assertFalse(definition.description().startsWith("Read current evidence for"), definition.name());
+        }
+    }
+
     /** Tool-like names in the text that no current tool definition carries. */
     static List<String> undefinedToolNames(String text) {
         var names = PackSageTools.definitions().stream().map(ModelBackend.ToolDefinition::name).toList();
         var undefined = new java.util.ArrayList<String>();
-        var mentioned = java.util.regex.Pattern.compile("\\b(?:search|read|list|inspect|find|plan)_[a-z_]+\\b").matcher(text);
+        var mentioned = java.util.regex.Pattern.compile("\\b(?:search|read|list|inspect|find|plan|update|forget)_[a-z_]+\\b").matcher(text);
         while (mentioned.find()) if (!names.contains(mentioned.group())) undefined.add(mentioned.group());
         return undefined;
     }

@@ -1,5 +1,6 @@
 package dev.packsage.client.highlight;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -97,20 +98,37 @@ public final class WorldHighlighter {
             LevelRenderer.renderLineBox(pose, lines, x - INSET, y - INSET, z - INSET, x + 1 + INSET, y + 1 + INSET, z + 1 + INSET,
                     1.0F, 0.85F, 0.2F, 1.0F);
         }
+        buffers.endBatch(LINES);
+        if (PLACES.isEmpty()) return;
+        lines = buffers.getBuffer(LINES);
         double bottom = level.getMinBuildHeight() - camera.y;
         double top = level.getMaxBuildHeight() - camera.y;
+        double far = minecraft.gameRenderer.getDepthFar();
         for (var place : PLACES.keySet()) {
             if (!place.dimension().equals(dimension)) continue;
             double x = place.x() + 0.5 - camera.x;
             double z = place.z() + 0.5 - camera.z;
             double distance = Math.sqrt(x * x + z * z);
-            if (distance > MARKER_RANGE) {
-                x *= MARKER_RANGE / distance;
-                z *= MARKER_RANGE / distance;
+            double shown = markerDistance(distance, far);
+            if (shown < distance) {
+                x *= shown / distance;
+                z *= shown / distance;
             }
             LevelRenderer.renderLineBox(pose, lines, x - 0.5, bottom, z - 0.5, x + 0.5, top, z + 0.5, 0.3F, 0.85F, 1.0F, 1.0F);
         }
+        // A marker far away would fade out in terrain fog, which ends at the render distance or nearer in thick-fog dimensions.
+        float fogStart = RenderSystem.getShaderFogStart();
+        RenderSystem.setShaderFogStart(Float.MAX_VALUE);
         buffers.endBatch(LINES);
+        RenderSystem.setShaderFogStart(fogStart);
+    }
+
+    /**
+     * How far from the camera, horizontally, a place's column is drawn: its own distance, at most the marker range,
+     * and at most half the projection's far plane so tiny render distances do not clip it away.
+     */
+    static double markerDistance(double distance, double farPlane) {
+        return Math.min(distance, Math.min(MARKER_RANGE, farPlane / 2));
     }
 
     /** Keeps highlighted mobs glowing, re-applying after server syncs, and restores them when the highlight ends. */

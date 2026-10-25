@@ -14,6 +14,7 @@ import java.io.DataOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.DeflaterOutputStream;
 
@@ -55,7 +56,7 @@ class ReadOnlyRegionsTest {
                     : compression == 2 ? new DeflaterOutputStream(bytes) : bytes)) {
                 NbtIo.write(tag, output);
             }
-            var file = ByteBuffer.allocate(12289); // deliberately unpadded: vanilla close would change this
+            var file = ByteBuffer.allocate(8192 + 5 + bytes.size()); // short final sector, as vanilla accepts
             file.putInt(0, (2 << 8) | 1);
             file.position(8192);
             file.putInt(bytes.size() + 1).put((byte) compression).put(bytes.toByteArray());
@@ -65,6 +66,8 @@ class ReadOnlyRegionsTest {
             assertEquals(file.capacity(), Files.size(region));
             assertArrayEquals(file.array(), Files.readAllBytes(region));
             if (compression <= 3) assertEquals(SavedStarts.Verdict.ABSENT, ReadOnlyRegions.read(directory, new ChunkPos(0, 0), "minecraft:other"));
+            Files.write(region, Arrays.copyOf(file.array(), file.capacity() - 1));
+            assertEquals(SavedStarts.Verdict.UNKNOWN, ReadOnlyRegions.read(directory, new ChunkPos(0, 0), "minecraft:test"));
         }
         Files.write(region, new byte[] { 1, 2, 3 });
         assertEquals(SavedStarts.Verdict.UNKNOWN, ReadOnlyRegions.read(directory, new ChunkPos(0, 0), "minecraft:test"));

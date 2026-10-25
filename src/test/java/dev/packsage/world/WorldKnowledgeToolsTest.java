@@ -5,7 +5,9 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.world.minecraft.LocateBiome;
+import dev.packsage.world.minecraft.LocateStructure;
 import dev.packsage.world.minecraft.MinecraftLoot;
+import dev.packsage.world.minecraft.SavedStarts;
 import com.mojang.serialization.Lifecycle;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.Holder;
@@ -27,12 +29,14 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Stream;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -45,12 +49,12 @@ import static org.junit.jupiter.api.Assertions.fail;
 class WorldKnowledgeToolsTest {
     @Test
     void savedVerdictsConfirmDropOrKeepPredictions() {
-        var hits = java.util.stream.IntStream.range(0, 3).mapToObj(x -> new dev.packsage.world.minecraft.LocateStructure.Hit(
-                "minecraft:test", x, 0, x * 16, 72, 0, dev.packsage.world.minecraft.LocateStructure.Kind.PREDICTED,
+        var hits = IntStream.range(0, 3).mapToObj(x -> new LocateStructure.Hit(
+                "minecraft:test", x, 0, x * 16, 72, 0, LocateStructure.Kind.PREDICTED,
                 "placement and biome checks")).toList();
-        var confirmed = WorldKnowledgeTools.confirm(hits, chunk -> dev.packsage.world.minecraft.SavedStarts.Verdict.values()[chunk.x]);
+        var confirmed = WorldKnowledgeTools.confirm(hits, hit -> SavedStarts.Verdict.values()[hit.chunkX()]);
         assertEquals(2, confirmed.size());
-        assertEquals(dev.packsage.world.minecraft.LocateStructure.Kind.FOUND, confirmed.getFirst().kind());
+        assertEquals(LocateStructure.Kind.FOUND, confirmed.getFirst().kind());
         assertEquals("saved chunk", confirmed.getFirst().basis());
         assertEquals(hits.get(2), confirmed.getLast());
     }
@@ -58,11 +62,11 @@ class WorldKnowledgeToolsTest {
     @Test
     void structureRecordsHaveEstimatedYHorizontalDistanceLinksAndPartialCoverage() {
         var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"structure\":\"minecraft:test\"}"), SCOPE);
-        var hits = List.of(new dev.packsage.world.minecraft.LocateStructure.Hit("minecraft:test", 6, 8, 96, 72, 128,
-                dev.packsage.world.minecraft.LocateStructure.Kind.PREDICTED, "placement and biome checks"));
+        var hits = List.of(new LocateStructure.Hit("minecraft:test", 6, 8, 96, 72, 128,
+                LocateStructure.Kind.PREDICTED, "placement and biome checks"));
         var result = new WorldKnowledgeTools(tools()).structureResult(request,
                 new WorldTools.Center("minecraft:overworld", new Vec3(0, 999, 0)), "minecraft:test", 100,
-                new dev.packsage.world.minecraft.LocateStructure.Result(hits, 2, List.of("packsage:unsupported")), false);
+                new LocateStructure.Result(hits, 2, 0, 0, List.of("packsage:unsupported"), List.of(), false), false);
         assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
         assertNotNull(result.nextCursor());
         assertTrue(result.detail().contains("packsage:unsupported"));
@@ -71,6 +75,69 @@ class WorldKnowledgeToolsTest {
         assertEquals("world-place|minecraft:overworld|96,72,128", record.targets().getFirst().targetId());
         assertEquals(new Evidence.JsonBoolean(true), record.payload().values().get("yEstimated"));
         assertEquals(WorldTools.number(160), record.payload().values().get("distanceBlocks"));
+    }
+
+    @Test
+    void structurePageReportsHowManyMoreHitsWereFound() {
+        var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"structure\":\"minecraft:test\"}"), SCOPE);
+        var hits = IntStream.range(0, 9).mapToObj(x -> new LocateStructure.Hit(
+                "minecraft:test", x, 0, x * 16, 72, 0, LocateStructure.Kind.PREDICTED,
+                "placement and biome checks")).toList();
+        var result = new WorldKnowledgeTools(tools()).structureResult(request,
+                new WorldTools.Center("minecraft:overworld", new Vec3(0, 64, 0)), "minecraft:test", 100,
+                new LocateStructure.Result(hits, -1, 0, 0, List.of(), List.of(), false), false);
+        assertEquals(5, result.records().size());
+        assertTrue(result.detail().contains("4 more"), result.detail());
+    }
+
+    @Test
+    void confirmationScansOnlyEightPredictionsAndReceivesEachHitsStructure() {
+        var hits = new ArrayList<LocateStructure.Hit>();
+        hits.add(new LocateStructure.Hit("minecraft:loaded", 0, 0, 0, 40, 0, LocateStructure.Kind.FOUND, "loaded chunk"));
+        for (int i = 0; i < 11; i++) hits.add(new LocateStructure.Hit("minecraft:test" + i, 1, 0, 16, 72, 0,
+                LocateStructure.Kind.PREDICTED, "placement and biome checks"));
+        var scanned = new ArrayList<String>();
+        var confirmed = WorldKnowledgeTools.confirm(hits, hit -> {
+            scanned.add(hit.structure());
+            return hit.structure().equals("minecraft:test0") ? SavedStarts.Verdict.FOUND : SavedStarts.Verdict.ABSENT;
+        });
+        assertEquals(IntStream.range(0, 8).mapToObj(i -> "minecraft:test" + i).toList(), scanned);
+        assertEquals(5, confirmed.size());
+        assertEquals(hits.getFirst(), confirmed.getFirst());
+        assertEquals("minecraft:test0", confirmed.get(1).structure());
+        assertEquals("saved chunk", confirmed.get(1).basis());
+        assertEquals(hits.subList(9, 12), confirmed.subList(2, 5));
+    }
+
+    @Test
+    void structurePauseNamesTheBoundAndPreservesTheExactPosition() {
+        var tools = tools();
+        var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"structure\":\"minecraft:test\"}"), SCOPE);
+        var center = new WorldTools.Center("minecraft:overworld", new Vec3(0, 64, 0));
+        for (boolean budget : List.of(false, true)) {
+            var result = new WorldKnowledgeTools(tools).structureResult(request, center, "minecraft:test", 100,
+                    new LocateStructure.Result(List.of(), 2, 3, 4, List.of(), List.of(), budget), false);
+            assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+            assertTrue(result.detail().contains(budget ? "500 ms server budget" : "result page"), result.detail());
+            assertTrue(!result.detail().contains(budget ? "result page" : "500 ms server budget"), result.detail());
+            var state = (WorldKnowledgeTools.StructureState) tools.cursor(new PackSageTools.ReadRequest("locate",
+                    Evidence.deserializeObject("{\"structure\":\"minecraft:test\",\"cursor\":\"" + result.nextCursor() + "\"}"), SCOPE));
+            assertEquals(center, state.center());
+            assertEquals(2, state.ring());
+            assertEquals(3, state.entry());
+            assertEquals(4, state.candidate());
+        }
+    }
+
+    @Test
+    void biomeRejectedTargetsCannotSilentlyReportCompleteAbsence() {
+        var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"structure\":\"minecraft:test\"}"), SCOPE);
+        var rejected = new LocateStructure.Result(List.of(), -1, 0, 0, List.of(),
+                List.of("biome checks rejected candidate columns for minecraft:test; sampled columns do not prove structure absence"), false);
+        var result = new WorldKnowledgeTools(tools()).structureResult(request,
+                new WorldTools.Center("minecraft:overworld", new Vec3(0, 64, 0)), "minecraft:test", 100, rejected, false);
+        assertTrue(result.detail().contains("biome checks rejected"), result.detail());
+        assertTrue(result.detail().contains("minecraft:test"), result.detail());
     }
 
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);

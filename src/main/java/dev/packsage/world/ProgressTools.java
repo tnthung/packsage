@@ -269,8 +269,10 @@ public final class ProgressTools implements KnowledgeProvider {
             @Override
             public boolean step() {
                 if (index == readers.size()) return false;
+                // A missing host makes the tool unavailable; only adapter failures become partial reads.
+                var player = host.apply(current);
                 try {
-                    if (slice == null) slice = readers.get(index).statistics(host.apply(current), categories, subjects);
+                    if (slice == null) slice = readers.get(index).statistics(player, categories, subjects);
                     if (slice.step()) return true;
                     rows.add(List.copyOf(slice.result()));
                 } catch (VirtualMachineError failure) {

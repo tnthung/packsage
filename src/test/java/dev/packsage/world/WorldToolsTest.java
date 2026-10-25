@@ -796,6 +796,51 @@ class WorldToolsTest {
     }
 
     @Test
+    void inspectAreaBoundsLargeBlockSummariesUnderTheWireBudget() throws Exception {
+        var provider = tools();
+        var counts = new java.util.HashMap<String, Integer>();
+        for (var i = 0; i < 2000; i++) counts.put("examplemod:a_rather_long_decorative_block_variant_" + i, i + 1);
+        var notable = new java.util.ArrayList<NotableBlock>();
+        for (var i = 0; i < 4096; i++) {
+            notable.add(new NotableBlock(new BlockHandle("examplemod:storage_crate_" + (i % 300),
+                    new BlockPlace("minecraft:overworld", -29_999_000 + i, -64, -29_999_000 - i)), "container"));
+        }
+        var entities = new java.util.ArrayList<EntityHandle>();
+        for (var i = 0; i < 64; i++) {
+            entities.add(new EntityHandle("minecraft:cow", new java.util.UUID(0, i + 1), "minecraft:overworld", 8, 64, 8, "Cow " + i));
+        }
+        var type = Class.forName("dev.packsage.world.WorldTools$AreaRead");
+        var constructor = type.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
+                new Page<>(List.of(new BlockSummary(counts, notable, 0)), null, Evidence.Coverage.COMPLETE, null),
+                new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
+        var method = WorldTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
+        method.setAccessible(true);
+        var tools = new PackSageTools(request -> {
+            try {
+                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider, SCOPE, new Anchor.Player(), 256, read, null));
+            } catch (ReflectiveOperationException failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+
+        var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("area", "inspect_area", "{}"), SCOPE).toCompletableFuture().get();
+
+        assertFalse(response.result().error(), response.result().serializedResult());
+        var json = com.google.gson.JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals(1, json.getAsJsonArray("records").size(), "a large block summary must not drop the whole area record");
+        assertEquals("PARTIAL", json.get("coverage").getAsString());
+        var payload = json.getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("payload");
+        assertEquals(2000, payload.getAsJsonObject("blockCounts").get("examplemod:a_rather_long_decorative_block_variant_1999").getAsInt(),
+                "the most common block ids are kept");
+        assertTrue(payload.getAsJsonObject("blockCounts").size() < 2000);
+        assertTrue(json.get("detail").getAsString().contains("list_blocks"), json.get("detail").getAsString());
+        assertTrue(json.get("detail").getAsString().contains("notable blocks omitted"), json.get("detail").getAsString());
+        assertFalse(payload.getAsJsonArray("entities").isEmpty());
+    }
+
+    @Test
     void listBlocksServesTheSavedPartialPageBeforeResumingTheScan() throws Exception {
         var field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
         field.setAccessible(true);

@@ -553,7 +553,7 @@ class PackSageToolsTest {
                 Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
         var record = new Evidence.Record(source, Evidence.RecordKind.ITEM, text, new Evidence.JsonObject(Map.of()), List.of());
         var encoded = PackSageTools.encodeRecord(record);
-        assertTrue(encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 60 * 1024);
+        assertTrue(encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= PackSageTools.MAX_RECORD_BYTES);
         assertEquals("fixture:stable", encoded.get("reference").getAsString());
         assertEquals("stable", encoded.getAsJsonObject("source").get("sourceHandle").getAsString());
         assertEquals("PARTIAL", encoded.getAsJsonObject("source").get("coverage").getAsString());

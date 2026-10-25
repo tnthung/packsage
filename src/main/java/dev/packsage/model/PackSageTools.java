@@ -16,6 +16,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
 public final class PackSageTools {
+    public static final int MAX_RECORD_BYTES = 64 * 1024 - 1;
     private static final String WORLD_ANCHOR = "{\"type\":[\"object\",\"null\"],\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"player\",\"entity\",\"block\",\"note\"]},\"id\":{\"type\":[\"string\",\"null\"],\"maxLength\":36},\"place\":{\"type\":[\"string\",\"null\"],\"maxLength\":300}},\"required\":[\"type\"],\"additionalProperties\":false}";
     private static final String WORLD_RADIUS = "{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":256}";
     private static final String WORLD_FILTER = "{\"type\":\"object\",\"properties\":{\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256}},\"additionalProperties\":false}";
@@ -484,7 +485,7 @@ public final class PackSageTools {
 
     /** The wire representation shared by tool output and provider page budgets. */
     public static JsonObject encodeRecord(Evidence.Record record) {
-        return encodeRecord(record, 60 * 1024);
+        return encodeRecord(record, MAX_RECORD_BYTES);
     }
 
     /** Providers with their own content-trimming policy can measure the string-bounded, untrimmed record. */
@@ -589,8 +590,8 @@ public final class PackSageTools {
         }
         var trimmer = new Trimmer();
         while (record.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > budget) {
-            var largest = List.of(record.get("payload"), record.get("recipe"), record.getAsJsonObject("source").get("provenance"))
-                    .stream().filter(value -> value != null && (value.isJsonObject() && !value.getAsJsonObject().isEmpty()
+            var largest = java.util.stream.Stream.of(record.get("payload"), record.get("recipe"), record.getAsJsonObject("source").get("provenance"))
+                    .filter(value -> value != null && (value.isJsonObject() && !value.getAsJsonObject().isEmpty()
                             || value.isJsonArray() && !value.getAsJsonArray().isEmpty()))
                     .max(java.util.Comparator.comparingInt(value -> value.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length)).orElse(null);
             if (largest == null || !trimmer.trim(largest)) {

@@ -24056,3 +24056,656 @@ Date: 2026-10-26, same installed build and session, through the bridge; raw JSON
 - **W1 rerun: PASS.** The first W1 failure was a provider transport failure: `provider_terminal outcome=transport_failure status=0 dispatchToTerminalMs=60000`, with no tool call made, so it is not a PackSage defect. Request `w1-rerun` near three farmer villagers asked `what job sites do these villagers have?`: list_entities COMPLETE (3), three inspect_entity COMPLETE, three inspect_block COMPLETE. The reply names each villager with floor-block coordinates, for example V2C at (1003, 250, 1010), and links each composter job site.
 - **P1 reread: NOT RUN.** In the P1 conversation, `check the Acceptance tree again, has anything changed since you looked?` made a fresh list_progress call (text "Acceptance", PARTIAL from paging, 64 records), not a read_evidence reread. The reply gave 0 of 2,000 with the tree citation. The model chose a fresh listing, which is valid, so the live reread path remains unexercised; automated regressions cover it.
 - **W3: confirmed defect.** The spec ([world model](../specs/2026-10-22-v2-world-model.md), "a large read is split across server ticks") asks a split read to report its game-time span, not to be partial for spanning ticks. A stable two-tick find_items read reporting PARTIAL contradicts that. It is fixed in the follow-up round.
+
+
+### Final-review installed recheck, round 2
+
+Date: 2026-10-26 (Asia/Taipei). Main checkout `D:/Project/packsage`, branch `feat/packsage-v2`. Followed [the final-review checks](../testing/2026-10-26-final-review-fixes.md) and [debug bridge instructions](../testing/2026-10-25-debug-bridge.md). Computer use was limited to Save and Quit to Title, Quit Game, launching the Packsage instance through CurseForge and entering the acceptance save. Every fixture command, question, navigation and test screenshot used the bridge at `127.0.0.1:25599`; the token was kept private. No source code changed.
+
+The checkout started clean at **89bcc9251df1ab7bf46176fc41c841d07b7ba69c**. During the build the controller committed **f9eeaa3e2c97b6a4e86e57323be1172a732131f4** (`[Fix] correct the installed recheck shutdown evidence`); the intervening diff changes only four lines of this validation document, with no source changes. The build/install metadata records the later HEAD.
+
+Minecraft saved and exited normally, and no `javaw` remained before running `powershell -ExecutionPolicy Bypass -File D:/Project/packsage/scripts/build.ps1`. Gradle reported **BUILD SUCCESSFUL in 12s**, with `test build` and all 11 tasks up to date. The wrapper did not return after Gradle finished; `gradlew.bat --stop` stopped one daemon and the wrapper returned exit 0. Installed `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/mods/packsage.jar` SHA-256: **635335FBF03FDEC05F2EB7038A6C85055FC7C351A6CF0B08D32BB1DB5EE05567** (matching `dist/packsage.jar`, and unchanged at the final check). [Build log](../../build/final-review-live/round2-build.log), [metadata](../../build/final-review-live/round2-build-metadata.json).
+
+Raw submissions, complete calls/results/timings, fixture command feedback, UUID comparisons and screenshots are retained as `round2-*` files under [build/final-review-live/](../../build/final-review-live/) (ignored). Each question used a new chat and omitted model, screenshot and search overrides. No provider transport failure occurred, so no transport retry was needed. No PackSage failure was retried. The initial R2 fixture miss and its correct donkey reply are retained below.
+
+| Check | Result | Evidence |
+|---|---|---|
+| D1 | PASS | No override; effective default equals candidate 8 byte for byte. |
+| W3 | PASS | All three iron chests; find_items COMPLETE, two-tick span 1163562..1163563 reported in detail and records. |
+| W2, chunk border | PASS | 64 + 16; all 80 expected UUIDs exactly once, no missing or unexpected IDs; final page COMPLETE. |
+| W2, dense single chunk | PASS | 64 + 64 + 32; all 160 expected UUIDs exactly once, no missing or unexpected IDs; final page COMPLETE. |
+| W1, job-site question | PASS | Two villager memories returned; linked loaded lectern and correctly qualified the remote unloaded job site. |
+| W1, uncached POI section | NOT RUN | Loaded lectern POI was cached/COMPLETE; remote block was UNAVAILABLE before a section could be returned. No uncached-POI PARTIAL section was observed. |
+| R2, mule | PASS | Exact position (1205.5,250,1106.5), reply/link (1205,250,1106); inspect_entity COMPLETE; navigation OPENED. |
+
+#### D1 - PASS
+
+GET `/prompt` returned `text:null`; `effectiveText` equals `build/prompt-candidates/candidate-8.txt` byte for byte: 22,192 UTF-8 bytes, SHA-256 **64815DD5FE24B2CCA7E042F26E0AAB12FFD58AC50C808D1BAB29F99359E240DD**. No chat request, tool call, model reply or navigation applies. [Raw prompt](../../build/final-review-live/round2-D1-prompt.json), [comparison](../../build/final-review-live/round2-D1-comparison.json).
+
+#### W3 - PASS
+
+Reused the iron chest fixture at (1094,250,1024), (1096,250,1024) and (1098,250,1024), independently confirming 31, 23 and 17 ingots with `/command data get block ... Items`. Player center (1098.5,250,1022.5); no fixture mutation during the question. Five inventory ingots make the total 76. The two-tick read remains COMPLETE and explicitly reports its span; four targeted list_items reads also returned COMPLETE. [Fixture](../../build/final-review-live/round2-W3-fixture.json).
+
+Question: `find iron ingots near me`
+
+Request `ef70b40e-e658-4486-b4d9-065c1809fb07`, conversation `ed3cb586-d1c5-4474-8184-214e8e458946`, status `completed`, model terminal 18727 ms. [Full raw result](../../build/final-review-live/round2-W3.json).
+
+Calls, arguments, coverage, detail and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "find_items",
+    "arguments": {
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "center": null,
+      "radius": 16,
+      "includeNested": true,
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": "The read spanned multiple server ticks; game-time span: 1163562..1163563",
+    "recordCount": 4,
+    "nextCursor": null,
+    "readSpans": [
+      {
+        "toGameTime": 1163563,
+        "fromGameTime": 1163562
+      }
+    ],
+    "recordGameTimes": []
+  },
+  {
+    "name": "list_items",
+    "arguments": {
+      "holder": "player",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null,
+    "readSpans": [
+      {
+        "toGameTime": 1163751,
+        "fromGameTime": 1163751
+      }
+    ],
+    "recordGameTimes": []
+  },
+  {
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1094,250,1024",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null,
+    "readSpans": [
+      {
+        "toGameTime": 1163751,
+        "fromGameTime": 1163751
+      }
+    ],
+    "recordGameTimes": []
+  },
+  {
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1096,250,1024",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null,
+    "readSpans": [
+      {
+        "toGameTime": 1163751,
+        "fromGameTime": 1163751
+      }
+    ],
+    "recordGameTimes": []
+  },
+  {
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1098,250,1024",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null,
+    "readSpans": [
+      {
+        "toGameTime": 1163751,
+        "fromGameTime": 1163751
+      }
+    ],
+    "recordGameTimes": []
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I found **76 iron ingots** within 16 blocks: 5 in your inventory [world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#8@minecraft:iron_ingot], plus three nearby containers:
+
+- 31 at **(1094, 250, 1024)** [world:item|block:minecraft:overworld|1094,250,1024>minecraft/container#0@minecraft:iron_ingot]
+- 23 at **(1096, 250, 1024)** [world:item|block:minecraft:overworld|1096,250,1024>minecraft/container#0@minecraft:iron_ingot]
+- 17 at **(1098, 250, 1024)** [world:item|block:minecraft:overworld|1098,250,1024>minecraft/container#0@minecraft:iron_ingot]
+```
+
+#### W2, chunk border - PASS
+
+Reused Final Chicken 00..79 at x=1114.5..1129.5, z=1040.5..1044.5, crossing the x=1120 chunk border. Player center (1117.5,250,1035.5), radius 24. The server independently counted 80 and exported every UUID. The two result pages contain exactly that UUID set, with no duplicates, omissions or unexpected IDs. Each stable acquisition is a single tick; the only PARTIAL reason is the explicit page limit. The final cursor is null and coverage COMPLETE. [Fixture](../../build/final-review-live/round2-W2-fixture.json), [UUID/page analysis](../../build/final-review-live/round2-W2-analysis.json).
+
+Question: `list the chickens within 24 blocks. Continue through every page so every chicken is listed exactly once.`
+
+Request `106c8cbf-87e7-4301-96be-f8d3c0058144`, conversation `40ee9763-9fe8-4f96-84f3-3ea650bcf809`, status `completed`, model terminal 59720 ms. [Full raw result](../../build/final-review-live/round2-W2.json).
+
+Calls, arguments, coverage, detail and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "list_entities",
+    "arguments": {
+      "center": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "radius": 24,
+      "filter": {
+        "ids": [
+          "minecraft:chicken"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": null
+    },
+    "coverage": "PARTIAL",
+    "detail": "This page holds 64 matches, the page limit; continue with the cursor",
+    "recordCount": 64,
+    "nextCursor": "337250e9-0f38-44fd-ab8e-70c200680a2b",
+    "readSpans": [
+      {
+        "toGameTime": 1164393,
+        "fromGameTime": 1164393
+      }
+    ],
+    "recordGameTimes": []
+  },
+  {
+    "name": "list_entities",
+    "arguments": {
+      "center": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "radius": 24,
+      "filter": {
+        "ids": [
+          "minecraft:chicken"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": "337250e9-0f38-44fd-ab8e-70c200680a2b"
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 16,
+    "nextCursor": null,
+    "readSpans": [
+      {
+        "toGameTime": 1164483,
+        "fromGameTime": 1164483
+      }
+    ],
+    "recordGameTimes": []
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I found **80 chickens within 24 blocks** and continued through the final page. Each is listed once below, grouped by its z-coordinate. All coordinates are in the Overworld at y=250.
+
+**z=1040**
+- [Final Chicken 00](world:entity|ce28f98f-c0d9-41d6-b34d-e7675cdf9c32) (1114, 250, 1040) · [01](world:entity|a57ff82e-2a13-46cd-b3a6-6dfca8db7533) (1115, 250, 1040) · [02](world:entity|e660a37e-27c7-4f44-bce5-afd06d7458b1) (1116, 250, 1040) · [03](world:entity|8f7d1bce-70b7-47b3-acb7-6a22771a4932) (1117, 250, 1040)
+- [04](world:entity|a6822858-3d7d-4376-97cc-1df5da140fee) (1118, 250, 1040) · [05](world:entity|04693f26-3e68-4abb-8731-ee7d8a2f98eb) (1119, 250, 1040) · [06](world:entity|51bd6b50-997f-47c6-95c4-92f393cb6cf7) (1120, 250, 1040) · [07](world:entity|58f3a20a-6415-4080-ae6a-73d914933f23) (1121, 250, 1040)
+- [08](world:entity|a8875ed6-341e-4910-b5a8-1d2e64f37059) (1122, 250, 1040) · [09](world:entity|06915877-c604-4843-b5c2-b896207a090d) (1123, 250, 1040) · [10](world:entity|3ba2b62f-5a42-40cd-9944-8912228792a9) (1124, 250, 1040) · [11](world:entity|6313e298-08ec-4cf7-ad7d-d5e1c32ad932) (1125, 250, 1040)
+- [12](world:entity|3c53bcf5-6035-4f9c-9172-df1604a14169) (1126, 250, 1040) · [13](world:entity|98345379-ff04-4b22-95f5-ac570c73c9cd) (1127, 250, 1040) · [14](world:entity|0f9176f9-4a28-4a6e-9805-8ffeacc45fab) (1128, 250, 1040) · [15](world:entity|86dfa322-8f52-478f-9269-2639ea4c76a1) (1129, 250, 1040)
+
+**z=1041**
+- [16](world:entity|b01d0e27-65ae-42af-8943-3a8bda2782bd) (1114, 250, 1041) · [17](world:entity|024a3b87-4d05-4421-9f9b-2adaa35d6edf) (1115, 250, 1041) · [18](world:entity|eaa2a15c-e692-4d15-9b85-defdfcb7e4a8) (1116, 250, 1041) · [19](world:entity|d96f53c4-1061-48e0-b80a-1918f2be5d78) (1117, 250, 1041)
+- [20](world:entity|ffc48633-a500-4c55-bd88-29fa7ee9cfd6) (1118, 250, 1041) · [21](world:entity|0786659d-7cf9-4fec-9b8b-f06db68561b7) (1119, 250, 1041) · [22](world:entity|9bd46231-01dd-4e06-8397-194b851bf6d8) (1120, 250, 1041) · [23](world:entity|621cad22-105e-4608-85c6-f6fc1a9cc7ae) (1121, 250, 1041)
+- [24](world:entity|45bc9430-f2cf-4852-8a7d-8c0f73c84ea8) (1122, 250, 1041) · [25](world:entity|06a80734-9772-43d3-8a1a-9d4c762e90fd) (1123, 250, 1041) · [26](world:entity|76fc484d-f62e-4aef-a1f8-b1a4bf7df87d) (1124, 250, 1041) · [27](world:entity|c1f77c06-8bc3-43b0-bf5b-eb73a15f76da) (1125, 250, 1041)
+- [28](world:entity|2a22c3c2-f04d-441b-9f36-f48d3947f3be) (1126, 250, 1041) · [29](world:entity|b8d91c17-fe48-4ae7-b9eb-2cce3285e814) (1127, 250, 1041) · [30](world:entity|4bb8edb3-654e-4e31-8600-944bbb8b554b) (1128, 250, 1041) · [31](world:entity|4f325139-58be-461e-814a-75595ef1f4ae) (1129, 250, 1041)
+
+**z=1042**
+- [32](world:entity|d1940b1e-9ccc-460c-b7e0-9e2cb660af71) (1114, 250, 1042) · [33](world:entity|19b05776-a491-40ac-8a39-55dea91dcf29) (1115, 250, 1042) · [34](world:entity|45859945-cfcc-4abe-b12a-18cbeb9f58d4) (1116, 250, 1042) · [35](world:entity|77a43e07-041e-4740-a527-cb0f505fd149) (1117, 250, 1042)
+- [36](world:entity|c355e060-03b7-4f90-8aa9-86ed6ae3e7ca) (1118, 250, 1042) · [37](world:entity|2a66ace7-4126-4fba-8287-a4e4acbeaae4) (1119, 250, 1042) · [38](world:entity|82f252a5-9fd4-4321-b832-911b24263689) (1120, 250, 1042) · [39](world:entity|239d1fdf-be9e-4679-b111-7bc0b91bdc72) (1121, 250, 1042)
+- [40](world:entity|cea913ec-b75c-412e-a3a4-ef1309cc80ae) (1122, 250, 1042) · [41](world:entity|c25da1b5-57a6-4a80-95ba-f6f2e17a03f2) (1123, 250, 1042) · [42](world:entity|44e2a5c5-54c1-4e9b-b348-c51218d9da3f) (1124, 250, 1042) · [43](world:entity|7b568678-4dcf-4387-8fe5-f1cee5ac12f0) (1125, 250, 1042)
+- [44](world:entity|0e2ac0b4-7b6d-4890-9193-4f6608091b11) (1126, 250, 1042) · [45](world:entity|6380c853-6508-4ce1-9f6c-493c62468c74) (1127, 250, 1042) · [46](world:entity|3d403428-90c7-4dcc-adf6-0653a71e950e) (1128, 250, 1042) · [47](world:entity|86871f94-7fbe-4545-a2d7-73ccee79ecd5) (1129, 250, 1042)
+
+**z=1043**
+- [48](world:entity|d79090f2-cf8b-40fc-8ee4-2685a26ab990) (1114, 250, 1043) · [49](world:entity|421faa6e-889c-449b-92f9-773bf35777c7) (1115, 250, 1043) · [50](world:entity|1e5dca58-7836-475b-935e-eae483d5c0ee) (1116, 250, 1043) · [51](world:entity|271873fa-f1c1-418d-bec7-6c7eb9d16dc7) (1117, 250, 1043)
+- [52](world:entity|45a59261-57a8-4556-b4fe-938dc9afa775) (1118, 250, 1043) · [53](world:entity|87276efb-9b9f-48bc-8c7b-56ef2ebd0ea4) (1119, 250, 1043) · [54](world:entity|46a96741-624b-4d2f-9b54-795a4e37dc37) (1120, 250, 1043) · [55](world:entity|a45f7310-cf71-4962-83d1-92ae8d79a681) (1121, 250, 1043)
+- [56](world:entity|8ffcc8cf-ab9d-45cf-a350-a36ac3af7b48) (1122, 250, 1043) · [57](world:entity|d67c3b28-c7c4-4931-9a26-8198d7dadde3) (1123, 250, 1043) · [58](world:entity|5970019a-1661-4888-ba75-f0d52c32f798) (1124, 250, 1043) · [59](world:entity|ce1e175f-0a1c-46d3-88d2-08b410b0ea8a) (1125, 250, 1043)
+- [60](world:entity|4b34c1e7-ef09-4e76-81ed-1856df87c030) (1126, 250, 1043) · [61](world:entity|0bc0b238-43bd-4d48-81b6-8daf5efc7f2a) (1127, 250, 1043) · [62](world:entity|5ef2de1a-18b3-4dc8-b645-18eab4a43a8c) (1128, 250, 1043) · [63](world:entity|d9fa5430-fe38-45b4-b805-86e668e25804) (1129, 250, 1043)
+
+**z=1044**
+- [64](world:entity|289fa0eb-281d-4b88-8e0e-a5a7f0fb4a5d) (1114, 250, 1044) · [65](world:entity|7e9a29c0-3842-4976-91c7-58ee59f30591) (1115, 250, 1044) · [66](world:entity|9c9089cb-68ef-4be3-a786-652c1ed3286a) (1116, 250, 1044) · [67](world:entity|0e442398-7b74-4468-88dc-7e908bb42ea5) (1117, 250, 1044)
+- [68](world:entity|ed9eac80-aa4d-400e-ae59-fbee26251f1e) (1118, 250, 1044) · [69](world:entity|d7c057c1-a87d-4ef2-906b-db4e3e1a2748) (1119, 250, 1044) · [70](world:entity|15902d4e-548a-4d6b-8001-74dc452a275b) (1120, 250, 1044) · [71](world:entity|916b16b3-a93b-40fe-99a6-1774065393b3) (1121, 250, 1044)
+- [72](world:entity|d25e1630-9bf8-41b1-99e5-1c153b05a390) (1122, 250, 1044) · [73](world:entity|04847493-65bd-467c-9d24-e83a11c548b8) (1123, 250, 1044) · [74](world:entity|5f5754db-fe0f-4c9a-9c7b-505f4b1b7eed) (1124, 250, 1044) · [75](world:entity|665c1d71-e3f2-4fe0-915c-9caba9fd52c1) (1125, 250, 1044)
+- [76](world:entity|a9234ffd-78db-471c-b8f1-d6fede15247a) (1126, 250, 1044) · [77](world:entity|352fde82-ef35-45fa-b950-beb548f5e283) (1127, 250, 1044) · [78](world:entity|efdf5b9d-2e75-41e9-9a7f-9570604be43a) (1128, 250, 1044) · [79](world:entity|b529c85b-9abd-4644-ab04-7077e19f726a) (1129, 250, 1044)
+```
+
+#### W2, dense single chunk - PASS
+
+Summoned 160 stationary NoAI/NoGravity chickens, Dense Chicken 000..159, at x=1186.25..1195.25 and z=1059.25..1066.75, y=250. All occupy chunk (74,66), section y=15. Player center (1191.5,250,1057.5), radius 24. The server independently counted 160 and exported every UUID. Pages contain 64 + 64 + 32 records and exactly the expected UUID set; duplicate, missing and unexpected arrays are empty. Each stable acquisition is a single tick. PARTIAL is explicitly due to paging; the last cursor is null and coverage COMPLETE. The reply also lists suffixes 000..159 once in its grid. [Fixture](../../build/final-review-live/round2-W2-dense-fixture.json), [UUID/page analysis](../../build/final-review-live/round2-W2-dense-analysis.json).
+
+Question: `list the chickens within 24 blocks. Continue through every page so every chicken is listed exactly once.`
+
+Request `2c1cd589-536d-4e20-ae1f-5811f428befb`, conversation `721371fb-edbd-46b1-8b91-376f9cf69469`, status `completed`, model terminal 52931 ms. [Full raw result](../../build/final-review-live/round2-W2-dense.json).
+
+Calls, arguments, coverage, detail and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "list_entities",
+    "arguments": {
+      "center": null,
+      "radius": 24,
+      "filter": {
+        "ids": [
+          "minecraft:chicken"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": null
+    },
+    "coverage": "PARTIAL",
+    "detail": "This page holds 64 matches, the page limit; continue with the cursor",
+    "recordCount": 64,
+    "nextCursor": "47cd26b4-43c1-44b1-a1c4-9d8e3b95ccda",
+    "readSpans": [
+      {
+        "toGameTime": 1165701,
+        "fromGameTime": 1165701
+      }
+    ],
+    "recordGameTimes": []
+  },
+  {
+    "name": "list_entities",
+    "arguments": {
+      "center": null,
+      "radius": 24,
+      "filter": {
+        "ids": [
+          "minecraft:chicken"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": "47cd26b4-43c1-44b1-a1c4-9d8e3b95ccda"
+    },
+    "coverage": "PARTIAL",
+    "detail": "This page holds 64 matches, the page limit; continue with the cursor",
+    "recordCount": 64,
+    "nextCursor": "9dabcf2e-4573-42b1-a907-a9512fa41a8a",
+    "readSpans": [
+      {
+        "toGameTime": 1165919,
+        "fromGameTime": 1165919
+      }
+    ],
+    "recordGameTimes": []
+  },
+  {
+    "name": "list_entities",
+    "arguments": {
+      "center": null,
+      "radius": 24,
+      "filter": {
+        "ids": [
+          "minecraft:chicken"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": "9dabcf2e-4573-42b1-a907-a9512fa41a8a"
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 32,
+    "nextCursor": null,
+    "readSpans": [
+      {
+        "toGameTime": 1166043,
+        "fromGameTime": 1166043
+      }
+    ],
+    "recordGameTimes": []
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I found **160 chickens within 24 blocks** and continued through all three pages. Each cell lists the two chickens at that block position; the column gives **x**, the row gives **z**, and **y = 250** for all of them. They’re in the Overworld. Individual navigation links are omitted because the chickens occupy a dense grid. [world:entity|d9a84ecc-a2a7-4152-a758-29d7a6d691b4] [world:entity|37148a01-e997-4c50-8127-d72c3d7b7400] [world:entity|7f229bbb-8590-468d-895c-859e66387610]
+
+| z \ x | 1186 | 1187 | 1188 | 1189 | 1190 | 1191 | 1192 | 1193 | 1194 | 1195 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **1059** | 000, 010 | 001, 011 | 002, 012 | 003, 013 | 004, 014 | 005, 015 | 006, 016 | 007, 017 | 008, 018 | 009, 019 |
+| **1060** | 020, 030 | 021, 031 | 022, 032 | 023, 033 | 024, 034 | 025, 035 | 026, 036 | 027, 037 | 028, 038 | 029, 039 |
+| **1061** | 040, 050 | 041, 051 | 042, 052 | 043, 053 | 044, 054 | 045, 055 | 046, 056 | 047, 057 | 048, 058 | 049, 059 |
+| **1062** | 060, 070 | 061, 071 | 062, 072 | 063, 073 | 064, 074 | 065, 075 | 066, 076 | 067, 077 | 068, 078 | 069, 079 |
+| **1063** | 080, 090 | 081, 091 | 082, 092 | 083, 093 | 084, 094 | 085, 095 | 086, 096 | 087, 097 | 088, 098 | 089, 099 |
+| **1064** | 100, 110 | 101, 111 | 102, 112 | 103, 113 | 104, 114 | 105, 115 | 106, 116 | 107, 117 | 108, 118 | 109, 119 |
+| **1065** | 120, 130 | 121, 131 | 122, 132 | 123, 133 | 124, 134 | 125, 135 | 126, 136 | 127, 137 | 128, 138 | 129, 139 |
+| **1066** | 140, 150 | 141, 151 | 142, 152 | 143, 153 | 144, 154 | 145, 155 | 146, 156 | 147, 157 | 148, 158 | 149, 159 |
+
+Each number is the suffix of that chicken’s name—for example, **000** means *Dense Chicken 000*.
+```
+
+#### W1, one job-site question - PASS; uncached POI section - NOT RUN
+
+Player center (1098.5,250,1022.5). Added Round 2 Librarian with home (1100,250,1029), job site (1102,250,1025) and remote meeting-point memory (4000,70,4000); retained the existing farmer with job-site memory (4000,70,4002). The setup setblock command returned "Could not set the block" because the lectern was already present; the later COMPLETE inspect_block confirms it. Exactly one job-site question was submitted. Both inspect_entity records and their minecraft sections are COMPLETE with the stored memories. The local lectern returns cached POI {type:minecraft:librarian,freeTickets:1}, COMPLETE. Remote inspect_block returns ERROR with an explicit UNAVAILABLE/unloaded-chunk detail; the reply preserves that limitation. This verifies the requested job-site answer, but does not exercise an uncached POI fact in a returned PARTIAL section. [Fixture](../../build/final-review-live/round2-W1-fixture.json).
+
+Question: `what job sites do these villagers have?`
+
+Request `99e29542-f5b9-4bf8-9bd6-ca0c4400656e`, conversation `642bd290-e4e2-492a-8573-36fe11b24e96`, status `completed`, model terminal 25168 ms. [Full raw result](../../build/final-review-live/round2-W1.json).
+
+Calls, arguments, coverage, detail and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "list_entities",
+    "arguments": {
+      "center": null,
+      "radius": 24,
+      "filter": {
+        "ids": [
+          "minecraft:villager"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": null
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null,
+    "readSpans": [
+      {
+        "toGameTime": 1166944,
+        "fromGameTime": 1166944
+      }
+    ],
+    "recordGameTimes": []
+  },
+  {
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "4f474037-101b-445d-97e5-5b71e9b942f7"
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null,
+    "readSpans": [],
+    "recordGameTimes": [
+      1166944
+    ]
+  },
+  {
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "2b4bf157-5b1b-4705-b3b8-b84d30128644"
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null,
+    "readSpans": [],
+    "recordGameTimes": [
+      1167061
+    ]
+  },
+  {
+    "name": "inspect_block",
+    "arguments": {
+      "place": "minecraft:overworld|1102,250,1025"
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null,
+    "readSpans": [],
+    "recordGameTimes": [
+      1167061
+    ]
+  },
+  {
+    "name": "inspect_block",
+    "arguments": {
+      "place": "minecraft:overworld|4000,70,4002"
+    },
+    "coverage": "ERROR",
+    "detail": "UNAVAILABLE: the chunk at minecraft:overworld|4000,70,4002 is not loaded",
+    "recordCount": 0,
+    "nextCursor": null,
+    "readSpans": [],
+    "recordGameTimes": []
+  }
+]
+```
+
+Returned section evidence:
+
+```json
+[
+  {
+    "title": "Round 2 Librarian (minecraft:villager) at minecraft:overworld|1100,250,1025",
+    "sections": {
+      "minecraft": {
+        "coverage": "COMPLETE",
+        "note": null,
+        "home": "minecraft:overworld|1100,250,1029",
+        "jobSite": "minecraft:overworld|1102,250,1025",
+        "meetingPoint": "minecraft:overworld|4000,70,4000"
+      }
+    }
+  },
+  {
+    "title": "Farmer (minecraft:villager) at minecraft:overworld|1106,250,1025",
+    "sections": {
+      "minecraft": {
+        "coverage": "COMPLETE",
+        "note": null,
+        "jobSite": "minecraft:overworld|4000,70,4002"
+      }
+    }
+  },
+  {
+    "title": "minecraft:lectern at minecraft:overworld|1102,250,1025",
+    "sections": {
+      "minecraft": {
+        "coverage": "COMPLETE",
+        "note": null,
+        "poi": {
+          "type": "minecraft:librarian",
+          "freeTickets": 1
+        }
+      }
+    }
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The two nearby villagers have these **recorded job sites**:
+
+- **Round 2 Librarian** at (1100, 250, 1025): a [lectern at (1102, 250, 1025)](world:block|minecraft:overworld|1102,250,1025). [world:entity|4f474037-101b-445d-97e5-5b71e9b942f7]
+- **Farmer** at (1106, 250, 1025): a job site recorded at **(4000, 70, 4002)** in the Overworld. That chunk isn’t loaded, so I can’t verify what block is there. [world:entity|2b4bf157-5b1b-4705-b3b8-b84d30128644]
+```
+
+#### R2 initial fixture miss - NOT RUN for the mule criterion
+
+The old mule fixture was at (1005.5,250,1006.5), but V2DonkeyA at (1004.3,250,1005.1) obstructed the sight line. The state already showed crosshair UUID 7d12d797-a87c-479a-9bf1-4fa4387e6b52. The question therefore inspected that donkey and correctly identified it, with floor coordinates (1004,250,1005). This is a setup miss, not a PackSage failure, and does not establish the mule criterion. Retained the submission and reply, then prepared an isolated mule before the actual check. [Fixture](../../build/final-review-live/round2-R2-fixture.json).
+
+Question: `how high can this mule jump?`
+
+Request `1410c914-e5d9-46a9-8880-cb68c2a8d45b`, conversation `54127286-ff25-457f-82ee-66a0cabb6283`, status `completed`, model terminal 9473 ms. [Full raw result](../../build/final-review-live/round2-R2.json).
+
+Calls, arguments, coverage, detail and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "7d12d797-a87c-479a-9bf1-4fa4387e6b52"
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null,
+    "readSpans": [],
+    "recordGameTimes": [
+      1167855
+    ]
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The animal you’re looking at is **V2DonkeyA, a donkey**, not a mule. Its estimated maximum jump height is **1.62 blocks** at (1004, 250, 1005). [V2DonkeyA](world:entity|7d12d797-a87c-479a-9bf1-4fa4387e6b52)
+```
+
+#### R2 mule - PASS
+
+Summoned a Tame/NoAI/NoGravity mule at whole-block command coordinates (1205,250,1106); server Pos returned (1205.5,250,1106.5). Extended the platform under the observer after the initial placement left the player off its edge; no question was sent during that setup correction. Before submission, the ready state confirms player (1203.5,250,1102.5) and crosshair UUID d79f9285-c2ba-434b-989c-3f2f1f28e93e, matching the server-exported mule UUID. inspect_entity returns that mule, jump strength 0.5 and estimated jumpHeightBlocks 1.62. The reply and linked title use floor coordinates (1205,250,1106). F3 was not toggled: block agreement uses the independent server Pos and floor rule. [Fixture](../../build/final-review-live/round2-R2-mule-fixture.json), [corrected setup](../../build/final-review-live/round2-R2-mule-ready.json), [verified target state](../../build/final-review-live/round2-R2-mule-target-state.json).
+
+Question: `how high can this mule jump?`
+
+Request `e2b9df66-124e-48ec-a2dd-0fe083ce3834`, conversation `786a753d-5b80-4b79-ba9d-e9ecca409434`, status `completed`, model terminal 7697 ms. [Full raw result](../../build/final-review-live/round2-R2-mule.json).
+
+Calls, arguments, coverage, detail and spans (`null` means absent):
+
+```json
+[
+  {
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "d79f9285-c2ba-434b-989c-3f2f1f28e93e"
+    },
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null,
+    "readSpans": [],
+    "recordGameTimes": [
+      1169229
+    ]
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+This mule can jump approximately **1.62 blocks high**. That’s an estimate based on its current jump-strength attribute of 0.5. [Mule at (1205, 250, 1106)](world:entity|d79f9285-c2ba-434b-989c-3f2f1f28e93e)
+```
+
+#### Navigation and final state
+
+Only one `/navigate` was issued in this round:
+
+```json
+{
+  "request": {
+    "route": "/navigate",
+    "body": {
+      "requestId": "e2b9df66-124e-48ec-a2dd-0fe083ce3834",
+      "targetId": "world-entity|d79f9285-c2ba-434b-989c-3f2f1f28e93e"
+    }
+  },
+  "started": "2026-10-25T20:07:08.025Z",
+  "finished": "2026-10-25T20:07:08.109Z",
+  "result": {
+    "status": "OPENED",
+    "detail": null
+  }
+}
+```
+
+The [bridge screenshot](../../build/final-review-live/round2-R2-highlight.png) was inspected and shows the mule highlight. The player was returned to the original (1003.5,250,1002.5), yaw 11.309933, pitch 17.829372. Final state at **2026-10-25T20:07:08.203Z**: save `PackSage Adapter Filter Live Test`, minecraft:overworld, running=true, paused=false, screen=null, health 20, creative mode, selected hotbar slot 1. Minecraft remains running in that save with the bridge on. [Full final bridge record](../../build/final-review-live/round2-final.json), inspected [final screenshot](../../build/final-review-live/round2-final-state.png).
+
+Final `/prompt` still has `text:null` and the byte-identical candidate-8 default; `developerPrompt` is absent from the properties file. Recorded model/search/bridge properties match their pre-restart values (`modelId=gpt-6-sol`, `automaticWebSearch=true`, `debugBridge=true`). No model/search/screenshot setting was changed, and no prompt override was written during this round. [Final checks](../../build/final-review-live/round2-final-checks.json).
+
+Blockers: no PackSage failure in the requested short recheck. The uncached-POI PARTIAL-section branch remains unexercised by the one W1 question; its NOT RUN status is separate from the passing job-site answer. Checks outside this round were not rerun and retain their earlier acceptance status. The disposable save retains the added fixtures.

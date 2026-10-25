@@ -4,6 +4,7 @@
 
 ### 2026-10-26
 
+- Restored saved v1 citation chips for removed mod providers, keeping their recorded sources and exact destinations; missing providers remain unavailable when clicked. Debug prompt saves now persist on bridge workers and preserve concurrent settings-screen saves before publishing on the client. Holder and progress-tree evidence can be reread from current data, with incomplete holder reads marked partial. Regression tests cover these fixes; installed acceptance remains pending. The promoted assistant prompt is unchanged.
 - Distant location columns now remain visible through Nether terrain. Installed Nether and Overworld checks passed at render distance 12, including the Nether marker's 30-second lifetime; the earlier 8-chunk Overworld check also passed ([acceptance record](docs/validation/2026-10-25-v2-acceptance.md#acceptance-summary)).
 - Hidden advancements now use anonymous world-session references until earned, including in lists, dependencies, evidence rereads and hidden tree roots. Looking up an unearned entry by its real id reveals nothing, and its ordering does not hint at its identity. Installed P5 reacceptance passed with nine anonymous entries and no hidden names, ids or criteria exposed.
 

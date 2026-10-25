@@ -22,6 +22,119 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AreaScanTest {
+    @Test
+    void removingAnEarlierEntityDuringAcquisitionDoesNotSkipAStationaryEntity() throws Exception {
+        var world = DenseWorld.create(130);
+        var snapshot = new AreaScan.EntitySnapshot();
+        var notes = new java.util.LinkedHashSet<String>();
+        assertTrue(snapshot.step(world, new ChunkPos(0, 0), notes));
+        world.entities.remove(5);
+        world.gameTime++;
+        boolean more;
+        do {
+            var before = world.candidates;
+            more = snapshot.step(world, new ChunkPos(0, 0), notes);
+            assertTrue(world.candidates - before <= 64);
+        } while (more);
+        assertTrue(snapshot.ids.containsAll(world.entities.stream().map(entity -> entity.getUUID()).toList()),
+                "all stationary entities must survive an earlier removal");
+    }
+
+    @Test
+    void recreatingASectionDuringAcquisitionDoesNotSkipItsNewEntities() throws Exception {
+        var world = DenseWorld.create(130);
+        var snapshot = new AreaScan.EntitySnapshot();
+        var notes = new java.util.LinkedHashSet<String>();
+        assertTrue(snapshot.step(world, new ChunkPos(0, 0), notes));
+        world.entities.clear();
+        for (int i = 0; i < 130; i++) {
+            var entity = new ItemEntity(EntityType.ITEM, world);
+            entity.setPos(8, 64, 8);
+            world.entities.add(entity);
+        }
+        world.gameTime++;
+        boolean more;
+        do {
+            var before = world.candidates;
+            more = snapshot.step(world, new ChunkPos(0, 0), notes);
+            assertTrue(world.candidates - before <= 64);
+        } while (more);
+        assertTrue(snapshot.ids.containsAll(world.entities.stream().map(entity -> entity.getUUID()).toList()),
+                "a replacement section must be copied from its start");
+    }
+
+    @Test
+    void sectionChurnStopsWithConcretePartialCoverage() throws Exception {
+        var world = DenseWorld.create(130);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4,
+                new KindFilter(List.of("minecraft:zombie"), List.of(), ""), null);
+        boolean more = true;
+        int steps = 0;
+        while (more && steps++ < 20) {
+            var before = world.candidates;
+            more = slice.step();
+            assertTrue(world.candidates - before <= 64);
+            world.entities.removeFirst();
+            var entity = new ItemEntity(EntityType.ITEM, world);
+            entity.setPos(8, 64, 8);
+            world.entities.add(entity);
+            world.gameTime++;
+        }
+        assertFalse(more, "repeated section changes must not keep acquisition running forever");
+        assertEquals(Evidence.Coverage.PARTIAL, slice.result().coverage());
+        assertTrue(slice.result().note().contains("section changed"), slice.result().note());
+    }
+
+    @Test
+    void aWorkLimitCannotDiscardAnUnfinishedChunkSnapshot() throws Exception {
+        var world = DenseWorld.create(130);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, null);
+        assertTrue(slice.step());
+        assertFalse(slice.stopEarly(), "finishing candidate acquisition avoids a cursor that repeats the same unfinished prefix");
+    }
+
+    @Test
+    void aWorkLimitAtTheEndOfSnapshotAcquisitionStillDeliversProgress() throws Exception {
+        var world = DenseWorld.create(130);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, null);
+        while (world.candidates < 130) assertTrue(slice.step());
+        if (slice.stopEarly()) assertFalse(slice.result().items().isEmpty(), "rebuilding the same snapshot must not exhaust every call before a record is delivered");
+    }
+
+    @Test
+    void neighboringNonmatchesCannotExhaustAServerStep() throws Exception {
+        var world = DenseWorld.create(5000);
+        for (var entity : world.entities) entity.setPos(-8, 64, 8);
+        world.entities.getFirst().setPos(8, 64, 8);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, null);
+        boolean more;
+        do {
+            var before = world.candidates;
+            more = slice.step();
+            assertTrue(world.candidates - before <= 64, "candidate visits in one step: " + (world.candidates - before));
+        } while (more);
+        assertEquals(1, slice.result().items().size());
+    }
+
+    @Test
+    void everyEntityBeyondTheOldChunkCapIsReachableThroughCursors() throws Exception {
+        var world = DenseWorld.create(4097);
+        var ids = new HashSet<UUID>();
+        String cursor = null;
+        int pages = 0;
+        do {
+            var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, cursor);
+            boolean more;
+            do {
+                more = slice.step();
+            } while (more);
+            for (var entity : slice.result().items()) assertTrue(ids.add(entity.id()), "duplicate " + entity.id());
+            cursor = slice.result().nextCursor();
+            assertTrue(++pages <= 65);
+        } while (cursor != null);
+        assertEquals(4097, ids.size());
+    }
+
     @BeforeAll
     static void bootstrapMinecraft() {
         Bootstrap.bootStrap();
@@ -86,20 +199,33 @@ class AreaScanTest {
     }
 
     @Test
-    void anEntityMovingIntoAnAlreadyReadChunkMakesTheReadPartial() throws Exception {
-        var world = DenseWorld.create(1);
-        world.chunks.neighbor = DenseWorld.create(0).chunks.chunk;
-        ((DenseWorld.Chunk) world.chunks.neighbor).position = new ChunkPos(1, 0);
-        world.entities.getFirst().setPos(20, 64, 8);
-        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(16, 64, 8), 6, KindFilter.ANY, null);
-        assertTrue(slice.step(), "the empty first chunk is read before the move");
+    void aDenseStableReadAcrossTicksCanProveNoMatches() throws Exception {
+        var world = DenseWorld.create(130);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4,
+                new KindFilter(List.of("minecraft:zombie"), List.of(), ""), null);
+        assertTrue(slice.step());
         world.gameTime++;
-        world.entities.getFirst().setPos(12, 64, 8);
         while (slice.step()) {
         }
-        assertTrue(slice.result().items().isEmpty(), "the entity moved behind the traversal");
+        assertTrue(slice.result().items().isEmpty());
+        assertEquals(Evidence.Coverage.COMPLETE, slice.result().coverage());
+        assertTrue(slice.result().note().contains("400..401"), slice.result().note());
+    }
+
+    @Test
+    void aSnapshottedEntityMovingOutsideLoadedChunksMakesTheReadPartial() throws Exception {
+        var world = DenseWorld.create(130);
+        var moved = world.entities.stream().max((left, right) -> left.getUUID().compareTo(right.getUUID())).orElseThrow();
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4,
+                new KindFilter(List.of("minecraft:zombie"), List.of(), ""), null);
+        while (world.visited == 0) assertTrue(slice.step());
+        world.gameTime++;
+        moved.setPos(1000, 64, 8);
+        while (slice.step()) {
+        }
+        assertTrue(slice.result().items().isEmpty());
         assertEquals(Evidence.Coverage.PARTIAL, slice.result().coverage());
-        assertTrue(slice.result().note().contains("ticks"), slice.result().note());
+        assertTrue(slice.result().note().contains("moved outside loaded chunks"), slice.result().note());
     }
 
     @Test
@@ -190,8 +316,10 @@ class AreaScanTest {
         boolean more;
         do {
             var before = world.visited;
+            var candidates = world.candidates;
             more = slice.step();
             assertTrue(world.visited - before <= 64, "entity visits in one step: " + (world.visited - before));
+            assertTrue(world.candidates - candidates <= 64, "snapshot candidates in one step: " + (world.candidates - candidates));
             steps++;
         } while (more);
         assertTrue(steps > 60);

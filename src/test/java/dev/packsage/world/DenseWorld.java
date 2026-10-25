@@ -48,21 +48,72 @@ final class DenseWorld {
     static final class World extends ServerLevel {
         Chunks chunks;
         List<Entity> entities;
+        EntitySectionStorage<Entity> sections;
+        Map<Entity, Long> indexedSections;
         int visited;
+        int candidates;
         boolean forbidGlobal;
         boolean entitiesUnloaded;
         long gameTime;
+        net.minecraft.server.MinecraftServer server;
         World() { super(null, null, null, null, null, null, null, false, 0, List.of(), false, null); }
         @Override public ServerChunkCache getChunkSource() { return chunks; }
         @Override public int getMinBuildHeight() { return -64; }
         @Override public int getHeight() { return 384; }
         @Override public boolean areEntitiesLoaded(long chunk) { return !entitiesUnloaded; }
+        @Override public net.minecraft.server.MinecraftServer getServer() { return server; }
         @Override public long getGameTime() { return gameTime; }
         @Override public long getDayTime() { return 600; }
         @Override public Entity getEntity(java.util.UUID id) { visited++; return entities.stream().filter(entity -> entity.getUUID().equals(id)).findFirst().orElse(null); }
         @Override public LevelEntityGetter<Entity> getEntities() {
-            var sections = new EntitySectionStorage<>(Entity.class, key -> Visibility.TICKING);
-            for (var entity : entities) sections.getOrCreateSection(SectionPos.asLong(entity.blockPosition())).add(entity);
+            if (sections == null) {
+                sections = new EntitySectionStorage<>(Entity.class, key -> Visibility.TICKING);
+                indexedSections = new java.util.IdentityHashMap<>();
+            }
+            var present = new java.util.HashSet<>(entities);
+            var indexed = indexedSections.entrySet().iterator();
+            while (indexed.hasNext()) {
+                var entry = indexed.next();
+                if (present.contains(entry.getKey()) && entry.getValue() == SectionPos.asLong(entry.getKey().blockPosition())) continue;
+                var section = sections.getSection(entry.getValue());
+                section.remove(entry.getKey());
+                if (section.isEmpty()) sections.remove(entry.getValue());
+                indexed.remove();
+            }
+            for (var entity : entities) {
+                if (indexedSections.containsKey(entity)) continue;
+                var key = SectionPos.asLong(entity.blockPosition());
+                var section = sections.getSection(key);
+                if (section != null) {
+                    section.add(entity);
+                    indexedSections.put(entity, key);
+                    continue;
+                }
+                section = sections.getOrCreateSection(key);
+                // Count actual indexed reads, while preserving mutable engine lists across calls.
+                try {
+                    var storageField = section.getClass().getDeclaredField("storage");
+                    storageField.setAccessible(true);
+                    var storage = storageField.get(section);
+                    var all = storage.getClass().getDeclaredField("allInstances");
+                    all.setAccessible(true);
+                    var original = (List<Entity>) all.get(storage);
+                    var counted = new java.util.AbstractList<Entity>() {
+                        @Override public Entity get(int index) { candidates++; return original.get(index); }
+                        @Override public int size() { return original.size(); }
+                        @Override public boolean add(Entity value) { return original.add(value); }
+                        @Override public boolean remove(Object value) { return original.remove(value); }
+                    };
+                    all.set(storage, counted);
+                    var byClass = storage.getClass().getDeclaredField("byClass");
+                    byClass.setAccessible(true);
+                    ((Map<Class<?>, List<Entity>>) byClass.get(storage)).put(Entity.class, counted);
+                } catch (ReflectiveOperationException failure) {
+                    throw new AssertionError(failure);
+                }
+                section.add(entity);
+                indexedSections.put(entity, key);
+            }
             return new LevelEntityGetterAdapter<>(new EntityLookup<>(), sections);
         }
         @Override public net.minecraft.core.RegistryAccess registryAccess() { return net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY); }

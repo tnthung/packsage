@@ -33,6 +33,73 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldToolsTest {
+    @Test
+    void blockHoldersBeyondTheOldChunkCapAreAllGatheredInBoundedSteps() throws Exception {
+        var world = DenseWorld.create(0);
+        var chunk = (DenseWorld.Chunk) world.chunks.chunk;
+        for (int i = 0; i < 4097; i++) {
+            var at = new BlockPos(i % 16, 48 + i / 256, i / 16 % 16);
+            chunk.blockEntities.put(at, new BarrelBlockEntity(at, Blocks.BARREL.defaultBlockState()));
+        }
+        var checked = new HashSet<BlockPos>();
+        var gathering = new java.util.concurrent.atomic.AtomicBoolean(true);
+        var registry = new WorldRegistry();
+        registry.register(new InventoryReader() {
+            @Override public String adapterId() { return "test"; }
+            @Override public List<InventoryInfo> inventories(LiveHolder holder) {
+                if (gathering.get()) assertTrue(checked.add(((LiveHolder.OfBlock) holder).pos()));
+                return List.of(new InventoryInfo(new InventoryId("test", "storage"), "Storage", 1, SlotRole.STORAGE));
+            }
+            @Override public LiveInventory open(LiveHolder holder, String section) {
+                return new LiveInventory() {
+                    @Override public ItemStack get(String entry) { return new ItemStack(net.minecraft.world.item.Items.STONE); }
+                    @Override public List<Map.Entry<String, ItemStack>> entries() { return List.of(Map.entry("0", get("0"))); }
+                };
+            }
+            @Override public Section inspectItem(ItemStack stack) { return null; }
+        });
+        var tools = new WorldTools(() -> null, registry, () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
+                () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
+        var type = Class.forName("dev.packsage.world.WorldTools$FindSlice");
+        var constructor = type.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        var slice = constructor.newInstance(tools, null, new Anchor.Player(), 32, KindFilter.ANY, false, null);
+        for (var entry : Map.<String, Object>of("level", world, "center", new Vec3(8, 64, 8),
+                "chunks", List.of(new ChunkPos(0, 0)), "startChunk", -1).entrySet()) {
+            var field = type.getDeclaredField(entry.getKey());
+            field.setAccessible(true);
+            field.set(slice, entry.getValue());
+        }
+        var collect = type.getDeclaredMethod("collect", ChunkPos.class);
+        collect.setAccessible(true);
+        int steps = 0;
+        boolean done;
+        do {
+            var before = checked.size();
+            done = (boolean) collect.invoke(slice, new ChunkPos(0, 0));
+            assertTrue(checked.size() - before <= 64);
+            if (!done) assertFalse(((ServerWork.Slice<?>) slice).stopEarly(), "a dense chunk continuation must not replay gathered holders");
+            assertTrue(++steps < 2000);
+        } while (!done);
+        assertEquals(4097, checked.size());
+        gathering.set(false);
+        var holders = type.getDeclaredField("holders");
+        holders.setAccessible(true);
+        String cursor = null;
+        long total = 0;
+        int pages = 0;
+        do {
+            var search = new ItemSearch(registry, (List<Map.Entry<PathRoot, LiveHolder>>) holders.get(slice), KindFilter.ANY, false, cursor);
+            while (search.step()) {
+            }
+            for (var entry : search.result().items()) total += entry.count();
+            cursor = search.result().nextCursor();
+            assertTrue(++pages <= 9);
+        } while (cursor != null);
+        assertEquals(4097, total);
+        assertEquals(9, pages);
+    }
+
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
     private static final String ENTITY = "3f1c2a4e-0000-4000-8000-000000000001";
 
@@ -43,7 +110,7 @@ class WorldToolsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"stable", "next_tick", "unloaded", "unloaded_at_snapshot", "unloaded_after_snapshot"})
+    @ValueSource(strings = {"stable", "next_tick", "frozen_tick", "missing_block", "missing_entity", "unloaded", "unloaded_at_snapshot", "unloaded_after_snapshot"})
     void holderCoverageReflectsTickSpansAndCountsEachUnloadedChunkOnce(String scenario) throws Exception {
         var world = DenseWorld.create(1);
         world.entitiesUnloaded = scenario.equals("unloaded");
@@ -62,13 +129,25 @@ class WorldToolsTest {
             field.setAccessible(true);
             field.set(slice, entry.getValue());
         }
+        java.lang.reflect.Field tickCount = null;
+        if (scenario.equals("frozen_tick")) {
+            var field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            field.setAccessible(true);
+            world.server = (net.minecraft.client.server.IntegratedServer) ((sun.misc.Unsafe) field.get(null))
+                    .allocateInstance(net.minecraft.client.server.IntegratedServer.class);
+            tickCount = net.minecraft.server.MinecraftServer.class.getDeclaredField("tickCount");
+            tickCount.setAccessible(true);
+        }
         assertTrue(slice.step(), "copy block positions");
+        if (scenario.equals("missing_block")) ((DenseWorld.Chunk) world.chunks.chunk).blockEntities.clear();
         assertTrue(slice.step(), "revalidate block positions");
         if (scenario.equals("next_tick")) world.gameTime++;
+        if (tickCount != null) tickCount.setInt(world.server, 1);
         if (scenario.equals("unloaded_at_snapshot")) world.entitiesUnloaded = true;
         assertTrue(slice.step(), "decide whether entity snapshots are available");
         if (scenario.equals("unloaded_at_snapshot")) world.entitiesUnloaded = false;
         if (scenario.equals("unloaded_after_snapshot")) world.entitiesUnloaded = true;
+        if (scenario.equals("missing_entity")) world.entities.clear();
         var next = type.getDeclaredField("next");
         next.setAccessible(true);
         var steps = 0;
@@ -89,9 +168,13 @@ class WorldToolsTest {
         if (scenario.equals("stable")) {
             assertEquals(Evidence.Coverage.COMPLETE, coverage.invoke(result));
             assertEquals(null, note.invoke(result));
+        } else if (scenario.equals("next_tick") || scenario.equals("frozen_tick")) {
+            assertEquals(Evidence.Coverage.COMPLETE, coverage.invoke(result));
+            assertTrue(note.invoke(result).toString().contains(scenario.equals("next_tick") ? "400..401" : "400..400"), note.invoke(result).toString());
         } else {
             assertEquals(Evidence.Coverage.PARTIAL, coverage.invoke(result));
-            if (scenario.equals("next_tick")) assertTrue(note.invoke(result).toString().contains("ticks"), note.invoke(result).toString());
+            if (scenario.equals("missing_block")) assertTrue(note.invoke(result).toString().contains("block entity from a chunk snapshot disappeared"));
+            else if (scenario.equals("missing_entity")) assertTrue(note.invoke(result).toString().contains("entity from a chunk snapshot disappeared"));
             else assertEquals("1 chunks in range did not have their entities loaded yet, so entities there were not searched", note.invoke(result));
         }
     }
@@ -126,7 +209,7 @@ class WorldToolsTest {
             assertTrue(slice.step());
             assertTrue(world.visited - before <= 64, "enumerated " + (world.visited - before));
             assertTrue(checked.get() - checks <= 64, "checked " + (checked.get() - checks));
-            assertTrue(++steps < 100);
+            assertTrue(++steps < 200);
         }
         assertTrue(steps > 60);
         assertEquals(4000, checked.get());
@@ -534,11 +617,13 @@ class WorldToolsTest {
         var dirt = new ItemEntry("minecraft:dirt", "Dirt", 3, 1, java.util.List.of(
                 ItemPath.parse(chestA + ">minecraft/container#4@minecraft:dirt")), false);
 
-        var page = tools.entries(request, new WorldTools.EntriesState(java.util.List.of(stone, dirt), null, Evidence.Coverage.COMPLETE, null),
+        var page = tools.entries(request, new WorldTools.EntriesState(java.util.List.of(stone, dirt), null, Evidence.Coverage.COMPLETE, null, new WorldTools.ReadSpan(100, 105)),
                 Evidence.Coverage.COMPLETE, null);
 
+        assertEquals(Evidence.Coverage.COMPLETE, page.coverage());
         var linked = new java.util.HashMap<String, String>();
         for (var record : page.records()) {
+            assertEquals(Evidence.deserializeObject("{\"fromGameTime\":100,\"toGameTime\":105}"), record.payload().values().get("readSpan"));
             for (var target : record.targets()) {
                 assertEquals(record.source().sourceHandle(), target.sourceHandle(), "a link opens only from a record with its handle");
                 linked.put(target.sourceHandle(), target.targetId());

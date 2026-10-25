@@ -257,8 +257,12 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                         });
                     }
                     if (pending != null) {
-                        // Restore the in-memory settings on disk so the unapplied prompt does not load next launch.
-                        promptWriter.accept(pending.before(), pending.before().developerPrompt());
+                        var restore = pending.before();
+                        call(client, () -> {
+                            // Keep this rare debug-only file write with its check so a screen save cannot slip between them.
+                            if (runtime.settings().sameSnapshot(restore)) promptWriter.accept(restore, restore.developerPrompt());
+                            return null;
+                        });
                         throw new IllegalStateException("Prompt save conflict: settings kept changing; retry the request");
                     }
                     yield execute(DebugRouter.Operation.PROMPT_GET, body);

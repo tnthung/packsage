@@ -28,6 +28,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.lang.ref.WeakReference;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -72,6 +74,9 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private record ListState(Center center, String scan) {
+    }
+
+    private record EntityRead(Center center, Page<EntityHandle> page, List<String> cursors) {
     }
 
     /**
@@ -308,31 +313,66 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private CompletionStage<Evidence.Result> listBlocks(PackSageTools.ReadRequest request) {
-        return list(request, (level, center, radius, filter, cursor) -> scan.listBlocks(level, center, radius, filter, cursor), this::blockRecord);
+        return list(request, (level, center, radius, filter, cursor) -> scan.listBlocks(level, center.position(), radius, filter, cursor), this::blockRecord);
     }
 
     private CompletionStage<Evidence.Result> listEntities(PackSageTools.ReadRequest request) {
-        return list(request, (level, center, radius, filter, cursor) -> scan.listEntities(level, center, radius, filter, cursor), this::entityRecord);
+        return list(request, (level, center, radius, filter, cursor) -> {
+            var slice = scan.listEntities(level, center.position(), radius, filter, cursor);
+            return mapped(slice, page -> new EntityRead(center, page, List.copyOf(slice.cursors)));
+        }).thenApply(read -> {
+            var page = read.value().page();
+            var records = new ArrayList<Evidence.Record>();
+            var bytes = 0;
+            var nextScan = page.nextCursor();
+            var coverage = page.coverage();
+            var notes = new LinkedHashSet<String>();
+            if (page.note() != null) notes.add(page.note());
+            for (var entity : page.items()) {
+                var record = entityRecord(request.scope(), entity, read.span());
+                var recordBytes = PackSageTools.encodeRecord(record).toString().getBytes(StandardCharsets.UTF_8).length
+                        + (records.isEmpty() ? 0 : 1);
+                if (bytes + recordBytes > 64 * 1024) {
+                    if (records.isEmpty()) throw new Failure(Code.EXTRACTION_FAILED, "one entity record exceeds the page byte budget");
+                    nextScan = read.value().cursors().get(records.size() - 1);
+                    coverage = Evidence.Coverage.PARTIAL;
+                    notes.add("Entity page byte budget reached; continue with the cursor");
+                    break;
+                }
+                records.add(record);
+                bytes += recordBytes;
+                if (record.source().coverage() == Evidence.Coverage.PARTIAL) {
+                    coverage = Evidence.Coverage.PARTIAL;
+                    notes.add("Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records");
+                }
+            }
+            var next = nextScan == null ? null : remember(request, new ListState(read.value().center(), nextScan));
+            return result(records, coverage, next, notes.isEmpty() ? null : String.join("; ", notes));
+        });
     }
 
     private interface ListScan<T> {
-        ServerWork.Slice<Page<T>> scan(ServerLevel level, Vec3 center, int radius, KindFilter filter, String cursor);
+        ServerWork.Slice<T> scan(ServerLevel level, Center center, int radius, KindFilter filter, String cursor);
     }
 
     private interface RecordOf<T> {
         Evidence.Record record(Evidence.Scope scope, T handle, ReadSpan span);
     }
 
-    private <T> CompletionStage<Evidence.Result> list(PackSageTools.ReadRequest request, ListScan<T> listing, RecordOf<T> records) {
+    private <T> CompletionStage<Spanned<T>> list(PackSageTools.ReadRequest request, ListScan<T> listing) {
         var anchor = anchor(argument(request, "center"));
         var radius = radius(argument(request, "radius"));
         var filter = filter(argument(request, "filter"), false);
         var cursor = cursor(request);
         var server = server();
         var state = cursor == null ? null : state(cursor, ListState.class);
-        return run(server, spanned(gameTime(server), then(() -> state == null ? center(server, anchor) : state.center(), center -> mapped(
-                listing.scan(level(server, center.dimension()), center.position(), radius, filter, state == null ? null : state.scan()),
-                page -> Map.entry(center, page))))).thenApply(read -> {
+        return run(server, spanned(gameTime(server), then(() -> state == null ? center(server, anchor) : state.center(), center ->
+                listing.scan(level(server, center.dimension()), center, radius, filter, state == null ? null : state.scan()))));
+    }
+
+    private <T> CompletionStage<Evidence.Result> list(PackSageTools.ReadRequest request, ListScan<Page<T>> listing, RecordOf<T> records) {
+        return list(request, (level, center, radius, filter, cursor) -> mapped(listing.scan(level, center, radius, filter, cursor),
+                page -> Map.entry(center, page))).thenApply(read -> {
             var page = read.value().getValue();
             var next = page.nextCursor() == null ? null : remember(request, new ListState(read.value().getKey(), page.nextCursor()));
             return result(page.items().stream().map(handle -> records.record(request.scope(), handle, read.span())).toList(), page.coverage(), next, page.note());
@@ -778,11 +818,14 @@ public final class WorldTools implements KnowledgeProvider {
         private boolean stopped;
         private ItemSearch search;
         private List<BlockPos> blocks;
-        private List<UUID> entities;
+        private AreaScan.EntitySnapshot snapshot;
+        private NavigableSet<UUID> entities;
         private final Set<UUID> seenEntities = new HashSet<>();
         private int blockIndex;
-        private int entityIndex;
+        private int blockCursor;
+        private boolean denseBlocks;
         private Long startedAt;
+        private long fromGameTime;
 
         FindSlice(MinecraftServer server, Anchor anchor, int radius, KindFilter filter, boolean includeNested, FindState resume) {
             this.server = server;
@@ -796,7 +839,10 @@ public final class WorldTools implements KnowledgeProvider {
         @Override
         public boolean step() {
             if (stopped) return false;
-            if (level != null && startedAt == null) startedAt = AreaScan.serverTick(level);
+            if (level != null && startedAt == null) {
+                startedAt = AreaScan.serverTick(level);
+                fromGameTime = level.getGameTime();
+            }
             if (search != null) return search.step();
             if (resume != null && chunks == null) {
                 resolveRoots();
@@ -854,7 +900,7 @@ public final class WorldTools implements KnowledgeProvider {
         public boolean stopEarly() {
             if (search != null) return search.stopEarly();
             if (chunks == null) return false;
-            if (blocks != null) return false;
+            if (blocks != null || denseBlocks || snapshot != null) return false;
             if (!gatherCanStop(chunks.size(), next, startChunk)) return false;
             stopped = true;
             return true;
@@ -867,15 +913,25 @@ public final class WorldTools implements KnowledgeProvider {
                 unloaded++;
                 blocks = null;
                 entities = null;
+                snapshot = null;
+                blockCursor = 0;
+                denseBlocks = false;
                 return true;
             }
             if (blocks == null) {
                 blocks = new ArrayList<>();
-                for (var at : chunk.getBlockEntities().keySet()) {
-                    if (blocks.size() >= AreaScan.SNAPSHOT_LIMIT) break;
-                    blocks.add(at.immutable());
+                if (blockCursor == 0) denseBlocks = chunk.getBlockEntities().size() > AreaScan.SNAPSHOT_LIMIT;
+                if (denseBlocks) {
+                    // Dense chunks use a deterministic position anchor; no mutable map iterator survives a step.
+                    var end = Math.min(level.getHeight() * 256, blockCursor + AreaScan.SNAPSHOT_LIMIT);
+                    for (; blockCursor < end; blockCursor++) {
+                        var at = new BlockPos(pos.getMinBlockX() + blockCursor % 16, level.getMinBuildHeight() + blockCursor / 256,
+                                pos.getMinBlockZ() + blockCursor / 16 % 16);
+                        if (chunk.getBlockEntities().containsKey(at)) blocks.add(at);
+                    }
+                } else {
+                    for (var at : chunk.getBlockEntities().keySet()) blocks.add(at.immutable());
                 }
-                if (chunk.getBlockEntities().size() > AreaScan.SNAPSHOT_LIMIT) notes.add("Block entity snapshot reached the per-chunk bound; some holders were not searched");
                 blockIndex = 0;
                 return false;
             }
@@ -901,19 +957,27 @@ public final class WorldTools implements KnowledgeProvider {
                 }
                 return false;
             }
+            if (denseBlocks && blockCursor < level.getHeight() * 256) {
+                blocks = null;
+                return false;
+            }
             if (entities == null) {
                 if (!level.areEntitiesLoaded(pos.toLong())) {
                     entitiesUnloaded++;
                     blocks = null;
+                    snapshot = null;
+                    blockCursor = 0;
+                    denseBlocks = false;
                     return true;
                 }
-                entities = AreaScan.entitySnapshot(level, pos, notes);
-                entityIndex = 0;
+                if (snapshot == null) snapshot = new AreaScan.EntitySnapshot();
+                if (snapshot.step(level, pos, notes)) return false;
+                entities = snapshot.ids;
                 return false;
             }
             if (level.areEntitiesLoaded(pos.toLong())) {
-                for (int read = 0; read < RESOLVE_PER_STEP && entityIndex < entities.size(); read++) {
-                    var id = entities.get(entityIndex++);
+                for (int read = 0; read < RESOLVE_PER_STEP && !entities.isEmpty(); read++) {
+                    var id = entities.pollFirst();
                     var entity = level.getEntity(id);
                     if (entity == null || entity.isRemoved()) {
                         notes.add("An entity from a chunk snapshot disappeared during the read");
@@ -930,12 +994,15 @@ public final class WorldTools implements KnowledgeProvider {
                     if (!holds(holder)) continue;
                     holders.add(Map.entry(entity instanceof ServerPlayer ? new PathRoot.Player(id) : new PathRoot.Entity(id), holder));
                 }
-                if (entityIndex < entities.size()) return false;
+                if (!entities.isEmpty()) return false;
             } else {
                 entitiesUnloaded++;
             }
             blocks = null;
             entities = null;
+            snapshot = null;
+            blockCursor = 0;
+            denseBlocks = false;
             return true;
         }
 
@@ -951,7 +1018,6 @@ public final class WorldTools implements KnowledgeProvider {
             if (unloaded > 0) all.add(unloaded + " chunks in range were not loaded and were not searched");
             if (entitiesUnloaded > 0) all.add(entitiesUnloaded + " chunks in range did not have their entities loaded yet, so entities there were not searched");
             if (gone > 0) all.add(gone + " holders from earlier pages are gone or no longer loaded");
-            if (startedAt != null && AreaScan.serverTick(level) != startedAt) all.add(AreaScan.SNAPSHOT_NOTE);
             all.addAll(notes);
             List<ItemEntry> entries = List.of();
             FindState continuation = null;
@@ -976,6 +1042,7 @@ public final class WorldTools implements KnowledgeProvider {
                 all.add("Counts cover only the containers searched for each page; an item can appear again on another page");
             }
             if (!all.isEmpty()) coverage = Evidence.Coverage.PARTIAL;
+            if (startedAt != null && AreaScan.serverTick(level) != startedAt) all.add(AreaScan.SNAPSHOT_NOTE.formatted(fromGameTime, level.getGameTime()));
             return new ItemsRead(entries, continuation, coverage, all.isEmpty() ? null : String.join("; ", all), bound);
         }
     }
@@ -1550,10 +1617,14 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private Evidence.Record entityRecord(Evidence.Scope scope, EntityHandle entity, ReadSpan span) {
+        var truncated = entity.name() != null && entity.name().length() > 1024;
+        if (truncated) entity = new EntityHandle(entity.kind(), entity.id(), entity.dimension(), entity.x(), entity.y(), entity.z(),
+                entity.name().substring(0, Character.isHighSurrogate(entity.name().charAt(1023)) ? 1023 : 1024));
         var payload = new LinkedHashMap<>(entityFacts(entity));
+        payload.put("nameTruncated", new Evidence.JsonBoolean(truncated));
         putSpan(payload, span);
         return evidence(scope, "entity|" + entity.id(), Evidence.RecordKind.OTHER, entityTitle(entity), payload,
-                Evidence.Coverage.COMPLETE, WorldNavigation.entityId(entity.id()));
+                truncated ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, WorldNavigation.entityId(entity.id()));
     }
 
     /** The listed holder's inventories with their empty slots, and the holder's own facts; only blocks and entities link. */

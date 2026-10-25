@@ -4,6 +4,10 @@
 
 ### 2026-10-26
 
+- Fixed entity snapshot resumption after section removals/recreation with bounded rescans and explicit PARTIAL coverage under repeated churn; debug conflict restoration now checks and writes in one client task. Shared world-list setup and documented snapshot paging cost; automated regressions pass, live checks pending.
+- Fixed W3: stable entity and item searches stay COMPLETE across server ticks and report their game-time span, including under /tick freeze; concrete gaps still report PARTIAL. Automated regressions pass; installed reacceptance is pending.
+
+- Fixed final-review entity and holder traversal: server steps count actual indexed candidates, content beyond 4,096 entries stays reachable, and long-name entity pages keep byte-bounded continuation with explicit name truncation. Prompt conflict recovery skips stale restores after a newer screen save. Automated regressions pass; installed checks remain pending.
 - Entity titles now give the block an entity stands in, matching F3, instead of rounding half a block up into the next one. Reads that span server ticks are detected by the server tick count, so /tick freeze no longer hides them, and their note suggests a smaller radius that fits in one tick.
 - Answers about a targeted or ridden entity now give its coordinates beside its link, like every other located thing. A live candidate run passed the W8 mule question that failed E6 ([validation record](docs/validation/2026-10-25-v2-acceptance.md#candidate-8---e6-coordinates-for-the-targeted-subject)); the installed-default recheck is pending.
 - A reported move of a noted thing now gives the note its new place: the place the player names, or the player's position when they name none. The place is cleared only when the player says it has none, and the thing keeps one note. A live candidate run passed the move, recall, old-link and retirement checks ([validation record](docs/validation/2026-10-25-v2-acceptance.md#candidate-7---m1-note-move)); the installed-default recheck is pending.

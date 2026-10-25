@@ -11,26 +11,28 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.entity.EntityTypeTest;
-import net.minecraft.util.AbortableIterationConsumer;
-import net.minecraft.world.phys.AABB;
+import net.minecraft.world.level.entity.EntitySection;
+import net.minecraft.world.level.entity.LevelEntityGetterAdapter;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 
 /**
  * Sliced block and entity scans in a sphere around a center. Block scans take one non-empty 16x16x16 chunk section
- * per step and entity scans revalidate at most 64 snapshot UUIDs per step. A chunk that is not loaded when its step runs, or unloads while its
+ * per step. Entity scans acquire at most 64 candidates (including resume checks) and revalidate at most 64 snapshot UUIDs
+ * per step. Each page re-copies its chunk snapshot, costing about N^2/64 candidate visits over all pages of N entities;
+ * acquisition stays bounded per step, with capped rescans if a section changes. A chunk that is not loaded when its step runs, or unloads while its
  * sections are read, is counted, never loaded, and makes the page PARTIAL. List cursors are
  * {@code <chunk index>:<matches to skip in that chunk>} for blocks, or a chunk index and UUID anchor for entities.
  * They stay stable while the relevant loaded content is unchanged. A scan
@@ -42,7 +44,7 @@ public final class AreaScan {
     static final String PAGE_LIMIT_NOTE = "This page holds " + LIST_PAGE + " matches, the page limit; continue with the cursor";
     private static final int SECTION_SIZE = 16;
     static final int SNAPSHOT_LIMIT = 4096;
-    static final String SNAPSHOT_NOTE = "The read spanned multiple server ticks; entities or block entities added or moved into already-read chunks may be absent; a smaller radius can be read within one tick";
+    static final String SNAPSHOT_NOTE = "The read spanned multiple server ticks; game-time span: %s..%s";
 
     private final WorldRegistry registry;
 
@@ -64,24 +66,68 @@ public final class AreaScan {
         return new BlockListSlice(level, center, radius, filter, Cursor.parse(cursor));
     }
 
-    public ServerWork.Slice<Page<EntityHandle>> listEntities(ServerLevel level, Vec3 center, int radius, KindFilter filter, String cursor) {
+    EntityListSlice listEntities(ServerLevel level, Vec3 center, int radius, KindFilter filter, String cursor) {
         return new EntityListSlice(level, center, radius, filter, cursor);
     }
 
-    /** Copies only UUIDs through the engine's spatial index; no engine iterator escapes this step. */
-    static List<UUID> entitySnapshot(ServerLevel level, ChunkPos pos, Set<String> notes) {
-        var ids = new ArrayList<UUID>();
-        level.getEntities().get(EntityTypeTest.forClass(Entity.class),
-                new AABB(pos.getMinBlockX(), level.getMinBuildHeight(), pos.getMinBlockZ(),
-                        pos.getMinBlockX() + 16, level.getMaxBuildHeight(), pos.getMinBlockZ() + 16), entity -> {
-                    if (!entity.chunkPosition().equals(pos)) return AbortableIterationConsumer.Continuation.CONTINUE;
-                    ids.add(entity.getUUID());
-                    return ids.size() >= SNAPSHOT_LIMIT ? AbortableIterationConsumer.Continuation.ABORT
-                            : AbortableIterationConsumer.Continuation.CONTINUE;
-                });
-        if (ids.size() >= SNAPSHOT_LIMIT) notes.add("Entity snapshot reached the " + SNAPSHOT_LIMIT + " per-chunk bound; use a smaller area and retry");
-        ids.sort(UUID::compareTo);
-        return ids;
+    /** Visits at most 64 section candidates per step, including nonmatches and resume-anchor checks. */
+    static final class EntitySnapshot {
+        final NavigableSet<UUID> ids = new TreeSet<>();
+        private Long section;
+        private int index;
+        private EntitySection<Entity> previousSection;
+        private int previousSize;
+        private UUID previousId;
+        private int rescans;
+
+        boolean step(ServerLevel level, ChunkPos pos, Set<String> notes) {
+            if (!(level.getEntities() instanceof LevelEntityGetterAdapter<Entity> getter)) {
+                notes.add("The entity index is unavailable; entities in this chunk could not be read");
+                return false;
+            }
+            var storage = getter.sectionStorage;
+            int visited = 0;
+            if (index > 0) {
+                var current = storage.getSection(section);
+                var changed = current != previousSection || current == null || !current.getStatus().isAccessible()
+                        || current.storage.allInstances.size() != previousSize;
+                if (!changed) {
+                    visited++;
+                    changed = !previousId.equals(current.storage.allInstances.get(index - 1).getUUID());
+                }
+                if (changed) {
+                    if (++rescans > 3) {
+                        notes.add("An entity section changed repeatedly during acquisition; this chunk snapshot is incomplete");
+                        return false;
+                    }
+                    // ArrayList removals shift unseen entities below the old index; owned UUIDs deduplicate rescans.
+                    index = 0;
+                }
+            }
+            for (; visited < LIST_PAGE; visited++) {
+                if (section == null) {
+                    var sections = storage.getChunkSections(pos.x, pos.z);
+                    if (sections.isEmpty()) return false;
+                    section = sections.firstLong();
+                }
+                var current = storage.getSection(section);
+                if (current != null && current.getStatus().isAccessible() && index < current.storage.allInstances.size()) {
+                    var entity = current.storage.allInstances.get(index++);
+                    previousSection = current;
+                    previousSize = current.storage.allInstances.size();
+                    previousId = entity.getUUID();
+                    if (entity.chunkPosition().equals(pos)) ids.add(entity.getUUID());
+                } else {
+                    // Choose the next section from a fresh sorted view; no engine iterator survives a step.
+                    var remaining = storage.getChunkSections(pos.x, pos.z).tailSet(section + 1);
+                    if (remaining.isEmpty()) return false;
+                    section = remaining.firstLong();
+                    index = 0;
+                    rescans = 0;
+                }
+            }
+            return true;
+        }
     }
 
     record Cursor(int chunk, int skip) {
@@ -492,8 +538,9 @@ public final class AreaScan {
         }
     }
 
-    /** Revalidates a bounded per-chunk UUID snapshot, resuming pages after a stable sorted anchor. */
-    private static final class EntityListSlice implements ServerWork.Slice<Page<EntityHandle>> {
+    /** Revalidates incrementally copied chunk UUIDs, resuming pages after a stable sorted anchor. */
+    static final class EntityListSlice implements ServerWork.Slice<Page<EntityHandle>> {
+        final List<String> cursors = new ArrayList<>();
         private final ServerLevel level;
         private final Vec3 center;
         private final double radiusSquared;
@@ -502,15 +549,16 @@ public final class AreaScan {
         private final List<EntityHandle> items = new ArrayList<>();
         private final Set<String> notes = new LinkedHashSet<>();
         private final Set<UUID> seen = new HashSet<>();
-        private List<UUID> entities;
+        private EntitySnapshot snapshot;
+        private NavigableSet<UUID> entities;
         private UUID anchor;
         private int chunk;
-        private int index;
         private int unloaded;
         private int entitiesUnloaded;
         private String nextCursor;
         private boolean stopped;
         private Long startedAt;
+        private long fromGameTime;
 
         EntityListSlice(ServerLevel level, Vec3 center, int radius, KindFilter filter, String cursor) {
             this.level = level;
@@ -530,29 +578,30 @@ public final class AreaScan {
         @Override
         public boolean step() {
             if (stopped || nextCursor != null || chunk >= chunks.size()) return false;
-            if (startedAt == null) startedAt = serverTick(level);
+            if (startedAt == null) {
+                startedAt = serverTick(level);
+                fromGameTime = level.getGameTime();
+            }
             var pos = chunks.get(chunk);
             if (level.getChunkSource().getChunkNow(pos.x, pos.z) == null || !level.areEntitiesLoaded(pos.toLong())) {
                 if (level.getChunkSource().getChunkNow(pos.x, pos.z) == null) unloaded++;
                 else entitiesUnloaded++;
                 entities = null;
+                snapshot = null;
                 anchor = null;
                 chunk++;
                 return chunk < chunks.size();
             }
             if (entities == null) {
-                entities = entitySnapshot(level, pos, notes);
-                index = 0;
-                if (anchor != null) {
-                    var found = Collections.binarySearch(entities, anchor);
-                    index = found >= 0 ? found + 1 : -found - 1;
-                    if (found < 0) notes.add("Entity cursor anchor is gone or moved; continuing after its UUID with partial coverage");
-                }
-                // Keep snapshot copying and holder/detail reads in separate bounded steps for dense chunks.
-                if (entities.size() > LIST_PAGE) return true;
+                if (snapshot == null) snapshot = new EntitySnapshot();
+                if (snapshot.step(level, pos, notes)) return true;
+                entities = snapshot.ids;
+                if (anchor != null && !entities.contains(anchor)) notes.add("Entity cursor anchor is gone or moved; continuing after its UUID with partial coverage");
+                // Deliver progress before the call budget can stop us and discard this acquired snapshot.
             }
-            for (int read = 0; read < LIST_PAGE && index < entities.size(); read++) {
-                var id = entities.get(index);
+            for (int read = 0; read < LIST_PAGE; read++) {
+                var id = anchor == null ? (entities.isEmpty() ? null : entities.first()) : entities.higher(anchor);
+                if (id == null) break;
                 var entity = level.getEntity(id);
                 if (entity == null || entity.isRemoved()) notes.add("An entity from a chunk snapshot disappeared during the read");
                 if (entity != null && !entity.isRemoved()) {
@@ -575,14 +624,15 @@ public final class AreaScan {
                         }
                         items.add(new EntityHandle(kind, id, level.dimension().location().toString(),
                                 entity.getX(), entity.getY(), entity.getZ(), entity.getName().getString()));
+                        cursors.add(chunk + ":" + id);
                     }
                 }
                 seen.add(id);
                 anchor = id;
-                index++;
             }
-            if (index == entities.size()) {
+            if (entities.isEmpty() || anchor != null && entities.higher(anchor) == null) {
                 entities = null;
+                snapshot = null;
                 anchor = null;
                 chunk++;
             }
@@ -591,6 +641,7 @@ public final class AreaScan {
 
         @Override
         public boolean stopEarly() {
+            if (snapshot != null && entities == null) return false;
             stopped = true;
             if (chunk < chunks.size()) nextCursor = chunk + ":" + (anchor == null ? "" : anchor);
             notes.add("Stopped at the per-call work limit while traversing chunk snapshots; continue with the cursor");
@@ -599,8 +650,10 @@ public final class AreaScan {
 
         @Override
         public Page<EntityHandle> result() {
-            if (startedAt != null && serverTick(level) != startedAt) notes.add(SNAPSHOT_NOTE);
-            return AreaScan.page(items, nextCursor, unloaded, entitiesUnloaded, notes);
+            var page = AreaScan.page(items, nextCursor, unloaded, entitiesUnloaded, notes);
+            if (startedAt == null || serverTick(level) == startedAt) return page;
+            return new Page<>(page.items(), page.nextCursor(), page.coverage(),
+                    (page.note() == null ? "" : page.note() + "; ") + SNAPSHOT_NOTE.formatted(fromGameTime, level.getGameTime()), page.loadNote());
         }
     }
 }

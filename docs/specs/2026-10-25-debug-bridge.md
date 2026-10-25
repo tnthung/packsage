@@ -12,7 +12,7 @@ Live acceptance until now has needed an agent to control the player's screen thr
 - **Powerful on purpose.** The bridge runs commands with full permission and acts as the player. That is what fixture setup needs, which is why it is off by default and local only.
 - **No new dependencies.** It is a minimal HTTP/1.1 server on a plain `ServerSocket`. The game's bundled runtime may not include the `jdk.httpserver` module.
 - **Threads.** Request handling runs on the bridge's own thread. Game access is handed to the client or server thread and awaited with a timeout. A slow or failed request never blocks either thread.
-- **Background play.** While the bridge is enabled, "pause on lost focus" is turned off, so the game keeps running when the window is in the background.
+- **Background play.** While the bridge is enabled, "pause on lost focus" is turned off during gameplay and on the PackSage screen, so the game keeps running in the background. Other screens use the original preference so options-screen saves preserve it; normal shutdown restores and saves the original preference.
 
 ## Endpoints
 
@@ -27,7 +27,7 @@ All bodies are JSON. Errors return `{"error": "..."}` with a 4xx or 5xx status.
 | `POST /player/open` `{x, y, z}` or `{entity}` | Opens a block or entity menu as the player |
 | `POST /player/menu/move` `{slot, shift?}` | Clicks or shift-clicks a slot in the open menu as the player, so container transfers are recorded |
 | `POST /player/menu/close` | Closes the open menu |
-| `POST /chat` `{question, conversation?}` | Sends a message through the normal chat path. `conversation` is `"new"` (default) or an existing id. Returns the conversation and request ids. |
+| `POST /chat` `{question, conversation?, screenshot?, webSearch?}` | Sends a message through the normal chat path. `conversation` is `"new"` (default) or an existing id. Optional booleans override the screen's current toggles for this request; initial defaults are screenshot true and explicit web search false. Returns the conversation and request ids. |
 | `GET /chat/{requestId}` | Status (`active`, `completed`, `failed`, `cancelled`), final reply text, each tool call with its arguments, result coverage, detail and record count, navigation targets, citations, and the timing log values for the request |
 | `GET /prompt`, `POST /prompt` `{text}` | Reads or replaces the developer prompt override, as the in-game editor does. `{text: null}` clears it. |
 | `POST /navigate` `{requestId, targetId}` | Opens one of that reply's navigation targets, as a player click would, and returns the navigation result |

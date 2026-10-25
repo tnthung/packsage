@@ -6,6 +6,7 @@ import dev.packsage.knowledge.Toolbox.Failure;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.world.minecraft.MinecraftLoot;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceKey;
@@ -35,18 +36,22 @@ final class WorldKnowledgeTools {
             + " its contents are read with list_items";
 
     /** What a loot read found on the server thread. */
-    private sealed interface Loot permits LootRead, NoPendingLoot, NotLiving {
+    private sealed interface Loot permits LootFetch, NoPendingLoot, NotLiving {
     }
 
     /**
-     * A resolved table, encoded when it exists. Place and seed are set for a container's pending loot; readAt is the
-     * game time of the read.
+     * A resolved table as the server step looked it up, not encoded yet, with the registries to encode it against. Both
+     * are immutable after a reload. Place and seed are set for a container's pending loot; readAt is the game time.
      */
-    private record LootRead(String id, String resolvedFrom, Optional<MinecraftLoot.Encoded> table, BlockPlace place, Long seed,
-                            long readAt) implements Loot {
+    record LootFetch(String id, String resolvedFrom, Optional<LootTable> table, HolderLookup.Provider registries, BlockPlace place,
+                     Long seed, long readAt) implements Loot {
     }
 
-    private record NoPendingLoot(BlockPlace place, String block, long readAt) implements Loot {
+    /** A fetched table encoded on the worker, when it exists. */
+    record LootRead(String id, String resolvedFrom, Optional<MinecraftLoot.Encoded> table, BlockPlace place, Long seed, long readAt) {
+    }
+
+    record NoPendingLoot(BlockPlace place, String block, long readAt) implements Loot {
     }
 
     /** An entity without a death loot table, named by its type and id. */
@@ -86,15 +91,17 @@ final class WorldKnowledgeTools {
         } catch (IllegalArgumentException exception) {
             throw WorldTools.invalid(exception.getMessage());
         }
-        return calls.run(server, WorldTools.once(() -> lootRead(server, key, "table", null, null)))
-                .thenApply(read -> lootRecord(scope, read, read.table().map(table -> MinecraftLoot.page(table, 0)).orElse(null), 0));
+        return calls.run(server, WorldTools.once(() -> lootFetch(server, key, "table", null, null))).thenApply(fetched -> {
+            var read = encoded(fetched);
+            return lootRecord(scope, read, read.table().map(table -> MinecraftLoot.page(table, 0)).orElse(null), 0);
+        });
     }
 
     // read_loot
 
     /**
-     * Resolves the table and encodes it in one server-thread step; every page, including the first, is built on the
-     * worker. Reading never rolls the table or unpacks a container.
+     * Resolves and looks up the table in one server-thread step; encoding and every page, including the first, run on
+     * the worker. Reading never rolls the table or unpacks a container.
      */
     private CompletionStage<Evidence.Result> readLoot(PackSageTools.ReadRequest request) {
         exactlyOne(request, List.of("table", "block", "entity", "place"));
@@ -107,21 +114,21 @@ final class WorldKnowledgeTools {
         ServerWork.Slice<Loot> read;
         if (WorldTools.argument(request, "table") != null) {
             var id = WorldTools.requiredText(request, "table");
-            read = WorldTools.once(() -> lootRead(server, MinecraftLoot.table(id), "table", null, null));
+            read = WorldTools.once(() -> lootFetch(server, MinecraftLoot.table(id), "table", null, null));
         } else if (WorldTools.argument(request, "block") != null) {
             var id = WorldTools.requiredText(request, "block");
-            read = WorldTools.once(() -> lootRead(server, MinecraftLoot.blockTable(id), "block:" + id, null, null));
+            read = WorldTools.once(() -> lootFetch(server, MinecraftLoot.blockTable(id), "block:" + id, null, null));
         } else if (WorldTools.argument(request, "entity") != null) {
             var text = WorldTools.requiredText(request, "entity");
             var id = uuidOrNull(text);
-            read = WorldTools.once(() -> id == null ? lootRead(server, MinecraftLoot.entityTypeTable(text), "entity:" + text, null, null)
+            read = WorldTools.once(() -> id == null ? lootFetch(server, MinecraftLoot.entityTypeTable(text), "entity:" + text, null, null)
                     : entityLoot(server, id));
         } else {
             var place = WorldTools.place(WorldTools.requiredText(request, "place"));
             read = WorldTools.once(() -> containerLoot(server, place));
         }
         return calls.run(server, read).thenApply(loot -> switch (loot) {
-            case LootRead found -> lootResult(request, found, 0);
+            case LootFetch fetched -> lootResult(request, encoded(fetched), 0);
             case NoPendingLoot none -> WorldTools.result(List.of(noPendingRecord(request.scope(), none)), Evidence.Coverage.COMPLETE,
                     null, NO_PENDING_LOOT);
             case NotLiving entity -> WorldTools.result(List.of(), Evidence.Coverage.COMPLETE, null,
@@ -129,7 +136,7 @@ final class WorldKnowledgeTools {
         });
     }
 
-    private Evidence.Result lootResult(PackSageTools.ReadRequest request, LootRead read, int fromPool) {
+    Evidence.Result lootResult(PackSageTools.ReadRequest request, LootRead read, int fromPool) {
         var page = read.table().map(table -> MinecraftLoot.page(table, fromPool)).orElse(null);
         var next = page == null || page.nextPool() == -1 ? null : calls.remember(request, new LootState(read, page.nextPool()));
         var record = lootRecord(request.scope(), read, page, fromPool);
@@ -143,28 +150,47 @@ final class WorldKnowledgeTools {
         if (entity == null) throw new Failure(Code.UNAVAILABLE, "no loaded entity has id " + id);
         var key = MinecraftLoot.entityTable(entity);
         if (key == null) return new NotLiving(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()) + " " + id);
-        return lootRead(server, key, "entity:" + id, null, null);
+        return lootFetch(server, key, "entity:" + id, null, null);
     }
 
     /** Server thread only. Reads the container's pending table and seed, never its slots, which would unpack it. */
     private static Loot containerLoot(MinecraftServer server, BlockPlace place) {
         var level = WorldTools.level(server, place.dimension());
         var pos = new BlockPos(place.x(), place.y(), place.z());
-        if (!WorldTools.loaded(level, pos)) throw new Failure(Code.UNAVAILABLE, "the chunk at " + place.text() + " is not loaded");
         var chunk = level.getChunkSource().getChunkNow(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ()));
+        if (chunk == null) throw new Failure(Code.UNAVAILABLE, "the chunk at " + place.text() + " is not loaded");
         var pending = MinecraftLoot.pending(chunk.getBlockEntity(pos, LevelChunk.EntityCreationType.CHECK));
         if (pending == null) {
             return new NoPendingLoot(place, BuiltInRegistries.BLOCK.getKey(chunk.getBlockState(pos).getBlock()).toString(),
                     server.overworld().getGameTime());
         }
-        return lootRead(server, pending.table(), "place:" + place.text(), place, pending.seed());
+        return lootFetch(server, pending.table(), "place:" + place.text(), place, pending.seed());
     }
 
     /** Server thread only. Tables come from the reloadable registries, so data-pack overrides apply. */
-    private static LootRead lootRead(MinecraftServer server, ResourceKey<LootTable> key, String resolvedFrom, BlockPlace place, Long seed) {
-        var registries = server.reloadableRegistries().get();
-        var table = MinecraftLoot.lookup(registries, key).map(found -> MinecraftLoot.encode(found, registries));
-        return new LootRead(key.location().toString(), resolvedFrom, table, place, seed, server.overworld().getGameTime());
+    private static LootFetch lootFetch(MinecraftServer server, ResourceKey<LootTable> key, String resolvedFrom, BlockPlace place, Long seed) {
+        return fetch(server.reloadableRegistries().get(), key, resolvedFrom, place, seed, server.overworld().getGameTime());
+    }
+
+    /** Looks the table up only; encoding it is left to the worker. */
+    static LootFetch fetch(HolderLookup.Provider registries, ResourceKey<LootTable> key, String resolvedFrom, BlockPlace place, Long seed,
+                           long readAt) {
+        return new LootFetch(key.location().toString(), resolvedFrom, MinecraftLoot.lookup(registries, key), registries, place, seed, readAt);
+    }
+
+    /**
+     * Worker only: encodes the fetched table with its codec, which has no side effects. A table the codec cannot encode
+     * fails as an extraction failure, as it would inside a server read.
+     */
+    static LootRead encoded(LootFetch fetched) {
+        Optional<MinecraftLoot.Encoded> table;
+        try {
+            table = fetched.table().map(found -> MinecraftLoot.encode(found, fetched.registries()));
+        } catch (RuntimeException exception) {
+            throw new Failure(Code.EXTRACTION_FAILED, "loot table " + fetched.id() + " could not be encoded: "
+                    + (exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage()));
+        }
+        return new LootRead(fetched.id(), fetched.resolvedFrom(), table, fetched.place(), fetched.seed(), fetched.readAt());
     }
 
     /** The table's facts on one page; page is null when the table does not exist. */
@@ -205,7 +231,7 @@ final class WorldKnowledgeTools {
                 partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, read.place() == null ? null : WorldNavigation.blockId(read.place()));
     }
 
-    private static Evidence.Record noPendingRecord(Evidence.Scope scope, NoPendingLoot none) {
+    static Evidence.Record noPendingRecord(Evidence.Scope scope, NoPendingLoot none) {
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("resolvedFrom", WorldTools.text("place:" + none.place().text()));
         payload.put("place", WorldTools.text(none.place().text()));
@@ -213,7 +239,7 @@ final class WorldKnowledgeTools {
         payload.put("pending", new Evidence.JsonBoolean(false));
         payload.put("note", WorldTools.text(NO_PENDING_LOOT));
         payload.put("readAt", WorldTools.number(none.readAt()));
-        return WorldTools.evidence(scope, "block|" + none.place().text(), Evidence.RecordKind.OTHER, "No pending loot at " + none.place().text(),
+        return WorldTools.evidence(scope, "block|" + none.place().text(), Evidence.RecordKind.BLOCK, "No pending loot at " + none.place().text(),
                 payload, Evidence.Coverage.COMPLETE, WorldNavigation.blockId(none.place()));
     }
 
@@ -236,11 +262,11 @@ final class WorldKnowledgeTools {
         return new Evidence.JsonArray(values.stream().map(value -> (Evidence.JsonValue) WorldTools.text(value)).toList());
     }
 
-    /** The entity input names a loaded entity when it is a UUID, and an entity type otherwise. */
-    private static UUID uuidOrNull(String text) {
+    /** The entity input names a loaded entity when it is a UUID, in either case, and an entity type otherwise. */
+    static UUID uuidOrNull(String text) {
         try {
             var id = UUID.fromString(text);
-            return id.toString().equals(text) ? id : null;
+            return id.toString().equalsIgnoreCase(text) ? id : null;
         } catch (IllegalArgumentException ignored) {
             return null;
         }

@@ -89,8 +89,9 @@ public final class MinecraftLoot {
     }
 
     /**
-     * The table registered under the key in the loaded data packs; empty when none is. {@code minecraft:empty} is the
-     * game's built-in table that drops nothing, so it is always present.
+     * The table registered under the key in the loaded data packs; empty when none is. The game registers
+     * {@code minecraft:empty}, the table that drops nothing, on every reload; it is also answered for a registry
+     * without it, so it never reads as unknown.
      */
     public static Optional<LootTable> lookup(HolderLookup.Provider registries, ResourceKey<LootTable> key) {
         var table = registries.lookup(Registries.LOOT_TABLE).flatMap(lookup -> lookup.get(key)).map(Holder::value);

@@ -4,6 +4,8 @@ import dev.packsage.knowledge.Evidence;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -52,7 +54,7 @@ class AreaScanTest {
                 new KindFilter(List.of("minecraft:zombie"), List.of(), ""), null);
         while (world.visited == 0) assertTrue(slice.step());
         world.entities.remove(world.entities.size() - 1);
-        world.entities.add(new net.minecraft.world.entity.item.ItemEntity(net.minecraft.world.entity.EntityType.ITEM, world));
+        world.entities.add(new ItemEntity(EntityType.ITEM, world));
         while (slice.step()) {
         }
         assertEquals(Evidence.Coverage.PARTIAL, slice.result().coverage());
@@ -67,6 +69,23 @@ class AreaScanTest {
         while (slice.step()) {
         }
         assertEquals(1, slice.result().items().size());
+    }
+
+    @Test
+    void aMissingUuidAnchorContinuesWithAnExplicitPartialNote() throws Exception {
+        var world = DenseWorld.create(130);
+        var scan = new AreaScan(new WorldRegistry());
+        var first = scan.listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, null);
+        while (first.step()) {
+        }
+        world.entities.removeIf(entity -> entity.getUUID().equals(first.result().items().getLast().id()));
+        var next = scan.listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, first.result().nextCursor());
+        while (next.step()) {
+        }
+        assertEquals(64, next.result().items().size());
+        assertEquals(Evidence.Coverage.PARTIAL, next.result().coverage());
+        assertTrue(next.result().note().contains("anchor is gone"));
+        assertTrue(next.result().items().stream().noneMatch(entity -> first.result().items().stream().anyMatch(previous -> previous.id().equals(entity.id()))));
     }
 
     @Test

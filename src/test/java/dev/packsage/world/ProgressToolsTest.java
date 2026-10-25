@@ -39,6 +39,28 @@ class ProgressToolsTest {
         Bootstrap.bootStrap();
     }
 
+    @Test
+    void statisticsPreserveAnInnerRetryNoteAsPartialCoverage() throws Exception {
+        var fixture = new Fixture();
+        fixture.registry.register(new StatisticReader() {
+            @Override public String adapterId() { return "changing"; }
+            @Override public List<String> categories() { return List.of("mined"); }
+            @Override public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+                return new ServerWork.Slice<>() {
+                    @Override public boolean step() { return false; }
+                    @Override public List<Statistic> result() {
+                        return List.of(new Statistic("changing", "mined", "minecraft:stone", "Stone", 1, StatisticUnit.COUNT, 1));
+                    }
+                    @Override public String note() { return "Counters kept changing; repeat list_statistics"; }
+                };
+            }
+        });
+        var result = fixture.call("list_statistics", "{}");
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertEquals(Evidence.Coverage.PARTIAL, result.records().getFirst().source().coverage());
+        assertTrue(result.detail().contains("repeat list_statistics"));
+    }
+
     private static final class Fixture {
         final ServerWork work;
         final WorldRegistry registry = new WorldRegistry();

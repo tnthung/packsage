@@ -269,6 +269,23 @@ class MinecraftStatisticsTest {
     }
 
     @Test
+    void repeatedCounterGrowthStopsWithARetryNoteAfterBoundedRestarts() {
+        var stats = BuiltInRegistries.ITEM.stream().map(Stats.ITEM_CRAFTED::get).toList();
+        var map = new Object2IntOpenHashMap<Stat<?>>();
+        for (var i = 0; i < MinecraftStatistics.STEP_ENTRIES + 1; i++) map.put(stats.get(i), 1);
+        var slice = statistics.statistics(() -> map, List.of("crafted"), KindFilter.ANY);
+        assertTrue(slice.step());
+        var changes = 0;
+        boolean more;
+        do {
+            map.put(stats.get(MinecraftStatistics.STEP_ENTRIES + 1 + changes++), 1);
+            more = slice.step();
+            assertTrue(changes <= 4);
+        } while (more);
+        assertTrue(slice.note().contains("repeat list_statistics"));
+    }
+
+    @Test
     void copyingALargeCounterVisitsAtMostOneBatchPerStep() {
         var visited = new AtomicInteger();
         var map = new Object2IntOpenHashMap<Stat<?>>() {

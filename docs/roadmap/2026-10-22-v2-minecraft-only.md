@@ -32,7 +32,7 @@ The [plan](../plans/2026-10-22-v2-world-reading.md) is implemented. The [validat
 
 - [x] World tools: `inspect_area`, `list_blocks`, `list_entities`, `inspect_block`, `inspect_entity`, `list_items`, `inspect_item` and `find_items`, on singleplayer integrated-server reads paced across ticks. Multiplayer reports them as unavailable.
 - [x] Inventory identity, item paths through nested holders, and two-step reading: list ids first, then inspect metadata.
-- [x] Block and mob highlights from reply links.
+- [x] Block and mob highlights from reply links, labeled `Show …`: installed check passed (Round 3).
 - [x] Storage search: installed check passed (Round 1).
 - [x] Iron-farm facts: installed check passed (Round 1).
 - [x] Nested mob storage, mule chest to shulker box to bundle: installed check passed (Round 1).
@@ -41,7 +41,7 @@ The [plan](../plans/2026-10-22-v2-world-reading.md) is implemented. The [validat
 - [x] Final-review fixes on the installed build: pacing with the world running and paused, and per-holder links for stone, passed (Round 2).
 - [ ] Villager time fields: facts were cited, but the reply did not reason from `gameTime`, and `golemDetectedUntil` was not exercised (Round 2, partial). Belongs with the prompt plan.
 - [x] Saved highlight links across a full Minecraft restart: installed check passed (Round 2).
-- [ ] N1: fixed, and automated tests pass. Installed recheck pending with the big-storage question. Reproduced in game in Round 2: 72 item types returned 55, with no holder records and a null cursor. A full page of found items with holder records exceeds the 64-record tool-output limit. That drops holder links and the continuation, and replaces the page notes. See the final re-review in `.superpowers/sdd/2026-10-22-v2-world-reading/final-rereview.md`.
+- [x] N1: fixed; installed recheck passed in Round 3 with 64 records per page (52 items and 12 holders) and a cursor for the rest. Reproduced in game in Round 2: 72 item types returned 55, with no holder records and a null cursor. A full page of found items with holder records exceeds the 64-record tool-output limit. That drops holder links and the continuation, and replaces the page notes. See the final re-review in `.superpowers/sdd/2026-10-22-v2-world-reading/final-rereview.md`.
 - [ ] Minor review backlog:
   - N2: the paused-work flag can stay set.
   - N3: a tick can run on the client thread when the server has stopped.
@@ -56,7 +56,9 @@ The [plan](../plans/2026-10-22-v2-world-reading.md) is implemented. The [validat
   - the armor reply omitted eligible enchantments that the evidence returned;
   - the mule reply gave no coordinates;
   - prefer `find_items` before per-holder listing;
-  - consider an `includeNested` option for `list_items`.
+  - consider an `includeNested` option for `list_items`;
+  - continue a broad `find_items` cursor when the question asks what is stored (Round 3 stopped after the first page and said so);
+  - a reply ended with a malformed source token, `[ref:e36be868.1.1f)`, shown raw instead of a source chip (Round 3).
 - [ ] Log when a tool call is received and when its result is sent, so model time and tool time can be separated in response timing.
 
 ## Open

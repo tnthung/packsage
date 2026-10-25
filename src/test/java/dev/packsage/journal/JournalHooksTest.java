@@ -92,7 +92,8 @@ class JournalHooksTest {
                 }, stats).isEmpty());
         assertEquals(8_192, reads.get());
         assertEquals(0, stats.droppedExplosionPositions());
-        assertEquals(1, stats.hookFailures(), "an unread tail must keep searches partial without counting unknown blocks as drops");
+        assertEquals(0, stats.hookFailures());
+        assertEquals(1_808, stats.unreadExplosionPositions(), "unknown blocks are neither confirmed drops nor hook failures");
     }
 
     @Test

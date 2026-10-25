@@ -121,6 +121,9 @@ public final class JournalSearch {
                 if (stats != null && stats.failedEvents() > 0) {
                     reasons.add(stats.failedEvents() + " events failed to record");
                 }
+                if (stats != null && stats.unreadExplosionPositions() > 0) {
+                    reasons.add(stats.unreadExplosionPositions() + " unread explosion positions may contain unrecorded block breaks");
+                }
                 if (stats != null && (stats.hookFailures() > 0 || stats.droppedExplosionPositions() > 0
                         || stats.trackerEvictions() > 0 || stats.oversizedSnapshots() > 0)) {
                     reasons.add("recording may be incomplete: " + stats.hookFailures() + " hook failures, "

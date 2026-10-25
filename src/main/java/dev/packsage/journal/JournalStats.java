@@ -21,6 +21,7 @@ public final class JournalStats {
     final LongAdder failedEvents = new LongAdder();
     final LongAdder hookFailures = new LongAdder();
     final LongAdder droppedExplosionPositions = new LongAdder();
+    final LongAdder unreadExplosionPositions = new LongAdder();
     final LongAdder trackerEvictions = new LongAdder();
     final LongAdder oversizedSnapshots = new LongAdder();
     final AtomicLong maxBatchMillis = new AtomicLong();
@@ -52,6 +53,10 @@ public final class JournalStats {
         return droppedExplosionPositions.sum();
     }
 
+    public long unreadExplosionPositions() {
+        return unreadExplosionPositions.sum();
+    }
+
     public long trackerEvictions() {
         return trackerEvictions.sum();
     }
@@ -67,7 +72,8 @@ public final class JournalStats {
     public String summary() {
         return "journal: offered " + offered.sum() + ", written " + written.sum() + " (overflowed " + overflowed.sum()
                 + "), failed " + failedEvents.sum() + ", hook failures " + hookFailures.sum()
-                + ", dropped explosion positions " + droppedExplosionPositions.sum() + ", tracker evictions "
+                + ", dropped explosion positions " + droppedExplosionPositions.sum() + ", unread explosion positions "
+                + unreadExplosionPositions.sum() + ", tracker evictions "
                 + trackerEvictions.sum() + ", oversized snapshots " + oversizedSnapshots.sum()
                 + ", slowest batch " + maxBatchMillis.get() + " ms, hooks "
                 + totalHookNanos.sum() / 1_000_000 + " ms total, slowest tick " + maxHookNanosPerTick.get() / 1_000 + " us";

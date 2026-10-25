@@ -22,7 +22,6 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.PlayerAdvancements;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.math.BigDecimal;
@@ -35,7 +34,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -76,16 +74,9 @@ public final class MinecraftProgress implements ProgressReader {
     private static Source source(ServerPlayer player) {
         var server = player.getServer();
         var registries = player.registryAccess();
-        try {
-            // Read vanilla's packet visibility set on the server thread, without evaluating or flushing dirty progress.
-            var field = PlayerAdvancements.class.getDeclaredField("visible");
-            field.setAccessible(true);
-            var visible = (Set<?>) field.get(player.getAdvancements());
-            return new Source(server::getAdvancements, () -> server.getAdvancements().tree(), player.getAdvancements()::getOrStartProgress,
-                    visible::contains, name -> criterionLabel(registries, name));
-        } catch (ReflectiveOperationException | RuntimeException failure) {
-            throw new IllegalStateException("advancement tab visibility could not be read", failure);
-        }
+        // Read vanilla's packet visibility set on the server thread, without evaluating or flushing dirty progress.
+        return new Source(server::getAdvancements, () -> server.getAdvancements().tree(), player.getAdvancements()::getOrStartProgress,
+                player.getAdvancements().visible::contains, name -> criterionLabel(registries, name));
     }
 
     /** A biome, entity type or item named by the criterion gives its translated name; anything else is the name itself. */

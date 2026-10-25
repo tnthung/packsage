@@ -553,7 +553,7 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("inventories", inventories(inventories));
         putTime(payload, level);
         return evidence(scope, "block|" + place.text(), Evidence.RecordKind.BLOCK, kind + " at " + place.text(), payload,
-                coverage(sections, inventories), WorldNavigation.blockId(place));
+                coverage(sections, inventories), state.isAir() ? null : WorldNavigation.blockId(place));
     }
 
     private Evidence.Record inspectEntity(MinecraftServer server, UUID id, Evidence.Scope scope) {

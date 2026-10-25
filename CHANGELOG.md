@@ -4,6 +4,7 @@
 
 ### 2026-10-25
 
+- Inspected air blocks no longer offer a Show link that cannot resolve. Ordinary block inspection and its highlight links keep their existing behavior.
 - Fixed debug bridge navigation rejecting repeated links to the same destination in one reply. It selects the first source for the same provider and target id, while rejecting missing targets and collisions between providers.
 - Fixed the singleplayer journal staying closed when PackSage starts after the world. Hooks now recover the active world on its server thread, including while paused, without reopening an existing journal session. Automated startup-order regression checks cover registration before, during and after server start; installed verification is pending.
 

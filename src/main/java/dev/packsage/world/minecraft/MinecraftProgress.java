@@ -30,6 +30,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -48,8 +49,10 @@ import java.util.function.Supplier;
 public final class MinecraftProgress implements ProgressReader {
     static final int STEP_NODES = 64;
     static final String RELOADED_NOTE = "advancements were reloaded during the read; repeat it";
-    private static final Comparator<AdvancementNode> BY_ID = Comparator.comparing(node -> node.holder().id().toString());
-    private final Map<Object, Map<String, String>> hiddenIds = new WeakHashMap<>();
+    private final Map<Object, HiddenIds> hiddenIds = new WeakHashMap<>();
+
+    private record HiddenIds(Map<String, String> aliases, Map<String, String> originals) {
+    }
 
     /**
      * What a read needs from the server. {@code generation} is an identity token for the loaded advancement set, which a
@@ -58,6 +61,11 @@ public final class MinecraftProgress implements ProgressReader {
      */
     record Source(Object world, Supplier<Object> generation, Supplier<AdvancementTree> tree, Function<AdvancementHolder, AdvancementProgress> progress,
                   Predicate<AdvancementHolder> visible, Function<String, String> criterionLabel) {
+        /** Keep progress lookups shared by ordering, handles and ids within one read. */
+        private Source cached() {
+            var values = new HashMap<AdvancementHolder, AdvancementProgress>();
+            return new Source(world, generation, tree, holder -> values.computeIfAbsent(holder, progress), visible, criterionLabel);
+        }
     }
 
     @Override
@@ -98,7 +106,7 @@ public final class MinecraftProgress implements ProgressReader {
     }
 
     ServerWork.Slice<ProgressSnapshot> snapshot(Source source) {
-        return new Read(source);
+        return new Read(source.cached());
     }
 
     /** {@code parentDone} is null for a root. */
@@ -109,18 +117,21 @@ public final class MinecraftProgress implements ProgressReader {
         return parentDone == null || parentDone ? ProgressStatus.AVAILABLE : ProgressStatus.LOCKED;
     }
 
-    /** Null when {@code local} is not a displayed advancement of a displayed root in the current tree. */
+    /** Null for absent entries and real ids of unearned hidden advancements; only their session aliases resolve. */
     Progress inspect(Source source, String local) {
-        var id = ResourceLocation.tryParse(hiddenIds.getOrDefault(source.world(), Map.of()).entrySet().stream()
-                .filter(entry -> entry.getValue().equals(local)).map(Map.Entry::getKey).findFirst().orElse(local));
+        var aliases = hiddenIds.get(source.world());
+        var original = aliases == null ? null : aliases.originals().get(local);
+        var id = ResourceLocation.tryParse(original == null ? local : original);
         if (id == null) return null;
         var node = source.tree().get().get(id);
         if (node == null || node.advancement().display().isEmpty() || node.root().advancement().display().isEmpty()) return null;
-        var tree = id(source, node.root());
+        source = source.cached();
+        var progress = source.progress().apply(node.holder());
+        if (node.advancement().display().get().isHidden() && !progress.isDone() && original == null) return null;
+        var tree = id(source, node.root(), source.progress().apply(node.root().holder()));
         var tabVisible = tree.equals(id(node.root())) && source.visible().test(node.root().holder());
         var parent = displayedParent(node);
         var parentProgress = parent == null ? null : source.progress().apply(parent.holder());
-        var progress = source.progress().apply(node.holder());
         var handle = handle(source, node, tree, progress, parentProgress == null ? null : parentProgress.isDone(), tabVisible);
         if (handle.status() == ProgressStatus.HIDDEN) return Progress.hidden(handle);
 
@@ -131,7 +142,7 @@ public final class MinecraftProgress implements ProgressReader {
                     grandparent == null ? null : source.progress().apply(grandparent.holder()).isDone(), tabVisible));
         }
         var unlocks = new ArrayList<ProgressHandle>();
-        for (var child : displayedChildren(node)) {
+        for (var child : displayedChildren(source, node)) {
             unlocks.add(handle(source, child, tree, source.progress().apply(child.holder()), progress.isDone(), tabVisible));
         }
 
@@ -177,7 +188,8 @@ public final class MinecraftProgress implements ProgressReader {
     }
 
     /**
-     * Walks each displayed root depth-first, at most {@link #STEP_NODES} nodes a step, roots and siblings in id order.
+     * Walks each displayed root depth-first, at most {@link #STEP_NODES} nodes a step. Visible roots and siblings use id
+     * order; unearned hidden ones follow them in alias order.
      * A node without a display is not listed, but its displayed descendants are, under its nearest displayed ancestor.
      * A partial read lists only the trees it finished counting.
      */
@@ -212,7 +224,7 @@ public final class MinecraftProgress implements ProgressReader {
                 for (var node : source.tree().get().roots()) {
                     if (node.advancement().display().isPresent()) roots.add(node);
                 }
-                roots.sort(BY_ID);
+                roots = sorted(source, roots);
             } else if (source.generation().get() != generation) {
                 note = RELOADED_NOTE;
                 return false;
@@ -225,7 +237,7 @@ public final class MinecraftProgress implements ProgressReader {
                     }
                     if (nextRoot == roots.size()) return false;
                     root = roots.get(nextRoot++);
-                    tree = id(source, root);
+                    tree = id(source, root, source.progress().apply(root.holder()));
                     tabVisible = tree.equals(id(root)) && source.visible().test(root.holder());
                     done = 0;
                     total = 0;
@@ -248,7 +260,7 @@ public final class MinecraftProgress implements ProgressReader {
                 if (progress.isDone()) done++;
                 parentDone = progress.isDone();
             }
-            var children = sorted(node.children());
+            var children = sorted(source, node.children());
             for (var i = children.size() - 1; i >= 0; i--) {
                 pending.push(new Pending(children.get(i), parentDone));
             }
@@ -263,14 +275,18 @@ public final class MinecraftProgress implements ProgressReader {
     private ProgressHandle handle(Source source, AdvancementNode node, ProgressId tree, AdvancementProgress progress, Boolean parentDone, boolean tabVisible) {
         var display = node.advancement().display().orElseThrow();
         var status = status(progress.isDone(), progress.hasProgress(), display.isHidden(), parentDone);
-        return new ProgressHandle(id(source, node), tree, status == ProgressStatus.HIDDEN ? null : title(node), status, tabVisible);
+        return new ProgressHandle(id(source, node, progress), tree, status == ProgressStatus.HIDDEN ? null : title(node), status, tabVisible);
     }
 
     /** Random aliases reveal no namespace or path; only this world's server session can resolve them. */
-    private ProgressId id(Source source, AdvancementNode node) {
-        if (node.advancement().display().orElseThrow().isHidden() && !source.progress().apply(node.holder()).isDone()) {
-            return new ProgressId(MinecraftInventories.ADAPTER, hiddenIds.computeIfAbsent(source.world(), ignored -> new LinkedHashMap<>())
-                    .computeIfAbsent(node.holder().id().toString(), ignored -> "hidden:" + UUID.randomUUID()));
+    private ProgressId id(Source source, AdvancementNode node, AdvancementProgress progress) {
+        if (node.advancement().display().orElseThrow().isHidden() && !progress.isDone()) {
+            var aliases = hiddenIds.computeIfAbsent(source.world(), ignored -> new HiddenIds(new LinkedHashMap<>(), new LinkedHashMap<>()));
+            return new ProgressId(MinecraftInventories.ADAPTER, aliases.aliases().computeIfAbsent(node.holder().id().toString(), original -> {
+                var alias = "hidden:" + UUID.randomUUID();
+                aliases.originals().put(alias, original);
+                return alias;
+            }));
         }
         return id(node);
     }
@@ -297,23 +313,31 @@ public final class MinecraftProgress implements ProgressReader {
         return parent;
     }
 
-    private static List<AdvancementNode> displayedChildren(AdvancementNode node) {
+    private List<AdvancementNode> displayedChildren(Source source, AdvancementNode node) {
         var children = new ArrayList<AdvancementNode>();
-        for (var child : sorted(node.children())) {
+        for (var child : sorted(source, node.children())) {
             if (child.advancement().display().isPresent()) {
                 children.add(child);
             } else {
-                children.addAll(displayedChildren(child));
+                children.addAll(displayedChildren(source, child));
             }
         }
         return children;
     }
 
-    /** Vanilla keeps children in an identity-hash set; id order makes the listing a function of content. */
-    private static List<AdvancementNode> sorted(Iterable<AdvancementNode> nodes) {
+    /** Keep visible content order stable without exposing the real ids through hidden sibling positions. */
+    private List<AdvancementNode> sorted(Source source, Iterable<AdvancementNode> nodes) {
         var list = new ArrayList<AdvancementNode>();
         nodes.forEach(list::add);
-        list.sort(BY_ID);
+        var hidden = new HashMap<AdvancementNode, String>();
+        for (var node : list) {
+            if (node.advancement().display().isPresent() && node.advancement().display().get().isHidden()) {
+                var progress = source.progress().apply(node.holder());
+                if (!progress.isDone()) hidden.put(node, id(source, node, progress).local());
+            }
+        }
+        list.sort(Comparator.comparing((AdvancementNode node) -> hidden.containsKey(node))
+                .thenComparing(node -> hidden.getOrDefault(node, node.holder().id().toString())));
         return list;
     }
 

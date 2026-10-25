@@ -108,8 +108,13 @@ public final class CommandReader<S> {
                 } catch (RuntimeException exception) {
                     type = typed.getType().getClass().getSimpleName();
                 }
-                argument = new Argument("", child.getName(), type,
-                        typed.getType().getExamples().stream().limit(4).toList(), allowed);
+                List<String> examples;
+                try {
+                    examples = typed.getType().getExamples().stream().limit(4).toList();
+                } catch (RuntimeException exception) {
+                    examples = List.of();
+                }
+                argument = new Argument("", child.getName(), type, examples, allowed);
             }
             if (argument != null && skipped++ >= argumentOffset) {
                 if (arguments.size() == MAX_ARGUMENTS) {

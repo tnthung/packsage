@@ -25,6 +25,7 @@ public final class PackSageTools {
     private static final String WORLD_ANCHOR = "{\"type\":[\"object\",\"null\"],\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"player\",\"entity\",\"block\"]},\"id\":{\"type\":[\"string\",\"null\"],\"maxLength\":36},\"place\":{\"type\":[\"string\",\"null\"],\"maxLength\":300}},\"required\":[\"type\"],\"additionalProperties\":false}";
     private static final String WORLD_RADIUS = "{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":256}";
     private static final String WORLD_FILTER = "{\"type\":\"object\",\"properties\":{\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256}},\"additionalProperties\":false}";
+    private static final String WORLD_ITEM_FILTER = "{\"type\":\"object\",\"properties\":{\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256},\"tooltip\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}}},\"additionalProperties\":false}";
     private static final String WORLD_CURSOR = "{\"type\":[\"string\",\"null\"],\"maxLength\":1024}";
     private static final List<String> NATIVE_REGISTRIES = List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion", "active_effect", "player_attribute", "dimension", "dimension_type");
     private static final com.google.gson.Gson JSON = new com.google.gson.GsonBuilder().serializeNulls()
@@ -129,7 +130,7 @@ public final class PackSageTools {
                 case "list_items" -> {
                     properties.add("holder", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":2048}"));
                     properties.add("inventory", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256}"));
-                    var filter = JsonParser.parseString(WORLD_FILTER).getAsJsonObject();
+                    var filter = JsonParser.parseString(WORLD_ITEM_FILTER).getAsJsonObject();
                     filter.add("type", JsonParser.parseString("[\"object\",\"null\"]"));
                     properties.add("filter", filter);
                     properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
@@ -137,7 +138,7 @@ public final class PackSageTools {
                 }
                 case "inspect_item" -> { properties.add("path", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":2048}")); required.add("path"); }
                 case "find_items" -> {
-                    properties.add("filter", JsonParser.parseString(WORLD_FILTER));
+                    properties.add("filter", JsonParser.parseString(WORLD_ITEM_FILTER));
                     properties.add("center", JsonParser.parseString(WORLD_ANCHOR));
                     properties.add("radius", JsonParser.parseString(WORLD_RADIUS));
                     properties.add("includeNested", JsonParser.parseString("{\"type\":[\"boolean\",\"null\"]}"));
@@ -179,9 +180,9 @@ public final class PackSageTools {
                 case "list_entities" -> "List entities such as mobs, villagers, item frames and minecarts matching filter within radius of center, 64 per page, each with its id, position and a highlight link. Inspect what matters with inspect_entity.";
                 case "inspect_block" -> "Read one block by place (dimension|x,y,z): its state, facts from every adapter and the inventories it has. List an inventory's items with list_items, passing the returned holder.";
                 case "inspect_entity" -> "Read one loaded entity by id: facts from every adapter, such as health, villager profession, bed and job site, and the inventories it has. List its items with list_items, passing the returned holder.";
-                case "list_items" -> "List the items in one holder (player, a returned holder, or an item path whose item holdsItems) grouped by item with counts, variants and up to 8 location paths; inventory limits it to one section. Inspect a location with inspect_item, or list_items it again to step inside.";
+                case "list_items" -> "List the items in one holder (player, a returned holder, or an item path whose item holdsItems) grouped by item with counts, variants and up to 8 location paths; inventory limits it to one section; filter.tooltip matches the tooltip lines shown to the player, for example [\"Luck\"]. Inspect a location with inspect_item, or list_items it again to step inside.";
                 case "inspect_item" -> "Read one item by its location path: its tooltip lines as the player sees them (tooltipStatus bounded or unknown when cut or unreadable), enchantments, durability, full potion contents, custom name, attribute modifiers, enchantment eligibility (always present, with a none note when nothing applies), raw components, a component fingerprint that tells same-id variants apart, and the inventories it has.";
-                case "find_items" -> "Search every inventory in range at once: the player's own, containers and entities, including items nested in shulker boxes and bundles, grouped by item with location paths. Prefer it over opening containers one by one; then inspect_item a returned path. Each container or entity holding a match comes back as its own record with a highlight link.";
+                case "find_items" -> "Search every inventory in range at once: the player's own, containers and entities, including items nested in shulker boxes and bundles, grouped by item with location paths; filter.tooltip matches the tooltip lines shown to the player, for example [\"Luck\"]. Prefer it over opening containers one by one; then inspect_item a returned path. Each container or entity holding a match comes back as its own record with a highlight link.";
                 default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
             }, schema.toString()));
         }

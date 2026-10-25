@@ -11,6 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Searches holders for matching items, one container per step, inspecting at most {@link #PAGE_CONTAINERS} containers
@@ -18,7 +19,8 @@ import java.util.Set;
  * holds items, in entry order. Cursors are {@code <holder>} to start a fresh holder or {@code <holder>.<container>}
  * to resume at that 0-based container of the holder's walk; the containers before it are walked again without
  * reporting, since their matches belong to the earlier page. A page cut by the container bound or by an early stop
- * at the call's work budget says which in its note.
+ * at the call's work budget says which in its note. Items whose tooltip a tooltip filter could not read in full make
+ * the page PARTIAL with a note.
  */
 public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
     public static final int PAGE_CONTAINERS = 512;
@@ -29,6 +31,7 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
     private final WorldRegistry registry;
     private final List<Map.Entry<PathRoot, LiveHolder>> holders;
     private final KindFilter filter;
+    private final Function<ItemStack, ItemTooltips.Tooltip> tooltips;
     private final boolean includeNested;
     private final ItemGrouper grouper = new ItemGrouper();
     private final Set<String> notes = new LinkedHashSet<>();
@@ -38,13 +41,21 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
     private int ordinal;
     private int replayUntil;
     private int containers;
+    private int unreadTooltips;
     private boolean stopped;
 
     /** The cursor is null for the first page, or a {@code nextCursor} from an earlier page over the same holders. */
     public ItemSearch(WorldRegistry registry, List<Map.Entry<PathRoot, LiveHolder>> holders, KindFilter filter, boolean includeNested, String cursor) {
+        this(registry, holders, filter, stack -> new ItemTooltips.Tooltip(List.of(), "complete"), includeNested, cursor);
+    }
+
+    /** Reads, through {@code tooltips}, the tooltip of each item that passes the rest of a filter with tooltip fragments. */
+    public ItemSearch(WorldRegistry registry, List<Map.Entry<PathRoot, LiveHolder>> holders, KindFilter filter,
+            Function<ItemStack, ItemTooltips.Tooltip> tooltips, boolean includeNested, String cursor) {
         this.registry = registry;
         this.holders = List.copyOf(holders);
         this.filter = filter;
+        this.tooltips = tooltips;
         this.includeNested = includeNested;
         if (cursor != null) {
             var parts = cursor.split("[.]", -1);
@@ -91,7 +102,7 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
     @Override
     public Page<ItemEntry> result() {
         var cursor = nextCursor();
-        var all = new ArrayList<>(notes);
+        var all = gaps();
         if (boundNote() != null) {
             all.add(boundNote());
         }
@@ -101,7 +112,21 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
 
     /** What this page could not read, or null. */
     String gapNote() {
-        return notes.isEmpty() ? null : String.join("; ", notes);
+        var gaps = gaps();
+        return gaps.isEmpty() ? null : String.join("; ", gaps);
+    }
+
+    private List<String> gaps() {
+        var gaps = new ArrayList<>(notes);
+        if (unreadTooltips > 0) {
+            gaps.add(unreadTooltipsNote(unreadTooltips));
+        }
+        return gaps;
+    }
+
+    /** The note for a tooltip-filtered read that could not read {@code count} tooltips in full. */
+    static String unreadTooltipsNote(int count) {
+        return "Tooltips of " + count + " items could not be read in full, so the tooltip filter may have missed them";
     }
 
     /** Why this page stopped before the search ended, or null when it ended. */
@@ -177,7 +202,7 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
                     note(replay, inventories.note());
                 }
                 var holdsItems = !inventories.items().isEmpty();
-                if (!replay && filter.matches(kind, stack.getTags().map(tag -> tag.location().toString()).toList(), stack.getHoverName().getString())) {
+                if (!replay && filter.matches(kind, stack.getTags().map(tag -> tag.location().toString()).toList(), stack.getHoverName().getString(), () -> tooltip(stack))) {
                     grouper.add(location, stack, holdsItems);
                 }
                 if (!includeNested || !holdsItems) {
@@ -193,6 +218,14 @@ public final class ItemSearch implements ServerWork.Slice<Page<ItemEntry>> {
         for (var i = nested.size() - 1; i >= 0; i--) {
             pending.push(nested.get(i));
         }
+    }
+
+    private ItemTooltips.Tooltip tooltip(ItemStack stack) {
+        var tooltip = tooltips.apply(stack);
+        if (!tooltip.status().equals("complete")) {
+            unreadTooltips++;
+        }
+        return tooltip;
     }
 
     private void note(boolean replay, String note) {

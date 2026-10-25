@@ -261,7 +261,7 @@ public final class WorldTools implements KnowledgeProvider {
     private <T> CompletionStage<Evidence.Result> list(PackSageTools.ReadRequest request, ListScan<T> listing, RecordOf<T> records) {
         var anchor = anchor(argument(request, "center"));
         var radius = radius(argument(request, "radius"));
-        var filter = filter(argument(request, "filter"));
+        var filter = filter(argument(request, "filter"), false);
         var cursor = cursor(request);
         var server = server();
         var state = cursor == null ? null : state(cursor, ListState.class);
@@ -285,7 +285,7 @@ public final class WorldTools implements KnowledgeProvider {
             throw invalid("items nested deeper than " + ItemPath.MAX_STEPS + " steps cannot be listed");
         }
         var inventory = argument(request, "inventory") == null ? null : inventoryId(requiredText(request, "inventory"));
-        var filter = argument(request, "filter") == null ? KindFilter.ANY : filter(argument(request, "filter"));
+        var filter = argument(request, "filter") == null ? KindFilter.ANY : filter(argument(request, "filter"), true);
         var cursor = cursor(request);
         var server = server();
         if (cursor != null) return CompletableFuture.completedFuture(entries(request, state(cursor, EntriesState.class), Evidence.Coverage.COMPLETE, null));
@@ -295,7 +295,7 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private CompletionStage<Evidence.Result> findItems(PackSageTools.ReadRequest request) {
-        var filter = filter(argument(request, "filter"));
+        var filter = filter(argument(request, "filter"), true);
         var anchor = anchor(argument(request, "center"));
         var radius = radius(argument(request, "radius"));
         var includeNested = !(argument(request, "includeNested") instanceof Evidence.JsonBoolean nested) || nested.value();
@@ -466,6 +466,8 @@ public final class WorldTools implements KnowledgeProvider {
                     + String.join(", ", listed.items().stream().map(info -> info.id().text()).toList()));
         }
         var grouper = new ItemGrouper();
+        var tooltips = ItemTooltips.of(host(server));
+        var unreadTooltips = new int[1];
         for (var info : selected) {
             var reader = registry.inventoryReader(info.id().adapter());
             LiveInventory live;
@@ -483,12 +485,17 @@ public final class WorldTools implements KnowledgeProvider {
                 var stack = entry.getValue();
                 if (stack == null || stack.isEmpty()) continue;
                 var kind = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
-                if (!filter.matches(kind, stack.getTags().map(tag -> tag.location().toString()).toList(), stack.getHoverName().getString())) continue;
+                if (!filter.matches(kind, stack.getTags().map(tag -> tag.location().toString()).toList(), stack.getHoverName().getString(), () -> {
+                    var tooltip = tooltips.lines(stack);
+                    if (!tooltip.status().equals("complete")) unreadTooltips[0]++;
+                    return tooltip;
+                })) continue;
                 var nested = registry.inventories(new LiveHolder.OfItem(stack));
                 if (nested.note() != null) notes.add(nested.note());
                 grouper.add(path.child(new PathStep(info.id(), entry.getKey(), kind)), stack, !nested.items().isEmpty());
             }
         }
+        if (unreadTooltips[0] > 0) notes.add(ItemSearch.unreadTooltipsNote(unreadTooltips[0]));
         return new ItemsRead(grouper.entries(), null, notes.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
                 notes.isEmpty() ? null : String.join("; ", notes), null);
     }
@@ -548,7 +555,7 @@ public final class WorldTools implements KnowledgeProvider {
             } else if (next < chunks.size()) {
                 collect(chunks.get(next++));
             } else {
-                search = new ItemSearch(registry, holders, filter, includeNested, resumedCursor(resume, firstRootFound));
+                search = new ItemSearch(registry, holders, filter, ItemTooltips.of(host(server))::lines, includeNested, resumedCursor(resume, firstRootFound));
             }
             return true;
         }
@@ -1088,12 +1095,15 @@ public final class WorldTools implements KnowledgeProvider {
         throw invalid("radius must be an integer from 1 to " + MAX_RADIUS);
     }
 
-    private static KindFilter filter(Evidence.JsonValue value) {
+    /** Parses a filter; only item filters may carry tooltip fragments. */
+    private static KindFilter filter(Evidence.JsonValue value, boolean items) {
         if (!(value instanceof Evidence.JsonObject object)) throw invalid("filter must be an object");
         var text = object.values().get("text");
         if (text != null && !(text instanceof Evidence.JsonNull) && !(text instanceof Evidence.JsonString)) throw invalid("filter.text must be a string");
+        var tooltip = object.values().get("tooltip");
+        if (!items && tooltip != null && !(tooltip instanceof Evidence.JsonNull)) throw invalid("filter.tooltip applies only to list_items and find_items");
         return new KindFilter(strings(object.values().get("ids"), "filter.ids"), strings(object.values().get("tags"), "filter.tags"),
-                text instanceof Evidence.JsonString string ? string.value() : null);
+                text instanceof Evidence.JsonString string ? string.value() : null, strings(tooltip, "filter.tooltip"));
     }
 
     private static List<String> strings(Evidence.JsonValue value, String name) {

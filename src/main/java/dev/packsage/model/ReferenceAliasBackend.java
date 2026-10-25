@@ -407,6 +407,8 @@ public final class ReferenceAliasBackend implements ModelBackend {
             for (int index = 0; index < text.length(); index++) {
                 char character = text.charAt(index);
                 if (!token.isEmpty() && (mode == 2 || mode == 6 || mode == 7) && character != '(' && !Character.isWhitespace(character)) emit(output);
+                else if (!token.isEmpty() && mode == 5
+                        && (Character.isWhitespace(character) || character == '\uE200' || character == '[')) emit(output);
                 else if (!token.isEmpty() && token.length() == MAX_TOKEN_CHARS) {
                     emit(output);
                 }
@@ -482,8 +484,8 @@ public final class ReferenceAliasBackend implements ModelBackend {
                         start = index + 1;
                     }
                 }
-            } else if (mode == 4 || mode == 5) {
-                changes.add(new Replacement(0, token.length(), ""));
+            } else if (mode == 5) {
+                changes.add(new Replacement(0, GROUP_START.length(), ""));
             }
             for (int index = 0; index < token.length(); index++) {
                 if (token.charAt(index) >= '\uE200' && token.charAt(index) <= '\uE202') {

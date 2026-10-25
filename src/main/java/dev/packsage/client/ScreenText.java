@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /** Player-facing text helpers for the assistant screen; display only, never changes stored or sent text. */
 final class ScreenText {
@@ -31,6 +32,8 @@ final class ScreenText {
     static final List<String> CITATION_PROVIDERS = List.of("native", "config", "history", "world", "progress", "journal");
     private static final Pattern CITATION_MARKER = Pattern.compile("\\[(" + String.join("|", CITATION_PROVIDERS) + "):([^\\]\\s]+)\\]");
     private static final Pattern UNRESOLVED_MODEL_ALIAS = Pattern.compile("\\[ref:[0-9a-f]{8}\\.[0-9a-z]+\\.[0-9a-z]+(?:\\](?!\\s*\\()|\\))");
+    private static final Pattern CITATION_GROUP = Pattern.compile("\uE200cite\uE202([^\uE201\uE200\\p{javaWhitespace}\\[]*)\uE201");
+    private static final Pattern PRIVATE_USE_MARKERS = Pattern.compile("[\uE200-\uE202]");
     private static final String BULLET = "• ";
     private static final String SEPARATOR = " · ";
     private static final Pattern HEADING = Pattern.compile("^(#{1,6}) +(.*)$");
@@ -52,7 +55,7 @@ final class ScreenText {
 
         InlineSpan {
             if (text == null) throw new NullPointerException("text");
-            text = text.replaceAll("[\uE200-\uE202]", "");
+            text = PRIVATE_USE_MARKERS.matcher(text).replaceAll("");
         }
     }
 
@@ -78,10 +81,9 @@ final class ScreenText {
 
     /** Renders Markdown for display; markers covered by one of the given navigation targets are omitted. */
     static List<Component> markdownLines(String text, List<Evidence.NavigationTarget> targets) {
-        text = Pattern.compile("\uE200cite\uE202([^\uE201]*)\uE201").matcher(text).replaceAll(group -> Matcher.quoteReplacement(
+        text = PRIVATE_USE_MARKERS.matcher(CITATION_GROUP.matcher(text).replaceAll(group -> Matcher.quoteReplacement(
                 List.of(group.group(1).split("\uE202", -1)).stream().filter(value -> CITATION_MARKER.matcher("[" + value + "]").matches())
-                        .map(value -> "[" + value + "]").collect(java.util.stream.Collectors.joining())))
-                .replaceAll("[\uE200-\uE202]", "");
+                        .map(value -> "[" + value + "]").collect(Collectors.joining()))))).replaceAll("");
         Set<String> covered = new HashSet<>();
         for (Evidence.NavigationTarget target : targets) covered.add(target.providerId() + ":" + target.sourceHandle());
         List<Component> lines = new ArrayList<>();
@@ -399,10 +401,10 @@ final class ScreenText {
                 }
             }
             if (!code && text.startsWith("\uE200cite\uE202", index)) {
-                int end = text.indexOf('\uE201', index + 6);
-                if (end > index) {
+                Matcher group = CITATION_GROUP.matcher(text).region(index, text.length());
+                if (group.lookingAt()) {
                     flushInline(spans, plain, bold, code);
-                    for (String value : text.substring(index + 6, end).split("\uE202", -1)) {
+                    for (String value : group.group(1).split("\uE202", -1)) {
                         Matcher reference = CITATION_MARKER.matcher("[" + value + "]");
                         if (!reference.matches()) continue;
                         Evidence.NavigationTarget target = targets.stream().filter(candidate ->
@@ -428,7 +430,7 @@ final class ScreenText {
                                     false, false, source));
                         }
                     }
-                    index = end + 1;
+                    index = group.end();
                     continue;
                 }
             }

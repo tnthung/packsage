@@ -166,11 +166,11 @@ class ScreenTextTest {
     }
 
     @Test
-    void worldTargetsAreLabeledPlace() {
+    void worldTargetsAreLabeledInWorld() {
         var target = new Evidence.NavigationTarget(SCOPE, "world", "block|minecraft:overworld|10,64,-3",
                 "world-block|minecraft:overworld|10,64,-3");
         var spans = ScreenText.inlineLines("Chest [world:block|minecraft:overworld|10,64,-3].", List.of(target)).getFirst().spans();
-        assertEquals("Place", spans.get(1).text());
+        assertEquals("in world", spans.get(1).text());
         assertEquals(target, spans.get(1).target());
     }
 
@@ -618,5 +618,15 @@ class ScreenTextTest {
         var hashed = new Evidence.NavigationTarget(SCOPE, "fixture", "fixture:book#fixture:book/intro#0",
                 "fixture:book#fixture:book/intro#0");
         assertEquals("Open fixture: intro", ScreenText.navigationLabel(hashed));
+    }
+
+    @Test
+    void worldNavigationLabelSaysShowRatherThanOpen() {
+        var block = new Evidence.NavigationTarget(SCOPE, "world", "block|minecraft:overworld|10,64,-3",
+                "world-block|minecraft:overworld|10,64,-3");
+        assertEquals("Show in world: minecraft:overworld|10,64,-3", ScreenText.navigationLabel(block));
+        var mob = new Evidence.NavigationTarget(SCOPE, "world", "entity|3f1c2a4e-0000-4000-8000-000000000001",
+                "world-entity|3f1c2a4e-0000-4000-8000-000000000001");
+        assertEquals("Show in world: 3f1c2a4e-0000-4000-8000-000000000001", ScreenText.navigationLabel(mob));
     }
 }

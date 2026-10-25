@@ -1220,6 +1220,15 @@ class AssistantScreenStateTest {
         assertSame(TARGET, run.span().target());
         assertTrue(run.width() <= 35);
 
+        var world = new Evidence.NavigationTarget(SCOPE, "world", "block|minecraft:overworld|1,64,2",
+                "world-block|minecraft:overworld|1,64,2");
+        var shown = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
+                new ScreenText.InlineSpan("in world", world, ModernUi.TEXT, false, false),
+                new ScreenText.InlineSpan("highlight", world, ModernUi.TEXT, false, false),
+                new ScreenText.InlineSpan("Show chest", world, ModernUi.TEXT, false, false)), false)), 600).runs();
+        assertEquals(List.of("Show in world", "Show highlight", "Show chest"),
+                shown.stream().map(value -> value.span().text()).toList());
+
         var plainAndCode = screen.messageLayout(List.of(new ScreenText.InlineLine(List.of(
                 new ScreenText.InlineSpan("plain", null, ModernUi.TEXT, false, false),
                 new ScreenText.InlineSpan("code", null, ScreenText.CODE_COLOR, false, true)), false)), 100);

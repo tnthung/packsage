@@ -369,7 +369,8 @@ public final class PackSageTools {
                 }
                 if (!pending.request().scope().equals(scope)) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "output cursor scope changed");
                 synchronized (outputPages) {
-                    if (outputPages.pending.remove(token.value()) != null) outputPages.retainedBytes -= pending.bytes();
+                    if (outputPages.pending.remove(token.value()) == null) throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "output cursor was consumed or evicted; restart without a cursor");
+                    outputPages.retainedBytes -= pending.bytes();
                 }
                 pendingRecords = pending.encoded();
                 read = CompletableFuture.completedFuture(pending.result());
@@ -448,7 +449,9 @@ public final class PackSageTools {
                         signature.remove("cursor");
                         var tail = new ArrayList<Evidence.Record>();
                         var encodedTail = new ArrayList<JsonObject>();
-                        int tailBytes = Evidence.serialize(new Evidence.JsonObject(signature)).getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+                        int tailBytes = Evidence.serialize(new Evidence.JsonObject(signature)).getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                                + JSON.toJsonTree(scope).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 12_800
+                                + (result.nextCursor() == null ? 0 : result.nextCursor().getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
                         for (int i = accepted.size(); i < result.records().size(); i++) {
                             var record = result.records().get(i);
                             var encoded = pendingRecords == null ? encodeRecord(record) : pendingRecords.get(i);
@@ -486,9 +489,9 @@ public final class PackSageTools {
                     }
                     json.addProperty("coverage", "PARTIAL");
                     json.addProperty("outcome", "PARTIAL");
-                    json.addProperty("detail", boundedString((result.detail() == null ? "" : result.detail() + "; ")
-                            + (overflowCursor != null && !accepted.isEmpty() ? "encoded page byte or record budget reached; continue with nextCursor"
-                            : (result.records().size() - accepted.size()) + " records omitted at the output byte or record limit; narrow depth/quantity or the requested selection")));
+                    json.addProperty("detail", boundedString((overflowCursor != null && !accepted.isEmpty() ? "encoded page byte or record budget reached; continue with nextCursor"
+                            : (result.records().size() - accepted.size()) + " records omitted at the output byte or record limit; narrow depth/quantity or the requested selection")
+                            + (result.detail() == null ? "" : "; " + result.detail())));
                 } else continuation.accept(result.nextCursor());
                 if (trimmed) {
                     json.addProperty("coverage", "PARTIAL");

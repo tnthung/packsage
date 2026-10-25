@@ -27,4 +27,6 @@ Date: 2026-10-26. These checks cover the fixes made after the final review of `f
 | P1 | "which advancement trees have I made the most progress in?" then ask a follow-up that rereads one tree | Rereading a tree with more than 64 entries reports COMPLETE when the snapshot is complete |
 | C1 | `POST /prompt` with a short test text, `GET /prompt`, then `POST /prompt {text:null}` | Both saves succeed and the game stays responsive; `config/packsage.properties` ends without a developer prompt |
 
+Exactly-once criteria apply to listed results: entities, items and progress entries. A holder record that gives context for a page's items can repeat on each page that lists that holder's items.
+
 Report each check as PASS, FAIL or NOT RUN with the evidence. A failure keeps its raw output; do not retry until it passes.

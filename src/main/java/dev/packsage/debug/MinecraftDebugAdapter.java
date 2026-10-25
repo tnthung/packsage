@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 /** Only bridge workers wait. Every game object is read or changed on its owning thread. */
@@ -344,9 +345,10 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
 
     private <T> T call(Executor executor, Supplier<T> action) throws Exception {
         var result = new CompletableFuture<T>();
+        var claimed = new AtomicBoolean();
         try {
             executor.execute(() -> {
-                if (result.isDone()) return;
+                if (!claimed.compareAndSet(false, true) || result.isDone()) return;
                 try { result.complete(action.get()); }
                 catch (Throwable failure) { result.completeExceptionally(failure); }
             });
@@ -356,7 +358,7 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
         try {
             return result.get(executor == client ? clientCallTimeoutMillis : 10_000, TimeUnit.MILLISECONDS);
         } catch (TimeoutException | InterruptedException exception) {
-            result.cancel(false);
+            if (claimed.compareAndSet(false, true)) result.cancel(false);
             throw exception;
         }
     }

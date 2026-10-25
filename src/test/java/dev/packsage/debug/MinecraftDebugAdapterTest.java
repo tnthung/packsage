@@ -108,7 +108,7 @@ class MinecraftDebugAdapterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"chest", "advancement", "collision", "missing"})
+    @ValueSource(strings = {"chest", "advancement", "collision", "missing", "jei", "ftb_quests"})
     void replyNavigationAcceptsOnlyOneDestination(String scenario, @TempDir Path directory) throws Exception {
         class Client extends Minecraft {
             Client() { super(null); }
@@ -121,8 +121,8 @@ class MinecraftDebugAdapterTest {
         var scope = new Evidence.Scope("world", "resources", "player", "runtime", 0);
         var world = new ChatContracts.WorldIdentity("world", "World");
         var targetId = scenario.equals("advancement") ? "advancement|minecraft:story/root" : "world-block|minecraft:overworld|1,64,2";
-        var first = new Evidence.NavigationTarget(scope, "fixture", "first", targetId);
-        var second = new Evidence.NavigationTarget(scope, scenario.equals("collision") ? "other" : "fixture", "second", targetId);
+        var first = new Evidence.NavigationTarget(scope, scenario.equals("jei") || scenario.equals("ftb_quests") ? scenario : "fixture", "first", targetId);
+        var second = new Evidence.NavigationTarget(scope, scenario.equals("collision") ? "other" : first.providerId(), "second", targetId);
         var store = new ConversationStore(directory, Runnable::run);
         var conversation = store.newConversation(world).toCompletableFuture().join();
         store.appendTurn(world, scope, conversation.id(), new ChatContracts.Turn(new ChatContracts.RequestId("reply"),
@@ -165,6 +165,10 @@ class MinecraftDebugAdapterTest {
         if (scenario.equals("collision") || scenario.equals("missing")) {
             assertEquals(400, response.status());
             assertTrue(opened.isEmpty());
+        } else if (scenario.equals("jei") || scenario.equals("ftb_quests")) {
+            assertEquals(200, response.status(), response.body().toString());
+            assertEquals("UNAVAILABLE", response.body().get("status").getAsString());
+            assertTrue(opened.isEmpty(), "an installed provider must not substitute for the saved provider");
         } else {
             assertEquals(200, response.status(), response.body().toString());
             assertEquals("OPENED", response.body().get("status").getAsString());

@@ -255,6 +255,19 @@ class MinecraftStatisticsTest {
     }
 
     @Test
+    void anEntryBatchLeavesNamedZeroWorkForTheNextStep() {
+        var map = new Object2IntOpenHashMap<Stat<?>>();
+        BuiltInRegistries.ITEM.stream().limit(MinecraftStatistics.STEP_ENTRIES).forEach(item -> map.put(Stats.ITEM_CRAFTED.get(item), 1));
+        var slice = statistics.statistics(() -> map, List.of("mined"),
+                new KindFilter(List.of("minecraft:ancient_debris"), List.of(), ""));
+        assertTrue(slice.step());
+        assertTrue(slice.result().isEmpty(), "the entry batch consumes this step's entire operation budget");
+        while (slice.step()) {
+        }
+        assertEquals(1, slice.result().size());
+    }
+
+    @Test
     void copyingALargeCounterVisitsAtMostOneBatchPerStep() {
         var visited = new AtomicInteger();
         var map = new Object2IntOpenHashMap<Stat<?>>() {

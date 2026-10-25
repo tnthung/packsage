@@ -407,7 +407,7 @@ class MinecraftProgressTest {
                     if (shown) visible.add(node.holder());
                 });
             }
-            return new MinecraftProgress.Source(() -> generation, () -> tree, holder -> {
+            return new MinecraftProgress.Source(this, () -> generation, () -> tree, holder -> {
                 lookups++;
                 var entry = progress.get(holder);
                 if (entry == null) fail("progress looked up for an unknown holder " + holder.id());

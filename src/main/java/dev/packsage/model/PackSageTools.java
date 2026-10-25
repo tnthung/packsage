@@ -366,29 +366,11 @@ public final class PackSageTools {
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "output cursor does not match this query; restart without a cursor");
                 }
                 if (!pending.request().scope().equals(scope)) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "output cursor scope changed");
+                synchronized (outputPages) { outputPages.pending.remove(token.value()); }
                 read = CompletableFuture.completedFuture(pending.result());
             } else read = dispatch.apply(request);
-            return read.handle((result, failure) -> {
-                if (failure != null || result == null) {
-                    while (failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null) failure = failure.getCause();
-                    var error = new JsonObject();
-                    error.addProperty("coverage", "ERROR");
-                    error.addProperty("outcome", "ERROR");
-                    error.addProperty("detail", failure == null ? "evidence extraction returned no result" : boundedString(failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage()));
-                    if (failure instanceof Toolbox.Failure typed) {
-                        error.addProperty("code", typed.code().name());
-                        if (typed.code() == Toolbox.Code.INVALID_CURSOR && properties.has("cursor")) {
-                            var restart = new JsonObject();
-                            restart.addProperty("name", call.name());
-                            var restartArguments = JsonParser.parseString(call.serializedArguments()).getAsJsonObject();
-                            restartArguments.add("cursor", com.google.gson.JsonNull.INSTANCE);
-                            restart.add("arguments", restartArguments);
-                            error.add("restartCall", restart);
-                        }
-                    }
-                    error.add("records", new JsonArray());
-                    return new ToolResponse(new ModelBackend.ToolResult(call.callId(), error.toString(), true), List.of());
-                }
+            return read.thenApply(result -> {
+                if (result == null) throw new IllegalStateException("evidence extraction returned no result");
                 if (result.records().stream().anyMatch(record -> !record.source().scope().equals(scope)
                         || record.targets().stream().anyMatch(target -> !target.scope().equals(scope)
                         || !target.providerId().equals(record.source().providerId()) || !target.sourceHandle().equals(record.source().sourceHandle())))) {
@@ -425,18 +407,20 @@ public final class PackSageTools {
                 json.add("records", records);
                 var accepted = new ArrayList<Evidence.Record>();
                 int outputBytes = json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-                int envelopeBytes = outputBytes;
                 int ordinaryRecords = 0;
                 boolean trimmed = false;
                 for (var record : result.records()) {
+                    if (!record.source().sourceHandle().startsWith("status:") && ordinaryRecords == 64) break;
                     var encoded = encodeRecord(record);
-                    if (overflowCursor == null) trimRecord(encoded,
-                            Math.max(1, (131_072 - envelopeBytes - 512)
-                                    / Math.max(1, result.records().size()) - 1));
-                    else if (accepted.isEmpty()) trimRecord(encoded, 131_072 - outputBytes - 512);
                     int recordBytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + (records.isEmpty() ? 0 : 1);
-                    if (overflowCursor != null && ((!record.source().sourceHandle().startsWith("status:") && ordinaryRecords == 64)
-                            || outputBytes + recordBytes > 131_072 - 512)) break;
+                    boolean crossesBudget = outputBytes + recordBytes > 131_072 - 12_800;
+                    if (crossesBudget) {
+                        if (overflowCursor != null && !accepted.isEmpty()) break;
+                        // Keep complete leading routes; only the crossing record can use the remaining space.
+                        trimRecord(encoded, 131_072 - outputBytes - 12_800 - (records.isEmpty() ? 0 : 1));
+                        recordBytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + (records.isEmpty() ? 0 : 1);
+                        if (outputBytes + recordBytes > 131_072 - 12_800) break;
+                    }
                     records.add(encoded);
                     if (encoded.has("truncationNote")) {
                         trimmed = true;
@@ -448,21 +432,27 @@ public final class PackSageTools {
                     accepted.add(record);
                     if (!record.source().sourceHandle().startsWith("status:")) ordinaryRecords++;
                     outputBytes += recordBytes;
+                    if (crossesBudget) break;
                 }
                 if (accepted.size() < result.records().size()) {
-                    var signature = new java.util.LinkedHashMap<>(arguments.values());
-                    signature.remove("cursor");
-                    synchronized (outputPages) {
-                        outputPages.pending.put(overflowCursor, new OutputPages.Pending(new ReadRequest(call.name(), new Evidence.JsonObject(signature), scope),
-                                new Evidence.Result(result.records().subList(accepted.size(), result.records().size()), result.coverage(),
-                                        result.outcome(), result.nextCursor(), result.detail())));
-                        while (outputPages.pending.size() > 256) outputPages.pending.remove(outputPages.pending.keySet().iterator().next());
+                    if (overflowCursor != null && !accepted.isEmpty()) {
+                        var signature = new java.util.LinkedHashMap<>(arguments.values());
+                        signature.remove("cursor");
+                        synchronized (outputPages) {
+                            outputPages.pending.put(overflowCursor, new OutputPages.Pending(new ReadRequest(call.name(), new Evidence.JsonObject(signature), scope),
+                                    new Evidence.Result(result.records().subList(accepted.size(), result.records().size()), result.coverage(),
+                                            result.outcome(), result.nextCursor(), result.detail())));
+                            while (outputPages.pending.size() > 256) outputPages.pending.remove(outputPages.pending.keySet().iterator().next());
+                        }
+                        continuation.accept(overflowCursor);
+                    } else {
+                        continuation.accept(null);
                     }
-                    continuation.accept(overflowCursor);
                     json.addProperty("coverage", "PARTIAL");
                     json.addProperty("outcome", "PARTIAL");
                     json.addProperty("detail", boundedString((result.detail() == null ? "" : result.detail() + "; ")
-                            + "encoded page byte or record budget reached; continue with nextCursor"));
+                            + (overflowCursor != null && !accepted.isEmpty() ? "encoded page byte or record budget reached; continue with nextCursor"
+                            : (result.records().size() - accepted.size()) + " records omitted at the output byte or record limit; narrow depth/quantity or the requested selection")));
                 } else continuation.accept(result.nextCursor());
                 if (trimmed) {
                     json.addProperty("coverage", "PARTIAL");
@@ -470,8 +460,34 @@ public final class PackSageTools {
                     json.addProperty("detail", boundedString("record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed"
                             + (json.has("detail") ? "; " + json.get("detail").getAsString() : "")));
                 }
+                var serialized = json.toString();
+                if (serialized.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 131_072) {
+                    synchronized (outputPages) { outputPages.pending.remove(overflowCursor); }
+                    return new ToolResponse(new ModelBackend.ToolResult(call.callId(),
+                            "{\"coverage\":\"PARTIAL\",\"outcome\":\"PARTIAL\",\"records\":[],\"detail\":\""
+                                    + result.records().size() + " records omitted because the response envelope exceeds the byte limit; narrow the requested selection\"}", false), List.of());
+                }
                 outputPages.delivered.accept(scope, accepted);
-                return new ToolResponse(new ModelBackend.ToolResult(call.callId(), json.toString(), result.outcome() == Evidence.Outcome.ERROR), accepted);
+                return new ToolResponse(new ModelBackend.ToolResult(call.callId(), serialized, result.outcome() == Evidence.Outcome.ERROR), accepted);
+            }).exceptionally(failure -> {
+                while (failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null) failure = failure.getCause();
+                var error = new JsonObject();
+                error.addProperty("coverage", "ERROR");
+                error.addProperty("outcome", "ERROR");
+                error.addProperty("detail", boundedString(failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage()));
+                if (failure instanceof Toolbox.Failure typed) {
+                    error.addProperty("code", typed.code().name());
+                    if (typed.code() == Toolbox.Code.INVALID_CURSOR && properties.has("cursor")) {
+                        var restart = new JsonObject();
+                        restart.addProperty("name", call.name());
+                        var restartArguments = JsonParser.parseString(call.serializedArguments()).getAsJsonObject();
+                        restartArguments.add("cursor", com.google.gson.JsonNull.INSTANCE);
+                        restart.add("arguments", restartArguments);
+                        error.add("restartCall", restart);
+                    }
+                }
+                error.add("records", new JsonArray());
+                return new ToolResponse(new ModelBackend.ToolResult(call.callId(), error.toString(), true), List.of());
             });
         } catch (RuntimeException failure) {
             var error = new JsonObject();

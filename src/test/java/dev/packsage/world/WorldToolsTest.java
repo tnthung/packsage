@@ -8,6 +8,17 @@ import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CompletableFuture;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BarrelBlockEntity;
+import net.minecraft.world.phys.Vec3;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -18,37 +29,28 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldToolsTest {
-    @Test
-    void aSearchContinuationWithOnlyResolvedRootsDoesNotEnumerateEntitiesAgain() throws Exception {
-        var tools = tools();
-        var type = Class.forName("dev.packsage.world.WorldTools$FindSlice");
-        var constructor = type.getDeclaredConstructors()[0];
-        constructor.setAccessible(true);
-        var slice = constructor.newInstance(tools, null, new Anchor.Player(), 4, KindFilter.ANY, false,
-                new WorldTools.FindState(java.util.List.of(), 0, null));
-        var collect = type.getDeclaredMethod("collectEntities");
-        collect.setAccessible(true);
-        assertEquals(false, collect.invoke(slice));
-    }
+    private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
+    private static final String ENTITY = "3f1c2a4e-0000-4000-8000-000000000001";
+
     @Test
     void findingHoldersInADenseChunkBoundsEnumerationAndInventoryChecks() throws Exception {
         var world = DenseWorld.create(4000);
-        var checked = new java.util.concurrent.atomic.AtomicInteger();
+        var checked = new AtomicInteger();
         var registry = new WorldRegistry();
         registry.register(new InventoryReader() {
             @Override public String adapterId() { return "test"; }
-            @Override public java.util.List<InventoryInfo> inventories(LiveHolder holder) { checked.incrementAndGet(); return java.util.List.of(); }
+            @Override public List<InventoryInfo> inventories(LiveHolder holder) { checked.incrementAndGet(); return List.of(); }
             @Override public LiveInventory open(LiveHolder holder, String section) { return null; }
-            @Override public Section inspectItem(net.minecraft.world.item.ItemStack stack) { return null; }
+            @Override public Section inspectItem(ItemStack stack) { return null; }
         });
         var tools = new WorldTools(() -> null, registry, () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
-                () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
+                () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
         var type = Class.forName("dev.packsage.world.WorldTools$FindSlice");
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
         var slice = (ServerWork.Slice<?>) constructor.newInstance(tools, null, new Anchor.Player(), 4, KindFilter.ANY, false, null);
-        for (var entry : Map.<String, Object>of("level", world, "center", new net.minecraft.world.phys.Vec3(8, 64, 8),
-                "chunks", java.util.List.of(new net.minecraft.world.level.ChunkPos(0, 0))).entrySet()) {
+        for (var entry : Map.<String, Object>of("level", world, "center", new Vec3(8, 64, 8),
+                "chunks", List.of(new ChunkPos(0, 0))).entrySet()) {
             var field = type.getDeclaredField(entry.getKey());
             field.setAccessible(true);
             field.set(slice, entry.getValue());
@@ -65,6 +67,60 @@ class WorldToolsTest {
         assertTrue(steps > 60);
         assertEquals(4000, checked.get());
     }
+    @Test
+    void holderSnapshotsSurviveEntityAndBlockEntityMutationsBetweenSteps() throws Exception {
+        var world = DenseWorld.create(130);
+        world.forbidGlobal = true;
+        var chunk = (DenseWorld.Chunk) world.chunks.chunk;
+        for (var i = 0; i < 130; i++) {
+            var pos = new BlockPos(i % 16, 60 + i / 16, 8);
+            chunk.blockEntities.put(pos, new BarrelBlockEntity(pos, Blocks.BARREL.defaultBlockState()));
+        }
+        var checked = new HashSet<Object>();
+        var registry = new WorldRegistry();
+        registry.register(new InventoryReader() {
+            @Override public String adapterId() { return "test"; }
+            @Override public List<InventoryInfo> inventories(LiveHolder holder) {
+                var key = holder instanceof LiveHolder.OfEntity entity ? entity.entity().getUUID() : ((LiveHolder.OfBlock) holder).pos();
+                assertTrue(checked.add(key), "duplicate holder " + key);
+                return List.of();
+            }
+            @Override public LiveInventory open(LiveHolder holder, String section) { return null; }
+            @Override public Section inspectItem(ItemStack stack) { return null; }
+        });
+        var tools = new WorldTools(() -> null, registry, () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
+                () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
+        var type = Class.forName("dev.packsage.world.WorldTools$FindSlice");
+        var constructor = type.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        var slice = constructor.newInstance(tools, null, new Anchor.Player(), 16, KindFilter.ANY, false, null);
+        for (var entry : Map.<String, Object>of("level", world, "center", new Vec3(8, 64, 8)).entrySet()) {
+            var field = type.getDeclaredField(entry.getKey());
+            field.setAccessible(true);
+            field.set(slice, entry.getValue());
+        }
+        var collect = type.getDeclaredMethod("collect", ChunkPos.class);
+        collect.setAccessible(true);
+        assertFalse((boolean) collect.invoke(slice, new ChunkPos(0, 0)));
+        // Force removal, shiftKeys and a rehash after the first step has obtained its traversal state.
+        chunk.blockEntities.clear();
+        var added = new BlockPos(8, 64, 8);
+        chunk.blockEntities.put(added, new BarrelBlockEntity(added, Blocks.BARREL.defaultBlockState()));
+        var steps = 0;
+        while (!(boolean) collect.invoke(slice, new ChunkPos(0, 0))) {
+            if (world.visited > 0 && world.entities.size() == 130) {
+                world.entities.remove(129);
+                world.entities.add(new net.minecraft.world.entity.item.ItemEntity(net.minecraft.world.entity.EntityType.ITEM, world));
+                world.entities.remove(128);
+            }
+            assertTrue(++steps < 20);
+        }
+        var notes = type.getDeclaredField("notes");
+        notes.setAccessible(true);
+        assertTrue(((Set<?>) notes.get(slice)).stream().anyMatch(note -> note.toString().contains("snapshot")));
+        assertTrue(world.visited >= 129);
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"air", "cave_air", "void_air", "stone"})
     void inspectedAirDoesNotAdvertiseABlockHighlight(String kind) throws Exception {
@@ -112,9 +168,6 @@ class WorldToolsTest {
             assertTrue(record.targets().isEmpty(), "air cannot resolve through block navigation");
         }
     }
-
-    private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
-    private static final String ENTITY = "3f1c2a4e-0000-4000-8000-000000000001";
 
     private static WorldTools tools() {
         return tools(() -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE));

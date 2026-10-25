@@ -118,6 +118,9 @@ public final class AreaScan {
                     previousId = entity.getUUID();
                     if (entity.chunkPosition().equals(pos)) ids.add(entity.getUUID());
                 } else {
+                    if (current != null && !current.getStatus().isAccessible() && !current.isEmpty()) {
+                        notes.add("An entity section became unavailable during acquisition; this chunk snapshot is incomplete");
+                    }
                     // Choose the next section from a fresh sorted view; no engine iterator survives a step.
                     var remaining = storage.getChunkSections(pos.x, pos.z).tailSet(section + 1);
                     if (remaining.isEmpty()) return false;

@@ -136,20 +136,33 @@ class AreaScanTest {
     }
 
     @Test
-    void anEntityMovingIntoAnAlreadyReadChunkMakesTheReadPartial() throws Exception {
-        var world = DenseWorld.create(1);
-        world.chunks.neighbor = DenseWorld.create(0).chunks.chunk;
-        ((DenseWorld.Chunk) world.chunks.neighbor).position = new ChunkPos(1, 0);
-        world.entities.getFirst().setPos(20, 64, 8);
-        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(16, 64, 8), 6, KindFilter.ANY, null);
-        assertTrue(slice.step(), "the empty first chunk is read before the move");
+    void aDenseStableReadAcrossTicksCanProveNoMatches() throws Exception {
+        var world = DenseWorld.create(130);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4,
+                new KindFilter(List.of("minecraft:zombie"), List.of(), ""), null);
+        assertTrue(slice.step());
         world.gameTime++;
-        world.entities.getFirst().setPos(12, 64, 8);
         while (slice.step()) {
         }
-        assertTrue(slice.result().items().isEmpty(), "the entity moved behind the traversal");
+        assertTrue(slice.result().items().isEmpty());
+        assertEquals(Evidence.Coverage.COMPLETE, slice.result().coverage());
+        assertTrue(slice.result().note().contains("400..401"), slice.result().note());
+    }
+
+    @Test
+    void aSnapshottedEntityMovingOutsideLoadedChunksMakesTheReadPartial() throws Exception {
+        var world = DenseWorld.create(130);
+        var moved = world.entities.stream().max((left, right) -> left.getUUID().compareTo(right.getUUID())).orElseThrow();
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4,
+                new KindFilter(List.of("minecraft:zombie"), List.of(), ""), null);
+        while (world.visited == 0) assertTrue(slice.step());
+        world.gameTime++;
+        moved.setPos(1000, 64, 8);
+        while (slice.step()) {
+        }
+        assertTrue(slice.result().items().isEmpty());
         assertEquals(Evidence.Coverage.PARTIAL, slice.result().coverage());
-        assertTrue(slice.result().note().contains("ticks"), slice.result().note());
+        assertTrue(slice.result().note().contains("moved outside loaded chunks"), slice.result().note());
     }
 
     @Test

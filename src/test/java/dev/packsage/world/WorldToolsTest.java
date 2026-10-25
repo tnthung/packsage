@@ -110,7 +110,7 @@ class WorldToolsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"stable", "next_tick", "unloaded", "unloaded_at_snapshot", "unloaded_after_snapshot"})
+    @ValueSource(strings = {"stable", "next_tick", "frozen_tick", "missing_block", "missing_entity", "unloaded", "unloaded_at_snapshot", "unloaded_after_snapshot"})
     void holderCoverageReflectsTickSpansAndCountsEachUnloadedChunkOnce(String scenario) throws Exception {
         var world = DenseWorld.create(1);
         world.entitiesUnloaded = scenario.equals("unloaded");
@@ -129,13 +129,25 @@ class WorldToolsTest {
             field.setAccessible(true);
             field.set(slice, entry.getValue());
         }
+        java.lang.reflect.Field tickCount = null;
+        if (scenario.equals("frozen_tick")) {
+            var field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+            field.setAccessible(true);
+            world.server = (net.minecraft.client.server.IntegratedServer) ((sun.misc.Unsafe) field.get(null))
+                    .allocateInstance(net.minecraft.client.server.IntegratedServer.class);
+            tickCount = net.minecraft.server.MinecraftServer.class.getDeclaredField("tickCount");
+            tickCount.setAccessible(true);
+        }
         assertTrue(slice.step(), "copy block positions");
+        if (scenario.equals("missing_block")) ((DenseWorld.Chunk) world.chunks.chunk).blockEntities.clear();
         assertTrue(slice.step(), "revalidate block positions");
         if (scenario.equals("next_tick")) world.gameTime++;
+        if (tickCount != null) tickCount.setInt(world.server, 1);
         if (scenario.equals("unloaded_at_snapshot")) world.entitiesUnloaded = true;
         assertTrue(slice.step(), "decide whether entity snapshots are available");
         if (scenario.equals("unloaded_at_snapshot")) world.entitiesUnloaded = false;
         if (scenario.equals("unloaded_after_snapshot")) world.entitiesUnloaded = true;
+        if (scenario.equals("missing_entity")) world.entities.clear();
         var next = type.getDeclaredField("next");
         next.setAccessible(true);
         var steps = 0;
@@ -156,9 +168,13 @@ class WorldToolsTest {
         if (scenario.equals("stable")) {
             assertEquals(Evidence.Coverage.COMPLETE, coverage.invoke(result));
             assertEquals(null, note.invoke(result));
+        } else if (scenario.equals("next_tick") || scenario.equals("frozen_tick")) {
+            assertEquals(Evidence.Coverage.COMPLETE, coverage.invoke(result));
+            assertTrue(note.invoke(result).toString().contains(scenario.equals("next_tick") ? "400..401" : "400..400"), note.invoke(result).toString());
         } else {
             assertEquals(Evidence.Coverage.PARTIAL, coverage.invoke(result));
-            if (scenario.equals("next_tick")) assertTrue(note.invoke(result).toString().contains("ticks"), note.invoke(result).toString());
+            if (scenario.equals("missing_block")) assertTrue(note.invoke(result).toString().contains("block entity from a chunk snapshot disappeared"));
+            else if (scenario.equals("missing_entity")) assertTrue(note.invoke(result).toString().contains("entity from a chunk snapshot disappeared"));
             else assertEquals("1 chunks in range did not have their entities loaded yet, so entities there were not searched", note.invoke(result));
         }
     }

@@ -53,11 +53,13 @@ final class DenseWorld {
         boolean forbidGlobal;
         boolean entitiesUnloaded;
         long gameTime;
+        net.minecraft.server.MinecraftServer server;
         World() { super(null, null, null, null, null, null, null, false, 0, List.of(), false, null); }
         @Override public ServerChunkCache getChunkSource() { return chunks; }
         @Override public int getMinBuildHeight() { return -64; }
         @Override public int getHeight() { return 384; }
         @Override public boolean areEntitiesLoaded(long chunk) { return !entitiesUnloaded; }
+        @Override public net.minecraft.server.MinecraftServer getServer() { return server; }
         @Override public long getGameTime() { return gameTime; }
         @Override public long getDayTime() { return 600; }
         @Override public Entity getEntity(java.util.UUID id) { visited++; return entities.stream().filter(entity -> entity.getUUID().equals(id)).findFirst().orElse(null); }

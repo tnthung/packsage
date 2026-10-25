@@ -20,7 +20,7 @@ The `feat/packsage-v2` branch removes every non-Minecraft adapter so mod adapter
 - Chat core: screen, chat runtime, conversation store and model backend.
 - Conversation history tools: `search_history` and `read_history`.
 - Config reader: `list_configs`, `search_config` and `read_config`.
-- Minecraft adapter: recipes and brewing, recipe planning, registries, effects, attributes, dimensions, inventory and equipment, and native storage reads.
+- Minecraft adapter: recipes and brewing, recipe planning, registries, effects, attributes, dimensions, and inventory, equipment and storage reading through the world tools.
 
 ## World model
 
@@ -42,22 +42,25 @@ The [plan](../plans/2026-10-22-v2-world-reading.md) is implemented. The [validat
 - [ ] Villager time fields: facts were cited, but the reply did not reason from `gameTime`, and `golemDetectedUntil` was not exercised (Round 2, partial). Belongs with the prompt plan.
 - [x] Saved highlight links across a full Minecraft restart: installed check passed (Round 2).
 - [x] N1: fixed; installed recheck passed in Round 3 with 64 records per page (52 items and 12 holders) and a cursor for the rest. Reproduced in game in Round 2: 72 item types returned 55, with no holder records and a null cursor. A full page of found items with holder records exceeds the 64-record tool-output limit. That drops holder links and the continuation, and replaces the page notes. See the final re-review in `.superpowers/sdd/2026-10-22-v2-world-reading/final-rereview.md`.
-- [ ] Minor review backlog:
-  - N2: the paused-work flag can stay set.
-  - N3: a tick can run on the client thread when the server has stopped.
-  - N4: an early stop can make no progress.
-  - N5: `inspect_area` can drop the entity page's note.
+- [x] Minor review backlog, fixed with automated tests in the [item reading plan](../plans/2026-10-25-v2-item-reading-consolidation.md); these are internal and need no live check:
+  - N2: the paused-work flag can stay set. Fixed: the in-flight flag is keyed to the server and cleared when it stops.
+  - N3: a tick can run on the client thread when the server has stopped. Fixed: the queued task steps only on a running, paused server's own thread.
+  - N4: an early stop can make no progress. Fixed: a stop waits for at least one new container or chunk.
+  - N5: `inspect_area` can drop the entity page's note. Fixed: the note is kept alongside the `list_entities` pointer.
 
 ### Next plans
 
 The Minecraft adapter is finished before this branch merges back. The [completion specification](../specs/2026-10-25-v2-minecraft-completion.md) adds stages 1 and 3. The work lands in this order:
 
-- [ ] 1. One item-reading path (`docs/plans/2026-10-25-v2-item-reading-consolidation.md`):
-  - fold `search_inventory` into the world tools with `held`, `offhand`, `targeted`, `ridden` and `opened` holders;
-  - add the selected-slot and armor-slot markers;
-  - give `inspect_item` full item facts and tooltips, plus a tooltip filter;
-  - then remove the legacy inventory readers;
-  - also fix N2–N5.
+- [ ] 1. One item-reading path ([plan](../plans/2026-10-25-v2-item-reading-consolidation.md)). Implemented; the build passes 679 automated tests. Not yet checked in game; the in-game acceptance runs once at the end of all stages, and each item below stays unchecked until it passes:
+  - [ ] `held` and `offhand` words for `list_items` and `inspect_item`, resolved at call time; unresolvable words answer with a fixed detail instead of an error.
+  - [ ] `targeted` and `ridden` holders, and gameplay context `targetedHolder` and `ridden`.
+  - [ ] `opened` menus: menu sections, output previews listed under `excludedSlots`, `menuType` and title, modded menus PARTIAL under `minecraft/menu`, and paths valid only while the menu stays open.
+  - [ ] A holder summary record with section sizes and empty slots, plus the selected-slot and armor-slot markers.
+  - [ ] Full item facts in `inspect_item`: components, a component fingerprint, full potion contents and always-present `enchantmentEligibility`.
+  - [ ] Tooltip lines in `inspect_item` and the `filter.tooltip` search in `list_items` and `find_items`.
+  - [ ] `search_inventory` and the legacy inventory and storage readers removed; old `inventory:` and `storage:` handles reread as unavailable.
+  - [x] N2–N5 fixed (see the backlog above).
 - [ ] 2. Progress and statistics (below).
 - [ ] 3. More world knowledge (`docs/plans/2026-10-25-v2-world-knowledge.md`):
   - villager trades without generating them;

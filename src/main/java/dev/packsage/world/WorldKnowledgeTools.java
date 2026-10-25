@@ -1,14 +1,18 @@
 package dev.packsage.world;
 
+import com.mojang.brigadier.arguments.ArgumentType;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox.Code;
 import dev.packsage.knowledge.Toolbox.Failure;
 import dev.packsage.model.PackSageTools;
+import dev.packsage.world.minecraft.CommandReader;
 import dev.packsage.world.minecraft.LocateBiome;
 import dev.packsage.world.minecraft.LocateStructure;
 import dev.packsage.world.minecraft.MinecraftLoot;
 import dev.packsage.world.minecraft.ReadOnlyRegions;
 import dev.packsage.world.minecraft.SavedStarts;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.synchronization.ArgumentTypeInfos;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
@@ -99,6 +103,16 @@ final class WorldKnowledgeTools {
                              int minY, int maxY) {
     }
 
+    /** A server-thread copy can spend its call budget before finishing; the cursor retains the remaining work. */
+    private record CommandCapture(ServerWork.Slice<CommandReader<CommandSourceStack>> snapshot, int permission) {
+    }
+
+    private record CommandSearchState(List<CommandReader.Summary> summaries, int permission, int offset) {
+    }
+
+    private record CommandReadState(CommandReader<?> reader, int permission, int usageOffset, int argumentOffset) {
+    }
+
     private final WorldTools calls;
 
     WorldKnowledgeTools(WorldTools calls) {
@@ -121,7 +135,13 @@ final class WorldKnowledgeTools {
             throw new Failure(Code.INVALID_REFERENCE, "only loot and command records are reread here");
         }
         var server = calls.server();
-        if (handle.startsWith("command|")) return pending();
+        if (handle.startsWith("command|")) {
+            return readCommand(new PackSageTools.ReadRequest("read_command",
+                    new Evidence.JsonObject(Map.of("name", WorldTools.text(handle.substring(8)))), scope)).thenApply(result -> {
+                if (result.records().isEmpty()) throw new Failure(Code.UNAVAILABLE, result.detail());
+                return result.records().getFirst();
+            });
+        }
         ResourceKey<LootTable> key;
         try {
             key = MinecraftLoot.table(handle.substring(5));
@@ -557,14 +577,107 @@ final class WorldKnowledgeTools {
     }
 
     private CompletionStage<Evidence.Result> searchCommands(PackSageTools.ReadRequest request) {
-        calls.server();
-        return pending();
+        var server = calls.server();
+        var cursor = calls.cursor(request);
+        if (cursor instanceof CommandCapture capture) return captureCommands(request, server, capture);
+        if (cursor != null) {
+            var state = WorldTools.state(cursor, CommandSearchState.class);
+            return CompletableFuture.supplyAsync(() -> commandSearchResult(request, state.summaries(), state.permission(), state.offset()), calls.worker());
+        }
+        return commandCapture(server).thenCompose(capture -> captureCommands(request, server, capture));
     }
 
     private CompletionStage<Evidence.Result> readCommand(PackSageTools.ReadRequest request) {
-        if (WorldTools.requiredText(request, "name").isBlank()) throw WorldTools.invalid("name must not be blank");
-        calls.server();
-        return pending();
+        var name = WorldTools.requiredText(request, "name");
+        if (name.isBlank()) throw WorldTools.invalid("name must not be blank");
+        var server = calls.server();
+        var cursor = calls.cursor(request);
+        if (cursor instanceof CommandCapture capture) return captureCommands(request, server, capture);
+        if (cursor != null) {
+            var state = WorldTools.state(cursor, CommandReadState.class);
+            return CompletableFuture.supplyAsync(() -> commandResult(request, state.reader(), state.permission(), name,
+                    state.usageOffset(), state.argumentOffset()), calls.worker());
+        }
+        return commandCapture(server).thenCompose(capture -> captureCommands(request, server, capture));
+    }
+
+    /** Captures the player's own source, never the server's privileged command source. */
+    private CompletionStage<CommandCapture> commandCapture(MinecraftServer server) {
+        return calls.run(server, WorldTools.once(() -> {
+            var source = WorldTools.host(server).createCommandSourceStack();
+            int permission = 4;
+            while (permission > 0 && !source.hasPermission(permission)) permission--;
+            return new CommandCapture(new CommandReader<>(server.getCommands().getDispatcher(), source,
+                    WorldKnowledgeTools::argumentType).snapshot(), permission);
+        }));
+    }
+
+    /** No live tree, argument metadata or permission predicate is read by the subsequent worker stages. */
+    private CompletionStage<Evidence.Result> captureCommands(PackSageTools.ReadRequest request, MinecraftServer server, CommandCapture capture) {
+        return calls.run(server, capture.snapshot()).thenApply(reader -> {
+            if (reader == null) return WorldTools.result(List.of(), Evidence.Coverage.PARTIAL, calls.remember(request, capture),
+                    "command tree copy reached the 500 ms server work budget; continue with the cursor; playerPermissionLevel: " + capture.permission());
+            if (request.tool().equals("read_command")) return commandResult(request, reader, capture.permission(), WorldTools.requiredText(request, "name"), 0, 0);
+            return commandSearchResult(request, reader.search(WorldTools.argument(request, "text") == null ? null
+                    : WorldTools.requiredText(request, "text")), capture.permission(), 0);
+        });
+    }
+
+    Evidence.Result commandSearchResult(PackSageTools.ReadRequest request, List<CommandReader.Summary> summaries, int permission, int offset) {
+        int end = Math.min(offset + CommandReader.PAGE, summaries.size());
+        var records = new ArrayList<Evidence.Record>();
+        for (var summary : summaries.subList(offset, end)) {
+            var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+            payload.put("name", WorldTools.text(summary.name()));
+            payload.put("canUse", new Evidence.JsonBoolean(summary.canUse()));
+            payload.put("canRun", new Evidence.JsonBoolean(summary.canUse()));
+            payload.put("usage", strings(summary.usage()));
+            payload.put("redirect", summary.redirect() == null ? new Evidence.JsonNull() : WorldTools.text(summary.redirect()));
+            payload.put("note", WorldTools.text("PackSage does not run commands"));
+            records.add(WorldTools.evidence(request.scope(), "command|" + summary.name(), Evidence.RecordKind.OTHER, "/" + summary.name(),
+                    payload, Evidence.Coverage.COMPLETE, null));
+        }
+        boolean more = end < summaries.size();
+        return WorldTools.result(records, more ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                more ? calls.remember(request, new CommandSearchState(summaries, permission, end)) : null,
+                "playerPermissionLevel: " + permission + (more ? "; command page reached " + CommandReader.PAGE + " records; continue with the cursor" : ""));
+    }
+
+    Evidence.Result commandResult(PackSageTools.ReadRequest request, CommandReader<?> reader, int permission, String name, int usageOffset, int argumentOffset) {
+        var detail = reader.read(name, argumentOffset);
+        if (detail == null) return WorldTools.result(List.of(), Evidence.Coverage.COMPLETE, null,
+                "no command " + name + "; search_commands lists them");
+        int usageEnd = Math.min(usageOffset + CommandReader.MAX_USAGE, detail.usage().size());
+        int playerEnd = Math.min(usageOffset + CommandReader.MAX_USAGE, detail.playerUsage().size());
+        boolean moreUsage = usageEnd < detail.usage().size() || playerEnd < detail.playerUsage().size();
+        boolean more = moreUsage || detail.argumentsBounded();
+        var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+        payload.put("path", WorldTools.text(detail.path()));
+        payload.put("canUse", new Evidence.JsonBoolean(detail.canUse()));
+        payload.put("canRun", new Evidence.JsonBoolean(detail.canUse()));
+        payload.put("usage", strings(detail.usage().subList(Math.min(usageOffset, usageEnd), usageEnd)));
+        payload.put("playerUsage", strings(detail.playerUsage().subList(Math.min(usageOffset, playerEnd), playerEnd)));
+        payload.put("arguments", new Evidence.JsonArray(detail.arguments().stream().map(argument -> (Evidence.JsonValue) new Evidence.JsonObject(Map.of(
+                "path", WorldTools.text(argument.path()), "name", WorldTools.text(argument.name()), "type", WorldTools.text(argument.type()),
+                "examples", strings(argument.examples()), "canUse", new Evidence.JsonBoolean(argument.canUse())))).toList()));
+        payload.put("argumentsBounded", new Evidence.JsonBoolean(detail.argumentsBounded()));
+        payload.put("redirect", detail.redirect() == null ? new Evidence.JsonNull() : WorldTools.text(detail.redirect()));
+        payload.put("playerPermissionLevel", WorldTools.number(permission));
+        payload.put("note", WorldTools.text("PackSage does not run commands"));
+        var coverage = more ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
+        return WorldTools.result(List.of(WorldTools.evidence(request.scope(), "command|" + detail.path(), Evidence.RecordKind.OTHER,
+                "/" + detail.path(), payload, coverage, null)), coverage,
+                more ? calls.remember(request, new CommandReadState(reader, permission, moreUsage ? usageOffset + CommandReader.MAX_USAGE : usageOffset,
+                        argumentOffset + detail.arguments().size())) : null,
+                more ? "command usage or arguments reached the page bound; continue with the cursor" : null);
+    }
+
+    private static String argumentType(ArgumentType<?> type) {
+        try {
+            return BuiltInRegistries.COMMAND_ARGUMENT_TYPE.getKey(ArgumentTypeInfos.byClass(type)).toString();
+        } catch (IllegalArgumentException exception) {
+            return type.getClass().getSimpleName();
+        }
     }
 
     private static void exactlyOne(PackSageTools.ReadRequest request, List<String> names) {
@@ -573,7 +686,4 @@ final class WorldKnowledgeTools {
         }
     }
 
-    private static <T> CompletionStage<T> pending() {
-        return CompletableFuture.failedFuture(new Failure(Code.UNAVAILABLE, "not implemented yet"));
-    }
 }

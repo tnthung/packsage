@@ -4,6 +4,7 @@ import dev.packsage.knowledge.AdapterRegistry;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
+import dev.packsage.world.minecraft.CommandReader;
 import dev.packsage.world.minecraft.LocateBiome;
 import dev.packsage.world.minecraft.LocateStructure;
 import dev.packsage.world.minecraft.MinecraftLoot;
@@ -47,6 +48,67 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldKnowledgeToolsTest {
+    @Test
+    void commandSearchPagesKeepForbiddenCommandsAndBindTheCursor() {
+        var tools = tools();
+        var knowledge = new WorldKnowledgeTools(tools);
+        var request = new PackSageTools.ReadRequest("search_commands", Evidence.deserializeObject("{}"), SCOPE);
+        var summaries = IntStream.range(0, 65).mapToObj(i -> new CommandReader.Summary("command" + i, false,
+                List.of("<value>"), null)).toList();
+        var page = knowledge.commandSearchResult(request, summaries, 0, 0);
+        assertEquals(64, page.records().size());
+        assertEquals(Evidence.Coverage.PARTIAL, page.coverage());
+        assertTrue(page.detail().contains("playerPermissionLevel: 0"));
+        var record = page.records().getFirst();
+        assertEquals("command|command0", record.source().sourceHandle());
+        assertEquals(new Evidence.JsonBoolean(false), record.payload().values().get("canUse"));
+        assertEquals(WorldTools.text("PackSage does not run commands"), record.payload().values().get("note"));
+        assertTrue(record.targets().isEmpty());
+        var cursorRequest = new PackSageTools.ReadRequest("search_commands", Evidence.deserializeObject(
+                "{\"cursor\":\"" + page.nextCursor() + "\"}"), SCOPE);
+        var next = knowledge.commandSearchResult(cursorRequest, summaries, 0, 64);
+        assertEquals(1, next.records().size());
+        assertEquals(Evidence.Coverage.COMPLETE, next.coverage());
+        assertNull(next.nextCursor());
+        assertNotNull(tools.cursor(cursorRequest));
+        assertThrows(Toolbox.Failure.class, () -> tools.cursor(new PackSageTools.ReadRequest("search_commands",
+                Evidence.deserializeObject("{\"text\":\"other\",\"cursor\":\"" + page.nextCursor() + "\"}"), SCOPE)));
+    }
+
+    @Test
+    void commandDetailsPageUsageAndArgumentsWithoutDroppingEither() {
+        var dispatcher = new com.mojang.brigadier.CommandDispatcher<Integer>();
+        var command = com.mojang.brigadier.builder.LiteralArgumentBuilder.<Integer>literal("wide");
+        for (int i = 0; i < 300; i++) command.then(com.mojang.brigadier.builder.RequiredArgumentBuilder.<Integer, Integer>argument(
+                "arg" + i, com.mojang.brigadier.arguments.IntegerArgumentType.integer()).executes(context -> fail("executed wide")));
+        dispatcher.register(command);
+        var reader = new CommandReader<>(dispatcher, 0, type -> "integer");
+        var knowledge = new WorldKnowledgeTools(tools());
+        var request = new PackSageTools.ReadRequest("read_command", Evidence.deserializeObject("{\"name\":\"wide\"}"), SCOPE);
+        var usages = new ArrayList<Evidence.JsonValue>();
+        var arguments = new ArrayList<Evidence.JsonValue>();
+        for (int page = 0; page < 3; page++) {
+            var result = knowledge.commandResult(request, reader, 0, "wide", page * 128, page == 0 ? 0 : 256 + (page - 1) * 44);
+            var record = result.records().getFirst();
+            usages.addAll(((Evidence.JsonArray) record.payload().values().get("usage")).values());
+            arguments.addAll(((Evidence.JsonArray) record.payload().values().get("arguments")).values());
+            assertEquals(WorldTools.number(0), record.payload().values().get("playerPermissionLevel"));
+            assertEquals("command|wide", record.source().sourceHandle());
+            assertTrue(record.targets().isEmpty());
+            assertEquals(page < 2 ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, result.coverage());
+            if (page < 2) assertNotNull(result.nextCursor());
+            else assertNull(result.nextCursor());
+        }
+        assertEquals(300, usages.size());
+        assertEquals(300, Set.copyOf(usages).size());
+        assertEquals(300, arguments.size());
+        assertEquals(300, Set.copyOf(arguments).size());
+        var missing = knowledge.commandResult(request, reader, 0, "missing", 0, 0);
+        assertTrue(missing.records().isEmpty());
+        assertEquals(Evidence.Coverage.COMPLETE, missing.coverage());
+        assertEquals("no command missing; search_commands lists them", missing.detail());
+    }
+
     @Test
     void savedVerdictsConfirmDropOrKeepPredictions() {
         var hits = IntStream.range(0, 3).mapToObj(x -> new LocateStructure.Hit(

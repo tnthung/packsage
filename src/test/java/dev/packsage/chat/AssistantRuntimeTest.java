@@ -47,6 +47,52 @@ class AssistantRuntimeTest {
             null, null, 16_000, 2_048);
 
     @Test
+    void toolCallsCarryTheirConversationRequestAndQuestion() throws Exception {
+        var received = new AtomicReference<Toolbox.Origin>();
+        var provider = new KnowledgeProvider() {
+            @Override public String id() { return "fixture"; }
+            @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
+            @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                return CompletableFuture.failedFuture(new IllegalStateException("not queried"));
+            }
+            @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "fixture");
+            }
+            @Override public CompletionStage<Evidence.Result> handle(PackSageTools.ReadRequest request, Context context) {
+                received.set(context.origin());
+                return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
+                        Evidence.Outcome.COMPLETE, null));
+            }
+        };
+        var store = new ConversationStore(Files.createTempDirectory("packsage-tool-origin"), DIRECT);
+        var backend = new FakeBackend();
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(provider), current), ChatContracts.Turn::tokenCount,
+                prepared -> new ModelBackend.Request(MODEL.id(), "instructions", List.of(new ModelBackend.Message(
+                        ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(prepared.submission().question())))),
+                        List.of(), prepared.submission().searchMode(), prepared.submission().requestId().value(), 512),
+                ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        runtime.send("I built an iron farm here", false, false);
+        String conversationId = runtime.view().conversation().id();
+        String requestId = backend.requests.getFirst().requestId();
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("origin", "inspect_area", "{}"), List.of(), null));
+        assertFalse(backend.results.getFirst().error(), backend.results.getFirst().serializedResult());
+        assertEquals(new Toolbox.Origin(conversationId, requestId, "I built an iron farm here"), received.get());
+
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Understood", List.of())))), null));
+        var saved = store.openConversation(WORLD, conversationId).toCompletableFuture().join().turns().getFirst();
+        assertEquals(received.get().requestId(), saved.requestId().value());
+        assertEquals(received.get().playerWords(), saved.question());
+    }
+
+    @Test
     void reservedSendCannotCrossLifecycleTransitionsBeforeControllerActivation() throws Exception {
         for (String transition : List.of("world", "invalidate", "disconnect", "signOut", "stop", "selection")) {
             ConversationStore store = new ConversationStore(Files.createTempDirectory("packsage-runtime-dispatch"), DIRECT);

@@ -29,6 +29,28 @@ class KnowledgeServiceTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
 
     @Test
+    void originReachesTheToolContext() {
+        var received = new AtomicReference<Toolbox.Context>();
+        var provider = new PagedProvider("fixture", query -> page(List.of(), null)) {
+            @Override public CompletionStage<Evidence.Result> handle(PackSageTools.ReadRequest request, Context context) {
+                received.set(context);
+                return CompletableFuture.completedFuture(page(List.of(), null));
+            }
+        };
+        var service = service(provider);
+        var request = new PackSageTools.ReadRequest("origin_probe", new Evidence.JsonObject(Map.of()), SCOPE);
+        var origin = new Toolbox.Origin("conversation", "request", "I built an iron farm here");
+        service.execute(request, "replaced", origin).toCompletableFuture().join();
+        assertEquals(origin, received.get().origin());
+        assertEquals("replaced", received.get().replacingRequestId());
+        service.execute(request, "replaced").toCompletableFuture().join();
+        assertNull(received.get().origin());
+        service.execute(request).toCompletableFuture().join();
+        assertNull(received.get().origin());
+        assertNull(new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null).origin());
+    }
+
+    @Test
     void savedDestinationResolvesWithANewProviderAndSourceHandle(@TempDir Path directory) throws Exception {
         var historicalScope = new Evidence.Scope("old-session", "old-resources", "team", "old-runtime", 3);
         var historical = new Evidence.NavigationTarget(historicalScope, "fixture_viewer", "old-registration", "create:shaft");

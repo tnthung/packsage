@@ -144,7 +144,7 @@ Stage 3 live checks for the final run, using the installed build in singleplayer
 Plan details:
 
 - [ ] Progress and statistics ([plan](../plans/2026-10-22-v2-progress-statistics.md)): the `ProgressReader` and `StatisticReader` capabilities, `list_progress`, `inspect_progress` and `list_statistics` are implemented; not yet checked in game (see the [acceptance checks](#progress-and-statistics)).
-- [ ] Prompt and acceptance (`docs/plans/2026-10-22-v2-prompt-acceptance.md`, not written). Includes the Round 1 failures:
+- [ ] Prompt and acceptance ([plan](../plans/2026-10-22-v2-prompt-acceptance.md)): live-tested candidate 6 is promoted to the default with compiled byte equality verified. The controller accepts its identical-note no-write behavior under the round-4 ruling; installed-default acceptance remains pending. Includes the Round 1 failures:
   - the armor reply omitted eligible enchantments that the evidence returned;
   - the mule reply gave no coordinates;
   - prefer `find_items` before per-holder listing;

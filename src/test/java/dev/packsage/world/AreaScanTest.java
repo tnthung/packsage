@@ -22,6 +22,42 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AreaScanTest {
+    @Test
+    void neighboringNonmatchesCannotExhaustAServerStep() throws Exception {
+        var world = DenseWorld.create(5000);
+        for (var entity : world.entities) entity.setPos(-8, 64, 8);
+        world.entities.getFirst().setPos(8, 64, 8);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, null);
+        boolean more;
+        do {
+            var before = world.candidates;
+            more = slice.step();
+            assertTrue(world.candidates - before <= 64, "candidate visits in one step: " + (world.candidates - before));
+        } while (more);
+        assertEquals(1, slice.result().items().size());
+    }
+
+    @Test
+    void everyEntityBeyondTheOldChunkCapIsReachableThroughCursors() throws Exception {
+        var world = DenseWorld.create(4097);
+        var ids = new HashSet<UUID>();
+        String cursor = null;
+        int pages = 0;
+        do {
+            var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, cursor);
+            boolean more;
+            do {
+                var before = world.candidates;
+                more = slice.step();
+                assertTrue(world.candidates - before <= 64, "candidate visits in one step: " + (world.candidates - before));
+            } while (more);
+            for (var entity : slice.result().items()) assertTrue(ids.add(entity.id()), "duplicate " + entity.id());
+            cursor = slice.result().nextCursor();
+            assertTrue(++pages <= 65);
+        } while (cursor != null);
+        assertEquals(4097, ids.size());
+    }
+
     @BeforeAll
     static void bootstrapMinecraft() {
         Bootstrap.bootStrap();

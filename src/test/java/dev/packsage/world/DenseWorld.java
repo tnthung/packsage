@@ -49,6 +49,7 @@ final class DenseWorld {
         Chunks chunks;
         List<Entity> entities;
         int visited;
+        int candidates;
         boolean forbidGlobal;
         boolean entitiesUnloaded;
         long gameTime;
@@ -63,6 +64,27 @@ final class DenseWorld {
         @Override public LevelEntityGetter<Entity> getEntities() {
             var sections = new EntitySectionStorage<>(Entity.class, key -> Visibility.TICKING);
             for (var entity : entities) sections.getOrCreateSection(SectionPos.asLong(entity.blockPosition())).add(entity);
+            // Count the engine's actual candidate traversal, before its AABB/ownership filters.
+            sections.getAllChunksWithExistingSections().forEach((long chunk) -> sections.getExistingSectionsInChunk(chunk).forEach(section -> {
+                try {
+                    var storageField = section.getClass().getDeclaredField("storage");
+                    storageField.setAccessible(true);
+                    var storage = storageField.get(section);
+                    var all = storage.getClass().getDeclaredField("allInstances");
+                    all.setAccessible(true);
+                    var original = (List<Entity>) all.get(storage);
+                    var counted = new java.util.AbstractList<Entity>() {
+                        @Override public Entity get(int index) { candidates++; return original.get(index); }
+                        @Override public int size() { return original.size(); }
+                    };
+                    all.set(storage, counted);
+                    var byClass = storage.getClass().getDeclaredField("byClass");
+                    byClass.setAccessible(true);
+                    ((Map<Class<?>, List<Entity>>) byClass.get(storage)).put(Entity.class, counted);
+                } catch (ReflectiveOperationException failure) {
+                    throw new AssertionError(failure);
+                }
+            }));
             return new LevelEntityGetterAdapter<>(new EntityLookup<>(), sections);
         }
         @Override public net.minecraft.core.RegistryAccess registryAccess() { return net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY); }

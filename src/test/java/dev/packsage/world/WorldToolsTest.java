@@ -33,6 +33,49 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldToolsTest {
+    @Test
+    void blockHoldersBeyondTheOldChunkCapAreAllGatheredInBoundedSteps() throws Exception {
+        var world = DenseWorld.create(0);
+        var chunk = (DenseWorld.Chunk) world.chunks.chunk;
+        for (int i = 0; i < 4097; i++) {
+            var at = new BlockPos(i % 16, 48 + i / 256, i / 16 % 16);
+            chunk.blockEntities.put(at, new BarrelBlockEntity(at, Blocks.BARREL.defaultBlockState()));
+        }
+        var checked = new HashSet<BlockPos>();
+        var registry = new WorldRegistry();
+        registry.register(new InventoryReader() {
+            @Override public String adapterId() { return "test"; }
+            @Override public List<InventoryInfo> inventories(LiveHolder holder) {
+                assertTrue(checked.add(((LiveHolder.OfBlock) holder).pos()));
+                return List.of(new InventoryInfo(new InventoryId("test", "storage"), "Storage", 1, SlotRole.STORAGE));
+            }
+            @Override public LiveInventory open(LiveHolder holder, String section) { return null; }
+            @Override public Section inspectItem(ItemStack stack) { return null; }
+        });
+        var tools = new WorldTools(() -> null, registry, () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
+                () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
+        var type = Class.forName("dev.packsage.world.WorldTools$FindSlice");
+        var constructor = type.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        var slice = constructor.newInstance(tools, null, new Anchor.Player(), 32, KindFilter.ANY, false, null);
+        for (var entry : Map.<String, Object>of("level", world, "center", new Vec3(8, 64, 8)).entrySet()) {
+            var field = type.getDeclaredField(entry.getKey());
+            field.setAccessible(true);
+            field.set(slice, entry.getValue());
+        }
+        var collect = type.getDeclaredMethod("collect", ChunkPos.class);
+        collect.setAccessible(true);
+        int steps = 0;
+        boolean done;
+        do {
+            var before = checked.size();
+            done = (boolean) collect.invoke(slice, new ChunkPos(0, 0));
+            assertTrue(checked.size() - before <= 64);
+            assertTrue(++steps < 2000);
+        } while (!done);
+        assertEquals(4097, checked.size());
+    }
+
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
     private static final String ENTITY = "3f1c2a4e-0000-4000-8000-000000000001";
 

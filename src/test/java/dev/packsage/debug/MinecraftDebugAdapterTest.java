@@ -61,8 +61,8 @@ class MinecraftDebugAdapterTest {
                     if (concurrent.equals("save")) return;
                 }
                 if (concurrent.equals("failure")) throw new IllegalStateException("writer failed");
-                if (concurrent.equals("conflict")) {
-                    if (writes.get() > 3) throw new AssertionError("prompt save retry limit exceeded");
+                // The fourth write restores the in-memory settings after the third conflict.
+                if (concurrent.equals("conflict") && writes.get() <= 3) {
                     try { clientThread.submit(() -> runtime.settings().save(path)).get(1, java.util.concurrent.TimeUnit.SECONDS); }
                     catch (Exception failure) { throw new RuntimeException(failure); }
                 }
@@ -106,8 +106,9 @@ class MinecraftDebugAdapterTest {
                         () -> response.get(5, java.util.concurrent.TimeUnit.SECONDS));
                 assertInstanceOf(IllegalStateException.class, failure.getCause());
                 assertTrue(failure.getCause().getMessage().contains("conflict"));
-                assertEquals(3, writes.get());
+                assertEquals(4, writes.get());
                 assertNull(runtime.settings().developerPrompt());
+                assertNull(dev.packsage.chat.PackSageSettings.load(path).developerPrompt());
                 return;
             }
             assertEquals(concurrent.equals("default") || concurrent.equals("clear")

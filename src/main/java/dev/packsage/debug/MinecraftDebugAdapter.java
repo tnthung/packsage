@@ -256,7 +256,11 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                                             ? written.candidate().developerPrompt() : settings.developerPrompt()));
                         });
                     }
-                    if (pending != null) throw new IllegalStateException("Prompt save conflict: settings kept changing; retry the request");
+                    if (pending != null) {
+                        // Restore the in-memory settings on disk so the unapplied prompt does not load next launch.
+                        promptWriter.accept(pending.before(), pending.before().developerPrompt());
+                        throw new IllegalStateException("Prompt save conflict: settings kept changing; retry the request");
+                    }
                     yield execute(DebugRouter.Operation.PROMPT_GET, body);
                 }
             }

@@ -20,6 +20,7 @@ import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.ToIntFunction;
 
 public final class RequestController {
     @FunctionalInterface
@@ -44,6 +45,7 @@ public final class RequestController {
     private final Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder;
     private final Consumer<ChatContracts.View> publisher;
     private final Consumer<ChatContracts.Turn> completionListener;
+    private final ToIntFunction<String> toolResultBytes;
     private final Object stateLock = new Object();
     private final List<String> errors = new ArrayList<>();
     private final Set<CompletableFuture<Void>> pendingPersistence = new LinkedHashSet<>();
@@ -78,6 +80,18 @@ public final class RequestController {
                              ToolExecutor toolExecutor, Function<ChatContracts.Turn, Integer> tokenCounter,
                              Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder,
                              Consumer<ChatContracts.View> publisher, Consumer<ChatContracts.Turn> completionListener) {
+        this(store, backend, executor, contextCapture, captureCancellation, evidenceCapture, toolExecutor,
+                tokenCounter, requestBuilder, publisher, completionListener,
+                result -> result.getBytes(StandardCharsets.UTF_8).length);
+    }
+
+    RequestController(ConversationStore store, ModelBackend backend, Executor executor,
+                      ContextCapture contextCapture, Consumer<ChatContracts.RequestId> captureCancellation,
+                      Function<ChatContracts.RequestCapture, ChatContracts.EvidenceSelection> evidenceCapture,
+                      ToolExecutor toolExecutor, Function<ChatContracts.Turn, Integer> tokenCounter,
+                      Function<ChatContracts.PreparedRequest, ModelBackend.Request> requestBuilder,
+                      Consumer<ChatContracts.View> publisher, Consumer<ChatContracts.Turn> completionListener,
+                      ToIntFunction<String> toolResultBytes) {
         this.store = store;
         this.backend = backend;
         this.executor = executor;
@@ -89,6 +103,7 @@ public final class RequestController {
         this.requestBuilder = requestBuilder;
         this.publisher = publisher;
         this.completionListener = Objects.requireNonNull(completionListener);
+        this.toolResultBytes = Objects.requireNonNull(toolResultBytes);
         this.conversation = new ChatContracts.Conversation("pending", new ChatContracts.WorldIdentity("none", "No world"),
                 List.of(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null));
         this.context = new ChatContracts.Context("", null,
@@ -820,7 +835,7 @@ public final class RequestController {
             return;
         }
         if (targetExchange != null) {
-            int resultBytes = response.result().serializedResult().getBytes(StandardCharsets.UTF_8).length;
+            int resultBytes = toolResultBytes.applyAsInt(response.result().serializedResult());
             ToolTiming.Interval timing;
             synchronized (stateLock) {
                 timing = new ToolTiming.Interval(request.toolReceivedAtNanos.get(call.callId()), System.nanoTime());

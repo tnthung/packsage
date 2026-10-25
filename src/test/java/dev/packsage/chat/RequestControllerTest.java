@@ -13,6 +13,7 @@ import org.apache.logging.log4j.core.config.Property;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -1296,6 +1297,53 @@ class RequestControllerTest {
         String sent = lines.stream().filter(line -> line.contains("phase=tool_result_sent ")).findFirst().orElseThrow();
         assertTrue(summary.contains("toolWallMs=" + sent.split(" toolMs=")[1].split(" ")[0] + " event_ns="), summary);
         assertTrue(lines.get(lines.indexOf(summary) + 1).contains("phase=cancel "));
+    }
+
+    @Test
+    void cancellationDuringResultByteCountCannotAdmitAnIntervalAfterSummary() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        CompletableFuture<ChatContracts.ToolResponse> response = new CompletableFuture<>();
+        CountDownLatch counting = new CountDownLatch(1);
+        CountDownLatch releaseCount = new CountDownLatch(1);
+        RequestController controller = new RequestController(new ConversationStore(temporaryDirectory, DIRECT), backend, DIRECT,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> new ChatContracts.EvidenceSelection(List.of(), List.of()), ignored -> response, turn -> turn.tokenCount(),
+                prepared -> new ModelBackend.Request(prepared.submission().selectedModel().id(), "instructions", List.of(
+                        new ModelBackend.Message(ModelBackend.Role.USER, List.of(new ModelBackend.TextContent(
+                                prepared.submission().question())))), List.of(), prepared.submission().searchMode(),
+                        prepared.submission().requestId().value(), prepared.submission().outputBudget()), ignored -> { }, ignored -> { },
+                result -> {
+                    counting.countDown();
+                    try {
+                        if (!releaseCount.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("byte count not released");
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(exception);
+                    }
+                    return result.getBytes(StandardCharsets.UTF_8).length;
+                });
+        List<String> lines = new ArrayList<>();
+        try (var capture = new LogCapture(lines::add)) {
+            controller.begin(submission("cancel-byte-count", WORLD_A, SCOPE_A, false,
+                    new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))
+                    .toCompletableFuture().join();
+            backend.emit("cancel-byte-count", toolEvent("result", "lookup", "{}"));
+            CompletableFuture<Void> completion = CompletableFuture.runAsync(() -> response.complete(new ChatContracts.ToolResponse(
+                    new ModelBackend.ToolResult("result", "ready", false), new ChatContracts.EvidenceSelection(List.of(), List.of()))));
+            try {
+                assertTrue(counting.await(5, TimeUnit.SECONDS));
+                CompletableFuture.runAsync(controller::stop).get(5, TimeUnit.SECONDS);
+                assertEquals(1, lines.stream().filter(line -> line.contains("phase=tool_summary toolCalls=1 toolWallMs=0 ")).count());
+            } finally {
+                releaseCount.countDown();
+                completion.get(5, TimeUnit.SECONDS);
+            }
+            assertTrue(backend.submitted.isEmpty());
+            assertFalse(lines.stream().anyMatch(line -> line.contains("phase=tool_result_sent ")));
+            assertEquals(1, lines.stream().filter(line -> line.contains("phase=tool_result_dropped call=result ")).count());
+            assertEquals(1, lines.stream().filter(line -> line.contains("phase=tool_summary ")).count());
+        }
     }
 
     @Test

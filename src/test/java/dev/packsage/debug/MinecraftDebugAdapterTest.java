@@ -10,6 +10,8 @@ import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.model.ModelBackend;
 import net.minecraft.client.Minecraft;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.lang.reflect.Proxy;

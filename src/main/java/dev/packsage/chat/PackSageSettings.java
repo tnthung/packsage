@@ -41,8 +41,8 @@ public final class PackSageSettings {
         this(openPaused, automaticWebSearch, historyTurns, historicalTokens, new SettingsWriter());
     }
 
-    PackSageSettings(boolean openPaused, boolean automaticWebSearch, int historyTurns, int historicalTokens,
-                     SettingsWriter writer) {
+    public PackSageSettings(boolean openPaused, boolean automaticWebSearch, int historyTurns, int historicalTokens,
+                            SettingsWriter writer) {
         this.openPaused = openPaused;
         this.automaticWebSearch = automaticWebSearch;
         this.writer = writer;

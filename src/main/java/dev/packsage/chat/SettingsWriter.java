@@ -13,8 +13,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 
-final class SettingsWriter {
-    record Snapshot(long generation, Map<String, String> properties) {
+public final class SettingsWriter {
+    public record Snapshot(long generation, Map<String, String> properties) {
         Snapshot { properties = Map.copyOf(properties); }
     }
 
@@ -30,11 +30,11 @@ final class SettingsWriter {
     private long writtenGeneration = -1;
     private boolean closed;
 
-    SettingsWriter() {
+    public SettingsWriter() {
         this(SettingsWriter::write);
     }
 
-    SettingsWriter(BiConsumer<Path, Snapshot> persistence) {
+    public SettingsWriter(BiConsumer<Path, Snapshot> persistence) {
         this.persistence = persistence;
     }
 
@@ -88,7 +88,7 @@ final class SettingsWriter {
         return result;
     }
 
-    static void write(Path path, Snapshot snapshot) {
+    public static void write(Path path, Snapshot snapshot) {
         Properties properties = new Properties();
         properties.putAll(snapshot.properties());
         try {

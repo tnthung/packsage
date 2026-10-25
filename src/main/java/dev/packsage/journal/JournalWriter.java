@@ -3,6 +3,7 @@ package dev.packsage.journal;
 import dev.packsage.PackSageLog;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -43,6 +44,12 @@ public final class JournalWriter {
     private long sessionId;
     private long lastFailureLog;
     private boolean failureLogged;
+    private long lastMarkerFailureLog;
+    private boolean markerFailureLogged;
+    private long lossFirstWall;
+    private long lossLastWall;
+    private long lossFirstGameTime;
+    private long lossLastGameTime;
 
     public JournalWriter(Callable<JournalStore> opener, EventQueue queue, JournalStats stats, LongSupplier gameTime,
                          LongSupplier wallClock, long periodMillis) {
@@ -126,7 +133,10 @@ public final class JournalWriter {
     JournalStore openNow() throws Exception {
         var opened = opener.call();
         try {
-            sessionId = opened.startSession(wallClock.getAsLong(), gameTime.getAsLong());
+            lossFirstWall = lossLastWall = wallClock.getAsLong();
+            lossFirstGameTime = lossLastGameTime = gameTime.getAsLong();
+            sessionId = opened.startSession(lossFirstWall, lossFirstGameTime);
+            stats.lossCheckpoint = new JournalStats.LossCheckpoint(lossFirstWall, lossFirstGameTime, new long[7]);
         } catch (SQLException | RuntimeException e) {
             try {
                 opened.close();
@@ -141,6 +151,8 @@ public final class JournalWriter {
 
     /** Drains, merges and writes one batch, then forgets idle runs. Returns the number of events drained. */
     int drainOnce() {
+        var sampledWall = wallClock.getAsLong();
+        var sampledGameTime = gameTime.getAsLong();
         var events = queue.drain(MAX_BATCH);
         for (var e : events) {
             merger.add(e);
@@ -150,16 +162,59 @@ public final class JournalWriter {
         if (!changed.isEmpty() || !overflow.isEmpty()) {
             var overflowed = overflow.stream().mapToLong(OverflowRow::count).sum();
             stats.overflowed.add(overflowed);
+            if (overflowed > 0) {
+                for (var row : overflow) {
+                    lossFirstWall = Math.min(lossFirstWall, row.firstWall());
+                    lossLastWall = Math.max(lossLastWall, row.lastWall());
+                    lossFirstGameTime = Math.min(lossFirstGameTime, row.firstGameTime());
+                    lossLastGameTime = Math.max(lossLastGameTime, row.lastGameTime());
+                }
+            }
             var started = System.nanoTime();
             try {
                 store.writeBatch(changed, overflow);
                 stats.written.add(events.size() + overflowed);
             } catch (SQLException | RuntimeException e) {
                 stats.failedEvents.add(events.size() + overflowed);
+                for (var event : events) {
+                    lossFirstWall = Math.min(lossFirstWall, event.wallMillis());
+                    lossLastWall = Math.max(lossLastWall, event.wallMillis());
+                    lossFirstGameTime = Math.min(lossFirstGameTime, event.gameTime());
+                    lossLastGameTime = Math.max(lossLastGameTime, event.gameTime());
+                }
                 merger.forget(changed);
-                logFailure(e);
+                logFailure(e, false);
             }
             stats.batchMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
+        }
+        var counts = new long[]{stats.failedEvents(), stats.overflowed.sum(), stats.hookFailures(), stats.droppedExplosionPositions(),
+                stats.unreadExplosionPositions(), stats.trackerEvictions(), stats.oversizedSnapshots()};
+        lossFirstWall = Math.min(lossFirstWall, sampledWall);
+        lossLastWall = Math.max(lossLastWall, wallClock.getAsLong());
+        lossFirstGameTime = Math.min(lossFirstGameTime, sampledGameTime);
+        lossLastGameTime = Math.max(lossLastGameTime, gameTime.getAsLong());
+        var losses = new ArrayList<JournalStore.RecordingLoss>();
+        for (int i = 0; i < counts.length; i++) {
+            var count = counts[i] - stats.lossCheckpoint.counts()[i];
+            if (count > 0) {
+                losses.add(new JournalStore.RecordingLoss(JournalStats.LOSS_KINDS.get(i), count, lossFirstWall, lossLastWall,
+                        lossFirstGameTime, lossLastGameTime));
+            }
+        }
+        stats.lossCheckpoint = new JournalStats.LossCheckpoint(lossFirstWall, lossFirstGameTime, stats.lossCheckpoint.counts());
+        Runnable onCommitted = () -> {
+            stats.lossCheckpoint = new JournalStats.LossCheckpoint(sampledWall, sampledGameTime, counts);
+            lossFirstWall = lossLastWall = sampledWall;
+            lossFirstGameTime = lossLastGameTime = sampledGameTime;
+        };
+        try {
+            if (!losses.isEmpty()) {
+                store.writeRecordingLosses(sessionId, losses, onCommitted);
+            } else {
+                onCommitted.run();
+            }
+        } catch (SQLException | RuntimeException e) {
+            logFailure(e, true);
         }
         merger.closeIdle(gameTime.getAsLong());
         return events.size();
@@ -259,8 +314,16 @@ public final class JournalWriter {
         closed.complete(null);
     }
 
-    private void logFailure(Exception e) {
+    private void logFailure(Exception e, boolean marker) {
         var now = wallClock.getAsLong();
+        if (marker) {
+            if (!markerFailureLogged || now - lastMarkerFailureLog >= FAILURE_LOG_MILLIS) {
+                markerFailureLogged = true;
+                lastMarkerFailureLog = now;
+                PackSageLog.LOGGER.warn("PackSage journal loss marker persistence failed: {}", PackSageLog.describe(e));
+            }
+            return;
+        }
         if (!failureLogged || now - lastFailureLog >= FAILURE_LOG_MILLIS) {
             failureLogged = true;
             lastFailureLog = now;

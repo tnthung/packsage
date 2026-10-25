@@ -25,6 +25,23 @@ class JournalSearchTest {
     Path dir;
 
     @Test
+    void manySessionGapsHaveOneBoundedCoverageReason() throws Exception {
+        try (var store = JournalStore.open(dir.resolve("gaps.db"))) {
+            for (int i = 0; i <= 100; i++) {
+                var id = store.startSession(i * 10_000L, i * 1_000L);
+                store.endSession(id, i * 10_000L + 100, i * 1_000L + 10);
+            }
+            var page = new JournalSearch(store).search(new JournalFilter(null, null, null, null,
+                    Set.of(), List.of(), null, false), null, 1_100_000);
+            assertEquals(Evidence.Coverage.PARTIAL, page.coverage());
+            assertTrue(page.note().length() < 1_024, "gap detail must remain bounded");
+            assertTrue(page.note().contains("100 recording gaps"), page.note());
+            assertTrue(page.note().contains("1970-01-01T00:00:00.100Z"), page.note());
+            assertTrue(page.note().contains("1970-01-01T00:16:40Z"), page.note());
+        }
+    }
+
+    @Test
     void hookLossesMakeAnOtherwiseEmptySearchPartial() throws Exception {
         try (var store = JournalStore.open(dir.resolve("journal.db"))) {
             store.startSession(0, 0);

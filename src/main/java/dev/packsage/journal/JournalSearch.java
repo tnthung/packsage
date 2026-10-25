@@ -93,6 +93,9 @@ public final class JournalSearch {
                     reasons.add("the journal began recording at " + Instant.ofEpochMilli(meta.createdWall()));
                 }
                 var sessions = store.sessions();
+                var gaps = 0;
+                var firstGap = Long.MAX_VALUE;
+                var lastGap = Long.MIN_VALUE;
                 for (int i = 1; i < sessions.size(); i++) {
                     var previous = sessions.get(i - 1);
                     var next = sessions.get(i);
@@ -114,21 +117,38 @@ public final class JournalSearch {
                     if (next.startedGameTime() - endedGame > 200
                             && (filter.afterWall() == null || filter.afterWall() < next.startedWall())
                             && (filter.beforeWall() == null ? nowWall : filter.beforeWall()) > endedWall) {
-                        reasons.add("the world ran without recording between " + Instant.ofEpochMilli(endedWall)
-                                + " and " + Instant.ofEpochMilli(next.startedWall()));
+                        gaps++;
+                        firstGap = Math.min(firstGap, endedWall);
+                        lastGap = Math.max(lastGap, next.startedWall());
                     }
                 }
-                if (stats != null && stats.failedEvents() > 0) {
-                    reasons.add(stats.failedEvents() + " events failed to record");
+                if (gaps > 0) {
+                    reasons.add((gaps == 1 ? "the world ran without recording between " : gaps + " recording gaps between ")
+                            + Instant.ofEpochMilli(firstGap) + " and " + Instant.ofEpochMilli(lastGap));
                 }
-                if (stats != null && stats.unreadExplosionPositions() > 0) {
-                    reasons.add(stats.unreadExplosionPositions() + " unread explosion positions may contain unrecorded block breaks");
+                try (var statement = connection.prepareStatement("SELECT kind, SUM(count) FROM recording_losses"
+                        + " WHERE last_wall >= ? AND first_wall <= ? GROUP BY kind")) {
+                    statement.setLong(1, filter.afterWall() == null ? Long.MIN_VALUE : filter.afterWall());
+                    statement.setLong(2, filter.beforeWall() == null ? nowWall : filter.beforeWall());
+                    try (var rows = statement.executeQuery()) {
+                        while (rows.next()) {
+                            reasons.add("recording loss: " + rows.getLong(2) + " " + rows.getString(1));
+                        }
+                    }
                 }
-                if (stats != null && (stats.hookFailures() > 0 || stats.droppedExplosionPositions() > 0
-                        || stats.trackerEvictions() > 0 || stats.oversizedSnapshots() > 0)) {
-                    reasons.add("recording may be incomplete: " + stats.hookFailures() + " hook failures, "
-                            + stats.droppedExplosionPositions() + " dropped explosion positions, " + stats.trackerEvictions()
-                            + " tracker evictions, " + stats.oversizedSnapshots() + " oversized container snapshots");
+                if (stats != null) {
+                    var checkpoint = stats.lossCheckpoint;
+                    if ((filter.beforeWall() == null ? nowWall : filter.beforeWall()) >= checkpoint.sinceWall()
+                            && (filter.afterWall() == null || filter.afterWall() <= nowWall)) {
+                        var counts = new long[]{stats.failedEvents(), stats.overflowed.sum(), stats.hookFailures(), stats.droppedExplosionPositions(),
+                                stats.unreadExplosionPositions(), stats.trackerEvictions(), stats.oversizedSnapshots()};
+                        for (int i = 0; i < counts.length; i++) {
+                            if (counts[i] > checkpoint.counts()[i]) {
+                                reasons.add("recording loss (awaiting persistence): " + (counts[i] - checkpoint.counts()[i])
+                                        + " " + JournalStats.LOSS_KINDS.get(i));
+                            }
+                        }
+                    }
                 }
                 return new Page<>(items, more ? last : null, reasons.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
                         reasons.isEmpty() ? null : String.join("; ", reasons));

@@ -75,6 +75,55 @@ class JournalToolsTest {
     }
 
     @Test
+    void maximumLengthNotesKeepContinuationThroughTheToolResponsePipeline() throws Exception {
+        var journal = open();
+        try {
+            journal.write(store -> {
+                for (int i = 1; i <= 150; i++) {
+                    store.putNote(new Note(String.format(java.util.Locale.ROOT, "n%08x", i), "\u0001".repeat(1_000),
+                            "\u0002".repeat(1_000), List.of("build"), PLACE, 1_000, 400, 1_000, "conversation", "request"));
+                }
+                return null;
+            }).toCompletableFuture().get();
+            var provider = tools(journal);
+            var tools = new PackSageTools(request -> provider.handle(request, context()));
+            var arguments = "{\"filter\":{\"notesOnly\":true}}";
+            var seen = new java.util.HashSet<String>();
+            var pages = 0;
+            while (true) {
+                assertTrue(++pages <= 150, "continuation did not advance");
+                var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("notes", "search_journal", arguments), SCOPE)
+                        .toCompletableFuture().get();
+                assertFalse(response.result().error());
+                assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 131_072);
+                var json = com.google.gson.JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+                assertFalse(json.get("detail").getAsString().contains("tool output limit"), json.toString());
+                assertFalse(response.records().isEmpty());
+                assertTrue(json.getAsJsonArray("records").toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 96 * 1024 + 2);
+                for (int i = 0; i < response.records().size(); i++) {
+                    var record = response.records().get(i);
+                    var encoded = PackSageTools.encodeRecord(record).toString();
+                    assertEquals(json.getAsJsonArray("records").get(i).toString(), encoded);
+                    assertEquals(json.getAsJsonArray("records").get(i).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length,
+                            encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+                    assertTrue(seen.add(record.source().sourceHandle()), "repeated " + record.source().sourceHandle());
+                    assertEquals(new Evidence.JsonString("\u0001".repeat(1_000)), record.payload().values().get("text"));
+                    assertEquals(new Evidence.JsonString("\u0002".repeat(1_000)), record.payload().values().get("playerWords"));
+                }
+                if (!json.has("nextCall")) {
+                    assertEquals(150, seen.size(), "the cursor was lost before all notes were delivered");
+                    break;
+                }
+                assertFalse(json.get("nextCursor").isJsonNull());
+                arguments = json.getAsJsonObject("nextCall").getAsJsonObject("arguments").toString();
+            }
+            assertTrue(pages > 1);
+        } finally {
+            journal.close().get();
+        }
+    }
+
+    @Test
     void toolsAreUnavailableWithoutAnIntegratedServerOrBeforeTheJournalOpens() {
         var journal = new Journal(Runnable::run);
         var tools = new JournalTools(journal, () -> SCOPE, Runnable::run, () -> null,
@@ -86,6 +135,24 @@ class JournalToolsTest {
             failure(Toolbox.Code.UNAVAILABLE, call(tools(journal), name, "{}"));
         }
         assertEquals(journal.unavailableReason(), tools(journal).status().detail());
+    }
+
+    @Test
+    void noteEvidenceDistinguishesMatchingOriginalWordsFromAbsentWords() throws Exception {
+        var journal = open();
+        try {
+            journal.write(store -> {
+                store.putNote(new Note("n00000001", "farm", "farm", List.of(), null, 1_000, 400, 1_000, null, null));
+                store.putNote(new Note("n00000002", "farm", null, List.of(), null, 2_000, 400, 2_000, null, null));
+                return null;
+            }).toCompletableFuture().get();
+            var records = call(tools(journal), "search_journal", "{\"filter\":{\"notesOnly\":true}}")
+                    .toCompletableFuture().get().records();
+            assertFalse(records.getFirst().payload().values().containsKey("playerWords"));
+            assertEquals(new Evidence.JsonString("farm"), records.getLast().payload().values().get("playerWords"));
+        } finally {
+            journal.close().get();
+        }
     }
 
     @Test

@@ -35,8 +35,9 @@ public final class PackSageTools {
 
     /** Shared by short-lived tool facades in one knowledge service. Cursors retain undelivered records. */
     public static final class OutputPages {
-        private record Pending(ReadRequest request, Evidence.Result result) { }
+        private record Pending(ReadRequest request, Evidence.Result result, List<JsonObject> encoded, int bytes) { }
         private final java.util.Map<String, Pending> pending = new java.util.LinkedHashMap<>();
+        private int retainedBytes;
         private final java.util.function.BiConsumer<Evidence.Scope, List<Evidence.Record>> delivered;
 
         public OutputPages() {
@@ -357,6 +358,7 @@ public final class PackSageTools {
                     && !(arguments.values().get("section") instanceof Evidence.JsonString)) throw new IllegalArgumentException("select a config key or section");
             var request = new ReadRequest(call.name(), arguments, scope);
             CompletionStage<Evidence.Result> read;
+            List<JsonObject> pendingRecords;
             if (arguments.values().get("cursor") instanceof Evidence.JsonString token && token.value().startsWith("output:")) {
                 OutputPages.Pending pending;
                 synchronized (outputPages) { pending = outputPages.pending.get(token.value()); }
@@ -366,9 +368,15 @@ public final class PackSageTools {
                     throw new Toolbox.Failure(Toolbox.Code.INVALID_CURSOR, "output cursor does not match this query; restart without a cursor");
                 }
                 if (!pending.request().scope().equals(scope)) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "output cursor scope changed");
-                synchronized (outputPages) { outputPages.pending.remove(token.value()); }
+                synchronized (outputPages) {
+                    if (outputPages.pending.remove(token.value()) != null) outputPages.retainedBytes -= pending.bytes();
+                }
+                pendingRecords = pending.encoded();
                 read = CompletableFuture.completedFuture(pending.result());
-            } else read = dispatch.apply(request);
+            } else {
+                pendingRecords = null;
+                read = dispatch.apply(request);
+            }
             return read.thenApply(result -> {
                 if (result == null) throw new IllegalStateException("evidence extraction returned no result");
                 if (result.records().stream().anyMatch(record -> !record.source().scope().equals(scope)
@@ -411,7 +419,7 @@ public final class PackSageTools {
                 boolean trimmed = false;
                 for (var record : result.records()) {
                     if (!record.source().sourceHandle().startsWith("status:") && ordinaryRecords == 64) break;
-                    var encoded = encodeRecord(record);
+                    var encoded = pendingRecords == null ? encodeRecord(record) : pendingRecords.get(accepted.size()).deepCopy();
                     int recordBytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + (records.isEmpty() ? 0 : 1);
                     boolean crossesBudget = outputBytes + recordBytes > 131_072 - 12_800;
                     if (crossesBudget) {
@@ -438,11 +446,39 @@ public final class PackSageTools {
                     if (overflowCursor != null && !accepted.isEmpty()) {
                         var signature = new java.util.LinkedHashMap<>(arguments.values());
                         signature.remove("cursor");
+                        var tail = new ArrayList<Evidence.Record>();
+                        var encodedTail = new ArrayList<JsonObject>();
+                        int tailBytes = Evidence.serialize(new Evidence.JsonObject(signature)).getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+                        for (int i = accepted.size(); i < result.records().size(); i++) {
+                            var record = result.records().get(i);
+                            var encoded = pendingRecords == null ? encodeRecord(record) : pendingRecords.get(i);
+                            int bytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+                            if (bytes > MAX_RECORD_BYTES || tailBytes + bytes > 4 * 1024 * 1024) break;
+                            var source = record.source();
+                            // Keep the bounded wire content and delivery metadata, never the provider's raw payload/recipe.
+                            var retained = new Evidence.Record(new Evidence.Source(source.scope(), source.providerId(), boundedString(source.providerVersion()),
+                                    source.sourceHandle(), source.observedGeneration(), source.observedAt(), source.activity(),
+                                    encoded.has("truncationNote") ? Evidence.Coverage.PARTIAL : source.coverage(), source.authority(),
+                                    encoded.getAsJsonObject("source").has("provenance") ? encoded.getAsJsonObject("source").getAsJsonArray("provenance")
+                                            .asList().stream().map(com.google.gson.JsonElement::getAsString).toList() : List.of()),
+                                    record.kind(), encoded.get("title").getAsString(), Evidence.deserializeObject(encoded.get("payload").toString()), record.targets());
+                            bytes += JSON.toJsonTree(retained).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+                            if (tailBytes + bytes > 4 * 1024 * 1024) break;
+                            tail.add(retained);
+                            encodedTail.add(encoded);
+                            tailBytes += bytes;
+                        }
+                        int omitted = result.records().size() - accepted.size() - tail.size();
+                        var tailDetail = boundedString((omitted == 0 ? "" : omitted + " records omitted at the retained-output byte limit; narrow the requested selection; ")
+                                + (result.detail() == null ? "" : result.detail()));
                         synchronized (outputPages) {
                             outputPages.pending.put(overflowCursor, new OutputPages.Pending(new ReadRequest(call.name(), new Evidence.JsonObject(signature), scope),
-                                    new Evidence.Result(result.records().subList(accepted.size(), result.records().size()), result.coverage(),
-                                            result.outcome(), result.nextCursor(), result.detail())));
-                            while (outputPages.pending.size() > 256) outputPages.pending.remove(outputPages.pending.keySet().iterator().next());
+                                    new Evidence.Result(tail, omitted == 0 ? result.coverage() : Evidence.Coverage.PARTIAL,
+                                            omitted == 0 ? result.outcome() : Evidence.Outcome.PARTIAL, result.nextCursor(), tailDetail), encodedTail, tailBytes));
+                            outputPages.retainedBytes += tailBytes;
+                            while (outputPages.pending.size() > 256 || outputPages.retainedBytes > 8 * 1024 * 1024) {
+                                outputPages.retainedBytes -= outputPages.pending.remove(outputPages.pending.keySet().iterator().next()).bytes();
+                            }
                         }
                         continuation.accept(overflowCursor);
                     } else {
@@ -462,7 +498,10 @@ public final class PackSageTools {
                 }
                 var serialized = json.toString();
                 if (serialized.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 131_072) {
-                    synchronized (outputPages) { outputPages.pending.remove(overflowCursor); }
+                    synchronized (outputPages) {
+                        var discarded = outputPages.pending.remove(overflowCursor);
+                        if (discarded != null) outputPages.retainedBytes -= discarded.bytes();
+                    }
                     return new ToolResponse(new ModelBackend.ToolResult(call.callId(),
                             "{\"coverage\":\"PARTIAL\",\"outcome\":\"PARTIAL\",\"records\":[],\"detail\":\""
                                     + result.records().size() + " records omitted because the response envelope exceeds the byte limit; narrow the requested selection\"}", false), List.of());

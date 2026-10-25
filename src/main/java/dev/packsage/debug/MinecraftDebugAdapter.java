@@ -58,7 +58,8 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                 var json = new JsonObject();
                 json.addProperty("world", client.level == null ? null : runtime.view().activeWorld().readableLabel());
                 var server = client.getSingleplayerServer();
-                json.addProperty("save", server == null ? null : server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).getFileName().toString());
+                json.addProperty("save", server == null ? null : server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
+                        .toAbsolutePath().normalize().getFileName().toString());
                 json.addProperty("paused", client.isPaused());
                 json.addProperty("running", client.level != null && !client.isPaused());
                 json.addProperty("screen", client.screen == null ? null : client.screen.getClass().getName());
@@ -206,7 +207,8 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
             case PROMPT_GET, PROMPT_SET -> call(client, () -> {
                 var settings = runtime.settings();
                 if (operation == DebugRouter.Operation.PROMPT_SET) {
-                    var candidate = settings.withDeveloperPrompt(body.get("text").isJsonNull() ? null : body.get("text").getAsString());
+                    String text = body.get("text").isJsonNull() ? null : body.get("text").getAsString();
+                    var candidate = settings.withDeveloperPrompt(dev.packsage.model.GroundingInstructions.defaultInstructions().equals(text) ? null : text);
                     candidate.save(settingsPath);
                     settings.setDeveloperPrompt(candidate.developerPrompt());
                 }

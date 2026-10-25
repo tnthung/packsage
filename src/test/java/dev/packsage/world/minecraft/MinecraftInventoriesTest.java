@@ -4,21 +4,29 @@ import com.mojang.serialization.Lifecycle;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.world.InventoryInfo;
 import dev.packsage.world.LiveHolder;
+import dev.packsage.world.Section;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.NonNullList;
 import net.minecraft.core.RegistrationInfo;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.server.network.Filterable;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.alchemy.Potions;
 import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.item.component.ItemContainerContents;
+import net.minecraft.world.item.component.WrittenBookContent;
 import net.minecraft.world.item.enchantment.Enchantment;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -28,6 +36,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -90,7 +99,7 @@ class MinecraftInventoriesTest {
                 opened.entries();
                 opened.get("0");
             }
-            inventories.inspectItem(stack);
+            assertNotNull(inventories.inspectItem(stack));
             assertEquals(before, stack.getComponents());
             assertEquals(beforePatch, stack.getComponentsPatch());
         }
@@ -102,7 +111,7 @@ class MinecraftInventoriesTest {
         sword.enchant(enchantments.getHolderOrThrow(ResourceKey.create(Registries.ENCHANTMENT,
                 ResourceLocation.fromNamespaceAndPath("packsage", "sharpness"))), 2);
         sword.setDamageValue(10);
-        var facts = inventories.inspectItem(sword).values();
+        var facts = inventories.inspectItem(sword).facts().values();
         assertEquals(number(1), facts.get("count"));
         assertEquals(number(1), facts.get("maxStackSize"));
         assertEquals(number(10), facts.get("damage"));
@@ -122,9 +131,60 @@ class MinecraftInventoriesTest {
         var failing = new MinecraftInventories(() -> {
             throw new IllegalStateException("no registries");
         });
-        var eligibility = (Evidence.JsonObject) failing.inspectItem(new ItemStack(Items.IRON_SWORD)).values().get("enchantmentEligibility");
+        var eligibility = (Evidence.JsonObject) failing.inspectItem(new ItemStack(Items.IRON_SWORD)).facts().values().get("enchantmentEligibility");
         assertEquals(new Evidence.JsonString("unavailable"), eligibility.values().get("status"));
         assertEquals(new Evidence.JsonString("no registries"), eligibility.values().get("detail"));
+    }
+
+    @Test
+    void inspectItemReportsComponentsFingerprintAndFullPotionFacts() {
+        var splash = PotionContents.createItemStack(Items.SPLASH_POTION, Potions.STRENGTH);
+        splash.set(DataComponents.POTION_CONTENTS, splash.get(DataComponents.POTION_CONTENTS)
+                .withEffectAdded(new MobEffectInstance(MobEffects.JUMP, 200, 1)));
+        var section = inventories.inspectItem(splash);
+        assertEquals(Evidence.Coverage.COMPLETE, section.coverage());
+        var facts = section.facts().values();
+        assertTrue(facts.get("components") instanceof Evidence.JsonObject components
+                && components.values().containsKey("minecraft:potion_contents"));
+        assertTrue(facts.get("componentFingerprint") instanceof Evidence.JsonString);
+        var potion = ((Evidence.JsonObject) facts.get("potion")).values();
+        assertEquals(new Evidence.JsonString("minecraft:strength"), potion.get("potion"));
+        assertEquals(0, BigDecimal.ONE.compareTo(((Evidence.JsonNumber) potion.get("durationScale")).value()));
+        var effects = ((Evidence.JsonArray) potion.get("effects")).values();
+        assertEquals(2, effects.size());
+        for (var effect : effects) {
+            var values = ((Evidence.JsonObject) effect).values();
+            for (var key : List.of("amplifier", "durationTicks", "ambient", "visible", "showIcon", "origin")) {
+                assertTrue(values.containsKey(key), key);
+            }
+        }
+        var first = new ItemStack(Items.DIAMOND_SWORD);
+        first.set(DataComponents.CUSTOM_NAME, Component.literal("First"));
+        var second = new ItemStack(Items.DIAMOND_SWORD);
+        second.set(DataComponents.CUSTOM_NAME, Component.literal("Second"));
+        assertNotEquals(inventories.inspectItem(first).facts().values().get("componentFingerprint"),
+                inventories.inspectItem(second).facts().values().get("componentFingerprint"));
+    }
+
+    @Test
+    void everyItemReportsEnchantmentEligibilityEvenWhenNothingApplies() {
+        var section = inventories.inspectItem(new ItemStack(Items.STONE));
+        var eligibility = ((Evidence.JsonObject) section.facts().values().get("enchantmentEligibility")).values();
+        assertEquals(new Evidence.JsonArray(List.of()), eligibility.get("supported"));
+        assertEquals(new Evidence.JsonString("No enchantment can be applied to this item"), eligibility.get("none"));
+        assertEquals(Evidence.Coverage.COMPLETE, section.coverage());
+    }
+
+    @Test
+    void boundedEligibilityOrComponentsMakeTheSectionPartial() {
+        var book = new ItemStack(Items.WRITTEN_BOOK);
+        var pages = java.util.stream.IntStream.range(0, 10)
+                .mapToObj(index -> Filterable.passThrough((Component) Component.literal("x".repeat(1000)))).toList();
+        book.set(DataComponents.WRITTEN_BOOK_CONTENT, new WrittenBookContent(Filterable.passThrough("Long"), "Author", 0, pages, true));
+        Section section = inventories.inspectItem(book);
+        var components = (Evidence.JsonObject) section.facts().values().get("components");
+        assertEquals(new Evidence.JsonString("bounded"), components.values().get("status"));
+        assertEquals(Evidence.Coverage.PARTIAL, section.coverage());
     }
 
     private static InventoryInfo only(List<InventoryInfo> infos) {

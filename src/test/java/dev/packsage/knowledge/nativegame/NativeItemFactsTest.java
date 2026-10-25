@@ -1,6 +1,7 @@
 package dev.packsage.knowledge.nativegame;
 
 import dev.packsage.knowledge.Evidence;
+import net.minecraft.core.NonNullList;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -12,6 +13,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.alchemy.PotionContents;
 import net.minecraft.world.item.alchemy.Potions;
+import net.minecraft.world.item.component.ItemContainerContents;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -60,6 +62,19 @@ class NativeItemFactsTest {
         NativeItemFacts.enrich(payload, PotionContents.createItemStack(Items.POTION, Potions.STRENGTH), registries);
         payload.put("components", new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unknown_truncated"))));
         assertTrue(payload.get("componentFingerprint") instanceof Evidence.JsonString);
+    }
+
+    @Test
+    void componentsLeaveOutNestedContents() {
+        var items = NonNullList.withSize(27, ItemStack.EMPTY);
+        items.set(0, new ItemStack(Items.DIAMOND, 3));
+        var shulker = new ItemStack(Items.SHULKER_BOX);
+        shulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(items));
+        shulker.set(DataComponents.CUSTOM_NAME, Component.literal("Loot"));
+        var components = NativeItemFacts.components(shulker, registries).values();
+        assertFalse(components.containsKey("minecraft:container"));
+        assertFalse(components.containsKey("status"));
+        assertTrue(components.containsKey("minecraft:custom_name"));
     }
 
     private static ItemStack potionWithCustomEffects(int count) {

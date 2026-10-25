@@ -53,6 +53,7 @@ final class MinecraftTrades {
                 entries.add(offer(offer, index, priced ? costForPlayer(offer, reputation, heroAmplifier) : null, registries));
             }
             values.put("offers", new Evidence.JsonArray(entries));
+            values.put("offerCount", number(offers.size()));
             if (offers.size() > MAX_OFFERS) values.put("offersStatus", new Evidence.JsonString("bounded"));
         }
         values.put("trading", new Evidence.JsonBoolean(trading));

@@ -30,7 +30,9 @@ import java.util.UUID;
 
 /**
  * Sliced block and entity scans in a sphere around a center. Block scans take one non-empty 16x16x16 chunk section
- * per step and entity scans revalidate at most 64 snapshot UUIDs per step. A chunk that is not loaded when its step runs, or unloads while its
+ * per step. Entity scans acquire at most 64 candidates (including resume checks) and revalidate at most 64 snapshot UUIDs
+ * per step. Each page re-copies its chunk snapshot, costing about N^2/64 candidate visits over all pages of N entities;
+ * acquisition stays bounded per step, with capped rescans if a section changes. A chunk that is not loaded when its step runs, or unloads while its
  * sections are read, is counted, never loaded, and makes the page PARTIAL. List cursors are
  * {@code <chunk index>:<matches to skip in that chunk>} for blocks, or a chunk index and UUID anchor for entities.
  * They stay stable while the relevant loaded content is unchanged. A scan

@@ -669,6 +669,46 @@ class WorldToolsTest {
         assertEquals(Evidence.Coverage.COMPLETE, page.coverage());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"list_items", "find_items"})
+    void longItemNamesKeepEveryEntryReachableThroughTheRealEncoder(String tool) throws Exception {
+        var provider = tools();
+        var entries = new java.util.ArrayList<ItemEntry>();
+        for (var i = 0; i < 65; i++) {
+            entries.add(new ItemEntry("minecraft:item_" + i, "\"\n世".repeat(i == 0 ? 100_000 : 1000), 1, 1,
+                    List.of(ItemPath.parse("block:minecraft:overworld|" + i % 3 + ",64,0>minecraft/container#" + i + "@minecraft:item_" + i)), false));
+        }
+        var arguments = tool.equals("list_items") ? "{\"holder\":\"player\"}" : "{\"filter\":{}}";
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(provider.entries(request,
+                request.arguments().values().containsKey("cursor") ? (WorldTools.EntriesState) provider.cursor(request)
+                        : new WorldTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null), Evidence.Coverage.COMPLETE, null)));
+        var seen = new HashSet<String>();
+        int pages = 0;
+        do {
+            var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("items", tool, arguments), SCOPE).toCompletableFuture().get();
+            assertFalse(response.result().error(), response.result().serializedResult());
+            var encoded = response.result().serializedResult();
+            assertTrue(encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
+            var json = com.google.gson.JsonParser.parseString(encoded).getAsJsonObject();
+            for (var value : json.getAsJsonArray("records")) {
+                var record = value.getAsJsonObject();
+                var payload = record.getAsJsonObject("payload");
+                if (!payload.has("item")) continue;
+                assertTrue(seen.add(payload.get("item").getAsString()), "entries must be delivered exactly once");
+                assertTrue(payload.get("name").getAsString().length() <= 1024);
+                assertTrue(payload.get("nameTruncated").getAsBoolean());
+                assertEquals("PARTIAL", record.getAsJsonObject("source").get("coverage").getAsString());
+            }
+            assertEquals("PARTIAL", json.get("coverage").getAsString());
+            assertTrue(json.get("detail").getAsString().contains("truncated"));
+            assertTrue(++pages < 20);
+            if (!json.has("nextCall")) break;
+            arguments = json.getAsJsonObject("nextCall").get("arguments").toString();
+        } while (true);
+        assertEquals(65, seen.size(), "the outer encoder must not discard entries or their continuation");
+        assertTrue(pages > 2, "encoded bytes must cut pages before their record-count bound");
+    }
+
     @Test
     void anEntryWithMoreHoldersThanFitLinksTheFirstOnesAndSaysHowManyAreLeft() {
         var tools = tools();
@@ -922,6 +962,21 @@ class WorldToolsTest {
         assertTrue(notes.getFirst().contains("list_entities"), notes.getFirst());
         assertEquals("2 chunks in range did not have their entities loaded yet, so entities there were not read", notes.get(1));
         assertTrue(notes.stream().noneMatch(note -> note.contains("cursor")), notes.toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"An entity from a chunk snapshot disappeared during the read",
+            "An entity section changed repeatedly during acquisition; this chunk snapshot is incomplete",
+            "An entity section became unavailable during acquisition; this chunk snapshot is incomplete"})
+    void inspectAreaKeepsConcreteEntityGapsWithoutCursorOrSpanInstructions(String gap) {
+        var blocks = new Page<>(List.of(new BlockSummary(Map.of(), List.of(), 0)), null, Evidence.Coverage.COMPLETE, null);
+        for (var cut : List.of(false, true)) {
+            var entities = new Page<EntityHandle>(List.of(), cut ? "5:0" : null, Evidence.Coverage.PARTIAL,
+                    gap + (cut ? "; " + AreaScan.PAGE_LIMIT_NOTE : "") + "; " + AreaScan.SNAPSHOT_NOTE.formatted(1, 2));
+            var notes = WorldTools.areaNotes(blocks, entities);
+            assertTrue(String.join("; ", notes).contains(gap), notes.toString());
+            assertTrue(notes.stream().noneMatch(note -> note.contains("cursor") || note.contains("game-time span")), notes.toString());
+        }
     }
 
     @Test

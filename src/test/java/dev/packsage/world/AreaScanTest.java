@@ -64,6 +64,20 @@ class AreaScanTest {
     }
 
     @Test
+    void aSectionHiddenDuringAcquisitionMakesTheSnapshotIncomplete() throws Exception {
+        var world = DenseWorld.create(130);
+        var snapshot = new AreaScan.EntitySnapshot();
+        var notes = new java.util.LinkedHashSet<String>();
+        assertTrue(snapshot.step(world, new ChunkPos(0, 0), notes));
+        var key = net.minecraft.core.SectionPos.asLong(world.entities.getFirst().blockPosition());
+        world.sections.getSection(key).updateChunkStatus(net.minecraft.world.level.entity.Visibility.HIDDEN);
+        while (snapshot.step(world, new ChunkPos(0, 0), notes)) {
+        }
+        assertTrue(snapshot.ids.size() < world.entities.size());
+        assertFalse(notes.isEmpty(), "uncopied entities in a hidden section must be reported");
+    }
+
+    @Test
     void sectionChurnStopsWithConcretePartialCoverage() throws Exception {
         var world = DenseWorld.create(130);
         var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4,

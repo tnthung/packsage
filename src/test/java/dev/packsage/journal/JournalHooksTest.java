@@ -4,6 +4,7 @@ import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.Bootstrap;
 import net.neoforged.bus.api.Event;
+import net.neoforged.bus.api.BusBuilder;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
@@ -13,7 +14,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -117,5 +117,20 @@ class JournalHooksTest {
         session.updateStats(journal.stats());
         assertEquals(1, journal.stats().trackerEvictions());
         assertEquals(1, journal.stats().oversizedSnapshots());
+    }
+
+    @Test
+    void callbacksWithoutAnIntegratedServerDoNotTouchSessionTrackerCounters() {
+        var journal = new Journal(Runnable::run);
+        var hooks = new JournalHooks(journal, () -> null);
+        var session = hooks.newSession();
+        for (int i = 0; i < 65; i++) {
+            session.containers.open("player:" + i, 1,
+                    new ContainerSessions.Holder("minecraft:chest", "minecraft:overworld", 0, 64, 0, null), Map.of());
+        }
+        var bus = BusBuilder.builder().build();
+        hooks.register(bus);
+        bus.post(new BlockEvent.BreakEvent(null, BlockPos.ZERO, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), null));
+        assertEquals(0, journal.stats().trackerEvictions());
     }
 }

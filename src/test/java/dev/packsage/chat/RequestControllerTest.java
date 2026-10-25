@@ -1290,6 +1290,159 @@ class RequestControllerTest {
     }
 
     @Test
+    void toolTimingLogsReceiptAndSubmissionWithoutArguments() {
+        FakeBackend backend = new FakeBackend();
+        CompletableFuture<ChatContracts.ToolResponse> response = new CompletableFuture<>();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                ignored -> response, ignored -> { });
+        List<String> lines = new ArrayList<>();
+        LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
+        LoggerConfig loggerConfig = loggerContext.getConfiguration().getLoggerConfig(PackSageLog.LOGGER.getName());
+        Level originalLevel = loggerConfig.getLevel();
+        AbstractAppender appender = new AbstractAppender("tool-timing", null, null, true, Property.EMPTY_ARRAY) {
+            @Override
+            public void append(LogEvent event) {
+                lines.add(event.getMessage().getFormattedMessage());
+            }
+        };
+        appender.start();
+        loggerConfig.setLevel(Level.INFO);
+        loggerConfig.addAppender(appender, Level.INFO, null);
+        loggerContext.updateLoggers();
+        try {
+            controller.begin(submission("tool-timing", WORLD_A, SCOPE_A, false, new ChatContracts.HistoryLimits(10, 12_000),
+                    ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+            ModelBackend.ToolCall call = new ModelBackend.ToolCall("first", "lookup", "{\"secret\":\"do-not-log\"}");
+            backend.emit("tool-timing", toolEvent(call.callId(), call.name(), call.serializedArguments()));
+            backend.emit("tool-timing", toolEvent(call.callId(), call.name(), call.serializedArguments()));
+            assertEquals(1, lines.stream().filter(line -> line.contains(
+                    "phase=tool_received call=first tool=lookup step=1 event_ns=") && line.contains(" elapsed_ms=")).count());
+            assertFalse(lines.stream().anyMatch(line -> line.contains("phase=tool_result_sent")));
+            ModelBackend.ToolResult result = new ModelBackend.ToolResult("first", "\"do-not-log-\u00e9\"", false);
+            response.complete(new ChatContracts.ToolResponse(result, new ChatContracts.EvidenceSelection(List.of(), List.of())));
+            backend.emit("tool-timing", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null,
+                    List.of(), List.of(call, result), null));
+
+            assertEquals(1, lines.stream().filter(line -> line.contains("phase=tool_result_sent call=first tool=lookup event_ns=")
+                    && line.contains(" toolMs=") && line.contains(" resultBytes=15 error=false")).count());
+            String summary = lines.stream().filter(line -> line.contains("phase=tool_summary toolCalls=1 toolWallMs=")
+                    && line.contains(" event_ns=")).findFirst().orElseThrow();
+            assertTrue(lines.get(lines.indexOf(summary) + 1).contains("phase=model_terminal"));
+            assertEquals(ChatContracts.OutcomeStatus.COMPLETED, controller.view().conversation().turns().getFirst().outcome().status());
+            assertFalse(lines.stream().anyMatch(line -> line.contains("do-not-log")));
+        } finally {
+            loggerConfig.removeAppender(appender.getName());
+            loggerConfig.setLevel(originalLevel);
+            loggerContext.updateLoggers();
+            appender.stop();
+        }
+    }
+
+    @Test
+    void resultReadyBeforeExchangeInstallLogsOneSendAtSubmission() {
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> CompletableFuture.completedFuture(new ChatContracts.ToolResponse(
+                        new ModelBackend.ToolResult(request.call().callId(), "\u00e9", true),
+                        new ChatContracts.EvidenceSelection(List.of(), List.of()))), ignored -> { });
+        List<String> lines = new ArrayList<>();
+        LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
+        LoggerConfig loggerConfig = loggerContext.getConfiguration().getLoggerConfig(PackSageLog.LOGGER.getName());
+        Level originalLevel = loggerConfig.getLevel();
+        AbstractAppender appender = new AbstractAppender("pending-tool-timing", null, null, true, Property.EMPTY_ARRAY) {
+            @Override
+            public void append(LogEvent event) {
+                lines.add(event.getMessage().getFormattedMessage());
+            }
+        };
+        backend.onStart = listener -> {
+            listener.accept(toolEvent("early", "lookup", "{}"));
+            assertEquals(ChatContracts.ActivityStatus.FAILED, controller.view().activities().getFirst().status());
+            assertTrue(backend.submitted.isEmpty());
+            assertFalse(lines.stream().anyMatch(line -> line.contains("phase=tool_result_sent")));
+        };
+        appender.start();
+        loggerConfig.setLevel(Level.INFO);
+        loggerConfig.addAppender(appender, Level.INFO, null);
+        loggerContext.updateLoggers();
+        try {
+            controller.begin(submission("pending-tool-timing", WORLD_A, SCOPE_A, false,
+                    new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))
+                    .toCompletableFuture().join();
+
+            assertEquals(1, backend.submitted.size());
+            assertEquals(1, lines.stream().filter(line -> line.contains("phase=tool_result_sent call=early tool=lookup event_ns=")
+                    && line.contains(" toolMs=") && line.contains(" resultBytes=2 error=true")).count());
+        } finally {
+            loggerConfig.removeAppender(appender.getName());
+            loggerConfig.setLevel(originalLevel);
+            loggerContext.updateLoggers();
+            appender.stop();
+        }
+    }
+
+    @Test
+    void staleToolResultLogsDroppedNotSent() {
+        FakeBackend backend = new FakeBackend();
+        List<CompletableFuture<ChatContracts.ToolResponse>> responses = new ArrayList<>();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { }, request -> {
+                    CompletableFuture<ChatContracts.ToolResponse> response = new CompletableFuture<>();
+                    responses.add(response);
+                    return response;
+                }, ignored -> { });
+        List<String> lines = new ArrayList<>();
+        LoggerContext loggerContext = (LoggerContext) LogManager.getContext(false);
+        LoggerConfig loggerConfig = loggerContext.getConfiguration().getLoggerConfig(PackSageLog.LOGGER.getName());
+        Level originalLevel = loggerConfig.getLevel();
+        AbstractAppender appender = new AbstractAppender("stale-tool-timing", null, null, true, Property.EMPTY_ARRAY) {
+            @Override
+            public void append(LogEvent event) {
+                lines.add(event.getMessage().getFormattedMessage());
+            }
+        };
+        appender.start();
+        loggerConfig.setLevel(Level.INFO);
+        loggerConfig.addAppender(appender, Level.INFO, null);
+        loggerContext.updateLoggers();
+        try {
+            controller.begin(submission("stale-tool-timing", WORLD_A, SCOPE_A, false,
+                    new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))
+                    .toCompletableFuture().join();
+            backend.emit("stale-tool-timing", toolEvent("reused-call", "lookup", "{}"));
+            controller.stop();
+            controller.begin(submission("fresh-tool-timing", WORLD_A, SCOPE_A, false,
+                    new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))
+                    .toCompletableFuture().join();
+            backend.emit("fresh-tool-timing", toolEvent("reused-call", "lookup", "{}"));
+            responses.getFirst().complete(new ChatContracts.ToolResponse(
+                    new ModelBackend.ToolResult("reused-call", "old", false),
+                    new ChatContracts.EvidenceSelection(List.of(), List.of())));
+            responses.get(1).complete(new ChatContracts.ToolResponse(
+                    new ModelBackend.ToolResult("reused-call", "new", false),
+                    new ChatContracts.EvidenceSelection(List.of(), List.of())));
+
+            assertEquals(1, lines.stream().filter(line -> line.contains("request=stale-tool-timing phase=tool_result_dropped "
+                    + "call=reused-call tool=lookup event_ns=")).count());
+            assertFalse(lines.stream().anyMatch(line -> line.contains("request=stale-tool-timing phase=tool_result_sent")));
+            assertEquals(1, lines.stream().filter(line -> line.contains("request=fresh-tool-timing phase=tool_result_sent")).count());
+            assertTrue(backend.submittedByRequest.get("stale-tool-timing").isEmpty());
+            assertEquals(List.of("new"), backend.submittedByRequest.get("fresh-tool-timing").stream()
+                    .map(ModelBackend.ToolResult::serializedResult).toList());
+        } finally {
+            loggerConfig.removeAppender(appender.getName());
+            loggerConfig.setLevel(originalLevel);
+            loggerContext.updateLoggers();
+            appender.stop();
+        }
+    }
+
+    @Test
     void staleToolCompletionWithReusedCallIdCannotSubmitIntoTheNewRequest() {
         FakeBackend backend = new FakeBackend();
         List<CompletableFuture<ChatContracts.ToolResponse>> toolResponses = new ArrayList<>();
@@ -1735,6 +1888,7 @@ class RequestControllerTest {
         private final Map<String, List<ToolResult>> submittedByRequest = new LinkedHashMap<>();
         private final Map<String, List<Message>> steeredByRequest = new LinkedHashMap<>();
         private boolean completeSynchronouslyOnce;
+        private Consumer<Consumer<Event>> onStart = ignored -> { };
 
         @Override
         public CompletableFuture<AuthState> signIn() {
@@ -1761,6 +1915,7 @@ class RequestControllerTest {
             cancelled.put(request.requestId(), false);
             submittedByRequest.put(request.requestId(), new ArrayList<>());
             steeredByRequest.put(request.requestId(), new ArrayList<>());
+            onStart.accept(listener);
             if (completeSynchronouslyOnce) {
                 completeSynchronouslyOnce = false;
                 listener.accept(new Event(EventKind.TEXT_DELTA, "answer", null, List.of(), List.of(), null));

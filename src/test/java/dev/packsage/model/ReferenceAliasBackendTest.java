@@ -143,6 +143,86 @@ class ReferenceAliasBackendTest {
     }
 
     @Test
+    void everyMalformedGroupSplitPreservesProseAndLaterValidGroupsWithReplayOffsets() {
+        for (String[] fixture : List.of(
+                new String[]{"A \uE200cite\uE202ref:x then more prose.", "A ref:x then more prose."},
+                new String[]{"A \uE200cite\uE202ref:x\nthen more prose.", "A ref:x\nthen more prose."},
+                new String[]{"A \uE200cite\uE202ref:x\tthen more prose.", "A ref:x\tthen more prose."},
+                new String[]{"A \uE200cite\uE202ref:x[note] then more prose.", "A ref:x[note] then more prose."},
+                new String[]{"A \uE200cite\uE202ref:x", "A ref:x"},
+                new String[]{"A \uE200cite\uE202ref:x\uE202unfinished", "A ref:xunfinished"},
+                new String[]{"A \uE200cite\uE202ref:x then more prose. \uE200cite\uE202" + REFERENCE + "\uE201 end.",
+                        "A ref:x then more prose. [" + REFERENCE + "] end."},
+                new String[]{"A \uE200cite\uE202ref:x\uE200cite\uE202" + REFERENCE + "\uE201 end.",
+                        "A ref:x[" + REFERENCE + "] end."})) {
+            for (int split = 0; split <= fixture[0].length(); split++) {
+                var actual = new FakeBackend();
+                var events = new ArrayList<ModelBackend.Event>();
+                var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                        new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
+                exchange.submit(RESULT);
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, fixture[0].substring(0, split), null, List.of(), null));
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, fixture[0].substring(split), null, List.of(), null));
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                        List.of(new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                                ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(fixture[0], List.of(
+                                        new ModelBackend.UrlCitation(2, fixture[0].length(), "Reply", "https://example.org/reply")))))), null));
+
+                assertEquals(fixture[1], events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
+                        .map(ModelBackend.Event::text).reduce("", String::concat), "split " + split + " for " + fixture[0]);
+                var replay = (ModelBackend.OutputText) ((ModelBackend.AssistantOutput)
+                        events.getLast().replayItems().getLast()).content().getFirst();
+                assertEquals(fixture[1], replay.text(), "replay split " + split);
+                assertEquals(fixture[1].substring(2), replay.text().substring(replay.citations().getFirst().startIndex(), replay.citations().getFirst().endIndex()));
+            }
+        }
+    }
+
+    @Test
+    void overflowingUnclosedGroupPreservesItsBodyInStreamingAndReplay() {
+        String answer = "A \uE200cite\uE202" + "x".repeat(8200) + " then more prose.";
+        for (int split : List.of(0, 8193, 8194, 8195, answer.length())) {
+            var actual = new FakeBackend();
+            var events = new ArrayList<ModelBackend.Event>();
+            new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
+            actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(0, split), null, List.of(), null));
+            actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(split), null, List.of(), null));
+            actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                    List.of(new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                            ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(answer, List.of())))), null));
+
+            assertEquals("A " + "x".repeat(8200) + " then more prose.", events.stream()
+                    .filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA).map(ModelBackend.Event::text)
+                    .reduce("", String::concat), "split " + split);
+            assertEquals("A " + "x".repeat(8200) + " then more prose.", ((ModelBackend.OutputText) ((ModelBackend.AssistantOutput)
+                    events.getLast().replayItems().getLast()).content().getFirst()).text(), "replay split " + split);
+        }
+    }
+
+    @Test
+    void strayGroupStartPreservesEveryOrdinaryCharacterInStreamingAndReplay() {
+        for (String[] fixture : List.of(new String[]{"\uE200Hello", "Hello"}, new String[]{"\uE200ciHello", "ciHello"},
+                new String[]{"\uE200cite", "cite"}, new String[]{"A \uE200\uE201\uE202Hello", "A Hello"})) {
+            for (int split = 0; split <= fixture[0].length(); split++) {
+                var actual = new FakeBackend();
+                var events = new ArrayList<ModelBackend.Event>();
+                new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, fixture[0].substring(0, split), null, List.of(), null));
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, fixture[0].substring(split), null, List.of(), null));
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                        List.of(new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                                ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(fixture[0], List.of())))), null));
+
+                assertEquals(fixture[1], events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
+                        .map(ModelBackend.Event::text).reduce("", String::concat), "split " + split);
+                assertEquals(fixture[1], ((ModelBackend.OutputText) ((ModelBackend.AssistantOutput)
+                        events.getLast().replayItems().getLast()).content().getFirst()).text(), "replay split " + split);
+            }
+        }
+    }
+
+    @Test
     void knownAliasClosedWithParenthesisBecomesCanonicalCitation() {
         for (String template : List.of("Done. [%s)", "Before [%s) after.", "[%s) then [%s]")) {
             for (int split = 0; ; split++) {

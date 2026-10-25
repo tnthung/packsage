@@ -544,6 +544,25 @@ class ScreenTextTest {
     }
 
     @Test
+    void savedMalformedProviderGroupsPreserveProseBeforeLaterClosingMarkers() {
+        for (String[] fixture : List.of(
+                new String[]{"A \uE200cite\uE202ref:x then more prose.\uE201", "A citeref:x then more prose."},
+                new String[]{"A \uE200cite\uE202ref:x\nthen more prose.\uE201", "A citeref:x\nthen more prose."},
+                new String[]{"A \uE200cite\uE202ref:x\tthen more prose.\uE201", "A citeref:x\tthen more prose."},
+                new String[]{"A \uE200cite\uE202ref:x[note] more prose.\uE201", "A citeref:x[note] more prose."},
+                new String[]{"A \uE200cite\uE202ref:x then more prose. \uE200cite\uE202config:cfg/x\uE201 end.",
+                        "A citeref:x then more prose. [config] end."},
+                new String[]{"A \uE200cite\uE202ref:x\uE200cite\uE202config:cfg/x\uE201 end.",
+                        "A citeref:x[config] end."})) {
+            assertEquals(fixture[1], ScreenText.markdownLines(fixture[0]).stream().map(Component::getString)
+                    .collect(java.util.stream.Collectors.joining("\n")), fixture[0]);
+            assertEquals(fixture[1], ScreenText.inlineLines(fixture[0], List.of()).stream()
+                    .map(line -> line.spans().stream().map(ScreenText.InlineSpan::text).reduce("", String::concat))
+                    .collect(java.util.stream.Collectors.joining("\n")), fixture[0]);
+        }
+    }
+
+    @Test
     void groupedCitationsUseShortTagsWithoutInventingNavigationTargets() {
         String grouped = "\uE200cite\uE202config:cfg/first\uE202config:cfg/second\uE202history:turn/1\uE201";
         var spans = ScreenText.inlineLines(grouped + " [unknown:source]", List.of()).getFirst().spans();

@@ -443,10 +443,14 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("name", text(stack.getHoverName().getString()));
         payload.put("count", number(stack.getCount()));
         payload.put("path", text(path.text()));
+        var tooltip = ItemTooltips.of(host(server)).lines(stack);
+        payload.put("tooltip", new Evidence.JsonArray(tooltip.lines().stream().map(line -> (Evidence.JsonValue) text(line)).toList()));
+        payload.put("tooltipStatus", text(tooltip.status()));
         payload.put("sections", sections(sections));
         payload.put("inventories", inventories(inventories));
+        var coverage = tooltip.status().equals("complete") ? coverage(sections, inventories) : Evidence.Coverage.PARTIAL;
         return evidence(scope, "item|" + path.text(), Evidence.RecordKind.ITEM, stack.getHoverName().getString() + " at " + path.text(), payload,
-                coverage(sections, inventories), rootTarget(path.root()));
+                coverage, rootTarget(path.root()));
     }
 
     private ItemsRead items(MinecraftServer server, ItemPath holderPath, InventoryId inventory, KindFilter filter) {

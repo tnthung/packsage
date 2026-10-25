@@ -216,8 +216,7 @@ class MinecraftProgressTest {
     void realHiddenIdsNeverReachSerializedProgressToolResults() throws Exception {
         var world = new World();
         var root = world.add(displayed("test:root", null, false, "c"), "c");
-        var hidden = world.add(displayed("minecraft:nether/all_effects", root, true, "c"));
-        world.add(displayed("test:child", hidden, false, "c"));
+        world.add(displayed("test:child", world.add(displayed("minecraft:nether/all_effects", root, true, "c")), false, "c"));
         for (var i = 0; i < 70; i++) world.add(displayed("test:entry_" + i, root, false, "c"));
         var reader = new MinecraftProgress();
         var registry = new WorldRegistry();
@@ -256,8 +255,7 @@ class MinecraftProgressTest {
         assertEquals(2, results.size());
         assertNotNull(results.getFirst().nextCursor());
         var record = results.stream().flatMap(result -> result.records().stream()).filter(value -> value.title().equals("Hidden progress entry")).findFirst().orElseThrow();
-        var alias = ((Evidence.JsonString) record.payload().values().get("id")).value();
-        for (var local : List.of(alias, "test:root", "test:child")) {
+        for (var local : List.of(((Evidence.JsonString) record.payload().values().get("id")).value(), "test:root", "test:child")) {
             var read = tools.handle(new PackSageTools.ReadRequest("inspect_progress", Evidence.deserializeObject("{\"id\":\"" + local + "\"}"), scope), null);
             while (!read.toCompletableFuture().isDone()) work.tick();
             results.add(read.toCompletableFuture().join());

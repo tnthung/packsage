@@ -710,6 +710,38 @@ class WorldToolsTest {
     }
 
     @Test
+    void longBlockIdsKeepEveryBlockReachableThroughByteBoundedPages() throws Exception {
+        var provider = tools();
+        var blocks = new java.util.ArrayList<BlockHandle>();
+        for (var i = 0; i < 64; i++) blocks.add(new BlockHandle("test:" + "long_path/".repeat(300), new BlockPlace("minecraft:overworld", i, 64, 0)));
+        var page = new Page<>(blocks, null, Evidence.Coverage.COMPLETE, null);
+        var method = WorldTools.class.getDeclaredMethod("blocks", PackSageTools.ReadRequest.class, WorldTools.Center.class, Page.class, WorldTools.ReadSpan.class);
+        method.setAccessible(true);
+        var tools = new PackSageTools(request -> {
+            try {
+                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider, request,
+                        new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), page, null));
+            } catch (ReflectiveOperationException failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+        var arguments = "{\"filter\":{}}";
+        var seen = new HashSet<String>();
+        int pages = 0;
+        do {
+            var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("blocks", "list_blocks", arguments), SCOPE).toCompletableFuture().get();
+            assertFalse(response.result().error(), response.result().serializedResult());
+            var json = com.google.gson.JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+            for (var record : json.getAsJsonArray("records")) assertTrue(seen.add(record.getAsJsonObject().getAsJsonObject("payload").get("place").getAsString()));
+            assertTrue(++pages < 20);
+            if (!json.has("nextCall")) break;
+            arguments = json.getAsJsonObject("nextCall").get("arguments").toString();
+        } while (true);
+        assertEquals(64, seen.size());
+        assertTrue(pages > 1);
+    }
+
+    @Test
     void anEntryWithMoreHoldersThanFitLinksTheFirstOnesAndSaysHowManyAreLeft() {
         var tools = tools();
         var request = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject("{\"filter\":{\"ids\":[\"minecraft:stone\"]}}"), SCOPE);

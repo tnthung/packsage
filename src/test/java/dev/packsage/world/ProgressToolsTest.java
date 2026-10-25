@@ -231,6 +231,46 @@ class ProgressToolsTest {
     }
 
     @Test
+    void opaqueHiddenIdsSurvivePagingInspectionDependenciesAndSavedEvidence() throws Exception {
+        var fixture = new Fixture();
+        var hidden = new ProgressHandle(new ProgressId("minecraft", "hidden:4f6e6306-48b5-44af-9aaa-684f520e13a0"), ROOT, null, ProgressStatus.HIDDEN, true);
+        var entries = new ArrayList<ProgressEntry>();
+        for (var i = 0; i < 70; i++) entries.add(new ProgressEntry(new ProgressHandle(new ProgressId("minecraft", "hidden:entry_" + i), ROOT, null, ProgressStatus.HIDDEN, true), null));
+        entries.add(new ProgressEntry(hidden, null));
+        var reader = new Reader("minecraft", new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 0, 71, true)), entries, null), Progress.hidden(hidden));
+        fixture.registry.register(reader);
+        var json = new com.google.gson.GsonBuilder().serializeNulls()
+                .registerTypeAdapter(Instant.class, (com.google.gson.JsonSerializer<Instant>) (value, type, context) -> new com.google.gson.JsonPrimitive(value.toString()))
+                .create();
+
+        var first = fixture.call("list_progress", "{\"status\":[\"hidden\"]}");
+        var last = fixture.call("list_progress", "{\"status\":[\"hidden\"],\"cursor\":\"" + first.nextCursor() + "\"}");
+        assertEquals(64, first.records().size());
+        assertEquals(8, last.records().size());
+        assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(71)), first.records().getFirst().payload().values().get("total"));
+        var listed = last.records().getLast();
+        assertEquals("progress|" + hidden.id().text(), listed.source().sourceHandle());
+        assertEquals("Hidden progress entry", listed.title());
+        assertTrue(listed.targets().isEmpty());
+
+        var inspected = fixture.call("inspect_progress", "{\"id\":\"" + hidden.id().text() + "\"}");
+        assertEquals(listed.payload(), inspected.records().getFirst().payload());
+        var context = new Toolbox.Context(() -> SCOPE, Map.of("saved", new Toolbox.Reference("progress", listed.source().sourceHandle(), Evidence.RecordKind.QUEST, SCOPE)), new AdapterRegistry(), new Toolbox.DocumentBudget(), null);
+        var reread = fixture.finish(fixture.tools.readEvidence(new PackSageTools.ReadRequest("read_evidence", Evidence.deserializeObject("{\"handles\":[\"saved\"]}"), SCOPE), context));
+        assertEquals(listed.payload(), reread.records().getFirst().payload());
+
+        reader.progress = new Progress(STONE, "Mine stone", List.of(), List.of(hidden), List.of(hidden), List.of(), null, Map.of());
+        var child = fixture.call("inspect_progress", "{\"id\":\"" + STONE.id().text() + "\"}");
+        for (var field : List.of("requires", "unlocks")) {
+            assertEquals(new Evidence.JsonString(hidden.id().text()), ((Evidence.JsonObject) ((Evidence.JsonArray) child.records().getFirst().payload().values().get(field)).values().getFirst()).values().get("id"));
+        }
+        for (var result : List.of(first, last, inspected, reread, child)) {
+            assertFalse(json.toJson(result).contains("minecraft:story/hidden"));
+            assertFalse(json.toJson(result).contains("all_effects"));
+        }
+    }
+
+    @Test
     void listStatisticsKeepsOtherAdaptersWhenOneFails() throws Exception {
         var fixture = new Fixture();
         fixture.registry.register(new StatisticReader() {

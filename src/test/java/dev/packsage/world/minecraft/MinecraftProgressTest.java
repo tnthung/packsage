@@ -98,7 +98,9 @@ class MinecraftProgressTest {
         assertEquals(List.of(new ProgressTree(id("test:a/root"), "test:a/root title", 2, 6, true),
                 new ProgressTree(id("test:b/root"), "test:b/root title", 0, 144, false)), snapshot.trees());
         var locals = snapshot.entries().stream().map(entry -> entry.handle().id().local()).toList();
-        var expected = new ArrayList<>(List.of("test:a/root", "test:a/first", "test:a/first_child", "test:a/hidden", "test:a/recipe_child",
+        var hiddenId = snapshot.entries().get(3).handle().id().local();
+        assertTrue(hiddenId.startsWith("hidden:"));
+        var expected = new ArrayList<>(List.of("test:a/root", "test:a/first", "test:a/first_child", hiddenId, "test:a/recipe_child",
                 "test:a/second", "test:b/root"));
         IntStream.range(0, 143).mapToObj(i -> "test:b/child_" + i).sorted().forEach(expected::add);
         assertEquals(expected, locals);
@@ -148,12 +150,19 @@ class MinecraftProgressTest {
         world.add(displayed("test:a/after_secret", hidden, false, "c"));
         var reader = new MinecraftProgress();
 
-        var entry = entry(run(reader.snapshot(world.source()), new int[1]), "test:a/secret");
-        var handle = new ProgressHandle(id("test:a/secret"), id("test:a/root"), null, ProgressStatus.HIDDEN, true);
+        var snapshot = run(reader.snapshot(world.source()), new int[1]);
+        var entry = snapshot.entries().stream().filter(value -> value.handle().status() == ProgressStatus.HIDDEN).findFirst().orElseThrow();
+        var handle = entry.handle();
+        assertTrue(handle.id().local().startsWith("hidden:"));
+        assertFalse(new com.google.gson.Gson().toJson(snapshot).contains("test:a/secret"));
         assertEquals(new ProgressEntry(handle, null), entry);
+        assertEquals(Progress.hidden(handle), reader.inspect(world.source(), handle.id().local()));
         assertEquals(Progress.hidden(handle), reader.inspect(world.source(), "test:a/secret"));
         assertEquals(List.of(handle), reader.inspect(world.source(), "test:a/root").unlocks());
         assertEquals(List.of(handle), reader.inspect(world.source(), "test:a/after_secret").requires());
+        world.generation = new Object();
+        assertEquals(handle, run(reader.snapshot(world.source()), new int[1]).entries().stream()
+                .filter(value -> value.handle().status() == ProgressStatus.HIDDEN).findFirst().orElseThrow().handle());
 
         world.progress.get(hidden).grantProgress("y");
         var done = entry(run(reader.snapshot(world.source()), new int[1]), "test:a/secret");
@@ -161,6 +170,59 @@ class MinecraftProgressTest {
         assertEquals("test:a/secret title", done.handle().title());
         assertEquals("test:a/secret description", done.description());
         assertEquals(2, reader.inspect(world.source(), "test:a/secret").criteria().size());
+        assertEquals(done.handle(), reader.inspect(world.source(), handle.id().local()).handle());
+    }
+
+    @Test
+    void hiddenRootRedactsTreeIdentityTitleAndNavigationUntilEarned() {
+        var world = new World();
+        var root = world.add(displayed("spoiler:secret_root", null, true, "c"));
+        world.add(displayed("test:child", root, false, "c"), "c");
+        var reader = new MinecraftProgress();
+
+        var snapshot = run(reader.snapshot(world.source()), new int[1]);
+
+        assertFalse(new com.google.gson.Gson().toJson(snapshot).contains("spoiler"));
+        assertFalse(new com.google.gson.Gson().toJson(snapshot).contains("secret_root"));
+        assertEquals(1, snapshot.trees().getFirst().done());
+        assertEquals(2, snapshot.trees().getFirst().total());
+        assertEquals("Hidden progress tree", snapshot.trees().getFirst().title());
+        assertEquals(snapshot.entries().getFirst().handle().id(), snapshot.trees().getFirst().id());
+        for (var entry : snapshot.entries()) {
+            assertEquals(snapshot.trees().getFirst().id(), entry.handle().tree());
+            assertFalse(entry.handle().tabVisible());
+        }
+        var child = reader.inspect(world.source(), "test:child");
+        assertEquals(snapshot.trees().getFirst().id(), child.handle().tree());
+        assertEquals(List.of(snapshot.entries().getFirst().handle()), child.requires());
+
+        world.progress.get(root).grantProgress("c");
+        var earned = run(reader.snapshot(world.source()), new int[1]);
+        assertEquals(id("spoiler:secret_root"), earned.trees().getFirst().id());
+        assertEquals("spoiler:secret_root title", earned.trees().getFirst().title());
+        assertTrue(earned.trees().getFirst().tabVisible());
+    }
+
+    @Test
+    void hiddenIdsAreDistinctAndBelongToOneWorldSession() {
+        var reader = new MinecraftProgress();
+        var world = new World();
+        var root = world.add(displayed("test:root", null, false, "c"));
+        world.add(displayed("spoiler:first", root, true, "c"));
+        world.add(displayed("spoiler:second", root, true, "c"));
+        var snapshot = run(reader.snapshot(world.source()), new int[1]);
+        var first = snapshot.entries().get(1).handle().id().local();
+        var second = snapshot.entries().get(2).handle().id().local();
+        assertFalse(first.equals(second));
+        assertFalse(new com.google.gson.Gson().toJson(snapshot).contains("spoiler"));
+
+        var other = new World();
+        var otherRoot = other.add(displayed("test:root", null, false, "c"));
+        other.add(displayed("spoiler:first", otherRoot, true, "c"));
+        var otherSnapshot = run(reader.snapshot(other.source()), new int[1]);
+        assertFalse(first.equals(otherSnapshot.entries().get(1).handle().id().local()));
+        assertNull(reader.inspect(other.source(), first));
+        assertNotNull(reader.inspect(world.source(), first));
     }
 
     @Test

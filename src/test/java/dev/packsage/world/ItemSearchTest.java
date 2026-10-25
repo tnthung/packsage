@@ -118,6 +118,52 @@ class ItemSearchTest {
     }
 
     @Test
+    void aTooltipFilterFindsTheItemInOneSearch() {
+        var reader = new FakeReader();
+        var foot = new ItemStack(Items.RABBIT_FOOT);
+        var inner = reader.box(new ItemStack(Items.STICK), foot);
+        var outer = reader.box(new ItemStack(Items.IRON_INGOT), inner);
+        var holders = List.of(Map.<PathRoot, LiveHolder>entry(new PathRoot.Entity(ENTITY), new LiveHolder.OfItem(outer)));
+        var luck = new KindFilter(List.of(), List.of(), "", List.of("luck"));
+
+        var page = run(new ItemSearch(registry(reader), holders, luck,
+                stack -> new ItemTooltips.Tooltip(stack == foot ? List.of("Rabbit's Foot", "+1 Luck") : List.of(stack.getHoverName().getString()), "complete"),
+                true, null));
+
+        assertEquals(Evidence.Coverage.COMPLETE, page.coverage());
+        assertNull(page.note());
+        assertEquals(1, page.items().size());
+        assertEquals(List.of("entity:" + ENTITY + ">fake/box#1@minecraft:shulker_box>fake/box#1@minecraft:rabbit_foot"),
+                page.items().get(0).locations().stream().map(ItemPath::text).toList());
+    }
+
+    @Test
+    void itemsWhoseTooltipCannotBeReadAreNotMatchedAndMakeThePagePartial() {
+        var reader = new FakeReader();
+        var unreadable = new ItemStack(Items.RABBIT_FOOT);
+        var cut = new ItemStack(Items.GOLDEN_APPLE);
+        var plain = new ItemStack(Items.STICK);
+        var box = reader.box(unreadable, cut, plain);
+        var holders = List.of(Map.<PathRoot, LiveHolder>entry(new PathRoot.Entity(ENTITY), new LiveHolder.OfItem(box)));
+        var tooltips = new IdentityHashMap<ItemStack, ItemTooltips.Tooltip>();
+        tooltips.put(unreadable, new ItemTooltips.Tooltip(List.of(), "unknown"));
+        tooltips.put(cut, new ItemTooltips.Tooltip(List.of("Golden Apple", "+1 Luck"), "bounded"));
+        tooltips.put(plain, new ItemTooltips.Tooltip(List.of("Stick"), "complete"));
+
+        var page = run(new ItemSearch(registry(reader), holders, new KindFilter(List.of(), List.of(), "", List.of("luck")), tooltips::get, true, null));
+
+        assertEquals(Evidence.Coverage.PARTIAL, page.coverage());
+        assertNull(page.nextCursor());
+        assertEquals(List.of("minecraft:golden_apple"), page.items().stream().map(ItemEntry::item).toList());
+        assertEquals("Tooltips of 2 items could not be read in full, so the tooltip filter may have missed them", page.note());
+
+        var unfiltered = run(new ItemSearch(registry(reader), holders, IRON, stack -> {
+            throw new AssertionError("tooltip read without a tooltip filter");
+        }, true, null));
+        assertEquals(Evidence.Coverage.COMPLETE, unfiltered.coverage());
+    }
+
+    @Test
     void stopsAt512ContainersWithACursorThatContinues() {
         var reader = new FakeReader();
         var holders = new ArrayList<Map.Entry<PathRoot, LiveHolder>>();

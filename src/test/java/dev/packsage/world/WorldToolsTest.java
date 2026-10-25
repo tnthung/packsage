@@ -47,9 +47,9 @@ class WorldToolsTest {
                 "list_entities", "{\"filter\":{\"text\":\"villager\"},\"radius\":32}",
                 "inspect_block", "{\"place\":\"minecraft:overworld|1,2,3\"}",
                 "inspect_entity", "{\"id\":\"" + ENTITY + "\"}",
-                "list_items", "{\"holder\":\"player\"}",
+                "list_items", "{\"holder\":\"player\",\"filter\":{\"tooltip\":[\"Luck\"]}}",
                 "inspect_item", "{\"path\":\"player:" + ENTITY + ">minecraft/main#0@minecraft:stone\"}",
-                "find_items", "{\"filter\":{\"ids\":[\"minecraft:stone\"]}}");
+                "find_items", "{\"filter\":{\"ids\":[\"minecraft:stone\"],\"tooltip\":[\"Luck\"]}}");
         calls.forEach((tool, arguments) -> assertEquals(Toolbox.Code.UNAVAILABLE, failure(tools, tool, arguments), tool));
         assertEquals(KnowledgeProvider.Availability.UNAVAILABLE, tools.status().availability());
         assertFalse(tools.enabled());
@@ -67,7 +67,10 @@ class WorldToolsTest {
                 "{\"path\":\"player:" + ENTITY + "\"}", "inspect_item",
                 "{\"path\":\"chest>minecraft/container#1@minecraft:stone\"}", "inspect_item",
                 "{\"holder\":\"chest\"}", "list_items",
-                "{\"holder\":\"player\",\"inventory\":\"main\"}", "list_items").entrySet()) {
+                "{\"holder\":\"player\",\"inventory\":\"main\"}", "list_items",
+                "{\"filter\":{\"tooltip\":[\"Luck\"]}}", "list_blocks",
+                "{\"filter\":{\"text\":\"villager\",\"tooltip\":[\"Luck\"]}}", "list_entities",
+                "{\"filter\":{\"tooltip\":\"Luck\"}}", "find_items").entrySet()) {
             assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failure(tools, call.getValue(), call.getKey()), call.getKey());
         }
         for (var center : new String[] {

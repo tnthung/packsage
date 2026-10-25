@@ -385,6 +385,31 @@ class PackSageToolsTest {
         assertTrue(registry.serializedSchema().contains("\"player_attribute\""));
     }
 
+    @Test void onlyItemToolsAcceptATooltipFilter() throws Exception {
+        var definitions = PackSageTools.definitions();
+        for (var name : List.of("list_items", "find_items")) {
+            var definition = definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow();
+            var tooltip = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject().getAsJsonObject("properties")
+                    .getAsJsonObject("filter").getAsJsonObject("properties").getAsJsonObject("tooltip");
+            assertEquals(JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}}"), tooltip, name);
+            assertTrue(definition.description().contains("filter.tooltip"), name);
+            assertTrue(definition.description().contains("[\"Luck\"]"), name);
+        }
+        for (var name : List.of("list_blocks", "list_entities")) {
+            var definition = definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow();
+            assertFalse(JsonParser.parseString(definition.serializedSchema()).getAsJsonObject().getAsJsonObject("properties")
+                    .getAsJsonObject("filter").getAsJsonObject("properties").has("tooltip"), name);
+        }
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(
+                new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+        assertFalse(tools.execute(new ModelBackend.ToolCall("items", "find_items", "{\"filter\":{\"tooltip\":[\"Luck\"]}}"), SCOPE)
+                .toCompletableFuture().get().result().error());
+        assertFalse(tools.execute(new ModelBackend.ToolCall("held", "list_items", "{\"holder\":\"player\",\"filter\":{\"tooltip\":[\"Luck\"]}}"), SCOPE)
+                .toCompletableFuture().get().result().error());
+        assertTrue(tools.execute(new ModelBackend.ToolCall("blocks", "list_blocks", "{\"filter\":{\"tooltip\":[\"Luck\"]}}"), SCOPE)
+                .toCompletableFuture().get().result().error());
+    }
+
     @Test void listsWorldTools() throws Exception {
         var expected = Map.of(
                 "inspect_area", List.of(List.of("center", "radius"), List.<String>of()),

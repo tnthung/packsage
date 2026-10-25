@@ -58,4 +58,32 @@ class WorldTypesTest {
         assertFalse(text.matches("minecraft:apple", List.of(), "Apple"));
         assertTrue(KindFilter.ANY.matches("minecraft:apple", List.of(), "Apple"));
     }
+
+    @Test
+    void tooltipFragmentsMatchCaseInsensitivelyAndCombineWithOtherFields() {
+        var luck = new ItemTooltips.Tooltip(List.of("Rabbit's Foot", "+1 Luck"), "complete");
+        var filter = new KindFilter(List.of(), List.of(), "", List.of("LUCK", "Haste"));
+        assertTrue(filter.matches("minecraft:rabbit_foot", List.of(), "Rabbit's Foot", () -> luck));
+        assertTrue(filter.matches("minecraft:golden_pickaxe", List.of(), "Pickaxe",
+                () -> new ItemTooltips.Tooltip(List.of("When in Main Hand:", " haste II"), "complete")));
+        assertFalse(filter.matches("minecraft:stick", List.of(), "Stick", () -> new ItemTooltips.Tooltip(List.of("Stick"), "complete")));
+        assertTrue(filter.matches("minecraft:rabbit_foot", List.of(), "Rabbit's Foot", () -> new ItemTooltips.Tooltip(List.of("+1 Luck"), "bounded")));
+        assertFalse(filter.matches("minecraft:rabbit_foot", List.of(), "Rabbit's Foot", () -> new ItemTooltips.Tooltip(List.of("+1 Luck"), "unknown")));
+
+        var both = new KindFilter(List.of("minecraft:rabbit_foot"), List.of(), "", List.of("luck"));
+        assertFalse(both.matches("minecraft:stick", List.of(), "Stick", () -> luck));
+        var calls = new int[1];
+        assertFalse(both.matches("minecraft:stick", List.of(), "Stick", () -> {
+            calls[0]++;
+            return luck;
+        }));
+        assertEquals(0, calls[0]);
+        assertTrue(new KindFilter(List.of("minecraft:stick"), List.of(), "").matches("minecraft:stick", List.of(), "Stick", () -> {
+            calls[0]++;
+            return luck;
+        }));
+        assertEquals(0, calls[0]);
+        assertEquals(List.of(), new KindFilter(List.of(), List.of(), "").tooltip());
+        assertTrue(KindFilter.ANY.tooltip().isEmpty());
+    }
 }

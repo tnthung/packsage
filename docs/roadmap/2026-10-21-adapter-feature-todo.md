@@ -22,7 +22,7 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 
 ### Biome locating (v2)
 
-- [ ] Minecraft — `locate(biome)` resolves biome ids and tags, samples without loading or generating chunks, continues paced searches by cursor, and returns persistent place links; implemented on the world-knowledge branch with automated tests, in-game acceptance pending ([plan, Task 5](../plans/2026-10-25-v2-world-knowledge.md)).
+- [ ] Minecraft — `locate(biome)` resolves biome ids and tags, samples without loading or generating chunks, continues paced searches by cursor, and returns persistent place links. Radii round down to 32-block rings; no-hit and partial results report sampled distance. Out-of-height centers and unregistered samples are handled, with registry suggestions for invalid ids. Implemented on the world-knowledge branch with automated tests; in-game acceptance pending ([plan, Task 5](../plans/2026-10-25-v2-world-knowledge.md)).
 
 ### Held and offhand item facts (v2)
 

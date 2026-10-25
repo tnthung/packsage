@@ -21,6 +21,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void journalFooterRequiresAVisibleUnavailableRowAndRelevantWorldOrEvidence() {
+        FakeActions actions = new FakeActions();
+        actions.adapterDetails = java.util.Map.of("journal", "database refused");
+        AssistantScreen screen = new AssistantScreen(actions);
+        var availability = java.util.Map.of("world", true, "journal", false);
+        var font = new MultilineEditorTest.FakeFont();
+        assertEquals("database refused", screen.adapterFooter(availability,
+                AssistantScreen.adapterTooltipRows(font, availability, false, 0, 640, 480)));
+        assertEquals("", screen.adapterFooter(availability,
+                AssistantScreen.adapterTooltipRows(font, availability, true, 0, 640, 480)));
+        assertEquals("", screen.adapterFooter(availability,
+                AssistantScreen.adapterTooltipRows(font, availability, false, 0, 640, 100)));
+        assertEquals("", screen.adapterFooter(java.util.Map.of("journal", true),
+                AssistantScreen.adapterTooltipRows(font, java.util.Map.of("journal", true), false, 0, 640, 480)));
+        assertEquals("", screen.adapterFooter(java.util.Map.of(),
+                AssistantScreen.adapterTooltipRows(font, java.util.Map.of(), false, 0, 640, 480)));
+        screen.refresh(new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT, false, actions.view.conversation(),
+                actions.view.context(), List.of(new Evidence.Source(SCOPE, "journal", "1", "note:n0000abcd", 1, Instant.EPOCH,
+                Evidence.Activity.INACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.PLAYER_REPORTED, List.of())), List.of(), List.of()));
+        assertEquals("database refused", screen.adapterFooter(java.util.Map.of(),
+                AssistantScreen.adapterTooltipRows(font, java.util.Map.of(), false, 0, 640, 480)));
+    }
+
+    @Test
     void adapterRowsFilterUnavailableEntriesAndTooltipWindowIsCappedAndClamped() {
         var availability = java.util.Map.of("native", true, "config", false);
         var first = AssistantScreen.adapterTooltipRows(new MultilineEditorTest.FakeFont(), availability, true, 0, 640, 480);
@@ -1347,6 +1371,7 @@ class AssistantScreenStateTest {
     private static final class FakeActions implements ChatActions {
         private final PackSageSettings settings = PackSageSettings.defaults();
         private java.util.Map<String, Boolean> availableAdapters = java.util.Map.of();
+        private java.util.Map<String, String> adapterDetails = java.util.Map.of();
         private final List<String> calls = new ArrayList<>();
         private final List<String> readCalls = new ArrayList<>();
         private String sentQuestion;
@@ -1363,6 +1388,7 @@ class AssistantScreenStateTest {
         @Override public ChatContracts.View view() { return view; }
         @Override public PackSageSettings settings() { return settings; }
         @Override public java.util.Map<String, Boolean> adapterAvailability() { return availableAdapters; }
+        @Override public java.util.Map<String, String> adapterDetails() { return adapterDetails; }
         @Override public List<ModelBackend.ModelInfo> modelCatalog() { return List.of(
                 new ModelBackend.ModelInfo("model-one", "Model one", true, true, 50000, 1000),
                 new ModelBackend.ModelInfo("model-two", "Model two", true, true, 100000, 1000)); }

@@ -67,7 +67,7 @@ class WorldKnowledgeToolsTest {
 
     @Test
     void lootAndCommandHandlesAreRereadThroughTheKnowledgeTools() throws Exception {
-        for (var handle : List.of("loot|table|minecraft:entities/zombie", "command|fill")) {
+        for (var handle : List.of("loot|minecraft:entities/zombie", "command|fill")) {
             var result = reread(handle);
             assertEquals(Evidence.Coverage.ERROR, result.coverage(), handle);
             assertTrue(result.detail().contains("integrated singleplayer server"), handle + ": " + result.detail());
@@ -78,5 +78,24 @@ class WorldKnowledgeToolsTest {
     void unknownHandlesNameEveryRereadableKind() throws Exception {
         var detail = reread("chunk|0,0").detail();
         for (var kind : List.of("block", "entity", "item", "loot", "command")) assertTrue(detail.contains(kind), detail);
+    }
+
+    @Test
+    void unknownEmptyAndNoDropTablesAreDistinct() {
+        SharedConstants.tryDetectVersion();
+        Bootstrap.bootStrap();
+        HolderLookup.Provider registries = VanillaRegistries.createLookup();
+        var unknown = WorldKnowledgeTools.lootPayload("packsage:nothing_here", Optional.empty(), null).values();
+        assertEquals(new Evidence.JsonBoolean(false), unknown.get("exists"));
+        assertEquals(new Evidence.JsonString("no loot table has this id in the loaded data packs"), unknown.get("note"));
+        var noPools = MinecraftLoot.encode(LootTable.EMPTY, registries);
+        var air = MinecraftLoot.lookup(registries, MinecraftLoot.blockTable("minecraft:air")).map(table -> MinecraftLoot.encode(table, registries));
+        assertEquals(BuiltInLootTables.EMPTY, MinecraftLoot.blockTable("minecraft:air"));
+        for (var table : List.of(Optional.of(noPools), air)) {
+            var payload = WorldKnowledgeTools.lootPayload("minecraft:empty", table, MinecraftLoot.page(table.orElseThrow(), 0)).values();
+            assertEquals(new Evidence.JsonBoolean(true), payload.get("exists"));
+            assertEquals(new Evidence.JsonBoolean(true), payload.get("empty"));
+            assertEquals(new Evidence.JsonString("this table drops nothing"), payload.get("note"));
+        }
     }
 }

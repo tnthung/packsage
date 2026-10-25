@@ -4,6 +4,7 @@ import dev.packsage.PackSageLog;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.ModelBackend;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -636,7 +637,17 @@ public final class RequestController {
             }
         }
         if (!install) startedExchange.cancel();
-        else pending.forEach(startedExchange::submit);
+        else for (ModelBackend.ToolResult result : pending) {
+            synchronized (stateLock) {
+                long sentAtNanos = System.nanoTime();
+                request.toolIntervals.add(new ToolTiming.Interval(request.toolReceivedAtNanos.get(result.callId()), sentAtNanos));
+                PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_result_sent call={} tool={} event_ns={} toolMs={} resultBytes={} error={}",
+                        request.submission.requestId().value(), result.callId(), request.toolCalls.get(result.callId()).name(), sentAtNanos,
+                        (sentAtNanos - request.toolReceivedAtNanos.get(result.callId())) / 1_000_000,
+                        result.serializedResult().getBytes(StandardCharsets.UTF_8).length, result.error());
+            }
+            startedExchange.submit(result);
+        }
         request.started.complete(request.submission.requestId());
     }
 
@@ -731,7 +742,12 @@ public final class RequestController {
         ChatContracts.ToolRequest toolRequest;
         ChatContracts.View started;
         synchronized (stateLock) {
-            if (!isCurrent(request) || !request.toolCalls.add(call.callId())) return;
+            if (!isCurrent(request) || request.toolCalls.putIfAbsent(call.callId(), call) != null) return;
+            long receivedAtNanos = System.nanoTime();
+            request.toolReceivedAtNanos.put(call.callId(), receivedAtNanos);
+            PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_received call={} tool={} step={} event_ns={} elapsed_ms={}",
+                    request.submission.requestId().value(), call.callId(), call.name(), request.toolCalls.size(), receivedAtNanos,
+                    (receivedAtNanos - request.acceptedAtNanos) / 1_000_000);
             request.partialReplay.add(call);
             toolRequest = new ChatContracts.ToolRequest(request.submission, call);
             request.activity = ActivityLabels.tool(call, request.toolCalls.size());
@@ -762,7 +778,11 @@ public final class RequestController {
                     || request.toolResults.containsKey(call.callId())
                     || response.evidence().sources().stream().anyMatch(source -> !request.submission.scope().equals(source.scope()))
                     || response.evidence().navigationTargets().stream()
-                    .anyMatch(target -> !request.submission.scope().equals(target.scope()))) return;
+                    .anyMatch(target -> !request.submission.scope().equals(target.scope()))) {
+                PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_result_dropped call={} tool={} event_ns={}",
+                        request.submission.requestId().value(), call.callId(), call.name(), System.nanoTime());
+                return;
+            }
             request.toolResults.put(call.callId(), response.result());
             request.partialReplay.add(response.result());
             String activityId = "tool:" + call.callId();
@@ -784,8 +804,16 @@ public final class RequestController {
             request.activity = ActivityLabels.WAITING;
             sources = request.evidence.sources();
             navigationTargets = request.evidence.navigationTargets();
-            if (request.exchange != null && request.submittedResults.add(call.callId())) targetExchange = request.exchange;
             snapshot = currentView();
+            if (request.exchange != null && request.submittedResults.add(call.callId())) {
+                targetExchange = request.exchange;
+                long sentAtNanos = System.nanoTime();
+                request.toolIntervals.add(new ToolTiming.Interval(request.toolReceivedAtNanos.get(call.callId()), sentAtNanos));
+                PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_result_sent call={} tool={} event_ns={} toolMs={} resultBytes={} error={}",
+                        request.submission.requestId().value(), call.callId(), call.name(), sentAtNanos,
+                        (sentAtNanos - request.toolReceivedAtNanos.get(call.callId())) / 1_000_000,
+                        response.result().serializedResult().getBytes(StandardCharsets.UTF_8).length, response.result().error());
+            }
         }
         if (targetExchange != null) targetExchange.submit(response.result());
         publisher.accept(snapshot);
@@ -800,6 +828,8 @@ public final class RequestController {
         ChatContracts.Conversation target;
         ChatContracts.CapturedContext captured;
         List<ModelBackend.InputItem> replay;
+        int toolCalls;
+        long toolWallMs;
         ChatContracts.OutcomeStatus status = event.kind() == ModelBackend.EventKind.COMPLETED
                 ? ChatContracts.OutcomeStatus.COMPLETED : ChatContracts.OutcomeStatus.FAILED;
         String detail = event.kind() == ModelBackend.EventKind.FAILED
@@ -828,8 +858,12 @@ public final class RequestController {
             if (request.submission.replacing() != null) pendingReplacement = request;
             target = request.target.join();
             captured = request.captured;
+            toolCalls = request.toolCalls.size();
+            toolWallMs = ToolTiming.unionMillis(request.toolIntervals);
         }
         long terminalAtNanos = System.nanoTime();
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_summary toolCalls={} toolWallMs={} event_ns={}",
+                request.submission.requestId().value(), toolCalls, toolWallMs, terminalAtNanos);
         PackSageLog.LOGGER.info("PackSage timing request={} phase=model_terminal event_ns={} elapsed_ms={} backendMs={} outcome={}",
                 request.submission.requestId().value(), terminalAtNanos,
                 (terminalAtNanos - request.acceptedAtNanos) / 1_000_000,
@@ -1146,7 +1180,9 @@ public final class RequestController {
         private final StringBuilder answer = new StringBuilder();
         private String activity = ActivityLabels.PREPARING;
         private final List<ModelBackend.InputItem> partialReplay = new ArrayList<>();
-        private final Set<String> toolCalls = new LinkedHashSet<>();
+        private final Map<String, ModelBackend.ToolCall> toolCalls = new LinkedHashMap<>();
+        private final Map<String, Long> toolReceivedAtNanos = new LinkedHashMap<>();
+        private final List<ToolTiming.Interval> toolIntervals = new ArrayList<>();
         private final Map<String, ModelBackend.ToolResult> toolResults = new LinkedHashMap<>();
         private final Map<String, ChatContracts.ActivityStep> activities = new LinkedHashMap<>();
         private final List<ChatContracts.SteeringMessage> steeringMessages = new ArrayList<>();

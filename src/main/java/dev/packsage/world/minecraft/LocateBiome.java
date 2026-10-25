@@ -42,7 +42,7 @@ public final class LocateBiome implements ServerWork.Slice<LocateBiome.Result> {
         this.sampler = sampler;
         this.x = x;
         this.z = z;
-        heights = Mth.outFromOrigin(y, minY + 1, maxY, VERTICAL_STEP).toArray();
+        heights = Mth.outFromOrigin(Mth.clamp(y, minY + 1, maxY), minY + 1, maxY, VERTICAL_STEP).toArray();
         spiral = BlockPos.spiralAround(BlockPos.ZERO, radiusChunks * 16 / HORIZONTAL_STEP, Direction.EAST, Direction.SOUTH).iterator();
         while (index < startIndex && spiral.hasNext()) {
             spiral.next();

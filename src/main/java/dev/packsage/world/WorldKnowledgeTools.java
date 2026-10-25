@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -318,7 +319,7 @@ final class WorldKnowledgeTools {
             var climate = level.getChunkSource().randomState().sampler();
             return new BiomeRead(center, level.registryAccess().registryOrThrow(Registries.BIOME), source,
                     (x, y, z) -> source.getNoiseBiome(QuartPos.fromBlock(x), QuartPos.fromBlock(y), QuartPos.fromBlock(z), climate)
-                            .unwrapKey().orElseThrow().location().toString(), level.getMinBuildHeight(), level.getMaxBuildHeight());
+                            .unwrapKey().map(key -> key.location().toString()).orElse(""), level.getMinBuildHeight(), level.getMaxBuildHeight());
         }))).thenCompose(read -> {
             var targets = biomeTargets(read.registry(), read.source().possibleBiomes(), searchQuery);
             if (targets.isEmpty()) {
@@ -336,20 +337,21 @@ final class WorldKnowledgeTools {
     static Set<String> biomeTargets(Registry<Biome> registry, Set<Holder<Biome>> possible, String query) {
         var tag = query.startsWith("#");
         var id = ResourceLocation.tryParse(tag ? query.substring(1) : query);
-        if (id == null) throw WorldTools.invalid("invalid biome id or tag: " + query);
         var targets = new HashSet<String>();
-        boolean known;
-        if (tag) {
+        var known = false;
+        if (id != null && tag) {
             var members = registry.getTag(TagKey.create(Registries.BIOME, id));
             known = members.isPresent();
             if (members.isPresent()) members.get().forEach(holder -> targets.add(holder.unwrapKey().orElseThrow().location().toString()));
-        } else {
+        } else if (id != null) {
             known = registry.containsKey(id);
             if (known) targets.add(id.toString());
         }
         if (!known) {
-            throw WorldTools.invalid("unknown biome " + (tag ? "tag " : "id ") + query + "; registry ids containing " + id.getPath() + ": "
-                    + registry.keySet().stream().filter(key -> key.getPath().contains(id.getPath())).sorted().limit(16).toList());
+            var path = query.substring(query.indexOf(':') + 1).replaceFirst("^#", "").toLowerCase(Locale.ROOT);
+            throw WorldTools.invalid((id == null ? "invalid" : "unknown") + " biome " + (tag ? "tag " : "id ") + query
+                    + (id == null ? "; try a lowercase id or tag" : "") + "; registry ids containing " + path + ": "
+                    + registry.keySet().stream().filter(key -> key.getPath().contains(path)).sorted().limit(16).toList());
         }
         var producible = new HashSet<String>();
         for (var holder : possible) holder.unwrapKey().ifPresent(key -> producible.add(key.location().toString()));
@@ -363,9 +365,14 @@ final class WorldKnowledgeTools {
             if (result.nextIndex() != -1) {
                 return WorldTools.result(List.of(), Evidence.Coverage.PARTIAL,
                         calls.remember(request, new BiomeState(center, query, radius, result.nextIndex())),
-                        "biome sampling reached the 500 ms server work budget after " + result.columns() + " columns; continue with the cursor");
+                        "biome sampling reached the 500 ms server work budget after " + result.columns() + " columns; sampled out to approximately "
+                                + (int) Math.ceil((Math.sqrt(result.nextIndex()) - 1) / 2) * LocateBiome.HORIZONTAL_STEP
+                                + " blocks from the center along each horizontal axis (outer ring may be incomplete); continue with the cursor");
             }
-            return WorldTools.result(List.of(), Evidence.Coverage.COMPLETE, null, "no matching biome within " + radius + " chunks");
+            return WorldTools.result(List.of(), Evidence.Coverage.COMPLETE, null, "no matching biome within " + radius
+                    + " chunks; sampled through ring " + radius * 16 / LocateBiome.HORIZONTAL_STEP + " at "
+                    + radius * 16 / LocateBiome.HORIZONTAL_STEP * LocateBiome.HORIZONTAL_STEP
+                    + " blocks from the center along each horizontal axis (radius rounded down to 32-block rings)");
         }
         var hit = result.hit();
         var place = new BlockPlace(center.dimension(), hit.x(), hit.y(), hit.z());

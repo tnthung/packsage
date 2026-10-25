@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -61,6 +62,7 @@ class JournalStoreTest {
         var file = dir.resolve("journal.db");
         long createdWall;
         try (var store = JournalStore.open(file)) {
+            assertNull(store.meta());
             var session = store.startSession(1_000L, 20L);
             store.endSession(session, 2_000L, 420L);
             createdWall = store.meta().createdWall();
@@ -89,5 +91,22 @@ class JournalStoreTest {
         }
         var failure = assertThrows(SQLException.class, () -> JournalStore.open(file));
         assertTrue(failure.getMessage().contains("version 2"), failure.getMessage());
+    }
+
+    @Test
+    void aRefusedOpenReleasesTheFile() throws Exception {
+        var file = dir.resolve("journal.db");
+        try (var store = JournalStore.open(file)) {
+            try (var statement = store.writer().createStatement()) {
+                statement.executeUpdate("UPDATE meta SET value = '2' WHERE key = 'schema_version'");
+            }
+        }
+        assertThrows(SQLException.class, () -> JournalStore.open(file));
+        for (var suffix : List.of("", "-wal", "-shm")) {
+            Files.deleteIfExists(dir.resolve("journal.db" + suffix));
+        }
+        try (var store = JournalStore.open(file)) {
+            assertEquals(1, store.schemaVersion());
+        }
     }
 }

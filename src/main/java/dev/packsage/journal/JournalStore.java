@@ -101,8 +101,15 @@ public final class JournalStore implements AutoCloseable {
         try (var statement = reader.prepareStatement("SELECT key, value FROM meta WHERE key IN ('created_wall', 'created_game_time')");
              var result = statement.executeQuery()) {
             while (result.next()) {
-                var value = Long.parseLong(result.getString(2));
-                if (result.getString(1).equals("created_wall")) {
+                var key = result.getString(1);
+                var text = result.getString(2);
+                long value;
+                try {
+                    value = Long.parseLong(text);
+                } catch (NumberFormatException e) {
+                    throw new SQLException("journal meta " + key + " " + text + " is not a number", e);
+                }
+                if (key.equals("created_wall")) {
                     wall = value;
                 } else {
                     gameTime = value;
@@ -137,12 +144,11 @@ public final class JournalStore implements AutoCloseable {
                 }
             }
             writer.commit();
+            writer.setAutoCommit(true);
             return id;
         } catch (SQLException | RuntimeException e) {
-            writer.rollback();
+            abort(writer, e);
             throw e;
-        } finally {
-            writer.setAutoCommit(true);
         }
     }
 
@@ -241,11 +247,24 @@ public final class JournalStore implements AutoCloseable {
             }
             statement.executeUpdate("INSERT INTO meta(key, value) VALUES ('schema_version', '" + SCHEMA_VERSION + "')");
             connection.commit();
-        } catch (SQLException | RuntimeException e) {
-            connection.rollback();
-            throw e;
-        } finally {
             connection.setAutoCommit(true);
+        } catch (SQLException | RuntimeException e) {
+            abort(connection, e);
+            throw e;
+        }
+    }
+
+    /** Rolls back and restores auto-commit, attaching any failure to {@code cause} so it is never hidden. */
+    private static void abort(Connection connection, Exception cause) {
+        try {
+            connection.rollback();
+        } catch (SQLException e) {
+            cause.addSuppressed(e);
+        }
+        try {
+            connection.setAutoCommit(true);
+        } catch (SQLException e) {
+            cause.addSuppressed(e);
         }
     }
 

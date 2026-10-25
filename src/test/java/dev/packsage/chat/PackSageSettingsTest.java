@@ -221,7 +221,6 @@ class PackSageSettingsTest {
     }
 
     @Test
-    @Test
     void shutdownFlushWritesLatestSettingsEvenWithoutAnEarlierSave() throws Exception {
         var path = temporaryDirectory.resolve("settings.properties");
         var settings = PackSageSettings.defaults();

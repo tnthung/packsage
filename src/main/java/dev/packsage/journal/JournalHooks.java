@@ -300,14 +300,19 @@ public final class JournalHooks {
     }
 
     static Map<String, long[]> explosionBlocks(List<BlockPos> positions, Function<BlockPos, String> blockId, JournalStats stats) {
-        var count = Math.min(positions.size(), 4_096);
-        stats.droppedExplosionPositions.add(positions.size() - count);
+        var count = 0;
         var grouped = new HashMap<String, ArrayList<Long>>();
-        for (int i = 0; i < count; i++) {
+        // Unread positions may be air; only count confirmed non-air losses.
+        for (int i = 0; i < Math.min(positions.size(), 8_192); i++) {
             var pos = positions.get(i);
             var id = blockId.apply(pos);
             if (id != null) {
-                grouped.computeIfAbsent(id, ignored -> new ArrayList<>()).add(Positions.pack(pos.getX(), pos.getY(), pos.getZ()));
+                if (count < 4_096) {
+                    grouped.computeIfAbsent(id, ignored -> new ArrayList<>()).add(Positions.pack(pos.getX(), pos.getY(), pos.getZ()));
+                    count++;
+                } else {
+                    stats.droppedExplosionPositions.increment();
+                }
             }
         }
         var result = new HashMap<String, long[]>();

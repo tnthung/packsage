@@ -182,6 +182,9 @@ class ScreenTextTest {
         var bare = new Evidence.NavigationTarget(SCOPE, "progress", "progress|examplemod/examplemod:root",
                 "advancement|examplemod:root|examplemod:root");
         assertEquals("Open advancements: root", ScreenText.navigationLabel(bare));
+        var spans = ScreenText.inlineLines("Stone [progress:progress|minecraft/minecraft:story/mine_stone].", List.of(target)).getFirst().spans();
+        assertEquals("Advancements", spans.get(1).text());
+        assertEquals(target, spans.get(1).target());
     }
 
     @Test

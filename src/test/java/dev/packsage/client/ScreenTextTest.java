@@ -203,7 +203,12 @@ class ScreenTextTest {
         var named = ScreenText.inlineLines("[Sand](journal:event:1)", List.of(target)).getFirst().spans().getFirst();
         assertEquals("Sand", named.text());
         assertEquals(target, named.target());
-        assertEquals("[in world]", ScreenText.inlineLines("[journal:note:n12345678]", List.of()).getFirst().spans().getFirst().text());
+        assertEquals("[note]", ScreenText.inlineLines("[journal:note:n12345678]", List.of()).getFirst().spans().getFirst().text());
+        assertEquals("[journal]", ScreenText.inlineLines("[journal:event:2]", List.of()).getFirst().spans().getFirst().text());
+        assertEquals("Show", ScreenText.navigationVerb(target));
+        assertEquals("Show in world: minecraft:overworld|10,64,-3", ScreenText.navigationLabel(target));
+        assertEquals("Show noted place", ScreenText.navigationLabel(new Evidence.NavigationTarget(SCOPE, "journal", "note:n12345678",
+                "journal-note|n12345678")));
     }
 
     @Test
@@ -500,7 +505,7 @@ class ScreenTextTest {
                 assertEquals(source, spans.getFirst().source(), marker);
                 assertFalse(spans.getFirst().text().contains(provider + ":note:abc"), marker);
             }
-            assertEquals(provider.equals("native") ? "[game]" : provider.equals("journal") ? "[in world]" : "[" + provider + "]",
+            assertEquals(provider.equals("native") ? "[game]" : provider.equals("journal") ? "[note]" : "[" + provider + "]",
                     ScreenText.markdownLines("[" + provider + ":note:abc]").getFirst().getString());
         }
     }

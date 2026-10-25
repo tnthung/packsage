@@ -45,6 +45,42 @@ class WorldToolsTest {
     }
 
     @Test
+    void noteAnchorsResolveToTheNotesPlaceAndUnknownNotesFail() throws Exception {
+        net.minecraft.SharedConstants.tryDetectVersion();
+        net.minecraft.server.Bootstrap.bootStrap();
+        var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var server = (net.minecraft.client.server.IntegratedServer) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, net.minecraft.client.server.IntegratedServer.class);
+        var running = net.minecraft.server.MinecraftServer.class.getDeclaredField("running");
+        running.setAccessible(true);
+        running.set(server, true);
+        var place = new BlockPlace("minecraft:overworld", 40, 70, -8);
+        var work = new ServerWork(System::nanoTime);
+        var tools = new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE, Runnable::run, work,
+                () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), block -> false, id -> null, null,
+                id -> id.equals("n0000abcd") ? place : null);
+        var anchor = WorldTools.anchor(Evidence.deserializeObject("{\"type\":\"note\",\"id\":\"n0000abcd\"}"));
+        assertEquals(new Anchor.OfNote("n0000abcd"), anchor);
+        var result = tools.resolveAnchor(anchor).toCompletableFuture();
+        while (!result.isDone()) work.tick();
+        assertEquals(place, result.get());
+        var unknown = new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE, Runnable::run, work,
+                () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), block -> false, id -> null, null, id -> null);
+        var missing = unknown.resolveAnchor(anchor).toCompletableFuture();
+        while (!missing.isDone()) work.tick();
+        var failure = (Toolbox.Failure) assertThrows(ExecutionException.class, missing::get).getCause();
+        assertEquals(Toolbox.Code.UNAVAILABLE, failure.code());
+        assertTrue(failure.getMessage().contains("note n0000abcd has no saved place"));
+        for (var json : java.util.List.of("{\"type\":\"note\",\"id\":\"bad\"}", "{\"type\":\"note\"}",
+                "{\"type\":\"note\",\"id\":\"n0000abcd\",\"place\":\"minecraft:overworld|1,2,3\"}")) {
+            assertEquals(Toolbox.Code.INVALID_ARGUMENTS, assertThrows(Toolbox.Failure.class,
+                    () -> WorldTools.anchor(Evidence.deserializeObject(json))).code());
+        }
+    }
+
+    @Test
     void toolsAreUnavailableWithoutAnIntegratedServer() {
         var tools = tools();
         var calls = Map.of(

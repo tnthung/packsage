@@ -4,6 +4,8 @@
 
 ### 2026-10-25
 
+- Fixed the singleplayer journal staying closed when PackSage starts after the world. Hooks now recover the active world on its server thread, including while paused, without reopening an existing journal session. Automated startup-order regression checks cover registration before, during and after server start; installed verification is pending.
+
 - Corrected debug bridge chat submission to use the screen's screenshot/search defaults with optional per-request overrides, isolated navigation to each reply, preserved the pause preference through options saves and normal shutdown, and restored normal first-tick startup. Socket failures and stopped servers are handled separately, menu moves honor spectator/validity checks, and entity opens try position-specific interaction first. Live acceptance remains pending.
 - Added an opt-in loopback debug bridge for live acceptance agents, with per-launch bearer authentication, bounded HTTP parsing and client/server handoffs, fixture commands and player interactions, tracked chat/tool/evidence/timing inspection, prompt editing, normal navigation and frame screenshots. It uses a plain socket and the existing runtime paths, publishes `packsage/debug-bridge.json`, and restores pause-on-lost-focus on shutdown. Automated checks pass; game-thread behavior awaits live acceptance. See the [endpoint guide](docs/testing/2026-10-25-debug-bridge.md).
 - Advancement tab visibility now uses an access transformer and direct field access, so an incompatible Minecraft field change fails compilation. A regression test also checks that the visibility field is publicly available.

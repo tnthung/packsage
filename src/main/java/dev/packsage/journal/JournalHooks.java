@@ -97,6 +97,15 @@ public final class JournalHooks {
         return session;
     }
 
+    private void start(MinecraftServer server) {
+        if (session.server == server || !server.isRunning() || server.isStopped()) return;
+        newSession();
+        session.server = server;
+        var overworld = server.overworld();
+        journal.open(server.getWorldPath(LevelResource.ROOT).resolve("packsage").resolve("journal.db"),
+                overworld::getGameTime);
+    }
+
     /** The whole handler, including server lookup and data extraction, is inside this failure boundary. */
     private void hook(Consumer<MinecraftServer> action) {
         long started = 0;
@@ -122,11 +131,7 @@ public final class JournalHooks {
     public void register(IEventBus bus) {
         bus.addListener(EventPriority.NORMAL, false, ServerStartedEvent.class, event -> hook(server -> {
             if (server == null || event.getServer() != server) return;
-            newSession();
-            session.server = server;
-            var overworld = server.overworld();
-            journal.open(server.getWorldPath(LevelResource.ROOT).resolve("packsage").resolve("journal.db"),
-                    overworld::getGameTime);
+            start(server);
         }));
         bus.addListener(EventPriority.NORMAL, false, ServerStoppingEvent.class, event -> hook(server -> {
             if (server == null || event.getServer() != server) return;
@@ -304,7 +309,10 @@ public final class JournalHooks {
         }));
         bus.addListener(EventPriority.NORMAL, false, ServerTickEvent.Post.class, event -> {
             hook(server -> {
-                if (server == null || event.getServer() != server || !session.polling || !journal.recording()) return;
+                if (server == null || event.getServer() != server) return;
+                // Registration can miss ServerStartedEvent before Minecraft publishes isReady.
+                start(server);
+                if (!session.polling || !journal.recording()) return;
                 session.ticks++;
                 poll(server);
                 var now = System.nanoTime();
@@ -317,6 +325,15 @@ public final class JournalHooks {
             });
             journal.stats().endTick();
         });
+        try {
+            var server = integrated.get();
+            if (server != null) server.execute(() -> hook(current -> {
+                // Queued tasks also run while paused; no further server tick is required for a ready world.
+                if (current == server && server.isReady()) start(server);
+            }));
+        } catch (RuntimeException e) {
+            journal.stats().hookFailures.increment();
+        }
     }
 
     static Map<String, long[]> explosionBlocks(List<BlockPos> positions, Function<BlockPos, String> blockId, JournalStats stats) {

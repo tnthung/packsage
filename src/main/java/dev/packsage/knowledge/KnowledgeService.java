@@ -35,6 +35,10 @@ public final class KnowledgeService {
     public CompletionStage<Evidence.Result> execute(PackSageTools.ReadRequest request) { return execute(request, null); }
 
     public CompletionStage<Evidence.Result> execute(PackSageTools.ReadRequest request, String replacingRequestId) {
+        return execute(request, replacingRequestId, null);
+    }
+
+    public CompletionStage<Evidence.Result> execute(PackSageTools.ReadRequest request, String replacingRequestId, Toolbox.Origin origin) {
         Toolbox.Context context;
         synchronized (this) {
             if (!request.scope().equals(currentScope.get())) return CompletableFuture.failedFuture(
@@ -44,7 +48,7 @@ public final class KnowledgeService {
                 observed.clear();
                 refreshedNavigation.clear();
             }
-            context = new Toolbox.Context(currentScope, Map.copyOf(observed), registry, new Toolbox.DocumentBudget(), replacingRequestId);
+            context = new Toolbox.Context(currentScope, Map.copyOf(observed), registry, new Toolbox.DocumentBudget(), replacingRequestId, origin);
         }
         CompletionStage<Evidence.Result> read;
         if (request.tool().equals("read_evidence") || request.tool().equals("read_progress")) {

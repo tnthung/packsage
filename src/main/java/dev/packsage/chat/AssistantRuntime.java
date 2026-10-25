@@ -5,6 +5,7 @@ import dev.packsage.client.AssistantScreen;
 import dev.packsage.client.GameplayContextCapture;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeService;
+import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.model.ReferenceAliasBackend;
@@ -1253,7 +1254,8 @@ public final class AssistantRuntime implements ChatActions {
             currentKnowledge = holder.knowledge;
         }
         PackSageTools currentTools = new PackSageTools(read -> currentKnowledge.execute(read,
-                request.submission().replacing() == null ? null : request.submission().replacing().value()), currentKnowledge.metadata());
+                request.submission().replacing() == null ? null : request.submission().replacing().value(),
+                new Toolbox.Origin(holder.id, request.submission().requestId().value(), request.submission().question())), currentKnowledge.metadata());
         return currentTools.execute(request.call(), request.submission().scope()).thenApply(response -> {
             List<Evidence.Source> sources = response.records().stream().map(Evidence.Record::source).distinct().toList();
             List<Evidence.NavigationTarget> targets = response.records().stream().flatMap(record -> record.targets().stream())

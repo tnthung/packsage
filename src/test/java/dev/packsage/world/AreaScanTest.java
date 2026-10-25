@@ -1,5 +1,6 @@
 package dev.packsage.world;
 
+import dev.packsage.knowledge.Evidence;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
@@ -64,6 +65,20 @@ class AreaScanTest {
         assertTrue(listing.contains("work limit") && listing.contains("5 of 40 chunks") && listing.contains("cursor"), listing);
         var summary = AreaScan.stopNote(5, 40, false);
         assertTrue(summary.contains("5 of 40 chunks") && summary.contains("smaller radius") && !summary.contains("cursor"), summary);
+    }
+
+    @Test
+    void aPageKeepsItsLoadNotesApartFromItsCursorNotes() {
+        var page = AreaScan.page(List.of(), "3:0", 1, 2, List.of(AreaScan.PAGE_LIMIT_NOTE));
+        assertEquals("1 chunks in range were not loaded and were not fully read; "
+                + "2 chunks in range did not have their entities loaded yet, so entities there were not read; " + AreaScan.PAGE_LIMIT_NOTE, page.note());
+        assertEquals("1 chunks in range were not loaded and were not fully read; "
+                + "2 chunks in range did not have their entities loaded yet, so entities there were not read", page.loadNote());
+        assertEquals(Evidence.Coverage.PARTIAL, page.coverage());
+        var complete = AreaScan.page(List.of(), null, 0, 0, List.of());
+        assertEquals(null, complete.note());
+        assertEquals(null, complete.loadNote());
+        assertEquals(Evidence.Coverage.COMPLETE, complete.coverage());
     }
 
     @Test

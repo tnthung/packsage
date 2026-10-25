@@ -348,13 +348,28 @@ class WorldToolsTest {
     @Test
     void inspectAreaKeepsTheEntityPageNoteWhenItsListIsCut() {
         var blocks = new Page<>(java.util.List.of(new BlockSummary(Map.of(), java.util.List.of(), 0)), null, Evidence.Coverage.COMPLETE, null);
-        var note = "2 chunks in range did not have their entities loaded yet";
-        var entities = new Page<EntityHandle>(java.util.List.of(), "next", Evidence.Coverage.PARTIAL, note);
+        var entities = AreaScan.page(java.util.List.<EntityHandle>of(), "5:0", 0, 2, java.util.List.of(AreaScan.PAGE_LIMIT_NOTE));
+        assertTrue(entities.note().contains("continue with the cursor"), entities.note());
 
         var notes = WorldTools.areaNotes(blocks, entities);
 
         assertEquals(2, notes.size(), notes.toString());
         assertTrue(notes.getFirst().contains("list_entities"), notes.getFirst());
-        assertEquals(note, notes.get(1));
+        assertEquals("2 chunks in range did not have their entities loaded yet, so entities there were not read", notes.get(1));
+        assertTrue(notes.stream().noneMatch(note -> note.contains("cursor")), notes.toString());
+    }
+
+    @Test
+    void inspectAreaListsTheBlockNoteBeforeTheNotableCap() {
+        var chest = new NotableBlock(new BlockHandle("minecraft:chest", new BlockPlace("minecraft:overworld", 0, 64, 0)), "container");
+        var blocks = new Page<>(java.util.List.of(new BlockSummary(Map.of(), java.util.Collections.nCopies(AreaScan.SUMMARY_NOTABLE, chest), 0)),
+                null, Evidence.Coverage.PARTIAL, "3 chunks in range were not loaded and were not fully read");
+        var entities = new Page<EntityHandle>(java.util.List.of(), null, Evidence.Coverage.COMPLETE, null);
+
+        var notes = WorldTools.areaNotes(blocks, entities);
+
+        assertEquals(2, notes.size(), notes.toString());
+        assertEquals("3 chunks in range were not loaded and were not fully read", notes.getFirst());
+        assertTrue(notes.get(1).startsWith("Notable blocks reached the " + AreaScan.SUMMARY_NOTABLE + " cap"), notes.get(1));
     }
 }

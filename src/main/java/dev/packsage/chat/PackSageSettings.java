@@ -23,6 +23,8 @@ public final class PackSageSettings {
     private boolean openPaused;
     private boolean automaticWebSearch;
     private boolean hideInactiveAdapters = true;
+    private boolean debugBridge;
+    private int debugBridgePort = 25599;
     private int historyTurns;
     private int historicalTokens;
     private SendShortcut sendShortcut;
@@ -54,6 +56,11 @@ public final class PackSageSettings {
         Properties properties = new Properties();
         try (InputStream input = Files.newInputStream(path)) {
             properties.load(input);
+            settings.debugBridge = Boolean.parseBoolean(properties.getProperty("debugBridge", "false"));
+            try {
+                int port = Integer.parseInt(properties.getProperty("debugBridgePort", "25599"));
+                if (port >= 1 && port <= 65535) settings.debugBridgePort = port;
+            } catch (NumberFormatException ignored) { }
             settings.openPaused = Boolean.parseBoolean(properties.getProperty("openPaused", Boolean.toString(settings.openPaused)));
             settings.automaticWebSearch = Boolean.parseBoolean(properties.getProperty("automaticWebSearch", Boolean.toString(settings.automaticWebSearch)));
             settings.hideInactiveAdapters = Boolean.parseBoolean(properties.getProperty("hideInactiveAdapters", Boolean.toString(settings.hideInactiveAdapters)));
@@ -89,6 +96,8 @@ public final class PackSageSettings {
 
     public void save(Path path) {
         Properties properties = new Properties();
+        properties.setProperty("debugBridge", Boolean.toString(debugBridge));
+        properties.setProperty("debugBridgePort", Integer.toString(debugBridgePort));
         properties.setProperty("openPaused", Boolean.toString(openPaused));
         properties.setProperty("automaticWebSearch", Boolean.toString(automaticWebSearch));
         properties.setProperty("hideInactiveAdapters", Boolean.toString(hideInactiveAdapters));
@@ -110,6 +119,8 @@ public final class PackSageSettings {
     }
 
     public boolean openPaused() { return openPaused; }
+    public boolean debugBridge() { return debugBridge; }
+    public int debugBridgePort() { return debugBridgePort; }
     public boolean automaticWebSearch() { return automaticWebSearch; }
     public boolean hideInactiveAdapters() { return hideInactiveAdapters; }
     public int historyTurns() { return historyTurns; }
@@ -140,6 +151,8 @@ public final class PackSageSettings {
         copy.modelId = modelId;
         copy.reasoningEffort = reasoningEffort;
         copy.hideInactiveAdapters = hideInactiveAdapters;
+        copy.debugBridge = debugBridge;
+        copy.debugBridgePort = debugBridgePort;
         if (!copy.setDeveloperPrompt(value)) throw new IllegalArgumentException("developerPrompt is out of bounds");
         return copy;
     }

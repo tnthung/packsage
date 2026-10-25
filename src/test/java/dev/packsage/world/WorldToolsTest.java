@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -20,7 +21,11 @@ class WorldToolsTest {
     private static final String ENTITY = "3f1c2a4e-0000-4000-8000-000000000001";
 
     private static WorldTools tools() {
-        return new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime), () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
+        return tools(() -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE));
+    }
+
+    private static WorldTools tools(java.util.function.Supplier<java.util.concurrent.CompletionStage<ClientFocus>> focus) {
+        return new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime), focus, place -> false, id -> null, null);
     }
 
     private static Toolbox.Code failure(WorldTools tools, String tool, String arguments) {
@@ -490,18 +495,48 @@ class WorldToolsTest {
         inventoryMenuField.setAccessible(true);
         inventoryMenuField.set(host, inventoryMenu);
 
+        var tools = tools();
         var chest = new TestMenu(7);
         host.containerMenu = chest;
-        var opened = (LiveHolder.OfMenu) WorldTools.openedRoot(host, 7);
-        assertEquals(chest, opened.menu());
-        assertEquals(inventory, opened.playerInventory());
+        assertEquals(null, tools.openedRoot(null, host, 7), "an id never issued");
+        tools.issueOpened(null, chest);
+        var opened = (LiveHolder.OfMenu) tools.openedRoot(null, host, 7);
+        assertSame(chest, opened.menu());
+        assertSame(inventory, opened.playerInventory());
 
         host.containerMenu = new TestMenu(8);
-        assertEquals(null, WorldTools.openedRoot(host, 7), "a different menu opened");
+        assertEquals(null, tools.openedRoot(null, host, 7), "a different menu opened");
+        var reused = new TestMenu(7);
+        host.containerMenu = reused;
+        assertEquals(null, tools.openedRoot(null, host, 7), "a later menu that reuses the id, as after a rejoin or respawn");
+        tools.issueOpened(null, reused);
+        assertSame(reused, ((LiveHolder.OfMenu) tools.openedRoot(null, host, 7)).menu());
+        host.containerMenu = chest;
+        assertEquals(null, tools.openedRoot(null, host, 7), "the earlier menu with the same id");
         host.containerMenu = host.inventoryMenu;
-        assertEquals(null, WorldTools.openedRoot(host, 7), "the menu closed");
-        assertEquals(null, WorldTools.openedRoot(host, 0), "the player inventory is not an opened menu");
-        assertEquals(null, WorldTools.openedRoot(null, 7), "the player left");
+        assertEquals(null, tools.openedRoot(null, host, 7), "the menu closed");
+        assertEquals(null, tools.openedRoot(null, host, 0), "the player inventory is not an opened menu");
+        assertEquals(null, tools.openedRoot(null, null, 7), "the player left");
+
+        var gone = WorldTools.pathFailure(ItemPath.parse("opened:7>minecraft/menu#3@minecraft:oak_planks"),
+                new PathResolver.Resolution(null, null, 0, PathResolver.Failure.ROOT_GONE));
+        assertEquals(Toolbox.Code.UNAVAILABLE, gone.code());
+        assertEquals("UNAVAILABLE: the menu is no longer open", gone.getMessage());
+    }
+
+    @Test
+    void listingAnOpenedMenuGoesOnWithoutTheTitleWhenTheFocusCaptureFails() {
+        var rejected = tools(() -> {
+            throw new IllegalStateException("client is closing");
+        });
+        var failed = tools(() -> java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("no screen")));
+        for (var tools : java.util.List.of(rejected, failed)) {
+            assertSame(ClientFocus.NONE, tools.focus(null, true).toCompletableFuture().join());
+            assertSame(ClientFocus.NONE, tools.focus(HolderWords.parse("opened"), true).toCompletableFuture().join());
+            var targeted = tools.focus(HolderWords.parse("targeted"), false).toCompletableFuture();
+            var failure = org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.CompletionException.class, targeted::join);
+            assertEquals(Toolbox.Code.UNAVAILABLE, ((Toolbox.Failure) failure.getCause()).code());
+        }
     }
 
     @Test
@@ -538,6 +573,7 @@ class WorldToolsTest {
         assertEquals(java.util.Set.of("The preview slots of unknown could not be read: slot broke"), brokenNotes);
     }
 
+    /** A menu that fails the test when anything moves, clicks or syncs its slots. */
     private static final class TestMenu extends net.minecraft.world.inventory.AbstractContainerMenu {
         private TestMenu(int containerId) {
             super(null, containerId);
@@ -545,7 +581,22 @@ class WorldToolsTest {
 
         @Override
         public net.minecraft.world.item.ItemStack quickMoveStack(net.minecraft.world.entity.player.Player player, int slotIndex) {
-            return net.minecraft.world.item.ItemStack.EMPTY;
+            return fail("quickMoveStack");
+        }
+
+        @Override
+        public void broadcastChanges() {
+            fail("broadcastChanges");
+        }
+
+        @Override
+        public void slotsChanged(net.minecraft.world.Container container) {
+            fail("slotsChanged");
+        }
+
+        @Override
+        public void clicked(int slot, int button, net.minecraft.world.inventory.ClickType type, net.minecraft.world.entity.player.Player player) {
+            fail("clicked");
         }
 
         @Override

@@ -40,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -159,8 +160,12 @@ class MinecraftMenusTest {
         var menu = new TestMenu();
         menu.slots.add(new ReadOnlySlot(player, 0));
         for (int i = 0; i < 3; i++) menu.slots.add(new ReadOnlySlot(storage, i));
-        var before = new ArrayList<Object>();
-        for (var slot : menu.slots) before.add(slot.getItem().getComponents());
+        var stacks = new ArrayList<ItemStack>();
+        var copies = new ArrayList<ItemStack>();
+        for (var slot : menu.slots) {
+            stacks.add(slot.getItem());
+            copies.add(slot.getItem().copy());
+        }
         var holder = new LiveHolder.OfMenu(menu, player);
 
         var infos = inventories.inventories(holder);
@@ -177,7 +182,11 @@ class MinecraftMenusTest {
         assertNotNull(inventories.inspectItem(opened.get("3")));
         assertEquals(new Evidence.JsonObject(Map.of("menuSlot", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(3)))),
                 inventories.entryFacts(holder, "menu", "3"));
-        for (int i = 0; i < menu.slots.size(); i++) assertEquals(before.get(i), menu.slots.get(i).getItem().getComponents());
+        for (int i = 0; i < menu.slots.size(); i++) {
+            var now = menu.slots.get(i).getItem();
+            assertSame(stacks.get(i), now, "slot " + i + " holds the same stack");
+            assertTrue(ItemStack.matches(copies.get(i), now), "slot " + i + " keeps its item, count and components");
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -233,6 +242,7 @@ class MinecraftMenusTest {
         }
     }
 
+    /** A menu that fails the test when anything moves, clicks or syncs its slots. */
     private static final class TestMenu extends AbstractContainerMenu {
         private TestMenu() {
             super(null, 0);
@@ -240,7 +250,22 @@ class MinecraftMenusTest {
 
         @Override
         public ItemStack quickMoveStack(Player player, int slotIndex) {
-            return ItemStack.EMPTY;
+            return fail("quickMoveStack");
+        }
+
+        @Override
+        public void broadcastChanges() {
+            fail("broadcastChanges");
+        }
+
+        @Override
+        public void slotsChanged(Container container) {
+            fail("slotsChanged");
+        }
+
+        @Override
+        public void clicked(int slot, int button, net.minecraft.world.inventory.ClickType type, Player player) {
+            fail("clicked");
         }
 
         @Override

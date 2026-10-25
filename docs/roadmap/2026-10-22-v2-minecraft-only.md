@@ -49,6 +49,8 @@ The [plan](../plans/2026-10-22-v2-world-reading.md) is implemented. The [validat
   - N4: an early stop can make no progress. Fixed: a stop waits for at least one new container or chunk.
   - N5: `inspect_area` can drop the entity page's note. Fixed: the note is kept alongside the `list_entities` pointer.
 
+World final-review follow-up: [automated validation](../validation/2026-10-26-world-review-fixes.md) covers no-load POI reads, dense entity/holder and statistics traversal, entity truncation/output bounds and asynchronous highlight resolution. Installed acceptance of these new cases remains pending in the tool roadmap and adapter checklist.
+
 ### Journal and notes
 
 Stage 4's [plan](../plans/2026-10-22-v2-journal.md) is implemented. The [single acceptance record](../validation/2026-10-25-v2-acceptance.md#acceptance-summary) holds Candidates 1–6, installed-default verification, Task 7 parts A/B and the L1 recheck. Journal startup recovery passed live in C3 and on a fresh installed-default launch; duplicate navigation ids and inspected-air links also passed rechecks. The original broad checklist is retained below with only observed clauses checked.

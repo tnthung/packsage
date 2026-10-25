@@ -1,6 +1,6 @@
 # PackSage adapter feature todo
 
-Updated: 2026-10-25.
+Updated: 2026-10-26.
 
 Feature-grouped summary of the [tool roadmap](2026-10-13-todo.md). A mod can appear under multiple features. Unchecked items include missing implementation and implemented features still awaiting the stated live acceptance. Detailed contracts, evidence and acceptance limits remain in the tool roadmap and its linked reports.
 
@@ -26,6 +26,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### World block, mob and storage reading (v2)
 
+- [ ] Minecraft — installed checks for cached-only POI facts, dense entity/holder pacing, capped attribute coverage and asynchronous highlights; [automated regressions pass](../validation/2026-10-26-world-review-fixes.md), live acceptance pending.
 - [x] Minecraft — nearby/nested storage search, both stone stores and per-holder highlights, continued complete 72-type catalogue, sampled responsive 320-chest search and exact saved chest link after full restart (W1/W4/W5/W6/W7).
 - [x] Minecraft — villager home/job/sleep/work facts and gameTime interpretation combined with fresh bed-break/zombie-death evidence (C6/Q5, W2); specific golem expiry conversion remains unexercised.
 - [x] Minecraft — mob attributes and horse-like jump/speed facts, including cited 1.62-block mule jump (W8) and earlier horse acceptance. Its omitted coordinates remain a separate E6 failure below.
@@ -53,7 +54,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 ### Villager trades (v2)
 
 - [x] Minecraft — stationary librarian offers/prices/item distinctions and never-opened librarian not-generated reads twice, then ordinary trade opening (C5 corrected fixture). The natural-job fixture already had offers and is not the no-generation proof.
-- [ ] Minecraft — wandering-trader live acceptance and bounded-inspector payload/PARTIAL follow-ups remain open.
+- [ ] Minecraft — wandering-trader live acceptance and installed bounded-inspector payload/PARTIAL checks remain open; offer-cap and oversized-record automated regressions pass in the [world review fixes](../validation/2026-10-26-world-review-fixes.md).
 
 ### Loot tables (v2)
 
@@ -72,6 +73,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### Progress and statistics (v2)
 
+- [ ] Minecraft — installed large-counter pacing check after the bounded traversal fix; [automated batch-count regression passes](../validation/2026-10-26-world-review-fixes.md).
 - [x] Minecraft — per-criterion missing biome names, available goals, anonymous hidden entries after the P5 fix, visible-tab links and restart reopening (P1/P5/P7/P8). Q11 confirms invisible tabs stay source-only.
 - [x] Minecraft — exact mined counts, walking in blocks, explicit never-mined zero, play time and sampled 2,000-advancement performance (P2/P3/P4/P6/P10).
 - [ ] Minecraft — multiplayer progress/statistics unavailability: P9 NOT RUN, requires a NeoForge dedicated server. Broader interrupted/missing-destination/unit branches remain unexercised live.

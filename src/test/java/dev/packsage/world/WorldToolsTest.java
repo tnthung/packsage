@@ -111,7 +111,8 @@ class WorldToolsTest {
         levels.set(server, Map.of(net.minecraft.world.level.Level.OVERWORLD, level));
         var place = new BlockPlace("minecraft:overworld", 40, 70, -8);
         var work = new ServerWork(System::nanoTime);
-        var tools = new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE, Runnable::run, work,
+        var registry = new WorldRegistry();
+        var tools = new WorldTools(() -> server, registry, () -> SCOPE, Runnable::run, work,
                 () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), block -> false, id -> null, null,
                 id -> id.equals("n0000abcd") ? place : null);
         var anchor = WorldTools.anchor(Evidence.deserializeObject("{\"type\":\"note\",\"id\":\"n0000abcd\"}"));
@@ -623,6 +624,15 @@ class WorldToolsTest {
         assertEquals(saved.source().sourceHandle(), result.records().getFirst().source().sourceHandle());
         assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(4)), result.records().getFirst().payload().values().get("selectedSlot"));
         assertEquals(new Evidence.JsonArray(java.util.List.of()), result.records().getFirst().payload().values().get("inventories"));
+        registry.register(new InventoryReader() {
+            @Override public String adapterId() { return "broken"; }
+            @Override public java.util.List<InventoryInfo> inventories(LiveHolder holder) { throw new IllegalStateException("inventory unavailable"); }
+            @Override public LiveInventory open(LiveHolder holder, String section) { return null; }
+            @Override public Section inspectItem(net.minecraft.world.item.ItemStack stack) { return null; }
+        });
+        var partial = tools.readEvidence(new PackSageTools.ReadRequest("read_evidence", Evidence.deserializeObject("{\"handles\":[\"saved\"]}"), SCOPE), context);
+        for (int tick = 0; !partial.toCompletableFuture().isDone() && tick < 100; tick++) work.tick();
+        assertEquals(Evidence.Coverage.PARTIAL, partial.toCompletableFuture().join().coverage());
     }
 
     @Test

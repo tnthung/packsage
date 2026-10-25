@@ -36,6 +36,7 @@ public final class JournalWriter {
     private final CompletableFuture<JournalStore> ready = new CompletableFuture<>();
     private final CompletableFuture<Void> closed = new CompletableFuture<>();
     private boolean accepting = true;
+    private boolean started;
     private volatile boolean closing;
     private volatile JournalStore store;
     private volatile Throwable openFailure;
@@ -55,6 +56,12 @@ public final class JournalWriter {
 
     /** Starts the non-daemon {@code packsage-journal} thread, which opens the store and starts a session first. */
     public void start() {
+        synchronized (taskLock) {
+            if (started) {
+                return;
+            }
+            started = true;
+        }
         var thread = new Thread(this::run, "packsage-journal");
         thread.setDaemon(false);
         thread.start();
@@ -92,17 +99,25 @@ public final class JournalWriter {
     /**
      * Stops accepting commands and closes the queue on the calling thread, then lets the writer thread flush. Call it on
      * the thread that offers events (the server thread), so every offer either precedes the close and is flushed or
-     * follows it and is counted as dropped. Returns at once; the future completes after the store closed.
+     * follows it and is counted as dropped. Returns at once; the future completes after the store closed. Before
+     * {@link #start()} it completes at once, counting the queued events as failed, and the writer never starts.
      */
     public CompletableFuture<Void> close() {
+        boolean neverStarted;
         synchronized (taskLock) {
-            if (accepting) {
-                accepting = false;
-                queue.close();
-                closing = true;
-                tasks.add(() -> {
-                });
+            if (!accepting) {
+                return closed;
             }
+            accepting = false;
+            queue.close();
+            closing = true;
+            tasks.add(() -> {
+            });
+            neverStarted = !started;
+            started = true;
+        }
+        if (neverStarted) {
+            abandon(new IllegalStateException("the journal writer was closed before it started"));
         }
         return closed;
     }
@@ -110,7 +125,16 @@ public final class JournalWriter {
     /** Opens the store and starts the session on the current thread, which becomes the store's writer thread. */
     JournalStore openNow() throws Exception {
         var opened = opener.call();
-        sessionId = opened.startSession(wallClock.getAsLong(), gameTime.getAsLong());
+        try {
+            sessionId = opened.startSession(wallClock.getAsLong(), gameTime.getAsLong());
+        } catch (SQLException | RuntimeException e) {
+            try {
+                opened.close();
+            } catch (SQLException | RuntimeException closing) {
+                e.addSuppressed(closing);
+            }
+            throw e;
+        }
         store = opened;
         return opened;
     }
@@ -130,7 +154,7 @@ public final class JournalWriter {
             try {
                 store.writeBatch(changed, overflow);
                 stats.written.add(events.size() + overflowed);
-            } catch (SQLException e) {
+            } catch (SQLException | RuntimeException e) {
                 stats.failedEvents.add(events.size() + overflowed);
                 merger.forget(changed);
                 logFailure(e);
@@ -161,16 +185,13 @@ public final class JournalWriter {
     private void loop() throws InterruptedException {
         var due = System.nanoTime() + periodNanos;
         while (!closing) {
-            var task = tasks.poll();
-            if (task == null) {
-                var wait = due - System.nanoTime();
-                if (wait <= 0) {
-                    drainOnce();
-                    due = System.nanoTime() + periodNanos;
-                    continue;
-                }
-                task = tasks.poll(wait, TimeUnit.NANOSECONDS);
+            var wait = due - System.nanoTime();
+            if (wait <= 0) {
+                drainOnce();
+                due = System.nanoTime() + periodNanos;
+                continue;
             }
+            var task = tasks.poll(wait, TimeUnit.NANOSECONDS);
             if (task != null) {
                 task.run();
             }
@@ -204,15 +225,24 @@ public final class JournalWriter {
         closed.complete(null);
     }
 
-    /** Refuses commands, counts what was queued as failed and finishes the close future, since nothing can be written. */
     private void failOpen(Throwable cause) {
-        openFailure = cause;
-        ready.completeExceptionally(cause);
-        List<Runnable> pending;
         synchronized (taskLock) {
             accepting = false;
             queue.close();
             closing = true;
+        }
+        abandon(cause);
+    }
+
+    /**
+     * For a writer that has no store: fails readiness and the pending commands, counts what was queued as failed, logs the
+     * stats and completes the close future. The queue is already closed.
+     */
+    private void abandon(Throwable cause) {
+        openFailure = cause;
+        ready.completeExceptionally(cause);
+        List<Runnable> pending;
+        synchronized (taskLock) {
             pending = List.copyOf(tasks);
             tasks.clear();
         }
@@ -225,10 +255,11 @@ public final class JournalWriter {
         }
         lost += queue.drainOverflow().stream().mapToLong(OverflowRow::count).sum();
         stats.failedEvents.add(lost);
+        PackSageLog.LOGGER.info("PackSage {}", stats.summary());
         closed.complete(null);
     }
 
-    private void logFailure(SQLException e) {
+    private void logFailure(Exception e) {
         var now = wallClock.getAsLong();
         if (!failureLogged || now - lastFailureLog >= FAILURE_LOG_MILLIS) {
             failureLogged = true;

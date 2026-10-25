@@ -12,7 +12,10 @@ public final class JournalStats {
     final LongAdder offered = new LongAdder();
     /** Events that reached the writer as count-only overflow tallies. */
     final LongAdder overflowed = new LongAdder();
-    /** Events stored, as run rows or count-only rows. */
+    /**
+     * Events stored, as run rows or count-only rows. A repeated entry into an already visited structure start is handled
+     * by not storing it, and counts as written.
+     */
     final LongAdder written = new LongAdder();
     /** Events lost to a failed batch or a journal that never opened. */
     final LongAdder failedEvents = new LongAdder();

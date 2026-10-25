@@ -25,6 +25,9 @@ public record JournalEvent(EventType type, long gameTime, long wallMillis, Strin
         if (positions == null || positions.length == 0) {
             throw new IllegalArgumentException("a journal event needs at least one position");
         }
+        if (type == EventType.STRUCTURE && (subject == null || group == null)) {
+            throw new IllegalArgumentException("a structure event needs its structure as subject and its start chunk as group");
+        }
         positions = positions.clone();
         if (detail != null && detail.length() > MAX_DETAIL) {
             var end = Character.isHighSurrogate(detail.charAt(MAX_DETAIL - 1)) ? MAX_DETAIL - 1 : MAX_DETAIL;

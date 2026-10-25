@@ -672,6 +672,10 @@ final class ScreenText {
     static String navigationLabel(Evidence.NavigationTarget target) {
         String id = target.targetId();
         if ("world".equals(target.providerId())) return "Show in world: " + id.substring(id.indexOf('|') + 1);
+        if ("progress".equals(target.providerId())) {
+            String advancement = withoutNamespace(id.substring(id.lastIndexOf('|') + 1));
+            return "Open advancements: " + advancement.substring(advancement.lastIndexOf('/') + 1);
+        }
         String tail = id.substring(id.lastIndexOf('/') + 1);
         String readable = HASH_SUFFIX.matcher(tail.isEmpty() ? id : tail).replaceFirst("");
         return "Open " + target.providerId() + ": " + readable;

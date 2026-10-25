@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.Properties;
 import java.io.InputStream;
+import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -145,12 +146,15 @@ class PackSageSettingsTest {
         Path path = temporaryDirectory.resolve("prompt.properties");
         var settings = PackSageSettings.defaults();
         settings.saveDeveloperPrompt(path, "custom prompt").join();
-        assertEquals("custom prompt", settings.developerPrompt());
+        assertNull(settings.developerPrompt(), "screen settings apply the prompt after the save completes");
+        assertTrue(settings.setDeveloperPrompt("custom prompt"));
         assertEquals("custom prompt", PackSageSettings.load(path).developerPrompt());
         assertThrows(java.util.concurrent.CompletionException.class,
                 () -> settings.saveDeveloperPrompt(temporaryDirectory, "unsaved prompt").join());
         assertEquals("custom prompt", settings.developerPrompt());
         settings.saveDeveloperPrompt(path, dev.packsage.model.GroundingInstructions.defaultInstructions()).join();
+        assertEquals("custom prompt", settings.developerPrompt());
+        assertTrue(settings.setDeveloperPrompt(null));
         assertEquals(null, settings.developerPrompt());
         assertEquals(null, PackSageSettings.load(path).developerPrompt());
         settings.saveDeveloperPrompt(path, "another prompt").join();
@@ -160,8 +164,6 @@ class PackSageSettingsTest {
 
     @Test
     void settingsSnapshotsQueueWithoutWaitingForTheWriterAndLatestGenerationIsFlushed() throws Exception {
-        var settings = PackSageSettings.defaults();
-        var path = temporaryDirectory.resolve("settings.properties");
         var started = new java.util.concurrent.CountDownLatch(1);
         var release = new java.util.concurrent.CountDownLatch(1);
         var writer = new SettingsWriter((target, snapshot) -> {
@@ -170,19 +172,26 @@ class PackSageSettingsTest {
                 try { assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS)); }
                 catch (InterruptedException failure) { throw new RuntimeException(failure); }
             }
-            SettingsWriter.write(target, snapshot.properties());
+            SettingsWriter.write(target, snapshot);
         });
-        settings = new PackSageSettings(true, true, 10, 12_000, writer);
+        var settings = new PackSageSettings(true, true, 10, 12_000, writer);
+        var path = temporaryDirectory.resolve("settings.properties");
         var client = java.util.concurrent.Executors.newSingleThreadExecutor();
+        CompletableFuture<Void> promptSave;
         try {
             client.submit(() -> settings.save(path)).get(1, java.util.concurrent.TimeUnit.SECONDS);
             assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS));
-            client.submit(() -> settings.saveDeveloperPrompt(path, "newest screen prompt")).get(1, java.util.concurrent.TimeUnit.SECONDS);
+            promptSave = client.submit(() -> settings.saveDeveloperPrompt(path, "newest screen prompt"))
+                    .get(1, java.util.concurrent.TimeUnit.SECONDS);
             client.submit(() -> { }).get(1, java.util.concurrent.TimeUnit.SECONDS);
         } finally {
             release.countDown();
             client.shutdownNow();
         }
+        promptSave.join();
+        assertNull(settings.developerPrompt(), "the editor applies only after persistence succeeds");
+        assertTrue(settings.setDeveloperPrompt("newest screen prompt"));
+        settings.save(path).join();
         settings.flushAndClose(path).join();
         assertEquals("newest screen prompt", settings.developerPrompt());
         assertEquals("newest screen prompt", PackSageSettings.load(path).developerPrompt());
@@ -196,7 +205,7 @@ class PackSageSettingsTest {
         var newer = java.util.Map.of("developerPrompt", "new");
         writer.submit(path, new SettingsWriter.Snapshot(2, newer)).join();
         writer.submit(path, new SettingsWriter.Snapshot(1, older)).join();
-        writer.flushAndClose(path).join();
+        writer.flushAndClose(path, new SettingsWriter.Snapshot(2, newer)).join();
         assertEquals("new", PackSageSettings.load(path).developerPrompt());
     }
 }

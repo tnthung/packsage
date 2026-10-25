@@ -41,6 +41,25 @@ class JournalStoreTest {
     }
 
     @Test
+    void openingExistingVersionOneAddsTheCountOnlyIndexWithoutLosingData() throws Exception {
+        var file = dir.resolve("journal.db");
+        try (var store = JournalStore.open(file); var statement = store.writer().createStatement()) {
+            store.startSession(1_000, 20);
+            statement.executeUpdate("DROP INDEX IF EXISTS events_count_only_time");
+        }
+        for (int i = 0; i < 2; i++) {
+            try (var store = JournalStore.open(file); var statement = store.reader().createStatement();
+                 var rows = statement.executeQuery("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'events_count_only_time'")) {
+                assertEquals(1, store.schemaVersion());
+                assertEquals(1_000, store.meta().createdWall());
+                assertEquals(1, store.sessions().size());
+                assertTrue(rows.next());
+                assertTrue(rows.getString(1).contains("WHERE count_only = 1"));
+            }
+        }
+    }
+
+    @Test
     void integerRtreeIsAvailable() throws Exception {
         try (var store = JournalStore.open(dir.resolve("journal.db"))) {
             try (var statement = store.writer().createStatement()) {

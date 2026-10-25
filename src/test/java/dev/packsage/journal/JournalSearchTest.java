@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JournalSearchTest {
@@ -302,6 +303,149 @@ class JournalSearchTest {
             var entry = (JournalEntry.EventEntry) result.items().getFirst();
             assertEquals(20, entry.inAreaCount());
             assertEquals(16, entry.inArea().size());
+        }
+    }
+
+    @Test
+    void coarsenedOverflowMakesSubjectAndTextSearchesPartialWithoutAnArea() throws Exception {
+        try (var store = JournalStore.open(dir.resolve("journal.db"))) {
+            store.startSession(0, 0);
+            store.writeBatch(List.of(), List.of(new OverflowRow(EventType.BREAK, "minecraft:overworld", "*", "*",
+                    20, 20, 1, 2, 1, 2), new OverflowRow(EventType.BREAK, "minecraft:overworld", "*", "minecraft:stone",
+                    10, 10, 1, 2, 1, 2)));
+            var search = new JournalSearch(store);
+            for (var filter : List.of(
+                    new JournalFilter(null, null, null, "minecraft:overworld", Set.of("break"), List.of("minecraft:sand"), null, false),
+                    new JournalFilter(null, null, null, "minecraft:overworld", Set.of("break"), List.of(), "Steve", false))) {
+                var result = search.search(filter, null, 10);
+                assertTrue(result.items().isEmpty());
+                assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+                assertTrue(result.note().contains("2 overflow rows without a recorded subject or actor in this period cannot be ruled out"));
+                assertNull(result.nextCursor());
+            }
+            for (var filter : List.of(
+                    new JournalFilter(3L, null, null, null, Set.of(), List.of("minecraft:sand"), null, false),
+                    new JournalFilter(null, 0L, null, null, Set.of(), List.of(), "Steve", false),
+                    new JournalFilter(null, null, null, "minecraft:the_nether", Set.of(), List.of("minecraft:sand"), null, false),
+                    new JournalFilter(null, null, null, null, Set.of("death"), List.of(), "Steve", false),
+                    new JournalFilter(null, null, null, null, Set.of("note"), List.of(), "Steve", true),
+                    new JournalFilter(null, null, null, null, Set.of(), List.of(), null, false))) {
+                assertEquals(Evidence.Coverage.COMPLETE, search.search(filter, null, 10).coverage());
+            }
+        }
+    }
+
+    @Test
+    void anUnboundedRangeReportsHistoryBeforeRecordingAfterTheTickTolerance() throws Exception {
+        for (var gameTime : List.of(200L, 201L)) {
+            try (var store = JournalStore.open(dir.resolve("journal-" + gameTime + ".db"))) {
+                store.startSession(1_000, gameTime);
+                var search = new JournalSearch(store);
+                var result = search.search(new JournalFilter(null, null, null, null, Set.of(), List.of(), null, false), null, 2_000);
+                assertEquals(gameTime == 200 ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL, result.coverage());
+                if (gameTime > 200) {
+                    assertTrue(result.note().contains("the journal began recording at 1970-01-01T00:00:01Z"));
+                }
+                assertEquals(Evidence.Coverage.COMPLETE, search.search(new JournalFilter(1_000L, null, null, null,
+                        Set.of(), List.of(), null, false), null, 2_000).coverage());
+            }
+        }
+    }
+
+    @Test
+    void exhaustedStreamsAtTheCandidateLimitAreComplete() throws Exception {
+        try (var store = JournalStore.open(dir.resolve("journal.db"))) {
+            store.startSession(0, 0);
+            var runs = new ArrayList<Run>();
+            for (int i = 1; i <= 4_096; i++) {
+                runs.add(new Run(new JournalEvent(EventType.BREAK, i, i, "minecraft:overworld", "player:steve",
+                        "minecraft:sand", null, 2, new long[]{Positions.pack(0, 64, 10), Positions.pack(10, 64, 0)}, null)));
+            }
+            store.writeBatch(runs, List.of());
+            var result = new JournalSearch(store).search(new JournalFilter(null, null,
+                    new JournalFilter.Area("minecraft:overworld", 0, 64, 0, 8), null, Set.of(), List.of(), null, false), null, 5_000);
+            assertTrue(result.items().isEmpty());
+            assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
+            assertNull(result.nextCursor());
+            assertNull(result.note());
+        }
+    }
+
+    @Test
+    void areaRejectsNegativeRadii() {
+        assertThrows(IllegalArgumentException.class, () -> new JournalFilter.Area("minecraft:overworld", 0, 64, 0, -1));
+    }
+
+    @Test
+    void areaIncludesPositionsExactlyAtTheRadius() throws Exception {
+        try (var store = JournalStore.open(dir.resolve("journal.db"))) {
+            store.startSession(0, 0);
+            store.writeBatch(List.of(new Run(new JournalEvent(EventType.BREAK, 1, 1, "minecraft:overworld", "player:steve",
+                    "minecraft:sand", null, 2, new long[]{Positions.pack(3, 64, 4), Positions.pack(3, 64, 5)}, null))), List.of());
+            var result = new JournalSearch(store).search(new JournalFilter(null, null,
+                    new JournalFilter.Area("minecraft:overworld", 0, 64, 0, 5), null, Set.of(), List.of(), null, false), null, 10);
+            var entry = (JournalEntry.EventEntry) result.items().getFirst();
+            assertEquals(1, entry.inAreaCount());
+            assertEquals(List.of(new BlockPlace("minecraft:overworld", 3, 64, 4)), entry.inArea());
+        }
+    }
+
+    @Test
+    void equalTimeNotesAndEventsContinueAcrossEitherStreamBoundary() throws Exception {
+        try (var store = JournalStore.open(dir.resolve("journal.db"))) {
+            store.startSession(0, 0);
+            var runs = new ArrayList<Run>();
+            for (int i = 1; i <= 65; i++) {
+                runs.add(new Run(new JournalEvent(EventType.DEATH, 1, 10, "minecraft:overworld", "environment",
+                        "minecraft:villager", null, 1, new long[]{Positions.pack(0, 64, 0)}, null)));
+            }
+            store.writeBatch(runs, List.of());
+            try (var statement = store.writer().createStatement()) {
+                for (int i = 1; i <= 64; i++) {
+                    statement.executeUpdate("INSERT INTO notes(id, text, tags, created_wall, created_game_time, updated_wall)"
+                            + " VALUES ('n" + String.format("%08d", i) + "', 'farm', '', 10, 1, 10)");
+                }
+            }
+            var search = new JournalSearch(store);
+            var filter = new JournalFilter(null, null, null, null, Set.of(), List.of(), null, false);
+            var first = search.search(filter, null, 20);
+            var second = search.search(filter, first.nextCursor(), 20);
+            var third = search.search(filter, second.nextCursor(), 20);
+            assertEquals(64, first.items().size());
+            assertTrue(first.items().stream().allMatch(JournalEntry.NoteEntry.class::isInstance));
+            assertEquals("10:nn00000001", first.nextCursor());
+            assertEquals(64, second.items().size());
+            assertEquals("10:e000000000002", second.nextCursor());
+            assertEquals(List.of("e000000000001"), third.items().stream().map(JournalEntry::ref).toList());
+            assertEquals(Evidence.Coverage.COMPLETE, third.coverage());
+            var refs = new HashSet<String>();
+            for (var page : List.of(first, second, third)) {
+                for (var entry : page.items()) {
+                    assertTrue(refs.add(entry.ref()));
+                }
+            }
+            assertEquals(129, refs.size());
+        }
+    }
+
+    @Test
+    void eventIdsOrderNumericallyBeyondTwelveDigitsWithTheExistingCursorFormat() throws Exception {
+        try (var store = JournalStore.open(dir.resolve("journal.db"))) {
+            store.startSession(0, 0);
+            store.writeBatch(List.of(new Run(new JournalEvent(EventType.DEATH, 1, 10, "minecraft:overworld", "environment",
+                    "minecraft:villager", null, 1, new long[]{Positions.pack(0, 64, 0)}, null)),
+                    new Run(new JournalEvent(EventType.DEATH, 1, 10, "minecraft:overworld", "environment",
+                            "minecraft:villager", null, 1, new long[]{Positions.pack(0, 64, 0)}, null))), List.of());
+            try (var statement = store.writer().createStatement()) {
+                statement.executeUpdate("UPDATE events SET id = 999999999999 WHERE id = 1");
+                statement.executeUpdate("UPDATE events SET id = 1000000000000 WHERE id = 2");
+            }
+            var search = new JournalSearch(store);
+            var filter = new JournalFilter(null, null, null, null, Set.of(), List.of(), null, false);
+            assertEquals(List.of("e1000000000000", "e999999999999"),
+                    search.search(filter, null, 20).items().stream().map(JournalEntry::ref).toList());
+            assertEquals(List.of("e999999999999"),
+                    search.search(filter, "10:e1000000000000", 20).items().stream().map(JournalEntry::ref).toList());
         }
     }
 

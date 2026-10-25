@@ -11,6 +11,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RunSummaryTest {
     @Test
+    void coarsenedOverflowDescribesUnknownActorsAndBlocks() {
+        for (var type : List.of(EventType.BREAK, EventType.PLACE)) {
+            assertTrue(RunSummary.describe(new JournalEntry.EventEntry(1, type, "*", "*", "minecraft:overworld",
+                    20, 20, 1, 2, 0, 1_000, null, null, null, true, List.of(), 0), null)
+                    .startsWith("an unknown player/actor " + (type == EventType.BREAK ? "broke" : "placed") + " 20 unknown blocks"));
+        }
+    }
+
+    @Test
     void summarizesABreakRunAndADeath() {
         var start = Instant.parse("2026-10-25T10:00:00Z").toEpochMilli();
         var end = Instant.parse("2026-10-25T10:03:12Z").toEpochMilli();

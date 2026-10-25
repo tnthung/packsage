@@ -62,7 +62,7 @@ The Minecraft adapter is finished before this branch merges back. The [completio
   - [ ] `search_inventory` and the legacy inventory and storage readers removed; old `inventory:` and `storage:` handles reread as unavailable.
   - [x] N2–N5 fixed (see the backlog above).
 - [ ] 2. Progress and statistics (below).
-- [ ] 3. More world knowledge (`docs/plans/2026-10-25-v2-world-knowledge.md`):
+- [ ] 3. More world knowledge (`docs/plans/2026-10-25-v2-world-knowledge.md`): tool implementations and the short prompt mention are in place, including the command-reading review fixes. In-game acceptance is pending.
   - villager trades without generating them;
   - `read_loot`;
   - `locate` for biomes and structures without generating chunks;

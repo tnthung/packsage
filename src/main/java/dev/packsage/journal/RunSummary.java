@@ -24,8 +24,11 @@ public final class RunSummary {
                 // A stored detail may end at the character limit. The row still has its plain facts.
             }
         }
-        var actor = actorName == null ? entry.actor() : actorName;
-        var subject = entry.subject() == null ? "unknown" : entry.subject();
+        var actor = "*".equals(entry.actor()) ? "an unknown player/actor" : actorName == null ? entry.actor() : actorName;
+        var subject = "*".equals(entry.subject()) ? switch (entry.type()) {
+            case BREAK, PLACE -> "unknown blocks";
+            default -> "unknown";
+        } : entry.subject() == null ? "unknown" : entry.subject();
         var count = String.format(Locale.ROOT, "%,d", entry.count());
         var amount = String.format(Locale.ROOT, "%,d", entry.amount());
         var container = detail.has("container") && detail.get("container").isJsonPrimitive()

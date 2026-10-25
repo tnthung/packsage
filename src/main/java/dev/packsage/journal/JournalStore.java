@@ -87,6 +87,9 @@ public final class JournalStore implements AutoCloseable {
                 throw new SQLException("journal schema version " + version + " is not supported (this build reads version "
                         + SCHEMA_VERSION + ")");
             }
+            try (var statement = writer.createStatement()) {
+                statement.executeUpdate("CREATE INDEX IF NOT EXISTS events_count_only_time ON events(first_wall) WHERE count_only = 1");
+            }
             var reader = connect(file);
             return new JournalStore(writer, reader, version);
         } catch (SQLException | RuntimeException e) {

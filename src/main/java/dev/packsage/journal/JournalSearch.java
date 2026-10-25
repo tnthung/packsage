@@ -45,14 +45,12 @@ public final class JournalSearch {
                 String last = null;
                 while ((hasEvent || hasNote) && items.size() < PAGE && examined < MAX_CANDIDATES) {
                     JournalEntry entry;
-                    if (hasEvent && (!hasNote || eventRows.getLong("first_wall") > noteRows.getLong("created_wall")
-                            || eventRows.getLong("first_wall") == noteRows.getLong("created_wall")
-                            && eventRows.getString("ref").compareTo(noteRows.getString("ref")) > 0)) {
-                        last = eventRows.getLong("first_wall") + ":" + eventRows.getString("ref");
+                    if (hasEvent && (!hasNote || eventRows.getLong("first_wall") > noteRows.getLong("created_wall"))) {
+                        last = eventRows.getLong("first_wall") + ":e" + String.format("%012d", eventRows.getLong("id"));
                         entry = event(eventRows, filter.area());
                         hasEvent = eventRows.next();
                     } else {
-                        last = noteRows.getLong("created_wall") + ":" + noteRows.getString("ref");
+                        last = noteRows.getLong("created_wall") + ":n" + noteRows.getString("id");
                         var dimension = noteRows.getString("dimension");
                         var place = dimension == null ? null : new BlockPlace(dimension, noteRows.getInt("x"),
                                 noteRows.getInt("y"), noteRows.getInt("z"));
@@ -71,24 +69,26 @@ public final class JournalSearch {
                         items.add(entry);
                     }
                 }
-                var bounded = examined == MAX_CANDIDATES && items.size() < PAGE;
-                var more = hasEvent || hasNote || bounded;
+                var more = hasEvent || hasNote;
+                var bounded = more && examined == MAX_CANDIDATES && items.size() < PAGE;
                 if (bounded) {
                     reasons.add("examined 4,096 candidate runs; continue with the cursor");
                 } else if (more) {
                     reasons.add("more journal entries are available; continue with the cursor");
                 }
-                if (filter.area() != null) {
+                if (filter.area() != null || !filter.subjects().isEmpty() || filter.text() != null) {
                     try (var count = query(connection, filter, null, nowWall, false, true); var rows = count.executeQuery()) {
                         if (rows.next() && rows.getLong(1) > 0) {
-                            reasons.add(rows.getLong(1) + " count-only rows in this period have no positions; the area cannot rule them out");
+                            reasons.add(rows.getLong(1) + (filter.area() == null
+                                    ? " overflow rows without a recorded subject or actor in this period cannot be ruled out"
+                                    : " count-only rows in this period have no positions; the area cannot rule them out"));
                         }
                     }
                 }
                 var meta = store.meta();
                 if (meta == null) {
                     reasons.add("the journal is not recording yet");
-                } else if (filter.afterWall() != null && filter.afterWall() < meta.createdWall()) {
+                } else if (filter.afterWall() == null ? meta.createdGameTime() > 200 : filter.afterWall() < meta.createdWall()) {
                     reasons.add("the journal began recording at " + Instant.ofEpochMilli(meta.createdWall()));
                 }
                 var sessions = store.sessions();
@@ -126,13 +126,12 @@ public final class JournalSearch {
         });
     }
 
-    /** Builds either keyset stream, or the count-only coverage query using the same non-spatial filters. */
+    /** Builds either keyset stream, or a count-only coverage query that retains rows the filters cannot rule out. */
     private static PreparedStatement query(Connection connection, JournalFilter filter, String cursor, long nowWall,
                                            boolean notes, boolean countOnly) throws SQLException {
         var time = notes ? "created_wall" : "first_wall";
-        var ref = notes ? "'n' || id" : "printf('e%012d', id)";
         var sql = new StringBuilder(countOnly ? "SELECT COUNT(*) FROM events WHERE count_only = 1"
-                : "SELECT *, " + ref + " AS ref FROM " + (notes ? "notes" : "events") + " WHERE 1 = 1");
+                : "SELECT * FROM " + (notes ? "notes" : "events") + " WHERE 1 = 1");
         var arguments = new ArrayList<Object>();
         sql.append(" AND ").append(notes ? time : "last_wall").append(" >= ? AND ").append(time).append(" <= ?");
         arguments.add(filter.afterWall() == null ? Long.MIN_VALUE : filter.afterWall());
@@ -148,7 +147,9 @@ public final class JournalSearch {
                 sql.append(" AND type IN (").append(String.join(",", Collections.nCopies(filter.types().size(), "?"))).append(")");
                 arguments.addAll(filter.types());
             }
-            if (!filter.subjects().isEmpty()) {
+            if (countOnly && filter.area() == null) {
+                sql.append(" AND (subject = '*' OR actor = '*')");
+            } else if (!filter.subjects().isEmpty()) {
                 sql.append(" AND (subject IN (").append(String.join(",", Collections.nCopies(filter.subjects().size(), "?")))
                         .append(countOnly ? ") OR subject = '*')" : "))");
                 arguments.addAll(filter.subjects());
@@ -190,13 +191,26 @@ public final class JournalSearch {
                 throw new IllegalArgumentException("invalid journal cursor " + cursor);
             }
             var wall = Long.parseLong(cursor.substring(0, colon));
-            sql.append(" AND (").append(time).append(" < ? OR (").append(time).append(" = ? AND ").append(ref).append(" < ?))");
+            var ref = cursor.substring(colon + 1);
+            if (ref.charAt(0) != 'e' && ref.charAt(0) != 'n' || ref.length() == 1) {
+                throw new IllegalArgumentException("invalid journal cursor " + cursor);
+            }
+            if (notes && ref.charAt(0) == 'e') {
+                // At equal times every note sorts ahead of every event.
+                sql.append(" AND ").append(time).append(" < ?");
+            } else {
+                sql.append(" AND (").append(time).append(", id) ")
+                        .append(!notes && ref.charAt(0) == 'n' ? "<= (?, ?)" : "< (?, ?)");
+            }
             arguments.add(wall);
-            arguments.add(wall);
-            arguments.add(cursor.substring(colon + 1));
+            if (!notes) {
+                arguments.add(ref.charAt(0) == 'e' ? Long.parseLong(ref.substring(1)) : Long.MAX_VALUE);
+            } else if (ref.charAt(0) == 'n') {
+                arguments.add(ref.substring(1));
+            }
         }
         if (!countOnly) {
-            sql.append(" ORDER BY ").append(time).append(" DESC, ref DESC LIMIT ").append(MAX_CANDIDATES + 1);
+            sql.append(" ORDER BY ").append(time).append(" DESC, id DESC LIMIT ").append(MAX_CANDIDATES + 1);
         }
         var statement = connection.prepareStatement(sql.toString());
         try {

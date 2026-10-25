@@ -13,5 +13,10 @@ public record JournalFilter(Long afterWall, Long beforeWall, Area area, String d
     }
 
     public record Area(String dimension, int x, int y, int z, int radius) {
+        public Area {
+            if (radius < 0) {
+                throw new IllegalArgumentException("area radius must not be negative");
+            }
+        }
     }
 }

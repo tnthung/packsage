@@ -487,6 +487,9 @@ public final class WorldTools implements KnowledgeProvider {
             var server = server();
             return run(server, once(() -> inspectItem(server, path, scope)));
         }
+        if (handle.startsWith("holder|")) {
+            throw new Failure(Code.INVALID_REFERENCE, "a holder summary is not reread; repeat list_items with holder " + handle.substring(7));
+        }
         throw new Failure(Code.INVALID_REFERENCE, "only block, entity and item records can be reread; repeat the area lookup");
     }
 

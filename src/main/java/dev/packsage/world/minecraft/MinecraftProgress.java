@@ -259,8 +259,8 @@ public final class MinecraftProgress implements ProgressReader {
                     for (var handled = 0; handled < STEP_NODES && nextNode < values.length; handled++) {
                         var node = (AdvancementNode) values[nextNode++];
                         if (node == null || node.parent() == null && node.advancement().display().isEmpty()) continue;
-                        var hidden = node.advancement().display().isPresent() && node.advancement().display().get().isHidden();
-                        var key = hidden && !source.progress().apply(node.holder()).isDone()
+                        var key = node.advancement().display().isPresent() && node.advancement().display().get().isHidden()
+                                && !source.progress().apply(node.holder()).isDone()
                                 ? "1" + id(source, node, source.progress().apply(node.holder())).local() : "0" + node.holder().id();
                         if (node.parent() == null) roots.put(key, node);
                         else children.computeIfAbsent(node.parent(), ignored -> new TreeMap<>()).put(key, node);

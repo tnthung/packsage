@@ -5,21 +5,23 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
-import org.junit.jupiter.api.Test;
-
-import java.util.Map;
-import java.util.List;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.CompletableFuture;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BarrelBlockEntity;
 import net.minecraft.world.phys.Vec3;
+import org.junit.jupiter.api.Test;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -67,6 +69,7 @@ class WorldToolsTest {
         assertTrue(steps > 60);
         assertEquals(4000, checked.get());
     }
+
     @Test
     void holderSnapshotsSurviveEntityAndBlockEntityMutationsBetweenSteps() throws Exception {
         var world = DenseWorld.create(130);
@@ -110,7 +113,7 @@ class WorldToolsTest {
         while (!(boolean) collect.invoke(slice, new ChunkPos(0, 0))) {
             if (world.visited > 0 && world.entities.size() == 130) {
                 world.entities.remove(129);
-                world.entities.add(new net.minecraft.world.entity.item.ItemEntity(net.minecraft.world.entity.EntityType.ITEM, world));
+                world.entities.add(new ItemEntity(EntityType.ITEM, world));
                 world.entities.remove(128);
             }
             assertTrue(++steps < 20);

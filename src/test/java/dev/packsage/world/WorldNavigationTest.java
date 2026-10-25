@@ -4,43 +4,30 @@ import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.ConversationStore;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeService;
+import net.minecraft.client.server.IntegratedServer;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.TickTask;
+import net.minecraft.util.thread.BlockableEventLoop;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WorldNavigationTest {
-    @Test
-    void aClientNavigationLookupReturnsAPendingFutureWithoutWaitingForTheServer() throws Exception {
-        var field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
-        field.setAccessible(true);
-        var server = (net.minecraft.client.server.IntegratedServer) ((sun.misc.Unsafe) field.get(null))
-                .allocateInstance(net.minecraft.client.server.IntegratedServer.class);
-        var pending = new java.util.concurrent.ConcurrentLinkedQueue<net.minecraft.server.TickTask>();
-        var queue = net.minecraft.util.thread.BlockableEventLoop.class.getDeclaredField("pendingRunnables");
-        queue.setAccessible(true);
-        queue.set(server, pending);
-        var thread = net.minecraft.server.MinecraftServer.class.getDeclaredField("serverThread");
-        thread.setAccessible(true);
-        thread.set(server, new Thread());
-
-        Object answer = org.junit.jupiter.api.Assertions.assertTimeout(java.time.Duration.ofMillis(100),
-                () -> WorldNavigation.blockLookup(() -> server).apply(PLACE));
-
-        assertTrue(answer instanceof java.util.concurrent.CompletionStage<?>);
-        assertEquals(1, pending.size());
-        assertTrue(!((java.util.concurrent.CompletionStage<?>) answer).toCompletableFuture().isDone());
-    }
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
     private static final Evidence.Scope RELOADED = new Evidence.Scope("world", "resources-2", "team", "runtime-2", 7);
     private static final BlockPlace PLACE = new BlockPlace("minecraft:overworld", 10, 64, -3);
@@ -92,6 +79,7 @@ class WorldNavigationTest {
         var refreshed = tools.refreshNavigation(target, scope).toCompletableFuture().join();
         return tools.open(refreshed == null ? target : refreshed, scope);
     }
+
     /** The living mob stands at MOB_PLACE; any other id is gone. */
     private static BlockPlace mob(UUID id) {
         return MOB.equals(id) ? MOB_PLACE : null;
@@ -107,6 +95,28 @@ class WorldNavigationTest {
 
     private static Evidence.NavigationTarget place(Evidence.Scope scope) {
         return new Evidence.NavigationTarget(scope, WorldTools.ID, "locate|minecraft:overworld|minecraft:desert|10,-3", WorldNavigation.placeId(PLACE));
+    }
+
+    @Test
+    void aClientNavigationLookupReturnsAPendingFutureWithoutWaitingForTheServer() throws Exception {
+        var field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        var server = (IntegratedServer) ((sun.misc.Unsafe) field.get(null))
+                .allocateInstance(IntegratedServer.class);
+        var pending = new ConcurrentLinkedQueue<TickTask>();
+        var queue = BlockableEventLoop.class.getDeclaredField("pendingRunnables");
+        queue.setAccessible(true);
+        queue.set(server, pending);
+        var thread = MinecraftServer.class.getDeclaredField("serverThread");
+        thread.setAccessible(true);
+        thread.set(server, new Thread());
+
+        Object answer = assertTimeout(Duration.ofMillis(100),
+                () -> WorldNavigation.blockLookup(() -> server).apply(PLACE));
+
+        assertTrue(answer instanceof CompletionStage<?>);
+        assertEquals(1, pending.size());
+        assertTrue(!((CompletionStage<?>) answer).toCompletableFuture().isDone());
     }
 
     @Test

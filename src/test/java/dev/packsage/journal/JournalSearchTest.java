@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.Executors;
 
@@ -446,6 +447,29 @@ class JournalSearchTest {
                     search.search(filter, null, 20).items().stream().map(JournalEntry::ref).toList());
             assertEquals(List.of("e999999999999"),
                     search.search(filter, "10:e1000000000000", 20).items().stream().map(JournalEntry::ref).toList());
+        }
+    }
+
+    @Test
+    void eventCursorsKeepAsciiDigitsRegardlessOfTheDefaultLocale() throws Exception {
+        var previous = Locale.getDefault();
+        try (var store = JournalStore.open(dir.resolve("journal.db"))) {
+            store.startSession(0, 0);
+            var runs = new ArrayList<Run>();
+            for (int i = 1; i <= 65; i++) {
+                runs.add(new Run(new JournalEvent(EventType.DEATH, i, i, "minecraft:overworld", "environment",
+                        "minecraft:villager", null, 1, new long[]{Positions.pack(0, 64, 0)}, null)));
+            }
+            store.writeBatch(runs, List.of());
+            Locale.setDefault(Locale.forLanguageTag("ar"));
+            var search = new JournalSearch(store);
+            var filter = new JournalFilter(null, null, null, null, Set.of(), List.of(), null, false);
+            var first = search.search(filter, null, 100);
+            assertEquals("2:e000000000002", first.nextCursor());
+            assertEquals(List.of("e000000000001"),
+                    search.search(filter, first.nextCursor(), 100).items().stream().map(JournalEntry::ref).toList());
+        } finally {
+            Locale.setDefault(previous);
         }
     }
 

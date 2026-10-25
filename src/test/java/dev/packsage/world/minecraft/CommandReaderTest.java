@@ -94,7 +94,7 @@ class CommandReaderTest {
 
     @Test
     void argumentWalkSkipsCyclesButRevisitsSharedNodesOnOtherPaths() {
-        var command = dispatcher.register(LiteralArgumentBuilder.<Integer>literal("cycle"));
+        var command = dispatcher.register(LiteralArgumentBuilder.<Integer>literal("cycle").requires(level -> level >= 2));
         var value = RequiredArgumentBuilder.<Integer, String>argument("value", word())
                 .redirect(LiteralArgumentBuilder.<Integer>literal("external").build()).build();
         value.addChild(command);

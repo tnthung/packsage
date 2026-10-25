@@ -25,6 +25,27 @@ class JournalSearchTest {
     Path dir;
 
     @Test
+    void hookLossesMakeAnOtherwiseEmptySearchPartial() throws Exception {
+        try (var store = JournalStore.open(dir.resolve("journal.db"))) {
+            store.startSession(0, 0);
+            for (int kind = 0; kind < 4; kind++) {
+                var stats = new JournalStats();
+                switch (kind) {
+                    case 0 -> stats.hookFailures.increment();
+                    case 1 -> stats.droppedExplosionPositions.increment();
+                    case 2 -> stats.trackerEvictions.increment();
+                    case 3 -> stats.oversizedSnapshots.increment();
+                }
+                var page = new JournalSearch(store, stats).search(new JournalFilter(null, null, null, null,
+                        Set.of(), List.of(), null, false), null, 100);
+                assertTrue(page.items().isEmpty());
+                assertEquals(Evidence.Coverage.PARTIAL, page.coverage());
+                assertTrue(page.note().contains("recording"));
+            }
+        }
+    }
+
+    @Test
     void newestFirstSixtyFourPerPageWithACursorThatContinues() throws Exception {
         try (var store = JournalStore.open(dir.resolve("journal.db"))) {
             store.startSession(0, 0);

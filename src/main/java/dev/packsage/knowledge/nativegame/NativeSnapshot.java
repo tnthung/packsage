@@ -8,8 +8,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.core.component.DataComponentMap;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
@@ -83,74 +81,6 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
             records.add(copyRecipe(holder, registries, itemRegistry, resourceManager, scope, null));
         }
         return records.isEmpty() ? unavailable(scope, "client native evidence empty") : new NativeSnapshot(scope, records);
-    }
-
-    /** Copies occupied vanilla player slots on demand; ordinary capture never reads the player inventory. */
-    public static NativeSnapshot captureSelectedInventory(Minecraft client, Evidence.Scope scope, List<String> identities) {
-        Objects.requireNonNull(client);
-        Objects.requireNonNull(scope);
-        Objects.requireNonNull(identities);
-        if (!client.isSameThread()) throw new IllegalStateException("native inventory snapshot must be captured on the client thread");
-        if (client.level == null) return unavailable(scope, "client level unavailable");
-        var records = new ArrayList<Evidence.Record>();
-        var registries = client.level.registryAccess();
-        Registry<Item> itemRegistry;
-        try {
-            itemRegistry = registries.registryOrThrow(Registries.ITEM);
-        } catch (RuntimeException failure) {
-            return unavailable(scope, "client item registry unavailable: " + failure.getClass().getSimpleName());
-        }
-        if (client.player == null) return unavailable(scope, "client player unavailable");
-        var requested = Set.copyOf(identities);
-        var inventory = client.player.getInventory();
-        for (int index = 0; index < inventory.items.size(); index++) {
-            var stack = inventory.items.get(index);
-            if (stack.isEmpty() || !requested.isEmpty() && !requested.contains(itemIdentity(stack, itemRegistry))) continue;
-            var section = index < 9 ? "hotbar" : "main";
-            var slot = index < 9 ? index : index - 9;
-            records.add(inventoryRecord(scope, stack.copy(), itemRegistry, registries, section, slot,
-                    index == inventory.selected ? "mainhand" : null, index == inventory.selected));
-        }
-        var armorSlots = List.of("feet", "legs", "chest", "head");
-        for (int index = 0; index < inventory.armor.size(); index++) {
-            var stack = inventory.armor.get(index);
-            if (stack.isEmpty() || !requested.isEmpty() && !requested.contains(itemIdentity(stack, itemRegistry))) continue;
-            records.add(inventoryRecord(scope, stack.copy(), itemRegistry, registries, "armor", index,
-                    armorSlots.get(index), false));
-        }
-        for (int index = 0; index < inventory.offhand.size(); index++) {
-            var stack = inventory.offhand.get(index);
-            if (stack.isEmpty() || !requested.isEmpty() && !requested.contains(itemIdentity(stack, itemRegistry))) continue;
-            records.add(inventoryRecord(scope, stack.copy(), itemRegistry, registries, "offhand", index, "offhand", false));
-        }
-        return new NativeSnapshot(scope, records);
-    }
-
-    static Evidence.Record inventoryRecord(Evidence.Scope scope, ItemStack stack, Registry<Item> itemRegistry,
-                                           net.minecraft.core.HolderLookup.Provider registries, String section,
-                                           int slot, String equipmentSlot, boolean selectedHotbar) {
-        var identity = itemIdentity(stack, itemRegistry);
-        var components = codecJson(DataComponentMap.CODEC, stack.getComponents().filter(type ->
-                type != DataComponents.CONTAINER && type != DataComponents.BUNDLE_CONTENTS), registries);
-        var payload = new LinkedHashMap<String, Evidence.JsonValue>();
-        payload.put("id", new Evidence.JsonString(identity));
-        payload.put("inventoryObservation", new Evidence.JsonString("occupied"));
-        payload.put("section", new Evidence.JsonString(section));
-        payload.put("slot", new Evidence.JsonNumber(BigDecimal.valueOf(slot)));
-        payload.put("selectedHotbar", new Evidence.JsonBoolean(selectedHotbar));
-        payload.put("name", new Evidence.JsonString(stack.getHoverName().getString()));
-        payload.put("count", new Evidence.JsonNumber(BigDecimal.valueOf(stack.getCount())));
-        payload.put("components", components);
-        var factsPartial = NativeItemFacts.enrich(payload, stack, registries);
-        if (stack.has(DataComponents.CONTAINER) || stack.has(DataComponents.BUNDLE_CONTENTS)) {
-            payload.put("nestedStorageContentsOmitted", new Evidence.JsonBoolean(true));
-        }
-        if (equipmentSlot != null) payload.put("equipmentSlot", new Evidence.JsonString(equipmentSlot));
-        var source = new Evidence.Source(scope, "native", "1.21.1", "inventory:" + section + ":" + slot,
-                scope.requestGeneration(), Instant.now(), Evidence.Activity.ACTIVE,
-                factsPartial || components.values().containsKey("encoding") ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                Evidence.Authority.LOADED, List.of("player-inventory", section + ":" + slot));
-        return new Evidence.Record(source, Evidence.RecordKind.ITEM, identity, new Evidence.JsonObject(payload), List.of());
     }
 
     static Evidence.Record copyRecipe(RecipeHolder<?> holder, net.minecraft.core.HolderLookup.Provider registries,

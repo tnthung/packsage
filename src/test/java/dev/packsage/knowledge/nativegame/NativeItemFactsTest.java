@@ -97,17 +97,6 @@ class NativeItemFactsTest {
     }
 
     @Test
-    void inventoryRecordWithBoundedPotionEffectsIsPartial() {
-        var scope = new Evidence.Scope("world", "en_us", "team", "native", 1);
-        var record = NativeSnapshot.inventoryRecord(scope, potionWithCustomEffects(33), BuiltInRegistries.ITEM, registries,
-                "main", 0, null, false);
-        assertEquals(Evidence.Coverage.PARTIAL, record.source().coverage());
-        var plain = NativeSnapshot.inventoryRecord(scope, new ItemStack(Items.DIAMOND), BuiltInRegistries.ITEM, registries,
-                "main", 0, null, false);
-        assertEquals(Evidence.Coverage.COMPLETE, plain.source().coverage());
-    }
-
-    @Test
     void lingeringPotionDecodesBaseAndCustomEffectsWithScale() {
         var stack = PotionContents.createItemStack(Items.LINGERING_POTION, Potions.STRENGTH);
         stack.set(DataComponents.POTION_CONTENTS, stack.get(DataComponents.POTION_CONTENTS)

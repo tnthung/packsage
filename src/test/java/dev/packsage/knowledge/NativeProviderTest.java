@@ -85,45 +85,12 @@ class NativeProviderTest {
     }
 
     @Test
-    void planRecipeUsesFreshCopiedSnapshotAndInventoryReadsOnlySelectedIdentities() throws Exception {
-        var recipe = recipe("mod:free");
-        var selected = inventory("mod:selected");
-        var other = inventory("mod:other");
-        var provider = new NativeProvider(() -> new NativeSnapshot(SCOPE, List.of(recipe, selected, other)), Runnable::run);
+    void planRecipeUsesFreshCopiedSnapshot() throws Exception {
+        var provider = new NativeProvider(() -> new NativeSnapshot(SCOPE, List.of(recipe("mod:free"))), Runnable::run);
 
         var planned = provider.planRecipe("mod:free", 3, SCOPE, 4).toCompletableFuture().get();
-        var inventory = provider.readInventory(List.of("mod:selected"), SCOPE).toCompletableFuture().get();
 
         assertEquals(Evidence.Outcome.COMPLETE, planned.outcome());
-        assertEquals(List.of("inventory:mod:selected"), inventory.records().stream()
-                .map(record -> record.source().sourceHandle()).toList());
-    }
-
-    @Test
-    void emptyInventorySelectionReturnsEveryCapturedInventoryStackSeparately() throws Exception {
-        var first = inventory("mod:duplicate", "hotbar", 0);
-        var second = inventory("mod:duplicate", "main", 0);
-        var provider = new NativeProvider(() -> new NativeSnapshot(SCOPE, List.of(recipe("mod:unrelated"), first, second)), Runnable::run);
-
-        var result = provider.readInventory(List.of(), SCOPE).toCompletableFuture().get();
-
-        assertEquals(Evidence.Outcome.COMPLETE, result.outcome());
-        assertEquals(List.of("inventory:hotbar:0", "inventory:main:0"), result.records().stream()
-                .map(record -> record.source().sourceHandle()).toList());
-    }
-
-    @Test
-    void unavailableInventoryIsNotReportedAsAnEmptyCompleteObservation() throws Exception {
-        var source = new Evidence.Source(SCOPE, "native", "1.21.1", "native:unavailable", 1, Instant.EPOCH,
-                Evidence.Activity.UNKNOWN, Evidence.Coverage.UNAVAILABLE, Evidence.Authority.UNKNOWN, List.of());
-        var unavailable = new Evidence.Record(source, Evidence.RecordKind.OTHER, "Player unavailable",
-                new Evidence.JsonObject(Map.of("status", new Evidence.JsonString("unavailable"))), List.of());
-        var provider = new NativeProvider(() -> new NativeSnapshot(SCOPE, List.of(unavailable)), Runnable::run);
-
-        var result = provider.readInventory(List.of(), SCOPE).toCompletableFuture().get();
-
-        assertEquals(Evidence.Coverage.UNAVAILABLE, result.coverage());
-        assertEquals(Evidence.Outcome.UNKNOWN, result.outcome());
     }
 
     @Test
@@ -140,7 +107,7 @@ class NativeProviderTest {
 
             var failure = assertInstanceOf(Toolbox.Failure.class, thrown.getCause(), handle);
             assertEquals(Toolbox.Code.UNAVAILABLE, failure.code(), handle);
-            assertEquals("this inventory record came from a reader that was removed; read the items again with list_items or inspect_item",
+            assertEquals("UNAVAILABLE: this inventory record came from a reader that was removed; read the items again with list_items or inspect_item",
                     failure.getMessage(), handle);
         }
     }
@@ -203,23 +170,5 @@ class NativeProviderTest {
         var payload = new Evidence.RecipePayload(id, List.of(), List.of(new Evidence.RecipeOutput("item", id,
                 new Evidence.JsonObject(Map.of()), 1)), List.of(), List.of(), List.of(), Evidence.DecodingStatus.VERIFIED);
         return new Evidence.Record(source, Evidence.RecordKind.RECIPE, id, new Evidence.JsonObject(Map.of()), List.of(), payload);
-    }
-
-    private static Evidence.Record inventory(String id) {
-        var source = new Evidence.Source(SCOPE, "native", "1.21.1", "inventory:" + id, 1, Instant.EPOCH,
-                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of("selected-inventory"));
-        var payload = new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(id), "inventoryObservation",
-                new Evidence.JsonString("selected")));
-        return new Evidence.Record(source, Evidence.RecordKind.ITEM, id, payload, List.of());
-    }
-
-    private static Evidence.Record inventory(String id, String section, int slot) {
-        var source = new Evidence.Source(SCOPE, "native", "1.21.1", "inventory:" + section + ":" + slot, 1,
-                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED,
-                List.of("player-inventory"));
-        var payload = new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(id), "inventoryObservation",
-                new Evidence.JsonString("occupied"), "section", new Evidence.JsonString(section),
-                "slot", new Evidence.JsonNumber(java.math.BigDecimal.valueOf(slot))));
-        return new Evidence.Record(source, Evidence.RecordKind.ITEM, id, payload, List.of());
     }
 }

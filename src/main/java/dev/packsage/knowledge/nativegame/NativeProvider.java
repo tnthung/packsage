@@ -6,7 +6,6 @@ import dev.packsage.knowledge.KnowledgeIndex;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.RecipePlanner;
 import dev.packsage.knowledge.Toolbox;
-import dev.packsage.knowledge.storage.NativeStorageReader;
 import dev.packsage.model.PackSageTools;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.Registries;
@@ -18,7 +17,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -31,12 +29,11 @@ public final class NativeProvider implements KnowledgeProvider {
     private static final String VERSION = "1.21.1";
     private static final long CURSOR_TTL_NANOS = java.util.concurrent.TimeUnit.MINUTES.toNanos(5);
     private static final int MAX_CURSORS = 8;
+    private static final List<String> REMOVED_HANDLE_PREFIXES = List.of("inventory:", "inventory-summary:", "storage:", "storage-entry:");
     private final Supplier<NativeSnapshot> snapshotSource;
     private final Minecraft client;
     private final Executor executor;
     private final Supplier<Evidence.Scope> currentScope;
-    private final NativeInventoryReader inventory;
-    private final NativeStorageReader storage;
     private final AtomicReference<Evidence.Scope> activeScope = new AtomicReference<>();
     private final LinkedHashMap<String, QueryCursor> cursors = new LinkedHashMap<>();
     private volatile ProviderStatus latestStatus = new ProviderStatus(Availability.UNAVAILABLE, VERSION, "native client evidence not read");
@@ -50,8 +47,6 @@ public final class NativeProvider implements KnowledgeProvider {
         this.client = null;
         this.executor = Objects.requireNonNull(executor);
         this.currentScope = Objects.requireNonNull(currentScope);
-        this.inventory = null;
-        this.storage = null;
     }
 
     public NativeProvider(Minecraft client, Executor executor) {
@@ -63,8 +58,6 @@ public final class NativeProvider implements KnowledgeProvider {
         this.client = Objects.requireNonNull(client);
         this.executor = Objects.requireNonNull(executor);
         this.currentScope = Objects.requireNonNull(currentScope);
-        this.inventory = new NativeInventoryReader(client, executor, currentScope);
-        this.storage = new NativeStorageReader(client, executor, currentScope, inventory::resolve);
     }
 
     @Override public String id() { return "native"; }
@@ -81,13 +74,13 @@ public final class NativeProvider implements KnowledgeProvider {
     public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
         Objects.requireNonNull(query);
         Objects.requireNonNull(scope);
-        return execute(scope, null, index -> index.search(query, scope).toCompletableFuture().join(), false);
+        return execute(scope, index -> index.search(query, scope).toCompletableFuture().join());
     }
 
     public CompletionStage<Evidence.Result> planRecipe(String itemIdentity, long quantity, Evidence.Scope scope, int maxDepth) {
         Objects.requireNonNull(itemIdentity);
         Objects.requireNonNull(scope);
-        if (client == null) return execute(scope, null, index -> new RecipePlanner(index).plan(itemIdentity, quantity, scope, maxDepth), false);
+        if (client == null) return execute(scope, index -> new RecipePlanner(index).plan(itemIdentity, quantity, scope, maxDepth));
         activeScope.set(scope);
         return client.submit(() -> {
             if (!scope.equals(currentScope.get()) || client.level == null) return new Evidence.Result(List.of(), Evidence.Coverage.UNAVAILABLE,
@@ -118,18 +111,6 @@ public final class NativeProvider implements KnowledgeProvider {
             if (candidates.partial()) return partial(result, "bounded-live-recipe-scan");
             return result;
         }).thenApply(result -> publish(result, scope));
-    }
-
-    public CompletionStage<Evidence.Result> readInventory(List<String> identities, Evidence.Scope scope) {
-        Objects.requireNonNull(identities);
-        Objects.requireNonNull(scope);
-        if (identities.size() > 32 || identities.stream().anyMatch(identity -> identity == null || identity.isBlank())) {
-            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null,
-                    "select up to 32 non-blank item identities"));
-        }
-        var requested = List.copyOf(identities);
-        return execute(scope, requested, index -> index.search(new Evidence.Query(Evidence.Operation.SEARCH,
-                new Evidence.JsonObject(Map.of()), 64, null, null), scope).toCompletableFuture().join(), true);
     }
 
     @Override
@@ -286,11 +267,10 @@ public final class NativeProvider implements KnowledgeProvider {
         }
         if (!id().equals(reference.providerId())) return CompletableFuture.failedFuture(
                 new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "different evidence owner"));
-        if (client == null) return unavailable(request.scope(), "live native evidence source unavailable");
         var source = reference.sourceHandle();
-        if (source.startsWith("storage:")) return storage.readEvidence(source, request.scope());
-        if (source.startsWith("inventory:") || source.startsWith("inventory-summary:")) return client.submit(() -> inventory.readEvidence(source, request.scope()))
-                .thenApply(value -> value == null ? unknownReference(request.scope()) : result(value));
+        if (REMOVED_HANDLE_PREFIXES.stream().anyMatch(source::startsWith)) return CompletableFuture.failedFuture(new Toolbox.Failure(
+                Toolbox.Code.UNAVAILABLE, "this inventory record came from a reader that was removed; read the items again with list_items or inspect_item"));
+        if (client == null) return unavailable(request.scope(), "live native evidence source unavailable");
         if (source.startsWith("plan|")) {
             var parts = source.split("\\|", 6);
             if (parts.length != 6 || parts[5].isBlank()) return CompletableFuture.completedFuture(unknownReference(request.scope()));
@@ -353,9 +333,7 @@ public final class NativeProvider implements KnowledgeProvider {
         return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "native navigation is runtime-wired pending client bridge");
     }
 
-    private CompletionStage<Evidence.Result> execute(Evidence.Scope scope, List<String> selectedIdentities,
-                                                       Function<KnowledgeIndex, Evidence.Result> operation,
-                                                       boolean emptySelectionIsComplete) {
+    private CompletionStage<Evidence.Result> execute(Evidence.Scope scope, Function<KnowledgeIndex, Evidence.Result> operation) {
         var previousScope = activeScope.getAndSet(scope);
         if (previousScope != null && !previousScope.equals(scope)) {
             clearCursors();
@@ -363,11 +341,8 @@ public final class NativeProvider implements KnowledgeProvider {
         }
         CompletionStage<Captured> captured;
         try {
-            captured = client == null ? CompletableFuture.supplyAsync(() -> {
-                var snapshot = NativeSnapshot.capture(snapshotSource);
-                return new Captured(selectedIdentities == null ? snapshot : selectedInventory(snapshot, selectedIdentities));
-            }, executor) : client.submit(() -> new Captured(selectedIdentities == null ? NativeSnapshot.capture(client, scope)
-                    : NativeSnapshot.captureSelectedInventory(client, scope, selectedIdentities)));
+            captured = client == null ? CompletableFuture.supplyAsync(() -> new Captured(NativeSnapshot.capture(snapshotSource)), executor)
+                    : client.submit(() -> new Captured(NativeSnapshot.capture(client, scope)));
         } catch (RuntimeException failure) {
             return CompletableFuture.completedFuture(failed("native capture could not start", failure));
         }
@@ -375,8 +350,6 @@ public final class NativeProvider implements KnowledgeProvider {
             if (result.failure() != null || result.captured() == null) return failed("native capture failed", result.failure());
             if (!scope.equals(activeScope.get()) || currentScope.get() != null && !scope.equals(currentScope.get())) return unknownResult();
             if (result.captured().snapshot() == null || !result.captured().snapshot().scope().equals(scope)) return unknownResult();
-            if (emptySelectionIsComplete && result.captured().snapshot().records().isEmpty()) return new Evidence.Result(List.of(),
-                    Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null);
             try {
                 var index = new KnowledgeIndex();
                 index.replace(result.captured().snapshot());
@@ -502,17 +475,6 @@ public final class NativeProvider implements KnowledgeProvider {
 
     private void clearCursors() {
         synchronized (cursors) { cursors.clear(); }
-    }
-
-    private static NativeSnapshot selectedInventory(NativeSnapshot snapshot, List<String> identities) {
-        var requested = Set.copyOf(identities);
-        var selected = snapshot.records().stream().filter(record -> record.kind() == Evidence.RecordKind.OTHER
-                && (record.source().coverage() == Evidence.Coverage.UNAVAILABLE || record.source().coverage() == Evidence.Coverage.ERROR)
-                || record.kind() == Evidence.RecordKind.ITEM
-                && ("selected".equals(record.payload().values().get("inventoryObservation") instanceof Evidence.JsonString value ? value.value() : null)
-                || "occupied".equals(record.payload().values().get("inventoryObservation") instanceof Evidence.JsonString value ? value.value() : null))
-                && (requested.isEmpty() || requested.contains(record.payload().values().get("id") instanceof Evidence.JsonString value ? value.value() : null))).toList();
-        return new NativeSnapshot(snapshot.scope(), selected);
     }
 
     private record QueryCursor(int offset, String signature, Evidence.Scope scope, long createdAtNanos) { }

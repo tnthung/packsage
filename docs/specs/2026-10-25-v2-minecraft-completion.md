@@ -90,9 +90,9 @@ Reading must not create trades. The game creates a villager's offers the first t
 
 ### Loot tables
 
-`read_loot(table?, block?, entity?, place?)` returns loot tables as the game defines them:
+`read_loot(table?, block?, entity?, place?, cursor?)` returns loot tables as the game defines them:
 
-- **Input:** a loot table id, a block id (its drop table), an entity type id (its death table), or a container `place` (its pending loot table and seed, if it has not been opened).
+- **Input:** a loot table id, a block id (its drop table), an entity type id or a loaded entity UUID (its death table, such as a sheep's colour table), or a container `place` (its pending loot table and seed, if it has not been opened).
 - **Output:** the table encoded with the game's own codec: pools, rolls, entries, conditions and functions. Item and tag references are readable ids.
 - **Bounds:** large tables are bounded with PARTIAL coverage.
 - **Missing table:** an unknown or empty table says so.
@@ -111,11 +111,11 @@ Reading a table never rolls it. "What can drop from a zombie?" is answered from 
 
   Each result says which kind it is. Predicted positions use the world seed. A candidate that would need its chunk loaded or generated to confirm stays predicted.
 - **Bounds:** the search radius in chunks, defaulting to 100 and capped as the work budget allows. Ids accept tags such as `#minecraft:village`.
-- **Output:** results give the dimension, position, distance from the center, and a link that highlights the place when the player is in that dimension.
+- **Output:** results give the dimension, position, distance from the center, and a `world-place|<dimension>|x,y,z` link. A place link draws a marker column at the place, clamped to 128 blocks from the player when farther, because the block there is usually not loaded. Up to 5 results come back, so "the nearest village I already visited" works from one call. Structure heights are estimates, and distances are horizontal, as `/locate` reports them.
 
 ### Commands
 
-`search_commands(text?, cursor?)` and `read_command(name)` read the server's command tree, the same one the game uses for suggestions, for the player's permission level. Each command lists its usage forms, its argument names and types, and whether the player can run it.
+`search_commands(text?, cursor?)` and `read_command(name, cursor?)` read the server's command tree, the same one the game uses for suggestions, for the player's permission level. Each command lists its usage forms, its argument names and types, and whether the player can run it.
 
 The assistant never runs commands; answers explain what to type. Running commands would change the world, which the world model's anti-goals rule out.
 
@@ -127,7 +127,7 @@ All in singleplayer, with the default prompt and no developer override:
 2. **Opened menu:** with a crafting table open and items in its grid, "what's in this crafting grid?" The reply lists the grid and leaves out the output preview.
 3. **Ridden mount:** riding a donkey with a chest, "what's in my donkey?" The reply lists the cargo through `ridden`.
 4. **Tooltip search:** "which of my items gives luck?" One tooltip-filtered search finds the item.
-5. **Trades:** at a librarian, "what does this villager sell?" The reply lists its offers and prices. A never-traded villager answers without its trades being generated.
+5. **Trades:** at a librarian, "what does this villager sell?" The reply lists its offers and prices. A villager that just took its profession, asked before the next autosave, reports its trades as not generated yet, and asking again does not generate them. The game itself generates offers when it saves a villager.
 6. **Loot:** "what does a zombie drop?" The reply comes from the zombie's loot table.
 7. **Locating:** "where is the nearest village?" The reply gives a position, says whether it was found or predicted, and nothing generates.
 8. **Commands:** "how do I use /fill?" The reply gives its usage from the command tree.

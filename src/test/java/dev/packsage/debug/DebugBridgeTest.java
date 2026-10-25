@@ -140,7 +140,7 @@ class DebugBridgeTest {
         Files.writeString(path, "debugBridge=true\ndebugBridgePort=25601\n");
         var settings = PackSageSettings.load(path);
         assertTrue(settings.debugBridge());
-        settings.withDeveloperPrompt("test prompt").save(path).join();
+        settings.saveDeveloperPrompt(path, "test prompt").join();
         assertTrue(PackSageSettings.load(path).debugBridge());
         assertEquals(25601, PackSageSettings.load(path).debugBridgePort());
         Files.writeString(path, "debugBridgePort=-1\n");
@@ -175,7 +175,7 @@ class DebugBridgeTest {
         assertFalse(properties.containsKey("debugBridge"));
         assertFalse(properties.containsKey("debugBridgePort"));
         Files.writeString(path, "debugBridge=false\ndebugBridgePort=25599\n");
-        PackSageSettings.load(path).withDeveloperPrompt("test").save(path).join();
+        PackSageSettings.load(path).saveDeveloperPrompt(path, "test").join();
         try (var input = Files.newInputStream(path)) { properties.load(input); }
         assertEquals("false", properties.getProperty("debugBridge"));
         assertEquals("25599", properties.getProperty("debugBridgePort"));

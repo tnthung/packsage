@@ -28,6 +28,9 @@ class GroundingInstructionsTest {
         assertTrue(text.contains("search_recipe reads Minecraft's loaded recipes."));
         assertTrue(text.contains("find_items"));
         assertTrue(text.contains("inspect_area"));
+        assertTrue(text.contains("read_loot"));
+        assertTrue(text.contains("locate"));
+        assertTrue(text.contains("read_command"));
         var removedSources = java.util.regex.Pattern.compile("\\b(JEI|search_document|read_progress|Ponder|Curios|[Qq]uests?|[Gg]uides?)\\b")
                 .matcher(text);
         assertFalse(removedSources.find(), () -> removedSources.group());

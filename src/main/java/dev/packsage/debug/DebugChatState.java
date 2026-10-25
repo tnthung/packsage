@@ -21,7 +21,11 @@ public final class DebugChatState {
     private DebugChatState() { }
 
     public static JsonObject read(ChatContracts.View view, String requestId, JsonArray timing) {
-        var turn = view.conversation().turns().stream().filter(value -> value.requestId().value().equals(requestId)).findFirst().orElse(null);
+        return read(view, requestId, timing, view.conversation());
+    }
+
+    public static JsonObject read(ChatContracts.View view, String requestId, JsonArray timing, ChatContracts.Conversation saved) {
+        var turn = saved.turns().stream().filter(value -> value.requestId().value().equals(requestId)).findFirst().orElse(null);
         boolean active = view.active() && requestId.equals(view.activeRequestId());
         if (turn == null && !active) throw new IllegalArgumentException("Unknown request");
         var json = new JsonObject();
@@ -42,11 +46,14 @@ public final class DebugChatState {
                 var tool = new JsonObject();
                 tool.addProperty("callId", call.callId());
                 tool.addProperty("name", call.name());
-                tool.add("arguments", JsonParser.parseString(call.serializedArguments()));
+                try { tool.add("arguments", JsonParser.parseString(call.serializedArguments())); }
+                catch (com.google.gson.JsonParseException exception) { tool.addProperty("arguments", call.serializedArguments()); }
                 var result = replay.stream().filter(value -> value instanceof ModelBackend.ToolResult found && found.callId().equals(call.callId()))
                         .map(value -> (ModelBackend.ToolResult) value).findFirst().orElse(null);
                 if (result != null) {
-                    JsonElement parsed = JsonParser.parseString(result.serializedResult());
+                    JsonElement parsed;
+                    try { parsed = JsonParser.parseString(result.serializedResult()); }
+                    catch (com.google.gson.JsonParseException exception) { parsed = new com.google.gson.JsonPrimitive(result.serializedResult()); }
                     tool.addProperty("error", result.error());
                     tool.add("result", parsed);
                     if (parsed.isJsonObject()) {
@@ -69,7 +76,8 @@ public final class DebugChatState {
                 var tool = new JsonObject();
                 tool.addProperty("callId", step.id());
                 tool.addProperty("name", step.title());
-                tool.add("arguments", JsonParser.parseString(step.serializedArguments()));
+                try { tool.add("arguments", JsonParser.parseString(step.serializedArguments())); }
+                catch (com.google.gson.JsonParseException exception) { tool.addProperty("arguments", step.serializedArguments()); }
                 tool.addProperty("detail", step.detail());
                 tools.add(tool);
             }

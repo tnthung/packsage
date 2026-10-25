@@ -2,7 +2,6 @@ package dev.packsage.debug;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.NativeImage;
 import dev.packsage.chat.AssistantRuntime;
 import dev.packsage.chat.ChatContracts;
@@ -202,7 +201,9 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                 String id = body.get("requestId").getAsString();
                 var view = call(client, () -> runtime.requestView(new ChatContracts.RequestId(id)));
                 if (view == null) throw new IllegalArgumentException("Unknown request");
-                yield DebugChatState.read(view, id, timing.read(id));
+                var saved = view.active() && id.equals(view.activeRequestId()) ? view.conversation()
+                        : call(client, () -> runtime.savedRequest(new ChatContracts.RequestId(id))).toCompletableFuture().get(10, TimeUnit.SECONDS);
+                yield DebugChatState.read(view, id, timing.read(id), saved);
             }
             case PROMPT_GET, PROMPT_SET -> call(client, () -> {
                 var settings = runtime.settings();

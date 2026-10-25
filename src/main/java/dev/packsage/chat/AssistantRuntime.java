@@ -848,6 +848,21 @@ public final class AssistantRuntime implements ChatActions {
         return null;
     }
 
+    public CompletionStage<ChatContracts.Conversation> savedRequest(ChatContracts.RequestId requestId) {
+        List<Holder> current;
+        synchronized (stateLock) {
+            current = List.copyOf(holders.values());
+        }
+        for (Holder holder : current) {
+            if (holder.controller == null) continue;
+            var view = holder.controller.view();
+            if (view.conversation().turns().stream().noneMatch(turn -> turn.requestId().equals(requestId))) continue;
+            return holder.controller.awaitPersistence().thenCompose(ignored ->
+                    store.openConversation(view.conversation().world(), view.conversation().id()));
+        }
+        return CompletableFuture.failedFuture(new IllegalArgumentException("No saved request"));
+    }
+
     private ChatContracts.RequestId send(String question, boolean includeScreenshot, boolean explicitWebSearch,
                       ChatContracts.RequestId replacing) {
         Objects.requireNonNull(question);

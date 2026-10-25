@@ -4,10 +4,18 @@ import dev.packsage.knowledge.AdapterRegistry;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
+import dev.packsage.world.minecraft.MinecraftLoot;
+import net.minecraft.SharedConstants;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.data.registries.VanillaRegistries;
+import net.minecraft.server.Bootstrap;
+import net.minecraft.world.level.storage.loot.BuiltInLootTables;
+import net.minecraft.world.level.storage.loot.LootTable;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

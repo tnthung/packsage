@@ -89,6 +89,8 @@ public final class DebugRouter {
                 case CHAT -> {
                     require(body, "question", "string");
                     if (body.has("conversation")) require(body, "conversation", "string");
+                    if (body.has("screenshot")) require(body, "screenshot", "boolean");
+                    if (body.has("webSearch")) require(body, "webSearch", "boolean");
                 }
                 case CHAT_STATUS -> body.addProperty("requestId", request.path().substring(6));
                 case PROMPT_SET -> {

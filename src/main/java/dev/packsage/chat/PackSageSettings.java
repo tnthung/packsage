@@ -23,8 +23,8 @@ public final class PackSageSettings {
     private boolean openPaused;
     private boolean automaticWebSearch;
     private boolean hideInactiveAdapters = true;
-    private boolean debugBridge;
-    private int debugBridgePort = 25599;
+    private Boolean debugBridge;
+    private Integer debugBridgePort;
     private int historyTurns;
     private int historicalTokens;
     private SendShortcut sendShortcut;
@@ -56,9 +56,9 @@ public final class PackSageSettings {
         Properties properties = new Properties();
         try (InputStream input = Files.newInputStream(path)) {
             properties.load(input);
-            settings.debugBridge = Boolean.parseBoolean(properties.getProperty("debugBridge", "false"));
+            if (properties.containsKey("debugBridge")) settings.debugBridge = Boolean.parseBoolean(properties.getProperty("debugBridge"));
             try {
-                int port = Integer.parseInt(properties.getProperty("debugBridgePort", "25599"));
+                int port = Integer.parseInt(properties.getProperty("debugBridgePort", ""));
                 if (port >= 1 && port <= 65535) settings.debugBridgePort = port;
             } catch (NumberFormatException ignored) { }
             settings.openPaused = Boolean.parseBoolean(properties.getProperty("openPaused", Boolean.toString(settings.openPaused)));
@@ -96,8 +96,8 @@ public final class PackSageSettings {
 
     public void save(Path path) {
         Properties properties = new Properties();
-        properties.setProperty("debugBridge", Boolean.toString(debugBridge));
-        properties.setProperty("debugBridgePort", Integer.toString(debugBridgePort));
+        if (debugBridge != null) properties.setProperty("debugBridge", Boolean.toString(debugBridge));
+        if (debugBridgePort != null) properties.setProperty("debugBridgePort", Integer.toString(debugBridgePort));
         properties.setProperty("openPaused", Boolean.toString(openPaused));
         properties.setProperty("automaticWebSearch", Boolean.toString(automaticWebSearch));
         properties.setProperty("hideInactiveAdapters", Boolean.toString(hideInactiveAdapters));
@@ -119,8 +119,8 @@ public final class PackSageSettings {
     }
 
     public boolean openPaused() { return openPaused; }
-    public boolean debugBridge() { return debugBridge; }
-    public int debugBridgePort() { return debugBridgePort; }
+    public boolean debugBridge() { return Boolean.TRUE.equals(debugBridge); }
+    public int debugBridgePort() { return debugBridgePort == null ? 25599 : debugBridgePort; }
     public boolean automaticWebSearch() { return automaticWebSearch; }
     public boolean hideInactiveAdapters() { return hideInactiveAdapters; }
     public int historyTurns() { return historyTurns; }
@@ -142,6 +142,12 @@ public final class PackSageSettings {
         if (value != null && (value.isBlank() || value.length() > MAX_DEVELOPER_PROMPT_LENGTH)) return false;
         developerPrompt = value;
         return true;
+    }
+
+    public void saveDeveloperPrompt(Path path, String value) {
+        PackSageSettings candidate = withDeveloperPrompt(dev.packsage.model.GroundingInstructions.defaultInstructions().equals(value) ? null : value);
+        candidate.save(path);
+        setDeveloperPrompt(candidate.developerPrompt());
     }
 
     public PackSageSettings withDeveloperPrompt(String value) {

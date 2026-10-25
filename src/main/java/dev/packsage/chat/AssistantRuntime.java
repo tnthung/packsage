@@ -823,8 +823,13 @@ public final class AssistantRuntime implements ChatActions {
 
     /** Client-thread submission through the same validation and controller path as the screen. */
     public ChatContracts.RequestId sendTracked(String question) {
+        return sendTracked(question, null, null);
+    }
+
+    public ChatContracts.RequestId sendTracked(String question, Boolean includeScreenshot, Boolean explicitWebSearch) {
         if (view().active()) throw new IllegalStateException("Conversation already has an active request");
-        return send(question, false, false, null);
+        return send(question, includeScreenshot == null ? currentScreen == null || currentScreen.includeScreenshot() : includeScreenshot,
+                explicitWebSearch == null ? currentScreen != null && currentScreen.explicitWebSearch() : explicitWebSearch, null);
     }
 
     public boolean sessionReady() {

@@ -93,9 +93,7 @@ public final class DeveloperSettingsScreen extends Screen {
                     if (draft.isBlank()) { error = "Prompt cannot be blank"; return true; }
                     if (draft.length() > PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH) { error = "Prompt is too long"; return true; }
                     try {
-                        PackSageSettings candidate = settings.withDeveloperPrompt(draft.equals(GroundingInstructions.defaultInstructions()) ? null : draft);
-                        candidate.save(path);
-                        settings.setDeveloperPrompt(candidate.developerPrompt());
+                        settings.saveDeveloperPrompt(path, draft);
                         finish();
                     } catch (RuntimeException failure) { error = "Could not save settings"; }
                     return true;

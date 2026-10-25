@@ -187,7 +187,9 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                         if (!runtime.view().activeWorld().equals(world) || selected != null && !runtime.view().conversation().id().equals(selected.id())) {
                             throw new IllegalStateException("Conversation selection changed");
                         }
-                        var id = runtime.sendTracked(body.get("question").getAsString());
+                        var id = runtime.sendTracked(body.get("question").getAsString(),
+                                body.has("screenshot") ? body.get("screenshot").getAsBoolean() : null,
+                                body.has("webSearch") ? body.get("webSearch").getAsBoolean() : null);
                         if (id == null) throw new IllegalStateException("Chat rejected: " + String.join("; ", runtime.view().errors()));
                         var json = new JsonObject();
                         json.addProperty("conversationId", runtime.view().conversation().id());
@@ -207,10 +209,7 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
             case PROMPT_GET, PROMPT_SET -> call(client, () -> {
                 var settings = runtime.settings();
                 if (operation == DebugRouter.Operation.PROMPT_SET) {
-                    String text = body.get("text").isJsonNull() ? null : body.get("text").getAsString();
-                    var candidate = settings.withDeveloperPrompt(dev.packsage.model.GroundingInstructions.defaultInstructions().equals(text) ? null : text);
-                    candidate.save(settingsPath);
-                    settings.setDeveloperPrompt(candidate.developerPrompt());
+                    settings.saveDeveloperPrompt(settingsPath, body.get("text").isJsonNull() ? null : body.get("text").getAsString());
                 }
                 var json = new JsonObject();
                 json.addProperty("text", settings.developerPrompt());

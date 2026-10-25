@@ -49,6 +49,39 @@ The [plan](../plans/2026-10-22-v2-world-reading.md) is implemented. The [validat
   - N4: an early stop can make no progress. Fixed: a stop waits for at least one new container or chunk.
   - N5: `inspect_area` can drop the entity page's note. Fixed: the note is kept alongside the `list_entities` pointer.
 
+### Journal and notes
+
+Stage 4's [plan](../plans/2026-10-22-v2-journal.md) is implemented, including automatic recording, run merging, `search_journal`, silent `remember` / `update_note` / `forget_note`, note anchors and persistent note/place highlights. The full build reports 1,014 automated tests: 1,010 passed, 4 skipped, no failures or errors. Minimal prompt rules are included; the whole-prompt rewrite remains Stage 5. Not yet checked in game; awaiting in-game acceptance in the single final run after all stages. Keep every item below unchecked until it passes.
+
+Live checks for that final run, on the installed JAR in singleplayer with the default prompt and the developer override cleared (except the multiplayer check):
+
+- [ ] SQLite driver loads under FML on Windows: joining a world creates `saves/<world>/packsage/journal.db` and its `-wal` file, with no native-library error. If module-layer loading fails, retry with `-Dorg.sqlite.tmpdir=<gameDir>/packsage/native` and record the result.
+- [ ] The access transformer exposes `Raids.raidMap` without linkage/access errors; polling sees the live raid registry in each dimension.
+- [ ] Block placement records the block, player, time and position.
+- [ ] Block breaking records the block, player, time and position.
+- [ ] Explosions record their source, location and affected block runs; truncated snapshots report missing detail as partial coverage.
+- [ ] Container deposits and withdrawals: put stone into one chest and take iron out of another, then ask "what did I put in chests today?" Expect item counts, direction and working chest links. Also check a menu closed by disconnect, cancelled-click mod GUIs and keyed horse inventories; unsupported ownership must leave no misleading holder hint.
+- [ ] Deaths: record a player, named mob, villager and tamed animal death with causes. On Easy, have a zombie kill a villager; an iron-farm diagnosis must combine that journal record naming the zombie with a live read of another villager missing its bed.
+- [ ] Player kills record the player and killed mob type.
+- [ ] Dimension travel records portals with source-side positions: enter the Nether and ask "where did I enter the Nether?" Expect the departure portal, including a last source position when no portal is known.
+- [ ] Earned advancements record their identity and time; ask "when did I get it?"
+- [ ] Villager profession changes record the old and new profession.
+- [ ] Curing a zombie villager records the cure.
+- [ ] A villager converting to a zombie villager records the conversion.
+- [ ] Trading with a villager records the trade and player.
+- [ ] Raid starts record the raid and its location.
+- [ ] Raid finishes record the outcome without inventing a start for a raid first observed finished.
+- [ ] First structure entries record the structure and place without duplicate records on re-entry.
+- [ ] Invisible notes: say "I built an iron farm here" and later "I moved my iron farm" elsewhere. No reply, toast, chat line or activity list announces note saving; the correction updates one note rather than duplicating it. A request to forget removes it. Questions and requests are not saved as reports, and recalled notes are described as the player's report rather than game-confirmed facts.
+- [ ] Note anchors and saved links: after a full Minecraft quit/relaunch/rejoin, ask "where was my iron farm?" Expect coordinates and a working `Show` link; "check around my iron farm" reads around the note's place. A saved note link follows a move under the same id and reports unavailable after forgetting; a saved journal place link still highlights the same place. Other-dimension links give coordinates.
+- [ ] Honest search coverage: results expose `recordingSince`; a time before recording, a recording gap or missing event detail is PARTIAL with a reason, never proof that nothing happened.
+- [ ] Multiplayer: every journal and note tool reports unavailable on a multiplayer server.
+- [ ] Bulk performance: mine 2,000 sand quickly, then set off TNT. Expect no visible stutter in the F3 frame-time graph or change from idle `/tick query` mspt; search shows a few sand runs totaling about 2,000, the explosion and its break runs. At world close, the log summary reports `maxHookNanosPerTick` under 1 ms and `overflowed` 0.
+- [ ] The first message of a brand-new chat with a tool call carries its persisted conversation id; notes retain that chat/message origin.
+- [ ] Journal flushes when quitting the game: exit Minecraft immediately after a burst, fully restart and rejoin, then verify the final queued events and open runs survived. Also verify Save and Quit to Title followed by rapid rejoining preserves the records.
+
+After the final run, record observed results in `docs/validation/2026-10-22-v2-journal.md` and check only passing entries here and in both roadmaps. That validation record has not been created yet.
+
 ### Progress and statistics
 
 Stage 2's [plan](../plans/2026-10-22-v2-progress-statistics.md) is implemented. The full build reports 736 automated tests: 732 passed, 4 skipped, no failures or errors. These features are not yet checked in game; keep each item unchecked until it passes the single acceptance run at the end of all stages.
@@ -93,7 +126,7 @@ The Minecraft adapter is finished before this branch merges back. The [completio
   - [ ] `read_loot` for table, block, entity and pending container loot, without rolling or unpacking it; implemented, not yet checked in game.
   - [ ] `locate` for biome ids/tags and found or predicted structures, with persistent place links, without loading or generating chunks; implemented, not yet checked in game.
   - [ ] `search_commands` and `read_command` from a paced detached snapshot, including usage, argument types and player permissions, without running commands; implemented, not yet checked in game.
-- [ ] 4. Journal and notes (below).
+- [ ] 4. Journal and notes ([plan](../plans/2026-10-22-v2-journal.md), [acceptance checks](#journal-and-notes)). Implemented; not yet checked in game, awaiting the final in-game acceptance run.
 - [ ] 5. Prompt and acceptance (below).
 
 Stage 3 live checks for the final run, using the installed build in singleplayer with the default prompt and the developer override cleared. All are not yet checked in game:
@@ -108,16 +141,6 @@ Stage 3 live checks for the final run, using the installed build in singleplayer
 
 Plan details:
 
-- [ ] Journal and notes (`docs/plans/2026-10-22-v2-journal.md`): automatic event recording into SQLite with run-length merging, `search_journal`, and invisible model-chosen notes.
-  - Task 14 adds automated stalled-store independence, burst merging/transaction and database-thread checks. Correctness uses latches and accounting, without host-dependent latency limits; transaction checks use the fixed initialization count, and server-thread calls return while background work remains gated. Hooks log recording summaries on stop and at most once per minute as overflow grows. Automated checks pass; in-game mining/TNT frame time, tick timing and installed-driver acceptance remain pending.
-  - Task 13 adds the minimal prompt rules for silent note saving, corrections and journal use, with player-reported trust and recording coverage preserved. The action refusal applies only to gameplay actions and permits saving, updating and forgetting notes. Automated prompt checks pass; the full prompt rewrite, model compliance and live acceptance remain for Stage 5.
-  - Task 12 review fixes use the current session's note mirror per anchor lookup, report loading and missing dimensions, hide note writes in expanded activities, and preserve failed-open details for note links. Only Journal availability follows its readiness status; Native remains available before its first read. The footer requires a visible, relevant journal row, and status reads run outside the chat state lock. Automated regressions cover these cases; live acceptance remains pending.
-  - Tasks 11–12 implement the `journal` provider, all four tools, player-said authority and chat origins, query-bound cursor tokens, reference-checked rereads, shared schemas, availability rows with failure reasons and neutral citation markers. Search and note-write completions use the worker and the writer's real stats. Note existence checks, successful database writes and mirror changes share one writer command; failed writes and queued forget/update ordering are covered. Area/placed-note anchors resolve through world tools; persistent journal links draw world place columns, follow moved notes and refuse forgotten notes. Note writes use generic thinking activity. Task 10 follow-ups separate unread explosion coverage, share death eligibility, omit absent messages and simplify hook timing/container guards. Prompt integration and live acceptance remain pending.
-  - Task 9 lifecycle and NeoForge hooks are implemented. World sessions recreate all trackers, restore notes, record source-side travel positions and poll every dimension's full raid registry. Background opens, final drains, safe reader shutdown and a ten-second JVM exit wait have automated coverage. Hook failures, explosion truncation, evictions and rejected snapshots reach diagnostics and make searches partial. The Minecraft-cleared integrated-server reference is handled with the exact server identity captured at session start. Task 11 now connects the tools; installed-game/FML smoke checks and live acceptance remain pending.
-  - Task 8 follow-ups expose tracker evictions for diagnostics, skip and count oversized closing snapshots, and cover raids first seen finished without a start. The stale-departure test independently checks expired, backward and valid arrivals. Task 9 connects these counters to session stats. The full build passes 816 tests, with 4 skipped; the JAR still bundles SQLite JDBC.
-  - Task 6 search and summaries are implemented with automated checks: events and notes share stable cursor paging, exact area matching and explicit partial coverage, including coarsened overflow identities and history before recording. Review fixes cover tied-time paging, exact candidate exhaustion and indexed time/ID queries on existing v1 databases. Without an area, subject-only coverage counts overflow rows with unknown subjects; whenever text is set, coverage also counts actor-only unknowns, including combined subject/text filters.
-  - Task 7 note storage and the thread-safe in-memory mirror are implemented with automated checks: validated text with surrogate-safe truncation, sorted tags, stable IDs, place keep/clear/set edits, duplicate suggestions and persistent updates/deletes with deletion results. Notes remain player reports. Lifecycle is connected by Task 9 and the provider by Task 11. Note existence checks, database writes and mirror updates run in one writer command, publishing mirror changes only after a successful write. Production search receives the writer's actual `JournalStats` and runs on the worker executor. Live acceptance remains pending.
-  - Task 8 plain recording rules and bounded trackers are implemented with 28 focused tests. A zombie-caused villager death is searchable after storage, and structure re-entry after LRU eviction still produces one stored row. The full build passes 799 tests, with 4 skipped. Task 9 now wires server-thread hooks, recreates trackers per session, supplies the last source position when no portal is known, and handles rejected closing snapshots above 4,096 item ids without throwing into gameplay. Other bounds: 64 menu sessions, 64 pending departures, 4,096 villager baselines, 1,024 raid states and 4,096 structure starts. All live acceptance remains pending.
 - [ ] Progress and statistics ([plan](../plans/2026-10-22-v2-progress-statistics.md)): the `ProgressReader` and `StatisticReader` capabilities, `list_progress`, `inspect_progress` and `list_statistics` are implemented; not yet checked in game (see the [acceptance checks](#progress-and-statistics)).
 - [ ] Prompt and acceptance (`docs/plans/2026-10-22-v2-prompt-acceptance.md`, not written). Includes the Round 1 failures:
   - the armor reply omitted eligible enchantments that the evidence returned;

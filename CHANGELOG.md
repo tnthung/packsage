@@ -4,6 +4,7 @@
 
 ### 2026-10-26
 
+- Fixed third-round world review findings: stable single-tick entity and storage reads can report complete coverage, reads spanning ticks name the possible gap, entity pages do not repeat chunk-border mobs, and unavailable entity chunks are counted once. Full build: 1,096 tests, 1,091 passed, 5 skipped; installed checks remain pending.
 - Fixed the second world review: chunk snapshots tolerate entity/block-entity changes, entity pages resume by UUID, small queries use the spatial index, uncached POI facts remain partial, oversized inspections retain smaller facts, and statistics share one step budget with bounded retries. Full build: 1,088 tests, 1,083 passed, 5 skipped; installed checks remain pending.
 - Fixed final world-review findings: POI facts read only cached sections; dense entity/holder and statistics traversal is bounded per server step; capped entity details propagate PARTIAL coverage and oversized inspections retain a compact partial record; world navigation resolves server state asynchronously before guarded client opening. Automated regressions and the full build pass; these new cases await installed acceptance ([validation](docs/validation/2026-10-26-world-review-fixes.md)).
 - Distant location columns now remain visible through Nether terrain. Installed Nether and Overworld checks passed at render distance 12, including the Nether marker's 30-second lifetime; the earlier 8-chunk Overworld check also passed ([acceptance record](docs/validation/2026-10-25-v2-acceptance.md#acceptance-summary)).

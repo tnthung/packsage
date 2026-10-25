@@ -2,15 +2,19 @@ package dev.packsage.knowledge;
 
 import dev.packsage.knowledge.nativegame.NativeProvider;
 import dev.packsage.knowledge.nativegame.NativeSnapshot;
+import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NativeProviderTest {
@@ -120,6 +124,25 @@ class NativeProviderTest {
 
         assertEquals(Evidence.Coverage.UNAVAILABLE, result.coverage());
         assertEquals(Evidence.Outcome.UNKNOWN, result.outcome());
+    }
+
+    @Test
+    void removedInventoryHandlesRereadAsUnavailable() {
+        var provider = new NativeProvider(() -> new NativeSnapshot(SCOPE, List.of()), Runnable::run, () -> SCOPE);
+
+        for (String handle : List.of("inventory:main:0", "inventory-summary:player", "storage:block:0", "storage-entry:block:0:1")) {
+            var context = new Toolbox.Context(() -> SCOPE, Map.of(handle, new Toolbox.Reference("native", handle,
+                    Evidence.RecordKind.ITEM, SCOPE)), new AdapterRegistry(), new Toolbox.DocumentBudget(), null);
+            var request = new PackSageTools.ReadRequest("read_evidence", new Evidence.JsonObject(Map.of("handles",
+                    new Evidence.JsonArray(List.of(new Evidence.JsonString(handle))))), SCOPE);
+
+            var thrown = assertThrows(CompletionException.class, () -> provider.readEvidence(request, context).toCompletableFuture().join());
+
+            var failure = assertInstanceOf(Toolbox.Failure.class, thrown.getCause(), handle);
+            assertEquals(Toolbox.Code.UNAVAILABLE, failure.code(), handle);
+            assertEquals("this inventory record came from a reader that was removed; read the items again with list_items or inspect_item",
+                    failure.getMessage(), handle);
+        }
     }
 
     @Test

@@ -96,17 +96,19 @@ public final class JournalHooks {
     /** The whole handler, including server lookup and data extraction, is inside this failure boundary. */
     private void hook(Consumer<MinecraftServer> action) {
         long started = 0;
+        boolean serverThread = false;
         try {
             // Minecraft clears its server reference before ServerStoppingEvent and ServerStoppedEvent.
             var server = integrated.get();
             if (server == null) server = session.server;
             if (server == null || !server.isSameThread()) return;
+            serverThread = true;
             started = System.nanoTime();
             action.accept(server);
         } catch (RuntimeException e) {
             journal.stats().hookFailures.increment();
         } finally {
-            if (started != 0) {
+            if (serverThread) {
                 session.updateStats(journal.stats());
                 journal.stats().hookNanos(System.nanoTime() - started);
             }

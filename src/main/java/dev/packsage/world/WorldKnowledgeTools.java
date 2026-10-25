@@ -4,17 +4,27 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox.Code;
 import dev.packsage.knowledge.Toolbox.Failure;
 import dev.packsage.model.PackSageTools;
+import dev.packsage.world.minecraft.LocateBiome;
 import dev.packsage.world.minecraft.MinecraftLoot;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.QuartPos;
+import net.minecraft.core.Registry;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.storage.loot.LootTable;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
@@ -60,6 +70,15 @@ final class WorldKnowledgeTools {
 
     /** Later pages of one loot read, paged on the worker from the table encoded by the first. */
     private record LootState(LootRead read, int nextPool) {
+    }
+
+    /** Continuations keep the original center even if the player moves between calls. */
+    record BiomeState(WorldTools.Center center, String query, int radius, int nextIndex) {
+    }
+
+    /** Server-owned inputs captured together; registry matching and spiral preparation run on the worker. */
+    private record BiomeRead(WorldTools.Center center, Registry<Biome> registry, BiomeSource source, LocateBiome.Sampler sampler,
+                             int minY, int maxY) {
     }
 
     private final WorldTools calls;
@@ -276,8 +295,92 @@ final class WorldKnowledgeTools {
 
     private CompletionStage<Evidence.Result> locate(PackSageTools.ReadRequest request) {
         exactlyOne(request, List.of("biome", "structure"));
-        calls.server();
-        return pending();
+        var server = calls.server();
+        if (WorldTools.argument(request, "biome") == null) return pending();
+        var anchor = WorldTools.anchor(WorldTools.argument(request, "center"));
+        var radius = 100;
+        if (WorldTools.argument(request, "radius") != null) {
+            try {
+                if (!(WorldTools.argument(request, "radius") instanceof Evidence.JsonNumber number)) throw WorldTools.invalid("radius must be an integer from 1 to 512");
+                radius = number.value().intValueExact();
+                if (radius < 1 || radius > 512) throw WorldTools.invalid("radius must be an integer from 1 to 512");
+            } catch (ArithmeticException exception) {
+                throw WorldTools.invalid("radius must be an integer from 1 to 512");
+            }
+        }
+        var cursor = calls.cursor(request);
+        var state = cursor == null ? null : WorldTools.state(cursor, BiomeState.class);
+        var searchRadius = state == null ? radius : state.radius();
+        var searchQuery = state == null ? WorldTools.requiredText(request, "biome") : state.query();
+        return calls.run(server, WorldTools.then(() -> state == null ? calls.center(server, anchor) : state.center(), center -> WorldTools.once(() -> {
+            var level = WorldTools.level(server, center.dimension());
+            var source = level.getChunkSource().getGenerator().getBiomeSource();
+            var climate = level.getChunkSource().randomState().sampler();
+            return new BiomeRead(center, level.registryAccess().registryOrThrow(Registries.BIOME), source,
+                    (x, y, z) -> source.getNoiseBiome(QuartPos.fromBlock(x), QuartPos.fromBlock(y), QuartPos.fromBlock(z), climate)
+                            .unwrapKey().orElseThrow().location().toString(), level.getMinBuildHeight(), level.getMaxBuildHeight());
+        }))).thenCompose(read -> {
+            var targets = biomeTargets(read.registry(), read.source().possibleBiomes(), searchQuery);
+            if (targets.isEmpty()) {
+                return CompletableFuture.completedFuture(WorldTools.result(List.of(), Evidence.Coverage.COMPLETE, null,
+                        "this dimension's biome source never produces it"));
+            }
+            var origin = BlockPos.containing(read.center().position());
+            return calls.run(server, new LocateBiome(targets::contains, read.sampler(), origin.getX(), origin.getY(), origin.getZ(), searchRadius,
+                    read.minY(), read.maxY(), state == null ? 0 : state.nextIndex()))
+                    .thenApply(result -> biomeResult(request, read.center(), searchQuery, searchRadius, result));
+        });
+    }
+
+    /** Worker only: resolve an id or tag, then restrict it to biomes this source can produce. */
+    static Set<String> biomeTargets(Registry<Biome> registry, Set<Holder<Biome>> possible, String query) {
+        var tag = query.startsWith("#");
+        var id = ResourceLocation.tryParse(tag ? query.substring(1) : query);
+        if (id == null) throw WorldTools.invalid("invalid biome id or tag: " + query);
+        var targets = new HashSet<String>();
+        boolean known;
+        if (tag) {
+            var members = registry.getTag(TagKey.create(Registries.BIOME, id));
+            known = members.isPresent();
+            if (members.isPresent()) members.get().forEach(holder -> targets.add(holder.unwrapKey().orElseThrow().location().toString()));
+        } else {
+            known = registry.containsKey(id);
+            if (known) targets.add(id.toString());
+        }
+        if (!known) {
+            throw WorldTools.invalid("unknown biome " + (tag ? "tag " : "id ") + query + "; registry ids containing " + id.getPath() + ": "
+                    + registry.keySet().stream().filter(key -> key.getPath().contains(id.getPath())).sorted().limit(16).toList());
+        }
+        var producible = new HashSet<String>();
+        for (var holder : possible) holder.unwrapKey().ifPresent(key -> producible.add(key.location().toString()));
+        targets.retainAll(producible);
+        return Set.copyOf(targets);
+    }
+
+    /** Builds the page on the worker after the sampling slice has finished or spent its call budget. */
+    Evidence.Result biomeResult(PackSageTools.ReadRequest request, WorldTools.Center center, String query, int radius, LocateBiome.Result result) {
+        if (result.hit() == null) {
+            if (result.nextIndex() != -1) {
+                return WorldTools.result(List.of(), Evidence.Coverage.PARTIAL,
+                        calls.remember(request, new BiomeState(center, query, radius, result.nextIndex())),
+                        "biome sampling reached the 500 ms server work budget after " + result.columns() + " columns; continue with the cursor");
+            }
+            return WorldTools.result(List.of(), Evidence.Coverage.COMPLETE, null, "no matching biome within " + radius + " chunks");
+        }
+        var hit = result.hit();
+        var place = new BlockPlace(center.dimension(), hit.x(), hit.y(), hit.z());
+        var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+        payload.put("kind", WorldTools.text("sampled"));
+        payload.put("biome", WorldTools.text(hit.biome()));
+        payload.put("query", WorldTools.text(query));
+        payload.put("dimension", WorldTools.text(center.dimension()));
+        payload.put("place", WorldTools.text(place.text()));
+        payload.put("distanceBlocks", WorldTools.number(Math.round(Math.hypot(hit.x() - center.position().x, hit.z() - center.position().z))));
+        payload.put("resolution", new Evidence.JsonObject(java.util.Map.of("horizontalBlocks", WorldTools.number(LocateBiome.HORIZONTAL_STEP),
+                "verticalBlocks", WorldTools.number(LocateBiome.VERTICAL_STEP))));
+        return WorldTools.single(WorldTools.evidence(request.scope(), "locate|" + center.dimension() + "|" + hit.biome() + "|" + hit.x() + "," + hit.z(),
+                Evidence.RecordKind.OTHER, hit.biome() + " at " + hit.x() + ", " + hit.y() + ", " + hit.z(), payload, Evidence.Coverage.COMPLETE,
+                WorldNavigation.placeId(place)));
     }
 
     private CompletionStage<Evidence.Result> searchCommands(PackSageTools.ReadRequest request) {

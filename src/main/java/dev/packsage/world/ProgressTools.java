@@ -34,20 +34,25 @@ public final class ProgressTools implements KnowledgeProvider {
     private final Executor worker;
     private final ServerWork work;
     private final ProgressNavigation navigation;
-    private Minecraft client;
+    private final Minecraft client;
 
     public ProgressTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work) {
-        this(client::getSingleplayerServer, server -> {
+        this(client, client::getSingleplayerServer, server -> {
             var profile = server.getSingleplayerProfile();
             var player = profile == null ? null : server.getPlayerList().getPlayer(profile.getId());
             if (player == null) throw new Failure(Code.UNAVAILABLE, "the singleplayer host is not in the world");
             return player;
         }, registry, scope, worker, work, new ProgressNavigation(ProgressNavigation.client(client)));
-        this.client = client;
     }
 
     ProgressTools(Supplier<MinecraftServer> server, Function<MinecraftServer, ServerPlayer> host, WorldRegistry registry,
                   Supplier<Evidence.Scope> scope, Executor worker, ServerWork work, ProgressNavigation navigation) {
+        this(null, server, host, registry, scope, worker, work, navigation);
+    }
+
+    private ProgressTools(Minecraft client, Supplier<MinecraftServer> server, Function<MinecraftServer, ServerPlayer> host, WorldRegistry registry,
+                          Supplier<Evidence.Scope> scope, Executor worker, ServerWork work, ProgressNavigation navigation) {
+        this.client = client;
         this.server = server;
         this.host = host;
         this.registry = registry;
@@ -143,7 +148,7 @@ public final class ProgressTools implements KnowledgeProvider {
         var filter = new ProgressListing.Filter(tree instanceof Evidence.JsonString id ? ProgressId.parse(id.value()) : null,
                 strings(arguments.get("status"), "status").stream().map(ProgressStatus::fromWire).collect(Collectors.toSet()),
                 text instanceof Evidence.JsonString string ? string.value() : null);
-        var offset = offset(request.arguments());
+        var offset = offset(request);
         var current = server();
         var readers = registry.progressReaders();
         return ServerReads.run(work, worker, () -> server.get() == current && current.isRunning(), new ServerWork.Slice<List<ProgressSnapshot>>() {
@@ -167,6 +172,14 @@ public final class ProgressTools implements KnowledgeProvider {
             public List<ProgressSnapshot> result() {
                 return List.copyOf(snapshots);
             }
+
+            @Override
+            public boolean stopEarly() {
+                if (slice == null || !slice.stopEarly()) return false;
+                snapshots.add(slice.result());
+                snapshots.add(new ProgressSnapshot(List.of(), List.of(), "server work budget reached; repeat list_progress"));
+                return true;
+            }
         }).thenApply(snapshots -> {
             var page = ProgressListing.page(snapshots, filter, offset);
             var records = new ArrayList<Evidence.Record>();
@@ -187,7 +200,11 @@ public final class ProgressTools implements KnowledgeProvider {
                             value.handle().title() == null ? "Hidden progress entry" : value.handle().title(), entryPayload(value.handle(), value.description()), page.coverage(), ProgressNavigation.targetId(value.handle())));
                 }
             }
-            return result(records, page.coverage(), page.nextCursor() == null ? null : page.nextCursor() + "." + Integer.toHexString(signature(request.arguments()).hashCode()), page.note());
+            return result(records, page.coverage(), page.nextCursor() == null ? null : page.nextCursor() + "." + Integer.toHexString(List.of(request.tool(), signature(request.arguments())).hashCode()), page.note());
+        }).exceptionally(failure -> {
+            while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
+            if (failure instanceof Failure typed) throw typed;
+            throw new Failure(Code.EXTRACTION_FAILED, failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
         });
     }
 
@@ -230,14 +247,26 @@ public final class ProgressTools implements KnowledgeProvider {
                     value.put("doneAt", criterion.doneAt() == null ? new Evidence.JsonNull() : new Evidence.JsonString(criterion.doneAt().toString()));
                     return (Evidence.JsonValue) new Evidence.JsonObject(value);
                 }).toList()));
-                payload.put("requires", new Evidence.JsonArray(progress.requires().stream().map(handle -> (Evidence.JsonValue) new Evidence.JsonObject(entryPayload(handle, null))).toList()));
-                payload.put("unlocks", new Evidence.JsonArray(progress.unlocks().stream().map(handle -> (Evidence.JsonValue) new Evidence.JsonObject(entryPayload(handle, null))).toList()));
+                payload.put("requires", new Evidence.JsonArray(progress.requires().stream().map(handle -> {
+                    var value = entryPayload(handle, null);
+                    value.remove("description");
+                    return (Evidence.JsonValue) new Evidence.JsonObject(value);
+                }).toList()));
+                payload.put("unlocks", new Evidence.JsonArray(progress.unlocks().stream().map(handle -> {
+                    var value = entryPayload(handle, null);
+                    value.remove("description");
+                    return (Evidence.JsonValue) new Evidence.JsonObject(value);
+                }).toList()));
                 payload.put("rewards", new Evidence.JsonArray(progress.rewards().stream().map(reward -> (Evidence.JsonValue) new Evidence.JsonString(reward)).toList()));
                 payload.put("doneAt", progress.doneAt() == null ? new Evidence.JsonNull() : new Evidence.JsonString(progress.doneAt().toString()));
                 payload.put("sections", new Evidence.JsonObject(sections));
             }
             return result(List.of(evidence(scope, "progress|" + progress.handle().id().text(), Evidence.RecordKind.QUEST,
                     progress.handle().title() == null ? "Hidden progress entry" : progress.handle().title(), payload, coverage, ProgressNavigation.targetId(progress.handle()))), coverage, null, notes.isEmpty() ? null : String.join("; ", notes));
+        }).exceptionally(failure -> {
+            while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
+            if (failure instanceof Failure typed) throw typed;
+            throw new Failure(Code.EXTRACTION_FAILED, failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
         });
     }
 
@@ -254,10 +283,10 @@ public final class ProgressTools implements KnowledgeProvider {
         } else {
             throw new IllegalArgumentException("subjects must be an object");
         }
-        return statistics(request.scope(), strings(request.arguments().values().get("categories"), "categories"), filter, offset(request.arguments()), request.arguments(), null);
+        return statistics(request.scope(), strings(request.arguments().values().get("categories"), "categories"), filter, offset(request), List.of(request.tool(), signature(request.arguments())).hashCode(), null);
     }
 
-    private CompletionStage<Evidence.Result> statistics(Evidence.Scope scope, List<String> categories, KindFilter subjects, int offset, Evidence.JsonObject arguments, String adapter) {
+    private CompletionStage<Evidence.Result> statistics(Evidence.Scope scope, List<String> categories, KindFilter subjects, int offset, int signature, String adapter) {
         var current = server();
         var readers = registry.statisticReaders().stream().filter(reader -> adapter == null || adapter.equals(reader.adapterId())).toList();
         var notes = new ArrayList<String>();
@@ -289,6 +318,14 @@ public final class ProgressTools implements KnowledgeProvider {
             public List<List<Statistic>> result() {
                 return List.copyOf(rows);
             }
+
+            @Override
+            public boolean stopEarly() {
+                if (slice == null || !slice.stopEarly()) return false;
+                rows.add(List.copyOf(slice.result()));
+                notes.add("server work budget reached; repeat list_statistics");
+                return true;
+            }
         }).thenApply(rows -> {
             var page = StatisticListing.page(rows, offset, notes);
             return result(page.items().stream().map(row -> {
@@ -302,7 +339,11 @@ public final class ProgressTools implements KnowledgeProvider {
                 payload.put("raw", new Evidence.JsonNumber(BigDecimal.valueOf(row.raw())));
                 return evidence(scope, "stat|" + row.adapter() + "|" + row.category() + "|" + row.subject(), Evidence.RecordKind.OTHER,
                         row.label() + " = " + BigDecimal.valueOf(row.value()).stripTrailingZeros().toPlainString(), payload, page.coverage(), null);
-            }).toList(), page.coverage(), page.nextCursor() == null ? null : page.nextCursor() + "." + Integer.toHexString(signature(arguments).hashCode()), page.note());
+            }).toList(), page.coverage(), page.nextCursor() == null ? null : page.nextCursor() + "." + Integer.toHexString(signature), page.note());
+        }).exceptionally(failure -> {
+            while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
+            if (failure instanceof Failure typed) throw typed;
+            throw new Failure(Code.EXTRACTION_FAILED, failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
         });
     }
 
@@ -312,9 +353,12 @@ public final class ProgressTools implements KnowledgeProvider {
         if (handle.startsWith("stat|")) {
             var parts = handle.split("\\|", -1);
             if (parts.length != 4 || parts[1].isEmpty() || parts[2].isEmpty() || parts[3].isEmpty()) throw new Failure(Code.INVALID_REFERENCE, "repeat list_statistics");
-            return statistics(scope, List.of(parts[2]), new KindFilter(List.of(parts[3]), List.of(), ""), 0, new Evidence.JsonObject(Map.of()), parts[1]).thenApply(result -> {
+            return statistics(scope, List.of(parts[2]), new KindFilter(List.of(parts[3]), List.of(), ""), 0, 0, parts[1]).thenApply(result -> {
                 var records = result.records().stream().filter(record -> record.source().sourceHandle().equals(handle)).toList();
-                if (records.isEmpty()) throw new Failure(Code.INVALID_REFERENCE, "statistic is no longer available; repeat list_statistics");
+                if (records.isEmpty()) {
+                    if (result.coverage() != Evidence.Coverage.COMPLETE) throw new Failure(Code.EXTRACTION_FAILED, result.detail());
+                    throw new Failure(Code.INVALID_REFERENCE, "statistic is no longer available; repeat list_statistics");
+                }
                 return result(records, result.coverage(), null, result.detail());
             });
         }
@@ -349,12 +393,12 @@ public final class ProgressTools implements KnowledgeProvider {
         return new Evidence.JsonObject(values);
     }
 
-    private static int offset(Evidence.JsonObject arguments) {
-        var cursor = arguments.values().get("cursor");
+    private static int offset(PackSageTools.ReadRequest request) {
+        var cursor = request.arguments().values().get("cursor");
         if (cursor == null || cursor instanceof Evidence.JsonNull) return 0;
         if (cursor instanceof Evidence.JsonString string) {
             var parts = string.value().split("\\.", -1);
-            if (parts.length == 2 && parts[1].equals(Integer.toHexString(signature(arguments).hashCode()))) {
+            if (parts.length == 2 && parts[1].equals(Integer.toHexString(List.of(request.tool(), signature(request.arguments())).hashCode()))) {
                 try {
                     var offset = Integer.parseInt(parts[0]);
                     if (offset >= 0 && Integer.toString(offset).equals(parts[0])) return offset;

@@ -128,7 +128,8 @@ class MinecraftStatisticsTest {
 
         var rows = run(statistics.statistics(new StatsCounter(), List.of(), subjects));
 
-        assertEquals(List.of("mined", "crafted", "used", "broken", "picked_up", "dropped"), rows.stream().map(Statistic::category).toList());
+        assertEquals(List.of("mined", "crafted", "used", "broken", "picked_up", "dropped", "examplemod:smelted", "examplemod:sentence"),
+                rows.stream().map(Statistic::category).toList());
         assertTrue(rows.stream().allMatch(row -> row.raw() == 0), rows.toString());
         assertFalse(Stats.BLOCK_MINED.contains(Blocks.ANCIENT_DEBRIS));
     }

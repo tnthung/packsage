@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -38,7 +39,9 @@ class JournalStoreTest {
             store.startSession(0, 0);
             assertEquals(List.of(other, original), store.notes());
             store.putNote(updated);
-            store.deleteNote(other.id());
+            assertTrue(store.deleteNote(other.id()));
+            assertFalse(store.deleteNote(other.id()));
+            assertFalse(store.deleteNote("n00000003"));
             assertEquals(List.of(updated), store.notes());
             var found = new JournalSearch(store).search(new JournalFilter(null, null, null, null, Set.of("note"),
                     List.of(), "moved", true), null, 100);
@@ -47,7 +50,7 @@ class JournalStoreTest {
         try (var store = JournalStore.open(file)) {
             store.startSession(0, 0);
             assertEquals(List.of(updated), store.notes());
-            store.deleteNote(updated.id());
+            assertTrue(store.deleteNote(updated.id()));
         }
         try (var store = JournalStore.open(file)) {
             assertTrue(store.notes().isEmpty());

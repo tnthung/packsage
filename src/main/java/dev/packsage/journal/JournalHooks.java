@@ -206,7 +206,7 @@ public final class JournalHooks {
             var killer = cause.getEntity();
             var tamed = victim instanceof TamableAnimal animal && animal.isTame()
                     || victim instanceof AbstractHorse horse && horse.isTamed();
-            var recordDeath = victim instanceof ServerPlayer || victim instanceof Villager || tamed || victim.hasCustomName();
+            var recordDeath = JournalEvents.recordsDeath(victim instanceof ServerPlayer, victim instanceof Villager, tamed, victim.hasCustomName());
             if (!recordDeath && !(killer instanceof ServerPlayer)) return;
             var direct = cause.getDirectEntity();
             var pos = victim.blockPosition();

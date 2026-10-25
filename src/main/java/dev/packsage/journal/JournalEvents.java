@@ -101,8 +101,12 @@ public final class JournalEvents {
                 stamp.dimension(), playerRef, item, null, Math.abs(delta), new long[]{Positions.pack(x, y, z)}, detail.toString());
     }
 
+    static boolean recordsDeath(boolean player, boolean villager, boolean tamed, boolean named) {
+        return player || villager || tamed || named;
+    }
+
     public static Optional<JournalEvent> death(Stamp stamp, DeathFacts facts) {
-        if (!facts.player() && !facts.villager() && !facts.tamed() && facts.customName() == null) {
+        if (!recordsDeath(facts.player(), facts.villager(), facts.tamed(), facts.customName() != null)) {
             return Optional.empty();
         }
         return Optional.of(new JournalEvent(EventType.DEATH, stamp.gameTime(), stamp.wallMillis(), stamp.dimension(),

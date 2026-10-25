@@ -75,6 +75,27 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void bridgeCanInspectARequestThatFailsBeforeItHasASavedTurn() throws Exception {
+        var backend = new FakeBackend();
+        var runtime = runtime(backend, current -> new GameplayContextCapture(() -> {
+            throw new IllegalStateException("capture failed");
+        }, request -> new GameplayContextCapture.CapturedFrame("image/png", new byte[0], Instant.EPOCH), DIRECT, current),
+                new AtomicReference<>(SCOPE), new AtomicReference<>(), PackSageSettings.defaults(), ignored -> 512);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        var id = runtime.sendTracked("failing capture");
+        assertNotNull(id);
+        var failed = runtime.requestView(id);
+        assertNotNull(failed);
+        assertFalse(failed.active());
+        assertEquals(ChatContracts.OutcomeStatus.FAILED, failed.conversation().turns().getFirst().outcome().status());
+        assertEquals("failing capture", failed.conversation().turns().getFirst().question());
+        assertNull(runtime.savedRequest(id).toCompletableFuture().join());
+    }
+
+    @Test
     void toolCallsCarryTheirConversationRequestAndQuestion() throws Exception {
         var received = new AtomicReference<Toolbox.Origin>();
         var provider = new KnowledgeProvider() {

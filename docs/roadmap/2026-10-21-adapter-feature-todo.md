@@ -22,11 +22,11 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 ### Silent notes and persistent recall (v2)
 
 - [x] Minecraft — new located reports saved silently, identical existing reports need no write, recalled notes remain player reports, and restart recall has coordinates and an opening place link (C4–C6/J6/M1 persistence subcheck).
-- [ ] Minecraft — moving one note and following its saved link: M1 FAIL; clearPlace loses the location and the old link becomes unavailable, with two pre-existing notes still present. Forget/anchor/other-dimension clauses remain unverified live.
+- [x] Minecraft — moving one note and following its saved link: M1 PASS with prompt candidate 7; the move updates the same note with the player's place, one note remains and the old link marks the new place (installed recheck R1; [acceptance record](../validation/2026-10-25-v2-acceptance.md)).
 
 ### World block, mob and storage reading (v2)
 
-- [ ] Minecraft — installed checks for cached-only POI facts and partial coverage, mutation-safe chunk snapshots/UUID paging without chunk-border repeats, section-shift/recreation recovery and bounded churn with concrete PARTIAL coverage, stable single- and multi-tick COMPLETE coverage with informational game-time spans (including /tick freeze), concrete revalidation gaps retained in area summaries, single-count unavailable entity chunks, bounded neighboring-candidate traversal, reachable entity/holder tails beyond 4,096 entries, byte-bounded long-name entity/item pages, area summaries and block pages, capped inspection custom names, dense entity/holder pacing, capped attribute coverage and asynchronous highlights; [automated regressions pass](../validation/2026-10-26-world-review-fixes.md), live acceptance pending.
+- [ ] Minecraft — installed checks for cached-only POI facts and partial coverage, mutation-safe chunk snapshots/UUID paging without chunk-border repeats, section-shift/recreation recovery and bounded churn with concrete PARTIAL coverage, stable single- and multi-tick COMPLETE coverage with informational game-time spans (including /tick freeze), concrete revalidation gaps retained in area summaries, single-count unavailable entity chunks, bounded neighboring-candidate traversal, reachable entity/holder tails beyond 4,096 entries, byte-bounded long-name entity/item pages, area summaries and block pages, capped inspection custom names, dense entity/holder pacing, capped attribute coverage and asynchronous highlights; [automated regressions pass](../validation/2026-10-26-world-review-fixes.md). Installed rechecks passed border and dense entity paging, stable multi-tick COMPLETE spans, capped trades, highlights, long-name capping and item/area pages ([acceptance record](../validation/2026-10-25-v2-acceptance.md)); uncached POI facts, /tick freeze and >4,096-entry tails were not run live.
 - [x] Minecraft — nearby/nested storage search, both stone stores and per-holder highlights, continued complete 72-type catalogue, sampled responsive 320-chest search and exact saved chest link after full restart (W1/W4/W5/W6/W7).
 - [x] Minecraft — villager home/job/sleep/work facts and gameTime interpretation combined with fresh bed-break/zombie-death evidence (C6/Q5, W2); specific golem expiry conversion remains unexercised.
 - [x] Minecraft — mob attributes and horse-like jump/speed facts, including cited 1.62-block mule jump (W8) and earlier horse acceptance. Its omitted coordinates remain a separate E6 failure below.
@@ -75,7 +75,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 ### Progress and statistics (v2)
 
 - [ ] Minecraft — installed byte-aware progress/statistics pages with safe long-text truncation and exact continuation after delivered records; automated wire and completed-snapshot regressions pass in the [world review fixes](../validation/2026-10-26-world-review-fixes.md).
-- [ ] Minecraft — installed public-node advancement reference snapshots with bounded root/sibling processing and hidden-alias ordering; [20,000-node automated regressions pass](../validation/2026-10-26-world-review-fixes.md), live acceptance pending.
+- [x] Minecraft — installed public-node advancement reference snapshots with bounded root/sibling processing and hidden-alias ordering; [20,000-node automated regressions pass](../validation/2026-10-26-world-review-fixes.md), and installed rounds 3–4 listed all seven trees with correct counts and paged the 2,000-entry tree exactly once to COMPLETE.
 - [ ] Minecraft — fresh progress-tree evidence rereads with current counts and removed-tree refusal: implemented with automated regressions; installed acceptance pending.
 - [ ] Minecraft — installed large-counter pacing and changing-counter retry checks after the bounded traversal fix; [automated batch-count and restart regressions pass](../validation/2026-10-26-world-review-fixes.md).
 - [x] Minecraft — per-criterion missing biome names, available goals, anonymous hidden entries after the P5 fix, visible-tab links and restart reopening (P1/P5/P7/P8). Q11 confirms invisible tabs stay source-only.
@@ -87,7 +87,8 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 - [ ] PackSage — saved v1 provider citations bind recorded sources and targets; removed providers return unavailable without substitution: automated store/render/navigation regressions pass; installed acceptance pending.
 - [x] PackSage — six live prompt rounds, C6 promoted byte-for-byte and effectively 14/14 under Q8a/Q8b note-action ruling; installed default verified with override cleared. Whole-set armor, continued storage, grounded farm diagnosis, silent notes and supported Minecraft recipe/plan answers pass (W2/W3/W5/J6/E2). Provider citation fixes pass installed E5 scans and sampled UI checks.
-- [ ] PackSage — every located thing has text coordinates: E6 FAIL, W8 mule jump answer omits them. Part B's unscored unsupported fortress link and changed-radius cursor reuse remain prompt follow-ups; no seventh candidate was run.
+- [x] PackSage — every located thing has text coordinates: E6 PASS with prompt candidate 8, including the targeted W8 mule (installed recheck R2).
+- [ ] PackSage — Part B's unscored unsupported fortress link and changed-radius cursor reuse remain prompt follow-ups.
 - [x] PackSage — safe tool receipt/submission/summary logs distinguish backend and tool wall time (E7), and independent effect/attribute reads overlap (E4).
 
 ### Developer prompt persistence (v2)

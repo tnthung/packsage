@@ -118,22 +118,27 @@ Stages 1–5 are implemented. Checked entries below describe the accepted scope,
 ## Open
 
 - Journal final-review fixes preserve recording-loss intervals across restarts with an additive schema-v1 table and keep byte-bounded pages resumable after their last delivered record. The [validation record](../validation/2026-10-26-v2-journal-final-review-fixes.md) records the follow-up shared encoder, marker retry/checkpoint and bounded-detail fixes with 1,079 passing tests, five skips and unverified live acceptance; these fixes do not close the broader journal checklist.
+Final review: Astra returned **READY** at 0e894ac after four re-review rounds (no Critical or Important findings); four installed recheck rounds are recorded in the [acceptance record](../validation/2026-10-25-v2-acceptance.md). The vanished-anchor note found in the fourth round is fixed in 744a96d.
+
 Final client-review fixes have automated coverage for historical v1 citation chips and unavailable destinations, worker-side debug prompt saves with concurrent screen updates, and fresh holder/progress-tree evidence rereads. Their installed acceptance remains pending; the promoted prompt text is unchanged.
 
 Fix round 1 adds regressions for large progress-tree reread coverage, unused holder-reread cursors, atomic settings replacement and bounded prompt-save conflicts. The fixes preserve the existing feature and installed-acceptance scope.
 
 The [cross-stage follow-ups](../../.superpowers/sdd/final-followups.md) include both deferred work and already completed integration items. Keep the deferred items below open; this list does not reopen the completed WorldTools.run delegation, merged tool-count updates or whole-prompt rewrite.
 
-- [ ] Fix E6 coordinates in located-entity answers and revalidate the changed prompt rule.
-- [ ] Fix/retest M1 move semantics and deduplication with a clean, unambiguous fixture.
+- [x] Fix E6 coordinates in located-entity answers and revalidate the changed prompt rule (candidate 8; installed R2 passed).
+- [x] Fix/retest M1 move semantics and deduplication with a clean, unambiguous fixture (candidate 7; installed R1 passed).
 - [ ] Capture M5 shutdown hook/overflow counters; run P9/J7 on a NeoForge dedicated server; make offered tool names auditable for P11.
 - [ ] Investigate Part B's unscored unsupported fortress link and locate cursor reuse with changed radius. Rendering acceptance does not resolve either prompt observation.
-- [ ] Return Section from EntityInspector so bounded trades/attributes can report PARTIAL.
+- [x] Return Section from EntityInspector so bounded trades/attributes can report PARTIAL (installed W4 passed).
 - [ ] Reduce duplicated offer components/enchantment/potion data and the approximately 192 KB worst case. offerCount was added; payload duplication remains deferred.
 - [ ] Split WorldTools after the merges; run delegation is already complete.
 - [ ] Add continuation for progress/statistics composites that currently stop at the call budget with a repeat note.
 - [ ] Task 2c: quiet routine test timing logs; deferred because ModDev forces its own Log4j configuration (about 153 timing lines after the summary follow-ups).
 - [ ] Consider caching detached command snapshots/usage if live timing warrants it; canUse/canRun duplication remains a review follow-up.
 - [ ] Resolve the resource warning for packsage:font/OFL.txt by moving/renaming the license resource.
+- [ ] Final-review Minors from the [READY verdict](../../.superpowers/sdd/2026-10-25-v2-prompt-acceptance/astra-final-rereview-4.md): an unshrinkable first cursor record discards the page and its provider continuation; a failed output replay can leave its new tail cached until eviction; a submission racing world close can stay queued until the next drain.
+- [ ] plan_recipe returns no routes for some items under the bounded live recipe scan (beacon, enchanting table and oak planks in the final-review recheck); the model falls back to search_recipe. The planner is unchanged on this branch.
+- [ ] Exercise the uncached-POI fallback, holder and progress-tree evidence rereads, saved v1 citations and the wandering trader live; they pass automated regressions only.
 - [ ] Complete the broader unchecked item/menu, world-knowledge, journal and progress clauses above before claiming their full acceptance.
 - The paused JEI recipe-planning tasks J3–J7 belong to feat/packsage-v1 and do not apply until a JEI adapter returns.

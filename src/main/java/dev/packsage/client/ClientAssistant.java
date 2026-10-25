@@ -4,6 +4,9 @@ import dev.packsage.chat.AssistantRuntime;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.ConversationStore;
 import dev.packsage.chat.PackSageSettings;
+import dev.packsage.debug.DebugBridge;
+import dev.packsage.debug.DebugRequestLog;
+import dev.packsage.debug.MinecraftDebugAdapter;
 import dev.packsage.client.highlight.WorldHighlighter;
 import dev.packsage.journal.Journal;
 import dev.packsage.journal.JournalHooks;
@@ -108,6 +111,10 @@ public final class ClientAssistant {
     private long resourcesEpoch;
     private String locale;
     private long providerRuntimeEpoch;
+    private DebugBridge debugBridge;
+    private MinecraftDebugAdapter debugAdapter;
+    private DebugRequestLog debugTiming;
+    private boolean previousPauseOnLostFocus;
 
     public ClientAssistant(KeyMapping openAssistant) {
         this.openAssistant = openAssistant;
@@ -170,6 +177,29 @@ public final class ClientAssistant {
             serverWork.closeAll();
             pausedWorkPump.reset();
         });
+        if (DebugBridge.enabled(settings)) {
+            debugTiming = new DebugRequestLog();
+            debugAdapter = new MinecraftDebugAdapter(client, runtime, settingsPath, () -> {
+                assistantScreen = runtime.openScreen(() -> openSettings(false));
+                assistantScreen.setAdvancedSettingsOpener(() -> openSettings(true));
+                assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));
+                client.setScreen(assistantScreen);
+            }, debugTiming);
+            debugBridge = new DebugBridge(client.gameDirectory.toPath(), settings.debugBridgePort(), debugAdapter,
+                    message -> dev.packsage.PackSageLog.LOGGER.info(message));
+            if (debugBridge.start()) {
+                previousPauseOnLostFocus = client.options.pauseOnLostFocus;
+                client.options.pauseOnLostFocus = false;
+                debugTiming.start();
+                NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.RenderFrameEvent.Post ignored) -> debugAdapter.onRenderFrame());
+                NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.GameShuttingDownEvent ignored) -> {
+                    debugBridge.close();
+                    debugAdapter.close();
+                    debugTiming.close();
+                    client.options.pauseOnLostFocus = previousPauseOnLostFocus;
+                });
+            }
+        }
     }
 
     /** Lets a paused integrated server, which skips ServerTickEvent, keep stepping pending world reads. */

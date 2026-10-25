@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -173,15 +174,28 @@ class ItemSearchTest {
     }
 
     @Test
-    void stoppingWhileReplayingKeepsTheEarlierPagesContainers() {
+    void aStopDuringReplayWaitsForOneNewContainer() {
         var reader = new FakeReader();
         var holders = List.of(holder(0, reader.box(reader.box(), reader.box(), reader.box(new ItemStack(Items.IRON_INGOT)))));
-        var search = new ItemSearch(registry(reader), holders, IRON, true, "0.3");
+        var search = new ItemSearch(registry(reader), holders, IRON, true, "0.2");
+        assertTrue(search.step());
+
+        assertFalse(search.stopEarly(), "replaying the earlier page's containers is no progress");
+        assertTrue(search.step());
+        assertFalse(search.stopEarly());
         assertTrue(search.step());
 
         assertTrue(search.stopEarly());
-
         assertEquals("0.3", search.result().nextCursor());
+    }
+
+    @Test
+    void aStopBeforeAnyContainerKeepsStepping() {
+        var reader = new FakeReader();
+        var holders = List.of(holder(0, reader.box(new ItemStack(Items.IRON_INGOT))));
+        var search = new ItemSearch(registry(reader), holders, IRON, true, null);
+
+        assertFalse(search.stopEarly());
     }
 
     @Test

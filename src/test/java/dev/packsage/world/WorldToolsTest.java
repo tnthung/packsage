@@ -197,6 +197,13 @@ class WorldToolsTest {
     }
 
     @Test
+    void gatheringStopsOnlyAfterAtLeastOneNewChunk() {
+        assertFalse(WorldTools.gatherCanStop(10, 4, 4));
+        assertTrue(WorldTools.gatherCanStop(10, 5, 4));
+        assertFalse(WorldTools.gatherCanStop(10, 10, 0));
+    }
+
+    @Test
     void slicedReadsReportTheGameTimeSpanTheyCovered() {
         var time = new long[] {100};
         var inner = new Steps("a", 3, true);

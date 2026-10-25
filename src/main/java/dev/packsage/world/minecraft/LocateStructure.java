@@ -2,7 +2,9 @@ package dev.packsage.world.minecraft;
 
 import dev.packsage.world.ServerWork;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.placement.ConcentricRingsStructurePlacement;
@@ -12,8 +14,10 @@ import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 
 /** One candidate per server step; never loads a chunk or accesses disk. */
 public final class LocateStructure implements ServerWork.Slice<LocateStructure.Result> {
@@ -29,14 +33,15 @@ public final class LocateStructure implements ServerWork.Slice<LocateStructure.R
         boolean loaded(int chunkX, int chunkZ);
         StructureStart loadedStart(int chunkX, int chunkZ, Structure structure);
         boolean placementPasses(StructurePlacement placement, int chunkX, int chunkZ);
-        boolean biomePasses(Structure structure, BlockPos locatePos);
+        boolean biomePasses(Structure structure, BlockPos columnMiddle);
         int surfaceY(int x, int z);
     }
 
     public record Target(String id, Structure structure, List<StructurePlacement> placements) {
     }
 
-    public record Result(List<Hit> hits, int nextRing, List<String> unsupported) {
+    public record Result(List<Hit> hits, int nextRing, int nextEntry, int nextCandidate, List<String> unsupported,
+                         List<String> notes, boolean budget) {
     }
 
     private record Entry(Target target, StructurePlacement placement, List<ChunkPos> positions) {
@@ -49,27 +54,31 @@ public final class LocateStructure implements ServerWork.Slice<LocateStructure.R
     private final int radius;
     private final List<Entry> entries = new ArrayList<>();
     private final List<String> unsupported = new ArrayList<>();
+    private final List<String> notes = new ArrayList<>();
+    private final LinkedHashSet<String> biomeRejected = new LinkedHashSet<>();
     private final List<Hit> hits = new ArrayList<>();
     private final HashSet<String> seen = new HashSet<>();
     private int ring;
     private int lastRing;
     private int entry;
     private int candidate;
-    private int ringHits;
     private int nextRing = -1;
+    private boolean budget;
     private boolean finished;
 
-    /** Construct on the worker; ring positions are captured from generator state before this slice runs. */
+    /** Uses captured placement and ring inputs; World methods are called only by server-thread steps. */
     public LocateStructure(World world, List<Target> targets, long seed,
                            Function<ConcentricRingsStructurePlacement, List<ChunkPos>> rings,
-                           int centerChunkX, int centerChunkZ, int radiusChunks, int startRing) {
+                           int centerChunkX, int centerChunkZ, int radiusChunks, int startRing, int startEntry, int startCandidate) {
         this.world = world;
         this.seed = seed;
         centerX = centerChunkX;
         centerZ = centerChunkZ;
         radius = radiusChunks;
         ring = startRing;
+        if (targets.isEmpty()) notes.add("structure tag is empty");
         for (var target : targets) {
+            if (target.placements().isEmpty()) notes.add(target.id() + " has no placements in this dimension");
             for (var placement : target.placements()) {
                 if (placement instanceof ConcentricRingsStructurePlacement concentric) {
                     entries.add(new Entry(target, placement, StructureCandidates.concentric(rings.apply(concentric), centerX, centerZ, radius)));
@@ -83,6 +92,10 @@ public final class LocateStructure implements ServerWork.Slice<LocateStructure.R
             }
         }
         entries.sort(Comparator.comparing(entry -> entry.positions() == null));
+        if (startEntry >= 0 && startEntry < entries.size()) {
+            entry = startEntry;
+            candidate = startCandidate;
+        }
     }
 
     @Override
@@ -92,7 +105,6 @@ public final class LocateStructure implements ServerWork.Slice<LocateStructure.R
             ring++;
             entry = 0;
             candidate = 0;
-            ringHits = hits.size();
             if (ring > lastRing || hits.size() >= RESULTS) {
                 nextRing = ring <= lastRing ? ring : -1;
                 finished = true;
@@ -143,28 +155,47 @@ public final class LocateStructure implements ServerWork.Slice<LocateStructure.R
                 hits.add(new Hit(current.target().id(), chunk.x, chunk.z, pos.getX(), start.getBoundingBox().getCenter().getY(), pos.getZ(),
                         Kind.FOUND, "loaded chunk"));
             }
-        } else if (world.placementPasses(current.placement(), chunk.x, chunk.z) && world.biomePasses(current.target().structure(), pos)) {
-            seen.add(identity);
-            hits.add(new Hit(current.target().id(), chunk.x, chunk.z, pos.getX(), world.surfaceY(pos.getX(), pos.getZ()), pos.getZ(),
-                    Kind.PREDICTED, "placement and biome checks"));
+        } else if (world.placementPasses(current.placement(), chunk.x, chunk.z)) {
+            if (world.biomePasses(current.target().structure(), chunk.getMiddleBlockPosition(0))) {
+                seen.add(identity);
+                hits.add(new Hit(current.target().id(), chunk.x, chunk.z, pos.getX(), world.surfaceY(pos.getX(), pos.getZ()), pos.getZ(),
+                        Kind.PREDICTED, "placement and biome checks"));
+            } else {
+                biomeRejected.add(current.target().id());
+            }
         }
         return true;
     }
 
     @Override
     public Result result() {
+        var details = new ArrayList<>(notes);
+        if (!biomeRejected.isEmpty()) details.add("biome checks rejected candidate columns for " + String.join(", ", biomeRejected)
+                + "; sampled columns do not prove structure absence");
         return new Result(hits.stream().sorted(Comparator.comparingDouble(hit -> Math.hypot((double) hit.x() - centerX * 16.0,
-                (double) hit.z() - centerZ * 16.0))).toList(), nextRing, List.copyOf(unsupported));
+                (double) hit.z() - centerZ * 16.0))).toList(), nextRing, entry, candidate, List.copyOf(unsupported), List.copyOf(details), budget);
     }
 
     @Override
     public boolean stopEarly() {
         if (!finished) {
-            // Replay the unfinished ring rather than losing any candidates at a tick-budget boundary.
-            hits.subList(ringHits, hits.size()).clear();
-            nextRing = ring;
+            if (entry == entries.size()) {
+                ring++;
+                entry = 0;
+                candidate = 0;
+            }
+            nextRing = ring <= lastRing ? ring : -1;
+            budget = nextRing != -1;
             finished = true;
         }
         return true;
+    }
+
+    /** Vertical biome sampling permits underground starts without requiring terrain generation. */
+    public static boolean biomePasses(Structure structure, int minY, int maxY, IntFunction<Holder<Biome>> biomeAtY) {
+        for (int y = minY; y <= maxY; y += LocateBiome.VERTICAL_STEP) {
+            if (structure.biomes().contains(biomeAtY.apply(y))) return true;
+        }
+        return false;
     }
 }

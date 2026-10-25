@@ -34,11 +34,15 @@ import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.level.storage.loot.LootTable;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -346,11 +350,11 @@ final class WorldKnowledgeTools {
         });
     }
 
-    record StructureState(WorldTools.Center center, String query, int radius, int nextRing) {
+    record StructureState(WorldTools.Center center, String query, int radius, int ring, int entry, int candidate) {
     }
 
     private record StructureRead(WorldTools.Center center, LocateStructure.World world, List<LocateStructure.Target> targets,
-                                 long seed, java.util.Map<ConcentricRingsStructurePlacement, List<ChunkPos>> rings, java.nio.file.Path folder) {
+                                 long seed, Map<ConcentricRingsStructurePlacement, List<ChunkPos>> rings, Path folder) {
     }
 
     private CompletionStage<Evidence.Result> locateStructure(PackSageTools.ReadRequest request, MinecraftServer server,
@@ -366,7 +370,7 @@ final class WorldKnowledgeTools {
             var generatorState = chunks.getGeneratorState();
             var targets = structureTargets(level.registryAccess().registryOrThrow(Registries.STRUCTURE), query).stream().map(holder -> new LocateStructure.Target(
                     holder.unwrapKey().orElseThrow().location().toString(), holder.value(), generatorState.getPlacementsForStructure(holder))).toList();
-            var rings = new java.util.HashMap<ConcentricRingsStructurePlacement, List<ChunkPos>>();
+            var rings = new HashMap<ConcentricRingsStructurePlacement, List<ChunkPos>>();
             for (var target : targets) for (var placement : target.placements()) {
                 if (placement instanceof ConcentricRingsStructurePlacement concentric) {
                     var positions = generatorState.getRingPositionsFor(concentric);
@@ -394,8 +398,9 @@ final class WorldKnowledgeTools {
 
                 @Override
                 public boolean biomePasses(Structure structure, BlockPos pos) {
-                    return structure.biomes().contains(generator.getBiomeSource().getNoiseBiome(QuartPos.fromBlock(pos.getX()),
-                            QuartPos.fromBlock(surfaceY(pos.getX(), pos.getZ())), QuartPos.fromBlock(pos.getZ()), random.sampler()));
+                    return LocateStructure.biomePasses(structure, level.getMinBuildHeight(), level.getMaxBuildHeight() - 1,
+                            y -> generator.getBiomeSource().getNoiseBiome(QuartPos.fromBlock(pos.getX()), QuartPos.fromBlock(y),
+                                    QuartPos.fromBlock(pos.getZ()), random.sampler()));
                 }
 
                 @Override
@@ -407,24 +412,14 @@ final class WorldKnowledgeTools {
                     DimensionType.getStorageFolder(level.dimension(), server.getWorldPath(LevelResource.ROOT)));
         }))).thenCompose(read -> calls.run(server, new LocateStructure(read.world(), read.targets(), read.seed(), read.rings()::get,
                 SectionPos.blockToSectionCoord(read.center().position().x), SectionPos.blockToSectionCoord(read.center().position().z),
-                searchRadius, state == null ? 0 : state.nextRing())).thenCompose(result -> {
-                    var ordered = result.hits().stream().sorted(java.util.Comparator.comparingDouble(hit ->
+                searchRadius, state == null ? 0 : state.ring(), state == null ? 0 : state.entry(), state == null ? 0 : state.candidate())).thenCompose(result -> {
+                    var ordered = result.hits().stream().sorted(Comparator.comparingDouble(hit ->
                             Math.hypot(hit.x() - read.center().position().x, hit.z() - read.center().position().z))).toList();
-                    return CompletableFuture.supplyAsync(() -> {
-                                var confirmed = new ArrayList<LocateStructure.Hit>();
-                                var scans = 0;
-                                for (var hit : ordered) {
-                                    if (hit.kind() == LocateStructure.Kind.FOUND || scans >= LocateStructure.SCANS) {
-                                        confirmed.add(hit);
-                                    } else {
-                                        scans++;
-                                        confirmed.addAll(confirm(List.of(hit), chunk -> ReadOnlyRegions.read(read.folder(), chunk, hit.structure())));
-                                    }
-                                }
-                                return List.copyOf(confirmed);
-                            }, calls.worker())
+                    return CompletableFuture.supplyAsync(() -> confirm(ordered,
+                                    hit -> ReadOnlyRegions.read(read.folder(), new ChunkPos(hit.chunkX(), hit.chunkZ()), hit.structure())), calls.worker())
                             .orTimeout(10, TimeUnit.SECONDS).handleAsync((hits, failure) -> structureResult(request, read.center(), query,
-                                    searchRadius, new LocateStructure.Result(failure == null ? hits : ordered, result.nextRing(), result.unsupported()),
+                                    searchRadius, new LocateStructure.Result(failure == null ? hits : ordered, result.nextRing(), result.nextEntry(),
+                                            result.nextCandidate(), result.unsupported(), result.notes(), result.budget()),
                                     failure != null), calls.worker());
                 }));
     }
@@ -445,7 +440,7 @@ final class WorldKnowledgeTools {
     }
 
     /** Worker-only saved verdicts. ABSENT rules out this saved candidate, never other predictions. */
-    static List<LocateStructure.Hit> confirm(List<LocateStructure.Hit> hits, Function<ChunkPos, SavedStarts.Verdict> verdicts) {
+    static List<LocateStructure.Hit> confirm(List<LocateStructure.Hit> hits, Function<LocateStructure.Hit, SavedStarts.Verdict> verdicts) {
         var confirmed = new ArrayList<LocateStructure.Hit>();
         var scans = 0;
         for (var hit : hits) {
@@ -454,7 +449,7 @@ final class WorldKnowledgeTools {
                 continue;
             }
             scans++;
-            var verdict = verdicts.apply(new ChunkPos(hit.chunkX(), hit.chunkZ()));
+            var verdict = verdicts.apply(hit);
             if (verdict == SavedStarts.Verdict.FOUND) {
                 confirmed.add(new LocateStructure.Hit(hit.structure(), hit.chunkX(), hit.chunkZ(), hit.x(), hit.y(), hit.z(),
                         LocateStructure.Kind.FOUND, "saved chunk"));
@@ -492,12 +487,16 @@ final class WorldKnowledgeTools {
         notes.add("saved reads are limited to " + LocateStructure.SCANS + " candidates and may miss unsaved changes; absent means only not found in saved data");
         if (!result.unsupported().isEmpty()) notes.add("unsupported placements: " + String.join(", ", result.unsupported()));
         if (timeout) notes.add("saved-chunk reading exceeded 10 seconds or failed; candidates remain predicted");
+        notes.addAll(result.notes());
+        if (result.hits().size() > LocateStructure.RESULTS) notes.add((result.hits().size() - LocateStructure.RESULTS)
+                + " more hits found on this page; showing the nearest " + LocateStructure.RESULTS);
         if (result.nextRing() != -1) notes.add("search paused at ring " + result.nextRing()
-                + " after a result page or the 500 ms server budget; continue with the cursor");
+                + ", entry " + result.nextEntry() + ", candidate " + result.nextCandidate()
+                + " after " + (result.budget() ? "the 500 ms server budget" : "a result page") + "; continue with the cursor");
         if (records.isEmpty()) notes.add(result.nextRing() == -1 ? "no matching starts found in loaded or saved data and no remaining predictions"
                 : "candidates in range were ruled out by saved chunks or the search was bounded; continue to search further");
         return WorldTools.result(records, coverage, result.nextRing() == -1 ? null
-                : calls.remember(request, new StructureState(center, query, radius, result.nextRing())), String.join("; ", notes));
+                : calls.remember(request, new StructureState(center, query, radius, result.nextRing(), result.nextEntry(), result.nextCandidate())), String.join("; ", notes));
     }
 
     /** Worker only: resolve an id or tag, then restrict it to biomes this source can produce. */

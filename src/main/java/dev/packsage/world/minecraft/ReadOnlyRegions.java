@@ -29,8 +29,8 @@ public final class ReadOnlyRegions {
             var location = header.getInt(4 * (Math.floorMod(chunk.x, 32) + Math.floorMod(chunk.z, 32) * 32));
             var offset = (long) (location >>> 8) * 4096;
             var sectors = location & 255;
-            if (offset < 8192 || sectors == 0 || offset + sectors * 4096L > size) return SavedStarts.Verdict.UNKNOWN;
-            var data = ByteBuffer.allocate(sectors * 4096);
+            if (offset < 8192 || sectors == 0 || offset + 5 > size) return SavedStarts.Verdict.UNKNOWN;
+            var data = ByteBuffer.allocate((int) Math.min(sectors * 4096L, size - offset));
             while (data.hasRemaining()) if (channel.read(data, offset + data.position()) <= 0) return SavedStarts.Verdict.UNKNOWN;
             var length = data.getInt(0);
             if (length <= 1 || length > data.capacity() - 4) return SavedStarts.Verdict.UNKNOWN;

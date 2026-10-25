@@ -36,10 +36,6 @@ class JournalNavigationTest {
         }
     }
 
-    private static Evidence.NavigationTarget target(String id) {
-        return new Evidence.NavigationTarget(SCOPE, JournalTools.ID, "note:" + ID, id);
-    }
-
     @Test
     void navigationIdsRoundTrip() {
         assertEquals("journal-place|minecraft:overworld|1,64,1", JournalNavigation.placeId(PLACE));
@@ -59,7 +55,7 @@ class JournalNavigationTest {
         notes.load(List.of(note));
         var client = new FakeClient();
         var navigation = new JournalNavigation(notes, client);
-        var target = target(JournalNavigation.noteId(ID));
+        var target = new Evidence.NavigationTarget(SCOPE, JournalTools.ID, "note:" + ID, JournalNavigation.noteId(ID));
         var before = System.currentTimeMillis();
         assertEquals(Evidence.NavigationStatus.OPENED, navigation.open(target).status());
         assertTrue(client.until >= before + 30_000 && client.until <= System.currentTimeMillis() + 30_000);
@@ -75,7 +71,7 @@ class JournalNavigationTest {
         notes.load(List.of(new Note(ID, "farm", null, List.of(), PLACE, 1, 1, 1, null, null)));
         var client = new FakeClient();
         var navigation = new JournalNavigation(notes, client);
-        var target = target(JournalNavigation.noteId(ID));
+        var target = new Evidence.NavigationTarget(SCOPE, JournalTools.ID, "note:" + ID, JournalNavigation.noteId(ID));
         notes.remove(ID);
         assertEquals(new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "this note was forgotten"), navigation.open(target));
         assertNull(navigation.refresh(target, SCOPE).toCompletableFuture().get());
@@ -87,7 +83,7 @@ class JournalNavigationTest {
         var notes = new NoteBook();
         var client = new FakeClient();
         var navigation = new JournalNavigation(notes, client);
-        var target = target(JournalNavigation.noteId(ID));
+        var target = new Evidence.NavigationTarget(SCOPE, JournalTools.ID, "note:" + ID, JournalNavigation.noteId(ID));
         assertEquals(new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "the journal is still opening"), navigation.open(target));
         assertNotNull(navigation.refresh(target, SCOPE).toCompletableFuture().get());
         notes.load(List.of(new Note(ID, "farm", null, List.of(), null, 1, 1, 1, null, null)));
@@ -101,7 +97,7 @@ class JournalNavigationTest {
         client.dimension = "minecraft:the_nether";
         var navigation = new JournalNavigation(new NoteBook(), client);
         assertEquals(new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, "1, 64, 1 in minecraft:overworld"),
-                navigation.open(target(JournalNavigation.placeId(PLACE))));
+                navigation.open(new Evidence.NavigationTarget(SCOPE, JournalTools.ID, "event:1", JournalNavigation.placeId(PLACE))));
         assertTrue(client.drawn.isEmpty());
     }
 
@@ -110,7 +106,8 @@ class JournalNavigationTest {
         var world = new ChatContracts.WorldIdentity("world", "World");
         var store = new ConversationStore(directory.resolve("chat"), Runnable::run);
         var conversation = store.newConversation(world).toCompletableFuture().join();
-        var targets = List.of(target(JournalNavigation.noteId(ID)), target(JournalNavigation.placeId(PLACE)));
+        var targets = List.of(new Evidence.NavigationTarget(SCOPE, JournalTools.ID, "note:" + ID, JournalNavigation.noteId(ID)),
+                new Evidence.NavigationTarget(SCOPE, JournalTools.ID, "note:" + ID, JournalNavigation.placeId(PLACE)));
         var source = new Evidence.Source(SCOPE, JournalTools.ID, JournalTools.VERSION, "note:" + ID, 1, Instant.EPOCH,
                 Evidence.Activity.INACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.PLAYER_REPORTED, List.of());
         store.appendTurn(world, SCOPE, conversation.id(), new ChatContracts.Turn(new ChatContracts.RequestId("saved"), "Where is my farm?",
@@ -138,7 +135,7 @@ class JournalNavigationTest {
         assertEquals(List.of(PLACE, PLACE), client.drawn);
         client.dimension = null;
         assertEquals(Evidence.NavigationStatus.UNAVAILABLE, navigation.open(saved.getFirst()).status());
-        assertNull(navigation.refresh(target("journal-note|bad"), reloaded).toCompletableFuture().get());
+        assertNull(navigation.refresh(new Evidence.NavigationTarget(SCOPE, JournalTools.ID, "note:" + ID, "journal-note|bad"), reloaded).toCompletableFuture().get());
         assertNull(navigation.refresh(new Evidence.NavigationTarget(SCOPE, "world", "note:" + ID, JournalNavigation.noteId(ID)), reloaded)
                 .toCompletableFuture().get());
     }

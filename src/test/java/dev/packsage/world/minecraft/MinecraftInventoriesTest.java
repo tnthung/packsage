@@ -167,6 +167,19 @@ class MinecraftInventoriesTest {
     }
 
     @Test
+    void potionEffectsBeyondTheBoundMakeTheSectionPartial() {
+        var potion = new ItemStack(Items.POTION);
+        potion.set(DataComponents.POTION_CONTENTS, new PotionContents(java.util.Optional.empty(), java.util.Optional.empty(),
+                java.util.stream.IntStream.range(0, 33).mapToObj(index -> new MobEffectInstance(MobEffects.JUMP, 20 + index, 0)).toList()));
+        var section = inventories.inspectItem(potion);
+        var contents = ((Evidence.JsonObject) section.facts().values().get("potion")).values();
+        assertEquals(new Evidence.JsonString("bounded"), contents.get("effectsStatus"));
+        assertEquals(32, ((Evidence.JsonArray) contents.get("effects")).values().size());
+        assertEquals(Evidence.Coverage.PARTIAL, section.coverage());
+        assertEquals("Potion effects are bounded", section.note());
+    }
+
+    @Test
     void everyItemReportsEnchantmentEligibilityEvenWhenNothingApplies() {
         var section = inventories.inspectItem(new ItemStack(Items.STONE));
         var eligibility = ((Evidence.JsonObject) section.facts().values().get("enchantmentEligibility")).values();

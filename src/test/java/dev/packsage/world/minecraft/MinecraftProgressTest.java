@@ -401,6 +401,10 @@ class MinecraftProgressTest {
         var reader = new MinecraftProgress();
 
         run(reader.snapshot(world.source()), new int[1]);
+        assertEquals(3, world.lookups);
+        world.lookups = 0;
+        reader.inspect(world.source(), "test:a/child");
+        assertEquals(3, world.lookups);
         for (var local : List.of("test:a/root", "test:a/child", "test:a/secret", "test:a/recipe")) {
             reader.inspect(world.source(), local);
         }

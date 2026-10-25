@@ -26,7 +26,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### World block, mob and storage reading (v2)
 
-- [ ] Minecraft — installed checks for cached-only POI facts and partial coverage, mutation-safe chunk snapshots/UUID paging without chunk-border repeats, stable single-tick COMPLETE coverage and tick-span gaps, single-count unavailable entity chunks, dense entity/holder pacing, capped attribute coverage and asynchronous highlights; [automated regressions pass](../validation/2026-10-26-world-review-fixes.md), live acceptance pending.
+- [ ] Minecraft — installed checks for cached-only POI facts and partial coverage, mutation-safe chunk snapshots/UUID paging without chunk-border repeats, stable single-tick COMPLETE coverage and tick-span gaps, single-count unavailable entity chunks, bounded neighboring-candidate traversal, reachable entity/holder tails beyond 4,096 entries, byte-bounded long-name entity pages, dense entity/holder pacing, capped attribute coverage and asynchronous highlights; [automated regressions pass](../validation/2026-10-26-world-review-fixes.md), live acceptance pending.
 - [x] Minecraft — nearby/nested storage search, both stone stores and per-holder highlights, continued complete 72-type catalogue, sampled responsive 320-chest search and exact saved chest link after full restart (W1/W4/W5/W6/W7).
 - [x] Minecraft — villager home/job/sleep/work facts and gameTime interpretation combined with fresh bed-break/zombie-death evidence (C6/Q5, W2); specific golem expiry conversion remains unexercised.
 - [x] Minecraft — mob attributes and horse-like jump/speed facts, including cited 1.62-block mule jump (W8) and earlier horse acceptance. Its omitted coordinates remain a separate E6 failure below.

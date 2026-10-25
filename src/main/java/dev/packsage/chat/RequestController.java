@@ -638,14 +638,17 @@ public final class RequestController {
         }
         if (!install) startedExchange.cancel();
         else for (ModelBackend.ToolResult result : pending) {
+            int resultBytes = result.serializedResult().getBytes(StandardCharsets.UTF_8).length;
+            ToolTiming.Interval timing;
+            String tool;
             synchronized (stateLock) {
-                long sentAtNanos = System.nanoTime();
-                request.toolIntervals.add(new ToolTiming.Interval(request.toolReceivedAtNanos.get(result.callId()), sentAtNanos));
-                PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_result_sent call={} tool={} event_ns={} toolMs={} resultBytes={} error={}",
-                        request.submission.requestId().value(), result.callId(), request.toolCalls.get(result.callId()).name(), sentAtNanos,
-                        (sentAtNanos - request.toolReceivedAtNanos.get(result.callId())) / 1_000_000,
-                        result.serializedResult().getBytes(StandardCharsets.UTF_8).length, result.error());
+                tool = request.toolCalls.get(result.callId()).name();
+                timing = new ToolTiming.Interval(request.toolReceivedAtNanos.get(result.callId()), System.nanoTime());
+                request.toolIntervals.add(timing);
             }
+            PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_result_sent call={} tool={} event_ns={} toolMs={} resultBytes={} error={}",
+                    request.submission.requestId().value(), result.callId(), tool, timing.endNanos(),
+                    (timing.endNanos() - timing.startNanos()) / 1_000_000, resultBytes, result.error());
             startedExchange.submit(result);
         }
         request.started.complete(request.submission.requestId());
@@ -741,13 +744,13 @@ public final class RequestController {
     private void startTool(ActiveRequest request, ModelBackend.ToolCall call) {
         ChatContracts.ToolRequest toolRequest;
         ChatContracts.View started;
+        long receivedAtNanos;
+        int step;
         synchronized (stateLock) {
             if (!isCurrent(request) || request.toolCalls.putIfAbsent(call.callId(), call) != null) return;
-            long receivedAtNanos = System.nanoTime();
+            receivedAtNanos = System.nanoTime();
             request.toolReceivedAtNanos.put(call.callId(), receivedAtNanos);
-            PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_received call={} tool={} step={} event_ns={} elapsed_ms={}",
-                    request.submission.requestId().value(), call.callId(), call.name(), request.toolCalls.size(), receivedAtNanos,
-                    (receivedAtNanos - request.acceptedAtNanos) / 1_000_000);
+            step = request.toolCalls.size();
             request.partialReplay.add(call);
             toolRequest = new ChatContracts.ToolRequest(request.submission, call);
             request.activity = ActivityLabels.tool(call, request.toolCalls.size());
@@ -756,6 +759,9 @@ public final class RequestController {
                     "", ChatContracts.ActivityStatus.RUNNING, call.serializedArguments()));
             started = currentView();
         }
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_received call={} tool={} step={} event_ns={} elapsed_ms={}",
+                request.submission.requestId().value(), call.callId(), call.name(), step, receivedAtNanos,
+                (receivedAtNanos - request.acceptedAtNanos) / 1_000_000);
         publisher.accept(started);
         CompletionStage<ChatContracts.ToolResponse> execution;
         try {
@@ -772,50 +778,59 @@ public final class RequestController {
 
     private void toolReady(ActiveRequest request, ModelBackend.ToolCall call, ChatContracts.ToolResponse response) {
         ModelBackend.Exchange targetExchange = null;
-        ChatContracts.View snapshot;
+        ChatContracts.View snapshot = null;
+        boolean dropped;
         synchronized (stateLock) {
-            if (!isCurrent(request) || !call.callId().equals(response.result().callId())
+            dropped = !isCurrent(request) || !call.callId().equals(response.result().callId())
                     || request.toolResults.containsKey(call.callId())
                     || response.evidence().sources().stream().anyMatch(source -> !request.submission.scope().equals(source.scope()))
                     || response.evidence().navigationTargets().stream()
-                    .anyMatch(target -> !request.submission.scope().equals(target.scope()))) {
-                PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_result_dropped call={} tool={} event_ns={}",
-                        request.submission.requestId().value(), call.callId(), call.name(), System.nanoTime());
-                return;
-            }
-            request.toolResults.put(call.callId(), response.result());
-            request.partialReplay.add(response.result());
-            String activityId = "tool:" + call.callId();
-            ChatContracts.ActivityStep toolActivity = request.activities.get(activityId);
-            if (toolActivity != null) request.activities.put(activityId, new ChatContracts.ActivityStep(activityId,
-                    toolActivity.title(), response.result().error()
-                    ? ActivityLabels.toolError(response.result().serializedResult()) : "Completed",
-                    response.result().error() ? ChatContracts.ActivityStatus.FAILED : ChatContracts.ActivityStatus.COMPLETED,
-                    toolActivity.serializedArguments()));
-            List<Evidence.Source> mergedSources = new ArrayList<>(request.evidence.sources());
-            response.evidence().sources().forEach(source -> {
-                if (!mergedSources.contains(source)) mergedSources.add(source);
-            });
-            List<Evidence.NavigationTarget> mergedTargets = new ArrayList<>(request.evidence.navigationTargets());
-            response.evidence().navigationTargets().forEach(target -> {
-                if (!mergedTargets.contains(target)) mergedTargets.add(target);
-            });
-            request.evidence = new ChatContracts.EvidenceSelection(mergedSources, mergedTargets);
-            request.activity = ActivityLabels.WAITING;
-            sources = request.evidence.sources();
-            navigationTargets = request.evidence.navigationTargets();
-            snapshot = currentView();
-            if (request.exchange != null && request.submittedResults.add(call.callId())) {
-                targetExchange = request.exchange;
-                long sentAtNanos = System.nanoTime();
-                request.toolIntervals.add(new ToolTiming.Interval(request.toolReceivedAtNanos.get(call.callId()), sentAtNanos));
-                PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_result_sent call={} tool={} event_ns={} toolMs={} resultBytes={} error={}",
-                        request.submission.requestId().value(), call.callId(), call.name(), sentAtNanos,
-                        (sentAtNanos - request.toolReceivedAtNanos.get(call.callId())) / 1_000_000,
-                        response.result().serializedResult().getBytes(StandardCharsets.UTF_8).length, response.result().error());
+                    .anyMatch(target -> !request.submission.scope().equals(target.scope()));
+            if (!dropped) {
+                request.toolResults.put(call.callId(), response.result());
+                request.partialReplay.add(response.result());
+                String activityId = "tool:" + call.callId();
+                ChatContracts.ActivityStep toolActivity = request.activities.get(activityId);
+                if (toolActivity != null) request.activities.put(activityId, new ChatContracts.ActivityStep(activityId,
+                        toolActivity.title(), response.result().error()
+                        ? ActivityLabels.toolError(response.result().serializedResult()) : "Completed",
+                        response.result().error() ? ChatContracts.ActivityStatus.FAILED : ChatContracts.ActivityStatus.COMPLETED,
+                        toolActivity.serializedArguments()));
+                List<Evidence.Source> mergedSources = new ArrayList<>(request.evidence.sources());
+                response.evidence().sources().forEach(source -> {
+                    if (!mergedSources.contains(source)) mergedSources.add(source);
+                });
+                List<Evidence.NavigationTarget> mergedTargets = new ArrayList<>(request.evidence.navigationTargets());
+                response.evidence().navigationTargets().forEach(target -> {
+                    if (!mergedTargets.contains(target)) mergedTargets.add(target);
+                });
+                request.evidence = new ChatContracts.EvidenceSelection(mergedSources, mergedTargets);
+                request.activity = ActivityLabels.WAITING;
+                sources = request.evidence.sources();
+                navigationTargets = request.evidence.navigationTargets();
+                snapshot = currentView();
+                if (request.exchange != null && request.submittedResults.add(call.callId())) {
+                    targetExchange = request.exchange;
+                }
             }
         }
-        if (targetExchange != null) targetExchange.submit(response.result());
+        if (dropped) {
+            PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_result_dropped call={} tool={} event_ns={}",
+                    request.submission.requestId().value(), call.callId(), call.name(), System.nanoTime());
+            return;
+        }
+        if (targetExchange != null) {
+            int resultBytes = response.result().serializedResult().getBytes(StandardCharsets.UTF_8).length;
+            ToolTiming.Interval timing;
+            synchronized (stateLock) {
+                timing = new ToolTiming.Interval(request.toolReceivedAtNanos.get(call.callId()), System.nanoTime());
+                request.toolIntervals.add(timing);
+            }
+            PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_result_sent call={} tool={} event_ns={} toolMs={} resultBytes={} error={}",
+                    request.submission.requestId().value(), call.callId(), call.name(), timing.endNanos(),
+                    (timing.endNanos() - timing.startNanos()) / 1_000_000, resultBytes, response.result().error());
+            targetExchange.submit(response.result());
+        }
         publisher.accept(snapshot);
     }
 

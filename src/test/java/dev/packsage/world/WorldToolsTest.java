@@ -573,6 +573,33 @@ class WorldToolsTest {
         assertEquals(java.util.Set.of("The preview slots of unknown could not be read: slot broke"), brokenNotes);
     }
 
+    @Test
+    void worldToolsAcceptEveryHolderSearchInventoryCouldRead() throws Exception {
+        var requests = new java.util.ArrayList<PackSageTools.ReadRequest>();
+        var tools = new PackSageTools(request -> {
+            requests.add(request);
+            return java.util.concurrent.CompletableFuture.completedFuture(new Evidence.Result(java.util.List.of(),
+                    Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
+        });
+        var calls = new java.util.LinkedHashMap<String, String>();
+        for (var holder : java.util.List.of("player", "held", "offhand", "targeted", "ridden", "opened")) {
+            calls.put("{\"holder\":\"" + holder + "\"}", "list_items");
+        }
+        calls.put("{\"holder\":\"player\",\"filter\":{\"ids\":[\"minecraft:diamond\"],\"tags\":[\"c:gems\"],\"text\":\"diamond\",\"tooltip\":[\"Unbreakable\"]}}", "list_items");
+        calls.put("{\"path\":\"held\"}", "inspect_item");
+        calls.put("{\"path\":\"offhand\"}", "inspect_item");
+
+        for (var call : calls.entrySet()) {
+            requests.clear();
+            var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("coverage", call.getValue(), call.getKey()), SCOPE)
+                    .toCompletableFuture().get();
+            assertFalse(response.result().error(), call.getValue() + " " + call.getKey() + ": " + response.result().serializedResult());
+            assertEquals(1, requests.size(), call.getKey());
+            assertEquals(call.getValue(), requests.getFirst().tool());
+            assertEquals(Evidence.deserializeObject(call.getKey()), requests.getFirst().arguments(), call.getKey());
+        }
+    }
+
     /** A menu that fails the test when anything moves, clicks or syncs its slots. */
     private static final class TestMenu extends net.minecraft.world.inventory.AbstractContainerMenu {
         private TestMenu(int containerId) {

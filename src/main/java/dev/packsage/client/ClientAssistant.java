@@ -5,6 +5,8 @@ import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.ConversationStore;
 import dev.packsage.chat.PackSageSettings;
 import dev.packsage.client.highlight.WorldHighlighter;
+import dev.packsage.journal.Journal;
+import dev.packsage.journal.JournalHooks;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.KnowledgeService;
@@ -80,6 +82,7 @@ public final class ClientAssistant {
     private final Minecraft client;
     private final Executor clientExecutor;
     private final ExecutorService workerExecutor;
+    private final Journal journal;
     private final KeyMapping openAssistant;
     private final Path settingsPath;
     private final PackSageSettings settings;
@@ -109,6 +112,8 @@ public final class ClientAssistant {
             thread.setDaemon(true);
             return thread;
         });
+        journal = new Journal(workerExecutor);
+        new JournalHooks(journal, client::getSingleplayerServer).register(NeoForge.EVENT_BUS);
         locale = client.getLanguageManager().getSelected();
         settingsPath = client.gameDirectory.toPath().resolve("config").resolve("packsage.properties");
         settings = PackSageSettings.load(settingsPath);

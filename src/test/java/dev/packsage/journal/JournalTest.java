@@ -1,16 +1,16 @@
 package dev.packsage.journal;
 
+import cpw.mods.niofs.union.UnionFileSystem;
 import dev.packsage.knowledge.Evidence;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.io.File;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -157,14 +157,17 @@ class JournalTest {
         try (var worker = Executors.newSingleThreadExecutor()) {
             var journal = new Journal(worker);
             journal.open(dir, () -> 0);
-            journal.close().get(10, TimeUnit.SECONDS);
-            assertFalse(journal.ready());
-            assertFalse(journal.recording());
-            assertTrue(journal.unavailableReason().contains(dir.toString()));
-            journal.record(JournalEvents.broken(new JournalEvents.Stamp(0, 100, "minecraft:overworld"),
-                    "player:A", null, "minecraft:sand", 1, 64, 2));
-            assertThrows(ExecutionException.class, () -> journal.read(JournalStore::sessions).toCompletableFuture().get());
-            assertThrows(ExecutionException.class, () -> journal.write(JournalStore::notes).toCompletableFuture().get());
+            try {
+                assertThrows(ExecutionException.class, () -> journal.write(JournalStore::notes).toCompletableFuture().get(10, TimeUnit.SECONDS));
+                assertFalse(journal.ready());
+                assertFalse(journal.recording());
+                assertTrue(journal.unavailableReason().contains(dir.toString()));
+                journal.record(JournalEvents.broken(new JournalEvents.Stamp(0, 100, "minecraft:overworld"),
+                        "player:A", null, "minecraft:sand", 1, 64, 2));
+                assertThrows(ExecutionException.class, () -> journal.read(JournalStore::sessions).toCompletableFuture().get());
+            } finally {
+                journal.close().get(10, TimeUnit.SECONDS);
+            }
         }
     }
 
@@ -244,25 +247,36 @@ class JournalTest {
             throw new UnsatisfiedLinkError("test native load failure");
         });
         journal.open(dir.resolve("journal.db"), () -> 0);
-        journal.close().get(10, TimeUnit.SECONDS);
-        assertFalse(journal.ready());
-        assertFalse(journal.recording());
-        assertTrue(journal.unavailableReason().contains("test native load failure"));
+        try {
+            assertThrows(ExecutionException.class, () -> journal.write(JournalStore::notes).toCompletableFuture().get(10, TimeUnit.SECONDS));
+            assertFalse(journal.ready());
+            assertFalse(journal.recording());
+            assertTrue(journal.unavailableReason().contains("test native load failure"));
+        } finally {
+            journal.close().get(10, TimeUnit.SECONDS);
+        }
     }
 
     @Test
     void systemExitWaitsForThePendingFlushAndBoundsAStuckWriter() throws Exception {
         var classpath = List.of(JournalShutdownProcess.class, Journal.class, org.sqlite.SQLiteConfig.class,
                         org.slf4j.LoggerFactory.class, com.google.gson.JsonObject.class).stream()
-                .map(type -> Path.of(java.net.URI.create(type.getProtectionDomain().getCodeSource().getLocation().toString())).toString())
+                .map(type -> Path.of(java.net.URI.create(type.getProtectionDomain().getCodeSource().getLocation().toString())))
+                .map(path -> path.getFileSystem() instanceof UnionFileSystem union ? union.getPrimaryPath().toString() : path.toString())
                 .distinct().collect(Collectors.joining(File.pathSeparator));
+        var project = Path.of(System.getProperty("user.dir"));
+        while (!Files.isDirectory(project.resolve("build/classes/java/test"))) {
+            project = project.getParent();
+        }
+        classpath = project.resolve("build/classes/java/test") + File.pathSeparator
+                + project.resolve("build/classes/java/main") + File.pathSeparator + classpath;
         for (var mode : List.of("flush", "stuck")) {
             var file = dir.resolve(mode + ".db");
             var process = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java.exe").toString(),
                     "-cp", classpath, JournalShutdownProcess.class.getName(), file.toString(), mode)
                     .redirectErrorStream(true).redirectOutput(dir.resolve(mode + ".log").toFile()).start();
             try {
-                assertTrue(process.waitFor(20, TimeUnit.SECONDS), Files.readString(dir.resolve(mode + ".log")));
+                assertTrue(process.waitFor(20, TimeUnit.SECONDS), classpath + "\n" + Files.readString(dir.resolve(mode + ".log")));
                 assertEquals(0, process.exitValue(), Files.readString(dir.resolve(mode + ".log")));
                 if (mode.equals("flush")) {
                     try (var store = JournalStore.open(file)) {

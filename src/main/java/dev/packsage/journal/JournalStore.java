@@ -331,25 +331,27 @@ public final class JournalStore implements AutoCloseable {
     @Override
     public void close() throws SQLException {
         checkWriterThread();
-        SQLException failure = null;
-        try (var statement = writer.createStatement()) {
-            statement.execute("PRAGMA wal_checkpoint(TRUNCATE)");
-        } catch (SQLException e) {
-            failure = e;
-        }
-        for (var connection : new Connection[]{reader, writer}) {
-            try {
-                connection.close();
+        synchronized (reader) {
+            SQLException failure = null;
+            try (var statement = writer.createStatement()) {
+                statement.execute("PRAGMA wal_checkpoint(TRUNCATE)");
             } catch (SQLException e) {
-                if (failure == null) {
-                    failure = e;
-                } else {
-                    failure.addSuppressed(e);
+                failure = e;
+            }
+            for (var connection : new Connection[]{reader, writer}) {
+                try {
+                    connection.close();
+                } catch (SQLException e) {
+                    if (failure == null) {
+                        failure = e;
+                    } else {
+                        failure.addSuppressed(e);
+                    }
                 }
             }
-        }
-        if (failure != null) {
-            throw failure;
+            if (failure != null) {
+                throw failure;
+            }
         }
     }
 

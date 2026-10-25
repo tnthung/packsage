@@ -19,6 +19,10 @@ public final class JournalStats {
     final LongAdder written = new LongAdder();
     /** Events lost to a failed batch or a journal that never opened. */
     final LongAdder failedEvents = new LongAdder();
+    final LongAdder hookFailures = new LongAdder();
+    final LongAdder droppedExplosionPositions = new LongAdder();
+    final LongAdder trackerEvictions = new LongAdder();
+    final LongAdder oversizedSnapshots = new LongAdder();
     final AtomicLong maxBatchMillis = new AtomicLong();
     final AtomicLong maxHookNanosPerTick = new AtomicLong();
     private final LongAdder tickHookNanos = new LongAdder();
@@ -40,13 +44,32 @@ public final class JournalStats {
         return failedEvents.sum();
     }
 
+    public long hookFailures() {
+        return hookFailures.sum();
+    }
+
+    public long droppedExplosionPositions() {
+        return droppedExplosionPositions.sum();
+    }
+
+    public long trackerEvictions() {
+        return trackerEvictions.sum();
+    }
+
+    public long oversizedSnapshots() {
+        return oversizedSnapshots.sum();
+    }
+
     void batchMillis(long millis) {
         maxBatchMillis.accumulateAndGet(millis, Math::max);
     }
 
     public String summary() {
         return "journal: offered " + offered.sum() + ", written " + written.sum() + " (overflowed " + overflowed.sum()
-                + "), failed " + failedEvents.sum() + ", slowest batch " + maxBatchMillis.get() + " ms, hooks "
+                + "), failed " + failedEvents.sum() + ", hook failures " + hookFailures.sum()
+                + ", dropped explosion positions " + droppedExplosionPositions.sum() + ", tracker evictions "
+                + trackerEvictions.sum() + ", oversized snapshots " + oversizedSnapshots.sum()
+                + ", slowest batch " + maxBatchMillis.get() + " ms, hooks "
                 + totalHookNanos.sum() / 1_000_000 + " ms total, slowest tick " + maxHookNanosPerTick.get() / 1_000 + " us";
     }
 }

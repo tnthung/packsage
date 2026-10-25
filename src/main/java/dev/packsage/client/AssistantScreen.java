@@ -793,7 +793,8 @@ public final class AssistantScreen extends Screen {
                 if (span.target() != null || span.source() != null || span.externalUrl() != null) {
                     boolean navigation = span.target() != null || span.externalUrl() != null;
                     String labelText = span.text();
-                    if (navigation && !labelText.regionMatches(true, 0, "Open ", 0, 5)) labelText = "Open " + labelText;
+                    String verb = span.target() == null ? "Open" : ScreenText.navigationVerb(span.target());
+                    if (navigation && !labelText.regionMatches(true, 0, verb + " ", 0, verb.length() + 1)) labelText = verb + " " + labelText;
                     else if (!navigation && !labelText.regionMatches(true, 0, "Source: ", 0, 8)) labelText = "Source: " + labelText;
                     boolean bold = navigation;
                     Component label = Component.literal(labelText).withStyle(style -> style

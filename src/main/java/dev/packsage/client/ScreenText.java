@@ -401,7 +401,7 @@ final class ScreenText {
                                     .reduce((first, latest) -> latest).orElse(null);
                             if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
                                 case "config" -> "Config";
-                                case "world" -> "Place";
+                                case "world" -> "in world";
                                 default -> "Source";
                             }, target, ModernUi.TEXT, false, false, source));
                             else {
@@ -429,7 +429,7 @@ final class ScreenText {
                             && value.sourceHandle().equals(marker.group(2))).reduce((first, latest) -> latest).orElse(null);
                     if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
                         case "config" -> "Config";
-                        case "world" -> "Place";
+                        case "world" -> "in world";
                         default -> "Source";
                     }, target, ModernUi.TEXT, false, false, source));
                     else if (source != null) spans.add(new InlineSpan(sourceLabels.getOrDefault(source,
@@ -664,8 +664,14 @@ final class ScreenText {
         return "Outcome: " + outcome.status() + (outcome.detail() == null ? "" : " (" + outcome.detail() + ")");
     }
 
+    /** World targets highlight something in place rather than opening a screen. */
+    static String navigationVerb(Evidence.NavigationTarget target) {
+        return "world".equals(target.providerId()) ? "Show" : "Open";
+    }
+
     static String navigationLabel(Evidence.NavigationTarget target) {
         String id = target.targetId();
+        if ("world".equals(target.providerId())) return "Show in world: " + id.substring(id.indexOf('|') + 1);
         String tail = id.substring(id.lastIndexOf('/') + 1);
         String readable = HASH_SUFFIX.matcher(tail.isEmpty() ? id : tail).replaceFirst("");
         return "Open " + target.providerId() + ": " + readable;

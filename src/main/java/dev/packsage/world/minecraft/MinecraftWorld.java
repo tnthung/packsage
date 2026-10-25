@@ -10,6 +10,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
+import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiTypes;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.EmptyBlockGetter;
@@ -84,13 +85,8 @@ public final class MinecraftWorld implements WorldAccessor, BlockInspector {
         values.put("state", new Evidence.JsonObject(properties));
         values.put("blockLight", number(level.getBrightness(LightLayer.BLOCK, pos)));
         values.put("skyLight", number(level.getBrightness(LightLayer.SKY, pos)));
-        var poiManager = level.getPoiManager();
-        var poi = poiManager.getType(pos);
-        if (poi.isPresent()) {
-            values.put("poi", new Evidence.JsonObject(Map.of(
-                    "type", new Evidence.JsonString(poi.get().getRegisteredName()),
-                    "freeTickets", number(poiManager.getFreeTickets(pos)))));
-        }
+        var poi = poi(level.getPoiManager(), pos);
+        if (poi != null) values.put("poi", poi);
         if (state.getBlock() instanceof BedBlock) {
             values.put("bedOccupied", new Evidence.JsonBoolean(state.getValue(BedBlock.OCCUPIED)));
         }
@@ -98,6 +94,16 @@ public final class MinecraftWorld implements WorldAccessor, BlockInspector {
             values.put("redstoneSignal", number(level.getBestNeighborSignal(pos)));
         }
         return new Evidence.JsonObject(values);
+    }
+
+    static Evidence.JsonObject poi(PoiManager poiManager, BlockPos pos) {
+        var poi = poiManager.getType(pos);
+        if (poi.isPresent()) {
+            return new Evidence.JsonObject(Map.of(
+                    "type", new Evidence.JsonString(poi.get().getRegisteredName()),
+                    "freeTickets", number(poiManager.getFreeTickets(pos))));
+        }
+        return null;
     }
 
     private static <T extends Comparable<T>> String valueName(BlockState state, Property<T> property) {

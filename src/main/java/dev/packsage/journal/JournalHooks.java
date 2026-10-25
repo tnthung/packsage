@@ -1,5 +1,6 @@
 package dev.packsage.journal;
 
+import dev.packsage.PackSageLog;
 import dev.packsage.world.BlockPlace;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -45,6 +46,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -68,6 +70,8 @@ public final class JournalHooks {
         int ticks;
         long reportedEvictions;
         long reportedOversized;
+        long lastOverflowLogNanos = System.nanoTime();
+        long reportedOverflow;
 
         void updateStats(JournalStats stats) {
             var evictions = containers.evictions() + portals.evictions() + sources.evictions() + villagers.evictions()
@@ -139,6 +143,7 @@ public final class JournalHooks {
         bus.addListener(EventPriority.NORMAL, false, ServerStoppedEvent.class, event -> hook(server -> {
             if (server == null || event.getServer() != server) return;
             session.polling = false;
+            PackSageLog.LOGGER.info("PackSage {}", journal.stats().summary());
             journal.close();
             session.server = null;
         }));
@@ -302,6 +307,13 @@ public final class JournalHooks {
                 if (server == null || event.getServer() != server || !session.polling || !journal.recording()) return;
                 session.ticks++;
                 poll(server);
+                var now = System.nanoTime();
+                var overflowed = journal.stats().overflowed.sum();
+                if (now - session.lastOverflowLogNanos >= TimeUnit.MINUTES.toNanos(1) && overflowed > session.reportedOverflow) {
+                    PackSageLog.LOGGER.info("PackSage {}", journal.stats().summary());
+                    session.lastOverflowLogNanos = now;
+                    session.reportedOverflow = overflowed;
+                }
             });
             journal.stats().endTick();
         });

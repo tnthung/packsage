@@ -5,14 +5,21 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.world.minecraft.MinecraftLoot;
+import dev.packsage.world.minecraft.LocateBiome;
 import com.mojang.serialization.Lifecycle;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.Holder;
 import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.RegistrationInfo;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.level.storage.loot.BuiltInLootTables;
 import net.minecraft.world.level.storage.loot.LootPool;
 import net.minecraft.world.level.storage.loot.LootTable;
@@ -23,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 import java.util.concurrent.ExecutionException;
 
@@ -31,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldKnowledgeToolsTest {
@@ -204,5 +213,69 @@ class WorldKnowledgeToolsTest {
             assertEquals(new Evidence.JsonBoolean(true), payload.get("empty"));
             assertEquals(new Evidence.JsonString("this table drops nothing"), payload.get("note"));
         }
+    }
+
+    @Test
+    void biomeIdsAndTagsResolveAgainstTheRegistryAndDimension() {
+        bootstrap();
+        var lookup = VanillaRegistries.createLookup().lookupOrThrow(Registries.BIOME);
+        var registry = new MappedRegistry<Biome>(Registries.BIOME, Lifecycle.stable());
+        var plains = registry.register(Biomes.PLAINS, lookup.getOrThrow(Biomes.PLAINS).value(), RegistrationInfo.BUILT_IN);
+        var desert = registry.register(Biomes.DESERT, lookup.getOrThrow(Biomes.DESERT).value(), RegistrationInfo.BUILT_IN);
+        registry.bindTags(Map.of(TagKey.create(Registries.BIOME, ResourceLocation.parse("packsage:dry")), List.of(desert)));
+        var possible = Set.<Holder<Biome>>of(plains, desert);
+
+        assertEquals(Set.of("minecraft:desert"), WorldKnowledgeTools.biomeTargets(registry, possible, "minecraft:desert"));
+        assertEquals(Set.of("minecraft:desert"), WorldKnowledgeTools.biomeTargets(registry, possible, "#packsage:dry"));
+        assertTrue(WorldKnowledgeTools.biomeTargets(registry, Set.of(plains), "minecraft:desert").isEmpty());
+        assertTrue(WorldKnowledgeTools.biomeTargets(registry, Set.of(plains), "#packsage:dry").isEmpty());
+        for (var query : List.of("packsage:des", "#packsage:des")) {
+            var failure = assertThrows(Toolbox.Failure.class, () -> WorldKnowledgeTools.biomeTargets(registry, possible, query));
+            assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failure.code());
+            assertTrue(failure.getMessage().contains("minecraft:desert"), failure.getMessage());
+        }
+    }
+
+    @Test
+    void biomeHitCarriesSamplingFactsAndAPersistentPlaceLink() {
+        var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"biome\":\"#packsage:dry\"}"), SCOPE);
+        var result = new WorldKnowledgeTools(tools()).biomeResult(request, new WorldTools.Center("minecraft:overworld", new Vec3(0, 64, 0)),
+                "#packsage:dry", 100, new LocateBiome.Result(new LocateBiome.Hit("minecraft:desert", 96, 128, 128), -1, 10));
+        assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
+        assertNull(result.nextCursor());
+        assertEquals(1, result.records().size());
+        var record = result.records().getFirst();
+        assertEquals(Evidence.RecordKind.OTHER, record.kind());
+        assertEquals("locate|minecraft:overworld|minecraft:desert|96,128", record.source().sourceHandle());
+        assertEquals("minecraft:desert at 96, 128, 128", record.title());
+        assertEquals("world-place|minecraft:overworld|96,128,128", record.targets().getFirst().targetId());
+        assertEquals(Evidence.deserializeObject("""
+                {"kind":"sampled","biome":"minecraft:desert","query":"#packsage:dry","dimension":"minecraft:overworld",
+                 "place":"minecraft:overworld|96,128,128","distanceBlocks":160,"resolution":{"horizontalBlocks":32,"verticalBlocks":64}}
+                """), record.payload());
+    }
+
+    @Test
+    void biomeEarlyStopKeepsTheCenterAndQueryInABoundCursor() {
+        var tools = tools();
+        var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"biome\":\"minecraft:desert\",\"radius\":4}"), SCOPE);
+        var center = new WorldTools.Center("minecraft:overworld", new Vec3(-12.5, 70, 19.5));
+        var knowledge = new WorldKnowledgeTools(tools);
+        var partial = knowledge.biomeResult(request, center, "minecraft:desert", 4, new LocateBiome.Result(null, 10, 10));
+        assertEquals(Evidence.Coverage.PARTIAL, partial.coverage());
+        assertTrue(partial.records().isEmpty());
+        assertTrue(partial.detail().contains("500 ms"), partial.detail());
+        var resumed = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"biome\":\"minecraft:desert\",\"radius\":4,\"cursor\":\""
+                + partial.nextCursor() + "\"}"), SCOPE);
+        var state = WorldTools.state(tools.cursor(resumed), WorldKnowledgeTools.BiomeState.class);
+        assertEquals(center, state.center());
+        assertEquals("minecraft:desert", state.query());
+        assertEquals(4, state.radius());
+        assertEquals(10, state.nextIndex());
+        var complete = knowledge.biomeResult(request, center, "minecraft:desert", 4, new LocateBiome.Result(null, -1, 15));
+        assertEquals(Evidence.Coverage.COMPLETE, complete.coverage());
+        assertTrue(complete.records().isEmpty());
+        assertNull(complete.nextCursor());
+        assertEquals("no matching biome within 4 chunks", complete.detail());
     }
 }

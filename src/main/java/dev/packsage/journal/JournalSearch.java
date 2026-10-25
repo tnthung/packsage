@@ -149,7 +149,8 @@ public final class JournalSearch {
                 arguments.addAll(filter.types());
             }
             if (!filter.subjects().isEmpty()) {
-                sql.append(" AND subject IN (").append(String.join(",", Collections.nCopies(filter.subjects().size(), "?"))).append(")");
+                sql.append(" AND (subject IN (").append(String.join(",", Collections.nCopies(filter.subjects().size(), "?")))
+                        .append(countOnly ? ") OR subject = '*')" : "))");
                 arguments.addAll(filter.subjects());
             }
         }

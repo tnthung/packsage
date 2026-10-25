@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.NativeImage;
 import dev.packsage.chat.AssistantRuntime;
 import dev.packsage.chat.ChatContracts;
+import dev.packsage.chat.PackSageSettings;
 import dev.packsage.client.AssistantScreen;
 import dev.packsage.client.GameplayContextCapture;
 import net.minecraft.client.Minecraft;
@@ -22,6 +23,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -34,26 +36,26 @@ import java.util.function.Supplier;
 public final class MinecraftDebugAdapter implements DebugRouter.Game {
     private record ServerSession(IntegratedServer server, UUID player) { }
     private record PendingScreenshot(boolean previousHideGui, CompletableFuture<NativeImage> image) { }
+    private record PendingPrompt(PackSageSettings before, PackSageSettings candidate) { }
 
     private final Minecraft client;
     private final AssistantRuntime runtime;
-    private final Path settingsPath;
     private final Runnable openChat;
     private final DebugRequestLog timing;
-    private final BiConsumer<dev.packsage.chat.PackSageSettings, String> promptWriter;
+    private final BiConsumer<PackSageSettings, String> promptWriter;
     private final Object conversationLock = new Object();
+    private final Object promptLock = new Object();
     private PendingScreenshot screenshot;
 
     public MinecraftDebugAdapter(Minecraft client, AssistantRuntime runtime, Path settingsPath, Runnable openChat,
                                  DebugRequestLog timing) {
-        this(client, runtime, settingsPath, openChat, timing, (settings, text) -> settings.saveDeveloperPrompt(settingsPath, text));
+        this(client, runtime, openChat, timing, (settings, text) -> settings.saveDeveloperPrompt(settingsPath, text));
     }
 
-    MinecraftDebugAdapter(Minecraft client, AssistantRuntime runtime, Path settingsPath, Runnable openChat,
-                          DebugRequestLog timing, BiConsumer<dev.packsage.chat.PackSageSettings, String> promptWriter) {
+    MinecraftDebugAdapter(Minecraft client, AssistantRuntime runtime, Runnable openChat,
+                          DebugRequestLog timing, BiConsumer<PackSageSettings, String> promptWriter) {
         this.client = client;
         this.runtime = runtime;
-        this.settingsPath = settingsPath;
         this.openChat = openChat;
         this.timing = timing;
         this.promptWriter = promptWriter;
@@ -231,11 +233,34 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                         : call(client, () -> runtime.savedRequest(new ChatContracts.RequestId(id))).toCompletableFuture().get(10, TimeUnit.SECONDS);
                 yield DebugChatState.read(view, id, timing.read(id), saved);
             }
-            case PROMPT_GET, PROMPT_SET -> call(client, () -> {
-                var settings = runtime.settings();
-                if (operation == DebugRouter.Operation.PROMPT_SET) {
-                    promptWriter.accept(settings, body.get("text").isJsonNull() ? null : body.get("text").getAsString());
+            case PROMPT_SET -> {
+                synchronized (promptLock) {
+                    var pending = call(client, () -> {
+                        var settings = runtime.settings();
+                        String text = body.get("text").isJsonNull() ? null : body.get("text").getAsString();
+                        return new PendingPrompt(settings.withDeveloperPrompt(settings.developerPrompt()), settings.withDeveloperPrompt(
+                                dev.packsage.model.GroundingInstructions.defaultInstructions().equals(text) ? null : text));
+                    });
+                    while (pending != null) {
+                        var written = pending;
+                        promptWriter.accept(written.candidate(), written.candidate().developerPrompt());
+                        pending = call(client, () -> {
+                            var settings = runtime.settings();
+                            if (settings.sameSnapshot(written.before())) {
+                                settings.setDeveloperPrompt(written.candidate().developerPrompt());
+                                return null;
+                            }
+                            // A screen save wins for fields it changed; persist the latest snapshot before publishing.
+                            return new PendingPrompt(settings.withDeveloperPrompt(settings.developerPrompt()), settings.withDeveloperPrompt(
+                                    Objects.equals(settings.developerPrompt(), written.before().developerPrompt())
+                                            ? written.candidate().developerPrompt() : settings.developerPrompt()));
+                        });
+                    }
+                    yield execute(DebugRouter.Operation.PROMPT_GET, body);
                 }
+            }
+            case PROMPT_GET -> call(client, () -> {
+                var settings = runtime.settings();
                 var json = new JsonObject();
                 json.addProperty("text", settings.developerPrompt());
                 json.addProperty("effectiveText", settings.developerPrompt() == null

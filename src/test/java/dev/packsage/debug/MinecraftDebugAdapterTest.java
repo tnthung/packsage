@@ -50,7 +50,7 @@ class MinecraftDebugAdapterTest {
         try (var clientThread = java.util.concurrent.Executors.newSingleThreadExecutor();
              var worker = java.util.concurrent.Executors.newSingleThreadExecutor()) {
             client.executor = clientThread;
-            var adapter = new MinecraftDebugAdapter(client, runtime, path, () -> { }, new DebugRequestLog(), (settings, text) -> {
+            var adapter = new MinecraftDebugAdapter(client, runtime, () -> { }, new DebugRequestLog(), (settings, text) -> {
                 if (writes.incrementAndGet() == 1) {
                     started.countDown();
                     try { assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS)); }

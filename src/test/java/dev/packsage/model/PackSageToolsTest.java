@@ -114,13 +114,19 @@ class PackSageToolsTest {
 
     @Test
     void toolDescriptionsNameOnlyDefinedTools() {
-        var definitions = PackSageTools.definitions();
-        var names = definitions.stream().map(ModelBackend.ToolDefinition::name).toList();
-        for (var definition : definitions) {
+        for (var definition : PackSageTools.definitions()) {
             assertFalse(definition.description().contains("search_inventory"), definition.name());
-            var mentioned = java.util.regex.Pattern.compile("\\b(?:search|read|list|inspect|find|plan)_[a-z_]+\\b").matcher(definition.description());
-            while (mentioned.find()) assertTrue(names.contains(mentioned.group()), definition.name() + " names " + mentioned.group());
+            assertEquals(List.of(), undefinedToolNames(definition.description()), definition.name());
         }
+    }
+
+    /** Tool-like names in the text that no current tool definition carries. */
+    static List<String> undefinedToolNames(String text) {
+        var names = PackSageTools.definitions().stream().map(ModelBackend.ToolDefinition::name).toList();
+        var undefined = new java.util.ArrayList<String>();
+        var mentioned = java.util.regex.Pattern.compile("\\b(?:search|read|list|inspect|find|plan)_[a-z_]+\\b").matcher(text);
+        while (mentioned.find()) if (!names.contains(mentioned.group())) undefined.add(mentioned.group());
+        return undefined;
     }
 
     @Test

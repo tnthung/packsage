@@ -39,6 +39,7 @@ class GroundingInstructionsTest {
         for (var removed : List.of("search_inventory", "slotReference", "target opened")) {
             assertFalse(text.contains(removed), removed);
         }
+        assertEquals(List.of(), PackSageToolsTest.undefinedToolNames(text));
     }
 
     @Test

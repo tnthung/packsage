@@ -16,8 +16,8 @@ import java.util.List;
 
 /**
  * The per-world SQLite journal: one write connection and one read connection over the same WAL database. Every
- * method is called from one thread at a time, and the write methods only from the thread that started the session
- * (the journal writer thread); other threads get {@link IllegalStateException}.
+ * read is serialized on the reader connection. Write methods run only on the thread that started the session (the
+ * journal writer thread); other threads get {@link IllegalStateException}.
  */
 public final class JournalStore implements AutoCloseable {
     static final long SCHEMA_VERSION = 1;
@@ -99,29 +99,43 @@ public final class JournalStore implements AutoCloseable {
         return schemaVersion;
     }
 
+    @FunctionalInterface
+    public interface SqlFunction<C, T> {
+        T apply(C connection) throws SQLException;
+    }
+
+    /** Runs a query on the shared reader, off the server thread. Concurrent readers are serialized. */
+    public <T> T read(SqlFunction<Connection, T> query) throws SQLException {
+        synchronized (reader) {
+            return query.apply(reader);
+        }
+    }
+
     /** The journal's creation time, or null until the first session is started on a fresh database. */
     public Meta meta() throws SQLException {
-        Long wall = null;
-        Long gameTime = null;
-        try (var statement = reader.prepareStatement("SELECT key, value FROM meta WHERE key IN ('created_wall', 'created_game_time')");
-             var result = statement.executeQuery()) {
-            while (result.next()) {
-                var key = result.getString(1);
-                var text = result.getString(2);
-                long value;
-                try {
-                    value = Long.parseLong(text);
-                } catch (NumberFormatException e) {
-                    throw new SQLException("journal meta " + key + " " + text + " is not a number", e);
-                }
-                if (key.equals("created_wall")) {
-                    wall = value;
-                } else {
-                    gameTime = value;
+        return read(connection -> {
+            Long wall = null;
+            Long gameTime = null;
+            try (var statement = connection.prepareStatement("SELECT key, value FROM meta WHERE key IN ('created_wall', 'created_game_time')");
+                 var result = statement.executeQuery()) {
+                while (result.next()) {
+                    var key = result.getString(1);
+                    var text = result.getString(2);
+                    long value;
+                    try {
+                        value = Long.parseLong(text);
+                    } catch (NumberFormatException e) {
+                        throw new SQLException("journal meta " + key + " " + text + " is not a number", e);
+                    }
+                    if (key.equals("created_wall")) {
+                        wall = value;
+                    } else {
+                        gameTime = value;
+                    }
                 }
             }
-        }
-        return wall == null || gameTime == null ? null : new Meta(wall, gameTime);
+            return wall == null || gameTime == null ? null : new Meta(wall, gameTime);
+        });
     }
 
     /** Opens a session and, on a fresh database, records the journal's creation time. Writer thread only. */
@@ -230,16 +244,18 @@ public final class JournalStore implements AutoCloseable {
 
     /** Every session, oldest first. */
     public List<Session> sessions() throws SQLException {
-        var sessions = new ArrayList<Session>();
-        try (var statement = reader.prepareStatement(
-                "SELECT id, started_wall, started_game_time, ended_wall, ended_game_time FROM sessions ORDER BY id");
-             var result = statement.executeQuery()) {
-            while (result.next()) {
-                sessions.add(new Session(result.getLong(1), result.getLong(2), result.getLong(3),
-                        nullableLong(result, 4), nullableLong(result, 5)));
+        return read(connection -> {
+            var sessions = new ArrayList<Session>();
+            try (var statement = connection.prepareStatement(
+                    "SELECT id, started_wall, started_game_time, ended_wall, ended_game_time FROM sessions ORDER BY id");
+                 var result = statement.executeQuery()) {
+                while (result.next()) {
+                    sessions.add(new Session(result.getLong(1), result.getLong(2), result.getLong(3),
+                            nullableLong(result, 4), nullableLong(result, 5)));
+                }
             }
-        }
-        return List.copyOf(sessions);
+            return List.copyOf(sessions);
+        });
     }
 
     /** Checkpoints the WAL into the database file and closes both connections. */

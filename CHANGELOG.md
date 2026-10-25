@@ -4,6 +4,7 @@
 
 ### 2026-10-26
 
+- Entity list pages no longer report a coverage gap when the entity their cursor anchored on has since gone; pages resume after its UUID in sorted order, so nothing is skipped.
 - Large recipe plans keep complete leading routes and report omitted counts; output tails have byte bounds, stale-world cursors return errors safely, record trimming scales with content, and settings shutdown waits at most three seconds. Automated checks pass; installed checks pending.
 - Shared tool output now caps text safely, retains byte-overflow tails and compact exact records, and preserves canonical links through wire aliasing. Settings save through one asynchronous writer, with runtime-first prompt publication and shutdown flushing; automated regressions pass, installed checks pending.
 - Area summaries keep the most common block ids and as many notable blocks as fit a fixed byte budget, and name how many were omitted with a pointer to list_blocks, so a large modded base no longer loses the whole summary to the tool output limit.

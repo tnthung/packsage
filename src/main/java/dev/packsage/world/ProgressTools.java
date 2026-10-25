@@ -307,7 +307,7 @@ public final class ProgressTools implements KnowledgeProvider {
                 } catch (VirtualMachineError failure) {
                     throw failure;
                 } catch (Throwable failure) {
-                    notes.add(readers.get(index).adapterId() + ": " + (failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage()));
+                    fail(failure);
                 }
                 slice = null;
                 index++;
@@ -321,10 +321,25 @@ public final class ProgressTools implements KnowledgeProvider {
 
             @Override
             public boolean stopEarly() {
-                if (slice == null || !slice.stopEarly()) return false;
-                rows.add(List.copyOf(slice.result()));
+                if (slice == null) return false;
+                try {
+                    if (!slice.stopEarly()) return false;
+                    rows.add(List.copyOf(slice.result()));
+                } catch (VirtualMachineError failure) {
+                    throw failure;
+                } catch (Throwable failure) {
+                    // The failing adapter is dropped and the remaining adapters keep stepping.
+                    fail(failure);
+                    slice = null;
+                    index++;
+                    return false;
+                }
                 notes.add("server work budget reached; repeat list_statistics");
                 return true;
+            }
+
+            private void fail(Throwable failure) {
+                notes.add(readers.get(index).adapterId() + ": " + (failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage()));
             }
         }).thenApply(rows -> {
             var page = StatisticListing.page(rows, offset, notes);

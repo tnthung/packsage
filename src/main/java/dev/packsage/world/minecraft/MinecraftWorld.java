@@ -97,11 +97,14 @@ public final class MinecraftWorld implements WorldAccessor, BlockInspector {
     }
 
     static Evidence.JsonObject poi(PoiManager poiManager, BlockPos pos) {
-        var poi = poiManager.getType(pos);
+        var section = poiManager.get(SectionPos.asLong(pos));
+        if (section == null) return new Evidence.JsonObject(Map.of(
+                "status", new Evidence.JsonString("unavailable: POI section is not cached")));
+        var poi = section.flatMap(loaded -> loaded.getType(pos));
         if (poi.isPresent()) {
             return new Evidence.JsonObject(Map.of(
                     "type", new Evidence.JsonString(poi.get().getRegisteredName()),
-                    "freeTickets", number(poiManager.getFreeTickets(pos))));
+                    "freeTickets", number(section.orElseThrow().getFreeTickets(pos))));
         }
         return null;
     }

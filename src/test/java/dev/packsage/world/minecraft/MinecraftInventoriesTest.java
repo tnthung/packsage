@@ -201,6 +201,18 @@ class MinecraftInventoriesTest {
         assertNull(inventories.entryFacts(new LiveHolder.OfItem(new ItemStack(Items.SHULKER_BOX)), "container", "0"));
     }
 
+    @Test
+    void ungeneratedLootSectionsNameTheirPendingTable() {
+        var chest = new net.minecraft.world.level.block.entity.ChestBlockEntity(net.minecraft.core.BlockPos.ZERO,
+                net.minecraft.world.level.block.Blocks.CHEST.defaultBlockState());
+        assertNull(MinecraftInventories.unopenedLoot("Container", 27, chest));
+        chest.setLootTable(net.minecraft.world.level.storage.loot.BuiltInLootTables.SIMPLE_DUNGEON);
+        var info = MinecraftInventories.unopenedLoot("Container", 27, chest).info();
+        assertEquals("minecraft:chests/simple_dungeon", info.pendingLoot());
+        assertEquals(27, info.slots());
+        assertNull(only(inventories.inventories(new LiveHolder.OfItem(new ItemStack(Items.SHULKER_BOX)))).pendingLoot());
+    }
+
     private static InventoryInfo only(List<InventoryInfo> infos) {
         assertEquals(1, infos.size());
         return infos.getFirst();

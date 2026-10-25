@@ -421,6 +421,30 @@ class WorldToolsTest {
     }
 
     @Test
+    void aSectionWhoseLootIsNotGeneratedClaimsNoEmptySlotsAndSaysWhy() {
+        var notes = new java.util.LinkedHashSet<String>();
+        var pending = new InventoryInfo(new InventoryId("minecraft", "container"), "Container", 27, SlotRole.STORAGE, "minecraft:chests/simple_dungeon");
+        assertEquals(new WorldTools.InventorySummary(pending, null), WorldTools.inventorySummary(pending, 0, notes));
+        assertEquals(java.util.List.of("minecraft/container's loot has not been generated yet (table minecraft:chests/simple_dungeon); "
+                + "its contents are decided when it is first opened"), java.util.List.copyOf(notes));
+
+        notes.clear();
+        var main = new InventoryInfo(new InventoryId("minecraft", "main"), "Main inventory", 36, SlotRole.STORAGE);
+        assertEquals(new WorldTools.InventorySummary(main, 30), WorldTools.inventorySummary(main, 6, notes));
+        var bundle = new InventoryInfo(new InventoryId("minecraft", "bundle"), "Bundle", -1, SlotRole.STORAGE);
+        assertEquals(new WorldTools.InventorySummary(bundle, null), WorldTools.inventorySummary(bundle, 2, notes));
+        assertTrue(notes.isEmpty(), notes.toString());
+    }
+
+    @Test
+    void holderSummariesPointBackToListItemsWhenReread() throws Exception {
+        var query = new Evidence.Query(Evidence.Operation.GET, Evidence.deserializeObject("{\"id\":\"holder|player:" + ENTITY + "\"}"), 1, null, null);
+        var result = tools().query(query, SCOPE).toCompletableFuture().get();
+        assertEquals(Evidence.Coverage.ERROR, result.coverage());
+        assertTrue(result.detail().contains("list_items") && result.detail().contains("player:" + ENTITY), result.detail());
+    }
+
+    @Test
     void inspectAreaKeepsTheEntityPageNoteWhenItsListIsCut() {
         var blocks = new Page<>(java.util.List.of(new BlockSummary(Map.of(), java.util.List.of(), 0)), null, Evidence.Coverage.COMPLETE, null);
         var entities = AreaScan.page(java.util.List.<EntityHandle>of(), "5:0", 0, 2, java.util.List.of(AreaScan.PAGE_LIMIT_NOTE));

@@ -1,18 +1,23 @@
 package dev.packsage.world.minecraft;
 
 import dev.packsage.world.ServerWork;
+import com.mojang.serialization.Lifecycle;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderSet;
+import net.minecraft.core.MappedRegistry;
+import net.minecraft.core.RegistrationInfo;
 import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.data.registries.VanillaRegistries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
+import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
+import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.pieces.PiecesContainer;
@@ -28,6 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -175,8 +181,11 @@ class LocateStructureTest {
         var lookup = VanillaRegistries.createLookup();
         var ancient = lookup.lookupOrThrow(Registries.STRUCTURE).getOrThrow(
                 ResourceKey.create(Registries.STRUCTURE, ResourceLocation.parse("minecraft:ancient_city"))).value();
-        var deep = lookup.lookupOrThrow(Registries.BIOME).getOrThrow(Biomes.DEEP_DARK);
-        var plains = lookup.lookupOrThrow(Registries.BIOME).getOrThrow(Biomes.PLAINS);
+        var biomes = new MappedRegistry<Biome>(Registries.BIOME, Lifecycle.stable());
+        var deep = biomes.register(Biomes.DEEP_DARK, lookup.lookupOrThrow(Registries.BIOME).getOrThrow(Biomes.DEEP_DARK).value(), RegistrationInfo.BUILT_IN);
+        // Bootstrap lookups do not load the data-pack biome tags used by ancient cities.
+        biomes.bindTags(Map.of(BiomeTags.HAS_ANCIENT_CITY, List.of(deep)));
+        var plains = biomes.register(Biomes.PLAINS, lookup.lookupOrThrow(Registries.BIOME).getOrThrow(Biomes.PLAINS).value(), RegistrationInfo.BUILT_IN);
         var sampled = new ArrayList<Integer>();
         var world = new World() {
             public boolean biomePasses(Structure target, BlockPos pos) {
@@ -244,5 +253,18 @@ class LocateStructureTest {
         assertTrue(none.notes().stream().anyMatch(note -> note.contains("minecraft:test") && note.contains("no placements in this dimension")));
         var empty = finish(new LocateStructure(new World(), List.of(), 42, ignored -> List.of(), 0, 0, 100, 0, 0, 0));
         assertTrue(empty.notes().stream().anyMatch(note -> note.contains("tag is empty")));
+    }
+
+    @Test
+    void stoppingAfterEntryBookkeepingDoesNotReplayTheFinishedRing() {
+        for (int radius : List.of(34, 100)) {
+            var slice = new LocateStructure(new World(), List.of(new LocateStructure.Target("minecraft:test", structure, List.of(placement))),
+                    42, ignored -> List.of(), 0, 0, radius, 1, 0, 8);
+            assertTrue(slice.step());
+            assertTrue(slice.stopEarly());
+            assertEquals(radius == 34 ? -1 : 2, slice.result().nextRing());
+            assertEquals(0, slice.result().nextEntry());
+            assertEquals(0, slice.result().nextCandidate());
+        }
     }
 }

@@ -88,6 +88,56 @@ class ReferenceAliasBackendTest {
     }
 
     @Test
+    void knownAliasClosedWithParenthesisBecomesCanonicalCitation() {
+        for (String template : List.of("Done. [%s)", "Before [%s) after.", "[%s) then [%s]")) {
+            for (int split = 0; ; split++) {
+                var actual = new FakeBackend();
+                var events = new ArrayList<ModelBackend.Event>();
+                var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                        new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
+                exchange.submit(RESULT);
+                String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
+                        .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
+                String answer = template.formatted(alias, alias);
+                if (split > answer.length()) break;
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(0, split), null, List.of(), null));
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(split), null, List.of(), null));
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                        List.of(new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                                ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(answer, List.of())))), null));
+
+                String expected = template.replace("%s)", "%s]").formatted(REFERENCE, REFERENCE);
+                assertEquals(expected, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
+                        .map(ModelBackend.Event::text).reduce("", String::concat), "split " + split + " for " + template);
+                assertEquals(expected, ((ModelBackend.OutputText) ((ModelBackend.AssistantOutput)
+                        events.getLast().replayItems().getLast()).content().getFirst()).text(), "replay split " + split);
+            }
+        }
+    }
+
+    @Test
+    void unknownParenthesisClosedBracketTextStaysVerbatim() {
+        for (String answer : List.of("[see note)", "[ref:ffffffff.9.9)", "Before [see note) after.")) {
+            var actual = new FakeBackend();
+            var events = new ArrayList<ModelBackend.Event>();
+            var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
+            actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                    new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
+            exchange.submit(RESULT);
+            actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer, null, List.of(), null));
+            actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                    List.of(new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                            ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(answer, List.of())))), null));
+
+            assertEquals(answer, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
+                    .map(ModelBackend.Event::text).reduce("", String::concat));
+            assertEquals(answer, ((ModelBackend.OutputText) ((ModelBackend.AssistantOutput)
+                    events.getLast().replayItems().getLast()).content().getFirst()).text());
+        }
+    }
+
+    @Test
     void everyMarkdownDestinationSplitPreservesAliasShapedLabelAndCanonicalizesDestination() {
         for (int split = 0; ; split++) {
             var actual = new FakeBackend();

@@ -444,6 +444,44 @@ class ScreenTextTest {
     }
 
     @Test
+    void unresolvedModelAliasIsNotShownRaw() {
+        for (String closing : List.of("]", ")")) {
+            String text = "Done. [ref:e36be868.1.1f" + closing;
+            var spans = ScreenText.inlineLines(text, List.of()).getFirst().spans();
+            assertEquals("Done.", spans.stream().map(ScreenText.InlineSpan::text).reduce("", String::concat));
+            assertTrue(spans.stream().noneMatch(span -> span.text().contains("ref:")));
+            assertEquals("Done.", ScreenText.markdownLines(text).getFirst().getString());
+            assertEquals("Before after.", ScreenText.inlineLines("Before [ref:e36be868.1.1f" + closing + " after.", List.of())
+                    .getFirst().spans().stream().map(ScreenText.InlineSpan::text).reduce("", String::concat));
+            assertEquals("Done. [ref:e36be868.1.1f" + closing, text);
+        }
+        String prose = "[see note) [ref:unknown] [ref:ffffffff.9.9 extra) [ref:E36be868.1.1f]";
+        assertEquals(prose, ScreenText.inlineLines(prose, List.of()).getFirst().spans().stream()
+                .map(ScreenText.InlineSpan::text).reduce("", String::concat));
+        assertEquals(prose, ScreenText.markdownLines(prose).getFirst().getString());
+    }
+
+    @Test
+    void citationsFromEveryRegisteredProviderBecomeChips() {
+        // ClientAssistant.knowledge registers native/config/world/progress; AssistantRuntime adds history.
+        // Stage 4 will register journal in ClientAssistant.knowledge.
+        assertEquals(List.of("native", "config", "history", "world", "progress", "journal"), ScreenText.CITATION_PROVIDERS);
+        for (String provider : List.of("native", "config", "history", "world", "progress", "journal")) {
+            var source = new Evidence.Source(SCOPE, provider, "1", "note:abc", 1, java.time.Instant.EPOCH,
+                    Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+            for (String marker : List.of("[" + provider + ":note:abc]", "\uE200cite\uE202" + provider + ":note:abc\uE201",
+                    "[Recorded note](" + provider + ":note:abc)")) {
+                var spans = ScreenText.inlineLines(marker, List.of(), List.of(), List.of(source)).getFirst().spans();
+                assertEquals(1, spans.size(), marker);
+                assertEquals(source, spans.getFirst().source(), marker);
+                assertFalse(spans.getFirst().text().contains(provider + ":note:abc"), marker);
+            }
+            assertEquals(provider.equals("native") ? "[game]" : "[" + provider + "]",
+                    ScreenText.markdownLines("[" + provider + ":note:abc]").getFirst().getString());
+        }
+    }
+
+    @Test
     void citationMarkersBecomeShortDimTags() {
         List<Component> lines = ScreenText.markdownLines("Torch [native:minecraft:torch] and "
                 + "[config:cfg/x] then [history:turn/1] but [removed:other/handle].");

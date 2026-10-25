@@ -85,7 +85,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
         private AliasExchange(String prefix, Consumer<Event> events) {
             this.prefix = prefix;
             this.events = Objects.requireNonNull(events);
-            streaming = new CitationText(evidence, false);
+            streaming = new CitationText(evidence, evidenceAliases, false);
         }
 
         @Override
@@ -140,12 +140,12 @@ public final class ReferenceAliasBackend implements ModelBackend {
                         if (!text.isEmpty()) enqueue(new Event(event.kind(), text, event.toolCall(), event.blocks(),
                                 event.replayItems(), event.detail(), event.activityId()));
                     } else {
-                        if (event.kind() == EventKind.RETRYING) streaming = new CitationText(evidence, false);
+                        if (event.kind() == EventKind.RETRYING) streaming = new CitationText(evidence, evidenceAliases, false);
                         if (event.kind() == EventKind.ROUND_STARTED || event.kind() == EventKind.CLIENT_TOOL_CALL
                                 || event.kind() == EventKind.COMPLETED || event.kind() == EventKind.FAILED) {
                             String text = streaming.append("", true);
                             if (!text.isEmpty()) enqueue(new Event(EventKind.TEXT_DELTA, text, null, List.of(), null));
-                            streaming = new CitationText(evidence, false);
+                            streaming = new CitationText(evidence, evidenceAliases, false);
                         }
                         if (event.kind() == EventKind.CLIENT_TOOL_CALL && event.toolCall() != null) {
                             ToolCall wire = event.toolCall();
@@ -187,7 +187,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
                                             if (text.text().length() > MAX_TEXT_CHARS - outputChars) {
                                                 throw new IllegalStateException("reference output text limit reached");
                                             }
-                                            var decoder = new CitationText(evidence, true);
+                                            var decoder = new CitationText(evidence, evidenceAliases, true);
                                             String canonical = decoder.append(text.text(), true);
                                             if (canonical.length() > MAX_TEXT_CHARS - outputChars) {
                                                 throw new IllegalStateException("reference expanded text limit reached");
@@ -271,10 +271,9 @@ public final class ReferenceAliasBackend implements ModelBackend {
         }
 
         private String register(String canonical) {
-            if (canonical.length() <= 32) return canonical;
             if (evidenceAliases.containsKey(canonical)) return evidenceAliases.get(canonical);
             if (evidence.size() == MAX_REFERENCES) throw new IllegalStateException("reference registry limit reached");
-            String alias = "ref:" + prefix + Long.toString(++entryCounter, 36);
+            String alias = canonical.length() <= 32 ? canonical : "ref:" + prefix + Long.toString(++entryCounter, 36);
             retain((long) canonical.getBytes(StandardCharsets.UTF_8).length + alias.length());
             evidenceAliases.put(canonical, alias);
             evidence.put(alias, canonical);
@@ -334,7 +333,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
             canonicalCalls.clear();
             wireResults.clear();
             canonicalResults.clear();
-            streaming = new CitationText(evidence, false);
+            streaming = new CitationText(evidence, evidenceAliases, false);
         }
 
         private void enqueue(Event event) {
@@ -384,6 +383,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
         private static final int MAX_TOKEN_CHARS = 8192;
         private static final String GROUP_START = "\uE200cite\uE202";
         private final Map<String, String> evidence;
+        private final Map<String, String> references;
         private final boolean recordPositions;
         private final StringBuilder token = new StringBuilder();
         private final List<Replacement> replacements = new ArrayList<>();
@@ -395,8 +395,9 @@ public final class ReferenceAliasBackend implements ModelBackend {
 
         private record Replacement(int start, int end, String text) { }
 
-        private CitationText(Map<String, String> evidence, boolean recordPositions) {
+        private CitationText(Map<String, String> evidence, Map<String, String> references, boolean recordPositions) {
             this.evidence = evidence;
+            this.references = references;
             this.recordPositions = recordPositions;
         }
 
@@ -407,9 +408,7 @@ public final class ReferenceAliasBackend implements ModelBackend {
                 char character = text.charAt(index);
                 if (!token.isEmpty() && (mode == 2 || mode == 6 || mode == 7) && character != '(' && !Character.isWhitespace(character)) emit(output);
                 else if (!token.isEmpty() && token.length() == MAX_TOKEN_CHARS) {
-                    output.append(token);
-                    token.setLength(0);
-                    mode = 0;
+                    emit(output);
                 }
                 if (token.isEmpty()) {
                     if (character == '`') code = !code;
@@ -417,6 +416,8 @@ public final class ReferenceAliasBackend implements ModelBackend {
                         tokenStart = position;
                         token.append(character);
                         mode = character == '[' ? 1 : 4;
+                    } else if (character >= '\uE200' && character <= '\uE202') {
+                        if (recordPositions) replacements.add(new Replacement(position, position + 1, ""));
                     } else output.append(character);
                 } else {
                     token.append(character);
@@ -435,28 +436,22 @@ public final class ReferenceAliasBackend implements ModelBackend {
                     else if (mode == 3 && character == ')') emit(output);
                     else if (mode == 4) {
                         if (!GROUP_START.startsWith(token.toString())) {
-                            output.append(token);
-                            token.setLength(0);
-                            mode = 0;
+                            emit(output);
                         } else if (token.length() == GROUP_START.length()) mode = 5;
                     } else if (mode == 5 && character == '\uE201') emit(output);
                 }
                 position = Math.incrementExact(position);
             }
             if (finished && !token.isEmpty()) {
-                if (mode == 6 || mode == 7) emit(output);
-                else {
-                    output.append(token);
-                    token.setLength(0);
-                    mode = 0;
-                }
+                emit(output);
             }
             return output.toString();
         }
 
         private void emit(StringBuilder output) {
             var changes = new ArrayList<Replacement>();
-            if (token.charAt(0) == '[') {
+            if (token.charAt(0) == '[' && token.indexOf("]") >= 0
+                    && (mode != 3 || token.charAt(token.length() - 1) == ')')) {
                 int close = token.indexOf("]");
                 int open = token.indexOf("(", close + 1);
                 if (open < 0) {
@@ -474,16 +469,35 @@ public final class ReferenceAliasBackend implements ModelBackend {
                         if (canonical != null) changes.add(new Replacement(1, close, canonical));
                     }
                 }
-            } else {
+            } else if (mode == 5 && token.charAt(token.length() - 1) == '\uE201') {
+                changes.add(new Replacement(0, GROUP_START.length(), ""));
                 int start = GROUP_START.length();
                 for (int index = start; index < token.length(); index++) {
                     if (token.charAt(index) == '\uE202' || token.charAt(index) == '\uE201') {
-                        String canonical = evidence.get(token.substring(start, index));
-                        if (canonical != null) changes.add(new Replacement(start, index, canonical));
+                        String reference = token.substring(start, index);
+                        String canonical = resolve(reference);
+                        if (canonical == null && references.containsKey(reference)) canonical = reference;
+                        changes.add(new Replacement(start, index, canonical == null ? "" : "[" + canonical + "]"));
+                        changes.add(new Replacement(index, index + 1, ""));
                         start = index + 1;
                     }
                 }
+            } else if (mode == 4 || mode == 5) {
+                changes.add(new Replacement(0, token.length(), ""));
             }
+            for (int index = 0; index < token.length(); index++) {
+                if (token.charAt(index) >= '\uE200' && token.charAt(index) <= '\uE202') {
+                    boolean covered = false;
+                    for (Replacement change : changes) {
+                        if (index >= change.start() && index < change.end()) {
+                            covered = true;
+                            break;
+                        }
+                    }
+                    if (!covered) changes.add(new Replacement(index, index + 1, ""));
+                }
+            }
+            changes.sort(java.util.Comparator.comparingInt(Replacement::start));
             int previous = 0;
             long expanded = token.length();
             for (Replacement change : changes) expanded += change.text().length() - (change.end() - change.start());

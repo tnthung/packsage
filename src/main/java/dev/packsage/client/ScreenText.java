@@ -52,6 +52,7 @@ final class ScreenText {
 
         InlineSpan {
             if (text == null) throw new NullPointerException("text");
+            text = text.replaceAll("[\uE200-\uE202]", "");
         }
     }
 
@@ -77,6 +78,10 @@ final class ScreenText {
 
     /** Renders Markdown for display; markers covered by one of the given navigation targets are omitted. */
     static List<Component> markdownLines(String text, List<Evidence.NavigationTarget> targets) {
+        text = Pattern.compile("\uE200cite\uE202([^\uE201]*)\uE201").matcher(text).replaceAll(group -> Matcher.quoteReplacement(
+                List.of(group.group(1).split("\uE202", -1)).stream().filter(value -> CITATION_MARKER.matcher("[" + value + "]").matches())
+                        .map(value -> "[" + value + "]").collect(java.util.stream.Collectors.joining())))
+                .replaceAll("[\uE200-\uE202]", "");
         Set<String> covered = new HashSet<>();
         for (Evidence.NavigationTarget target : targets) covered.add(target.providerId() + ":" + target.sourceHandle());
         List<Component> lines = new ArrayList<>();
@@ -396,47 +401,35 @@ final class ScreenText {
             if (!code && text.startsWith("\uE200cite\uE202", index)) {
                 int end = text.indexOf('\uE201', index + 6);
                 if (end > index) {
-                    String references = text.substring(index + 6, end);
-                    String[] values = references.split("\uE202", -1);
-                    boolean recognized = true;
-                    for (String value : values) {
+                    flushInline(spans, plain, bold, code);
+                    for (String value : text.substring(index + 6, end).split("\uE202", -1)) {
                         Matcher reference = CITATION_MARKER.matcher("[" + value + "]");
-                        if (!reference.matches()) {
-                            recognized = false;
-                            break;
+                        if (!reference.matches()) continue;
+                        Evidence.NavigationTarget target = targets.stream().filter(candidate ->
+                                candidate.providerId().equals(reference.group(1))
+                                        && candidate.sourceHandle().equals(reference.group(2)))
+                                .findFirst().orElse(null);
+                        Evidence.Source source = sources.stream().filter(candidate ->
+                                candidate.providerId().equals(reference.group(1))
+                                        && candidate.sourceHandle().equals(reference.group(2)))
+                                .reduce((first, latest) -> latest).orElse(null);
+                        if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
+                            case "config" -> "Config";
+                            case "world", "journal" -> "in world";
+                            case "progress" -> "Advancements";
+                            default -> "Source";
+                        }, target, ModernUi.TEXT, false, false, source));
+                        else {
+                            String label = source == null ? reference.group(1).equals("native")
+                                    ? sourceFallbackLabel(null, reference.group(1), reference.group(2))
+                                    : markerTag(reference.group(1), reference.group(2))
+                                    : sourceLabels.getOrDefault(source, sourceFallbackLabel(source, reference.group(1), reference.group(2)));
+                            spans.add(new InlineSpan(label, null, source == null ? DIM_COLOR : ModernUi.TEXT,
+                                    false, false, source));
                         }
                     }
-                    if (recognized) {
-                        flushInline(spans, plain, bold, code);
-                        for (String value : values) {
-                            Matcher reference = CITATION_MARKER.matcher("[" + value + "]");
-                            reference.matches();
-                            Evidence.NavigationTarget target = targets.stream().filter(candidate ->
-                                    candidate.providerId().equals(reference.group(1))
-                                            && candidate.sourceHandle().equals(reference.group(2)))
-                                    .findFirst().orElse(null);
-                            Evidence.Source source = sources.stream().filter(candidate ->
-                                    candidate.providerId().equals(reference.group(1))
-                                            && candidate.sourceHandle().equals(reference.group(2)))
-                                    .reduce((first, latest) -> latest).orElse(null);
-                            if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
-                                case "config" -> "Config";
-                                case "world", "journal" -> "in world";
-                                case "progress" -> "Advancements";
-                                default -> "Source";
-                            }, target, ModernUi.TEXT, false, false, source));
-                            else {
-                                String label = source == null ? reference.group(1).equals("native")
-                                        ? sourceFallbackLabel(null, reference.group(1), reference.group(2))
-                                        : markerTag(reference.group(1), reference.group(2))
-                                        : sourceLabels.getOrDefault(source, sourceFallbackLabel(source, reference.group(1), reference.group(2)));
-                                spans.add(new InlineSpan(label, null, source == null ? DIM_COLOR : ModernUi.TEXT,
-                                        false, false, source));
-                            }
-                        }
-                        index = end + 1;
-                        continue;
-                    }
+                    index = end + 1;
+                    continue;
                 }
             }
             if (!code && text.charAt(index) == '[') {

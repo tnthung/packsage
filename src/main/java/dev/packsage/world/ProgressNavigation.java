@@ -11,8 +11,9 @@ import java.util.concurrent.CompletionStage;
 
 /**
  * Opens {@code advancement|<root id>|<advancement id>} targets as the advancements screen on the root's tab. The target
- * id is the stable advancement identity: a saved link rebinds to the current scope without reading, and opening checks
- * the client's advancement tree. The root's tab opens even when the advancement itself is not visible yet.
+ * id is the stable advancement identity: a saved link rebinds to the current scope without reading, and opening looks
+ * the advancement up in the world's current advancements and opens its current root's tab, even when the advancement
+ * itself is not visible yet. The stored root is only a hint.
  */
 final class ProgressNavigation {
     static final String PROVIDER = "progress";
@@ -21,9 +22,12 @@ final class ProgressNavigation {
     record Destination(ResourceLocation root, ResourceLocation id) {
     }
 
-    /** The player's side: the client's advancement tree and screen. */
+    /** The player's side: the world's current advancements, the client's advancement tree and screen. */
     interface Client {
         boolean inWorld();
+
+        /** The root of the id in the world's current advancements, or null when the world has no such advancement. */
+        ResourceLocation currentRoot(ResourceLocation id);
 
         /** Whether the client's advancement tree holds the id. */
         boolean visible(ResourceLocation id);
@@ -77,13 +81,19 @@ final class ProgressNavigation {
         }
         try {
             if (!client.inWorld()) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "the player is not in a world");
-            if (!client.visible(destination.id()) && !client.visible(destination.root())) {
+            // The stored root is only a hint: a removed advancement opens nothing, and a re-parented one opens its current tab.
+            var root = client.currentRoot(destination.id());
+            if (root == null) {
                 return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "advancement " + destination.id() + " is not in this world");
             }
-            client.openTab(destination.root());
+            if (!client.visible(root)) {
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE,
+                        "the advancements screen does not show the tab of " + destination.id() + " yet");
+            }
+            client.openTab(root);
             return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, null);
         } catch (RuntimeException failure) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, failure.getMessage());
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, failure.getMessage() == null ? failure.toString() : failure.getMessage());
         }
     }
 
@@ -94,18 +104,30 @@ final class ProgressNavigation {
                 return minecraft.level != null && minecraft.getConnection() != null;
             }
 
+            /** Read-only; a reload replaces the server's tree wholesale rather than changing it in place. */
+            @Override
+            public ResourceLocation currentRoot(ResourceLocation id) {
+                var server = minecraft.getSingleplayerServer();
+                if (server == null) throw new IllegalStateException("advancement links need an integrated singleplayer server");
+                var node = server.getAdvancements().tree().get(id);
+                return node == null ? null : node.root().holder().id();
+            }
+
             @Override
             public boolean visible(ResourceLocation id) {
                 var connection = minecraft.getConnection();
                 return connection != null && connection.getAdvancements().get(id) != null;
             }
 
-            /** The screen's {@code init} selects the client's selected tab; a root the tree lacks leaves vanilla's default. */
+            /**
+             * Selects the tab without telling the server; the screen's {@code init} selects it again and sends vanilla's
+             * single {@code openedTab} packet. Runs on the client thread.
+             */
             @Override
             public void openTab(ResourceLocation root) {
                 var advancements = minecraft.getConnection().getAdvancements();
                 var holder = advancements.get(root);
-                if (holder != null) advancements.setSelectedTab(holder, true);
+                if (holder != null) advancements.setSelectedTab(holder, false);
                 minecraft.setScreen(new AdvancementsScreen(advancements, minecraft.screen));
             }
         };

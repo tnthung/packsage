@@ -45,7 +45,7 @@ public final class MinecraftStatistics implements StatisticReader {
      * only on its {@link Stat}, held in the stat type's map, which is never read; so a named counter the player's counter
      * does not hold looks its unit up here, and a mod's counter it does not hold is a count.
      */
-    private static final Map<ResourceLocation, StatisticUnit> CUSTOM_UNITS = Map.ofEntries(
+    static final Map<ResourceLocation, StatisticUnit> CUSTOM_UNITS = Map.ofEntries(
             Map.entry(Stats.PLAY_TIME, StatisticUnit.TIME), Map.entry(Stats.TOTAL_WORLD_TIME, StatisticUnit.TIME),
             Map.entry(Stats.TIME_SINCE_DEATH, StatisticUnit.TIME), Map.entry(Stats.TIME_SINCE_REST, StatisticUnit.TIME),
             Map.entry(Stats.CROUCH_TIME, StatisticUnit.TIME),

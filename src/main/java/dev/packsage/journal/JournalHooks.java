@@ -64,6 +64,7 @@ public final class JournalHooks {
         final StructureWatch structures = new StructureWatch();
         final LinkedHashMap<UUID, Interaction> interactions = new LinkedHashMap<>(16, 0.75f, true);
         boolean polling = true;
+        boolean raidPolling = true;
         int ticks;
         long interactionEvictions;
         long reportedEvictions;
@@ -384,18 +385,23 @@ public final class JournalHooks {
     private void poll(MinecraftServer server) {
         for (var level : server.getAllLevels()) {
             var stamp = new JournalEvents.Stamp(server.overworld().getGameTime(), System.currentTimeMillis(), level.dimension().location().toString());
-            if (session.ticks % 20 == 0) {
+            if (session.raidPolling && session.ticks % 20 == 0) {
                 // Raids has no enumeration API in 1.21.1; the access transformer exposes this map for reads only.
-                var present = new HashSet<>(level.getRaids().raidMap.keySet());
-                for (var id : present) {
-                    var raid = level.getRaids().get(id);
-                    if (raid == null) continue;
-                    var center = raid.getCenter();
-                    session.raids.observe(id, new RaidWatch.RaidState(raid.isStarted(), raid.isVictory() ? "victory"
-                                    : raid.isLoss() ? "loss" : raid.isStopped() ? "stopped" : null, raid.getRaidOmenLevel(),
-                            raid.getGroupsSpawned(), center.getX(), center.getY(), center.getZ()), stamp).forEach(journal::record);
+                try {
+                    var present = new HashSet<>(level.getRaids().raidMap.keySet());
+                    for (var id : present) {
+                        var raid = level.getRaids().get(id);
+                        if (raid == null) continue;
+                        var center = raid.getCenter();
+                        session.raids.observe(id, new RaidWatch.RaidState(raid.isStarted(), raid.isVictory() ? "victory"
+                                        : raid.isLoss() ? "loss" : raid.isStopped() ? "stopped" : null, raid.getRaidOmenLevel(),
+                                raid.getGroupsSpawned(), center.getX(), center.getY(), center.getZ()), stamp).forEach(journal::record);
+                    }
+                    session.raids.missing(present, stamp).forEach(journal::record);
+                } catch (LinkageError e) {
+                    journal.stats().hookFailures.increment();
+                    session.raidPolling = false;
                 }
-                session.raids.missing(present, stamp).forEach(journal::record);
             }
             if (session.ticks % 40 == 0) {
                 for (var player : level.players()) {

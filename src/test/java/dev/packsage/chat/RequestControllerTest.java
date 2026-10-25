@@ -1272,6 +1272,43 @@ class RequestControllerTest {
     }
 
     @Test
+    void toolTimingLogsRunOutsideStateLock() throws Exception {
+        FakeBackend backend = new FakeBackend();
+        Map<String, CompletableFuture<ChatContracts.ToolResponse>> responses = new LinkedHashMap<>();
+        responses.put("early", CompletableFuture.completedFuture(new ChatContracts.ToolResponse(
+                new ModelBackend.ToolResult("early", "ready", false), new ChatContracts.EvidenceSelection(List.of(), List.of()))));
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> responses.computeIfAbsent(request.call().callId(), ignored -> new CompletableFuture<>()), ignored -> { });
+        var field = RequestController.class.getDeclaredField("stateLock");
+        field.setAccessible(true);
+        var lock = field.get(controller);
+        List<String> lines = new ArrayList<>();
+        List<String> lockedLines = new ArrayList<>();
+        backend.onStart = listener -> listener.accept(toolEvent("early", "lookup", "{}"));
+        try (var capture = new LogCapture(line -> {
+            lines.add(line);
+            if (line.contains("phase=tool_") && Thread.holdsLock(lock)) lockedLines.add(line);
+        })) {
+            controller.begin(submission("unlocked-timing", WORLD_A, SCOPE_A, false,
+                    new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))
+                    .toCompletableFuture().join();
+            backend.emit("unlocked-timing", toolEvent("late", "lookup", "{}"));
+            responses.get("late").complete(new ChatContracts.ToolResponse(new ModelBackend.ToolResult("late", "ready", false),
+                    new ChatContracts.EvidenceSelection(List.of(), List.of())));
+            backend.emit("unlocked-timing", toolEvent("stale", "lookup", "{}"));
+            controller.stop();
+            responses.get("stale").complete(new ChatContracts.ToolResponse(new ModelBackend.ToolResult("stale", "dropped", false),
+                    new ChatContracts.EvidenceSelection(List.of(), List.of())));
+        }
+        assertEquals(3, lines.stream().filter(line -> line.contains("phase=tool_received ")).count());
+        assertEquals(2, lines.stream().filter(line -> line.contains("phase=tool_result_sent ")).count());
+        assertEquals(1, lines.stream().filter(line -> line.contains("phase=tool_result_dropped ")).count());
+        assertTrue(lockedLines.isEmpty(), lockedLines.toString());
+    }
+
+    @Test
     void toolTimingLogsReceiptAndSubmissionWithoutArguments() {
         FakeBackend backend = new FakeBackend();
         CompletableFuture<ChatContracts.ToolResponse> response = new CompletableFuture<>();

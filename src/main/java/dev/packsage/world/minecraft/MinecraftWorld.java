@@ -2,6 +2,7 @@ package dev.packsage.world.minecraft;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.world.BlockInspector;
+import dev.packsage.world.Section;
 import dev.packsage.world.WorldAccessor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -73,7 +74,7 @@ public final class MinecraftWorld implements WorldAccessor, BlockInspector {
     }
 
     @Override
-    public Evidence.JsonObject inspectBlock(ServerLevel level, BlockPos pos) {
+    public Section inspectBlock(ServerLevel level, BlockPos pos) {
         var chunk = loadedChunk(level, pos);
         if (chunk == null) return null;
         var state = chunk.getBlockState(pos);
@@ -93,7 +94,8 @@ public final class MinecraftWorld implements WorldAccessor, BlockInspector {
         if (signalChunks(pos).stream().allMatch(near -> level.getChunkSource().getChunkNow(near.x, near.z) != null)) {
             values.put("redstoneSignal", number(level.getBestNeighborSignal(pos)));
         }
-        return new Evidence.JsonObject(values);
+        var note = poi != null && poi.values().containsKey("status") ? "POI section is not cached; POI facts are unavailable" : null;
+        return new Section(new Evidence.JsonObject(values), note == null ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL, note);
     }
 
     static Evidence.JsonObject poi(PoiManager poiManager, BlockPos pos) {

@@ -2,8 +2,22 @@
 
 ## Unreleased
 
+### 2026-10-25
+
+- On the v2 branch, the assistant can read every attribute of a mob, such as its maximum health, armor, speed or jump strength, with the base value, the current value and each modifier behind it. Horses, donkeys, mules and other horse-like mobs also report an approximate jump height and running speed in blocks. Before this, asking how high a horse can jump got a refusal, because the mob read carried no attributes. The build passes 680 automated tests. This is not yet checked in game: the live retest could not control the Minecraft window ([validation record](docs/validation/2026-10-22-v2-world-reading.md)).
+
 ### 2026-10-22
 
+- On the v2 branch, the assistant can read the world around you in singleplayer. It can:
+  - survey the blocks and mobs nearby;
+  - list blocks or mobs that match a filter;
+  - read one block or mob in detail;
+  - list and read items in any storage, including storage nested inside other items: a bundle in a shulker box in a mule's chest is reachable;
+  - find an item in all nearby storage at once.
+
+  Mob reads include health, effects, age and owner. For villagers they also include home, job site, the times they last slept and worked, gossip and whether they want to spawn an iron golem, so the assistant can reason about a broken iron farm. Links in replies highlight the cited block with an outline, or make the cited mob glow. Reads never load chunks or generate loot. The work is spread across game ticks, and a large search is reported as partial instead of stalling the game. Multiplayer worlds report these reads as unavailable.
+
+  Passed in game: finding stone in chests and inside a shulker box, with working highlights; a farm diagnosis naming the villager that has no home bed; diamonds in a bundle inside a shulker box in a mule's chest; and a search over 320 chests with the world running. Failed in game: asking how to make armor stronger, where the reply left out enchantments the evidence showed were still available. Known issue: a full page of found items can lose some highlight links and its continuation. The [validation record](docs/validation/2026-10-22-v2-world-reading.md) and [specification](docs/specs/2026-10-22-v2-world-model.md) have the details.
 - On the v2 branch, removed every adapter except Minecraft's, so mod support can be rebuilt with a new approach. PackSage no longer reads JEI, FTB Quests, Patchouli, Modonomicon, GuideME, Immersive Engineering, Actually Additions, Relics, Artifacts, Ponder or Curios. It still reads Minecraft's recipes, items, effects, inventory and storage, the pack's config files, and earlier chats. The assistant can no longer search guides or read quest progress, and its instructions no longer mention those sources. These instruction changes have not been tested in game. The [v2 note](docs/roadmap/2026-10-22-v2-minecraft-only.md) lists what was removed and what remains.
 - Made JEI recipe lookups by output item fast, and made them find modded recipes. For most items, PackSage now asks JEI for the item's recipes directly, as JEI's own R key does, instead of walking every recipe. A torch question found its recipe on the first search in about 22 seconds, down from about 40. Items JEI splits into variants, such as potions, keep the previous search.
 

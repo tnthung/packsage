@@ -49,6 +49,7 @@ public final class DebugHttp {
             previous = value;
         }
         String[] lines = header.toString(StandardCharsets.US_ASCII).split("\r\n");
+        if (lines.length == 0) throw new Failure(400, "Missing request line");
         String[] start = lines[0].split(" ", -1);
         if (start.length != 3 || !start[2].equals("HTTP/1.1") || !start[0].matches("[A-Z]+")
                 || !start[1].matches("/[^\\s?#]*")) throw new Failure(400, "Invalid HTTP request line");

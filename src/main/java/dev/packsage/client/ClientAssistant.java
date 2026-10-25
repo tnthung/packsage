@@ -234,6 +234,7 @@ public final class ClientAssistant {
 
     private void tick() {
         if (!client.isSameThread()) return;
+        if (debugBridge != null && debugTiming != null && debugTiming.isStarted()) client.options.pauseOnLostFocus = false;
         tickPausedServerWork();
         if (settingsOpen && client.screen == null && assistantScreen != null) {
             settingsOpen = false;

@@ -29,6 +29,7 @@ public final class DebugBridge implements AutoCloseable {
     private ServerSocket listener;
     private ThreadPoolExecutor workers;
     private boolean published;
+    private Thread shutdown;
 
     public DebugBridge(Path gameDirectory, int port, DebugRouter.Game game, Consumer<String> log) {
         tokenFile = gameDirectory.resolve("packsage/debug-bridge.json");
@@ -64,18 +65,26 @@ public final class DebugBridge implements AutoCloseable {
                 thread.setDaemon(true);
                 return thread;
             });
+            shutdown = new Thread(this::close, "packsage-debug-shutdown");
+            Runtime.getRuntime().addShutdownHook(shutdown);
             ServerSocket accepting = listener;
             var thread = new Thread(() -> {
                 while (!accepting.isClosed()) {
                     try {
                         Socket socket = accepting.accept();
                         socket.setSoTimeout(10_000);
-                        connections.add(socket);
-                        try {
-                            workers.execute(() -> handle(socket, router));
-                        } catch (java.util.concurrent.RejectedExecutionException exception) {
-                            connections.remove(socket);
-                            socket.close();
+                        synchronized (DebugBridge.this) {
+                            if (listener != accepting || accepting.isClosed()) {
+                                socket.close();
+                                continue;
+                            }
+                            connections.add(socket);
+                            try {
+                                workers.execute(() -> handle(socket, router));
+                            } catch (java.util.concurrent.RejectedExecutionException exception) {
+                                connections.remove(socket);
+                                socket.close();
+                            }
                         }
                     } catch (IOException exception) {
                         if (!accepting.isClosed()) close();
@@ -90,6 +99,7 @@ public final class DebugBridge implements AutoCloseable {
             if (temporary != null) try { Files.deleteIfExists(temporary); } catch (IOException ignored) { }
             if (listener != null) try { listener.close(); } catch (IOException ignored) { }
             listener = null;
+            if (workers != null) workers.shutdownNow();
             if (published) try { Files.deleteIfExists(tokenFile); } catch (IOException ignored) { }
             published = false;
             log.accept("PackSage debug bridge refused port=" + port + ": " + exception.getClass().getSimpleName());
@@ -101,7 +111,23 @@ public final class DebugBridge implements AutoCloseable {
         try (socket) {
             DebugHttp.Response response;
             try {
-                response = router.route(DebugHttp.parse(socket.getInputStream()));
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                var input = new java.io.FilterInputStream(socket.getInputStream()) {
+                    private void checkDeadline() throws IOException {
+                        long remaining = deadline - System.nanoTime();
+                        if (remaining <= 0) throw new java.net.SocketTimeoutException();
+                        socket.setSoTimeout((int) Math.max(1, TimeUnit.NANOSECONDS.toMillis(remaining)));
+                    }
+                    @Override public int read() throws IOException {
+                        checkDeadline();
+                        return in.read();
+                    }
+                    @Override public int read(byte[] bytes, int offset, int length) throws IOException {
+                        checkDeadline();
+                        return in.read(bytes, offset, length);
+                    }
+                };
+                response = router.route(DebugHttp.parse(input));
             } catch (DebugHttp.Failure failure) {
                 response = DebugHttp.error(failure.status, failure.getMessage());
             } catch (java.net.SocketTimeoutException exception) {
@@ -120,6 +146,9 @@ public final class DebugBridge implements AutoCloseable {
     @Override
     public synchronized void close() {
         if (listener == null) return;
+        if (shutdown != null && Thread.currentThread() != shutdown) {
+            try { Runtime.getRuntime().removeShutdownHook(shutdown); } catch (IllegalStateException ignored) { }
+        }
         try { listener.close(); } catch (IOException ignored) { }
         if (workers != null) workers.shutdownNow();
         for (Socket socket : connections) try { socket.close(); } catch (IOException ignored) { }

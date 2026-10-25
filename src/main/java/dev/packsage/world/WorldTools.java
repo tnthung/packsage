@@ -637,11 +637,18 @@ public final class WorldTools implements KnowledgeProvider {
      * of its contents; a menu from outside Minecraft adds a note, since its previews cannot be told apart.
      */
     static Evidence.JsonObject menuFacts(LiveHolder.OfMenu holder, ClientFocus focus, Set<String> notes) {
-        var layout = MinecraftMenus.layout(holder.menu(), holder.playerInventory());
         var menuType = MinecraftMenus.menuType(holder.menu());
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
         values.put("menuType", text(menuType));
         if (focus.openedContainerId() == holder.menu().containerId && focus.openedTitle() != null) values.put("title", text(focus.openedTitle()));
+        MinecraftMenus.MenuLayout layout;
+        try {
+            layout = MinecraftMenus.layout(holder.menu(), holder.playerInventory());
+        } catch (RuntimeException exception) {
+            values.put("excludedSlots", new Evidence.JsonNull());
+            notes.add("The preview slots of " + menuType + " could not be read: " + describe(exception));
+            return new Evidence.JsonObject(values);
+        }
         values.put("excludedSlots", new Evidence.JsonArray(layout.excluded().stream().map(slot -> (Evidence.JsonValue) new Evidence.JsonObject(
                 Map.of("slot", number(slot.slot()), "kind", text(slot.kind())))).toList()));
         if (!layout.vanilla()) notes.add(menuType + " is not a vanilla menu; some listed slots may be previews");

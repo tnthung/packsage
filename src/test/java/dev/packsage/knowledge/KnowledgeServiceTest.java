@@ -29,6 +29,30 @@ class KnowledgeServiceTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
 
     @Test
+    void pendingOutputAfterWorldChangeReturnsErrorJsonInsteadOfFailingTheFuture() throws Exception {
+        var rows = java.util.stream.IntStream.range(0, 65).mapToObj(i -> record("fixture", "row:" + i,
+                Evidence.RecordKind.OTHER)).toList();
+        var provider = new PagedProvider("fixture", query -> page(rows, null)) {
+            @Override public CompletionStage<Evidence.Result> handle(PackSageTools.ReadRequest request, Context context) {
+                return CompletableFuture.completedFuture(page(rows, null));
+            }
+        };
+        var current = new AtomicReference<>(SCOPE);
+        var service = new KnowledgeService(List.of(provider), current::get);
+        var tools = new PackSageTools(service::execute, service.metadata(), service.outputPages());
+        var first = com.google.gson.JsonParser.parseString(tools.execute(new dev.packsage.model.ModelBackend.ToolCall(
+                "first", "list_progress", "{}"), SCOPE).toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        current.set(new Evidence.Scope("another-world", "resources", "team", "runtime", 1));
+        var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("stale", "list_progress",
+                first.getAsJsonObject("nextCall").get("arguments").toString()), SCOPE).toCompletableFuture().get();
+        assertTrue(response.result().error());
+        var json = com.google.gson.JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals("ERROR", json.get("outcome").getAsString());
+        assertEquals("STALE_SCOPE", json.get("code").getAsString());
+        assertTrue(response.records().isEmpty());
+    }
+
+    @Test
     void byteContinuedRowsAreObservedAgainAfterEvidenceCacheEviction() throws Exception {
         var rows = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Evidence.Record(record("fixture", "row:" + i,
                 Evidence.RecordKind.OTHER).source(), Evidence.RecordKind.OTHER, "Row", new Evidence.JsonObject(Map.of(

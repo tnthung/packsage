@@ -444,6 +444,75 @@ class PackSageToolsTest {
     }
 
     @Test
+    void largeExactRecipePlansKeepLeadingRoutesAndCountTheOmittedTail() throws Exception {
+        for (int count : List.of(128, 256)) {
+            var inputs = java.util.stream.IntStream.range(0, 9).mapToObj(i -> new Evidence.RecipeSlot("slot:" + i,
+                    List.of(new Evidence.RecipeAlternative("item", "minecraft:ingredient_" + i,
+                            new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED)))).toList();
+            var records = java.util.stream.IntStream.range(0, count).mapToObj(i -> new Evidence.Record(new Evidence.Source(
+                    SCOPE, "native", "1", "recipe:route_" + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE,
+                    Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.RECIPE,
+                    "Route " + i, new Evidence.JsonObject(Map.of("requestedQuantity", new Evidence.JsonNumber(java.math.BigDecimal.TEN),
+                    "inputs", new Evidence.JsonArray(java.util.stream.IntStream.range(0, 9).mapToObj(slot -> (Evidence.JsonValue)
+                            new Evidence.JsonObject(Map.of("id", new Evidence.JsonString("minecraft:ingredient_" + slot),
+                                    "description", new Evidence.JsonString("Recipe ingredient " + slot + " ".repeat(80))))).toList()))), List.of(),
+                    new Evidence.RecipePayload("minecraft:route_" + i, inputs, List.of(new Evidence.RecipeOutput("item",
+                            "minecraft:result", new Evidence.JsonObject(Map.of()), 1)), List.of(), List.of(), List.of(),
+                            Evidence.DecodingStatus.VERIFIED))).toList();
+            var response = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
+                    Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))).execute(new ModelBackend.ToolCall(
+                    "plan", "plan_recipe", "{\"identity\":\"minecraft:result\",\"quantity\":10}"), SCOPE).toCompletableFuture().get();
+            assertFalse(response.result().error());
+            assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
+            var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+            var delivered = json.getAsJsonArray("records");
+            assertTrue(delivered.size() > 1 && delivered.size() <= 64);
+            for (int i = 0; i < delivered.size() - 1; i++) {
+                var route = delivered.get(i).getAsJsonObject();
+                assertFalse(route.has("truncationNote"));
+                assertEquals("Route " + i, route.get("title").getAsString());
+                assertEquals(9, route.getAsJsonObject("payload").getAsJsonArray("inputs").size());
+                assertEquals(9, route.getAsJsonObject("recipe").getAsJsonArray("inputs").size());
+                assertEquals(9, route.getAsJsonObject("recipe").getAsJsonArray("requiredInputTotals").size());
+            }
+            assertEquals("PARTIAL", json.get("coverage").getAsString());
+            assertTrue(json.has("nextCall") || json.get("detail").getAsString().contains((count - delivered.size()) + " records omitted"));
+        }
+    }
+
+    @Test
+    void exactRecordCapAndUnshrinkableIdentitiesNeverOverflowTheResponse() throws Exception {
+        for (var handle : List.of("route", "x".repeat(140_000))) {
+            var records = java.util.stream.IntStream.range(0, 256).mapToObj(i -> new Evidence.Record(new Evidence.Source(
+                    SCOPE, "native", "1", handle + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                    Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.RECIPE, "Route " + i,
+                    new Evidence.JsonObject(Map.of()), List.of())).toList();
+            var response = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
+                    Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))).execute(new ModelBackend.ToolCall(
+                    "plan", "plan_recipe", "{\"identity\":\"minecraft:result\",\"quantity\":1}"), SCOPE).toCompletableFuture().get();
+            assertFalse(response.result().error());
+            assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
+            var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+            assertEquals(handle.equals("route") ? 64 : 0, json.getAsJsonArray("records").size());
+            assertTrue(json.get("detail").getAsString().contains((256 - response.records().size()) + " records omitted"));
+        }
+    }
+
+    @Test
+    void consumedOutputCursorsReleaseTheirRetainedTail() throws Exception {
+        var records = java.util.stream.IntStream.range(0, 65).mapToObj(i -> new Evidence.Record(new Evidence.Source(SCOPE,
+                "fixture", "1", "row:" + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.OTHER, "Row", new Evidence.JsonObject(Map.of()), List.of())).toList();
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));
+        var first = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("first", "search_recipe", "{}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        var call = new ModelBackend.ToolCall("next", "search_recipe", first.getAsJsonObject("nextCall").get("arguments").toString());
+        assertEquals(1, tools.execute(call, SCOPE).toCompletableFuture().get().records().size());
+        assertTrue(tools.execute(call, SCOPE).toCompletableFuture().get().result().serializedResult().contains("INVALID_CURSOR"));
+    }
+
+    @Test
     void everyListingFamilyKeepsByteOverflowTailsAndProviderContinuation() throws Exception {
         for (var query : Map.ofEntries(Map.entry("search_recipe", "{}"), Map.entry("search_registry", "{\"registry\":\"item\"}"),
                 Map.entry("list_blocks", "{\"filter\":{}}"), Map.entry("list_entities", "{\"filter\":{}}"),

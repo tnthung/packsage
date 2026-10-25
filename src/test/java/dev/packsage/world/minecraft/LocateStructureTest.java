@@ -110,7 +110,10 @@ class LocateStructureTest {
             protected boolean isPlacementChunk(ChunkGeneratorStructureState state, int x, int z) { return fail("unsupported"); }
             public StructurePlacementType<?> type() { return fail("unsupported"); }
         };
-        assertEquals(List.of("minecraft:desert_pyramid"), finish(search(new World(), unknown, 0, 0, 100, 0)).unsupported());
+        var unsupported = finish(search(new World(), unknown, 0, 0, 100, 0)).unsupported();
+        assertEquals(1, unsupported.size());
+        assertTrue(unsupported.getFirst().contains("minecraft:desert_pyramid"));
+        assertTrue(unsupported.getFirst().contains(unknown.getClass().getName()));
     }
 
     @Test
@@ -132,5 +135,16 @@ class LocateStructureTest {
         assertTrue(world.checked > 0);
         var concentric = new ConcentricRingsStructurePlacement(32, 3, 128, HolderSet.direct(List.of()));
         assertEquals(1, finish(search(new World(), concentric, 0, 0, 100, 0)).hits().size());
+    }
+
+    @Test
+    void aFailedPlacementDoesNotHideAnotherPlacementAtTheSameChunk() {
+        var second = new RandomSpreadStructurePlacement(34, 8, RandomSpreadType.LINEAR, 10387312);
+        var world = new World() {
+            public boolean placementPasses(StructurePlacement current, int x, int z) { return current == second; }
+        };
+        assertEquals(9, finish(new LocateStructure(world,
+                List.of(new LocateStructure.Target("minecraft:desert_pyramid", structure, List.of(placement, second))),
+                42, ignored -> List.of(), 0, 0, 100, 0)).hits().size());
     }
 }

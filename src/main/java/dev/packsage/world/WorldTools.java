@@ -65,6 +65,9 @@ public final class WorldTools implements KnowledgeProvider {
     static final int CURSORS = 256;
     private static final long TIMEOUT_SECONDS = 60;
     private static final int RESOLVE_PER_STEP = 64;
+    /** Encoded-size budgets inside one inspect_area record, well under the 128 KiB tool output limit. */
+    static final int AREA_NOTABLE_BYTES = 32 * 1024;
+    static final int AREA_COUNT_BYTES = 16 * 1024;
 
     private record Cursor(String tool, Evidence.JsonObject signature, Evidence.Scope scope, Object state) {
     }
@@ -1624,10 +1627,21 @@ public final class WorldTools implements KnowledgeProvider {
         var summary = read.blocks().items().getFirst();
         var notes = new LinkedHashSet<>(areaNotes(read.blocks(), read.entities()));
         var notable = new TreeMap<String, Map<String, List<Evidence.JsonValue>>>();
+        // Block ids and positions are ASCII, so string lengths bound their encoded bytes; entities get the remaining budget.
+        int notableBytes = 0, notableListed = 0;
         for (var block : summary.notable()) {
             var place = block.handle().place();
+            var position = place.x() + "," + place.y() + "," + place.z();
+            notableBytes += position.length() + 3 + (notable.containsKey(block.role()) && notable.get(block.role()).containsKey(block.handle().kind())
+                    ? 0 : block.role().length() + block.handle().kind().length() + 8);
+            if (notableBytes > AREA_NOTABLE_BYTES) break;
             notable.computeIfAbsent(block.role(), key -> new TreeMap<>()).computeIfAbsent(block.handle().kind(), key -> new ArrayList<>())
-                    .add(text(place.x() + "," + place.y() + "," + place.z()));
+                    .add(text(position));
+            notableListed++;
+        }
+        if (notableListed < summary.notable().size()) {
+            notes.add("Area notable-block byte budget reached; " + (summary.notable().size() - notableListed)
+                    + " notable blocks omitted from this summary; use list_blocks with a filter for the rest");
         }
         var roles = new LinkedHashMap<String, Evidence.JsonValue>();
         notable.forEach((role, kinds) -> {
@@ -1636,7 +1650,18 @@ public final class WorldTools implements KnowledgeProvider {
             roles.put(role, new Evidence.JsonObject(byKind));
         });
         var counts = new LinkedHashMap<String, Evidence.JsonValue>();
-        summary.counts().forEach((kind, count) -> counts.put(kind, number(count)));
+        int countBytes = 0;
+        var byCount = summary.counts().entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed()
+                .thenComparing(Map.Entry.comparingByKey())).toList();
+        for (var entry : byCount) {
+            countBytes += entry.getKey().length() + 16;
+            if (countBytes > AREA_COUNT_BYTES) {
+                notes.add("Area block-count byte budget reached; the " + (byCount.size() - counts.size())
+                        + " least common block ids are omitted; use list_blocks with a filter for them");
+                break;
+            }
+            counts.put(entry.getKey(), number(entry.getValue()));
+        }
         var center = new LinkedHashMap<String, Evidence.JsonValue>();
         center.put("dimension", text(read.center().dimension()));
         center.put("x", decimal(read.center().position().x));

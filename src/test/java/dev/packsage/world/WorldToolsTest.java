@@ -588,6 +588,9 @@ class WorldToolsTest {
         calls.put("{\"holder\":\"player\",\"filter\":{\"ids\":[\"minecraft:diamond\"],\"tags\":[\"c:gems\"],\"text\":\"diamond\",\"tooltip\":[\"Unbreakable\"]}}", "list_items");
         calls.put("{\"path\":\"held\"}", "inspect_item");
         calls.put("{\"path\":\"offhand\"}", "inspect_item");
+        calls.put("{\"path\":\"player:00000000-0000-0000-0000-000000000001>minecraft/main#3@minecraft:diamond\"}", "inspect_item");
+        calls.put("{\"path\":\"held>minecraft/container#0@minecraft:diamond\"}", "inspect_item");
+        calls.put("{\"holder\":\"player\",\"inventory\":\"minecraft/main\"}", "list_items");
 
         for (var call : calls.entrySet()) {
             requests.clear();

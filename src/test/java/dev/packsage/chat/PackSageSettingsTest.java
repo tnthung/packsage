@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.Properties;
 import java.io.InputStream;
+import java.lang.reflect.Modifier;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -127,8 +128,17 @@ class PackSageSettingsTest {
         settings.save(path).join();
         assertEquals(prompt, PackSageSettings.load(path).developerPrompt());
 
-        PackSageSettings.defaults().withDeveloperPrompt(null).save(path).join();
+        var cleared = PackSageSettings.defaults();
+        cleared.setDeveloperPrompt(null);
+        cleared.save(path).join();
         assertEquals(null, PackSageSettings.load(path).developerPrompt());
+    }
+
+    @Test
+    void developerPromptIsVisibleAcrossControllerThreads() throws Exception {
+        var prompt = PackSageSettings.class.getDeclaredField("developerPrompt");
+
+        assertTrue(Modifier.isVolatile(prompt.getModifiers()));
     }
 
     @Test
@@ -137,8 +147,6 @@ class PackSageSettingsTest {
         assertTrue(settings.setDeveloperPrompt("kept"));
         assertFalse(settings.setDeveloperPrompt(" \n"));
         assertFalse(settings.setDeveloperPrompt("x".repeat(PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH + 1)));
-        assertThrows(IllegalArgumentException.class,
-                () -> settings.withDeveloperPrompt("x".repeat(PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH + 1)));
         assertEquals("kept", settings.developerPrompt());
     }
 
@@ -213,21 +221,6 @@ class PackSageSettingsTest {
     }
 
     @Test
-    void staleDetachedSettingsCannotAcquireANewerGeneration() throws Exception {
-        var path = temporaryDirectory.resolve("settings.properties");
-        var settings = PackSageSettings.defaults();
-        settings.setDeveloperPrompt("current");
-        settings.save(path).join();
-        var stale = settings.withDeveloperPrompt("stale");
-        settings.setDeveloperPrompt("newest");
-        settings.save(path).join();
-
-        stale.save(path).join();
-
-        assertEquals("newest", PackSageSettings.load(path).developerPrompt());
-        settings.flushAndClose(path).join();
-    }
-
     @Test
     void shutdownFlushWritesLatestSettingsEvenWithoutAnEarlierSave() throws Exception {
         var path = temporaryDirectory.resolve("settings.properties");

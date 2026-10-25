@@ -16,7 +16,7 @@ The original click-time check correctly refused the missing tab. The defect was 
 
 ## Fix
 
-- `src/main/java/dev/packsage/world/minecraft/MinecraftProgress.java:76`: read `PlayerAdvancements.visible` through reflection on the server thread, without mutating the set, evaluating/flushing dirty progress or sending packets. An unreadable field fails the read rather than guessing linkability.
+- `src/main/java/dev/packsage/world/minecraft/MinecraftProgress.java:79`: read `PlayerAdvancements.visible` directly on the server thread through an access transformer, without mutating the set, evaluating/flushing dirty progress or sending packets. A removed or inaccessible field fails compilation rather than guessing linkability.
 - Copy root-tab visibility into `ProgressTree` and `ProgressHandle`, including inspected prerequisites and unlocks. The snapshot samples it once per tree and preserves the existing sliced traversal.
 - `src/main/java/dev/packsage/world/ProgressNavigation.java:51` and `ProgressTools.java:196`: omit both tree and entry targets when their tab is absent. Entries remain readable. Hidden entries still never receive targets, even with a visible tab. A non-visible entry in a visible tab can still link to that tab.
 - `open()`, current-server-tree resolution, stable target IDs and client-thread dispatch are unchanged.
@@ -38,3 +38,9 @@ All commands ran in Git Bash with `JAVA_HOME="D:/Project/packsage/.tools/jdk/jdk
 - `c62566e` — `[Chg] record Q11 navigation fix and pending live acceptance`
 
 This report is committed separately. No installed/live behavior is claimed from the automated checks.
+
+## Follow-up
+
+Replaced per-read reflection with direct access using `public net.minecraft.server.PlayerAdvancements visible` in `src/main/resources/META-INF/accesstransformer.cfg`, following the existing `Raids.raidMap` entry. Corrected the source reference above to line 79. Gradle picked up the transformer without a build configuration change and recompiled the transformed Minecraft sources and the direct field read.
+
+Added `MinecraftProgressTest.vanillaTabVisibilityFieldIsPublicAndAvailable`, which requires the public `visible` field to exist with type `Set`. Before the transformer, the focused test failed with `NoSuchFieldException: visible`. After the change, the requested Git Bash Java 21 `./gradlew build -q` exited 0: 1,022 tests, 1,018 passed, 4 skipped, zero failures/errors. All 8 `MinecraftProgressTest` cases passed. Manual style review and `git diff --check` passed; live Q11 acceptance remains pending.

@@ -18,11 +18,11 @@ Historical searches aggregate markers whose intervals overlap the requested time
 
 ## Bounded journal pages
 
-`JournalTools` measures UTF-8 bytes of records in the same JSON shape used by `PackSageTools`, including references, source metadata, title, payload and null recipe. The record budget is **96 KiB**, leaving **32 KiB** below the 128 KiB shared cap for the envelope, coverage reasons and the repeated filter in `nextCall`. The existing 64-record maximum remains.
+`JournalTools` measures UTF-8 bytes through the shared `PackSageTools.encodeRecord` wire encoder, including references, source metadata, title, payload and null recipe. The record budget is **96 KiB**, leaving **32 KiB** below the 128 KiB shared cap for the envelope, coverage reasons and the repeated filter in `nextCall`. The existing 64-record maximum remains.
 
-When the next record would exceed that budget, the provider keeps the delivered prefix and creates continuation from the last delivered entry's creation time and stable key, rather than from the last entry fetched by the database page. Coverage and the delivered sources become partial. Long note titles use a surrogate-safe 96-character preview; full note text remains in the payload. Identical original wording is omitted, and distinct original wording is previewed to 1,000 UTF-16 units with `playerWordsTruncated` when necessary. Full original wording remains stored in SQLite. An individually oversized record returns an explicit extraction error rather than an invalid cursor or a silently dropped record.
+When the next record would exceed that budget, the provider keeps the delivered prefix and creates continuation from the last delivered entry's creation time and stable key, rather than from the last entry fetched by the database page. Coverage and the delivered sources become partial. Long note titles use a surrogate-safe 96-character preview; full note text remains in the payload. Original wording is included whenever present, even when equal to note text, distinguishing it from absent wording. It is previewed to 1,000 UTF-16 units with `playerWordsTruncated` when necessary. Full original wording remains stored in SQLite. An individually oversized record returns an explicit extraction error rather than an invalid cursor or a silently dropped record.
 
-## Test evidence
+## Initial final-review test evidence
 
 Both reproductions were run before production changes and committed in the RED state:
 
@@ -57,3 +57,26 @@ Commands ran in Git Bash from the assigned worktree root, each prefixed with `ex
 - `3148485` — `[Fix] keep journal pages within the tool output budget with continuation`
 
 This validation record and the changelog/roadmap references are committed separately. Live acceptance remains unverified for these fixes; the broader journal checklist stays open.
+
+## Fix round 1
+
+Reviewed range: `4ca3176..3dbd6e9`. All nine follow-up findings are addressed:
+
+1. Shared record encoding: `PackSageTools.encodeRecord` owns the entire wire record, including recipe handling. Both the tool response and journal byte budget call it. The 150-note pagination regression compares each actual wire record and its UTF-8 size to the encoder and checks each page's record array against the 96 KiB budget.
+2. Marker-write failure: real SQLite triggers block loss-marker inserts. In-session searches remain `PARTIAL` with an awaiting-persistence reason. Removing the trigger and draining persists the marker once; another drain does not duplicate it, and a clean restart keeps overlapping queries partial.
+3. Awaiting interval: the writer publishes its earliest pending wall/game bounds with the persisted counter checkpoint before attempting markers. A narrow query at 500-600 ms detects losses timestamped before the preceding 1,000 ms sample.
+4. Post-commit cleanup: marker writes acknowledge the counter checkpoint immediately after `Connection.commit()` succeeds, before auto-commit restoration and statement cleanup. A real SQLite connection wrapped to fail `setAutoCommit(true)` proves that retries do not duplicate the committed count.
+5. Sustained losses: touching or overlapping consecutive intervals for the same session/kind merge into the latest row. One hundred lossy drains produce one row with count 100 and preserved outer bounds. Separate intervals stay separate; a merged interval conservatively reports its aggregate count for overlapping queries.
+6. Logging: marker persistence failures have a distinct message and independent rate limit, so an event-batch error cannot suppress the marker message or mislabel marker failure as newly lost events.
+7. Note provenance: equal original wording remains in `playerWords`; absent original wording remains absent. Long wording still has its bounded preview and truncation flag.
+8. Coverage detail: multiple session gaps collapse into one count with earliest/latest wall bounds. A 100-gap fixture stays below 1,024 characters; the existing single-gap explanation is preserved.
+9. Timestamp bounds: failed-event and overflow fixtures both prove persisted first wall/game bounds are 500 ms/10 ticks, rather than the session start or the preceding sample. Queries ending at 499 ms remain complete after restart.
+
+### Verification
+
+- Tests were committed first in `377d710`. The first run failed compilation because the proposed shared encoder did not exist. After extracting it, the focused run reproduced **seven behavioral failures** across marker retry/awaiting bounds, post-commit acknowledgment, row growth, logging, gap detail and note provenance.
+- Shared encoder: `20f4555`. Remaining runtime fixes: `99c74c4`.
+- Focused run: **107 passed**, zero skips/failures/errors, covering `JournalLossTest`, `JournalSearchTest`, `JournalToolsTest`, `JournalWriterTest`, `JournalStoreTest` and `PackSageToolsTest`.
+- Full `./gradlew build -q`, from this worktree in Git Bash with `JAVA_HOME=D:/Project/packsage/.tools/jdk/jdk-21.0.12.1`: **1,084 tests, 1,079 passed, 5 skipped, 0 failures/errors**, across **97 suites**. This adds seven passing cases to the supplied 1,072-pass baseline. The five skip identities match those documented above.
+- `git diff 3dbd6e9..HEAD --check`: passed. Changed files were manually checked against existing style; no formatting tools were used.
+- No live acceptance or installation was performed. Only the assigned worktree and the explicitly requested controller-report append were written; no push or merge was performed.

@@ -344,4 +344,17 @@ class WorldToolsTest {
         assertEquals(Evidence.Coverage.PARTIAL, carried.coverage());
         assertEquals(merged.detail(), carried.note());
     }
+
+    @Test
+    void inspectAreaKeepsTheEntityPageNoteWhenItsListIsCut() {
+        var blocks = new Page<>(java.util.List.of(new BlockSummary(Map.of(), java.util.List.of(), 0)), null, Evidence.Coverage.COMPLETE, null);
+        var note = "2 chunks in range did not have their entities loaded yet";
+        var entities = new Page<EntityHandle>(java.util.List.of(), "next", Evidence.Coverage.PARTIAL, note);
+
+        var notes = WorldTools.areaNotes(blocks, entities);
+
+        assertEquals(2, notes.size(), notes.toString());
+        assertTrue(notes.getFirst().contains("list_entities"), notes.getFirst());
+        assertEquals(note, notes.get(1));
+    }
 }

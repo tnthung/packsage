@@ -36,6 +36,12 @@ class WorldToolsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
     private static final String ENTITY = "3f1c2a4e-0000-4000-8000-000000000001";
 
+    @Test
+    void entityTitlesUseTheBlockTheEntityStandsIn() {
+        var entity = new EntityHandle("minecraft:mule", java.util.UUID.fromString(ENTITY), "minecraft:overworld", 1003.5, 250, -0.5, "Mule");
+        assertEquals("Mule (minecraft:mule) at minecraft:overworld|1003,250,-1", WorldTools.entityTitle(entity));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"stable", "next_tick", "unloaded", "unloaded_at_snapshot", "unloaded_after_snapshot"})
     void holderCoverageReflectsTickSpansAndCountsEachUnloadedChunkOnce(String scenario) throws Exception {

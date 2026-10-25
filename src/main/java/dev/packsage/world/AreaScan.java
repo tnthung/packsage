@@ -42,9 +42,15 @@ public final class AreaScan {
     static final String PAGE_LIMIT_NOTE = "This page holds " + LIST_PAGE + " matches, the page limit; continue with the cursor";
     private static final int SECTION_SIZE = 16;
     static final int SNAPSHOT_LIMIT = 4096;
-    static final String SNAPSHOT_NOTE = "The read spanned multiple server ticks; entities or block entities added or moved into already-read chunks may be absent";
+    static final String SNAPSHOT_NOTE = "The read spanned multiple server ticks; entities or block entities added or moved into already-read chunks may be absent; a smaller radius can be read within one tick";
 
     private final WorldRegistry registry;
+
+    /** Counts server ticks even while /tick freeze stops game time; test levels without a server use game time. */
+    static long serverTick(ServerLevel level) {
+        var server = level.getServer();
+        return server == null ? level.getGameTime() : server.getTickCount();
+    }
 
     public AreaScan(WorldRegistry registry) {
         this.registry = registry;
@@ -524,7 +530,7 @@ public final class AreaScan {
         @Override
         public boolean step() {
             if (stopped || nextCursor != null || chunk >= chunks.size()) return false;
-            if (startedAt == null) startedAt = level.getGameTime();
+            if (startedAt == null) startedAt = serverTick(level);
             var pos = chunks.get(chunk);
             if (level.getChunkSource().getChunkNow(pos.x, pos.z) == null || !level.areEntitiesLoaded(pos.toLong())) {
                 if (level.getChunkSource().getChunkNow(pos.x, pos.z) == null) unloaded++;
@@ -593,7 +599,7 @@ public final class AreaScan {
 
         @Override
         public Page<EntityHandle> result() {
-            if (startedAt != null && level.getGameTime() != startedAt) notes.add(SNAPSHOT_NOTE);
+            if (startedAt != null && serverTick(level) != startedAt) notes.add(SNAPSHOT_NOTE);
             return AreaScan.page(items, nextCursor, unloaded, entitiesUnloaded, notes);
         }
     }

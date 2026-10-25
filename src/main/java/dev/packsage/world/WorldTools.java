@@ -16,6 +16,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -795,7 +796,7 @@ public final class WorldTools implements KnowledgeProvider {
         @Override
         public boolean step() {
             if (stopped) return false;
-            if (level != null && startedAt == null) startedAt = level.getGameTime();
+            if (level != null && startedAt == null) startedAt = AreaScan.serverTick(level);
             if (search != null) return search.step();
             if (resume != null && chunks == null) {
                 resolveRoots();
@@ -950,7 +951,7 @@ public final class WorldTools implements KnowledgeProvider {
             if (unloaded > 0) all.add(unloaded + " chunks in range were not loaded and were not searched");
             if (entitiesUnloaded > 0) all.add(entitiesUnloaded + " chunks in range did not have their entities loaded yet, so entities there were not searched");
             if (gone > 0) all.add(gone + " holders from earlier pages are gone or no longer loaded");
-            if (startedAt != null && level.getGameTime() != startedAt) all.add(AreaScan.SNAPSHOT_NOTE);
+            if (startedAt != null && AreaScan.serverTick(level) != startedAt) all.add(AreaScan.SNAPSHOT_NOTE);
             all.addAll(notes);
             List<ItemEntry> entries = List.of();
             FindState continuation = null;
@@ -1663,9 +1664,9 @@ public final class WorldTools implements KnowledgeProvider {
         return payload;
     }
 
-    private static String entityTitle(EntityHandle entity) {
+    static String entityTitle(EntityHandle entity) {
         return entity.name() + " (" + entity.kind() + ") at " + entity.dimension() + "|"
-                + Math.round(entity.x()) + "," + Math.round(entity.y()) + "," + Math.round(entity.z());
+                + Mth.floor(entity.x()) + "," + Mth.floor(entity.y()) + "," + Mth.floor(entity.z());
     }
 
     private static String anchorText(Anchor anchor) {

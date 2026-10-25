@@ -12,7 +12,6 @@ import dev.packsage.world.ProgressStatus;
 import dev.packsage.world.ProgressTree;
 import dev.packsage.world.Section;
 import dev.packsage.world.ServerWork;
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementNode;
 import net.minecraft.advancements.AdvancementProgress;
@@ -25,7 +24,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
-import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayDeque;
@@ -192,32 +190,13 @@ public final class MinecraftProgress implements ProgressReader {
     }
 
     /**
-     * Acquires at most {@link #STEP_NODES} index buckets a step into owned ordered sibling maps, then walks at most
-     * that many nodes or finished sibling frames a step. Visible roots and siblings use id order; unearned hidden
-     * ones follow them in alias order. No engine iterator, table or collection view survives a step.
+     * Copies node references in the first step, prepares at most {@link #STEP_NODES} nodes a step in owned ordered
+     * sibling maps, then walks at most that many nodes or finished sibling frames a step. Visible roots and siblings
+     * use id order; unearned hidden ones follow them in alias order. No engine iterator or collection view survives a step.
      * A node without a display is not listed, but its displayed descendants are, under its nearest displayed ancestor.
      * A partial read lists only the trees it finished counting.
      */
     private final class Read implements ServerWork.Slice<ProgressSnapshot> {
-        private static final Field NODES;
-        private static final Field VALUES;
-
-        static {
-            Field nodes = null;
-            Field values = null;
-            try {
-                nodes = AdvancementTree.class.getDeclaredField("nodes");
-                values = Object2ObjectOpenHashMap.class.getDeclaredField("value");
-                nodes.setAccessible(true);
-                values.setAccessible(true);
-            } catch (ReflectiveOperationException | RuntimeException failure) {
-                nodes = null;
-                values = null;
-            }
-            NODES = nodes;
-            VALUES = values;
-        }
-
         /** {@code parentDone} is whether the nearest displayed ancestor is done; null for a root. */
         private record Pending(NavigableMap<String, AdvancementNode> siblings, Boolean parentDone) {
         }
@@ -227,6 +206,7 @@ public final class MinecraftProgress implements ProgressReader {
         private final List<ProgressTree> trees = new ArrayList<>();
         private final List<ProgressEntry> entries = new ArrayList<>();
         private Object generation;
+        private List<AdvancementNode> nodes;
         private final NavigableMap<String, AdvancementNode> roots = new TreeMap<>();
         private final Map<AdvancementNode, NavigableMap<String, AdvancementNode>> children = new HashMap<>();
         private int nextNode;
@@ -246,30 +226,25 @@ public final class MinecraftProgress implements ProgressReader {
         public boolean step() {
             if (generation == null) {
                 generation = source.generation().get();
+                // O(n) plain reference copy: a few thousand references normally take microseconds. Progress lookups,
+                // hidden aliases and ordering are paced below; no engine iterator survives this first step.
+                nodes = new ArrayList<>(source.tree().get().nodes());
+                return true;
             } else if (source.generation().get() != generation) {
                 note = RELOADED_NOTE;
                 return false;
             }
             if (!acquired) {
-                // The loaded manager owns a fixed fastutil node table until reload. Index its buckets directly:
-                // re-creating/skipping an iterator or copying the table would hide unbounded work in one step.
-                try {
-                    if (NODES == null || VALUES == null) throw new IllegalStateException("node index fields unavailable");
-                    var values = (Object[]) VALUES.get(NODES.get(source.tree().get()));
-                    for (var handled = 0; handled < STEP_NODES && nextNode < values.length; handled++) {
-                        var node = (AdvancementNode) values[nextNode++];
-                        if (node == null || node.parent() == null && node.advancement().display().isEmpty()) continue;
-                        var key = node.advancement().display().isPresent() && node.advancement().display().get().isHidden()
-                                && !source.progress().apply(node.holder()).isDone()
-                                ? "1" + id(source, node, source.progress().apply(node.holder())).local() : "0" + node.holder().id();
-                        if (node.parent() == null) roots.put(key, node);
-                        else children.computeIfAbsent(node.parent(), ignored -> new TreeMap<>()).put(key, node);
-                    }
-                    acquired = nextNode == values.length;
-                } catch (ReflectiveOperationException | RuntimeException failure) {
-                    note = "The advancement index could not be read; progress coverage is incomplete";
-                    return false;
+                for (var handled = 0; handled < STEP_NODES && nextNode < nodes.size(); handled++) {
+                    var node = nodes.get(nextNode++);
+                    if (node.parent() == null && node.advancement().display().isEmpty()) continue;
+                    var key = node.advancement().display().isPresent() && node.advancement().display().get().isHidden()
+                            && !source.progress().apply(node.holder()).isDone()
+                            ? "1" + id(source, node, source.progress().apply(node.holder())).local() : "0" + node.holder().id();
+                    if (node.parent() == null) roots.put(key, node);
+                    else children.computeIfAbsent(node.parent(), ignored -> new TreeMap<>()).put(key, node);
                 }
+                acquired = nextNode == nodes.size();
                 return true;
             }
             for (var handled = 0; handled < STEP_NODES; handled++) {

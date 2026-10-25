@@ -27,8 +27,9 @@ class AssistantSettingsScreenTest {
     @Test
     void closeSavesSettingsAndReturnsToAssistantOnce() throws Exception {
         PackSageSettings settings = PackSageSettings.defaults();
+        Path path = temporaryDirectory.resolve("settings.properties");
         AtomicInteger returned = new AtomicInteger();
-        AssistantSettingsScreen screen = new AssistantSettingsScreen(settings, temporaryDirectory.resolve("settings.properties"),
+        AssistantSettingsScreen screen = new AssistantSettingsScreen(settings, path,
                 Component.literal("Settings"),
                 List.of(new ModelBackend.ModelInfo("model", "Model", true, true, 1_000, 100)), "model", returned::incrementAndGet);
         settings.setModelId("model");
@@ -38,6 +39,7 @@ class AssistantSettingsScreenTest {
         screen.onClose();
 
         assertEquals(1, returned.get());
+        settings.flushAndClose(path).join();
         assertTrue(Files.isRegularFile(temporaryDirectory.resolve("settings.properties")));
         assertEquals(ModelBackend.ReasoningEffort.HIGH, PackSageSettings.load(temporaryDirectory.resolve("settings.properties")).reasoningEffort());
     }
@@ -83,7 +85,8 @@ class AssistantSettingsScreenTest {
     @Test
     void rebuildingSettingsPreservesNumericDraftsAndCloseSavesValidValues() {
         var path = temporaryDirectory.resolve("settings.properties");
-        var screen = new AssistantSettingsScreen(PackSageSettings.defaults(), path, Component.literal("Settings"),
+        var settings = PackSageSettings.defaults();
+        var screen = new AssistantSettingsScreen(settings, path, Component.literal("Settings"),
                 List.of(), null, () -> { });
         screen.width = 512;
         screen.height = 240;
@@ -101,6 +104,7 @@ class AssistantSettingsScreenTest {
         assertEquals(layout.historyTop() + 52, ((MultilineEditor) screen.children().get(1)).getY());
         assertEquals(layout.historyTop() + 92, ((MultilineEditor) screen.children().get(2)).getY());
         screen.close();
+        settings.flushAndClose(path).join();
         assertEquals(37, PackSageSettings.load(path).historyTurns());
         assertEquals(23456, PackSageSettings.load(path).historicalTokens());
         assertEquals(5, PackSageSettings.load(path).sessionsBeforeCollapse());

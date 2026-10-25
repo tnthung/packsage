@@ -176,17 +176,23 @@ class PackSageSettingsTest {
         var path = temporaryDirectory.resolve("settings.properties");
         var client = java.util.concurrent.Executors.newSingleThreadExecutor();
         CompletableFuture<Void> promptSave;
+        CompletableFuture<Void> latestSave;
         try {
             client.submit(() -> settings.save(path)).get(1, java.util.concurrent.TimeUnit.SECONDS);
             assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS));
-            promptSave = client.submit(() -> settings.saveDeveloperPrompt(path, "newest screen prompt"))
+            promptSave = client.submit(() -> settings.saveDeveloperPrompt(path, "older screen prompt"))
                     .get(1, java.util.concurrent.TimeUnit.SECONDS);
+            latestSave = client.submit(() -> {
+                settings.setDeveloperPrompt("newest screen prompt");
+                return settings.save(path);
+            }).get(1, java.util.concurrent.TimeUnit.SECONDS);
             client.submit(() -> { }).get(1, java.util.concurrent.TimeUnit.SECONDS);
         } finally {
             release.countDown();
             client.shutdownNow();
         }
         promptSave.join();
+        latestSave.join();
         assertEquals("newest screen prompt", settings.developerPrompt());
         settings.save(path).join();
         settings.flushAndClose(path).join();

@@ -85,7 +85,7 @@ class DeveloperSettingsScreenTest {
         ScreenTestHost.initialize(failed);
         ((MultilineEditor) failed.children().getFirst()).setValue("unsaved prompt");
         failed.mouseClicked(278, 215, 0);
-        assertEquals("saved prompt", settings.developerPrompt());
+        assertEquals("unsaved prompt", settings.developerPrompt());
         assertEquals(1, failed.children().size());
         assertEquals(0, failedReturned.get());
 
@@ -96,7 +96,7 @@ class DeveloperSettingsScreenTest {
         ScreenTestHost.initialize(cancelled);
         ((MultilineEditor) cancelled.children().getFirst()).setValue("draft");
         cancelled.mouseClicked(208, 215, 0);
-        assertEquals("saved prompt", settings.developerPrompt());
+        assertEquals("unsaved prompt", settings.developerPrompt());
         assertEquals(1, cancelledReturned.get());
     }
 

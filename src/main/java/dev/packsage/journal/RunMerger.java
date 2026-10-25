@@ -47,8 +47,7 @@ public final class RunMerger {
     }
 
     private Run create(JournalEvent e) {
-        var run = new Run(e);
-        run.sequence = nextSequence++;
+        var run = new Run(e, nextSequence++);
         changed.put(run.sequence, run);
         return run;
     }

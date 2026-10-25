@@ -6,6 +6,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -112,6 +113,36 @@ class RunMergerTest {
         assertEquals(4096, runs.get(0).count());
         assertEquals(904, runs.get(1).count());
         assertEquals(Positions.pack(4096, 64, 0), runs.get(1).first());
+    }
+
+    @Test
+    void aNearlyFullRunRejectsAMultiPositionEventThatWouldCrossTheCap() {
+        var merger = new RunMerger();
+        for (int i = 0; i < 4090; i++) {
+            merger.add(sand(i / 10, i % 64, 64, i / 64));
+        }
+        var positions = new long[40];
+        for (int j = 0; j < 40; j++) {
+            positions[j] = Positions.pack(j, 65, 0);
+        }
+        merger.add(event(EventType.BREAK, 409, OVERWORLD, "player:A", "minecraft:sand", null, positions));
+        var runs = merger.takeChanged();
+        assertEquals(2, runs.size());
+        assertEquals(4090, runs.get(0).count());
+        assertEquals(40, runs.get(1).count());
+        assertEquals(Positions.pack(0, 65, 0), runs.get(1).first());
+    }
+
+    @Test
+    void anEventOlderThanTheRunsLastEventStartsANewRun() {
+        var merger = new RunMerger();
+        merger.add(sand(50, 0, 64, 0));
+        merger.add(sand(49, 1, 64, 0));
+        var runs = merger.takeChanged();
+        assertEquals(2, runs.size());
+        assertEquals(50, runs.get(0).lastGameTime());
+        assertEquals(49, runs.get(1).firstGameTime());
+        assertFalse(runs.get(0).accepts(sand(49, 2, 64, 0)));
     }
 
     @Test

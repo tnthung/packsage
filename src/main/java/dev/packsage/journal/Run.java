@@ -4,6 +4,10 @@ import java.util.Arrays;
 
 /** A merged journal row under construction: consecutive events of one key, close in time and place. */
 public final class Run {
+    /**
+     * The most positions a run holds. A first event may carry more; the recording rules cap a single event at this many
+     * positions (the explosion hook in Task 9), so a run never exceeds it.
+     */
     static final int MAX_POSITIONS = 4096;
     static final long IDLE_TICKS = 100;
     static final int MARGIN = 16;
@@ -26,9 +30,16 @@ public final class Run {
     private long lastWall;
     private Box box;
     private long rowId = -1;
-    long sequence;
+    final long sequence;
 
+    /** Starts a run from its first event, which the recording rules keep within {@link #MAX_POSITIONS} positions. */
     public Run(JournalEvent first) {
+        this(first, 0);
+    }
+
+    /** Starts a run with the merger's creation sequence, which orders changed runs. */
+    Run(JournalEvent first, long sequence) {
+        this.sequence = sequence;
         key = MergeKey.of(first);
         firstGameTime = first.gameTime();
         firstWall = first.wallMillis();

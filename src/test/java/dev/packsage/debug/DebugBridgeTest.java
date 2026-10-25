@@ -31,6 +31,28 @@ class DebugBridgeTest {
     }
 
     @Test
+    void emptyHeadersStillProduceAControlledClientError() {
+        assertThrows(DebugHttp.Failure.class, () -> DebugHttp.parse(new ByteArrayInputStream("\r\n".getBytes(StandardCharsets.US_ASCII))));
+    }
+
+    @Test
+    void stoppedListenerCannotLeaveAnAcceptedConnectionQueuedForever() throws Exception {
+        var logs = new ArrayList<String>();
+        var bridge = new DebugBridge(directory, 0, (operation, body) -> body, logs::add);
+        assertTrue(bridge.start());
+        var token = JsonParser.parseString(Files.readString(directory.resolve("packsage/debug-bridge.json"))).getAsJsonObject();
+        try (var socket = new Socket("127.0.0.1", token.get("port").getAsInt())) {
+            socket.setSoTimeout(3000);
+            socket.getOutputStream().write("GET /state HTTP/1.1\r\n".getBytes(StandardCharsets.US_ASCII));
+            bridge.close();
+            assertEquals(-1, socket.getInputStream().read());
+        } finally {
+            bridge.close();
+        }
+        assertFalse(Files.exists(directory.resolve("packsage/debug-bridge.json")));
+    }
+
+    @Test
     void rejectsAmbiguousOversizedAndTruncatedRequests() {
         for (String wire : new String[] {
                 "POST /chat HTTP/1.1\r\nContent-Length: 1048577\r\n\r\n",

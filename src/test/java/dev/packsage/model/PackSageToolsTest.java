@@ -111,6 +111,29 @@ class PackSageToolsTest {
     }
 
     @Test
+    void searchInventoryIsNoLongerOffered() throws Exception {
+        assertTrue(PackSageTools.definitions().stream().noneMatch(value -> value.name().equals("search_inventory")));
+        var calls = new AtomicInteger();
+        var tools = new PackSageTools(request -> { calls.incrementAndGet(); return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)); });
+        var response = tools.execute(new ModelBackend.ToolCall("inv", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), SCOPE)
+                .toCompletableFuture().get();
+        assertTrue(response.result().error());
+        assertEquals("unknown read tool", JsonParser.parseString(response.result().serializedResult()).getAsJsonObject().get("detail").getAsString());
+        assertEquals(0, calls.get());
+    }
+
+    @Test
+    void toolDescriptionsNameOnlyDefinedTools() {
+        var definitions = PackSageTools.definitions();
+        var names = definitions.stream().map(ModelBackend.ToolDefinition::name).toList();
+        for (var definition : definitions) {
+            assertFalse(definition.description().contains("search_inventory"), definition.name());
+            var mentioned = java.util.regex.Pattern.compile("\\b(?:search|read|list|inspect|find|plan)_[a-z_]+\\b").matcher(definition.description());
+            while (mentioned.find()) assertTrue(names.contains(mentioned.group()), definition.name() + " names " + mentioned.group());
+        }
+    }
+
+    @Test
     void serializesDeterministicTotalsForSingletonConsumedRecipeInputs() throws Exception {
         var iron = new Evidence.RecipeAlternative("item_stack", "minecraft:iron_ingot", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);
         var redstone = new Evidence.RecipeAlternative("item_stack", "minecraft:redstone", new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED);

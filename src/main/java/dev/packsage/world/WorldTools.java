@@ -823,6 +823,8 @@ public final class WorldTools implements KnowledgeProvider {
         @Override
         public boolean stopEarly() {
             if (search != null) return search.stopEarly();
+            if (blocks != null || resume != null && resume.gather() != null
+                    && entitySeen < resume.gather().entitySkip() && next >= chunks.size()) return false;
             if (chunks == null || !gatherCanStop(chunks.size(), next, startChunk) && entitySeen == 0) return false;
             stopped = true;
             return true;
@@ -862,6 +864,7 @@ public final class WorldTools implements KnowledgeProvider {
 
         /** The engine's loaded lookup is an iterable view; retain its traversal and cap holder checks per step. */
         private boolean collectEntities() {
+            if (level == null) return false; // A search-only continuation has already finished gathering.
             if (entities == null) entities = level.getAllEntities().iterator();
             if (!entities.hasNext()) return false;
             var skip = resume == null || resume.gather() == null ? 0 : resume.gather().entitySkip();

@@ -1,5 +1,6 @@
 package dev.packsage.model;
 
+import dev.packsage.journal.EventType;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.Toolbox;
 
@@ -172,7 +173,14 @@ public final class PackSageTools {
                     required.add("name");
                 }
                 case "search_journal" -> {
-                    properties.add("filter", JsonParser.parseString("{\"type\":\"object\",\"properties\":{\"time\":{\"type\":[\"object\",\"null\"],\"properties\":{\"after\":{\"type\":[\"string\",\"null\"],\"maxLength\":64},\"before\":{\"type\":[\"string\",\"null\"],\"maxLength\":64},\"lastMinutes\":{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":5256000}},\"additionalProperties\":false},\"area\":{\"type\":[\"object\",\"null\"],\"properties\":{\"center\":{\"type\":[\"object\",\"null\"],\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"player\",\"entity\",\"block\",\"note\"]},\"id\":{\"type\":[\"string\",\"null\"],\"maxLength\":36},\"place\":{\"type\":[\"string\",\"null\"],\"maxLength\":300}},\"required\":[\"type\"],\"additionalProperties\":false},\"radius\":{\"type\":\"integer\",\"minimum\":0,\"maximum\":256}},\"required\":[\"radius\"],\"additionalProperties\":false},\"dimension\":{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"},\"types\":{\"type\":[\"array\",\"null\"],\"maxItems\":17,\"items\":{\"type\":\"string\",\"enum\":[\"place\",\"break\",\"deposit\",\"withdraw\",\"death\",\"kill\",\"dimension\",\"advancement\",\"profession\",\"cured\",\"converted\",\"trade\",\"raid_start\",\"raid_end\",\"structure\",\"explosion\",\"note\"]}},\"subjects\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256},\"notesOnly\":{\"type\":[\"boolean\",\"null\"]}},\"additionalProperties\":false}"));
+                    var filter = JsonParser.parseString("{\"type\":\"object\",\"properties\":{\"time\":{\"type\":[\"object\",\"null\"],\"properties\":{\"after\":{\"type\":[\"string\",\"null\"],\"maxLength\":64},\"before\":{\"type\":[\"string\",\"null\"],\"maxLength\":64},\"lastMinutes\":{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":5256000}},\"additionalProperties\":false},\"area\":{\"type\":[\"object\",\"null\"],\"properties\":{\"radius\":{\"type\":\"integer\",\"minimum\":0,\"maximum\":256}},\"required\":[\"radius\"],\"additionalProperties\":false},\"dimension\":{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"},\"types\":{\"type\":[\"array\",\"null\"],\"maxItems\":17,\"items\":{\"type\":\"string\"}},\"subjects\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256},\"notesOnly\":{\"type\":[\"boolean\",\"null\"]}},\"additionalProperties\":false}").getAsJsonObject();
+                    filter.getAsJsonObject("properties").getAsJsonObject("area").getAsJsonObject("properties").add("center", JsonParser.parseString(WORLD_ANCHOR));
+                    var types = new JsonArray();
+                    for (var type : EventType.values()) types.add(type.id());
+                    types.add("note");
+                    filter.getAsJsonObject("properties").getAsJsonObject("types").addProperty("maxItems", types.size());
+                    filter.getAsJsonObject("properties").getAsJsonObject("types").getAsJsonObject("items").add("enum", types);
+                    properties.add("filter", filter);
                     properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
                     required.add("filter");
                 }

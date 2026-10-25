@@ -350,6 +350,15 @@ public final class AssistantRuntime implements ChatActions {
         return Map.copyOf(availability);
     }
 
+    @Override
+    public Map<String, String> adapterDetails() {
+        synchronized (stateLock) {
+            if (world == null || selected == null || !selected.world.worldOrServer().equals(world.worldOrServer())
+                    || !selected.loaded || selected.knowledge == null || selected.knowledgeUnavailable) return Map.of();
+            return selected.knowledge.adapterDetails();
+        }
+    }
+
     public void onRenderGuiPost() {
         List<GameplayContextCapture> captures;
         synchronized (stateLock) {

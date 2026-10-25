@@ -101,27 +101,32 @@ public final class JournalTools implements KnowledgeProvider {
             return switch (request.tool()) {
                 case "search_journal" -> search(request);
                 case "remember", "update_note" -> save(request, context);
-                default -> {
-                    if (!(request.arguments().values().get("id") instanceof Evidence.JsonString text) || !NoteBook.isId(text.value())) {
-                        throw new Failure(Code.INVALID_ARGUMENTS, "id must be a note id from search_journal notesOnly");
-                    }
-                    var notes = journal.notes();
-                    yield journal.write(store -> {
-                        available(request.scope());
-                        if (notes.get(text.value()) == null || !store.deleteNote(text.value())) {
-                            throw new Failure(Code.INVALID_ARGUMENTS, "no note " + text.value() + "; find it with search_journal notesOnly");
-                        }
-                        notes.remove(text.value());
-                        return new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null,
-                                "note " + text.value() + " forgotten");
-                    });
-                }
+                default -> forget(request);
             };
         } catch (Failure failure) {
             return CompletableFuture.failedFuture(failure);
         } catch (IllegalArgumentException | java.time.DateTimeException failure) {
             return CompletableFuture.failedFuture(new Failure(Code.INVALID_ARGUMENTS, failure.getMessage()));
         }
+    }
+
+    private CompletionStage<Evidence.Result> forget(PackSageTools.ReadRequest request) {
+        if (!(request.arguments().values().get("id") instanceof Evidence.JsonString text) || !NoteBook.isId(text.value())) {
+            throw new Failure(Code.INVALID_ARGUMENTS, "id must be a note id from search_journal notesOnly");
+        }
+        var notes = journal.notes();
+        return journal.write(store -> {
+            available(request.scope());
+            if (notes.get(text.value()) == null || !store.deleteNote(text.value())) {
+                throw new Failure(Code.INVALID_ARGUMENTS, "no note " + text.value() + "; find it with search_journal notesOnly");
+            }
+            notes.remove(text.value());
+            return null;
+        }).thenApplyAsync(ignored -> {
+            available(request.scope());
+            return new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null,
+                    "note " + text.value() + " forgotten");
+        }, worker);
     }
 
     private CompletionStage<Evidence.Result> search(PackSageTools.ReadRequest request) {
@@ -175,9 +180,11 @@ public final class JournalTools implements KnowledgeProvider {
                 if (after != null) throw new Failure(Code.INVALID_ARGUMENTS, "lastMinutes cannot be combined with after");
                 after = now - integer(time.get("lastMinutes"), "lastMinutes", 1, 5_256_000) * 60_000L;
             }
-            if (after != null && before != null && after > before) throw new Failure(Code.INVALID_ARGUMENTS, "after must not be later than before");
+            if (after != null && before != null && after > before) throw new Failure(Code.INVALID_ARGUMENTS,
+                    time.has("lastMinutes") && !time.get("lastMinutes").isJsonNull()
+                            ? "lastMinutes selects a start later than before" : "after must not be later than before");
         }
-        var types = strings(json, "types", 17, false);
+        var types = strings(json, "types", EventType.values().length + 1, false);
         for (var type : types) {
             if (!type.equals("note")) EventType.byId(type);
         }
@@ -233,16 +240,19 @@ public final class JournalTools implements KnowledgeProvider {
                 store.putNote(note);
                 var duplicates = updating ? List.<Note>of() : notes.similar(note.text(), 3);
                 notes.put(note);
-                var record = record(new JournalEntry.NoteEntry(note), request.scope(), now, false, Evidence.Coverage.COMPLETE);
+                return Map.entry(note, duplicates);
+            }).thenApplyAsync(saved -> {
+                available(request.scope());
+                var record = record(new JournalEntry.NoteEntry(saved.getKey()), request.scope(), saved.getKey().updatedWall(), false, Evidence.Coverage.COMPLETE);
                 if (!updating) {
                     var payload = new LinkedHashMap<>(record.payload().values());
-                    payload.put("possibleDuplicates", new Evidence.JsonArray(duplicates.stream()
+                    payload.put("possibleDuplicates", new Evidence.JsonArray(saved.getValue().stream()
                             .map(other -> (Evidence.JsonValue) new Evidence.JsonObject(Map.of("id", new Evidence.JsonString(other.id()), "text", new Evidence.JsonString(other.text()),
                                     "place", other.place() == null ? new Evidence.JsonNull() : new Evidence.JsonString(other.place().text())))).toList()));
                     record = new Evidence.Record(record.source(), record.kind(), record.title(), new Evidence.JsonObject(payload), record.targets());
                 }
                 return new Evidence.Result(List.of(record), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null);
-            });
+            }, worker);
         }, worker);
     }
 
@@ -339,7 +349,7 @@ public final class JournalTools implements KnowledgeProvider {
             var event = (JournalEntry.EventEntry) entry;
             handle = "event:" + event.id();
             authority = Evidence.Authority.SERVER_READ;
-            target = event.at() == null ? null : "journal-place|" + event.at().text();
+            target = event.at() == null ? null : JournalNavigation.placeId(event.at());
             if (event.detail() != null) {
                 try {
                     payload.add("detail", JsonParser.parseString(event.detail()));

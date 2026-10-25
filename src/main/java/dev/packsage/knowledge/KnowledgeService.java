@@ -108,8 +108,21 @@ public final class KnowledgeService {
 
     public Map<String, Boolean> adapterAvailability() {
         var availability = new LinkedHashMap<String, Boolean>();
-        for (var provider : providers) availability.put(provider.id(), provider.enabled());
+        for (var provider : providers) {
+            var status = provider.status().availability();
+            availability.put(provider.id(), provider.enabled() && status != KnowledgeProvider.Availability.UNAVAILABLE
+                    && status != KnowledgeProvider.Availability.ERROR);
+        }
         return Map.copyOf(availability);
+    }
+
+    public Map<String, String> adapterDetails() {
+        var details = new LinkedHashMap<String, String>();
+        for (var provider : providers) {
+            var status = provider.status();
+            if (status.detail() != null) details.put(provider.id(), status.detail());
+        }
+        return Map.copyOf(details);
     }
 
     private final class Discovery implements Toolbox {

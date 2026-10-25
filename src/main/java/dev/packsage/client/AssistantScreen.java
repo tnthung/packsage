@@ -1085,6 +1085,7 @@ public final class AssistantScreen extends Screen {
             } else if (item.kind().equals("adapters")) {
                 title = "Adapters";
                 Map<String, Boolean> availability = actions.adapterAvailability();
+                if (!availability.getOrDefault("journal", false)) footer = actions.adapterDetails().getOrDefault("journal", "");
                 String key = availability + ":" + settings.hideInactiveAdapters() + ":" + width + ":" + height;
                 if (!key.equals(adapterRowsKey)) {
                     adapterRowsKey = key;
@@ -1118,7 +1119,8 @@ public final class AssistantScreen extends Screen {
             for (Component line : lines) wrapped.addAll(font.split(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 20));
             List<net.minecraft.util.FormattedCharSequence> footerLines = footer.isEmpty() ? List.of()
                     : font.split(Component.literal(footer).withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 20);
-            int tooltipHeight = item.kind().equals("adapters") ? adapterLayout.height() : Math.min(height - 8, title.isEmpty()
+            int tooltipHeight = item.kind().equals("adapters") ? Math.min(height - 8,
+                    adapterLayout.height() + (footerLines.isEmpty() ? 0 : 6 + footerLines.size() * 14)) : Math.min(height - 8, title.isEmpty()
                     ? 12 + Math.max(0, wrapped.size() - 1) * 14 + font.lineHeight
                     : 36 + wrapped.size() * 14
                     + values.stream().mapToInt(value -> Math.max(1, value.size()) * 14).sum()

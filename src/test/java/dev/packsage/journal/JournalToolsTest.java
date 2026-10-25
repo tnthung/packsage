@@ -348,7 +348,11 @@ class JournalToolsTest {
                     var entered = new CountDownLatch(1);
                     journal.write(store -> {
                         entered.countDown();
-                        assertTrue(release.await(10, TimeUnit.SECONDS));
+                        try {
+                            assertTrue(release.await(10, TimeUnit.SECONDS));
+                        } catch (InterruptedException failure) {
+                            throw new AssertionError(failure);
+                        }
                         return null;
                     });
                     assertTrue(entered.await(10, TimeUnit.SECONDS));

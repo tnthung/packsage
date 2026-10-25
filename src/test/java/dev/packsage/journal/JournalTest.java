@@ -272,12 +272,18 @@ class JournalTest {
                 + project.resolve("build/classes/java/main") + File.pathSeparator + classpath;
         for (var mode : List.of("flush", "stuck")) {
             var file = dir.resolve(mode + ".db");
-            var process = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java.exe").toString(),
+            var started = System.nanoTime();
+            var process = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin",
+                    System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java").toString(),
                     "-cp", classpath, JournalShutdownProcess.class.getName(), file.toString(), mode)
                     .redirectErrorStream(true).redirectOutput(dir.resolve(mode + ".log").toFile()).start();
             try {
                 assertTrue(process.waitFor(20, TimeUnit.SECONDS), classpath + "\n" + Files.readString(dir.resolve(mode + ".log")));
                 assertEquals(0, process.exitValue(), Files.readString(dir.resolve(mode + ".log")));
+                if (mode.equals("stuck")) {
+                    assertTrue(System.nanoTime() - started >= TimeUnit.SECONDS.toNanos(9),
+                            "the shutdown hook must wait for the bounded flush timeout");
+                }
                 if (mode.equals("flush")) {
                     try (var store = JournalStore.open(file)) {
                         assertEquals(1, new JournalSearch(store).search(new JournalFilter(null, null, null, null,

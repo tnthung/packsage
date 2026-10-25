@@ -133,6 +133,21 @@ class JournalHooksTest {
     }
 
     @Test
+    void structureAndInteractionHintEvictionsDoNotReportLostHistory() {
+        var session = new JournalHooks(new Journal(Runnable::run), () -> null).newSession();
+        var stats = new JournalStats();
+        for (int i = 0; i <= StructureWatch.MAX_STARTS; i++) {
+            session.structures.inside("player:A", "minecraft:village_plains", i, 0, 0, 64, 0,
+                    new JournalEvents.Stamp(0, 0, "minecraft:overworld"));
+        }
+        session.interactionEvictions++;
+        assertEquals(1, session.structures.evictions());
+        session.updateStats(stats);
+        session.updateStats(stats);
+        assertEquals(0, stats.trackerEvictions());
+    }
+
+    @Test
     void callbacksWithoutAnIntegratedServerDoNotTouchSessionTrackerCounters() {
         var journal = new Journal(Runnable::run);
         var hooks = new JournalHooks(journal, () -> null);

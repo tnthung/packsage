@@ -48,12 +48,25 @@ class StructureCandidatesTest {
     }
 
     @Test
-    void ringCountCoversTheRadius() {
+    void lastRingCoversTheRadiusInclusively() {
         var placement = new RandomSpreadStructurePlacement(34, 8, RandomSpreadType.LINEAR, 10387312);
         assertEquals(3, StructureCandidates.rings(placement, 100));
         assertEquals(0, StructureCandidates.rings(placement, 0));
         assertEquals(1, StructureCandidates.rings(placement, 34));
         assertEquals(2, StructureCandidates.rings(placement, 35));
+    }
+
+    @Test
+    void inclusiveLastRingKeepsCandidatesInsideTheRadius() {
+        var placement = new RandomSpreadStructurePlacement(34, 8, RandomSpreadType.LINEAR, 10387312);
+        var candidate = placement.getPotentialStructureChunk(42L, 33 + 3 * 34, 0);
+        assertTrue(Math.hypot((double) candidate.x - 33, candidate.z) <= 100);
+        assertTrue(StructureCandidates.ring(placement, 42L, 33, 0, 3).contains(candidate));
+        var candidates = new ArrayList<ChunkPos>();
+        for (int ring = 0; ring <= StructureCandidates.rings(placement, 100); ring++) {
+            candidates.addAll(StructureCandidates.ring(placement, 42L, 33, 0, ring));
+        }
+        assertTrue(candidates.contains(candidate));
     }
 
     @Test

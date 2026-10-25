@@ -54,6 +54,22 @@ class SavedStartsTest {
     }
 
     @Test
+    void missingOrNonCompoundStructureContainersAreUnknown() {
+        var version = SharedConstants.getCurrentVersion().getDataVersion().getVersion();
+        var tag = new CompoundTag();
+        tag.putInt("DataVersion", version);
+        tag.putString("Status", "minecraft:full");
+        assertEquals(SavedStarts.Verdict.UNKNOWN, SavedStarts.classify(tag, "minecraft:village_plains", version));
+        tag.putString("structures", "not a compound");
+        assertEquals(SavedStarts.Verdict.UNKNOWN, SavedStarts.classify(tag, "minecraft:village_plains", version));
+        var structures = new CompoundTag();
+        tag.put("structures", structures);
+        assertEquals(SavedStarts.Verdict.UNKNOWN, SavedStarts.classify(tag, "minecraft:village_plains", version));
+        structures.putString("starts", "not a compound");
+        assertEquals(SavedStarts.Verdict.UNKNOWN, SavedStarts.classify(tag, "minecraft:village_plains", version));
+    }
+
+    @Test
     void missingOrUnrecognizedMetadataIsUnknown() {
         var version = SharedConstants.getCurrentVersion().getDataVersion().getVersion();
         var tag = new CompoundTag();

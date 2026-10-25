@@ -17,7 +17,8 @@ import java.nio.file.Path;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.DeflaterOutputStream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ReadOnlyRegionsTest {
     @BeforeAll
@@ -68,5 +69,37 @@ class ReadOnlyRegionsTest {
         Files.write(region, new byte[] { 1, 2, 3 });
         assertEquals(SavedStarts.Verdict.UNKNOWN, ReadOnlyRegions.read(directory, new ChunkPos(0, 0), "minecraft:test"));
         assertArrayEquals(new byte[] { 1, 2, 3 }, Files.readAllBytes(region));
+    }
+
+    @Test
+    void truncatedNbtAfterTheSelectedFieldsIsUnknown(@TempDir Path directory) throws Exception {
+        // Explicit field order ensures the selective collector can finish before the missing root end.
+        var bytes = new ByteArrayOutputStream();
+        try (var output = new DataOutputStream(bytes)) {
+            output.writeByte(10);
+            output.writeUTF("");
+            output.writeByte(3);
+            output.writeUTF("DataVersion");
+            output.writeInt(SharedConstants.getCurrentVersion().getDataVersion().getVersion());
+            output.writeByte(8);
+            output.writeUTF("Status");
+            output.writeUTF("minecraft:full");
+            output.writeByte(10);
+            output.writeUTF("structures");
+            output.writeByte(10);
+            output.writeUTF("starts");
+            output.writeByte(0);
+            output.writeByte(0);
+            // Root compound terminator is missing.
+        }
+        var region = directory.resolve("region/r.0.0.mca");
+        Files.createDirectories(region.getParent());
+        var file = ByteBuffer.allocate(12288);
+        file.putInt(0, (2 << 8) | 1);
+        file.position(8192);
+        file.putInt(bytes.size() + 1).put((byte) 3).put(bytes.toByteArray());
+        Files.write(region, file.array());
+        assertEquals(SavedStarts.Verdict.UNKNOWN, ReadOnlyRegions.read(directory, new ChunkPos(0, 0), "minecraft:test"));
+        assertArrayEquals(file.array(), Files.readAllBytes(region));
     }
 }

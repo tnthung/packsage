@@ -15,7 +15,11 @@ import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
 import net.minecraft.world.level.levelgen.structure.pieces.PiecesContainer;
 import net.minecraft.world.level.levelgen.structure.structures.DesertPyramidPiece;
-import net.minecraft.world.level.levelgen.structure.placement.*;
+import net.minecraft.world.level.levelgen.structure.placement.ConcentricRingsStructurePlacement;
+import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
+import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadType;
+import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
+import net.minecraft.world.level.levelgen.structure.placement.StructurePlacementType;
 import net.minecraft.util.RandomSource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -23,7 +27,9 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 class LocateStructureTest {
     private static Structure structure;
@@ -109,9 +115,9 @@ class LocateStructureTest {
 
     @Test
     void stopEarlyLeavesAResumableRing() {
-        var slice = search(new World(), placement, 0, 0, 100, 0);
-        slice.step();
-        slice.step();
+        var world = new World();
+        var slice = search(world, placement, 0, 0, 100, 0);
+        while (world.checked < 2) assertTrue(slice.step());
         assertTrue(slice.stopEarly());
         assertEquals(1, slice.result().nextRing());
         assertEquals(1, slice.result().hits().size());

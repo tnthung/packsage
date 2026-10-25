@@ -14,10 +14,6 @@ final class ListingPages {
      * Pages {@code items} by encoded bytes and at most {@link AreaScan#LIST_PAGE} from {@code offset}; the cursor is the next offset. Any
      * {@code notes} make the page partial, and an empty listing leads its note with {@code emptyNote}.
      */
-    static <T> Page<T> slice(List<T> items, int offset, List<String> notes, String emptyNote) {
-        return slice(items, offset, notes, emptyNote, null);
-    }
-
     static <T> Page<T> slice(List<T> items, int offset, List<String> notes, String emptyNote,
                              java.util.function.ToIntFunction<T> encodedBytes) {
         if (offset < 0) {

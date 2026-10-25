@@ -106,22 +106,18 @@ public final class PackSageSettings {
 
     public CompletableFuture<Void> save(Path path) {
         if (!detached) saveGeneration = writer.nextGeneration();
-        return observed(writer.submit(path, snapshot()));
+        return observed(writer.submit(path, new SettingsWriter.Snapshot(saveGeneration, properties())));
     }
 
     public CompletableFuture<Void> flushAndClose(Path path) {
         if (!detached) saveGeneration = writer.nextGeneration();
-        return observed(writer.flushAndClose(path, snapshot()));
+        return observed(writer.flushAndClose(path, new SettingsWriter.Snapshot(saveGeneration, properties())));
     }
 
     private CompletableFuture<Void> observed(CompletableFuture<Void> save) {
         return save.whenComplete((ignored, failure) -> {
             if (failure != null) dev.packsage.PackSageLog.LOGGER.error("Could not save PackSage settings", failure);
         });
-    }
-
-    private SettingsWriter.Snapshot snapshot() {
-        return new SettingsWriter.Snapshot(saveGeneration, properties());
     }
 
     private Map<String, String> properties() {
@@ -169,10 +165,6 @@ public final class PackSageSettings {
     }
 
     public CompletableFuture<Void> saveDeveloperPrompt(Path path, String value) {
-        if (value != null && !dev.packsage.model.GroundingInstructions.defaultInstructions().equals(value)
-                && (value.isBlank() || value.length() > MAX_DEVELOPER_PROMPT_LENGTH)) {
-            return CompletableFuture.failedFuture(new IllegalArgumentException("developerPrompt is out of bounds"));
-        }
         if (!setDeveloperPrompt(dev.packsage.model.GroundingInstructions.defaultInstructions().equals(value) ? null : value)) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("developerPrompt is out of bounds"));
         }

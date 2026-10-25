@@ -132,5 +132,4 @@ public final class DeveloperSettingsScreen extends Screen {
         draft = editor == null ? draft : editor.value();
         returnToAssistant.run();
     }
-
 }

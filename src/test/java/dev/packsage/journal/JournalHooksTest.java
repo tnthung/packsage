@@ -58,7 +58,7 @@ class JournalHooksTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"before", "during", "after"})
-    void registrationAroundServerStartOpensOneJournalSession(@TempDir Path dir, String timing) throws Exception {
+    void registrationAroundServerStartOpensOneJournalSession(String timing, @TempDir Path dir) throws Exception {
         class Server extends IntegratedServer {
             Path root;
             List<Runnable> tasks;

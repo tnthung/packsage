@@ -504,6 +504,28 @@ class WorldToolsTest {
         assertEquals(null, WorldTools.openedRoot(null, 7), "the player left");
     }
 
+    @Test
+    void menuFactsNameTheMenuItsTitleAndPreviewsAndFlagAModdedMenu() {
+        net.minecraft.SharedConstants.tryDetectVersion();
+        net.minecraft.server.Bootstrap.bootStrap();
+        var menu = new TestMenu(7);
+        var storage = new net.minecraft.world.SimpleContainer(2);
+        menu.slots.add(new net.minecraft.world.inventory.Slot(storage, 0, 0, 0));
+        menu.slots.add(new net.minecraft.world.inventory.NonInteractiveResultSlot(storage, 1, 0, 0));
+        var holder = new LiveHolder.OfMenu(menu, new net.minecraft.world.SimpleContainer(36));
+        var notes = new java.util.LinkedHashSet<String>();
+
+        var facts = WorldTools.menuFacts(holder, new ClientFocus(null, 7, "Storage"), notes).values();
+
+        assertEquals(new Evidence.JsonString("unknown"), facts.get("menuType"));
+        assertEquals(new Evidence.JsonString("Storage"), facts.get("title"));
+        assertEquals(new Evidence.JsonArray(java.util.List.of(new Evidence.JsonObject(Map.of(
+                "slot", new Evidence.JsonNumber(java.math.BigDecimal.ONE), "kind", new Evidence.JsonString("recipe_preview"))))), facts.get("excludedSlots"));
+        assertEquals(java.util.Set.of("unknown is not a vanilla menu; some listed slots may be previews"), notes);
+        assertFalse(WorldTools.menuFacts(holder, new ClientFocus(null, 8, "Other"), notes).values().containsKey("title"),
+                "the client shows a different menu");
+    }
+
     private static final class TestMenu extends net.minecraft.world.inventory.AbstractContainerMenu {
         private TestMenu(int containerId) {
             super(null, containerId);

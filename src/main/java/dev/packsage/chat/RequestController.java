@@ -646,20 +646,27 @@ public final class RequestController {
             install = isCurrent(request);
             if (install) {
                 request.exchange = startedExchange;
-                request.toolResults.forEach((callId, result) -> {
-                    if (request.submittedResults.add(callId)) pending.add(result);
-                });
+                pending.addAll(request.toolResults.values());
             }
         }
         if (!install) startedExchange.cancel();
         else for (ModelBackend.ToolResult result : pending) {
             int resultBytes = toolResultBytes.applyAsInt(result.serializedResult());
-            ToolTiming.Interval timing;
+            ToolTiming.Interval timing = null;
             String tool;
+            boolean dropped;
             synchronized (stateLock) {
                 tool = request.toolCalls.get(result.callId()).name();
-                timing = new ToolTiming.Interval(request.toolReceivedAtNanos.get(result.callId()), System.nanoTime());
-                request.toolIntervals.add(timing);
+                dropped = !isCurrent(request) || !request.submittedResults.add(result.callId());
+                if (!dropped) {
+                    timing = new ToolTiming.Interval(request.toolReceivedAtNanos.get(result.callId()), System.nanoTime());
+                    request.toolIntervals.add(timing);
+                }
+            }
+            if (dropped) {
+                PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_result_dropped call={} tool={} event_ns={}",
+                        request.submission.requestId().value(), result.callId(), tool, System.nanoTime());
+                continue;
             }
             PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_result_sent call={} tool={} event_ns={} toolMs={} resultBytes={} error={}",
                     request.submission.requestId().value(), result.callId(), tool, timing.endNanos(),

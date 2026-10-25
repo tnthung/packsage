@@ -101,7 +101,6 @@ public final class DeveloperSettingsScreen extends Screen {
                             saving = false;
                             if (failure != null) { error = "Could not save settings"; return; }
                             if (minecraft == null || minecraft.screen == this) finish();
-                            else settings.save(path);
                         };
                         if (minecraft == null) completed.run();
                         else minecraft.execute(completed);

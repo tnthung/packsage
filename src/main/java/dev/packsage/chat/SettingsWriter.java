@@ -44,8 +44,7 @@ public final class SettingsWriter {
 
     synchronized CompletableFuture<Void> submit(Path path, Snapshot snapshot) {
         if (closed) return CompletableFuture.failedFuture(new IllegalStateException("settings writer is closed"));
-        if (latest != null && (snapshot.generation() < latest.generation()
-                || snapshot.generation() == latest.generation() && !snapshot.properties().equals(latest.properties()))) {
+        if (latest != null && snapshot.generation() < latest.generation()) {
             return CompletableFuture.completedFuture(null);
         }
         if (latest == null || snapshot.generation() > latest.generation()) {
@@ -55,9 +54,7 @@ public final class SettingsWriter {
         var result = new CompletableFuture<Void>();
         executor.execute(() -> {
             try {
-                if (snapshot.generation() < latest.generation()
-                        || snapshot.generation() == latest.generation() && !snapshot.properties().equals(latest.properties())
-                        || snapshot.generation() < writtenGeneration) {
+                if (snapshot.generation() < latest.generation() || snapshot.generation() < writtenGeneration) {
                     result.complete(null);
                     return;
                 }

@@ -195,8 +195,12 @@ public final class ClientAssistant {
             }
         }
         NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.GameShuttingDownEvent ignored) -> {
-            try { settings.flushAndClose(settingsPath).join(); }
-            catch (java.util.concurrent.CompletionException failure) {
+            try { settings.flushAndClose(settingsPath).get(3, java.util.concurrent.TimeUnit.SECONDS); }
+            catch (InterruptedException failure) {
+                Thread.currentThread().interrupt();
+                dev.packsage.PackSageLog.LOGGER.error("Could not flush PackSage settings during shutdown", failure);
+            }
+            catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException failure) {
                 dev.packsage.PackSageLog.LOGGER.error("Could not flush PackSage settings during shutdown", failure);
             }
         });

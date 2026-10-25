@@ -4,6 +4,7 @@
 
 ### 2026-10-26
 
+- Fixed entity snapshot resumption after section removals/recreation with bounded rescans and explicit PARTIAL coverage under repeated churn; debug conflict restoration now checks and writes in one client task. Shared world-list setup and documented snapshot paging cost; automated regressions pass, live checks pending.
 - Fixed W3: stable entity and item searches stay COMPLETE across server ticks and report their game-time span, including under /tick freeze; concrete gaps still report PARTIAL. Automated regressions pass; installed reacceptance is pending.
 
 - Fixed final-review entity and holder traversal: server steps count actual indexed candidates, content beyond 4,096 entries stays reachable, and long-name entity pages keep byte-bounded continuation with explicit name truncation. Prompt conflict recovery skips stale restores after a newer screen save. Automated regressions pass; installed checks remain pending.

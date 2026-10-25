@@ -257,11 +257,12 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                         });
                     }
                     if (pending != null) {
-                        // A newer screen save already persisted itself; do not restore a stale conflict snapshot.
                         var restore = pending.before();
-                        if (call(client, () -> runtime.settings().sameSnapshot(restore))) {
-                            promptWriter.accept(restore, restore.developerPrompt());
-                        }
+                        call(client, () -> {
+                            // Keep this rare debug-only file write with its check so a screen save cannot slip between them.
+                            if (runtime.settings().sameSnapshot(restore)) promptWriter.accept(restore, restore.developerPrompt());
+                            return null;
+                        });
                         throw new IllegalStateException("Prompt save conflict: settings kept changing; retry the request");
                     }
                     yield execute(DebugRouter.Operation.PROMPT_GET, body);

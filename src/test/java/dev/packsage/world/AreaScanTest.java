@@ -31,6 +31,14 @@ class AreaScanTest {
     }
 
     @Test
+    void aWorkLimitAtTheEndOfSnapshotAcquisitionStillDeliversProgress() throws Exception {
+        var world = DenseWorld.create(130);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, null);
+        while (world.candidates < 130) assertTrue(slice.step());
+        if (slice.stopEarly()) assertFalse(slice.result().items().isEmpty(), "rebuilding the same snapshot must not exhaust every call before a record is delivered");
+    }
+
+    @Test
     void neighboringNonmatchesCannotExhaustAServerStep() throws Exception {
         var world = DenseWorld.create(5000);
         for (var entity : world.entities) entity.setPos(-8, 64, 8);

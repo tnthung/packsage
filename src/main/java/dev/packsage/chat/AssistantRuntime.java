@@ -821,7 +821,34 @@ public final class AssistantRuntime implements ChatActions {
         send(question, includeScreenshot, explicitWebSearch, null);
     }
 
-    private void send(String question, boolean includeScreenshot, boolean explicitWebSearch,
+    /** Client-thread submission through the same validation and controller path as the screen. */
+    public ChatContracts.RequestId sendTracked(String question) {
+        if (view().active()) throw new IllegalStateException("Conversation already has an active request");
+        return send(question, false, false, null);
+    }
+
+    public boolean sessionReady() {
+        synchronized (stateLock) {
+            return world != null && selected != null && selected.controller != null && selected.loaded
+                    && !selected.loading && !selected.deleting && !sessionLoading;
+        }
+    }
+
+    public ChatContracts.View requestView(ChatContracts.RequestId requestId) {
+        List<Holder> current;
+        synchronized (stateLock) {
+            current = List.copyOf(holders.values());
+        }
+        for (Holder holder : current) {
+            if (holder.controller == null) continue;
+            var view = holder.controller.view();
+            if (requestId.value().equals(view.activeRequestId()) || view.conversation().turns().stream()
+                    .anyMatch(turn -> turn.requestId().equals(requestId))) return wrap(view, holder);
+        }
+        return null;
+    }
+
+    private ChatContracts.RequestId send(String question, boolean includeScreenshot, boolean explicitWebSearch,
                       ChatContracts.RequestId replacing) {
         Objects.requireNonNull(question);
         long sendStartedAtNanos = System.nanoTime();
@@ -835,7 +862,7 @@ public final class AssistantRuntime implements ChatActions {
         }
         if (question.isBlank()) {
             addError("Question cannot be blank");
-            return;
+            return null;
         }
         if (holder == null || holder.controller == null) {
             String error;
@@ -844,7 +871,7 @@ public final class AssistantRuntime implements ChatActions {
                         : world == null ? "Cannot send without an active world" : "Cannot send without an active conversation";
             }
             addError(error);
-            return;
+            return null;
         }
         if (holder.active || holder.requestStarting || holder.controller.view().active()) {
             if (!holder.controller.steer(question)) {
@@ -853,7 +880,7 @@ public final class AssistantRuntime implements ChatActions {
                 }
                 publishCurrentView(worldEpoch);
             }
-            return;
+            return null;
         }
         String configuredModelId = currentSettings.modelId();
         ModelBackend.ModelInfo selectedModel = currentCapabilities.modelCatalog().stream()
@@ -862,18 +889,18 @@ public final class AssistantRuntime implements ChatActions {
         if (selectedModel == null) {
             addError(configuredModelId == null ? "No selected model is available in the account model catalog"
                     : "Configured model is unavailable in the account model catalog: " + configuredModelId);
-            return;
+            return null;
         }
         int budget;
         try {
             budget = outputBudget.applyAsInt(selectedModel);
         } catch (RuntimeException failure) {
             addError("Output budget is unavailable: " + failureMessage(failure));
-            return;
+            return null;
         }
         if (budget < 1) {
             addError("Output budget is unavailable");
-            return;
+            return null;
         }
         ChatContracts.HistoryLimits historyLimits;
         try {
@@ -882,7 +909,7 @@ public final class AssistantRuntime implements ChatActions {
             historyLimits = new ChatContracts.HistoryLimits(currentSettings.historyTurns(), historicalTokens);
         } catch (RuntimeException failure) {
             addError("Request settings are invalid: " + failureMessage(failure));
-            return;
+            return null;
         }
         ModelBackend.SearchMode searchMode = searchMode(selectedModel, currentSettings.automaticWebSearch(), explicitWebSearch);
         ChatContracts.Submission submission;
@@ -942,7 +969,7 @@ public final class AssistantRuntime implements ChatActions {
                 runtimeErrors.add(rejection);
             }
             publishCurrentView(epoch);
-            return;
+            return null;
         }
         if (explicitWebSearch && searchMode == ModelBackend.SearchMode.DISABLED) {
             synchronized (stateLock) {
@@ -1012,6 +1039,7 @@ public final class AssistantRuntime implements ChatActions {
         }
         publishCurrentView(epoch);
         refreshSessionList();
+        return submission.requestId();
     }
 
     @Override
@@ -1169,7 +1197,11 @@ public final class AssistantRuntime implements ChatActions {
 
     @Override
     public void navigate(Evidence.NavigationTarget target) {
-        if (target == null) return;
+        navigateWithResult(target);
+    }
+
+    public CompletionStage<Evidence.NavigationResult> navigateWithResult(Evidence.NavigationTarget target) {
+        if (target == null) return CompletableFuture.completedFuture(new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "No target"));
         long navigationId;
         Holder holder;
         long epoch;
@@ -1188,39 +1220,46 @@ public final class AssistantRuntime implements ChatActions {
         if (holder == null || holder.controller == null || holder.knowledge == null
                 || currentWorld == null || !currentWorld.worldOrServer().equals(holder.world.worldOrServer())) {
             showNavigationError(navigationId, "Join this session's world before opening its sources");
-            return;
+            return CompletableFuture.completedFuture(new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "Join this session's world before opening its sources"));
         }
         ChatContracts.View current = wrap(holder.controller.view(), holder);
         if (current.navigationTargets().stream().noneMatch(value -> value.equals(target))
                 || current.sources().stream().noneMatch(source -> source.scope().equals(target.scope())
                 && source.providerId().equals(target.providerId()) && source.sourceHandle().equals(target.sourceHandle()))) {
             showNavigationError(navigationId, "Navigation target is stale");
-            return;
+            return CompletableFuture.completedFuture(new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "Navigation target is stale"));
         }
         if ("web".equals(target.providerId())) {
             if (!target.sourceHandle().equals(target.targetId()) || externalUrl(target.targetId()) == null) {
                 showNavigationError(navigationId, "Navigation target is invalid");
-                return;
+                return CompletableFuture.completedFuture(new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "Navigation target is invalid"));
             }
             try {
                 externalNavigation.accept(target.targetId());
             } catch (RuntimeException failure) {
                 showNavigationError(navigationId, "Navigation failed: " + failureMessage(failure));
+                return CompletableFuture.completedFuture(new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, failureMessage(failure)));
             }
-            return;
+            return CompletableFuture.completedFuture(new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, null));
         }
         KnowledgeService currentKnowledge = holder.knowledge;
+        var completion = new CompletableFuture<Evidence.NavigationResult>();
         currentKnowledge.refreshNavigation(target, currentScope).whenCompleteAsync((refreshed, failure) -> {
             synchronized (stateLock) {
                 if (navigationId != navigationGeneration || epoch != worldEpoch
                         || selectionGeneration != sessionSelectionGeneration || selected != holder
                         || currentKnowledge != holder.knowledge || !currentScope.equals(holder.scope) || world == null
-                        || !world.worldOrServer().equals(holder.world.worldOrServer())) return;
+                        || !world.worldOrServer().equals(holder.world.worldOrServer())) {
+                    completion.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "Navigation session changed"));
+                    return;
+                }
             }
             if (failure != null) {
                 showNavigationError(navigationId, "Navigation failed: " + failureMessage(failure));
+                completion.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, failureMessage(failure)));
             } else if (refreshed == null) {
                 showNavigationError(navigationId, "Navigation target is no longer available");
+                completion.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "Navigation target is no longer available"));
             } else {
                 try {
                     var result = currentKnowledge.open(refreshed, currentScope);
@@ -1229,11 +1268,14 @@ public final class AssistantRuntime implements ChatActions {
                     } else showNavigationError(navigationId,
                             "Navigation " + result.status().name().toLowerCase() + ": "
                                     + (result.detail() == null ? "target unavailable" : result.detail()));
+                    completion.complete(result);
                 } catch (RuntimeException navigationFailure) {
                     showNavigationError(navigationId, "Navigation failed: " + failureMessage(navigationFailure));
+                    completion.complete(new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, failureMessage(navigationFailure)));
                 }
             }
         }, clientExecutor);
+        return completion;
     }
 
     private void showNavigationError(long navigationId, String error) {

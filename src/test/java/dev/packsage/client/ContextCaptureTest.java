@@ -4,7 +4,11 @@ import com.google.gson.JsonParser;
 import com.mojang.serialization.Codec;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.world.ClientFocus;
+import dev.packsage.world.PathRoot;
 import net.minecraft.advancements.critereon.BlockPredicate;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -16,11 +20,14 @@ import net.minecraft.world.item.AdventureModePredicate;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.CustomData;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -77,7 +84,7 @@ class ContextCaptureTest {
     void missedRaysHaveNoBlockTargetAndCameraPerspectiveIsCapturedFresh() {
         var observation = new AtomicReference<>(new GameplayContextCapture.Observation("block:minecraft:air", null,
                 "block:minecraft:air", "compactmachines:compact_world", "10,2,-1011", "compactmachines:machine",
-                "1", "miss", "third_person_back"));
+                "1", "miss", "third_person_back", null, null, "block:compactmachines:compact_world|10,2,-1012", null));
         var capture = new GameplayContextCapture(observation::get,
                 request -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH),
                 Runnable::run, () -> SCOPE);
@@ -86,6 +93,7 @@ class ContextCaptureTest {
         assertEquals("miss", missed.get("focusKind").getAsString());
         assertEquals("unavailable", missed.get("targeted").getAsString());
         assertEquals("unavailable", missed.get("hovered").getAsString());
+        assertEquals("unavailable", missed.get("targetedHolder").getAsString());
         assertEquals("third_person_back", missed.get("cameraPerspective").getAsString());
 
         observation.set(new GameplayContextCapture.Observation("block:minecraft:stone", null,
@@ -96,6 +104,37 @@ class ContextCaptureTest {
                 .context().serializedGameplayContext()).getAsJsonObject();
         assertEquals("block:minecraft:stone", hit.get("targeted").getAsString());
         assertEquals("first_person", hit.get("cameraPerspective").getAsString());
+    }
+
+    @Test
+    void gameplayContextNamesTheTargetedHolderAndTheRiddenEntity() {
+        var block = ClientFocus.targetedRoot(new BlockHitResult(Vec3.ZERO, Direction.UP, new BlockPos(1, 64, 2), false),
+                "minecraft:overworld");
+        var vehicle = UUID.fromString("00000000-0000-0000-0000-000000000007");
+        var observation = new AtomicReference<>(new GameplayContextCapture.Observation(null, "held", "target",
+                "minecraft:overworld", "1,64,3", "plains", "1", "block", "first_person", null, null,
+                GameplayContextCapture.targetedHolder(block), GameplayContextCapture.ridden(vehicle)));
+        var capture = new GameplayContextCapture(observation::get,
+                request -> new GameplayContextCapture.CapturedFrame("image/png", new byte[]{1}, Instant.EPOCH),
+                Runnable::run, () -> SCOPE);
+        var riding = JsonParser.parseString(capture.preview().serializedGameplayContext()).getAsJsonObject();
+        assertEquals("block:minecraft:overworld|1,64,2", riding.get("targetedHolder").getAsString());
+        assertEquals("entity:00000000-0000-0000-0000-000000000007", riding.get("ridden").getAsString());
+
+        var target = UUID.fromString("00000000-0000-0000-0000-000000000009");
+        observation.set(new GameplayContextCapture.Observation(null, "held", "target", "minecraft:overworld",
+                "1,64,3", "plains", "2", "entity", "first_person", null, null,
+                GameplayContextCapture.targetedHolder(new PathRoot.Entity(target)), GameplayContextCapture.ridden(null)));
+        var walking = JsonParser.parseString(capture.preview().serializedGameplayContext()).getAsJsonObject();
+        assertEquals("entity:00000000-0000-0000-0000-000000000009", walking.get("targetedHolder").getAsString());
+        assertEquals("none", walking.get("ridden").getAsString());
+
+        observation.set(new GameplayContextCapture.Observation("held", "target", "overworld", "1,2,3", "plains",
+                "1", "block"));
+        var unknown = JsonParser.parseString(capture.preview().serializedGameplayContext()).getAsJsonObject();
+        assertEquals("unavailable", unknown.get("targetedHolder").getAsString());
+        assertEquals("none", unknown.get("ridden").getAsString());
+        assertNull(GameplayContextCapture.targetedHolder(null));
     }
 
     private static final class MenuStub extends net.minecraft.world.inventory.AbstractContainerMenu {

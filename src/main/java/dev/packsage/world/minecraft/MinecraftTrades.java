@@ -28,13 +28,13 @@ final class MinecraftTrades {
     /** The merchant's stored offers; null when the field cannot be read. */
     static final Field OFFERS = offersField();
     static final int MAX_OFFERS = 64;
-    /** Changed components per offered stack; 64 offers of up to three stacks stay within a few hundred kilobytes. */
+    /** Changed components per offered stack; WorldTools also bounds the whole inspection record on the worker. */
     static final int MAX_COMPONENT_BYTES = 1024;
 
     private MinecraftTrades() {
     }
 
-    /** Adds the merchant's offers, whether it is trading, and this player's reputation and prices. */
+    /** Adds the merchant's offers, whether it is trading, and this player's reputation and prices; false when capped. */
     static boolean facts(AbstractVillager merchant, ServerPlayer player, Map<String, Evidence.JsonValue> values) {
         var offers = storedOffers(merchant);
         var trading = merchant.isTrading();

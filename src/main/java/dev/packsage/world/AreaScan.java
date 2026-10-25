@@ -25,9 +25,10 @@ import java.util.Set;
 
 /**
  * Sliced block and entity scans in a sphere around a center. Block scans take one non-empty 16x16x16 chunk section
- * per step and entity scans one chunk per step. A chunk that is not loaded when its step runs, or unloads while its
+ * per step and entity scans at most 64 loaded entities per step. A chunk that is not loaded when its step runs, or unloads while its
  * sections are read, is counted, never loaded, and makes the page PARTIAL. List cursors are
- * {@code <chunk index>:<matches to skip in that chunk>} and stay stable for the same level, center and radius. A scan
+ * {@code <chunk index>:<matches to skip in that chunk>} for blocks, or {@code 0:<loaded entity ordinal>} for entities.
+ * They stay stable while the relevant loaded content is unchanged. A scan
  * asked to stop early at the call's work budget notes how far it got; a list continues from a cursor at that chunk.
  */
 public final class AreaScan {

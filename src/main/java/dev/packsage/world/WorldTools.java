@@ -23,14 +23,12 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.DoubleBlockCombiner;
 import net.minecraft.world.level.block.EnderChestBlock;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.lang.ref.WeakReference;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -823,9 +821,10 @@ public final class WorldTools implements KnowledgeProvider {
         @Override
         public boolean stopEarly() {
             if (search != null) return search.stopEarly();
+            if (chunks == null) return false;
             if (blocks != null || resume != null && resume.gather() != null
                     && entitySeen < resume.gather().entitySkip() && next >= chunks.size()) return false;
-            if (chunks == null || !gatherCanStop(chunks.size(), next, startChunk) && entitySeen == 0) return false;
+            if (!gatherCanStop(chunks.size(), next, startChunk) && entitySeen == 0) return false;
             stopped = true;
             return true;
         }

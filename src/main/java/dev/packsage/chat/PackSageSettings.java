@@ -4,11 +4,11 @@ import dev.packsage.model.ModelBackend;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
 
 public final class PackSageSettings {
     public enum SendShortcut { ENTER, CTRL_ENTER }
@@ -32,13 +32,20 @@ public final class PackSageSettings {
     private int sessionsBeforeCollapse;
     private String modelId;
     private ModelBackend.ReasoningEffort reasoningEffort;
-    private volatile String developerPrompt;
-    private volatile long saveGeneration;
-    private final Object saveLock = new Object();
+    private String developerPrompt;
+    private long saveGeneration;
+    private final SettingsWriter writer;
+    private boolean detached;
 
     public PackSageSettings(boolean openPaused, boolean automaticWebSearch, int historyTurns, int historicalTokens) {
+        this(openPaused, automaticWebSearch, historyTurns, historicalTokens, new SettingsWriter());
+    }
+
+    PackSageSettings(boolean openPaused, boolean automaticWebSearch, int historyTurns, int historicalTokens,
+                     SettingsWriter writer) {
         this.openPaused = openPaused;
         this.automaticWebSearch = automaticWebSearch;
+        this.writer = writer;
         if (historyTurns < 1 || historyTurns > MAX_HISTORY_TURNS) throw new IllegalArgumentException("historyTurns is out of bounds");
         if (historicalTokens < 1 || historicalTokens > MAX_HISTORICAL_TOKENS) throw new IllegalArgumentException("historicalTokens is out of bounds");
         this.historyTurns = historyTurns;
@@ -97,56 +104,43 @@ public final class PackSageSettings {
         return settings;
     }
 
-    public void save(Path path) {
-        saveGeneration++;
-        synchronized (saveLock) {
-            Properties properties = properties();
-            try {
-                if (path.getParent() != null) Files.createDirectories(path.getParent());
-                var temporary = Files.createTempFile(path.toAbsolutePath().getParent(), "packsage-", ".properties.tmp");
-                try {
-                    try (OutputStream output = Files.newOutputStream(temporary)) {
-                        properties.store(output, "PackSage settings");
-                    }
-                    Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                } finally {
-                    Files.deleteIfExists(temporary);
-                }
-            } catch (IOException exception) {
-                throw new IllegalStateException("could not save PackSage settings", exception);
-            }
-        }
+    public CompletableFuture<Void> save(Path path) {
+        return observed(writer.submit(path, snapshot()));
     }
 
-    /** Worker-side restore: screen saves share this lock, and client-side changes invalidate captured generations. */
-    public boolean saveIfUnchanged(PackSageSettings snapshot, Runnable write) {
-        synchronized (saveLock) {
-            if (saveGeneration != snapshot.saveGeneration) return false;
-            write.run();
-            return true;
-        }
+    public CompletableFuture<Void> flushAndClose(Path path) {
+        return observed(writer.flushAndClose(path, snapshot()));
     }
 
-    /** Compares a client-thread snapshot, including saves that did not change a setting's value. */
-    public boolean sameSnapshot(PackSageSettings snapshot) {
-        return saveGeneration == snapshot.saveGeneration && properties().equals(snapshot.properties());
+    private CompletableFuture<Void> observed(CompletableFuture<Void> save) {
+        return save.whenComplete((ignored, failure) -> {
+            if (failure != null) dev.packsage.PackSageLog.LOGGER.error("Could not save PackSage settings", failure);
+        });
     }
 
-    private Properties properties() {
-        Properties properties = new Properties();
-        if (debugBridge != null) properties.setProperty("debugBridge", Boolean.toString(debugBridge));
-        if (debugBridgePort != null) properties.setProperty("debugBridgePort", Integer.toString(debugBridgePort));
-        properties.setProperty("openPaused", Boolean.toString(openPaused));
-        properties.setProperty("automaticWebSearch", Boolean.toString(automaticWebSearch));
-        properties.setProperty("hideInactiveAdapters", Boolean.toString(hideInactiveAdapters));
-        properties.setProperty("sendShortcut", sendShortcut.name().toLowerCase(java.util.Locale.ROOT));
-        properties.setProperty("historyTurns", Integer.toString(historyTurns));
-        properties.setProperty("historicalTokens", Integer.toString(historicalTokens));
-        properties.setProperty("sessionsBeforeCollapse", Integer.toString(sessionsBeforeCollapse));
-        if (modelId != null) properties.setProperty("modelId", modelId);
-        if (developerPrompt != null) properties.setProperty("developerPrompt", developerPrompt);
-        properties.setProperty("reasoningEffort", reasoningEffort.name().toLowerCase(java.util.Locale.ROOT));
+    private SettingsWriter.Snapshot snapshot() {
+        return new SettingsWriter.Snapshot(saveGeneration, properties());
+    }
+
+    private Map<String, String> properties() {
+        var properties = new java.util.HashMap<String, String>();
+        if (debugBridge != null) properties.put("debugBridge", Boolean.toString(debugBridge));
+        if (debugBridgePort != null) properties.put("debugBridgePort", Integer.toString(debugBridgePort));
+        properties.put("openPaused", Boolean.toString(openPaused));
+        properties.put("automaticWebSearch", Boolean.toString(automaticWebSearch));
+        properties.put("hideInactiveAdapters", Boolean.toString(hideInactiveAdapters));
+        properties.put("sendShortcut", sendShortcut.name().toLowerCase(java.util.Locale.ROOT));
+        properties.put("historyTurns", Integer.toString(historyTurns));
+        properties.put("historicalTokens", Integer.toString(historicalTokens));
+        properties.put("sessionsBeforeCollapse", Integer.toString(sessionsBeforeCollapse));
+        if (modelId != null) properties.put("modelId", modelId);
+        if (developerPrompt != null) properties.put("developerPrompt", developerPrompt);
+        properties.put("reasoningEffort", reasoningEffort.name().toLowerCase(java.util.Locale.ROOT));
         return properties;
+    }
+
+    private void changed() {
+        if (!detached) saveGeneration = writer.nextGeneration();
     }
 
     public boolean openPaused() { return openPaused; }
@@ -162,27 +156,30 @@ public final class PackSageSettings {
     public ModelBackend.ReasoningEffort reasoningEffort() { return reasoningEffort; }
     public String developerPrompt() { return developerPrompt; }
 
-    public void setOpenPaused(boolean value) { openPaused = value; saveGeneration++; }
-    public void setAutomaticWebSearch(boolean value) { automaticWebSearch = value; saveGeneration++; }
-    public void setHideInactiveAdapters(boolean value) { hideInactiveAdapters = value; saveGeneration++; }
-    public void setSendShortcut(SendShortcut value) { sendShortcut = value == null ? SendShortcut.ENTER : value; saveGeneration++; }
-    public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; saveGeneration++; }
-    public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; saveGeneration++; }
+    public void setOpenPaused(boolean value) { openPaused = value; changed(); }
+    public void setAutomaticWebSearch(boolean value) { automaticWebSearch = value; changed(); }
+    public void setHideInactiveAdapters(boolean value) { hideInactiveAdapters = value; changed(); }
+    public void setSendShortcut(SendShortcut value) { sendShortcut = value == null ? SendShortcut.ENTER : value; changed(); }
+    public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; changed(); }
+    public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; changed(); }
 
     public boolean setDeveloperPrompt(String value) {
         if (value != null && (value.isBlank() || value.length() > MAX_DEVELOPER_PROMPT_LENGTH)) return false;
         developerPrompt = value;
-        saveGeneration++;
+        changed();
         return true;
     }
 
-    public void saveDeveloperPrompt(Path path, String value) {
-        saveGeneration++;
-        synchronized (saveLock) {
-            PackSageSettings candidate = withDeveloperPrompt(dev.packsage.model.GroundingInstructions.defaultInstructions().equals(value) ? null : value);
-            candidate.save(path);
-            setDeveloperPrompt(candidate.developerPrompt());
+    public CompletableFuture<Void> saveDeveloperPrompt(Path path, String value) {
+        if (value != null && !dev.packsage.model.GroundingInstructions.defaultInstructions().equals(value)
+                && (value.isBlank() || value.length() > MAX_DEVELOPER_PROMPT_LENGTH)) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("developerPrompt is out of bounds"));
         }
+        PackSageSettings candidate = withDeveloperPrompt(
+                dev.packsage.model.GroundingInstructions.defaultInstructions().equals(value) ? null : value);
+        candidate.detached = false;
+        candidate.saveGeneration = writer.nextGeneration();
+        return observed(writer.submit(path, candidate.snapshot()));
     }
 
     public PackSageSettings withDeveloperPrompt(String value) {
@@ -194,29 +191,33 @@ public final class PackSageSettings {
         copy.hideInactiveAdapters = hideInactiveAdapters;
         copy.debugBridge = debugBridge;
         copy.debugBridgePort = debugBridgePort;
-        if (!copy.setDeveloperPrompt(value)) throw new IllegalArgumentException("developerPrompt is out of bounds");
+        if (value != null && (value.isBlank() || value.length() > MAX_DEVELOPER_PROMPT_LENGTH)) {
+            throw new IllegalArgumentException("developerPrompt is out of bounds");
+        }
+        copy.developerPrompt = value;
         copy.saveGeneration = saveGeneration;
+        copy.detached = true;
         return copy;
     }
 
     public boolean setHistoryTurns(int value) {
         if (value < 1 || value > MAX_HISTORY_TURNS) return false;
         historyTurns = value;
-        saveGeneration++;
+        changed();
         return true;
     }
 
     public boolean setHistoricalTokens(int value) {
         if (value < 1 || value > MAX_HISTORICAL_TOKENS) return false;
         historicalTokens = value;
-        saveGeneration++;
+        changed();
         return true;
     }
 
     public boolean setSessionsBeforeCollapse(int value) {
         if (value < 1 || value > MAX_SESSIONS_BEFORE_COLLAPSE) return false;
         sessionsBeforeCollapse = value;
-        saveGeneration++;
+        changed();
         return true;
     }
 

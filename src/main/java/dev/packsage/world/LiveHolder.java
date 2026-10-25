@@ -3,7 +3,9 @@ package dev.packsage.world;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 
 public sealed interface LiveHolder {
@@ -17,5 +19,9 @@ public sealed interface LiveHolder {
     }
 
     record OfItem(ItemStack stack) implements LiveHolder {
+    }
+
+    /** The player's open server-side menu; playerInventory tells the player's own slots apart from the menu's. */
+    record OfMenu(AbstractContainerMenu menu, Container playerInventory) implements LiveHolder {
     }
 }

@@ -37,6 +37,7 @@ import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.npc.AbstractVillager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.vehicle.ContainerEntity;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemContainerContents;
@@ -72,9 +73,15 @@ public final class MinecraftInventories implements InventoryReader {
 
     /**
      * slots is the reported size (-1 = keyed); size bounds the entries actually readable. pendingLoot is the loot table
-     * of a section whose loot is not generated yet, or null.
+     * of a section whose loot is not generated yet, or null. keys are the entry names of positions 0 to size - 1, such
+     * as menu slot indexes, or null when each position is its own entry.
      */
-    record Part(String section, String label, SlotRole role, int slots, int size, IntFunction<ItemStack> slot, String pendingLoot) {
+    record Part(String section, String label, SlotRole role, int slots, int size, IntFunction<ItemStack> slot, String pendingLoot,
+                List<Integer> keys) {
+        Part(String section, String label, SlotRole role, int slots, int size, IntFunction<ItemStack> slot, String pendingLoot) {
+            this(section, label, role, slots, size, slot, pendingLoot, null);
+        }
+
         Part(String section, String label, SlotRole role, int slots, int size, IntFunction<ItemStack> slot) {
             this(section, label, role, slots, size, slot, null);
         }
@@ -114,7 +121,19 @@ public final class MinecraftInventories implements InventoryReader {
             case LiveHolder.OfBlock of -> block(of.level(), of.pos());
             case LiveHolder.OfEntity of -> entity(of.entity());
             case LiveHolder.OfItem of -> item(of.stack());
+            case LiveHolder.OfMenu of -> menu(of.menu(), of.playerInventory());
         };
+    }
+
+    /** One part per menu section, keyed by menu slot index; reads only Slot.getItem. */
+    private static List<Part> menu(AbstractContainerMenu menu, Container playerInventory) {
+        var parts = new ArrayList<Part>();
+        for (var section : MinecraftMenus.layout(menu, playerInventory).sections()) {
+            var keys = section.menuSlots();
+            parts.add(new Part(section.section(), section.label(), section.role(), keys.size(), keys.size(),
+                    position -> menu.slots.get(keys.get(position)).getItem(), null, keys));
+        }
+        return parts;
     }
 
     private static List<Part> player(Player player) {
@@ -295,20 +314,22 @@ public final class MinecraftInventories implements InventoryReader {
         return slots;
     }
 
-    /** Entries are decimal indexes; entries() lists only occupied ones. */
+    /** Entries are decimal indexes, or the part's keys; entries() lists only occupied ones. */
     private record Opened(Part part) implements LiveInventory {
         @Override
         public ItemStack get(String entry) {
             var index = index(entry);
-            return index < 0 || index >= part.size() ? null : part.slot().apply(index);
+            var position = part.keys() == null || index < 0 ? index : part.keys().indexOf(index);
+            return position < 0 || position >= part.size() ? null : part.slot().apply(position);
         }
 
         @Override
         public List<Map.Entry<String, ItemStack>> entries() {
             var entries = new ArrayList<Map.Entry<String, ItemStack>>();
-            for (int index = 0; index < part.size(); index++) {
-                var stack = part.slot().apply(index);
-                if (stack != null && !stack.isEmpty()) entries.add(Map.entry(Integer.toString(index), stack));
+            for (int position = 0; position < part.size(); position++) {
+                var stack = part.slot().apply(position);
+                var key = part.keys() == null ? position : part.keys().get(position);
+                if (stack != null && !stack.isEmpty()) entries.add(Map.entry(Integer.toString(key), stack));
             }
             return entries;
         }
@@ -324,9 +345,10 @@ public final class MinecraftInventories implements InventoryReader {
 
     @Override
     public Evidence.JsonObject entryFacts(LiveHolder holder, String section, String entry) {
-        if (!(holder instanceof LiveHolder.OfPlayer of)) return null;
         var index = Opened.index(entry);
-        return index < 0 ? null : playerSlotFacts(section, index, of.player().getInventory().selected);
+        if (index < 0) return null;
+        if (holder instanceof LiveHolder.OfMenu) return new Evidence.JsonObject(Map.of("menuSlot", number(index)));
+        return holder instanceof LiveHolder.OfPlayer of ? playerSlotFacts(section, index, of.player().getInventory().selected) : null;
     }
 
     /** The slot index of main and armor entries, the selected hotbar slot and the equipment slot; null for other sections. */

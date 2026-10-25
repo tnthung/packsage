@@ -11,4 +11,11 @@ public sealed interface PathRoot {
 
     record Entity(UUID id) implements PathRoot {
     }
+
+    /** The player's open menu by its container id; valid only while that menu stays open. */
+    record Opened(int containerId) implements PathRoot {
+        public Opened {
+            if (containerId < 0) throw new IllegalArgumentException("Invalid container id: " + containerId);
+        }
+    }
 }

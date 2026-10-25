@@ -26,6 +26,7 @@ public record ItemPath(PathRoot root, List<PathStep> steps) {
             case PathRoot.Player player -> text.append("player:").append(player.id());
             case PathRoot.Entity entity -> text.append("entity:").append(entity.id());
             case PathRoot.Block block -> text.append("block:").append(block.place().text());
+            case PathRoot.Opened opened -> text.append("opened:").append(opened.containerId());
         }
         for (var step : steps) {
             text.append('>').append(step.inventory().text()).append('#').append(step.entry()).append('@').append(step.kind());
@@ -68,7 +69,18 @@ public record ItemPath(PathRoot root, List<PathStep> steps) {
         if (text.startsWith("block:")) {
             return new PathRoot.Block(BlockPlace.parse(text.substring(6)));
         }
+        if (text.startsWith("opened:")) {
+            return new PathRoot.Opened(parseContainerId(text.substring(7)));
+        }
         throw new IllegalArgumentException("Invalid item path root: " + text);
+    }
+
+    /** A non-negative decimal without leading zeros. */
+    private static int parseContainerId(String text) {
+        if (text.isEmpty() || text.length() > 9 || text.length() > 1 && text.charAt(0) == '0' || !text.chars().allMatch(c -> c >= '0' && c <= '9')) {
+            throw new IllegalArgumentException("Invalid container id: " + text);
+        }
+        return Integer.parseInt(text);
     }
 
     private static UUID parseUuid(String text) {

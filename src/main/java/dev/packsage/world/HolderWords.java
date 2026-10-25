@@ -59,8 +59,8 @@ public final class HolderWords {
                     : path(situation.targeted(), null, phrase);
             case RIDDEN -> situation.ridden() == null ? new Resolved.Unresolved("You are not riding anything")
                     : path(new PathRoot.Entity(situation.ridden()), null, phrase);
-            // Opened menus become a path root of their own once menus can be read.
-            case OPENED -> new Resolved.Unresolved("No menu is open");
+            case OPENED -> situation.openedContainerId() < 0 ? new Resolved.Unresolved("No menu is open")
+                    : path(new PathRoot.Opened(situation.openedContainerId()), null, phrase);
         };
     }
 

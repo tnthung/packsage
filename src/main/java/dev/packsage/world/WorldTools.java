@@ -4,6 +4,7 @@ import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
+import dev.packsage.world.minecraft.MinecraftMenus;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
@@ -15,6 +16,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.DoubleBlockCombiner;
@@ -318,14 +320,15 @@ public final class WorldTools implements KnowledgeProvider {
         var cursor = cursor(request);
         var server = server();
         if (cursor != null) return CompletableFuture.completedFuture(entries(request, state(cursor, EntriesState.class), Evidence.Coverage.COMPLETE, null));
-        return focus(phrase).thenCompose(focus -> run(server, spanned(gameTime(server), once(() -> {
+        var opened = phrase != null ? phrase.word() == HolderWords.Word.OPENED : holder != null && holder.root() instanceof PathRoot.Opened;
+        return focus(phrase, opened).thenCompose(focus -> run(server, spanned(gameTime(server), once(() -> {
             var path = holder;
             if (phrase != null) {
                 var resolved = resolveWord(server, phrase, focus);
                 if (resolved instanceof HolderWords.Resolved.Unresolved unresolved) return new Worded<ItemsRead>(null, unresolved.reason());
                 path = listable(((HolderWords.Resolved.Path) resolved).path());
             }
-            return new Worded<>(items(server, path, inventory, filter), null);
+            return new Worded<>(items(server, path, inventory, filter, focus), null);
         })))).thenApply(read -> {
             var worded = read.value();
             if (worded.unresolved() != null) return unresolved(worded.unresolved());
@@ -351,7 +354,7 @@ public final class WorldTools implements KnowledgeProvider {
             throw invalid(text + " names a holder, not an item; list its items with list_items");
         }
         var server = server();
-        return focus(phrase).thenCompose(focus -> run(server, once(() -> {
+        return focus(phrase, false).thenCompose(focus -> run(server, once(() -> {
             var resolved = resolveWord(server, phrase, focus);
             if (resolved instanceof HolderWords.Resolved.Unresolved unresolved) return new Worded<Evidence.Record>(null, unresolved.reason());
             return new Worded<>(inspectItem(server, ((HolderWords.Resolved.Path) resolved).path(), request.scope()), null);
@@ -363,9 +366,9 @@ public final class WorldTools implements KnowledgeProvider {
         return new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null, reason);
     }
 
-    /** The client's focus, awaited only for the words that need it. */
-    private CompletionStage<ClientFocus> focus(HolderWords.Phrase phrase) {
-        if (phrase == null || (phrase.word() != HolderWords.Word.TARGETED && phrase.word() != HolderWords.Word.OPENED)) {
+    /** The client's focus, awaited only for the targeted word and for listing an open menu, whose screen title it has. */
+    private CompletionStage<ClientFocus> focus(HolderWords.Phrase phrase, boolean opened) {
+        if (!opened && (phrase == null || phrase.word() != HolderWords.Word.TARGETED)) {
             return CompletableFuture.completedFuture(ClientFocus.NONE);
         }
         var unavailable = "the game did not report what is under the crosshair or open";
@@ -441,7 +444,7 @@ public final class WorldTools implements KnowledgeProvider {
             var added = new LinkedHashSet<PathRoot>();
             for (var location : entry.locations()) {
                 var root = location.root();
-                if (!(root instanceof PathRoot.Player) && !roots.contains(root) && (summary == null || !summary.root().equals(root))) added.add(root);
+                if (!(root instanceof PathRoot.Player) && !(root instanceof PathRoot.Opened) && !roots.contains(root) && (summary == null || !summary.root().equals(root))) added.add(root);
             }
             if (shownCount > 0 && lead + shownCount + 1 + roots.size() + added.size() > AreaScan.LIST_PAGE) break;
             roots.addAll(added);
@@ -562,7 +565,7 @@ public final class WorldTools implements KnowledgeProvider {
                 coverage, rootTarget(path.root()));
     }
 
-    private ItemsRead items(MinecraftServer server, ItemPath holderPath, InventoryId inventory, KindFilter filter) {
+    private ItemsRead items(MinecraftServer server, ItemPath holderPath, InventoryId inventory, KindFilter filter, ClientFocus focus) {
         var path = holderPath == null ? new ItemPath(new PathRoot.Player(host(server).getUUID()), List.of()) : holderPath;
         var resolution = resolver(server).resolve(path);
         if (resolution.failure() != PathResolver.Failure.NONE) throw pathFailure(path, resolution);
@@ -619,11 +622,30 @@ public final class WorldTools implements KnowledgeProvider {
             summaries.add(inventorySummary(info, occupied, notes));
         }
         if (unreadTooltips[0] > 0) notes.add(ItemSearch.unreadTooltipsNote(unreadTooltips[0]));
-        // Only a block, entity or player holder has a summary record; an item's inventories show on inspect_item.
-        var summary = !path.steps().isEmpty() ? null : new HolderSummary(path.root(), summaries, resolution.holder() instanceof LiveHolder.OfPlayer of
-                ? new Evidence.JsonObject(Map.of("selectedSlot", number(of.player().getInventory().selected))) : new Evidence.JsonObject(Map.of()));
+        // Only a block, entity, player or menu holder has a summary record; an item's inventories show on inspect_item.
+        var summary = !path.steps().isEmpty() ? null : new HolderSummary(path.root(), summaries, switch (resolution.holder()) {
+            case LiveHolder.OfPlayer of -> new Evidence.JsonObject(Map.of("selectedSlot", number(of.player().getInventory().selected)));
+            case LiveHolder.OfMenu of -> menuFacts(of, focus, notes);
+            default -> new Evidence.JsonObject(Map.of());
+        });
         return new ItemsRead(grouper.entries(), null, notes.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
                 notes.isEmpty() ? null : String.join("; ", notes), null, summary, slotFacts);
+    }
+
+    /**
+     * The open menu's type, the title its screen shows when the client shows this menu, and the preview slots left out
+     * of its contents; a menu from outside Minecraft adds a note, since its previews cannot be told apart.
+     */
+    static Evidence.JsonObject menuFacts(LiveHolder.OfMenu holder, ClientFocus focus, Set<String> notes) {
+        var layout = MinecraftMenus.layout(holder.menu(), holder.playerInventory());
+        var menuType = MinecraftMenus.menuType(holder.menu());
+        var values = new LinkedHashMap<String, Evidence.JsonValue>();
+        values.put("menuType", text(menuType));
+        if (focus.openedContainerId() == holder.menu().containerId && focus.openedTitle() != null) values.put("title", text(focus.openedTitle()));
+        values.put("excludedSlots", new Evidence.JsonArray(layout.excluded().stream().map(slot -> (Evidence.JsonValue) new Evidence.JsonObject(
+                Map.of("slot", number(slot.slot()), "kind", text(slot.kind())))).toList()));
+        if (!layout.vanilla()) notes.add(menuType + " is not a vanilla menu; some listed slots may be previews");
+        return new Evidence.JsonObject(values);
     }
 
     /**
@@ -868,10 +890,14 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private static ServerPlayer host(MinecraftServer server) {
-        var profile = server.getSingleplayerProfile();
-        var player = profile == null ? null : server.getPlayerList().getPlayer(profile.getId());
+        var player = hostOrNull(server);
         if (player == null) throw new Failure(Code.UNAVAILABLE, "the player is not in the world");
         return player;
+    }
+
+    private static ServerPlayer hostOrNull(MinecraftServer server) {
+        var profile = server.getSingleplayerProfile();
+        return profile == null ? null : server.getPlayerList().getPlayer(profile.getId());
     }
 
     private static ServerLevel levelOrNull(MinecraftServer server, String dimension) {
@@ -912,7 +938,14 @@ public final class WorldTools implements KnowledgeProvider {
                 var pos = new BlockPos(block.place().x(), block.place().y(), block.place().z());
                 yield level == null || !loaded(level, pos) ? null : new LiveHolder.OfBlock(level, pos);
             }
+            case PathRoot.Opened of -> openedRoot(hostOrNull(server), of.containerId());
         };
+    }
+
+    /** The host's open menu while it is still the one with this container id; null once it closed or another opened. */
+    static LiveHolder openedRoot(Player host, int containerId) {
+        if (host == null || host.containerMenu == host.inventoryMenu || host.containerMenu.containerId != containerId) return null;
+        return new LiveHolder.OfMenu(host.containerMenu, host.getInventory());
     }
 
     private PathResolver resolver(MinecraftServer server) {
@@ -922,7 +955,8 @@ public final class WorldTools implements KnowledgeProvider {
     private static Failure pathFailure(ItemPath path, PathResolver.Resolution resolution) {
         var root = new ItemPath(path.root(), List.of()).text();
         return switch (resolution.failure()) {
-            case ROOT_GONE -> new Failure(Code.UNAVAILABLE, root + " is not loaded or no longer exists");
+            case ROOT_GONE -> new Failure(Code.UNAVAILABLE, path.root() instanceof PathRoot.Opened ? "the menu is no longer open"
+                    : root + " is not loaded or no longer exists");
             case UNAVAILABLE -> new Failure(Code.UNAVAILABLE, "step " + (resolution.failedStep() + 1) + " of " + path.text() + " cannot be opened");
             default -> new Failure(Code.UNAVAILABLE, "the item at step " + (resolution.failedStep() + 1) + " of " + path.text()
                     + " moved or changed; list its holder again");
@@ -1365,6 +1399,8 @@ public final class WorldTools implements KnowledgeProvider {
                     Evidence.Coverage.COMPLETE, WorldNavigation.entityId(of.id()));
             case PathRoot.Player player -> evidence(scope, "holder|" + holder, Evidence.RecordKind.OTHER, title, payload,
                     Evidence.Coverage.COMPLETE, null);
+            case PathRoot.Opened opened -> evidence(scope, "holder|" + holder, Evidence.RecordKind.OTHER, title, payload,
+                    Evidence.Coverage.COMPLETE, null);
         };
     }
 
@@ -1392,12 +1428,13 @@ public final class WorldTools implements KnowledgeProvider {
                 Evidence.Coverage.COMPLETE, rootTarget(first.root()));
     }
 
-    /** A block or entity holder of listed items, with its highlight target; the player has none. */
+    /** A block or entity holder of listed items, with its highlight target; the player and an open menu have none. */
     private static Evidence.Record holderRecord(Evidence.Scope scope, PathRoot root, ReadSpan span) {
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("holder", text(new ItemPath(root, List.of()).text()));
         return switch (root) {
             case PathRoot.Player player -> null;
+            case PathRoot.Opened opened -> null;
             case PathRoot.Block of -> {
                 payload.put("place", text(of.place().text()));
                 putSpan(payload, span);
@@ -1459,10 +1496,11 @@ public final class WorldTools implements KnowledgeProvider {
         };
     }
 
-    /** The highlight target of a path's holder; the player has none. */
+    /** The highlight target of a path's holder; the player and an open menu have none. */
     private static String rootTarget(PathRoot root) {
         return switch (root) {
             case PathRoot.Player player -> null;
+            case PathRoot.Opened opened -> null;
             case PathRoot.Entity of -> WorldNavigation.entityId(of.id());
             case PathRoot.Block of -> WorldNavigation.blockId(of.place());
         };

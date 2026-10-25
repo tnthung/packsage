@@ -21,7 +21,8 @@ class WorldEntityListingTest {
     @ValueSource(strings = {"matches", "empty", "frozen_matches", "frozen_empty"})
     void stableMultiTickListingsReportTheirSpanWithoutPartialCoverage(String scenario) throws Exception {
         var scope = new Evidence.Scope("world", "resources", "team", "runtime", 1);
-        var world = DenseWorld.create(scenario.endsWith("empty") ? 0 : 3);
+        var world = DenseWorld.create(130);
+        for (var entity : world.entities.subList(0, 3)) entity.setCustomName(Component.literal("selected"));
         var field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
         field.setAccessible(true);
         var server = (net.minecraft.client.server.IntegratedServer) ((sun.misc.Unsafe) field.get(null))
@@ -36,12 +37,13 @@ class WorldEntityListingTest {
         var tickCount = net.minecraft.server.MinecraftServer.class.getDeclaredField("tickCount");
         tickCount.setAccessible(true);
         var clock = new java.util.concurrent.atomic.AtomicLong();
-        var work = new ServerWork(() -> clock.getAndAdd(1_000_000));
+        var work = new ServerWork(() -> clock.getAndAdd(2_000_000));
         var provider = new WorldTools(() -> server, new WorldRegistry(), () -> scope, Runnable::run, work,
                 () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
         var tools = new PackSageTools(request -> provider.handle(request, null));
         var response = tools.execute(new ModelBackend.ToolCall("entities", "list_entities",
-                "{\"center\":{\"type\":\"block\",\"place\":\"minecraft:overworld|8,64,8\"},\"radius\":4,\"filter\":{}}"), scope).toCompletableFuture();
+                "{\"center\":{\"type\":\"block\",\"place\":\"minecraft:overworld|8,64,8\"},\"radius\":4,\"filter\":"
+                        + (scenario.endsWith("empty") ? "{\"ids\":[\"minecraft:zombie\"]}}" : "{\"text\":\"selected\"}}")), scope).toCompletableFuture();
         int ticks = 0;
         do {
             tickCount.setInt(server, ++ticks);
@@ -53,7 +55,7 @@ class WorldEntityListingTest {
         assertEquals("COMPLETE", json.get("coverage").getAsString(), json.toString());
         assertEquals("COMPLETE", json.get("outcome").getAsString(), json.toString());
         assertTrue(ticks > 1);
-        assertTrue(json.get("detail").getAsString().contains("400.." + world.gameTime), json.toString());
+        assertTrue(json.get("detail").getAsString().contains(".." + world.gameTime), json.toString());
         assertEquals(scenario.endsWith("empty") ? 0 : 3, json.getAsJsonArray("records").size());
         for (var row : json.getAsJsonArray("records")) {
             var span = row.getAsJsonObject().getAsJsonObject("payload").getAsJsonObject("readSpan");

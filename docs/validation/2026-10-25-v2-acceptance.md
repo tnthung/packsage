@@ -22145,9 +22145,9 @@ Part A totals (35 requested IDs): 25 PASS, 8 FAIL, 2 DEFERRED. Eight additional 
 | J5 | PASS | Empty-hand named questions return Nether entry 15:48:49 UTC and Sweet Dreams 15:49:14 UTC; links OPENED. |
 | M5 | NOT RUN | Mining/journal/TPS/frame subchecks PASS; world-close hook <1 ms and overflow=0 summary unavailable in logs, so full acceptance is unverified. |
 | L2 | PASS | At render distance 8, 786-block village column remains visible at 28s, expires by 31.5s; fog/render edge do not hide it. |
-| L1 | NOT RUN | Pending this acceptance session. |
-| P9 | NOT RUN | Pending this acceptance session. |
-| J7 | NOT RUN | Pending this acceptance session. |
+| L1 | FAIL | Fortress link OPENED for a 472-block target, but no column is visible from supported Nether position at distance 12/native fog, including delayed and target-height captures. Rendering visibility; root cause unconfirmed. |
+| P9 | NOT RUN | Official vanilla 1.21.1 localhost server starts, but installed client requires NeoForge and rejects vanilla connection. Fixture incompatibility; no progress/statistics reply was run. |
+| J7 | NOT RUN | Same vanilla-server rejection prevents a multiplayer world; journal unavailable behavior not exercised. Fixture incompatibility. |
 | P11 | NOT RUN | request_built exposes count 28 only; saved JSONL has no offered-tool definitions. No observed read_progress call is insufficient proof. Historical source/link reopening PASS via W7/P8. |
 
 ### Run conditions and restart evidence
@@ -22632,6 +22632,66 @@ Verbatim saved reply:
 The nearest village location is a **predicted plains village** at **(1872, 66, 864)**, about **786 blocks** from your position—mostly east, then north. The Y coordinate is estimated. It hasn’t been confirmed in a generated chunk, so terrain could prevent the village from appearing. [Village location](world:locate|minecraft:overworld|minecraft:village_plains|1872,864)
 ```
 
+### L1-overworld-attempt
+
+Question: `where is the nearest nether fortress?`
+
+Request `ba3b2b23-6ad3-4cc0-a62b-92625865b92b`; conversation `9819f203-2abd-4077-ad99-c09d121b3735`; status=completed, saved=true. Submitted 2026-10-25T16:50:42.680Z. Raw: `build/task7-part-b/L1-overworld-attempt.json`.
+
+Timing: {"elapsed_ms":"12801","backendMs":"12670","toolWallMs":"82","toolCalls":"1"}.
+
+G1 locate (`call_jebH4bEdQ2Ix0mo3GAF0QzGj`), toolMs=82:
+
+```json
+{"arguments":{"biome":null,"structure":"minecraft:fortress","center":null,"radius":null,"cursor":null},"error":false,"coverage":"COMPLETE","recordCount":0,"detail":"searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; minecraft:fortress has no placements in this dimension; no matching starts found in loaded or saved data and no remaining predictions"}
+```
+
+Verbatim saved reply:
+
+```text
+You’re in the Overworld, so I can’t give you a reliable nearest Nether fortress from here. The search found no fortress placements in this dimension. [minecraft:fortress](minecraft:fortress)
+
+Go through the portal, then ask me again from the Nether and I can locate the nearest one.
+```
+
+### L1
+
+Question: `where is the nearest nether fortress?`
+
+Request `61116677-d92b-4637-81c2-d1bbe72f3a76`; conversation `cf63e286-863e-43c4-8141-99f59c0c6c05`; status=completed, saved=true. Submitted 2026-10-25T16:51:15.338Z. Raw: `build/task7-part-b/L1.json`.
+
+Timing: {"elapsed_ms":"28001","backendMs":"27959","toolWallMs":"316","toolCalls":"4"}.
+
+G1 locate (`call_f3jNytmehKWkroYtMxEMTDLv`), toolMs=108:
+
+```json
+{"arguments":{"biome":null,"structure":"minecraft:fortress","center":null,"radius":null,"cursor":null},"error":false,"coverage":"PARTIAL","recordCount":4,"detail":"searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; search paused at ring 2, entry 0, candidate 0 after a result page; continue with the cursor"}
+```
+
+G2 locate (`call_NRp85jgQ7B9FQAMbAA2CXQIg`), toolMs=1:
+
+```json
+{"arguments":{"biome":null,"structure":"minecraft:fortress","center":null,"radius":100,"cursor":"d81bf7c5-dbf4-4ca5-a86f-39899d687547"},"error":true,"coverage":"ERROR","recordCount":0,"detail":"INVALID_CURSOR: cursor does not match this query; restart without a cursor"}
+```
+
+G3 locate (`call_NpXfNKmWCZM1PfVKNduuIfYy`), toolMs=110:
+
+```json
+{"arguments":{"biome":null,"structure":"minecraft:fortress","center":null,"radius":100,"cursor":null},"error":false,"coverage":"PARTIAL","recordCount":4,"detail":"searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; search paused at ring 2, entry 0, candidate 0 after a result page; continue with the cursor"}
+```
+
+G4 locate (`call_z3K9Lv85Gsv7qR7EV1tjv0F3`), toolMs=96:
+
+```json
+{"arguments":{"biome":null,"structure":"minecraft:fortress","center":null,"radius":100,"cursor":"625f17cb-4865-4c92-97a2-28b466c4bc94"},"error":false,"coverage":"PARTIAL","recordCount":5,"detail":"searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; 11 more hits found on this page; showing the nearest 5; search paused at ring 3, entry 0, candidate 0 after a result page; continue with the cursor"}
+```
+
+Verbatim saved reply:
+
+```text
+The closest **predicted** Nether fortress is near **(544, ~128, −112)** [mark location](world:locate|minecraft:the_nether|minecraft:fortress|544,-112)—about 472 blocks from your position, mainly east and then north. The Y coordinate is only an estimate, and the fortress has **not been confirmed in generated terrain**; terrain could prevent it from appearing there.
+```
+
 
 ### Corrected fixture observations
 
@@ -22662,3 +22722,30 @@ With Minecraft fully closed, changed only renderDistance:12 -> renderDistance:8 
 ### P11 visibility limit
 
 Saved P5 JSONL has keys type/world/requestId/question/answer/tokenCount/sentAt/outcome/replayItems/context/sources/navigationTargets/activities/steeringMessages, and no offered tools-definition field. Request-built metadata says tools=28, not names. No read_progress was observed in Part B calls; that does not establish it was not offered. Historical W1/advancement source chips and links were reopened after restart. Raw interface audit: `P11.json`.
+
+### L1 failure - Nether column visibility
+
+Original renderDistance:12 was restored while the process was closed, then the client relaunched; bridge prompt text remained null. Initial teleport landed in the existing portal and returned to the Overworld before the first question: retained as L1-overworld-attempt, an unscored fixture failure. That answer also invents `[minecraft:fortress](minecraft:fortress)` with no navigation target (additional prompt/link issue). Moving eight blocks away held the Nether; the player then fell into lava. The lava capture has a short cyan segment, but is not the required ordinary Nether view.
+
+Corrected camera fixture: one support block at (130,69,116), player (130.5,70,116.5), no fog/video setting changed, fire allowed to expire. The real Nether question returns predicted fortress (544,128,-112), 472 blocks away. Exact `/navigate` target OPENED repeatedly. Aiming horizontally and then at the estimated target height did not show a cyan column; a settled capture 600ms after navigation is also negative. [Ground view](../../build/task7-part-b/L1-ground.png), [target-height view](../../build/task7-part-b/L1-target-height.png), [delayed confirmation](../../build/task7-part-b/L1-confirm-delayed.png). L1 remains FAIL, classified rendering visibility, with source-level root cause unconfirmed. No 30-second visibility claim is made for an invisible column.
+
+The locate call sequence also changed radius null ->100 while reusing a cursor, got INVALID_CURSOR, restarted, and recovered a prediction; exact calls in the per-question evidence preserve this model inefficiency.
+
+### P9 / J7 multiplayer fixture blocked
+
+Downloaded official Mojang 1.21.1 server from version_manifest_v2.json -> version metadata https://piston-meta.mojang.com/v1/packages/1757c8b1fbfc6b638504e1f6cceb05893f7389d5/1.21.1.json -> server https://piston-data.mojang.com/v1/objects/59353fb40c36d304f2035d51e7d6e6baa98dc05c/server.jar. Verified SHA-1 **59353FB40C36D304F2035D51E7D6E6BAA98DC05C**, 51,627,615 bytes. Scratch folder outside repository: `C:/Users/hung1/AppData/Local/Temp/packsage-v2-server-2026-10-26`. Accepted EULA as requested; bound server-ip=127.0.0.1, server-port=25565, online-mode=false (current user instruction overrides brief online-mode=true), view/simulation distance 5, no server mods. Java 21 console reported Starting minecraft server version 1.21.1 and Done (5.511s).
+
+Native Direct Connection to 127.0.0.1:25565 was rejected: `You are trying to connect to a server that is not running NeoForge, but you have mods that require it. A connection could not be established.` [Screenshot](../../build/task7-part-b/multiplayer-rejected.png). Bridge `/state` reports DisconnectedScreen, world/save null. Thus no multiplayer question was submitted: no fabricated unavailable-tool or reply evidence. P9 and J7 NOT RUN, fixture incompatibility. Installed mods were not disabled/replaced.
+
+### Failures and final state
+
+- M1 FAIL: persisted recall works, but the exact move sentence led to clearPlace=true and the old link became unavailable. Two prior iron-farm notes remain. Classification: prompt behavior with ambiguous destination wording and a pre-existing duplicate-note fixture; no code-level root cause claimed.
+- L1 FAIL: ordinary Nether-view column invisible despite OPENED navigation. Classification: rendering visibility, root cause unconfirmed.
+- Additional unscored setup failure: L1-overworld-attempt has an unsupported minecraft:fortress link with zero navigation targets. Classification: prompt/citation behavior. The invalid-dimension fixture does not erase this observed answer issue.
+- C5 natural-job fixture already had trades; its answers correctly report those offers. The never-opened stationary fixture separately establishes not-generated behavior. Part A failures and controller rulings remain unchanged.
+
+P9/J7 scratch server stopped after the rejected join. Its exec session had closed stdin, so a normal stop command could not be submitted; only the uniquely matched scratch `java.exe -jar server.jar nogui` PID 42196 was stopped. The game client was unaffected. Server log is retained as `vanilla-server.log`.
+
+Final state verified 2026-10-25T16:56:25.320Z: New World / PackSage Adapter Filter Live Test, minecraft:overworld at (1003.5,250,1002.5), screen=null, running=true, paused=false. Original renderDistance:12 restored and relaunched. `GET /prompt` text:null; developerPrompt property absent; no override was written at any point. Installed SHA-256 remains FC8C27671A0C52DDDF4C878A2F0C82381E424028E96623F7349F6A1BF5E3237F. Main hand empty, F3 hidden. [Final screenshot](../../build/task7-part-b/final-state.png). No code changes, formatter, push or unrelated staging.
+
+Part B: **9 PASS, 2 FAIL, 4 NOT RUN** across the 15 requested IDs. NOT RUN includes completed subclauses where the remaining acceptance observation was unavailable; it never means a claimed pass. Checkpoint commits before the final record: e10c28a, 2f4a3cc, e700aa0.

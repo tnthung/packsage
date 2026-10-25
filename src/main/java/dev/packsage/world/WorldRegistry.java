@@ -3,6 +3,7 @@ package dev.packsage.world;
 import dev.packsage.knowledge.Evidence;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 
@@ -18,6 +19,8 @@ public final class WorldRegistry {
     private final List<BlockInspector> blockInspectors = new CopyOnWriteArrayList<>();
     private final List<EntityInspector> entityInspectors = new CopyOnWriteArrayList<>();
     private final List<WorldAccessor> accessors = new CopyOnWriteArrayList<>();
+    private final List<ProgressReader> progressReaders = new CopyOnWriteArrayList<>();
+    private final List<StatisticReader> statisticReaders = new CopyOnWriteArrayList<>();
 
     public void register(Object adapter) {
         if (adapter instanceof InventoryReader reader) {
@@ -31,6 +34,12 @@ public final class WorldRegistry {
         }
         if (adapter instanceof WorldAccessor accessor) {
             accessors.add(accessor);
+        }
+        if (adapter instanceof ProgressReader reader) {
+            progressReaders.add(reader);
+        }
+        if (adapter instanceof StatisticReader reader) {
+            statisticReaders.add(reader);
         }
     }
 
@@ -84,6 +93,25 @@ public final class WorldRegistry {
 
     public List<WorldAccessor> accessors() {
         return List.copyOf(accessors);
+    }
+
+    public List<ProgressReader> progressReaders() {
+        return List.copyOf(progressReaders);
+    }
+
+    public List<StatisticReader> statisticReaders() {
+        return List.copyOf(statisticReaders);
+    }
+
+    /** Facts the other progress readers add to an entry {@code ownerAdapter} owns; server thread only. */
+    public Map<String, Section> progressFacts(ServerPlayer player, ProgressId id, String ownerAdapter) {
+        var sections = new LinkedHashMap<String, Section>();
+        for (var reader : progressReaders) {
+            if (!reader.adapterId().equals(ownerAdapter)) {
+                collect(sections, reader.adapterId(), () -> reader.progressFacts(player, id));
+            }
+        }
+        return sections;
     }
 
     private static void collect(Map<String, Section> sections, String id, Supplier<Evidence.JsonObject> inspection) {

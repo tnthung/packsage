@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /** Bounded keyset searches on the reader connection. Call from a worker, never from the server thread. */
 public final class JournalSearch {
@@ -46,7 +47,7 @@ public final class JournalSearch {
                 while ((hasEvent || hasNote) && items.size() < PAGE && examined < MAX_CANDIDATES) {
                     JournalEntry entry;
                     if (hasEvent && (!hasNote || eventRows.getLong("first_wall") > noteRows.getLong("created_wall"))) {
-                        last = eventRows.getLong("first_wall") + ":e" + String.format("%012d", eventRows.getLong("id"));
+                        last = eventRows.getLong("first_wall") + ":e" + String.format(Locale.ROOT, "%012d", eventRows.getLong("id"));
                         entry = event(eventRows, filter.area());
                         hasEvent = eventRows.next();
                     } else {

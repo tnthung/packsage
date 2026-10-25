@@ -38,6 +38,14 @@ class HolderWordsTest {
     }
 
     @Test
+    void openedResolvesToTheOpenContainerId() {
+        var situation = new HolderWords.Situation(PLAYER, 0, null, null, null, null, 7);
+        assertEquals("opened:7", resolved("opened", situation));
+        assertEquals("opened:7>minecraft/menu#3@minecraft:oak_planks", resolved("opened>minecraft/menu#3@minecraft:oak_planks", situation));
+        assertEquals("No menu is open", unresolved("opened", new HolderWords.Situation(PLAYER, 0, null, null, null, null, -1)));
+    }
+
+    @Test
     void unresolvableWordsSaySoInsteadOfFailing() {
         var situation = new HolderWords.Situation(PLAYER, 0, null, null, null, null, -1);
         var details = Map.of(

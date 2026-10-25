@@ -47,6 +47,19 @@ class WorldTypesTest {
     }
 
     @Test
+    void openedRootTextRoundTrips() {
+        var text = "opened:7>minecraft/menu#3@minecraft:oak_planks";
+        var path = ItemPath.parse(text);
+        assertEquals(new PathRoot.Opened(7), path.root());
+        assertEquals(new PathStep(new InventoryId("minecraft", "menu"), "3", "minecraft:oak_planks"), path.steps().getFirst());
+        assertEquals(text, path.text());
+        assertEquals(new ItemPath(new PathRoot.Opened(0), List.of()), ItemPath.parse("opened:0"));
+        for (var bad : List.of("opened:", "opened:-1", "opened:07", "opened:x", "opened:99999999999")) {
+            assertThrows(IllegalArgumentException.class, () -> ItemPath.parse(bad), bad);
+        }
+    }
+
+    @Test
     void kindFilterCombinesFieldsWithAndAlternativesWithOr() {
         var filter = new KindFilter(List.of("minecraft:iron_ingot", "minecraft:gold_ingot"), List.of("c:ingots"), "");
         assertTrue(filter.matches("minecraft:gold_ingot", List.of("c:ingots"), "Gold Ingot"));

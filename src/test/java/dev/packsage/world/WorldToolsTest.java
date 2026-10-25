@@ -471,4 +471,52 @@ class WorldToolsTest {
         assertEquals("3 chunks in range were not loaded and were not fully read", notes.getFirst());
         assertTrue(notes.get(1).startsWith("Notable blocks reached the " + AreaScan.SUMMARY_NOTABLE + " cap"), notes.get(1));
     }
+
+    @Test
+    void openedPathsFailOnceTheMenuChanges() throws ReflectiveOperationException {
+        net.minecraft.SharedConstants.tryDetectVersion();
+        net.minecraft.server.Bootstrap.bootStrap();
+        var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var allocate = unsafe.getClass().getMethod("allocateInstance", Class.class);
+        var host = (net.minecraft.server.level.ServerPlayer) allocate.invoke(unsafe, net.minecraft.server.level.ServerPlayer.class);
+        var inventory = new net.minecraft.world.entity.player.Inventory(host);
+        var inventoryField = net.minecraft.world.entity.player.Player.class.getDeclaredField("inventory");
+        inventoryField.setAccessible(true);
+        inventoryField.set(host, inventory);
+        var inventoryMenu = allocate.invoke(unsafe, net.minecraft.world.inventory.InventoryMenu.class);
+        var inventoryMenuField = net.minecraft.world.entity.player.Player.class.getDeclaredField("inventoryMenu");
+        inventoryMenuField.setAccessible(true);
+        inventoryMenuField.set(host, inventoryMenu);
+
+        var chest = new TestMenu(7);
+        host.containerMenu = chest;
+        var opened = (LiveHolder.OfMenu) WorldTools.openedRoot(host, 7);
+        assertEquals(chest, opened.menu());
+        assertEquals(inventory, opened.playerInventory());
+
+        host.containerMenu = new TestMenu(8);
+        assertEquals(null, WorldTools.openedRoot(host, 7), "a different menu opened");
+        host.containerMenu = host.inventoryMenu;
+        assertEquals(null, WorldTools.openedRoot(host, 7), "the menu closed");
+        assertEquals(null, WorldTools.openedRoot(host, 0), "the player inventory is not an opened menu");
+        assertEquals(null, WorldTools.openedRoot(null, 7), "the player left");
+    }
+
+    private static final class TestMenu extends net.minecraft.world.inventory.AbstractContainerMenu {
+        private TestMenu(int containerId) {
+            super(null, containerId);
+        }
+
+        @Override
+        public net.minecraft.world.item.ItemStack quickMoveStack(net.minecraft.world.entity.player.Player player, int slotIndex) {
+            return net.minecraft.world.item.ItemStack.EMPTY;
+        }
+
+        @Override
+        public boolean stillValid(net.minecraft.world.entity.player.Player player) {
+            return true;
+        }
+    }
 }

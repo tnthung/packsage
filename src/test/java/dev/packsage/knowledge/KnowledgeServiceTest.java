@@ -29,6 +29,33 @@ class KnowledgeServiceTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
 
     @Test
+    void byteContinuedRowsAreObservedAgainAfterEvidenceCacheEviction() throws Exception {
+        var rows = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Evidence.Record(record("fixture", "row:" + i,
+                Evidence.RecordKind.OTHER).source(), Evidence.RecordKind.OTHER, "Row", new Evidence.JsonObject(Map.of(
+                "text", text("\u754c".repeat(2048)))), List.of())).toList();
+        var provider = new PagedProvider("fixture", query -> page(List.of(record("fixture",
+                ((Evidence.JsonString) query.arguments().values().get("id")).value(), Evidence.RecordKind.OTHER)), null)) {
+            @Override public CompletionStage<Evidence.Result> handle(PackSageTools.ReadRequest request, Context context) {
+                return CompletableFuture.completedFuture(page(request.tool().equals("list_progress") ? rows
+                        : java.util.stream.IntStream.range(0, 600).mapToObj(i -> record("fixture", "evict:" + i, Evidence.RecordKind.OTHER)).toList(), null));
+            }
+        };
+        var service = service(provider);
+        var first = new PackSageTools(service::execute, service.metadata(), service.outputPages());
+        var json = com.google.gson.JsonParser.parseString(first.execute(new dev.packsage.model.ModelBackend.ToolCall(
+                "first", "list_progress", "{}"), SCOPE).toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        var next = json.getAsJsonObject("nextCall");
+        assertNotNull(next);
+        service.execute(new PackSageTools.ReadRequest("evict_probe", new Evidence.JsonObject(Map.of()), SCOPE)).toCompletableFuture().join();
+        var continued = new PackSageTools(service::execute, service.metadata(), service.outputPages()).execute(
+                new dev.packsage.model.ModelBackend.ToolCall("next", "list_progress", next.get("arguments").toString()), SCOPE).toCompletableFuture().get();
+        var handle = continued.records().getFirst().source().sourceHandle();
+        var reread = execute(service, "read_evidence", Map.of("handles", strings("fixture:" + handle)));
+        assertEquals(Evidence.Outcome.COMPLETE, reread.outcome());
+        assertEquals(handle, reread.records().getFirst().source().sourceHandle());
+    }
+
+    @Test
     void nativeAdapterIsAvailableBeforeItsFirstRead() {
         var nativeProvider = new dev.packsage.knowledge.nativegame.NativeProvider(() -> {
             throw new AssertionError("availability must not read native evidence");

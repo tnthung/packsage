@@ -492,6 +492,32 @@ class PackSageToolsTest {
     }
 
     @Test
+    void outputContinuationSurvivesFreshFacadesAndRejectsChangedQueryOrScope() throws Exception {
+        var pages = new PackSageTools.OutputPages();
+        var records = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Evidence.Record(new Evidence.Source(SCOPE,
+                "fixture", "1", "row:" + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.OTHER, "Row", new Evidence.JsonObject(Map.of(
+                "text", new Evidence.JsonString("\u754c".repeat(2048)))), List.of())).toList();
+        var first = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)), List.of(), pages);
+        var json = JsonParser.parseString(first.execute(new ModelBackend.ToolCall("first", "search_recipe", "{}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        var next = json.getAsJsonObject("nextCall");
+        assertTrue(next != null);
+        var fresh = new PackSageTools(request -> { fail("pending rows must not reacquire provider data"); return null; }, List.of(), pages);
+        var response = fresh.execute(new ModelBackend.ToolCall("next", "search_recipe", next.get("arguments").toString()), SCOPE)
+                .toCompletableFuture().get();
+        assertFalse(response.records().isEmpty());
+        var changed = next.getAsJsonObject("arguments").deepCopy();
+        changed.add("filter", JsonParser.parseString("{\"text\":\"other\"}"));
+        assertTrue(fresh.execute(new ModelBackend.ToolCall("changed", "search_recipe", changed.toString()), SCOPE)
+                .toCompletableFuture().get().result().serializedResult().contains("INVALID_CURSOR"));
+        assertTrue(fresh.execute(new ModelBackend.ToolCall("stale", "search_recipe", next.get("arguments").toString()),
+                new Evidence.Scope("other-world", "resources", "team", "runtime", 1)).toCompletableFuture().get()
+                .result().serializedResult().contains("STALE_SCOPE"));
+    }
+
+    @Test
     void stringBackstopKeepsSurrogatesAndExactItemIdentityAndFacts() throws Exception {
         var name = "x".repeat(2035) + "\uD83D\uDE00" + "x".repeat(40000);
         var source = new Evidence.Source(SCOPE, "fixture", "1", "item|player/main/0", 1, Instant.EPOCH,
@@ -517,6 +543,21 @@ class PackSageToolsTest {
         assertEquals("PARTIAL", json.get("coverage").getAsString());
         assertTrue(json.get("detail").getAsString().contains("2048"));
         assertEquals(List.of(target), response.records().getFirst().targets());
+    }
+
+    @Test
+    void oversizedSourceMetadataCannotDefeatTheRecordByteBudget() {
+        var text = "\u0000".repeat(2048);
+        var scope = new Evidence.Scope(text, text, text, text, 1);
+        var source = new Evidence.Source(scope, "fixture", text, "stable", 1, Instant.EPOCH, Evidence.Activity.ACTIVE,
+                Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var record = new Evidence.Record(source, Evidence.RecordKind.ITEM, text, new Evidence.JsonObject(Map.of()), List.of());
+        var encoded = PackSageTools.encodeRecord(record);
+        assertTrue(encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 60 * 1024);
+        assertEquals("fixture:stable", encoded.get("reference").getAsString());
+        assertEquals("stable", encoded.getAsJsonObject("source").get("sourceHandle").getAsString());
+        assertEquals("PARTIAL", encoded.getAsJsonObject("source").get("coverage").getAsString());
+        assertTrue(encoded.has("truncationNote"));
     }
 
     @Test

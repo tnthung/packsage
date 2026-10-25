@@ -61,6 +61,27 @@ class ProgressToolsTest {
         assertTrue(result.detail().contains("repeat list_statistics"));
     }
 
+    @Test
+    void completedProgressSnapshotPagesByEncodedBytesBeforeAdvancingOffset() throws Exception {
+        var fixture = new Fixture();
+        var entries = java.util.stream.IntStream.range(0, 65).mapToObj(i -> new ProgressEntry(new ProgressHandle(
+                new ProgressId("minecraft", "fixture:entry_" + i), ROOT, "Entry " + i, ProgressStatus.AVAILABLE, true),
+                "\u754c".repeat(3000))).toList();
+        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 0, 65, true)), entries, null), null));
+        var seen = new java.util.HashSet<String>();
+        String cursor = null;
+        do {
+            var result = fixture.call("list_progress", cursor == null ? "{}" : "{\"cursor\":\"" + cursor + "\"}");
+            assertTrue(result.records().size() < 64);
+            assertTrue(result.records().stream().mapToInt(record -> PackSageTools.encodeRecord(record).toString()
+                    .getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 1).sum() <= 96 * 1024);
+            for (var record : result.records()) assertTrue(seen.add(record.source().sourceHandle()));
+            cursor = result.nextCursor();
+            if (seen.size() < 66) assertTrue(cursor != null);
+        } while (cursor != null);
+        assertEquals(66, seen.size());
+    }
+
     private static final class Fixture {
         final ServerWork work;
         final WorldRegistry registry = new WorldRegistry();

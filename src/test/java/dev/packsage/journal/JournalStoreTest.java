@@ -1,5 +1,6 @@
 package dev.packsage.journal;
 
+import dev.packsage.world.BlockPlace;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -8,6 +9,8 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -17,6 +20,64 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class JournalStoreTest {
     @TempDir
     Path dir;
+
+    @Test
+    void notesRoundTripAcrossReopen() throws Exception {
+        var file = dir.resolve("journal.db");
+        var original = new Note("n00000001", "iron farm", "I built an iron farm here", List.of("build", "farm"),
+                new BlockPlace("minecraft:overworld", -40, 70, 8), 10, 200, 10, "chat1", "request1");
+        var other = new Note("n00000002", "beat the Wither", null, List.of(), null, 20, 300, 20, null, null);
+        try (var store = JournalStore.open(file)) {
+            store.startSession(0, 0);
+            store.putNote(original);
+            store.putNote(other);
+        }
+        var updated = NoteBook.apply(original, NoteInput.validated("my iron farm moved", new NoteInput.Clear(), List.of()),
+                30, "chat2", "request2");
+        try (var store = JournalStore.open(file)) {
+            store.startSession(0, 0);
+            assertEquals(List.of(other, original), store.notes());
+            store.putNote(updated);
+            store.deleteNote(other.id());
+            assertEquals(List.of(updated), store.notes());
+            var found = new JournalSearch(store).search(new JournalFilter(null, null, null, null, Set.of("note"),
+                    List.of(), "moved", true), null, 100);
+            assertEquals(updated, ((JournalEntry.NoteEntry) found.items().getFirst()).note());
+        }
+        try (var store = JournalStore.open(file)) {
+            store.startSession(0, 0);
+            assertEquals(List.of(updated), store.notes());
+            store.deleteNote(updated.id());
+        }
+        try (var store = JournalStore.open(file)) {
+            assertTrue(store.notes().isEmpty());
+        }
+    }
+
+    @Test
+    void noteWritesRunOnTheWriterThread() throws Exception {
+        var writer = new JournalWriter(() -> JournalStore.open(dir.resolve("journal.db")),
+                new EventQueue(EventQueue.CAPACITY, EventQueue.OVERFLOW_KEYS), new JournalStats(), () -> 0, () -> 0, 1_000);
+        writer.start();
+        try {
+            var store = writer.ready().get(5, TimeUnit.SECONDS);
+            var note = new Note("n00000001", "old base", "old base", List.of(), null, 10, 20, 10, null, null);
+            assertThrows(IllegalStateException.class, () -> store.putNote(note));
+            assertThrows(IllegalStateException.class, () -> store.deleteNote(note.id()));
+            writer.submit(open -> {
+                open.putNote(note);
+                return null;
+            }).get(5, TimeUnit.SECONDS);
+            assertEquals(List.of(note), store.notes());
+            writer.submit(open -> {
+                open.deleteNote(note.id());
+                return null;
+            }).get(5, TimeUnit.SECONDS);
+            assertTrue(store.notes().isEmpty());
+        } finally {
+            writer.close().get(5, TimeUnit.SECONDS);
+        }
+    }
 
     @Test
     void opensAWalDatabaseAndCreatesSchemaVersionOne() throws Exception {

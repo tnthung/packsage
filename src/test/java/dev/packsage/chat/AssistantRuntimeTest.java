@@ -61,6 +61,7 @@ class AssistantRuntimeTest {
         assertNotNull(id);
         assertEquals(id.value(), backend.requests.getFirst().requestId());
         assertTrue(runtime.requestView(id).active());
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "bridge answer", null, List.of(), null));
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
                 new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
                         ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("bridge answer", List.of())))), null));

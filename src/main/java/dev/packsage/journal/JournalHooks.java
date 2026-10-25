@@ -310,6 +310,7 @@ public final class JournalHooks {
         var count = 0;
         var grouped = new HashMap<String, ArrayList<Long>>();
         // Unread positions may be air; only count confirmed non-air losses.
+        if (positions.size() > 8_192) stats.hookFailures.increment();
         for (int i = 0; i < Math.min(positions.size(), 8_192); i++) {
             var pos = positions.get(i);
             var id = blockId.apply(pos);

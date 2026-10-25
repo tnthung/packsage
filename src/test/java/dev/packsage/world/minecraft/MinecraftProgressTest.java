@@ -277,7 +277,7 @@ class MinecraftProgressTest {
             while (!read.toCompletableFuture().isDone()) work.tick();
             var failure = (Toolbox.Failure) assertThrows(CompletionException.class, () -> read.toCompletableFuture().join()).getCause();
             assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failure.code());
-            assertEquals("no progress entry has id " + local + "; find ids with list_progress", failure.getMessage());
+            assertEquals("INVALID_ARGUMENTS: no progress entry has id " + local + "; find ids with list_progress", failure.getMessage());
         }
     }
 

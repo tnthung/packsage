@@ -18,6 +18,7 @@ import net.minecraft.core.SectionPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
@@ -238,7 +239,11 @@ public final class MinecraftInventories implements InventoryReader {
 
     /** The ender chest block shows the singleplayer host's ender chest. */
     private static ServerPlayer owner(ServerLevel level) {
-        var server = level.getServer();
+        return host(level.getServer());
+    }
+
+    /** The singleplayer host, or the first player when the host profile is not online. */
+    static ServerPlayer host(MinecraftServer server) {
         var profile = server.getSingleplayerProfile();
         var player = profile == null ? null : server.getPlayerList().getPlayer(profile.getId());
         if (player == null && !server.getPlayerList().getPlayers().isEmpty()) player = server.getPlayerList().getPlayers().getFirst();

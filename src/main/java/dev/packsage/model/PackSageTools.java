@@ -64,7 +64,8 @@ public final class PackSageTools {
         var definitions = new ArrayList<ModelBackend.ToolDefinition>();
         for (var name : List.of("search_recipe", "search_registry", "read_evidence",
                 "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
-                "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items")) {
+                "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
+                "list_progress", "inspect_progress", "list_statistics")) {
             var properties = new JsonObject();
             var required = new JsonArray();
             switch (name) {
@@ -129,6 +130,20 @@ public final class PackSageTools {
                     properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
                     required.add("filter");
                 }
+                case "list_progress" -> {
+                    properties.add("tree", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":600}"));
+                    properties.add("status", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"maxItems\":5,\"items\":{\"type\":\"string\",\"enum\":[\"done\",\"in_progress\",\"available\",\"locked\",\"hidden\"]}}"));
+                    properties.add("text", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256}"));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                }
+                case "inspect_progress" -> { properties.add("id", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":600}")); required.add("id"); }
+                case "list_statistics" -> {
+                    properties.add("categories", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"maxItems\":16,\"items\":{\"type\":\"string\",\"maxLength\":128,\"pattern\":\"^[a-z0-9_.:-]+$\"}}"));
+                    var subjects = JsonParser.parseString(WORLD_FILTER).getAsJsonObject();
+                    subjects.add("type", JsonParser.parseString("[\"object\",\"null\"]"));
+                    properties.add("subjects", subjects);
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                }
                 default -> throw new IllegalStateException(name);
             }
             if (List.of("search_recipe", "search_registry").contains(name)) {
@@ -166,6 +181,9 @@ public final class PackSageTools {
                 case "list_items" -> "List the items in one holder (player, a returned holder, an item path whose item holdsItems, or a word: held, offhand, targeted for the block or entity under the crosshair, ridden, opened for the open menu, optionally followed by >steps) grouped by item with counts, variants, up to 8 location paths and slot facts (selected hotbar slot, equipmentSlot, menuSlot); the first record summarizes the holder's inventories with emptySlots and the player's selectedSlot, or an open menu's menuType, title and excludedSlots, the output previews such as a crafting result that are never listed as contents; opened:<id> paths last only while that menu stays open; a word that cannot resolve, such as held with an empty hand, returns no records and says why; inventory limits it to one section; filter.tooltip matches the tooltip lines shown to the player, for example [\"Luck\"]. Inspect a location with inspect_item, or list_items it again to step inside.";
                 case "inspect_item" -> "Read one item by its location path or by held or offhand (optionally followed by >steps, as can targeted and ridden): its tooltip lines as the player sees them (tooltipStatus bounded or unknown when cut or unreadable), enchantments, durability, full potion contents, custom name, attribute modifiers, enchantment eligibility (always present, with a none note when nothing applies), raw components, a component fingerprint that tells same-id variants apart, and the inventories it has.";
                 case "find_items" -> "Search every inventory in range at once: the player's own, containers and entities, including items nested in shulker boxes and bundles, grouped by item with location paths; filter.tooltip matches the tooltip lines shown to the player, for example [\"Luck\"]. Prefer it over opening containers one by one; then inspect_item a returned path. Each container or entity holding a match comes back as its own record with a highlight link.";
+                case "list_progress" -> "List progress entries: Minecraft advancements now, quest books later. The first page starts with one record per tree (an advancement tab) with done and total counts, then entries in tree order with status done, in_progress, available, locked or hidden, 64 records per page. Filter by tree id, statuses, or text in the title or description. Hidden entries have no title until earned; do not guess what they are. Read criteria, requirements and rewards with inspect_progress.";
+                case "inspect_progress" -> "Read one progress entry by its returned id: description, each criterion with its done state and when it was met (for example the biomes still missing for Adventuring Time), what it requires and unlocks, and rewards. A hidden entry that is not earned returns only its status.";
+                case "list_statistics" -> "Read the player's own counters since the world began: blocks mined; items crafted, used, broken, picked up and dropped; mobs killed and killed by; and custom counters such as deaths, jumps, play time and distance walked. categories narrows to mined, crafted, used, broken, picked_up, dropped, killed, killed_by or custom. subjects filters block, item, entity or counter ids, tags or name text. Distances are in blocks, times in seconds and damage in health points. Counters never incremented are zero and are listed only when named in subjects.ids. Pass categories together with subjects, or a named id gets a zero row in every category that can count it. 64 per page.";
                 default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
             }, schema.toString()));
         }

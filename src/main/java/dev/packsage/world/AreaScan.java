@@ -68,6 +68,7 @@ public final class AreaScan {
         level.getEntities().get(EntityTypeTest.forClass(Entity.class),
                 new AABB(pos.getMinBlockX(), level.getMinBuildHeight(), pos.getMinBlockZ(),
                         pos.getMinBlockX() + 16, level.getMaxBuildHeight(), pos.getMinBlockZ() + 16), entity -> {
+                    if (!entity.chunkPosition().equals(pos)) return AbortableIterationConsumer.Continuation.CONTINUE;
                     ids.add(entity.getUUID());
                     return ids.size() >= SNAPSHOT_LIMIT ? AbortableIterationConsumer.Continuation.ABORT
                             : AbortableIterationConsumer.Continuation.CONTINUE;

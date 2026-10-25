@@ -9,7 +9,6 @@ import dev.packsage.world.ProgressCriterion;
 import dev.packsage.world.ProgressEntry;
 import dev.packsage.world.ProgressHandle;
 import dev.packsage.world.ProgressId;
-import dev.packsage.world.ProgressNavigation;
 import dev.packsage.world.ProgressReader;
 import dev.packsage.world.ProgressSnapshot;
 import dev.packsage.world.ProgressStatus;
@@ -242,10 +241,10 @@ class MinecraftProgressTest {
         var work = new ServerWork(System::nanoTime);
         var scope = new Evidence.Scope("world", "resources", "team", "runtime", 1);
         var constructor = ProgressTools.class.getDeclaredConstructor(Supplier.class, Function.class, WorldRegistry.class, Supplier.class,
-                Executor.class, ServerWork.class, ProgressNavigation.class);
+                Executor.class, ServerWork.class, Class.forName("dev.packsage.world.ProgressNavigation"));
         constructor.setAccessible(true);
         var tools = constructor.newInstance((Supplier<MinecraftServer>) () -> server, (Function<MinecraftServer, ServerPlayer>) ignored -> null,
-                registry, (Supplier<Evidence.Scope>) () -> scope, (Executor) Runnable::run, work, new ProgressNavigation(null));
+                registry, (Supplier<Evidence.Scope>) () -> scope, (Executor) Runnable::run, work, null);
         var results = new ArrayList<Evidence.Result>();
         String cursor = null;
         do {

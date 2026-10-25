@@ -14,6 +14,7 @@ import dev.packsage.model.GroundingInstructions;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.chatgpt.ChatGptAuth;
 import dev.packsage.model.chatgpt.ChatGptBackend;
+import dev.packsage.world.PausedWorkPump;
 import dev.packsage.world.ServerWork;
 import dev.packsage.world.WorldRegistry;
 import dev.packsage.world.WorldTools;
@@ -58,7 +59,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 public final class ClientAssistant {
@@ -85,7 +85,7 @@ public final class ClientAssistant {
     private final PackSageSettings settings;
     private final AssistantRuntime runtime;
     private final ServerWork serverWork = new ServerWork(System::nanoTime);
-    private final AtomicBoolean pausedWorkQueued = new AtomicBoolean();
+    private final PausedWorkPump pausedWorkPump = new PausedWorkPump(serverWork);
     private AssistantScreen assistantScreen;
     private boolean settingsOpen;
     private CopiedWorld activeWorld;
@@ -155,19 +155,22 @@ public final class ClientAssistant {
         NeoForge.EVENT_BUS.addListener((RecipesUpdatedEvent ignored) -> invalidateEvidence());
         NeoForge.EVENT_BUS.addListener((TagsUpdatedEvent ignored) -> invalidateEvidence());
         NeoForge.EVENT_BUS.addListener((ServerTickEvent.Post ignored) -> serverWork.tick());
-        NeoForge.EVENT_BUS.addListener((ServerStoppingEvent ignored) -> serverWork.closeAll());
+        NeoForge.EVENT_BUS.addListener((ServerStoppingEvent ignored) -> {
+            serverWork.closeAll();
+            pausedWorkPump.reset();
+        });
     }
 
-    /**
-     * A paused integrated server skips its ticks, and with them ServerTickEvent, but still runs queued tasks. While it
-     * is paused and world reads are pending, each client tick queues one budgeted ServerWork tick.
-     */
+    /** Lets a paused integrated server, which skips ServerTickEvent, keep stepping pending world reads. */
     private void tickPausedServerWork() {
         var server = client.getSingleplayerServer();
-        if (server == null || !server.isPaused() || !serverWork.hasWork() || !pausedWorkQueued.compareAndSet(false, true)) return;
-        server.execute(() -> {
-            pausedWorkQueued.set(false);
-            if (server.isPaused()) serverWork.tick();
+        if (server == null) return;
+        pausedWorkPump.poll(new PausedWorkPump.Server() {
+            @Override public Object identity() { return server; }
+            @Override public boolean isPaused() { return server.isPaused(); }
+            @Override public boolean isStopped() { return server.isStopped(); }
+            @Override public boolean isSameThread() { return server.isSameThread(); }
+            @Override public void execute(Runnable task) { server.execute(task); }
         });
     }
 

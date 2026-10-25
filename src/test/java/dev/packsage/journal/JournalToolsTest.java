@@ -99,7 +99,13 @@ class JournalToolsTest {
                 var json = com.google.gson.JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
                 assertFalse(json.get("detail").getAsString().contains("tool output limit"), json.toString());
                 assertFalse(response.records().isEmpty());
-                for (var record : response.records()) {
+                assertTrue(json.getAsJsonArray("records").toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 96 * 1024 + 2);
+                for (int i = 0; i < response.records().size(); i++) {
+                    var record = response.records().get(i);
+                    var encoded = PackSageTools.encodeRecord(record).toString();
+                    assertEquals(json.getAsJsonArray("records").get(i).toString(), encoded);
+                    assertEquals(json.getAsJsonArray("records").get(i).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length,
+                            encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
                     assertTrue(seen.add(record.source().sourceHandle()), "repeated " + record.source().sourceHandle());
                     assertEquals(new Evidence.JsonString("\u0001".repeat(1_000)), record.payload().values().get("text"));
                     assertEquals(new Evidence.JsonString("\u0002".repeat(1_000)), record.payload().values().get("playerWords"));
@@ -129,6 +135,24 @@ class JournalToolsTest {
             failure(Toolbox.Code.UNAVAILABLE, call(tools(journal), name, "{}"));
         }
         assertEquals(journal.unavailableReason(), tools(journal).status().detail());
+    }
+
+    @Test
+    void noteEvidenceDistinguishesMatchingOriginalWordsFromAbsentWords() throws Exception {
+        var journal = open();
+        try {
+            journal.write(store -> {
+                store.putNote(new Note("n00000001", "farm", "farm", List.of(), null, 1_000, 400, 1_000, null, null));
+                store.putNote(new Note("n00000002", "farm", null, List.of(), null, 2_000, 400, 2_000, null, null));
+                return null;
+            }).toCompletableFuture().get();
+            var records = call(tools(journal), "search_journal", "{\"filter\":{\"notesOnly\":true}}")
+                    .toCompletableFuture().get().records();
+            assertFalse(records.getFirst().payload().values().containsKey("playerWords"));
+            assertEquals(new Evidence.JsonString("farm"), records.getLast().payload().values().get("playerWords"));
+        } finally {
+            journal.close().get();
+        }
     }
 
     @Test

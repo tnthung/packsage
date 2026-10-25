@@ -108,6 +108,11 @@ class CommandReaderTest {
         while (snapshot.step()) { }
         assertEquals(reader.read("alias"), snapshot.result().read("alias"));
         assertEquals(reader.read("again"), snapshot.result().read("again"));
+        assertNull(reader.read("alias").redirect());
+        assertNull(snapshot.result().read("alias").redirect());
+        assertNull(reader.search("alias").getFirst().redirect());
+        assertNull(snapshot.result().search("alias").getFirst().redirect());
+        assertEquals("", snapshot.result().read("again").redirect());
     }
 
     @Test

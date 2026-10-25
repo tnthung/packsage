@@ -939,7 +939,7 @@ public final class WorldTools implements KnowledgeProvider {
         return level.getChunkSource().getChunkNow(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ())) != null;
     }
 
-    private static Entity entity(MinecraftServer server, UUID id) {
+    static Entity entity(MinecraftServer server, UUID id) {
         for (var level : server.getAllLevels()) {
             var entity = level.getEntity(id);
             if (entity != null && !entity.isRemoved()) return entity;

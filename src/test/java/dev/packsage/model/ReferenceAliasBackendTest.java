@@ -252,6 +252,32 @@ class ReferenceAliasBackendTest {
     }
 
     @Test
+    void everyCitationWithParenthesizedProseSplitCanonicalizesKnownLabel() {
+        for (int split = 0; ; split++) {
+            var actual = new FakeBackend();
+            var events = new ArrayList<ModelBackend.Event>();
+            var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
+            actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                    new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
+            exchange.submit(RESULT);
+            String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
+                    .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
+            String answer = "[" + alias + "] (note)";
+            if (split > answer.length()) break;
+            actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(0, split), null, List.of(), null));
+            actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(split), null, List.of(), null));
+            actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                    List.of(actual.results.getFirst(), new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                            ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(answer, List.of())))), null));
+
+            assertEquals("[" + REFERENCE + "] (note)", events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
+                    .map(ModelBackend.Event::text).reduce("", String::concat), "split " + split);
+            assertEquals("[" + REFERENCE + "] (note)", ((ModelBackend.OutputText) ((ModelBackend.AssistantOutput)
+                    events.getLast().replayItems().getLast()).content().getFirst()).text(), "replay split " + split);
+        }
+    }
+
+    @Test
     void wrongProviderAndUnknownQualifiedCitationAliasesRemainUnchanged() {
         var actual = new FakeBackend();
         var events = new ArrayList<ModelBackend.Event>();

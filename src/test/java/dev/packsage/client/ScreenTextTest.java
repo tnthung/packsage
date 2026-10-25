@@ -461,6 +461,18 @@ class ScreenTextTest {
     }
 
     @Test
+    void aliasShapedMarkdownLabelKeepsRecordedWorldNavigation() {
+        var target = new Evidence.NavigationTarget(SCOPE, "world", "item|player:abc>minecraft/inventory#0@minecraft:torch",
+                "world-item|player:abc>minecraft/inventory#0@minecraft:torch");
+        var spans = ScreenText.inlineLines("[ref:e36be868.1.1f](world:item|player:abc>minecraft/inventory#0@minecraft:torch)",
+                List.of(target)).getFirst().spans();
+
+        assertEquals(1, spans.size());
+        assertEquals("ref:e36be868.1.1f", spans.getFirst().text());
+        assertEquals(target, spans.getFirst().target());
+    }
+
+    @Test
     void citationsFromEveryRegisteredProviderBecomeChips() {
         // ClientAssistant.knowledge registers native/config/world/progress; AssistantRuntime adds history.
         // Stage 4 will register journal in ClientAssistant.knowledge.

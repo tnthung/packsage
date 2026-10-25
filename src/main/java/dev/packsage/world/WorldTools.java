@@ -73,7 +73,10 @@ public final class WorldTools implements KnowledgeProvider {
     record Center(String dimension, Vec3 position) {
     }
 
-    private record ListState(Center center, String scan) {
+    private record ListState(Center center, String scan, Page<BlockHandle> pending, ReadSpan span) {
+        ListState(Center center, String scan) {
+            this(center, scan, null, null);
+        }
     }
 
     private record EntityRead(Center center, Page<EntityHandle> page, List<String> cursors) {
@@ -313,7 +316,13 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private CompletionStage<Evidence.Result> listBlocks(PackSageTools.ReadRequest request) {
-        return list(request, (level, center, radius, filter, cursor) -> scan.listBlocks(level, center.position(), radius, filter, cursor), this::blockRecord);
+        var token = cursor(request);
+        if (token != null && state(token, ListState.class).pending() != null) {
+            server();
+            return CompletableFuture.completedFuture(blocks(request, null, null, null));
+        }
+        return list(request, (level, center, radius, filter, cursor) -> mapped(scan.listBlocks(level, center.position(), radius, filter, cursor),
+                page -> Map.entry(center, page))).thenApply(read -> blocks(request, read.value().getKey(), read.value().getValue(), read.span()));
     }
 
     private CompletionStage<Evidence.Result> listEntities(PackSageTools.ReadRequest request) {
@@ -355,10 +364,6 @@ public final class WorldTools implements KnowledgeProvider {
         ServerWork.Slice<T> scan(ServerLevel level, Center center, int radius, KindFilter filter, String cursor);
     }
 
-    private interface RecordOf<T> {
-        Evidence.Record record(Evidence.Scope scope, T handle, ReadSpan span);
-    }
-
     private <T> CompletionStage<Spanned<T>> list(PackSageTools.ReadRequest request, ListScan<T> listing) {
         var anchor = anchor(argument(request, "center"));
         var radius = radius(argument(request, "radius"));
@@ -370,13 +375,35 @@ public final class WorldTools implements KnowledgeProvider {
                 listing.scan(level(server, center.dimension()), center, radius, filter, state == null ? null : state.scan()))));
     }
 
-    private <T> CompletionStage<Evidence.Result> list(PackSageTools.ReadRequest request, ListScan<Page<T>> listing, RecordOf<T> records) {
-        return list(request, (level, center, radius, filter, cursor) -> mapped(listing.scan(level, center, radius, filter, cursor),
-                page -> Map.entry(center, page))).thenApply(read -> {
-            var page = read.value().getValue();
-            var next = page.nextCursor() == null ? null : remember(request, new ListState(read.value().getKey(), page.nextCursor()));
-            return result(page.items().stream().map(handle -> records.record(request.scope(), handle, read.span())).toList(), page.coverage(), next, page.note());
-        });
+    private Evidence.Result blocks(PackSageTools.ReadRequest request, Center center, Page<BlockHandle> page, ReadSpan span) {
+        var cursor = cursor(request);
+        if (cursor != null) {
+            var state = state(cursor, ListState.class);
+            if (state.pending() != null) {
+                center = state.center();
+                page = state.pending();
+                span = state.span();
+            }
+        }
+        var records = new ArrayList<Evidence.Record>();
+        var bytes = 0;
+        for (var block : page.items()) {
+            var record = blockRecord(request.scope(), block, span);
+            var recordBytes = PackSageTools.encodeRecord(record).toString().getBytes(StandardCharsets.UTF_8).length + 1;
+            if (bytes + recordBytes > 64 * 1024) {
+                if (records.isEmpty()) throw new Failure(Code.EXTRACTION_FAILED, "one block record exceeds the page byte budget");
+                break;
+            }
+            records.add(record);
+            bytes += recordBytes;
+        }
+        var cut = records.size() < page.items().size();
+        var next = cut ? remember(request, new ListState(center, page.nextCursor(),
+                new Page<>(page.items().subList(records.size(), page.items().size()), page.nextCursor(), page.coverage(), page.note()), span))
+                : page.nextCursor() == null ? null : remember(request, new ListState(center, page.nextCursor()));
+        var note = page.note();
+        if (cut) note = (note == null ? "" : note + "; ") + "Block page byte budget reached; continue with the cursor";
+        return result(records, page.coverage(), next, note);
     }
 
     private CompletionStage<Evidence.Result> inspect(PackSageTools.ReadRequest request, String handle) {

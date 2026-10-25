@@ -911,6 +911,8 @@ public final class RequestController {
         ModelBackend.Exchange exchange;
         ChatContracts.CapturedContext captured;
         ChatContracts.EvidenceSelection evidence;
+        int toolCalls;
+        long toolWallMs;
         synchronized (stateLock) {
             request = active;
             if (request == null) return;
@@ -929,8 +931,12 @@ public final class RequestController {
             request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
                     : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED,
                     step.serializedArguments()));
+            toolCalls = request.toolCalls.size();
+            toolWallMs = ToolTiming.unionMillis(request.toolIntervals);
         }
         long cancelledAtNanos = System.nanoTime();
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_summary toolCalls={} toolWallMs={} event_ns={}",
+                request.submission.requestId().value(), toolCalls, toolWallMs, cancelledAtNanos);
         PackSageLog.LOGGER.info("PackSage timing request={} phase=cancel event_ns={} elapsed_ms={} backendMs={}",
                 request.submission.requestId().value(), cancelledAtNanos,
                 (cancelledAtNanos - request.acceptedAtNanos) / 1_000_000,
@@ -958,16 +964,18 @@ public final class RequestController {
     }
 
     private void failStart(ActiveRequest request, Throwable failure) {
-        boolean current;
+        int toolCalls;
+        long toolWallMs;
         synchronized (stateLock) {
-            current = isCurrent(request);
-            if (current) {
-                active = null;
-                errors.add(failureMessage(failure));
-            }
+            if (!isCurrent(request)) return;
+            active = null;
+            errors.add(failureMessage(failure));
+            toolCalls = request.toolCalls.size();
+            toolWallMs = ToolTiming.unionMillis(request.toolIntervals);
         }
-        if (!current) return;
         long failedAtNanos = System.nanoTime();
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_summary toolCalls={} toolWallMs={} event_ns={}",
+                request.submission.requestId().value(), toolCalls, toolWallMs, failedAtNanos);
         PackSageLog.LOGGER.info("PackSage timing request={} phase=start_failed event_ns={} elapsed_ms={} failureType={}",
                 request.submission.requestId().value(), failedAtNanos,
                 (failedAtNanos - request.acceptedAtNanos) / 1_000_000, failure.getClass().getSimpleName());

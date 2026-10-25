@@ -192,7 +192,7 @@ src/main/java/dev/packsage/world/minecraft/
 - **Status:** `DONE` if done. Otherwise `HIDDEN` if `display.isHidden()`, else `IN_PROGRESS` if any criterion is done, else `AVAILABLE` if it is a root or its parent is done, else `LOCKED`.
 - **Snapshot:**
   - It covers advancements with a `display` only. Recipe and technical advancements have none.
-  - Trees are display roots from `tree.get().roots()`. Entries go depth-first per root in `children()` order.
+  - Trees are display roots from `tree.get().roots()`. Entries go depth-first per root with roots and siblings ordered by advancement id (vanilla's `children()` set order is identity-hashed and changes on every reload).
   - Each step handles at most 64 nodes.
   - `ProgressTree.done` and `total` count the displayed nodes under that root, including hidden ones.
   - Title and description come from `DisplayInfo.getTitle()` and `getDescription()` via `getString()`.

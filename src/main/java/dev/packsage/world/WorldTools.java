@@ -330,21 +330,37 @@ public final class WorldTools implements KnowledgeProvider {
         if (state.note() != null) notes.add(state.note());
         if (note != null) notes.add(note);
         var merged = notes.isEmpty() ? null : String.join("; ", notes);
-        var shown = state.pending().subList(0, Math.min(AreaScan.LIST_PAGE, state.pending().size()));
+        // Entries and their holder records share one page of LIST_PAGE records, the tool output limit, so nothing on
+        // the page is cut after it is built. A page always shows at least one entry.
+        var roots = new LinkedHashSet<PathRoot>();
+        var shownCount = 0;
+        for (var entry : state.pending()) {
+            var added = new LinkedHashSet<PathRoot>();
+            for (var location : entry.locations()) {
+                if (!(location.root() instanceof PathRoot.Player) && !roots.contains(location.root())) added.add(location.root());
+            }
+            if (shownCount > 0 && shownCount + 1 + roots.size() + added.size() > AreaScan.LIST_PAGE) break;
+            roots.addAll(added);
+            shownCount++;
+        }
+        var shown = state.pending().subList(0, shownCount);
         var rest = List.copyOf(state.pending().subList(shown.size(), state.pending().size()));
         var next = rest.isEmpty() && state.search() == null ? null : remember(request, new EntriesState(rest, state.search(), sticky, merged, state.span()));
         if (bound != null) notes.add(bound);
-        if (!rest.isEmpty()) notes.add("This page shows " + shown.size() + " entries, the page limit; continue with the cursor");
+        if (!rest.isEmpty()) notes.add("This page shows " + shown.size() + " entries, the page limit with their holders; continue with the cursor");
         var records = new ArrayList<Evidence.Record>();
-        var roots = new LinkedHashSet<PathRoot>();
-        for (var entry : shown) {
-            records.add(entryRecord(request.scope(), entry, state.span()));
-            for (var location : entry.locations()) roots.add(location.root());
-        }
+        for (var entry : shown) records.add(entryRecord(request.scope(), entry, state.span()));
         // One record per block or entity holder on the page, so each holder has its own highlight link.
+        var linked = 0;
         for (var root : roots) {
+            if (records.size() >= AreaScan.LIST_PAGE) break;
             var holder = holderRecord(request.scope(), root, state.span());
             if (holder != null) records.add(holder);
+            linked++;
+        }
+        if (linked < roots.size()) {
+            notes.add("Highlight links are shown for " + linked + " of " + roots.size() + " holders of " + shown.getFirst().name()
+                    + "; list or inspect the others by their item paths");
         }
         return result(records, sticky, next, notes.isEmpty() ? null : String.join("; ", notes));
     }

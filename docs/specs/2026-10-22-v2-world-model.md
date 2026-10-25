@@ -120,7 +120,7 @@ trait EntityInspector { fn inspect_entity(&self, uuid: Uuid) -> Result<Option<Fa
 ```
 
 - **Blocks.** Reads cover loaded chunks only. Unloaded chunks inside the radius are counted and make the result partial. `summarize_blocks` gives counts by kind and lists notable blocks with positions: containers, beds, workstations, fluids, light sources and redstone components. Block facts include the block state and light levels.
-- **Entities.** Facts include the state the game decides with. For villagers: profession, level, claimed bed and workstation, last slept, last worked, recent golem panic and gossip. For golem spawning, the relevant cooldown. Other mobs carry health, effects, owner or tamed state and age where they apply.
+- **Entities.** Facts include the state the game decides with. For villagers: profession, level, claimed bed and workstation, last slept, last worked, recent golem panic and gossip. For golem spawning, the relevant cooldown. Every living mob carries health, effects, all attributes (base, value and modifiers), and owner or tamed state and age where they apply. Horse-like mobs add approximate jump height and speed in blocks.
 - **Diagnosis.** PackSage supplies facts. The model reasons with its own game knowledge and says when the facts don't explain the problem.
 - **Inventories.** Block and entity inspection lists the inventories present (`InventoryInfo`) but never their contents; those are read through `InventoryReader`.
 

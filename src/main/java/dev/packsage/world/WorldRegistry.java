@@ -46,7 +46,7 @@ public final class WorldRegistry {
     public Map<String, Section> inspectBlock(ServerLevel level, BlockPos pos) {
         var sections = new LinkedHashMap<String, Section>();
         for (var inspector : blockInspectors) {
-            collect(sections, inspector.adapterId(), () -> inspector.inspectBlock(level, pos));
+            collectSection(sections, inspector.adapterId(), () -> inspector.inspectBlock(level, pos));
         }
         return sections;
     }
@@ -54,7 +54,7 @@ public final class WorldRegistry {
     public Map<String, Section> inspectEntity(Entity entity) {
         var sections = new LinkedHashMap<String, Section>();
         for (var inspector : entityInspectors) {
-            collect(sections, inspector.adapterId(), () -> inspector.inspectEntity(entity));
+            collectSection(sections, inspector.adapterId(), () -> inspector.inspectEntity(entity));
         }
         return sections;
     }

@@ -11,24 +11,29 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.entity.EntityTypeTest;
+import net.minecraft.util.AbortableIterationConsumer;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Sliced block and entity scans in a sphere around a center. Block scans take one non-empty 16x16x16 chunk section
- * per step and entity scans one chunk per step. A chunk that is not loaded when its step runs, or unloads while its
+ * per step and entity scans revalidate at most 64 snapshot UUIDs per step. A chunk that is not loaded when its step runs, or unloads while its
  * sections are read, is counted, never loaded, and makes the page PARTIAL. List cursors are
- * {@code <chunk index>:<matches to skip in that chunk>} and stay stable for the same level, center and radius. A scan
+ * {@code <chunk index>:<matches to skip in that chunk>} for blocks, or a chunk index and UUID anchor for entities.
+ * They stay stable while the relevant loaded content is unchanged. A scan
  * asked to stop early at the call's work budget notes how far it got; a list continues from a cursor at that chunk.
  */
 public final class AreaScan {
@@ -36,6 +41,8 @@ public final class AreaScan {
     public static final int LIST_PAGE = 64;
     static final String PAGE_LIMIT_NOTE = "This page holds " + LIST_PAGE + " matches, the page limit; continue with the cursor";
     private static final int SECTION_SIZE = 16;
+    static final int SNAPSHOT_LIMIT = 4096;
+    static final String SNAPSHOT_NOTE = "The read spanned multiple server ticks; entities or block entities added or moved into already-read chunks may be absent";
 
     private final WorldRegistry registry;
 
@@ -52,7 +59,23 @@ public final class AreaScan {
     }
 
     public ServerWork.Slice<Page<EntityHandle>> listEntities(ServerLevel level, Vec3 center, int radius, KindFilter filter, String cursor) {
-        return new EntityListSlice(level, center, radius, filter, Cursor.parse(cursor));
+        return new EntityListSlice(level, center, radius, filter, cursor);
+    }
+
+    /** Copies only UUIDs through the engine's spatial index; no engine iterator escapes this step. */
+    static List<UUID> entitySnapshot(ServerLevel level, ChunkPos pos, Set<String> notes) {
+        var ids = new ArrayList<UUID>();
+        level.getEntities().get(EntityTypeTest.forClass(Entity.class),
+                new AABB(pos.getMinBlockX(), level.getMinBuildHeight(), pos.getMinBlockZ(),
+                        pos.getMinBlockX() + 16, level.getMaxBuildHeight(), pos.getMinBlockZ() + 16), entity -> {
+                    if (!entity.chunkPosition().equals(pos)) return AbortableIterationConsumer.Continuation.CONTINUE;
+                    ids.add(entity.getUUID());
+                    return ids.size() >= SNAPSHOT_LIMIT ? AbortableIterationConsumer.Continuation.ABORT
+                            : AbortableIterationConsumer.Continuation.CONTINUE;
+                });
+        if (ids.size() >= SNAPSHOT_LIMIT) notes.add("Entity snapshot reached the " + SNAPSHOT_LIMIT + " per-chunk bound; use a smaller area and retry");
+        ids.sort(UUID::compareTo);
+        return ids;
     }
 
     record Cursor(int chunk, int skip) {
@@ -463,45 +486,115 @@ public final class AreaScan {
         }
     }
 
-    private static final class EntityListSlice extends ListSlice<EntityHandle> {
+    /** Revalidates a bounded per-chunk UUID snapshot, resuming pages after a stable sorted anchor. */
+    private static final class EntityListSlice implements ServerWork.Slice<Page<EntityHandle>> {
+        private final ServerLevel level;
+        private final Vec3 center;
+        private final double radiusSquared;
         private final KindFilter filter;
+        private final List<ChunkPos> chunks;
+        private final List<EntityHandle> items = new ArrayList<>();
+        private final Set<String> notes = new LinkedHashSet<>();
+        private final Set<UUID> seen = new HashSet<>();
+        private List<UUID> entities;
+        private UUID anchor;
+        private int chunk;
+        private int index;
+        private int unloaded;
+        private int entitiesUnloaded;
+        private String nextCursor;
+        private boolean stopped;
+        private Long startedAt;
 
-        EntityListSlice(ServerLevel level, Vec3 center, int radius, KindFilter filter, Cursor start) {
-            super(level, center, radius, start);
+        EntityListSlice(ServerLevel level, Vec3 center, int radius, KindFilter filter, String cursor) {
+            this.level = level;
+            this.center = center;
+            this.radiusSquared = (double) radius * radius;
             this.filter = filter;
-        }
-
-        @Override
-        boolean bySection() {
-            return false;
-        }
-
-        @Override
-        void scanChunk(LevelChunk chunk, int index) {
-            var chunkPos = chunk.getPos();
-            var box = new AABB(chunkPos.getMinBlockX(), center.y - radius, chunkPos.getMinBlockZ(),
-                    chunkPos.getMinBlockX() + SECTION_SIZE, center.y + radius, chunkPos.getMinBlockZ() + SECTION_SIZE);
-            var found = new ArrayList<>(level.getEntities((Entity) null, box, entity -> inChunk(entity, chunkPos)
-                    && entity.position().distanceToSqr(center) <= radiusSquared && matches(entity)));
-            found.sort(Comparator.comparing(Entity::getUUID));
-            for (var seen = skip(index); seen < found.size(); seen++) {
-                var entity = found.get(seen);
-                var kind = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
-                if (!offer(index, seen, new EntityHandle(kind, entity.getUUID(), dimension(), entity.getX(), entity.getY(), entity.getZ(), entity.getName().getString()))) {
-                    return;
-                }
+            this.chunks = chunksInRange(center, radius);
+            if (cursor != null) {
+                var parts = cursor.split(":", -1);
+                if (parts.length != 2) throw new IllegalArgumentException("Invalid entity cursor: " + cursor);
+                chunk = Integer.parseInt(parts[0]);
+                if (chunk < 0 || chunk > chunks.size()) throw new IllegalArgumentException("Invalid entity cursor: " + cursor);
+                anchor = parts[1].isEmpty() ? null : UUID.fromString(parts[1]);
             }
         }
 
-        private static boolean inChunk(Entity entity, ChunkPos chunk) {
-            return SectionPos.blockToSectionCoord(entity.getBlockX()) == chunk.x && SectionPos.blockToSectionCoord(entity.getBlockZ()) == chunk.z;
+        @Override
+        public boolean step() {
+            if (stopped || nextCursor != null || chunk >= chunks.size()) return false;
+            if (startedAt == null) startedAt = level.getGameTime();
+            var pos = chunks.get(chunk);
+            if (level.getChunkSource().getChunkNow(pos.x, pos.z) == null || !level.areEntitiesLoaded(pos.toLong())) {
+                if (level.getChunkSource().getChunkNow(pos.x, pos.z) == null) unloaded++;
+                else entitiesUnloaded++;
+                entities = null;
+                anchor = null;
+                chunk++;
+                return chunk < chunks.size();
+            }
+            if (entities == null) {
+                entities = entitySnapshot(level, pos, notes);
+                index = 0;
+                if (anchor != null) {
+                    var found = Collections.binarySearch(entities, anchor);
+                    index = found >= 0 ? found + 1 : -found - 1;
+                    if (found < 0) notes.add("Entity cursor anchor is gone or moved; continuing after its UUID with partial coverage");
+                }
+                // Keep snapshot copying and holder/detail reads in separate bounded steps for dense chunks.
+                if (entities.size() > LIST_PAGE) return true;
+            }
+            for (int read = 0; read < LIST_PAGE && index < entities.size(); read++) {
+                var id = entities.get(index);
+                var entity = level.getEntity(id);
+                if (entity == null || entity.isRemoved()) notes.add("An entity from a chunk snapshot disappeared during the read");
+                if (entity != null && !entity.isRemoved()) {
+                    var x = SectionPos.blockToSectionCoord(entity.getBlockX());
+                    var z = SectionPos.blockToSectionCoord(entity.getBlockZ());
+                    if (level.getChunkSource().getChunkNow(x, z) == null || !level.areEntitiesLoaded(ChunkPos.asLong(x, z))) {
+                        notes.add("An entity moved outside loaded chunks during the read");
+                        entity = null;
+                    }
+                }
+                if (entity != null && !entity.isRemoved() && !seen.contains(id) && entity.position().distanceToSqr(center) <= radiusSquared) {
+                    var kind = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
+                    var tags = filter.tags().isEmpty() ? List.<String>of()
+                            : BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(entity.getType()).tags().map(tag -> tag.location().toString()).toList();
+                    if (filter.matches(kind, tags, entity.getName().getString())) {
+                        if (items.size() >= LIST_PAGE) {
+                            nextCursor = chunk + ":" + (anchor == null ? "" : anchor);
+                            notes.add(PAGE_LIMIT_NOTE);
+                            return false;
+                        }
+                        items.add(new EntityHandle(kind, id, level.dimension().location().toString(),
+                                entity.getX(), entity.getY(), entity.getZ(), entity.getName().getString()));
+                    }
+                }
+                seen.add(id);
+                anchor = id;
+                index++;
+            }
+            if (index == entities.size()) {
+                entities = null;
+                anchor = null;
+                chunk++;
+            }
+            return chunk < chunks.size();
         }
 
-        private boolean matches(Entity entity) {
-            var kind = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
-            var tags = filter.tags().isEmpty() ? List.<String>of()
-                    : BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(entity.getType()).tags().map(tag -> tag.location().toString()).toList();
-            return filter.matches(kind, tags, entity.getName().getString());
+        @Override
+        public boolean stopEarly() {
+            stopped = true;
+            if (chunk < chunks.size()) nextCursor = chunk + ":" + (anchor == null ? "" : anchor);
+            notes.add("Stopped at the per-call work limit while traversing chunk snapshots; continue with the cursor");
+            return true;
+        }
+
+        @Override
+        public Page<EntityHandle> result() {
+            if (startedAt != null && level.getGameTime() != startedAt) notes.add(SNAPSHOT_NOTE);
+            return AreaScan.page(items, nextCursor, unloaded, entitiesUnloaded, notes);
         }
     }
 }

@@ -23,7 +23,6 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.DoubleBlockCombiner;
 import net.minecraft.world.level.block.EnderChestBlock;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.lang.ref.WeakReference;
@@ -166,8 +165,8 @@ public final class WorldTools implements KnowledgeProvider {
 
     public WorldTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
                       Supplier<CompletionStage<ClientFocus>> focus, Function<String, BlockPlace> notePlaces) {
-        this(client::getSingleplayerServer, registry, scope, worker, work, focus, WorldNavigation.blockLookup(client::getSingleplayerServer),
-                WorldNavigation.entityLookup(client::getSingleplayerServer), WorldNavigation.client(client), notePlaces);
+        this(client::getSingleplayerServer, registry, scope, worker, work, focus,
+                new WorldNavigation(client::getSingleplayerServer, WorldNavigation.client(client)), notePlaces);
     }
 
     /** Highlights check {@code blockExists} and {@code entityPlace} before drawing through {@code client}. */
@@ -179,6 +178,11 @@ public final class WorldTools implements KnowledgeProvider {
     WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
                Supplier<CompletionStage<ClientFocus>> focus, Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace,
                WorldNavigation.Client client, Function<String, BlockPlace> notePlaces) {
+        this(server, registry, scope, worker, work, focus, new WorldNavigation(blockExists, entityPlace, client), notePlaces);
+    }
+
+    private WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
+                       Supplier<CompletionStage<ClientFocus>> focus, WorldNavigation navigation, Function<String, BlockPlace> notePlaces) {
         this.server = server;
         this.registry = registry;
         this.scope = scope;
@@ -186,7 +190,7 @@ public final class WorldTools implements KnowledgeProvider {
         this.work = work;
         this.focus = focus;
         this.scan = new AreaScan(registry);
-        this.navigation = new WorldNavigation(blockExists, entityPlace, client);
+        this.navigation = navigation;
         this.notePlaces = notePlaces;
         this.knowledge = new WorldKnowledgeTools(this);
     }
@@ -271,6 +275,9 @@ public final class WorldTools implements KnowledgeProvider {
 
     @Override
     public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!scope.equals(this.scope.get()) || !scope.equals(target.scope())) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "observation scope changed");
+        }
         return navigation.open(target);
     }
 
@@ -519,7 +526,40 @@ public final class WorldTools implements KnowledgeProvider {
         if (handle.startsWith("entity|")) {
             var id = uuid(handle.substring(7));
             var server = server();
-            return run(server, once(() -> inspectEntity(server, id, scope)));
+            return run(server, once(() -> inspectEntity(server, id, scope))).thenApply(record -> {
+                // This continuation runs on the worker. Leave room for source/target metadata and the tool envelope.
+                if (Evidence.serialize(record.payload()).getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                        + record.title().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 65_536) return record;
+                var payload = new LinkedHashMap<>(record.payload().values());
+                var sections = new LinkedHashMap<>(((Evidence.JsonObject) payload.get("sections")).values());
+                record Detail(String adapter, String key, int bytes) {
+                }
+                var details = new ArrayList<Detail>();
+                sections.forEach((adapter, value) -> ((Evidence.JsonObject) ((Evidence.JsonObject) value).values().get("facts"))
+                        .values().forEach((key, fact) -> details.add(new Detail(adapter, key,
+                                Evidence.serialize(fact).getBytes(java.nio.charset.StandardCharsets.UTF_8).length))));
+                details.sort(Comparator.comparingInt(Detail::bytes).reversed());
+                payload.put("note", text("Entity inspection details exceed the 64 KiB byte budget; the largest facts were omitted, coverage is partial"));
+                for (var detail : details) {
+                    if (Evidence.serialize(new Evidence.JsonObject(payload)).getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 60_000) break;
+                    var section = new LinkedHashMap<>(((Evidence.JsonObject) sections.get(detail.adapter())).values());
+                    var facts = new LinkedHashMap<>(((Evidence.JsonObject) section.get("facts")).values());
+                    facts.remove(detail.key());
+                    section.put("facts", new Evidence.JsonObject(facts));
+                    section.put("coverage", text("PARTIAL"));
+                    section.put("note", text((section.get("note") instanceof Evidence.JsonString previous ? previous.value() + "; " : "")
+                            + detail.key() + " omitted for the byte budget"));
+                    sections.put(detail.adapter(), new Evidence.JsonObject(section));
+                    payload.put("sections", new Evidence.JsonObject(sections));
+                }
+                if (Evidence.serialize(new Evidence.JsonObject(payload)).getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 60_000) {
+                    // Oversized metadata can still require the compact identity fallback after trimming all facts.
+                    payload.keySet().retainAll(List.of("entity", "id", "dimension", "x", "y", "z", "holder", "gameTime", "dayTime", "note"));
+                    payload.put("sections", new Evidence.JsonObject(Map.of()));
+                }
+                return evidence(scope, record.source().sourceHandle(), record.kind(), "Entity " + id, payload,
+                        Evidence.Coverage.PARTIAL, WorldNavigation.entityId(id));
+            });
         }
         if (handle.startsWith("item|")) {
             var path = itemPath(handle.substring(5));
@@ -736,6 +776,12 @@ public final class WorldTools implements KnowledgeProvider {
         private boolean firstRootFound;
         private boolean stopped;
         private ItemSearch search;
+        private List<BlockPos> blocks;
+        private List<UUID> entities;
+        private final Set<UUID> seenEntities = new HashSet<>();
+        private int blockIndex;
+        private int entityIndex;
+        private Long startedAt;
 
         FindSlice(MinecraftServer server, Anchor anchor, int radius, KindFilter filter, boolean includeNested, FindState resume) {
             this.server = server;
@@ -749,6 +795,7 @@ public final class WorldTools implements KnowledgeProvider {
         @Override
         public boolean step() {
             if (stopped) return false;
+            if (level != null && startedAt == null) startedAt = level.getGameTime();
             if (search != null) return search.step();
             if (resume != null && chunks == null) {
                 resolveRoots();
@@ -760,7 +807,7 @@ public final class WorldTools implements KnowledgeProvider {
                 holders.add(Map.entry(new PathRoot.Player(host.getUUID()), new LiveHolder.OfPlayer(host)));
                 chunks = AreaScan.chunksInRange(center, radius);
             } else if (next < chunks.size()) {
-                collect(chunks.get(next++));
+                if (collect(chunks.get(next))) next++;
             } else {
                 search = new ItemSearch(registry, holders, filter, ItemTooltips.of(host(server))::lines, includeNested, resumedCursor(resume, firstRootFound));
             }
@@ -778,6 +825,8 @@ public final class WorldTools implements KnowledgeProvider {
                     continue;
                 }
                 if (resolved == 0) firstRootFound = true;
+                if (root instanceof PathRoot.Entity entity) seenEntities.add(entity.id());
+                if (root instanceof PathRoot.Player player) seenEntities.add(player.id());
                 // Gathering later chunks must not add the other half of a double chest already among the roots.
                 if (root instanceof PathRoot.Block block) chestHalves.add(new BlockPos(block.place().x(), block.place().y(), block.place().z()));
                 holders.add(Map.entry(root, holder));
@@ -803,50 +852,90 @@ public final class WorldTools implements KnowledgeProvider {
         @Override
         public boolean stopEarly() {
             if (search != null) return search.stopEarly();
-            if (chunks == null || !gatherCanStop(chunks.size(), next, startChunk)) return false;
+            if (chunks == null) return false;
+            if (blocks != null) return false;
+            if (!gatherCanStop(chunks.size(), next, startChunk)) return false;
             stopped = true;
             return true;
         }
 
-        private void collect(ChunkPos pos) {
+        /** Copies bounded plain keys once per chunk, then revalidates at most 64 holders per step. */
+        private boolean collect(ChunkPos pos) {
             var chunk = level.getChunkSource().getChunkNow(pos.x, pos.z);
             if (chunk == null) {
                 unloaded++;
-                return;
+                blocks = null;
+                entities = null;
+                return true;
             }
-            var radiusSquared = (double) radius * radius;
-            var dimension = level.dimension().location().toString();
-            var blocks = new ArrayList<>(chunk.getBlockEntities().keySet());
-            blocks.sort(Comparator.comparingLong(BlockPos::asLong));
-            for (var at : blocks) {
-                if (Vec3.atCenterOf(at).distanceToSqr(center) > radiusSquared) continue;
-                var state = chunk.getBlockState(at);
-                // The player's ender chest is searched once, under the player.
-                if (state.getBlock() instanceof EnderChestBlock) continue;
-                var doubleChest = state.getBlock() instanceof ChestBlock && ChestBlock.getBlockType(state) != DoubleBlockCombiner.BlockType.SINGLE;
-                // Either half of a double chest reads the whole chest, so only one half is searched.
-                if (doubleChest && chestHalves.contains(at.relative(ChestBlock.getConnectedDirection(state)))) continue;
-                var holder = new LiveHolder.OfBlock(level, at.immutable());
-                if (!holds(holder)) continue;
-                if (doubleChest) chestHalves.add(at.immutable());
-                holders.add(Map.entry(new PathRoot.Block(new BlockPlace(dimension, at.getX(), at.getY(), at.getZ())), holder));
+            if (blocks == null) {
+                blocks = new ArrayList<>();
+                for (var at : chunk.getBlockEntities().keySet()) {
+                    if (blocks.size() >= AreaScan.SNAPSHOT_LIMIT) break;
+                    blocks.add(at.immutable());
+                }
+                if (chunk.getBlockEntities().size() > AreaScan.SNAPSHOT_LIMIT) notes.add("Block entity snapshot reached the per-chunk bound; some holders were not searched");
+                blockIndex = 0;
+                return false;
             }
-            // A loaded chunk can still be waiting for its entities; count it rather than report them absent.
-            if (!level.areEntitiesLoaded(pos.toLong())) {
+            if (blockIndex < blocks.size()) {
+                var dimension = level.dimension().location().toString();
+                for (int read = 0; read < RESOLVE_PER_STEP && blockIndex < blocks.size(); read++) {
+                    var at = blocks.get(blockIndex++);
+                    // getBlockEntity can promote pending NBT even with CHECK; read only the existing map.
+                    var blockEntity = chunk.getBlockEntities().get(at);
+                    if (blockEntity == null || blockEntity.isRemoved()) {
+                        notes.add("A block entity from a chunk snapshot disappeared during the read");
+                        continue;
+                    }
+                    if (Vec3.atCenterOf(at).distanceToSqr(center) > (double) radius * radius) continue;
+                    var state = chunk.getBlockState(at);
+                    if (state.getBlock() instanceof EnderChestBlock) continue;
+                    var doubleChest = state.getBlock() instanceof ChestBlock && ChestBlock.getBlockType(state) != DoubleBlockCombiner.BlockType.SINGLE;
+                    if (doubleChest && chestHalves.contains(at.relative(ChestBlock.getConnectedDirection(state)))) continue;
+                    var holder = new LiveHolder.OfBlock(level, at);
+                    if (!holds(holder)) continue;
+                    if (doubleChest) chestHalves.add(at);
+                    holders.add(Map.entry(new PathRoot.Block(new BlockPlace(dimension, at.getX(), at.getY(), at.getZ())), holder));
+                }
+                return false;
+            }
+            if (entities == null) {
+                if (!level.areEntitiesLoaded(pos.toLong())) {
+                    entitiesUnloaded++;
+                    blocks = null;
+                    return true;
+                }
+                entities = AreaScan.entitySnapshot(level, pos, notes);
+                entityIndex = 0;
+                return false;
+            }
+            if (level.areEntitiesLoaded(pos.toLong())) {
+                for (int read = 0; read < RESOLVE_PER_STEP && entityIndex < entities.size(); read++) {
+                    var id = entities.get(entityIndex++);
+                    var entity = level.getEntity(id);
+                    if (entity == null || entity.isRemoved()) {
+                        notes.add("An entity from a chunk snapshot disappeared during the read");
+                        continue;
+                    }
+                    if (!seenEntities.add(id) || entity == host || entity.position().distanceToSqr(center) > (double) radius * radius) continue;
+                    var x = SectionPos.blockToSectionCoord(entity.getBlockX());
+                    var z = SectionPos.blockToSectionCoord(entity.getBlockZ());
+                    if (level.getChunkSource().getChunkNow(x, z) == null || !level.areEntitiesLoaded(ChunkPos.asLong(x, z))) {
+                        notes.add("An entity moved outside loaded chunks during the read");
+                        continue;
+                    }
+                    LiveHolder holder = entity instanceof ServerPlayer player ? new LiveHolder.OfPlayer(player) : new LiveHolder.OfEntity(entity);
+                    if (!holds(holder)) continue;
+                    holders.add(Map.entry(entity instanceof ServerPlayer ? new PathRoot.Player(id) : new PathRoot.Entity(id), holder));
+                }
+                if (entityIndex < entities.size()) return false;
+            } else {
                 entitiesUnloaded++;
-                return;
             }
-            var box = new AABB(pos.getMinBlockX(), center.y - radius, pos.getMinBlockZ(),
-                    pos.getMinBlockX() + 16, center.y + radius, pos.getMinBlockZ() + 16);
-            var entities = new ArrayList<>(level.getEntities((Entity) null, box, entity -> entity != host
-                    && SectionPos.blockToSectionCoord(entity.getBlockX()) == pos.x && SectionPos.blockToSectionCoord(entity.getBlockZ()) == pos.z
-                    && entity.position().distanceToSqr(center) <= radiusSquared));
-            entities.sort(Comparator.comparing(Entity::getUUID));
-            for (var entity : entities) {
-                LiveHolder holder = entity instanceof ServerPlayer player ? new LiveHolder.OfPlayer(player) : new LiveHolder.OfEntity(entity);
-                if (!holds(holder)) continue;
-                holders.add(Map.entry(entity instanceof ServerPlayer ? new PathRoot.Player(entity.getUUID()) : new PathRoot.Entity(entity.getUUID()), holder));
-            }
+            blocks = null;
+            entities = null;
+            return true;
         }
 
         private boolean holds(LiveHolder holder) {
@@ -861,6 +950,7 @@ public final class WorldTools implements KnowledgeProvider {
             if (unloaded > 0) all.add(unloaded + " chunks in range were not loaded and were not searched");
             if (entitiesUnloaded > 0) all.add(entitiesUnloaded + " chunks in range did not have their entities loaded yet, so entities there were not searched");
             if (gone > 0) all.add(gone + " holders from earlier pages are gone or no longer loaded");
+            if (startedAt != null && level.getGameTime() != startedAt) all.add(AreaScan.SNAPSHOT_NOTE);
             all.addAll(notes);
             List<ItemEntry> entries = List.of();
             FindState continuation = null;

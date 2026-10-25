@@ -6,6 +6,7 @@ import dev.packsage.world.Statistic;
 import dev.packsage.world.StatisticReader;
 import dev.packsage.world.StatisticUnit;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -22,7 +23,6 @@ import net.minecraft.world.level.block.Block;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -159,23 +159,21 @@ public final class MinecraftStatistics implements StatisticReader {
         return types;
     }
 
-    private record Counted(Stat<?> stat, int raw, int typeId, int valueId) {
-    }
-
-    private record Row(int typeId, int valueId, Statistic statistic) {
-    }
-
-    private static final Comparator<Row> ORDER = Comparator.comparingInt(Row::typeId).thenComparingInt(Row::valueId);
-
-    /** The first step copies the counter under its lock; later steps build rows, then the named zero rows. */
+    /** Copies at most one batch under the counter lock per step. StatisticListing sorts the plain rows on the worker. */
     private static final class Walk implements ServerWork.Slice<List<Statistic>> {
         private final Supplier<Object2IntMap<Stat<?>>> source;
         private final List<StatType<?>> types;
         private final KindFilter subjects;
-        private final List<Row> rows = new ArrayList<>();
+        private final List<Statistic> rows = new ArrayList<>();
         private final Set<List<Object>> present = new HashSet<>();
-        private List<Counted> counted;
-        private int next;
+        private Object2IntMap<Stat<?>> counted;
+        private ObjectIterator<Object2IntMap.Entry<Stat<?>>> entries;
+        private int size;
+        private int zeroType;
+        private int zeroSubject;
+        private int restarts;
+        private String note;
+        private boolean done;
 
         Walk(Supplier<Object2IntMap<Stat<?>>> source, List<StatType<?>> types, KindFilter subjects) {
             this.source = source;
@@ -185,55 +183,70 @@ public final class MinecraftStatistics implements StatisticReader {
 
         @Override
         public boolean step() {
+            if (done) return false;
             if (counted == null) {
-                counted = copy(source.get());
-                return true;
-            }
-            if (next < counted.size()) {
-                var end = Math.min(next + STEP_ENTRIES, counted.size());
-                for (; next < end; next++) {
-                    read(counted.get(next));
-                }
-                return true;
-            }
-            for (var type : types) {
-                for (var id : subjects.ids()) {
-                    zero(type, id);
+                counted = source.get();
+                synchronized (counted) {
+                    size = counted.size();
+                    entries = counted.object2IntEntrySet().iterator();
                 }
             }
-            return false;
+            var read = 0;
+            synchronized (counted) {
+                // The engine only adds counter keys or updates values. Growth invalidates fastutil's iterator.
+                if (counted.size() != size) {
+                    if (restarts++ >= 3) {
+                        note = "Statistics kept changing while reading; partial counters only, repeat list_statistics";
+                        done = true;
+                        return false;
+                    }
+                    rows.clear();
+                    present.clear();
+                    zeroType = 0;
+                    zeroSubject = 0;
+                    size = counted.size();
+                    entries = counted.object2IntEntrySet().iterator();
+                    return true;
+                }
+                if (entries != null) {
+                    for (; read < STEP_ENTRIES && entries.hasNext(); read++) {
+                        var entry = entries.next();
+                        if (types.contains(entry.getKey().getType())) read(entry.getKey(), entry.getIntValue());
+                    }
+                    if (entries.hasNext()) return true;
+                    entries = null;
+                }
+            }
+            for (; read < STEP_ENTRIES && zeroType < types.size(); read++) {
+                if (zeroSubject < subjects.ids().size()) {
+                    zero(types.get(zeroType), subjects.ids().get(zeroSubject++));
+                } else {
+                    zeroType++;
+                    zeroSubject = 0;
+                }
+            }
+            done = zeroType >= types.size();
+            return !done;
+        }
+
+        @Override
+        public String note() {
+            return note;
+        }
+
+        @Override
+        public boolean stopEarly() {
+            note = "Statistics read reached the server work budget; partial counters only, repeat list_statistics";
+            done = true;
+            return true;
         }
 
         @Override
         public List<Statistic> result() {
-            return rows.stream().sorted(ORDER).map(Row::statistic).toList();
+            return rows;
         }
 
-        private List<Counted> copy(Object2IntMap<Stat<?>> map) {
-            var selected = Set.copyOf(types);
-            var copied = new ArrayList<Counted>();
-            // The map is a fastutil synchronized map that locks on itself, so iteration holds the same monitor.
-            synchronized (map) {
-                for (var entry : map.object2IntEntrySet()) {
-                    var stat = entry.getKey();
-                    if (selected.contains(stat.getType())) {
-                        copied.add(new Counted(stat, entry.getIntValue(), BuiltInRegistries.STAT_TYPE.getId(stat.getType()), valueId(stat)));
-                    }
-                }
-            }
-            copied.sort(Comparator.comparingInt(Counted::typeId).thenComparingInt(Counted::valueId));
-            return copied;
-        }
-
-        private static <T> int valueId(Stat<T> stat) {
-            return stat.getType().getRegistry().getId(stat.getValue());
-        }
-
-        private void read(Counted entry) {
-            read(entry.stat(), entry.raw(), entry.typeId(), entry.valueId());
-        }
-
-        private <T> void read(Stat<T> stat, int raw, int typeId, int valueId) {
+        private <T> void read(Stat<T> stat, int raw) {
             var statType = stat.getType();
             var key = statType.getRegistry().getKey(stat.getValue());
             if (key == null) return;
@@ -241,7 +254,7 @@ public final class MinecraftStatistics implements StatisticReader {
             present.add(List.of(statType, id));
             if (raw == 0 && !subjects.ids().contains(id)) return;
             var unit = unit(stat);
-            add(statType, stat.getValue(), id, raw, unit, typeId, valueId);
+            add(statType, stat.getValue(), id, raw, unit);
         }
 
         private <T> void zero(StatType<T> statType, String id) {
@@ -253,18 +266,18 @@ public final class MinecraftStatistics implements StatisticReader {
             if (value.isEmpty()) return;
             present.add(List.of(statType, id));
             var unit = statType == Stats.CUSTOM ? CUSTOM_UNITS.getOrDefault(key, StatisticUnit.COUNT) : StatisticUnit.COUNT;
-            add(statType, value.get(), id, 0, unit, BuiltInRegistries.STAT_TYPE.getId(statType), registry.getId(value.get()));
+            add(statType, value.get(), id, 0, unit);
         }
 
-        private <T> void add(StatType<T> statType, T value, String id, int raw, StatisticUnit unit, int typeId, int valueId) {
+        private <T> void add(StatType<T> statType, T value, String id, int raw, StatisticUnit unit) {
             var custom = statType == Stats.CUSTOM;
             var name = name(value, id, custom);
             Collection<String> tags = subjects.tags().isEmpty() ? List.of()
                     : statType.getRegistry().wrapAsHolder(value).tags().map(tag -> tag.location().toString()).toList();
             if (!subjects.matches(id, tags, name)) return;
             var category = category(BuiltInRegistries.STAT_TYPE.getKey(statType));
-            rows.add(new Row(typeId, valueId, new Statistic(MinecraftInventories.ADAPTER, category, id, label(statType, category, name, raw),
-                    value(unit, raw), unit, raw)));
+            rows.add(new Statistic(MinecraftInventories.ADAPTER, category, id, label(statType, category, name, raw),
+                    value(unit, raw), unit, raw));
         }
 
         /**

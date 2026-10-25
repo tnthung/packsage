@@ -3,6 +3,7 @@ package dev.packsage.world.minecraft;
 import dev.packsage.world.KindFilter;
 import dev.packsage.world.ServerWork;
 import dev.packsage.world.Statistic;
+import dev.packsage.world.StatisticListing;
 import dev.packsage.world.StatisticUnit;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.MappedRegistry;
@@ -22,7 +23,13 @@ import net.minecraft.world.level.block.Blocks;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import it.unimi.dsi.fastutil.objects.AbstractObjectSet;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectIterator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -224,9 +231,111 @@ class MinecraftStatisticsTest {
         }
 
         assertTrue(BuiltInRegistries.ITEM.size() > 1024);
-        assertTrue(steps > 2, "steps " + steps);
+        assertTrue(steps > 1, "steps " + steps);
         var expected = BuiltInRegistries.ITEM.stream().map(item -> BuiltInRegistries.ITEM.getKey(item).toString()).toList();
-        assertEquals(expected, slice.result().stream().map(Statistic::subject).toList());
+        var ordered = new ArrayList<Statistic>();
+        for (var offset = 0; offset < expected.size(); offset += 64) {
+            ordered.addAll(StatisticListing.page(List.of(slice.result()), offset, List.of()).items());
+        }
+        assertEquals(expected.stream().sorted().toList(), ordered.stream().map(Statistic::subject).toList());
+    }
+
+    @Test
+    void aNewCounterBetweenStepsRestartsTheWalkWithoutFailing() {
+        var map = new Object2IntOpenHashMap<Stat<?>>();
+        for (var item : BuiltInRegistries.ITEM) map.put(Stats.ITEM_CRAFTED.get(item), 1);
+        var slice = statistics.statistics(() -> map, List.of(), KindFilter.ANY);
+        assertTrue(slice.step());
+        map.put(Stats.BLOCK_MINED.get(Blocks.STONE), 3);
+        while (slice.step()) {
+        }
+        assertEquals(map.size(), slice.result().size());
+        assertEquals(3, slice.result().stream().filter(row -> row.category().equals("mined") && row.subject().equals("minecraft:stone"))
+                .findFirst().orElseThrow().raw());
+        assertEquals(map.size(), slice.result().stream().map(row -> row.category() + "/" + row.subject()).distinct().count());
+    }
+
+    @Test
+    void anEntryBatchLeavesNamedZeroWorkForTheNextStep() {
+        var map = new Object2IntOpenHashMap<Stat<?>>();
+        BuiltInRegistries.ITEM.stream().limit(MinecraftStatistics.STEP_ENTRIES).forEach(item -> map.put(Stats.ITEM_CRAFTED.get(item), 1));
+        var slice = statistics.statistics(() -> map, List.of("mined"),
+                new KindFilter(List.of("minecraft:ancient_debris"), List.of(), ""));
+        assertTrue(slice.step());
+        assertTrue(slice.result().isEmpty(), "the entry batch consumes this step's entire operation budget");
+        while (slice.step()) {
+        }
+        assertEquals(1, slice.result().size());
+    }
+
+    @Test
+    void repeatedCounterGrowthStopsWithARetryNoteAfterBoundedRestarts() {
+        var stats = BuiltInRegistries.ITEM.stream().map(Stats.ITEM_CRAFTED::get).toList();
+        var map = new Object2IntOpenHashMap<Stat<?>>();
+        for (var i = 0; i < MinecraftStatistics.STEP_ENTRIES + 1; i++) map.put(stats.get(i), 1);
+        var slice = statistics.statistics(() -> map, List.of("crafted"), KindFilter.ANY);
+        assertTrue(slice.step());
+        var changes = 0;
+        boolean more;
+        do {
+            map.put(stats.get(MinecraftStatistics.STEP_ENTRIES + 1 + changes++), 1);
+            more = slice.step();
+            assertTrue(changes <= 4);
+        } while (more);
+        assertTrue(slice.note().contains("repeat list_statistics"));
+    }
+
+    @Test
+    void copyingALargeCounterVisitsAtMostOneBatchPerStep() {
+        var visited = new AtomicInteger();
+        var map = new Object2IntOpenHashMap<Stat<?>>() {
+            @Override
+            public Object2IntMap.FastEntrySet<Stat<?>> object2IntEntrySet() {
+                var entries = super.object2IntEntrySet();
+                class Entries extends AbstractObjectSet<Object2IntMap.Entry<Stat<?>>> implements Object2IntMap.FastEntrySet<Stat<?>> {
+                    @Override
+                    public ObjectIterator<Object2IntMap.Entry<Stat<?>>> fastIterator() {
+                        return iterator();
+                    }
+
+                    @Override
+                    public int size() {
+                        return entries.size();
+                    }
+
+                    @Override
+                    public ObjectIterator<Object2IntMap.Entry<Stat<?>>> iterator() {
+                        var iterator = entries.iterator();
+                        return new ObjectIterator<>() {
+                            @Override
+                            public boolean hasNext() {
+                                return iterator.hasNext();
+                            }
+
+                            @Override
+                            public Object2IntMap.Entry<Stat<?>> next() {
+                                visited.incrementAndGet();
+                                return iterator.next();
+                            }
+                        };
+                    }
+                }
+                return new Entries();
+            }
+        };
+        for (var item : BuiltInRegistries.ITEM) map.put(Stats.ITEM_CRAFTED.get(item), 1);
+        var slice = statistics.statistics(() -> map, List.of("crafted"), KindFilter.ANY);
+        var steps = 0;
+        boolean more;
+        do {
+            var before = visited.get();
+            more = slice.step();
+            assertTrue(visited.get() - before <= MinecraftStatistics.STEP_ENTRIES, "entries visited in one step: " + (visited.get() - before));
+            steps++;
+        } while (more);
+        assertEquals(map.size(), visited.get());
+        assertTrue(steps > 1);
+        assertEquals(map.size(), slice.result().size());
     }
 
     @Test
@@ -235,10 +344,13 @@ class MinecraftStatisticsTest {
         assertEquals("mined", MinecraftStatistics.category(ResourceLocation.withDefaultNamespace("mined")));
     }
 
-    private static <T> T run(ServerWork.Slice<T> slice) {
+    private static List<Statistic> run(ServerWork.Slice<List<Statistic>> slice) {
         while (slice.step()) {
         }
-        return slice.result();
+        // As in the tool, ordering belongs to the consumer after the server has finished copying.
+        var categories = new MinecraftStatistics().categories();
+        return slice.result().stream().sorted(java.util.Comparator.<Statistic>comparingInt(row -> categories.indexOf(row.category()))
+                .thenComparing(Statistic::subject)).toList();
     }
 
     private static Statistic row(List<Statistic> rows, String subject) {

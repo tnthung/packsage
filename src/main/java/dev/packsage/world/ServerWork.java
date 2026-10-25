@@ -28,6 +28,11 @@ public final class ServerWork {
 
         T result();
 
+        /** A gap in the copied result that consumers must preserve as partial coverage. */
+        default String note() {
+            return null;
+        }
+
         /**
          * Asked between steps once the call has spent its work budget. A slice that can continue later records where
          * it stopped and a note naming the bound, so {@link #result} is a PARTIAL page with a continuation, and

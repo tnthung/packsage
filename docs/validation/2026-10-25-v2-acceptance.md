@@ -13319,6 +13319,17 @@ Final bridge state: `running=true`, `paused=false`, `screen=null`, world `PackSa
 | W6 | PASS | Correct 11-diamond answer distinguishes player/chest/mule and unloaded chunks. F3 graph samples show no visible stall; tick query baseline 4.8ms, samples 4.0-4.3ms at 20 TPS; scope is this single run. |
 | W8 | PASS | inspect_entity returns and reply cites approximate 1.62-block jump height; mule navigation opened. Coordinates omitted here, tracked as E6 failure. |
 | C1 | PASS | Held: inspect_item held lists every eligible entry and excludes Smite/Bane. Empty-hand repeat starts by saying nothing is held. |
+| C2 | PASS | Actual 3-plank/2-stick grid via menu clicks; list_items opened reports input slots and excludes output preview. |
+| C3 | PASS | list_items ridden returns 12 iron ingots and saddle; donkey coordinates and link opened. |
+| C4 | PASS | Exactly one filter.tooltip search finds inventory rabbit foot; reply distinguishes offhand +2 from current Luck 0. |
+| C5 | FAIL | First librarian question ran after the player fell from an unsupported y=250 teleport to y=96; no villagers in range. Fixture issue retained as FAIL; corrected subchecks follow. |
+| C6 | PASS | read_loot zombie gives rotten flesh, conditional rare ingot/carrot/potato drops and smelting; no roll implied. |
+| P1 | FAIL | Missing 51 biomes named correctly, but inspect_progress marks advancement navigable=false and returns no target. Required Open advancements navigation cannot be rendered/clicked. |
+| P2 | PASS | Actual survival breaks; mined counts exactly 1 diamond ore + 1 deepslate diamond ore; reply distinguishes blocks from drops. |
+| P3 | PASS | list_statistics walk_one_cm converts 3837 cm to 38.37 blocks; no centimetre output. |
+| P5 | FAIL | Reply exposes nine hidden advancement identifiers instead of count only. Brief F-hidden command also fails: all_effects has no minecraft:speed criterion; recorded fixture issue. Same disclosure occurred before fixture attempt. |
+| P6 | PASS | play_time ticks converted to 12h20m37s in reply. |
+| J0 | PASS | journal.db and journal.db-wal exist; current launch has fresh readable journal events and no SQLite native-library error. |
 | E6 | FAIL | W8 locates/cites V2Mule but omits its coordinates in text. Other omissions and navigation failures are recorded per check. |
 
 ### Run conditions and evidence
@@ -13330,6 +13341,9 @@ Raw bridge responses, navigation screenshots and timing records: `D:/Project/pac
 ### Failures
 
 - **E6 — prompt:** W8 locates/cites V2Mule but omits its coordinates in text. Other omissions and navigation failures are recorded per check.
+- **C5 — fixture issue:** First librarian question ran after the player fell from an unsupported y=250 teleport to y=96; no villagers in range. Fixture issue retained as FAIL; corrected subchecks follow.
+- **P1 — code defect:** Missing 51 biomes named correctly, but inspect_progress marks advancement navigable=false and returns no target. Required Open advancements navigation cannot be rendered/clicked.
+- **P5 — prompt:** Reply exposes nine hidden advancement identifiers instead of count only. Brief F-hidden command also fails: all_effects has no minecraft:speed criterion; recorded fixture issue. Same disclosure occurred before fixture attempt.
 
 ### Fixture actions in this session
 
@@ -13707,6 +13721,413 @@ Raw bridge responses, navigation screenshots and timing records: `D:/Project/pac
       "result": 1,
       "feedback": [
         "Replaced a slot on TNThung with [Air]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:37:42.345Z",
+    "command": "setblock 1004 250 1003 crafting_table",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Changed the block at 1004, 250, 1003"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:37:42.362Z",
+    "command": "item replace entity @s hotbar.2 with oak_planks 3",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Replaced a slot on TNThung with [Oak Planks]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:37:42.369Z",
+    "command": "item replace entity @s hotbar.3 with stick 2",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Replaced a slot on TNThung with [Stick]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:37:53.810Z",
+    "command": "item replace entity @s hotbar.2 with oak_planks 1",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Replaced a slot on TNThung with [Oak Planks]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:37:53.818Z",
+    "command": "item replace entity @s hotbar.4 with oak_planks 1",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Replaced a slot on TNThung with [Oak Planks]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:37:53.827Z",
+    "command": "item replace entity @s hotbar.5 with oak_planks 1",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Replaced a slot on TNThung with [Oak Planks]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:37:53.836Z",
+    "command": "item replace entity @s hotbar.3 with stick 1",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Replaced a slot on TNThung with [Stick]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:37:53.852Z",
+    "command": "item replace entity @s hotbar.6 with stick 1",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Replaced a slot on TNThung with [Stick]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:38:17.850Z",
+    "command": "summon donkey 1010.5 250 1003.5 {Tame:1b,ChestedHorse:1b,CustomName:'\"V2DonkeyA\"',SaddleItem:{id:\"minecraft:saddle\",count:1}}",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Summoned new V2DonkeyA"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:38:17.857Z",
+    "command": "item replace entity @e[type=donkey,name=V2DonkeyA,limit=1] horse.0 with iron_ingot 12",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Replaced a slot on V2DonkeyA with [Iron Ingot]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:38:17.867Z",
+    "command": "ride @s mount @e[type=donkey,name=V2DonkeyA,limit=1]",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "TNThung started riding V2DonkeyA"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:38:46.190Z",
+    "command": "ride @s dismount",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "TNThung stopped riding V2DonkeyA"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:38:46.199Z",
+    "command": "tp @s 1003.5 250 1002.5 0 10",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Teleported TNThung to 1003.500000, 250.000000, 1002.500000"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:38:46.206Z",
+    "command": "item replace entity @s inventory.1 with rabbit_foot[attribute_modifiers={modifiers:[{type:\"generic.luck\",id:\"packsage:test_luck\",amount:2,operation:\"add_value\",slot:\"offhand\"}]}]",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Replaced a slot on TNThung with [Rabbit's Foot]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:39:27.596Z",
+    "command": "data get entity @e[type=villager,name=V2Librarian,limit=1] UUID",
+    "result": {
+      "success": true,
+      "result": 4,
+      "feedback": [
+        "V2Librarian has the following entity data: [I; -1304563295, 937050736, -1908804521, -667338651]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:39:27.604Z",
+    "command": "execute at @e[type=villager,name=V2Librarian,limit=1] run tp @s ~ ~ ~2 180 15",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Teleported TNThung to 1019.500000, 250.000000, 1005.500000"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:39:52.111Z",
+    "command": "data get entity @e[type=villager,name=V2Librarian,limit=1] Pos",
+    "result": {
+      "success": true,
+      "result": 3,
+      "feedback": [
+        "V2Librarian has the following entity data: [1019.5d, 250.0d, 1003.5d]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:40:06.689Z",
+    "command": "setblock 1019 249 1005 stone",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Changed the block at 1019, 249, 1005"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:40:06.698Z",
+    "command": "tp @s 1019.5 250 1005.5 180 10",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Teleported TNThung to 1019.500000, 250.000000, 1005.500000"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:40:34.311Z",
+    "command": "fill 1030 249 1019 1034 249 1023 stone",
+    "result": {
+      "success": true,
+      "result": 25,
+      "feedback": [
+        "Successfully filled 25 block(s)"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:40:34.325Z",
+    "command": "fill 1030 250 1019 1034 251 1023 glass hollow",
+    "result": {
+      "success": true,
+      "result": 50,
+      "feedback": [
+        "Successfully filled 50 block(s)"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:40:34.333Z",
+    "command": "setblock 1031 250 1020 lectern",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Changed the block at 1031, 250, 1020"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:40:34.349Z",
+    "command": "time set day",
+    "result": {
+      "success": true,
+      "result": 1000,
+      "feedback": [
+        "Set the time to 1000"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:40:34.363Z",
+    "command": "summon villager 1032.5 250 1020.5 {CustomName:'\"V2FreshA\"',PersistenceRequired:1b,VillagerData:{profession:\"minecraft:none\",level:1,type:\"minecraft:plains\"}}",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Summoned new V2FreshA"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:40:34.369Z",
+    "command": "tp @s 1032.5 250 1021.5 180 10",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Teleported TNThung to 1032.500000, 250.000000, 1021.500000"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:40:36.399Z",
+    "command": "data get entity @e[name=V2FreshA,limit=1] VillagerData",
+    "result": {
+      "success": true,
+      "result": 3,
+      "feedback": [
+        "V2FreshA has the following entity data: {profession: \"minecraft:librarian\", level: 1, type: \"minecraft:plains\"}"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:40:36.406Z",
+    "command": "data get entity @e[name=V2FreshA,limit=1] Offers",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "V2FreshA has the following entity data: {Recipes: [{maxUses: 16, sell: {count: 1, id: \"minecraft:emerald\"}, buy: {count: 24, id: \"minecraft:paper\"}, xp: 2, priceMultiplier: 0.05f}, {maxUses: 12, sell: {count: 1, id: \"minecraft:bookshelf\"}, buy: {count: 9, id: \"minecraft:emerald\"}, priceMultiplier: 0.05f}]}"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:41:55.602Z",
+    "command": "summon villager 1032.5 250 1022.5 {CustomName:'\"V2FreshUnreadA\"',NoAI:1b,VillagerData:{profession:\"minecraft:librarian\",level:1,type:\"minecraft:plains\"}}",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Summoned new V2FreshUnreadA"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:41:55.609Z",
+    "command": "tp @s 1033.5 250 1022.5 90 0",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Teleported TNThung to 1033.500000, 250.000000, 1022.500000"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:43:07.372Z",
+    "command": "tp @s 1003.5 250 1002.5 0 10",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Teleported TNThung to 1003.500000, 250.000000, 1002.500000"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:44:56.133Z",
+    "command": "item replace entity @s weapon.mainhand with diamond_pickaxe",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Replaced a slot on TNThung with [Diamond Pickaxe]"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:44:56.146Z",
+    "command": "setblock 1004 250 1004 diamond_ore",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Changed the block at 1004, 250, 1004"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:44:56.158Z",
+    "command": "setblock 1005 250 1004 deepslate_diamond_ore",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Changed the block at 1005, 250, 1004"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:44:56.166Z",
+    "command": "gamemode survival",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Set own game mode to Survival Mode"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:44:56.174Z",
+    "command": "tp @s 1003.5 250 1003.5 0 10",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Teleported TNThung to 1003.500000, 250.000000, 1003.500000"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:44:56.209Z",
+    "command": "gamemode creative",
+    "result": {
+      "success": true,
+      "result": 1,
+      "feedback": [
+        "Set own game mode to Creative Mode"
+      ]
+    }
+  },
+  {
+    "at": "2026-10-25T15:45:56.591Z",
+    "command": "advancement grant @s only minecraft:nether/all_effects minecraft:speed",
+    "result": {
+      "success": false,
+      "result": 0,
+      "feedback": [
+        "The advancement [How Did We Get Here?] does not contain the criterion 'minecraft:speed'"
       ]
     }
   }
@@ -15805,6 +16226,2083 @@ Relevant timing lines (group membership uses preceding provider_terminal; event_
 ]
 ```
 
+### C2 — PASS
+
+Question: `what's in this crafting grid?`
+
+Request `36a924a1-24c5-4c97-8afe-7c772ee7f8d1`; conversation `e071c853-e31d-4ea8-8c76-31dbb94c3f52`; status=completed, saved=true. Submitted 2026-10-25T15:37:54.644Z. Raw evidence `build/task7-part-a/C2.json`.
+
+Fixture screenshot `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-ee08ebc4-c69d-44ce-839f-58858e591ba8.png`; moves in `C2-moves.json` (slots 39->1,41->2,42->3,40->5,43->8).
+
+Timing: elapsed_ms=10831, backendMs=10792, toolWallMs=28, toolCalls=1. Model/backend time less tool wall = 10764 ms (includes transport/serialization, not pure inference).
+
+**G1 list_items** (`call_Yb58ByHDnUUTtzUWDfxbrdJL`)
+
+```json
+{"arguments":{"holder":"opened","inventory":null,"filter":null,"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":3,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+The crafting grid has **3 oak planks across the top row** and **2 sticks down the middle**—the wooden pickaxe pattern. [world:item|opened:1>minecraft/menu#1@minecraft:oak_planks] [world:item|opened:1>minecraft/menu#5@minecraft:stick]
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-dda8dabb-76e4-4c59-895d-443bc83c4e78.png`.
+
+No reply-owned navigable target returned or used; source citations may be non-navigable.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "36a924a1-24c5-4c97-8afe-7c772ee7f8d1",
+    "phase": "accepted",
+    "start_ns": "167763792033200",
+    "event_ns": "167763792033200",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "36a924a1-24c5-4c97-8afe-7c772ee7f8d1",
+    "phase": "history_ready",
+    "event_ns": "167763792074500",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "36a924a1-24c5-4c97-8afe-7c772ee7f8d1",
+    "phase": "request_built",
+    "event_ns": "167763831536400",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "36a924a1-24c5-4c97-8afe-7c772ee7f8d1",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "167768967038200",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "5134"
+  },
+  {
+    "request": "36a924a1-24c5-4c97-8afe-7c772ee7f8d1",
+    "phase": "tool_received",
+    "call": "call_Yb58ByHDnUUTtzUWDfxbrdJL",
+    "tool": "list_items",
+    "step": "1",
+    "event_ns": "167768967105400",
+    "elapsed_ms": "5175"
+  },
+  {
+    "request": "36a924a1-24c5-4c97-8afe-7c772ee7f8d1",
+    "phase": "tool_result_sent",
+    "call": "call_Yb58ByHDnUUTtzUWDfxbrdJL",
+    "tool": "list_items",
+    "event_ns": "167768995977000",
+    "toolMs": "28",
+    "resultBytes": "3294",
+    "error": "false"
+  },
+  {
+    "request": "36a924a1-24c5-4c97-8afe-7c772ee7f8d1",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "167774623572300",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "5626"
+  },
+  {
+    "request": "36a924a1-24c5-4c97-8afe-7c772ee7f8d1",
+    "phase": "tool_summary",
+    "toolCalls": "1",
+    "toolWallMs": "28",
+    "event_ns": "167774623713600"
+  },
+  {
+    "request": "36a924a1-24c5-4c97-8afe-7c772ee7f8d1",
+    "phase": "model_terminal",
+    "event_ns": "167774623713600",
+    "elapsed_ms": "10831",
+    "backendMs": "10792",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### C3 — PASS
+
+Question: `what's in my donkey?`
+
+Request `e83265ee-aa9a-4f10-a40f-b1b1e235f7b7`; conversation `dcbf322b-1114-4627-bd11-a2e40e3d5853`; status=completed, saved=true. Submitted 2026-10-25T15:38:19.429Z. Raw evidence `build/task7-part-a/C3.json`.
+
+Timing: elapsed_ms=14668, backendMs=14623, toolWallMs=54, toolCalls=2. Model/backend time less tool wall = 14569 ms (includes transport/serialization, not pure inference).
+
+**G1 list_items** (`call_Cpf63iknJl4LviV0gubk8uKN`)
+
+```json
+{"arguments":{"holder":"ridden","inventory":null,"filter":null,"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":3,"nextCursor":null}
+```
+
+**G2 inspect_entity** (`call_PdQrU2hJSd4iWZ1nf13ZL7WJ`)
+
+```json
+{"arguments":{"id":"7d12d797-a87c-479a-9bf1-4fa4387e6b52"},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+Your donkey, **V2DonkeyA**, at (1010.5, 250, 1003.5) [world:entity|7d12d797-a87c-479a-9bf1-4fa4387e6b52], has **12 iron ingots** in its chest [world:item|entity:7d12d797-a87c-479a-9bf1-4fa4387e6b52>minecraft/chest#0@minecraft:iron_ingot] and is wearing a **saddle** [world:item|entity:7d12d797-a87c-479a-9bf1-4fa4387e6b52>minecraft/saddle#0@minecraft:saddle]. The chest has **14 empty slots** [world:entity|7d12d797-a87c-479a-9bf1-4fa4387e6b52].
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-4dc53061-76bb-4871-887f-b0e72c2ad10e.png`.
+
+- `world-entity|7d12d797-a87c-479a-9bf1-4fa4387e6b52` -> `{"status":"OPENED","detail":null}`; screenshot `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-612fda7d-bd4e-40ee-b85c-7d4e36dafedf.png`; destination state {"screen":null,"position":[1010.5,250.5124999523163,1003.5]}.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "e83265ee-aa9a-4f10-a40f-b1b1e235f7b7",
+    "phase": "accepted",
+    "start_ns": "167788576830200",
+    "event_ns": "167788576830200",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "e83265ee-aa9a-4f10-a40f-b1b1e235f7b7",
+    "phase": "history_ready",
+    "event_ns": "167788576873400",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "e83265ee-aa9a-4f10-a40f-b1b1e235f7b7",
+    "phase": "request_built",
+    "event_ns": "167788621199700",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "e83265ee-aa9a-4f10-a40f-b1b1e235f7b7",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "167792151354900",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "3529"
+  },
+  {
+    "request": "e83265ee-aa9a-4f10-a40f-b1b1e235f7b7",
+    "phase": "tool_received",
+    "call": "call_Cpf63iknJl4LviV0gubk8uKN",
+    "tool": "list_items",
+    "step": "1",
+    "event_ns": "167792151511000",
+    "elapsed_ms": "3574"
+  },
+  {
+    "request": "e83265ee-aa9a-4f10-a40f-b1b1e235f7b7",
+    "phase": "tool_result_sent",
+    "call": "call_Cpf63iknJl4LviV0gubk8uKN",
+    "tool": "list_items",
+    "event_ns": "167792195091600",
+    "toolMs": "43",
+    "resultBytes": "3133",
+    "error": "false"
+  },
+  {
+    "request": "e83265ee-aa9a-4f10-a40f-b1b1e235f7b7",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "167797333234300",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "5137"
+  },
+  {
+    "request": "e83265ee-aa9a-4f10-a40f-b1b1e235f7b7",
+    "phase": "tool_received",
+    "call": "call_PdQrU2hJSd4iWZ1nf13ZL7WJ",
+    "tool": "inspect_entity",
+    "step": "2",
+    "event_ns": "167797333318600",
+    "elapsed_ms": "8756"
+  },
+  {
+    "request": "e83265ee-aa9a-4f10-a40f-b1b1e235f7b7",
+    "phase": "tool_result_sent",
+    "call": "call_PdQrU2hJSd4iWZ1nf13ZL7WJ",
+    "tool": "inspect_entity",
+    "event_ns": "167797344129400",
+    "toolMs": "10",
+    "resultBytes": "3346",
+    "error": "false"
+  },
+  {
+    "request": "e83265ee-aa9a-4f10-a40f-b1b1e235f7b7",
+    "round": "3",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "167803245018300",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "5899"
+  },
+  {
+    "request": "e83265ee-aa9a-4f10-a40f-b1b1e235f7b7",
+    "phase": "tool_summary",
+    "toolCalls": "2",
+    "toolWallMs": "54",
+    "event_ns": "167803245175700"
+  },
+  {
+    "request": "e83265ee-aa9a-4f10-a40f-b1b1e235f7b7",
+    "phase": "model_terminal",
+    "event_ns": "167803245175700",
+    "elapsed_ms": "14668",
+    "backendMs": "14623",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### C4 — PASS
+
+Question: `which of my items gives luck?`
+
+Request `bc481586-88c7-40b8-aa51-929995eb7063`; conversation `6570ce1f-e7f6-483e-96c8-ee154fb02b73`; status=completed, saved=true. Submitted 2026-10-25T15:38:47.940Z. Raw evidence `build/task7-part-a/C4.json`.
+
+Timing: elapsed_ms=20663, backendMs=20620, toolWallMs=109, toolCalls=4. Model/backend time less tool wall = 20511 ms (includes transport/serialization, not pure inference).
+
+**G1 search_registry** (`call_s8LLkfEYIEW3PfrX60xhJNau`)
+
+```json
+{"arguments":{"registry":"active_effect","filter":{"text":"luck","ids":null,"tags":null,"provider":null},"limit":64,"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":0,"nextCursor":null}
+```
+
+**G1 search_registry** (`call_QCGsizPifMqJZVvlrhIOa2yM`)
+
+```json
+{"arguments":{"registry":"player_attribute","filter":{"text":"luck","ids":null,"tags":null,"provider":null},"limit":64,"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+**G1 find_items** (`call_OWiF8WacJlim20pCqnLPUzeL`)
+
+```json
+{"arguments":{"filter":{"ids":null,"tags":null,"text":null,"tooltip":["Luck"]},"center":null,"radius":16,"includeNested":true,"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+**G2 inspect_item** (`call_9O3IlErVtfb6iJeBCU9dTF6P`)
+
+```json
+{"arguments":{"path":"player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#10@minecraft:rabbit_foot"},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+Your **Rabbit’s Foot** gives **+2 Luck when held in your offhand**. It’s currently in your inventory, not providing that bonus: your Luck is 0, with no active modifier. [world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#10@minecraft:rabbit_foot] [native:player_attribute:minecraft:generic.luck]
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-b8dc1259-bb04-4e4f-873f-f1754b41be38.png`.
+
+No reply-owned navigable target returned or used; source citations may be non-navigable.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "accepted",
+    "start_ns": "167817088721000",
+    "event_ns": "167817088721000",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "history_ready",
+    "event_ns": "167817088760800",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "request_built",
+    "event_ns": "167817131127800",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "167823271250800",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "6139"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "tool_received",
+    "call": "call_s8LLkfEYIEW3PfrX60xhJNau",
+    "tool": "search_registry",
+    "step": "1",
+    "event_ns": "167823271331600",
+    "elapsed_ms": "6182"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "tool_received",
+    "call": "call_QCGsizPifMqJZVvlrhIOa2yM",
+    "tool": "search_registry",
+    "step": "2",
+    "event_ns": "167823273814400",
+    "elapsed_ms": "6185"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "tool_received",
+    "call": "call_OWiF8WacJlim20pCqnLPUzeL",
+    "tool": "find_items",
+    "step": "3",
+    "event_ns": "167823274304200",
+    "elapsed_ms": "6185"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "tool_result_sent",
+    "call": "call_s8LLkfEYIEW3PfrX60xhJNau",
+    "tool": "search_registry",
+    "event_ns": "167823280234100",
+    "toolMs": "8",
+    "resultBytes": "75",
+    "error": "false"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "tool_result_sent",
+    "call": "call_QCGsizPifMqJZVvlrhIOa2yM",
+    "tool": "search_registry",
+    "event_ns": "167823281664600",
+    "toolMs": "7",
+    "resultBytes": "972",
+    "error": "false"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "tool_result_sent",
+    "call": "call_OWiF8WacJlim20pCqnLPUzeL",
+    "tool": "find_items",
+    "event_ns": "167823346257800",
+    "toolMs": "71",
+    "resultBytes": "1103",
+    "error": "false"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "167831562449900",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "8215"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "tool_received",
+    "call": "call_9O3IlErVtfb6iJeBCU9dTF6P",
+    "tool": "inspect_item",
+    "step": "4",
+    "event_ns": "167831562556000",
+    "elapsed_ms": "14473"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "tool_result_sent",
+    "call": "call_9O3IlErVtfb6iJeBCU9dTF6P",
+    "tool": "inspect_item",
+    "event_ns": "167831596757500",
+    "toolMs": "34",
+    "resultBytes": "2038",
+    "error": "false"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "round": "3",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "167837751895000",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "6153"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "tool_summary",
+    "toolCalls": "4",
+    "toolWallMs": "109",
+    "event_ns": "167837752107900"
+  },
+  {
+    "request": "bc481586-88c7-40b8-aa51-929995eb7063",
+    "phase": "model_terminal",
+    "event_ns": "167837752107900",
+    "elapsed_ms": "20663",
+    "backendMs": "20620",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### C5-existing — FAIL
+
+Question: `what does this villager sell?`
+
+Request `3fe8a6ce-4405-4be3-8fd9-ff1de38c7e89`; conversation `b417f89b-31f2-48f8-bd36-c3512cd1bbd2`; status=completed, saved=true. Submitted 2026-10-25T15:39:29.066Z. Raw evidence `build/task7-part-a/C5-existing.json`.
+
+Fixture failure: player had fallen to (1019.5,96,1005.5); villager remained at (1019.5,250,1003.5).
+
+Timing: elapsed_ms=13217, backendMs=13141, toolWallMs=41, toolCalls=1. Model/backend time less tool wall = 13100 ms (includes transport/serialization, not pure inference).
+
+**G1 list_entities** (`call_obTs1zJ7gjzhHDrXU8i0IzZg`)
+
+```json
+{"arguments":{"center":null,"radius":32,"filter":{"ids":["minecraft:villager"],"tags":null,"text":null},"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":0,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+I can’t identify a villager from your current view, and there isn’t one within 32 blocks to inspect. Look directly at the villager and ask again; then I can check its trades.
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-3e2256d3-1d5c-4918-91ba-518ae1e529e8.png`.
+
+No reply-owned navigable target returned or used; source citations may be non-navigable.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "3fe8a6ce-4405-4be3-8fd9-ff1de38c7e89",
+    "phase": "accepted",
+    "start_ns": "167858214066300",
+    "event_ns": "167858214066300",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "3fe8a6ce-4405-4be3-8fd9-ff1de38c7e89",
+    "phase": "history_ready",
+    "event_ns": "167858214143400",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "3fe8a6ce-4405-4be3-8fd9-ff1de38c7e89",
+    "phase": "request_built",
+    "event_ns": "167858289385300",
+    "buildMs": "2",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "3fe8a6ce-4405-4be3-8fd9-ff1de38c7e89",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "167865054029700",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "6761"
+  },
+  {
+    "request": "3fe8a6ce-4405-4be3-8fd9-ff1de38c7e89",
+    "phase": "tool_received",
+    "call": "call_obTs1zJ7gjzhHDrXU8i0IzZg",
+    "tool": "list_entities",
+    "step": "1",
+    "event_ns": "167865054109900",
+    "elapsed_ms": "6840"
+  },
+  {
+    "request": "3fe8a6ce-4405-4be3-8fd9-ff1de38c7e89",
+    "phase": "tool_result_sent",
+    "call": "call_obTs1zJ7gjzhHDrXU8i0IzZg",
+    "tool": "list_entities",
+    "event_ns": "167865095866900",
+    "toolMs": "41",
+    "resultBytes": "75",
+    "error": "false"
+  },
+  {
+    "request": "3fe8a6ce-4405-4be3-8fd9-ff1de38c7e89",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "167871431256900",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "6333"
+  },
+  {
+    "request": "3fe8a6ce-4405-4be3-8fd9-ff1de38c7e89",
+    "phase": "tool_summary",
+    "toolCalls": "1",
+    "toolWallMs": "41",
+    "event_ns": "167871431420600"
+  },
+  {
+    "request": "3fe8a6ce-4405-4be3-8fd9-ff1de38c7e89",
+    "phase": "model_terminal",
+    "event_ns": "167871431420600",
+    "elapsed_ms": "13217",
+    "backendMs": "13141",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### C5-supported — FAIL
+
+Question: `what does this villager sell?`
+
+Request `dabb7ed3-183f-4920-8c73-1b3c7bb07829`; conversation `60be5933-3ef7-4728-b3ed-c5605c60d360`; status=completed, saved=true. Submitted 2026-10-25T15:40:07.386Z. Raw evidence `build/task7-part-a/C5-supported.json`.
+
+Timing: elapsed_ms=11486, backendMs=11442, toolWallMs=39, toolCalls=1. Model/backend time less tool wall = 11403 ms (includes transport/serialization, not pure inference).
+
+**G1 inspect_entity** (`call_Htnxq7FSp3KvoOQXkWZjpZnW`)
+
+```json
+{"arguments":{"id":"b23df1a1-37da-4270-8e39-f457d8393865"},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+V2Librarian at (1020, 250, 1004) sells:
+
+- **1 lantern** for **1 emerald**.
+- **1 Channeling I enchanted book** for **17 emeralds and 1 book**.
+
+Both trades are currently in stock. Those are the prices shown for you; the game can adjust them when trading starts based on your reputation and any Hero of the Village discount. The villager currently records your reputation as 0. [V2Librarian](world:entity|b23df1a1-37da-4270-8e39-f457d8393865)
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-3a7147c6-f96e-4981-bbc8-1c3f4ae69033.png`.
+
+- `world-entity|b23df1a1-37da-4270-8e39-f457d8393865` -> `{"status":"OPENED","detail":null}`; screenshot `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-5ec4b24f-d033-457c-bbe4-6a430f32cad0.png`; destination state {"screen":null,"position":[1019.5,250,1005.5]}.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "dabb7ed3-183f-4920-8c73-1b3c7bb07829",
+    "phase": "accepted",
+    "start_ns": "167896534209900",
+    "event_ns": "167896534209900",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "dabb7ed3-183f-4920-8c73-1b3c7bb07829",
+    "phase": "history_ready",
+    "event_ns": "167896534244800",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "dabb7ed3-183f-4920-8c73-1b3c7bb07829",
+    "phase": "request_built",
+    "event_ns": "167896578665900",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "dabb7ed3-183f-4920-8c73-1b3c7bb07829",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "167900854170000",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "4274"
+  },
+  {
+    "request": "dabb7ed3-183f-4920-8c73-1b3c7bb07829",
+    "phase": "tool_received",
+    "call": "call_Htnxq7FSp3KvoOQXkWZjpZnW",
+    "tool": "inspect_entity",
+    "step": "1",
+    "event_ns": "167900854273600",
+    "elapsed_ms": "4320"
+  },
+  {
+    "request": "dabb7ed3-183f-4920-8c73-1b3c7bb07829",
+    "phase": "tool_result_sent",
+    "call": "call_Htnxq7FSp3KvoOQXkWZjpZnW",
+    "tool": "inspect_entity",
+    "event_ns": "167900893554700",
+    "toolMs": "39",
+    "resultBytes": "4282",
+    "error": "false"
+  },
+  {
+    "request": "dabb7ed3-183f-4920-8c73-1b3c7bb07829",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "167908020796000",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "7126"
+  },
+  {
+    "request": "dabb7ed3-183f-4920-8c73-1b3c7bb07829",
+    "phase": "tool_summary",
+    "toolCalls": "1",
+    "toolWallMs": "39",
+    "event_ns": "167908021005900"
+  },
+  {
+    "request": "dabb7ed3-183f-4920-8c73-1b3c7bb07829",
+    "phase": "model_terminal",
+    "event_ns": "167908021005900",
+    "elapsed_ms": "11486",
+    "backendMs": "11442",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### C5-fresh1 — FAIL
+
+Question: `what does this villager sell?`
+
+Request `732a388b-9ef5-45cc-9ddc-30450c44252b`; conversation `c5f5e323-3754-4c7d-89a1-480d77cc7cef`; status=completed, saved=true. Submitted 2026-10-25T15:40:37.109Z. Raw evidence `build/task7-part-a/C5-fresh1.json`.
+
+Fixture contaminated before asking: /data get entity serializes villager data and Offers already existed. This does not test ungenerated-offer reads.
+
+Timing: elapsed_ms=26015, backendMs=25973, toolWallMs=35, toolCalls=3. Model/backend time less tool wall = 25938 ms (includes transport/serialization, not pure inference).
+
+**G1 list_entities** (`call_W2MIdkvzGp05v3QevXqv0TDH`)
+
+```json
+{"arguments":{"center":null,"radius":8,"filter":{"ids":["minecraft:villager"],"tags":null,"text":null},"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+**G2 inspect_entity** (`call_N5pT5RqIXqUo0LEkeioMU3JK`)
+
+```json
+{"arguments":{"id":"d7646377-4983-4697-a0de-3aa29312f168"},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+**G3 search_registry** (`call_6qHw5IJ5iy36d6C9ON9pBXQb`)
+
+```json
+{"arguments":{"registry":"active_effect","filter":{"text":null,"ids":["minecraft:hero_of_the_village"],"tags":null,"provider":null},"limit":16,"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":0,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+The librarian at **(1033, 250, 1021)** [V2FreshA](world:entity|d7646377-4983-4697-a0de-3aa29312f168) has two trades:
+
+- **24 paper → 1 emerald**
+- **9 emeralds → 1 bookshelf**
+
+Both are in stock. Those are the prices shown for you; the villager has no current demand or reputation adjustment, and you don’t have Hero of the Village. Prices can be recalculated when trading starts. [V2FreshA](world:entity|d7646377-4983-4697-a0de-3aa29312f168)
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-b589d71f-068b-4b63-acba-9d253abc1578.png`.
+
+- `world-entity|d7646377-4983-4697-a0de-3aa29312f168` -> `{"status":"OPENED","detail":null}`; screenshot `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-50625cec-5c60-4386-af84-3853fef2df5a.png`; destination state {"screen":null,"position":[1032.5,250,1021.5]}.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "phase": "accepted",
+    "start_ns": "167926257665000",
+    "event_ns": "167926257665000",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "phase": "history_ready",
+    "event_ns": "167926257736700",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "phase": "request_built",
+    "event_ns": "167926298929100",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "167933225206300",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "6925"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "phase": "tool_received",
+    "call": "call_W2MIdkvzGp05v3QevXqv0TDH",
+    "tool": "list_entities",
+    "step": "1",
+    "event_ns": "167933225307900",
+    "elapsed_ms": "6967"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "phase": "tool_result_sent",
+    "call": "call_W2MIdkvzGp05v3QevXqv0TDH",
+    "tool": "list_entities",
+    "event_ns": "167933244570000",
+    "toolMs": "19",
+    "resultBytes": "1025",
+    "error": "false"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "167938130641300",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "4885"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "phase": "tool_received",
+    "call": "call_N5pT5RqIXqUo0LEkeioMU3JK",
+    "tool": "inspect_entity",
+    "step": "2",
+    "event_ns": "167938130715800",
+    "elapsed_ms": "11873"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "phase": "tool_result_sent",
+    "call": "call_N5pT5RqIXqUo0LEkeioMU3JK",
+    "tool": "inspect_entity",
+    "event_ns": "167938144416000",
+    "toolMs": "13",
+    "resultBytes": "4130",
+    "error": "false"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "round": "3",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "167946863056200",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "8717"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "phase": "tool_received",
+    "call": "call_6qHw5IJ5iy36d6C9ON9pBXQb",
+    "tool": "search_registry",
+    "step": "3",
+    "event_ns": "167946863114900",
+    "elapsed_ms": "20605"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "phase": "tool_result_sent",
+    "call": "call_6qHw5IJ5iy36d6C9ON9pBXQb",
+    "tool": "search_registry",
+    "event_ns": "167946865607400",
+    "toolMs": "2",
+    "resultBytes": "75",
+    "error": "false"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "round": "4",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "167952272502000",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "5406"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "phase": "tool_summary",
+    "toolCalls": "3",
+    "toolWallMs": "35",
+    "event_ns": "167952272715600"
+  },
+  {
+    "request": "732a388b-9ef5-45cc-9ddc-30450c44252b",
+    "phase": "model_terminal",
+    "event_ns": "167952272715600",
+    "elapsed_ms": "26015",
+    "backendMs": "25973",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### C5-unread1 — FAIL
+
+Question: `what does this villager sell?`
+
+Request `5a61070b-7f82-45a5-859c-87e50a5d0d84`; conversation `10ec8f9e-bece-4a6d-964e-e3f7566a7922`; status=completed, saved=true. Submitted 2026-10-25T15:41:57.371Z. Raw evidence `build/task7-part-a/C5-unread1.json`.
+
+Timing: elapsed_ms=27003, backendMs=26963, toolWallMs=41, toolCalls=3. Model/backend time less tool wall = 26922 ms (includes transport/serialization, not pure inference).
+
+**G1 list_entities** (`call_ujcaV7pRPhEQpSTl9VX73x8R`)
+
+```json
+{"arguments":{"center":null,"radius":5,"filter":{"ids":["minecraft:villager"],"tags":null,"text":null},"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":2,"nextCursor":null}
+```
+
+**G2 inspect_entity** (`call_4XiND9GnUxDUzmiH0tUaETWl`)
+
+```json
+{"arguments":{"id":"ed352eb2-99e2-4a41-b3f4-0bd52e993de1"},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+**G2 inspect_entity** (`call_FC1z725JzHt8Cbuy9EaVf7yX`)
+
+```json
+{"arguments":{"id":"d7646377-4983-4697-a0de-3aa29312f168"},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+The villager right beside you at (1033, 250, 1023) is a librarian, but **its trades haven’t been generated yet**, so I can’t tell what it sells. Opening its trading screen should reveal its offers. [V2FreshUnreadA](world:entity|ed352eb2-99e2-4a41-b3f4-0bd52e993de1)
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-c35fc4a2-26d7-4135-aff9-1231cef34f3d.png`.
+
+- `world-entity|ed352eb2-99e2-4a41-b3f4-0bd52e993de1` -> `{"status":"OPENED","detail":null}`; screenshot `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-69d19749-9e1f-46d8-802b-2279cc7f604e.png`; destination state {"screen":null,"position":[1033.5,250,1022.5]}.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "phase": "accepted",
+    "start_ns": "168006520460500",
+    "event_ns": "168006520460500",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "phase": "history_ready",
+    "event_ns": "168006520497500",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "phase": "request_built",
+    "event_ns": "168006560491600",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "168013206763600",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "6645"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "phase": "tool_received",
+    "call": "call_ujcaV7pRPhEQpSTl9VX73x8R",
+    "tool": "list_entities",
+    "step": "1",
+    "event_ns": "168013206832700",
+    "elapsed_ms": "6686"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "phase": "tool_result_sent",
+    "call": "call_ujcaV7pRPhEQpSTl9VX73x8R",
+    "tool": "list_entities",
+    "event_ns": "168013244144600",
+    "toolMs": "37",
+    "resultBytes": "1988",
+    "error": "false"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168023490396200",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "10245"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "phase": "tool_received",
+    "call": "call_4XiND9GnUxDUzmiH0tUaETWl",
+    "tool": "inspect_entity",
+    "step": "2",
+    "event_ns": "168023490518500",
+    "elapsed_ms": "16970"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "phase": "tool_received",
+    "call": "call_FC1z725JzHt8Cbuy9EaVf7yX",
+    "tool": "inspect_entity",
+    "step": "3",
+    "event_ns": "168023491068600",
+    "elapsed_ms": "16970"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "phase": "tool_result_sent",
+    "call": "call_4XiND9GnUxDUzmiH0tUaETWl",
+    "tool": "inspect_entity",
+    "event_ns": "168023495141600",
+    "toolMs": "4",
+    "resultBytes": "3371",
+    "error": "false"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "phase": "tool_result_sent",
+    "call": "call_FC1z725JzHt8Cbuy9EaVf7yX",
+    "tool": "inspect_entity",
+    "event_ns": "168023495188500",
+    "toolMs": "4",
+    "resultBytes": "4156",
+    "error": "false"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "round": "3",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168033523622400",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "10027"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "phase": "tool_summary",
+    "toolCalls": "3",
+    "toolWallMs": "41",
+    "event_ns": "168033523803700"
+  },
+  {
+    "request": "5a61070b-7f82-45a5-859c-87e50a5d0d84",
+    "phase": "model_terminal",
+    "event_ns": "168033523803700",
+    "elapsed_ms": "27003",
+    "backendMs": "26963",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### C5-unread2 — FAIL
+
+Question: `what does this villager sell?`
+
+Request `3265dd05-4431-4b0d-b8f4-651d22c29bdc`; conversation `88e7f817-0457-4ccd-8e72-e095759e3318`; status=completed, saved=true. Submitted 2026-10-25T15:42:38.150Z. Raw evidence `build/task7-part-a/C5-unread2.json`.
+
+Timing: elapsed_ms=26418, backendMs=26373, toolWallMs=63, toolCalls=3. Model/backend time less tool wall = 26310 ms (includes transport/serialization, not pure inference).
+
+**G1 list_entities** (`call_vAWKfh85WSptTSx89lvuaO4N`)
+
+```json
+{"arguments":{"center":null,"radius":8,"filter":{"ids":["minecraft:villager"],"tags":null,"text":null},"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":2,"nextCursor":null}
+```
+
+**G2 inspect_entity** (`call_gHK7A7AMM3OIfaMeSs7vefWG`)
+
+```json
+{"arguments":{"id":"ed352eb2-99e2-4a41-b3f4-0bd52e993de1"},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+**G3 search_registry** (`call_Ye734tSv7yYNR94AnhrCgnZf`)
+
+```json
+{"arguments":{"registry":"active_effect","filter":{"text":null,"ids":null,"tags":null,"provider":null},"limit":64,"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+The librarian at **(1033, 250, 1023)** has two trades: [V2FreshUnreadA](world:entity|ed352eb2-99e2-4a41-b3f4-0bd52e993de1)
+
+- **24 paper → 1 emerald**
+- **5 emeralds + 1 book → 1 Silk Touch I enchanted book**
+
+Those are the currently shown prices for you. The villager’s reputation toward you is **0**, and you do **not** currently have Hero of the Village; reputation or that effect can change the price when trading starts. [V2FreshUnreadA](world:entity|ed352eb2-99e2-4a41-b3f4-0bd52e993de1) [Current effects](native:active_effect:minecraft:haste)
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-a3af4417-b9b6-461b-aca3-5bcb156282f0.png`.
+
+- `world-entity|ed352eb2-99e2-4a41-b3f4-0bd52e993de1` -> `{"status":"OPENED","detail":null}`; screenshot `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-b966f064-6bdb-48a5-a3ce-1a5b9ea4ccfd.png`; destination state {"screen":null,"position":[1033.5,250,1022.5]}.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "phase": "accepted",
+    "start_ns": "168047298535200",
+    "event_ns": "168047298535200",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "phase": "history_ready",
+    "event_ns": "168047298580800",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "phase": "request_built",
+    "event_ns": "168047343854700",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "168053068324100",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "5723"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "phase": "tool_received",
+    "call": "call_vAWKfh85WSptTSx89lvuaO4N",
+    "tool": "list_entities",
+    "step": "1",
+    "event_ns": "168053068482000",
+    "elapsed_ms": "5769"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "phase": "tool_result_sent",
+    "call": "call_vAWKfh85WSptTSx89lvuaO4N",
+    "tool": "list_entities",
+    "event_ns": "168053094746600",
+    "toolMs": "26",
+    "resultBytes": "1988",
+    "error": "false"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168061363927400",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "8268"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "phase": "tool_received",
+    "call": "call_gHK7A7AMM3OIfaMeSs7vefWG",
+    "tool": "inspect_entity",
+    "step": "2",
+    "event_ns": "168061363998500",
+    "elapsed_ms": "14065"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "phase": "tool_result_sent",
+    "call": "call_gHK7A7AMM3OIfaMeSs7vefWG",
+    "tool": "inspect_entity",
+    "event_ns": "168061394077300",
+    "toolMs": "30",
+    "resultBytes": "4288",
+    "error": "false"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "round": "3",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168067261601100",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "5866"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "phase": "tool_received",
+    "call": "call_Ye734tSv7yYNR94AnhrCgnZf",
+    "tool": "search_registry",
+    "step": "3",
+    "event_ns": "168067261721300",
+    "elapsed_ms": "19963"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "phase": "tool_result_sent",
+    "call": "call_Ye734tSv7yYNR94AnhrCgnZf",
+    "tool": "search_registry",
+    "event_ns": "168067269282600",
+    "toolMs": "7",
+    "resultBytes": "1194",
+    "error": "false"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "round": "4",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168073716949500",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "6446"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "phase": "tool_summary",
+    "toolCalls": "3",
+    "toolWallMs": "63",
+    "event_ns": "168073717111900"
+  },
+  {
+    "request": "3265dd05-4431-4b0d-b8f4-651d22c29bdc",
+    "phase": "model_terminal",
+    "event_ns": "168073717111900",
+    "elapsed_ms": "26418",
+    "backendMs": "26373",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### C6 — PASS
+
+Question: `what does a zombie drop?`
+
+Request `6131988d-6940-41b1-bada-b3babfd1ba35`; conversation `86e30dfe-7a4f-4941-ada0-666e053efc77`; status=completed, saved=true. Submitted 2026-10-25T15:43:32.362Z. Raw evidence `build/task7-part-a/C6.json`.
+
+Timing: elapsed_ms=12669, backendMs=12627, toolWallMs=49, toolCalls=1. Model/backend time less tool wall = 12578 ms (includes transport/serialization, not pure inference).
+
+**G1 read_loot** (`call_luLqDINJGi3fn8NkzGEPvSVn`)
+
+```json
+{"arguments":{"table":null,"block":null,"entity":"minecraft:zombie","place":null,"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+A zombie can drop **0–2 rotten flesh**, with Looting potentially increasing the amount. If a player kills it, there’s also a **2.5% chance** of a rare drop: an iron ingot, carrot, or potato. Looting increases that rare-drop chance. [world:loot|minecraft:entities/zombie]
+
+A potato drop is smelted if the zombie was on fire or the killing weapon has a loot-smelting enchantment. [world:loot|minecraft:entities/zombie]
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-dcb34204-7890-4bb3-986d-4c93d5c5779c.png`.
+
+No reply-owned navigable target returned or used; source citations may be non-navigable.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "6131988d-6940-41b1-bada-b3babfd1ba35",
+    "phase": "accepted",
+    "start_ns": "168101511208000",
+    "event_ns": "168101511208000",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "6131988d-6940-41b1-bada-b3babfd1ba35",
+    "phase": "history_ready",
+    "event_ns": "168101511261800",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "6131988d-6940-41b1-bada-b3babfd1ba35",
+    "phase": "request_built",
+    "event_ns": "168101552337600",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "6131988d-6940-41b1-bada-b3babfd1ba35",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "168107548757900",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "5995"
+  },
+  {
+    "request": "6131988d-6940-41b1-bada-b3babfd1ba35",
+    "phase": "tool_received",
+    "call": "call_luLqDINJGi3fn8NkzGEPvSVn",
+    "tool": "read_loot",
+    "step": "1",
+    "event_ns": "168107548913900",
+    "elapsed_ms": "6037"
+  },
+  {
+    "request": "6131988d-6940-41b1-bada-b3babfd1ba35",
+    "phase": "tool_result_sent",
+    "call": "call_luLqDINJGi3fn8NkzGEPvSVn",
+    "tool": "read_loot",
+    "event_ns": "168107598766400",
+    "toolMs": "49",
+    "resultBytes": "2380",
+    "error": "false"
+  },
+  {
+    "request": "6131988d-6940-41b1-bada-b3babfd1ba35",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168114180166400",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "6580"
+  },
+  {
+    "request": "6131988d-6940-41b1-bada-b3babfd1ba35",
+    "phase": "tool_summary",
+    "toolCalls": "1",
+    "toolWallMs": "49",
+    "event_ns": "168114180301800"
+  },
+  {
+    "request": "6131988d-6940-41b1-bada-b3babfd1ba35",
+    "phase": "model_terminal",
+    "event_ns": "168114180301800",
+    "elapsed_ms": "12669",
+    "backendMs": "12627",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### P1 — FAIL
+
+Question: `what advancements am I missing for Adventuring Time?`
+
+Request `5b63be58-be66-4239-bf58-686684c28551`; conversation `6012c112-7c44-41cb-b8eb-7803147f8c0a`; status=completed, saved=true. Submitted 2026-10-25T15:44:20.309Z. Raw evidence `build/task7-part-a/P1.json`.
+
+Timing: elapsed_ms=23990, backendMs=23948, toolWallMs=35, toolCalls=2. Model/backend time less tool wall = 23913 ms (includes transport/serialization, not pure inference).
+
+**G1 list_progress** (`call_wvaihQtIYPH4fuORMjIzF3An`)
+
+```json
+{"arguments":{"tree":null,"status":null,"text":"Adventuring Time","cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":2,"nextCursor":null}
+```
+
+**G2 inspect_progress** (`call_82TO3X7EUtworxqx7b50YRN2`)
+
+```json
+{"arguments":{"id":"minecraft/minecraft:adventure/adventuring_time"},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+For **Adventuring Time**, you’ve discovered **2 of 53 required biomes**—Taiga and Forest. These **51 are still missing**: [Adventuring Time](progress:progress|minecraft/minecraft:adventure/adventuring_time)
+
+- **Oceans and islands:** Mushroom Fields, Deep Frozen Ocean, Frozen Ocean, Deep Cold Ocean, Cold Ocean, Deep Ocean, Ocean, Deep Lukewarm Ocean, Lukewarm Ocean, Warm Ocean.
+- **Shores, rivers and wetlands:** Stony Shore, Snowy Beach, Beach, Frozen River, River, Swamp, Mangrove Swamp.
+- **Snowy and mountainous areas:** Snowy Slopes, Snowy Plains, Windswept Gravelly Hills, Grove, Windswept Hills, Snowy Taiga, Windswept Forest, Meadow, Jagged Peaks, Stony Peaks, Ice Spikes, Cherry Grove, Frozen Peaks.
+- **Forests, plains and taigas:** Plains, Old Growth Spruce Taiga, Flower Forest, Birch Forest, Dark Forest, Old Growth Pine Taiga, Sunflower Plains, Old Growth Birch Forest.
+- **Warm and dry areas:** Savanna Plateau, Savanna, Jungle, Badlands, Desert, Wooded Badlands, Sparse Jungle, Bamboo Jungle, Eroded Badlands, Windswept Savanna.
+- **Underground:** Dripstone Caves, Lush Caves, Deep Dark.
+
+The progress record also shows **Sweet Dreams** as a locked prerequisite for Adventuring Time. [Adventuring Time](progress:progress|minecraft/minecraft:adventure/adventuring_time)
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-4e56dde9-78a9-4995-a679-8f61e711cdb1.png`.
+
+No reply-owned navigable target returned or used; source citations may be non-navigable.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "5b63be58-be66-4239-bf58-686684c28551",
+    "phase": "accepted",
+    "start_ns": "168149457324100",
+    "event_ns": "168149457324100",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "5b63be58-be66-4239-bf58-686684c28551",
+    "phase": "history_ready",
+    "event_ns": "168149457397100",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "5b63be58-be66-4239-bf58-686684c28551",
+    "phase": "request_built",
+    "event_ns": "168149499554700",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "5b63be58-be66-4239-bf58-686684c28551",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "168153421439500",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "3920"
+  },
+  {
+    "request": "5b63be58-be66-4239-bf58-686684c28551",
+    "phase": "tool_received",
+    "call": "call_wvaihQtIYPH4fuORMjIzF3An",
+    "tool": "list_progress",
+    "step": "1",
+    "event_ns": "168153421518000",
+    "elapsed_ms": "3964"
+  },
+  {
+    "request": "5b63be58-be66-4239-bf58-686684c28551",
+    "phase": "tool_result_sent",
+    "call": "call_wvaihQtIYPH4fuORMjIzF3An",
+    "tool": "list_progress",
+    "event_ns": "168153450638000",
+    "toolMs": "29",
+    "resultBytes": "1786",
+    "error": "false"
+  },
+  {
+    "request": "5b63be58-be66-4239-bf58-686684c28551",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168161141271300",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "7689"
+  },
+  {
+    "request": "5b63be58-be66-4239-bf58-686684c28551",
+    "phase": "tool_received",
+    "call": "call_82TO3X7EUtworxqx7b50YRN2",
+    "tool": "inspect_progress",
+    "step": "2",
+    "event_ns": "168161141364500",
+    "elapsed_ms": "11684"
+  },
+  {
+    "request": "5b63be58-be66-4239-bf58-686684c28551",
+    "phase": "tool_result_sent",
+    "call": "call_82TO3X7EUtworxqx7b50YRN2",
+    "tool": "inspect_progress",
+    "event_ns": "168161147365600",
+    "toolMs": "6",
+    "resultBytes": "5731",
+    "error": "false"
+  },
+  {
+    "request": "5b63be58-be66-4239-bf58-686684c28551",
+    "round": "3",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168173447751000",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "12299"
+  },
+  {
+    "request": "5b63be58-be66-4239-bf58-686684c28551",
+    "phase": "tool_summary",
+    "toolCalls": "2",
+    "toolWallMs": "35",
+    "event_ns": "168173447904800"
+  },
+  {
+    "request": "5b63be58-be66-4239-bf58-686684c28551",
+    "phase": "model_terminal",
+    "event_ns": "168173447904800",
+    "elapsed_ms": "23990",
+    "backendMs": "23948",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### P2 — PASS
+
+Question: `how many diamonds have I mined?`
+
+Request `89172e28-5aca-407d-8ae0-0372445565dd`; conversation `12c42dca-416c-4cec-a36a-b5f2de536a7c`; status=completed, saved=true. Submitted 2026-10-25T15:44:57.353Z. Raw evidence `build/task7-part-a/P2.json`.
+
+Timing: elapsed_ms=10819, backendMs=10770, toolWallMs=51, toolCalls=1. Model/backend time less tool wall = 10719 ms (includes transport/serialization, not pure inference).
+
+**G1 list_statistics** (`call_PhWo131yrJNrbadjrYpYGwKX`)
+
+```json
+{"arguments":{"categories":["mined"],"subjects":{"ids":["minecraft:diamond_ore","minecraft:deepslate_diamond_ore"],"tags":null,"text":null},"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":2,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+You’ve mined **2 diamond ore blocks**: 1 diamond ore and 1 deepslate diamond ore. That counter tracks blocks mined, not the number of diamonds they dropped. [progress:stat|minecraft|mined|minecraft:deepslate_diamond_ore] [progress:stat|minecraft|mined|minecraft:diamond_ore]
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-5b79d841-8225-45eb-9054-c88b4fdf679a.png`.
+
+No reply-owned navigable target returned or used; source citations may be non-navigable.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "89172e28-5aca-407d-8ae0-0372445565dd",
+    "phase": "accepted",
+    "start_ns": "168186502352500",
+    "event_ns": "168186502352500",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "89172e28-5aca-407d-8ae0-0372445565dd",
+    "phase": "history_ready",
+    "event_ns": "168186502402000",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "89172e28-5aca-407d-8ae0-0372445565dd",
+    "phase": "request_built",
+    "event_ns": "168186551497800",
+    "buildMs": "1",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "89172e28-5aca-407d-8ae0-0372445565dd",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "168191246955300",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "4693"
+  },
+  {
+    "request": "89172e28-5aca-407d-8ae0-0372445565dd",
+    "phase": "tool_received",
+    "call": "call_PhWo131yrJNrbadjrYpYGwKX",
+    "tool": "list_statistics",
+    "step": "1",
+    "event_ns": "168191247064500",
+    "elapsed_ms": "4744"
+  },
+  {
+    "request": "89172e28-5aca-407d-8ae0-0372445565dd",
+    "phase": "tool_result_sent",
+    "call": "call_PhWo131yrJNrbadjrYpYGwKX",
+    "tool": "list_statistics",
+    "event_ns": "168191298103500",
+    "toolMs": "51",
+    "resultBytes": "1824",
+    "error": "false"
+  },
+  {
+    "request": "89172e28-5aca-407d-8ae0-0372445565dd",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168197321944800",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "6022"
+  },
+  {
+    "request": "89172e28-5aca-407d-8ae0-0372445565dd",
+    "phase": "tool_summary",
+    "toolCalls": "1",
+    "toolWallMs": "51",
+    "event_ns": "168197322112000"
+  },
+  {
+    "request": "89172e28-5aca-407d-8ae0-0372445565dd",
+    "phase": "model_terminal",
+    "event_ns": "168197322112000",
+    "elapsed_ms": "10819",
+    "backendMs": "10770",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### P3 — PASS
+
+Question: `how far have I walked?`
+
+Request `e1f6755b-2872-4f5a-8d66-563d7df0d65a`; conversation `3b1cbb45-a086-43df-8484-a03a7e5125b9`; status=completed, saved=true. Submitted 2026-10-25T15:45:25.072Z. Raw evidence `build/task7-part-a/P3.json`.
+
+Timing: elapsed_ms=9216, backendMs=9170, toolWallMs=15, toolCalls=1. Model/backend time less tool wall = 9155 ms (includes transport/serialization, not pure inference).
+
+**G1 list_statistics** (`call_KTbiZI53THMPDuS7kyN7p8BS`)
+
+```json
+{"arguments":{"categories":["custom"],"subjects":{"ids":["minecraft:walk_one_cm"],"tags":null,"text":null},"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+You’ve walked **38.37 blocks** since this world began. [progress:stat|minecraft|custom|minecraft:walk_one_cm]
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-0262d2ff-5d25-41fa-8047-fe96f25b64ea.png`.
+
+No reply-owned navigable target returned or used; source citations may be non-navigable.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "e1f6755b-2872-4f5a-8d66-563d7df0d65a",
+    "phase": "accepted",
+    "start_ns": "168214220135800",
+    "event_ns": "168214220135800",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "e1f6755b-2872-4f5a-8d66-563d7df0d65a",
+    "phase": "history_ready",
+    "event_ns": "168214220179800",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "e1f6755b-2872-4f5a-8d66-563d7df0d65a",
+    "phase": "request_built",
+    "event_ns": "168214266476200",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "e1f6755b-2872-4f5a-8d66-563d7df0d65a",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "168219178785900",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "4910"
+  },
+  {
+    "request": "e1f6755b-2872-4f5a-8d66-563d7df0d65a",
+    "phase": "tool_received",
+    "call": "call_KTbiZI53THMPDuS7kyN7p8BS",
+    "tool": "list_statistics",
+    "step": "1",
+    "event_ns": "168219178907900",
+    "elapsed_ms": "4958"
+  },
+  {
+    "request": "e1f6755b-2872-4f5a-8d66-563d7df0d65a",
+    "phase": "tool_result_sent",
+    "call": "call_KTbiZI53THMPDuS7kyN7p8BS",
+    "tool": "list_statistics",
+    "event_ns": "168219194610200",
+    "toolMs": "15",
+    "resultBytes": "921",
+    "error": "false"
+  },
+  {
+    "request": "e1f6755b-2872-4f5a-8d66-563d7df0d65a",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168223436448000",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "4241"
+  },
+  {
+    "request": "e1f6755b-2872-4f5a-8d66-563d7df0d65a",
+    "phase": "tool_summary",
+    "toolCalls": "1",
+    "toolWallMs": "15",
+    "event_ns": "168223436653400"
+  },
+  {
+    "request": "e1f6755b-2872-4f5a-8d66-563d7df0d65a",
+    "phase": "model_terminal",
+    "event_ns": "168223436653400",
+    "elapsed_ms": "9216",
+    "backendMs": "9170",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### P5-before-fixture — FAIL
+
+Question: `what hidden advancements do I have left?`
+
+Request `964de182-8145-4bfc-8de2-9e129784a930`; conversation `87fee3c7-99b0-4925-8067-99fc7c1a43bc`; status=completed, saved=true. Submitted 2026-10-25T15:45:38.202Z. Raw evidence `build/task7-part-a/P5-before-fixture.json`.
+
+Setup-only unscored attempt before the requested F-hidden grant; retained with raw evidence.
+
+Timing: elapsed_ms=12700, backendMs=12651, toolWallMs=32, toolCalls=1. Model/backend time less tool wall = 12619 ms (includes transport/serialization, not pure inference).
+
+**G1 list_progress** (`call_ny3CG918byVyBiGSJPuOxGFj`)
+
+```json
+{"arguments":{"tree":null,"status":["hidden"],"text":null,"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":12,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+You have **9 hidden advancements left**. Their titles aren’t revealed yet, but the progress list identifies them by these IDs:
+
+- **Adventure (3):** `arbalistic` [progress:progress|minecraft/minecraft:adventure/arbalistic], `voluntary_exile` [progress:progress|minecraft/minecraft:adventure/voluntary_exile], `hero_of_the_village` [progress:progress|minecraft/minecraft:adventure/hero_of_the_village]
+- **Husbandry (5):** `allay_deliver_item_to_player` [progress:progress|minecraft/minecraft:husbandry/allay_deliver_item_to_player], `allay_deliver_cake_to_note_block` [progress:progress|minecraft/minecraft:husbandry/allay_deliver_cake_to_note_block], `obtain_sniffer_egg` [progress:progress|minecraft/minecraft:husbandry/obtain_sniffer_egg], `feed_snifflet` [progress:progress|minecraft/minecraft:husbandry/feed_snifflet], `plant_any_sniffer_seed` [progress:progress|minecraft/minecraft:husbandry/plant_any_sniffer_seed]
+- **Nether (1):** `all_effects` [progress:progress|minecraft/minecraft:nether/all_effects]
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-96aa8954-c20c-443d-a26b-1a8a4736990e.png`.
+
+No reply-owned navigable target returned or used; source citations may be non-navigable.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "964de182-8145-4bfc-8de2-9e129784a930",
+    "phase": "accepted",
+    "start_ns": "168227349504200",
+    "event_ns": "168227349504200",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "964de182-8145-4bfc-8de2-9e129784a930",
+    "phase": "history_ready",
+    "event_ns": "168227349568700",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "964de182-8145-4bfc-8de2-9e129784a930",
+    "phase": "request_built",
+    "event_ns": "168227398347700",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "964de182-8145-4bfc-8de2-9e129784a930",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "168230963025900",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "3563"
+  },
+  {
+    "request": "964de182-8145-4bfc-8de2-9e129784a930",
+    "phase": "tool_received",
+    "call": "call_ny3CG918byVyBiGSJPuOxGFj",
+    "tool": "list_progress",
+    "step": "1",
+    "event_ns": "168230963236100",
+    "elapsed_ms": "3613"
+  },
+  {
+    "request": "964de182-8145-4bfc-8de2-9e129784a930",
+    "phase": "tool_result_sent",
+    "call": "call_ny3CG918byVyBiGSJPuOxGFj",
+    "tool": "list_progress",
+    "event_ns": "168230995934300",
+    "toolMs": "32",
+    "resultBytes": "10351",
+    "error": "false"
+  },
+  {
+    "request": "964de182-8145-4bfc-8de2-9e129784a930",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168240049521100",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "9052"
+  },
+  {
+    "request": "964de182-8145-4bfc-8de2-9e129784a930",
+    "phase": "tool_summary",
+    "toolCalls": "1",
+    "toolWallMs": "32",
+    "event_ns": "168240049731600"
+  },
+  {
+    "request": "964de182-8145-4bfc-8de2-9e129784a930",
+    "phase": "model_terminal",
+    "event_ns": "168240049731600",
+    "elapsed_ms": "12700",
+    "backendMs": "12651",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### P5 — FAIL
+
+Question: `what hidden advancements do I have left?`
+
+Request `d2461a26-1e4b-4cb8-a072-aec9faeb370b`; conversation `e3a69124-e331-4e08-bd57-9a05fed69e96`; status=completed, saved=true. Submitted 2026-10-25T15:45:57.879Z. Raw evidence `build/task7-part-a/P5.json`.
+
+Timing: elapsed_ms=16292, backendMs=16251, toolWallMs=35, toolCalls=1. Model/backend time less tool wall = 16216 ms (includes transport/serialization, not pure inference).
+
+**G1 list_progress** (`call_jKKPGqm3wPFvwFZia68nvN6R`)
+
+```json
+{"arguments":{"tree":null,"status":["hidden"],"text":null,"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":12,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+You have **9 unfinished hidden advancements** in the current progress list. Their titles aren’t revealed yet, so these are their identifiers rather than in-game titles:
+
+- **Adventure:** `arbalistic` [progress:progress|minecraft/minecraft:adventure/arbalistic], `voluntary_exile` [progress:progress|minecraft/minecraft:adventure/voluntary_exile], `hero_of_the_village` [progress:progress|minecraft/minecraft:adventure/hero_of_the_village]
+- **Husbandry:** `allay_deliver_item_to_player` [progress:progress|minecraft/minecraft:husbandry/allay_deliver_item_to_player], `allay_deliver_cake_to_note_block` [progress:progress|minecraft/minecraft:husbandry/allay_deliver_cake_to_note_block], `obtain_sniffer_egg` [progress:progress|minecraft/minecraft:husbandry/obtain_sniffer_egg], `feed_snifflet` [progress:progress|minecraft/minecraft:husbandry/feed_snifflet], `plant_any_sniffer_seed` [progress:progress|minecraft/minecraft:husbandry/plant_any_sniffer_seed]
+- **Nether:** `all_effects` [progress:progress|minecraft/minecraft:nether/all_effects]
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-7daf35fd-fe48-4766-a885-1d4debe14238.png`.
+
+No reply-owned navigable target returned or used; source citations may be non-navigable.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "d2461a26-1e4b-4cb8-a072-aec9faeb370b",
+    "phase": "accepted",
+    "start_ns": "168247027442200",
+    "event_ns": "168247027442200",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "d2461a26-1e4b-4cb8-a072-aec9faeb370b",
+    "phase": "history_ready",
+    "event_ns": "168247027496800",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "d2461a26-1e4b-4cb8-a072-aec9faeb370b",
+    "phase": "request_built",
+    "event_ns": "168247068645200",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "d2461a26-1e4b-4cb8-a072-aec9faeb370b",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "168254261028500",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "7191"
+  },
+  {
+    "request": "d2461a26-1e4b-4cb8-a072-aec9faeb370b",
+    "phase": "tool_received",
+    "call": "call_jKKPGqm3wPFvwFZia68nvN6R",
+    "tool": "list_progress",
+    "step": "1",
+    "event_ns": "168254261201500",
+    "elapsed_ms": "7233"
+  },
+  {
+    "request": "d2461a26-1e4b-4cb8-a072-aec9faeb370b",
+    "phase": "tool_result_sent",
+    "call": "call_jKKPGqm3wPFvwFZia68nvN6R",
+    "tool": "list_progress",
+    "event_ns": "168254297065800",
+    "toolMs": "35",
+    "resultBytes": "10351",
+    "error": "false"
+  },
+  {
+    "request": "d2461a26-1e4b-4cb8-a072-aec9faeb370b",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168263319766000",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "9021"
+  },
+  {
+    "request": "d2461a26-1e4b-4cb8-a072-aec9faeb370b",
+    "phase": "tool_summary",
+    "toolCalls": "1",
+    "toolWallMs": "35",
+    "event_ns": "168263319933600"
+  },
+  {
+    "request": "d2461a26-1e4b-4cb8-a072-aec9faeb370b",
+    "phase": "model_terminal",
+    "event_ns": "168263319933600",
+    "elapsed_ms": "16292",
+    "backendMs": "16251",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
+### P6 — PASS
+
+Question: `how long have I played this world?`
+
+Request `43b00871-0489-41be-a4ca-90a4d4f5d28c`; conversation `5f7c1342-271b-4719-8021-d1fc7b69d423`; status=completed, saved=true. Submitted 2026-10-25T15:46:27.779Z. Raw evidence `build/task7-part-a/P6.json`.
+
+Timing: elapsed_ms=9165, backendMs=9123, toolWallMs=7, toolCalls=1. Model/backend time less tool wall = 9116 ms (includes transport/serialization, not pure inference).
+
+**G1 list_statistics** (`call_y26w1YeavXqnMJWS7VjTGINe`)
+
+```json
+{"arguments":{"categories":["custom"],"subjects":{"ids":["minecraft:play_time"],"tags":null,"text":null},"cursor":null},"error":false,"coverage":"COMPLETE","detail":null,"recordCount":1,"nextCursor":null}
+```
+
+Verbatim reply:
+
+```text
+You’ve played this world for **12 hours, 20 minutes, and 37 seconds**, according to your player’s Time Played counter. [progress:stat|minecraft|custom|minecraft:play_time]
+```
+
+Reply screenshot: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-82f8353a-66f3-467b-aa87-1916940908a6.png`.
+
+No reply-owned navigable target returned or used; source citations may be non-navigable.
+
+Relevant timing lines (group membership uses preceding provider_terminal; event_ns records permit overlap inspection):
+
+```json
+[
+  {
+    "request": "43b00871-0489-41be-a4ca-90a4d4f5d28c",
+    "phase": "accepted",
+    "start_ns": "168276928494000",
+    "event_ns": "168276928494000",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM",
+    "screenshot": "true",
+    "search": "AUTOMATIC"
+  },
+  {
+    "request": "43b00871-0489-41be-a4ca-90a4d4f5d28c",
+    "phase": "history_ready",
+    "event_ns": "168276928541400",
+    "elapsed_ms": "0",
+    "conversationTurns": "0"
+  },
+  {
+    "request": "43b00871-0489-41be-a4ca-90a4d4f5d28c",
+    "phase": "request_built",
+    "event_ns": "168276970325300",
+    "buildMs": "0",
+    "inputItems": "2",
+    "tools": "28",
+    "model": "gpt-6-sol",
+    "effort": "MEDIUM"
+  },
+  {
+    "request": "43b00871-0489-41be-a4ca-90a4d4f5d28c",
+    "round": "1",
+    "reason": "initial",
+    "phase": "provider_terminal",
+    "event_ns": "168280737175500",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "3765"
+  },
+  {
+    "request": "43b00871-0489-41be-a4ca-90a4d4f5d28c",
+    "phase": "tool_received",
+    "call": "call_y26w1YeavXqnMJWS7VjTGINe",
+    "tool": "list_statistics",
+    "step": "1",
+    "event_ns": "168280737323000",
+    "elapsed_ms": "3808"
+  },
+  {
+    "request": "43b00871-0489-41be-a4ca-90a4d4f5d28c",
+    "phase": "tool_result_sent",
+    "call": "call_y26w1YeavXqnMJWS7VjTGINe",
+    "tool": "list_statistics",
+    "event_ns": "168280744556100",
+    "toolMs": "7",
+    "resultBytes": "911",
+    "error": "false"
+  },
+  {
+    "request": "43b00871-0489-41be-a4ca-90a4d4f5d28c",
+    "round": "2",
+    "reason": "tool_continuation",
+    "phase": "provider_terminal",
+    "event_ns": "168286093614600",
+    "outcome": "COMPLETED",
+    "status": "200",
+    "dispatchToTerminalMs": "5348"
+  },
+  {
+    "request": "43b00871-0489-41be-a4ca-90a4d4f5d28c",
+    "phase": "tool_summary",
+    "toolCalls": "1",
+    "toolWallMs": "7",
+    "event_ns": "168286093763200"
+  },
+  {
+    "request": "43b00871-0489-41be-a4ca-90a4d4f5d28c",
+    "phase": "model_terminal",
+    "event_ns": "168286093763200",
+    "elapsed_ms": "9165",
+    "backendMs": "9123",
+    "outcome": "COMPLETED"
+  }
+]
+```
+
 ### W6 supplemental evidence
 
 Baseline and five during/after screenshots and tick query samples:
@@ -16044,3 +18542,27 @@ Baseline and five during/after screenshots and tick query samples:
   }
 ]
 ```
+
+### C5 supplemental evidence
+
+C5 remains FAIL (fixture issue). Corrected supported librarian offers are valid. Unread probe 1 returned offersStatus not_generated at gameTime 884808; probe 2 returned real trades at gameTime 885563 before manual interaction. An intervening autosave was not excluded, so this does not establish a code defect or pass the repeated pre-autosave criterion. The earlier natural-employment attempt was contaminated by /data get entity serialization. Final normal trading open returned {"interaction":"CONSUME","menuId":2,"opened":true}; screenshot `C:\Users\hung1\curseforge\minecraft\Instances\Packsage\screenshots\packsage-debug-8b4dce8c-a7f6-4e63-b1cc-51e471f1079f.png`.
+
+### J0 supplemental evidence
+
+Current-session journal files:
+
+```json
+[
+  {
+    "path": "C:/Users/hung1/curseforge/minecraft/Instances/Packsage/saves/PackSage Adapter Filter Live Test/packsage/journal.db",
+    "size": 81920,
+    "modified": "2026-10-25T15:20:36.726Z"
+  },
+  {
+    "path": "C:/Users/hung1/curseforge/minecraft/Instances/Packsage/saves/PackSage Adapter Filter Live Test/packsage/journal.db-wal",
+    "size": 177192,
+    "modified": "2026-10-25T15:44:57.160Z"
+  }
+]
+```
+No sqlite native-library load error found in current latest.log; fresh journal events 30 and 31 were returned by W2. This launch was already joined before Part A, so this is current installed-process evidence, not a new launch performed by the tester.

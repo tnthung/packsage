@@ -250,7 +250,8 @@ class MinecraftStatisticsTest {
         while (slice.step()) {
         }
         assertEquals(map.size(), slice.result().size());
-        assertEquals(3, row(slice.result(), "minecraft:stone").raw());
+        assertEquals(3, slice.result().stream().filter(row -> row.category().equals("mined") && row.subject().equals("minecraft:stone"))
+                .findFirst().orElseThrow().raw());
         assertEquals(map.size(), slice.result().stream().map(row -> row.category() + "/" + row.subject()).distinct().count());
     }
 

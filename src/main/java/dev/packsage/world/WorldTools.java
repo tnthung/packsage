@@ -207,8 +207,8 @@ public final class WorldTools implements KnowledgeProvider {
                 case "list_items" -> listItems(request);
                 case "inspect_item" -> inspectItem(request);
                 case "find_items" -> findItems(request);
-                case "read_loot", "locate", "search_commands", "read_command" -> knowledge.handle(request);
-                default -> CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, request.tool()));
+                default -> WorldKnowledgeTools.TOOLS.contains(request.tool()) ? knowledge.handle(request)
+                        : CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, request.tool()));
             };
         } catch (Failure failure) {
             return CompletableFuture.failedFuture(failure);
@@ -496,7 +496,7 @@ public final class WorldTools implements KnowledgeProvider {
                 complete ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, next, note);
     }
 
-    /** Reads one block, entity or item handle fresh. */
+    /** Reads one block, entity, item, loot or command handle fresh. */
     private CompletionStage<Evidence.Record> reread(String handle, Evidence.Scope scope) {
         if (handle.startsWith("block|")) {
             var place = place(handle.substring(6));
@@ -518,7 +518,7 @@ public final class WorldTools implements KnowledgeProvider {
         if (handle.startsWith("holder|")) {
             throw new Failure(Code.INVALID_REFERENCE, "a holder summary is not reread; repeat list_items with holder " + handle.substring(7));
         }
-        throw new Failure(Code.INVALID_REFERENCE, "only block, entity and item records can be reread; repeat the area lookup");
+        throw new Failure(Code.INVALID_REFERENCE, "only block, entity, item, loot and command records can be reread; repeat the lookup that produced it");
     }
 
     // Server-thread reads

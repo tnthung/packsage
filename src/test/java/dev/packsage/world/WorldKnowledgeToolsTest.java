@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldKnowledgeToolsTest {
@@ -57,5 +58,25 @@ class WorldKnowledgeToolsTest {
                 List.of("locate", "{\"biome\":\"minecraft:plains\",\"structure\":\"minecraft:village_plains\"}"),
                 List.of("read_command", "{\"name\":\"  \"}"));
         for (var call : calls) assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failure(tools, call.get(0), call.get(1)), call.toString());
+    }
+
+    private static Evidence.Result reread(String handle) throws Exception {
+        var query = new Evidence.Query(Evidence.Operation.GET, Evidence.deserializeObject("{\"id\":\"" + handle + "\"}"), 1, null, null);
+        return tools().query(query, SCOPE).toCompletableFuture().get();
+    }
+
+    @Test
+    void lootAndCommandHandlesAreRereadThroughTheKnowledgeTools() throws Exception {
+        for (var handle : List.of("loot|table|minecraft:entities/zombie", "command|fill")) {
+            var result = reread(handle);
+            assertEquals(Evidence.Coverage.ERROR, result.coverage(), handle);
+            assertTrue(result.detail().contains("integrated singleplayer server"), handle + ": " + result.detail());
+        }
+    }
+
+    @Test
+    void unknownHandlesNameEveryRereadableKind() throws Exception {
+        var detail = reread("chunk|0,0").detail();
+        for (var kind : List.of("block", "entity", "item", "loot", "command")) assertTrue(detail.contains(kind), detail);
     }
 }

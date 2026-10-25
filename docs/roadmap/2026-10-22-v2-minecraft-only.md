@@ -50,8 +50,27 @@ The [plan](../plans/2026-10-22-v2-world-reading.md) is implemented. The [validat
 
 ### Next plans
 
-- [ ] Journal and notes (`docs/plans/2026-10-22-v2-journal.md`, not written): automatic event recording into SQLite with run-length merging, `search_journal`, and invisible model-chosen notes.
-- [ ] Progress and statistics (`docs/plans/2026-10-22-v2-progress-statistics.md`, not written): the `ProgressReader` and `StatisticReader` traits, `list_progress`, `inspect_progress` and `list_statistics`.
+The Minecraft adapter is finished before this branch merges back. The [completion specification](../specs/2026-10-25-v2-minecraft-completion.md) adds stages 1 and 3. The work lands in this order:
+
+- [ ] 1. One item-reading path (`docs/plans/2026-10-25-v2-item-reading-consolidation.md`):
+  - fold `search_inventory` into the world tools with `held`, `offhand`, `targeted`, `ridden` and `opened` holders;
+  - add the selected-slot and armor-slot markers;
+  - give `inspect_item` full item facts and tooltips, plus a tooltip filter;
+  - then remove the legacy inventory readers;
+  - also fix N2–N5.
+- [ ] 2. Progress and statistics (below).
+- [ ] 3. More world knowledge (`docs/plans/2026-10-25-v2-world-knowledge.md`):
+  - villager trades without generating them;
+  - `read_loot`;
+  - `locate` for biomes and structures without generating chunks;
+  - read-only `search_commands` and `read_command`.
+- [ ] 4. Journal and notes (below).
+- [ ] 5. Prompt and acceptance (below).
+
+Plan details:
+
+- [ ] Journal and notes (`docs/plans/2026-10-22-v2-journal.md`): automatic event recording into SQLite with run-length merging, `search_journal`, and invisible model-chosen notes.
+- [ ] Progress and statistics (`docs/plans/2026-10-22-v2-progress-statistics.md`): the `ProgressReader` and `StatisticReader` traits, `list_progress`, `inspect_progress` and `list_statistics`.
 - [ ] Prompt and acceptance (`docs/plans/2026-10-22-v2-prompt-acceptance.md`, not written). Includes the Round 1 failures:
   - the armor reply omitted eligible enchantments that the evidence returned;
   - the mule reply gave no coordinates;

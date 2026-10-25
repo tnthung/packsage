@@ -20,7 +20,7 @@ class GroundingInstructionsTest {
             "every relevant returned entry",
             "follow the useful nextCall",
             "find_items first",
-            "against the same record's gameTime",
+            "gameTime minus the timestamp", "the expiry minus gameTime",
             "two reads at different times",
             "without mentioning it",
             "Notes are what the player said",

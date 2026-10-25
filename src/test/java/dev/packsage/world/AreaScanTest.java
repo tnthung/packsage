@@ -23,6 +23,69 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AreaScanTest {
     @Test
+    void removingAnEarlierEntityDuringAcquisitionDoesNotSkipAStationaryEntity() throws Exception {
+        var world = DenseWorld.create(130);
+        var snapshot = new AreaScan.EntitySnapshot();
+        var notes = new java.util.LinkedHashSet<String>();
+        assertTrue(snapshot.step(world, new ChunkPos(0, 0), notes));
+        world.entities.remove(5);
+        world.gameTime++;
+        boolean more;
+        do {
+            var before = world.candidates;
+            more = snapshot.step(world, new ChunkPos(0, 0), notes);
+            assertTrue(world.candidates - before <= 64);
+        } while (more);
+        assertTrue(snapshot.ids.containsAll(world.entities.stream().map(entity -> entity.getUUID()).toList()),
+                "all stationary entities must survive an earlier removal");
+    }
+
+    @Test
+    void recreatingASectionDuringAcquisitionDoesNotSkipItsNewEntities() throws Exception {
+        var world = DenseWorld.create(130);
+        var snapshot = new AreaScan.EntitySnapshot();
+        var notes = new java.util.LinkedHashSet<String>();
+        assertTrue(snapshot.step(world, new ChunkPos(0, 0), notes));
+        world.entities.clear();
+        for (int i = 0; i < 130; i++) {
+            var entity = new ItemEntity(EntityType.ITEM, world);
+            entity.setPos(8, 64, 8);
+            world.entities.add(entity);
+        }
+        world.gameTime++;
+        boolean more;
+        do {
+            var before = world.candidates;
+            more = snapshot.step(world, new ChunkPos(0, 0), notes);
+            assertTrue(world.candidates - before <= 64);
+        } while (more);
+        assertTrue(snapshot.ids.containsAll(world.entities.stream().map(entity -> entity.getUUID()).toList()),
+                "a replacement section must be copied from its start");
+    }
+
+    @Test
+    void sectionChurnStopsWithConcretePartialCoverage() throws Exception {
+        var world = DenseWorld.create(130);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4,
+                new KindFilter(List.of("minecraft:zombie"), List.of(), ""), null);
+        boolean more = true;
+        int steps = 0;
+        while (more && steps++ < 20) {
+            var before = world.candidates;
+            more = slice.step();
+            assertTrue(world.candidates - before <= 64);
+            world.entities.removeFirst();
+            var entity = new ItemEntity(EntityType.ITEM, world);
+            entity.setPos(8, 64, 8);
+            world.entities.add(entity);
+            world.gameTime++;
+        }
+        assertFalse(more, "repeated section changes must not keep acquisition running forever");
+        assertEquals(Evidence.Coverage.PARTIAL, slice.result().coverage());
+        assertTrue(slice.result().note().contains("section changed"), slice.result().note());
+    }
+
+    @Test
     void aWorkLimitCannotDiscardAnUnfinishedChunkSnapshot() throws Exception {
         var world = DenseWorld.create(130);
         var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, null);

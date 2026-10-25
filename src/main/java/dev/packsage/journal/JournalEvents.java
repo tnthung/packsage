@@ -32,7 +32,9 @@ public final class JournalEvents {
             if (directType != null) {
                 detail.addProperty("direct", directType);
             }
-            detail.addProperty("message", message);
+            if (message != null) {
+                detail.addProperty("message", message);
+            }
             return detail.toString();
         }
     }

@@ -81,6 +81,13 @@ class JournalEventsTest {
     }
 
     @Test
+    void absentDeathMessagesAreOmitted() {
+        var facts = new JournalEvents.DeathFacts("minecraft:player", "A", null, true, false, false,
+                null, "minecraft:fall", null, null, null, 0, 64, 0);
+        assertFalse(JsonParser.parseString(JournalEvents.death(STAMP, facts).orElseThrow().detail()).getAsJsonObject().has("message"));
+    }
+
+    @Test
     void environmentalDeathsHaveNoInventedAttacker() {
         var facts = new JournalEvents.DeathFacts("minecraft:player", "A", null, true, false, false,
                 null, "minecraft:fall", null, null, "Alex fell from a high place", 0, 64, 0);

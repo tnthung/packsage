@@ -5,7 +5,10 @@ import dev.packsage.knowledge.Toolbox.Code;
 import dev.packsage.knowledge.Toolbox.Failure;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.world.minecraft.LocateBiome;
+import dev.packsage.world.minecraft.LocateStructure;
 import dev.packsage.world.minecraft.MinecraftLoot;
+import dev.packsage.world.minecraft.ReadOnlyRegions;
+import dev.packsage.world.minecraft.SavedStarts;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
@@ -18,9 +21,17 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeSource;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.levelgen.structure.Structure;
+import net.minecraft.world.level.levelgen.structure.StructureStart;
+import net.minecraft.world.level.levelgen.structure.placement.ConcentricRingsStructurePlacement;
+import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.level.storage.loot.LootTable;
 
 import java.util.ArrayList;
@@ -33,6 +44,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 /**
  * The world-knowledge tools: loot tables, the nearest biome or structure, and the command tree. {@link WorldTools}
@@ -297,7 +310,6 @@ final class WorldKnowledgeTools {
     private CompletionStage<Evidence.Result> locate(PackSageTools.ReadRequest request) {
         exactlyOne(request, List.of("biome", "structure"));
         var server = calls.server();
-        if (WorldTools.argument(request, "biome") == null) return pending();
         var anchor = WorldTools.anchor(WorldTools.argument(request, "center"));
         var radius = 100;
         if (WorldTools.argument(request, "radius") != null) {
@@ -310,6 +322,7 @@ final class WorldKnowledgeTools {
             }
         }
         var cursor = calls.cursor(request);
+        if (WorldTools.argument(request, "structure") != null) return locateStructure(request, server, anchor, radius, cursor);
         var state = cursor == null ? null : WorldTools.state(cursor, BiomeState.class);
         var searchRadius = state == null ? radius : state.radius();
         var searchQuery = state == null ? WorldTools.requiredText(request, "biome") : state.query();
@@ -331,6 +344,160 @@ final class WorldKnowledgeTools {
                     read.minY(), read.maxY(), state == null ? 0 : state.nextIndex()))
                     .thenApply(result -> biomeResult(request, read.center(), searchQuery, searchRadius, result));
         });
+    }
+
+    record StructureState(WorldTools.Center center, String query, int radius, int nextRing) {
+    }
+
+    private record StructureRead(WorldTools.Center center, LocateStructure.World world, List<LocateStructure.Target> targets,
+                                 long seed, java.util.Map<ConcentricRingsStructurePlacement, List<ChunkPos>> rings, java.nio.file.Path folder) {
+    }
+
+    private CompletionStage<Evidence.Result> locateStructure(PackSageTools.ReadRequest request, MinecraftServer server,
+                                                           Anchor anchor, int radius, Object cursor) {
+        var state = cursor == null ? null : WorldTools.state(cursor, StructureState.class);
+        var query = state == null ? WorldTools.requiredText(request, "structure") : state.query();
+        var searchRadius = state == null ? radius : state.radius();
+        return calls.run(server, WorldTools.then(() -> state == null ? calls.center(server, anchor) : state.center(), center -> WorldTools.once(() -> {
+            var level = WorldTools.level(server, center.dimension());
+            var chunks = level.getChunkSource();
+            var generator = chunks.getGenerator();
+            var random = chunks.randomState();
+            var generatorState = chunks.getGeneratorState();
+            var targets = structureTargets(level.registryAccess().registryOrThrow(Registries.STRUCTURE), query).stream().map(holder -> new LocateStructure.Target(
+                    holder.unwrapKey().orElseThrow().location().toString(), holder.value(), generatorState.getPlacementsForStructure(holder))).toList();
+            var rings = new java.util.HashMap<ConcentricRingsStructurePlacement, List<ChunkPos>>();
+            for (var target : targets) for (var placement : target.placements()) {
+                if (placement instanceof ConcentricRingsStructurePlacement concentric) {
+                    var positions = generatorState.getRingPositionsFor(concentric);
+                    rings.put(concentric, positions == null ? List.of() : List.copyOf(positions));
+                }
+            }
+            var world = new LocateStructure.World() {
+                @Override
+                public boolean loaded(int x, int z) {
+                    return chunks.getChunkNow(x, z) != null;
+                }
+
+                @Override
+                public StructureStart loadedStart(int x, int z, Structure structure) {
+                    var chunk = chunks.getChunkNow(x, z);
+                    if (chunk == null) return null;
+                    var start = chunk.getStartForStructure(structure);
+                    return start != null && start.isValid() ? start : null;
+                }
+
+                @Override
+                public boolean placementPasses(StructurePlacement placement, int x, int z) {
+                    return placement.isStructureChunk(generatorState, x, z);
+                }
+
+                @Override
+                public boolean biomePasses(Structure structure, BlockPos pos) {
+                    return structure.biomes().contains(generator.getBiomeSource().getNoiseBiome(QuartPos.fromBlock(pos.getX()),
+                            QuartPos.fromBlock(surfaceY(pos.getX(), pos.getZ())), QuartPos.fromBlock(pos.getZ()), random.sampler()));
+                }
+
+                @Override
+                public int surfaceY(int x, int z) {
+                    return generator.getBaseHeight(x, z, Heightmap.Types.WORLD_SURFACE_WG, level, random);
+                }
+            };
+            return new StructureRead(center, world, targets, generatorState.getLevelSeed(), rings,
+                    DimensionType.getStorageFolder(level.dimension(), server.getWorldPath(LevelResource.ROOT)));
+        }))).thenCompose(read -> calls.run(server, new LocateStructure(read.world(), read.targets(), read.seed(), read.rings()::get,
+                SectionPos.blockToSectionCoord(read.center().position().x), SectionPos.blockToSectionCoord(read.center().position().z),
+                searchRadius, state == null ? 0 : state.nextRing())).thenCompose(result -> {
+                    var ordered = result.hits().stream().sorted(java.util.Comparator.comparingDouble(hit ->
+                            Math.hypot(hit.x() - read.center().position().x, hit.z() - read.center().position().z))).toList();
+                    return CompletableFuture.supplyAsync(() -> {
+                                var confirmed = new ArrayList<LocateStructure.Hit>();
+                                var scans = 0;
+                                for (var hit : ordered) {
+                                    if (hit.kind() == LocateStructure.Kind.FOUND || scans >= LocateStructure.SCANS) {
+                                        confirmed.add(hit);
+                                    } else {
+                                        scans++;
+                                        confirmed.addAll(confirm(List.of(hit), chunk -> ReadOnlyRegions.read(read.folder(), chunk, hit.structure())));
+                                    }
+                                }
+                                return List.copyOf(confirmed);
+                            }, calls.worker())
+                            .orTimeout(10, TimeUnit.SECONDS).handleAsync((hits, failure) -> structureResult(request, read.center(), query,
+                                    searchRadius, new LocateStructure.Result(failure == null ? hits : ordered, result.nextRing(), result.unsupported()),
+                                    failure != null), calls.worker());
+                }));
+    }
+
+    static List<Holder<Structure>> structureTargets(Registry<Structure> registry, String query) {
+        var tag = query.startsWith("#");
+        var id = ResourceLocation.tryParse(tag ? query.substring(1) : query);
+        if (id != null && tag) {
+            var members = registry.getTag(TagKey.create(Registries.STRUCTURE, id));
+            if (members.isPresent()) return members.get().stream().toList();
+        } else if (id != null && registry.containsKey(id)) {
+            return List.of(registry.getHolder(ResourceKey.create(Registries.STRUCTURE, id)).orElseThrow());
+        }
+        var path = query.substring(query.indexOf(':') + 1).replaceFirst("^#", "").toLowerCase(Locale.ROOT);
+        throw WorldTools.invalid((id == null ? "invalid" : "unknown") + " structure " + (tag ? "tag " : "id ") + query
+                + (id == null ? "; try a lowercase id or tag" : "") + "; registry ids containing " + path + ": "
+                + registry.keySet().stream().filter(key -> key.getPath().contains(path)).sorted().limit(16).toList());
+    }
+
+    /** Worker-only saved verdicts. ABSENT rules out this saved candidate, never other predictions. */
+    static List<LocateStructure.Hit> confirm(List<LocateStructure.Hit> hits, Function<ChunkPos, SavedStarts.Verdict> verdicts) {
+        var confirmed = new ArrayList<LocateStructure.Hit>();
+        var scans = 0;
+        for (var hit : hits) {
+            if (hit.kind() == LocateStructure.Kind.FOUND || scans >= LocateStructure.SCANS) {
+                confirmed.add(hit);
+                continue;
+            }
+            scans++;
+            var verdict = verdicts.apply(new ChunkPos(hit.chunkX(), hit.chunkZ()));
+            if (verdict == SavedStarts.Verdict.FOUND) {
+                confirmed.add(new LocateStructure.Hit(hit.structure(), hit.chunkX(), hit.chunkZ(), hit.x(), hit.y(), hit.z(),
+                        LocateStructure.Kind.FOUND, "saved chunk"));
+            } else if (verdict != SavedStarts.Verdict.ABSENT) {
+                confirmed.add(hit);
+            }
+        }
+        return List.copyOf(confirmed);
+    }
+
+    Evidence.Result structureResult(PackSageTools.ReadRequest request, WorldTools.Center center, String query, int radius,
+                                    LocateStructure.Result result, boolean timeout) {
+        var partial = result.nextRing() != -1 || !result.unsupported().isEmpty() || timeout;
+        var coverage = partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
+        var records = new ArrayList<Evidence.Record>();
+        for (var hit : result.hits().stream().limit(LocateStructure.RESULTS).toList()) {
+            var kind = hit.kind() == LocateStructure.Kind.FOUND ? "found" : "predicted";
+            var place = new BlockPlace(center.dimension(), hit.x(), hit.y(), hit.z());
+            var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+            payload.put("kind", WorldTools.text(kind));
+            payload.put("structure", WorldTools.text(hit.structure()));
+            payload.put("query", WorldTools.text(query));
+            payload.put("dimension", WorldTools.text(center.dimension()));
+            payload.put("place", WorldTools.text(place.text()));
+            payload.put("yEstimated", new Evidence.JsonBoolean(!hit.basis().equals("loaded chunk")));
+            payload.put("distanceBlocks", WorldTools.number(Math.round(Math.hypot(hit.x() - center.position().x, hit.z() - center.position().z))));
+            payload.put("basis", WorldTools.text(hit.basis()));
+            if (hit.kind() == LocateStructure.Kind.PREDICTED) payload.put("note", WorldTools.text("should generate here from the world seed; terrain can still prevent it"));
+            records.add(WorldTools.evidence(request.scope(), "locate|" + center.dimension() + "|" + hit.structure() + "|" + hit.x() + "," + hit.z(),
+                    Evidence.RecordKind.OTHER, hit.structure() + " (" + kind + ") at " + hit.x() + ", " + hit.z(), payload, coverage,
+                    WorldNavigation.placeId(place)));
+        }
+        var notes = new ArrayList<String>();
+        notes.add("searched within " + radius + " chunks; unloaded candidates use placement and biome checks, not terrain validation");
+        notes.add("saved reads are limited to " + LocateStructure.SCANS + " candidates and may miss unsaved changes; absent means only not found in saved data");
+        if (!result.unsupported().isEmpty()) notes.add("unsupported placements: " + String.join(", ", result.unsupported()));
+        if (timeout) notes.add("saved-chunk reading exceeded 10 seconds or failed; candidates remain predicted");
+        if (result.nextRing() != -1) notes.add("search paused at ring " + result.nextRing()
+                + " after a result page or the 500 ms server budget; continue with the cursor");
+        if (records.isEmpty()) notes.add(result.nextRing() == -1 ? "no matching starts found in loaded or saved data and no remaining predictions"
+                : "candidates in range were ruled out by saved chunks or the search was bounded; continue to search further");
+        return WorldTools.result(records, coverage, result.nextRing() == -1 ? null
+                : calls.remember(request, new StructureState(center, query, radius, result.nextRing())), String.join("; ", notes));
     }
 
     /** Worker only: resolve an id or tag, then restrict it to biomes this source can produce. */

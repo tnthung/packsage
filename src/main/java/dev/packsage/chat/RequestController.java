@@ -776,9 +776,11 @@ public final class RequestController {
             request.partialReplay.add(call);
             toolRequest = new ChatContracts.ToolRequest(request.submission, call);
             request.activity = ActivityLabels.tool(call, request.toolCalls.size());
-            String id = "tool:" + call.callId();
-            request.activities.put(id, new ChatContracts.ActivityStep(id, ActivityLabels.tool(call, request.toolCalls.size()),
-                    "", ChatContracts.ActivityStatus.RUNNING, call.serializedArguments()));
+            if (!List.of("remember", "update_note", "forget_note").contains(call.name())) {
+                String id = "tool:" + call.callId();
+                request.activities.put(id, new ChatContracts.ActivityStep(id, ActivityLabels.tool(call, request.toolCalls.size()),
+                        "", ChatContracts.ActivityStatus.RUNNING, call.serializedArguments()));
+            }
             started = currentView();
         }
         PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_received call={} tool={} step={} event_ns={} elapsed_ms={}",

@@ -34,6 +34,8 @@ public interface Toolbox {
 
     record Reference(String providerId, String sourceHandle, Evidence.RecordKind kind, Evidence.Scope scope) { }
 
+    record Origin(String conversationId, String requestId, String playerWords) { }
+
     final class DocumentBudget {
         private int documents;
         private int values;
@@ -71,7 +73,12 @@ public interface Toolbox {
     }
 
     record Context(Supplier<Evidence.Scope> currentScope, Map<String, Reference> references,
-                   AdapterRegistry registry, DocumentBudget documentBudget, String replacingRequestId) {
+                   AdapterRegistry registry, DocumentBudget documentBudget, String replacingRequestId, Origin origin) {
+        public Context(Supplier<Evidence.Scope> currentScope, Map<String, Reference> references,
+                       AdapterRegistry registry, DocumentBudget documentBudget, String replacingRequestId) {
+            this(currentScope, references, registry, documentBudget, replacingRequestId, null);
+        }
+
         public Context {
             Objects.requireNonNull(currentScope);
             Objects.requireNonNull(references);

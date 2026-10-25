@@ -35,6 +35,10 @@ public final class KnowledgeService {
     public CompletionStage<Evidence.Result> execute(PackSageTools.ReadRequest request) { return execute(request, null); }
 
     public CompletionStage<Evidence.Result> execute(PackSageTools.ReadRequest request, String replacingRequestId) {
+        return execute(request, replacingRequestId, null);
+    }
+
+    public CompletionStage<Evidence.Result> execute(PackSageTools.ReadRequest request, String replacingRequestId, Toolbox.Origin origin) {
         Toolbox.Context context;
         synchronized (this) {
             if (!request.scope().equals(currentScope.get())) return CompletableFuture.failedFuture(
@@ -44,7 +48,7 @@ public final class KnowledgeService {
                 observed.clear();
                 refreshedNavigation.clear();
             }
-            context = new Toolbox.Context(currentScope, Map.copyOf(observed), registry, new Toolbox.DocumentBudget(), replacingRequestId);
+            context = new Toolbox.Context(currentScope, Map.copyOf(observed), registry, new Toolbox.DocumentBudget(), replacingRequestId, origin);
         }
         CompletionStage<Evidence.Result> read;
         if (request.tool().equals("read_evidence")) {
@@ -104,8 +108,20 @@ public final class KnowledgeService {
 
     public Map<String, Boolean> adapterAvailability() {
         var availability = new LinkedHashMap<String, Boolean>();
-        for (var provider : providers) availability.put(provider.id(), provider.enabled());
+        for (var provider : providers) {
+            availability.put(provider.id(), provider.enabled() && (!provider.id().equals("journal")
+                    || provider.status().availability() == KnowledgeProvider.Availability.AVAILABLE));
+        }
         return Map.copyOf(availability);
+    }
+
+    public Map<String, String> adapterDetails() {
+        var details = new LinkedHashMap<String, String>();
+        for (var provider : providers) {
+            var status = provider.status();
+            if (status.detail() != null) details.put(provider.id(), status.detail());
+        }
+        return Map.copyOf(details);
     }
 
     private final class Discovery implements Toolbox {

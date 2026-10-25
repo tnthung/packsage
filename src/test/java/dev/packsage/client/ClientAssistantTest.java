@@ -29,6 +29,101 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 
 class ClientAssistantTest {
     @Test
+    void productionNoteAnchorsFollowSessionMirrorsAndRejectLoadingAndMissingDimensions(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        net.minecraft.SharedConstants.tryDetectVersion();
+        net.minecraft.server.Bootstrap.bootStrap();
+        var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var server = (net.minecraft.client.server.IntegratedServer) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, net.minecraft.client.server.IntegratedServer.class);
+        var running = net.minecraft.server.MinecraftServer.class.getDeclaredField("running");
+        running.setAccessible(true);
+        running.set(server, true);
+        var level = (net.minecraft.server.level.ServerLevel) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, net.minecraft.server.level.ServerLevel.class);
+        var levels = net.minecraft.server.MinecraftServer.class.getDeclaredField("levels");
+        levels.setAccessible(true);
+        levels.set(server, Map.of(net.minecraft.world.level.Level.OVERWORLD, level));
+        var client = (net.minecraft.client.Minecraft) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, net.minecraft.client.Minecraft.class);
+        for (var entry : Map.of("singleplayerServer", server, "gameDirectory", directory.toFile()).entrySet()) {
+            var field = net.minecraft.client.Minecraft.class.getDeclaredField(entry.getKey());
+            field.setAccessible(true);
+            field.set(client, entry.getValue());
+        }
+        var assistant = (ClientAssistant) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, ClientAssistant.class);
+        var worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+        var journal = new dev.packsage.journal.Journal(Runnable::run);
+        var work = new dev.packsage.world.ServerWork(System::nanoTime);
+        var scope = new Evidence.Scope("world", "resources", "team", "runtime", 1);
+        var place = new dev.packsage.world.BlockPlace("minecraft:overworld", 40, 70, -8);
+        try {
+            journal.open(directory.resolve("first.db"), () -> 400);
+            journal.write(store -> null).toCompletableFuture().get();
+            journal.notes().put(new dev.packsage.journal.Note("n0000abcd", "old farm", "words", List.of(), place, 1, 1, 1, null, null));
+            journal.write(store -> { store.putNote(journal.notes().get("n0000abcd")); return null; }).toCompletableFuture().get();
+            for (var entry : Map.of("client", client, "journal", journal, "workerExecutor", worker,
+                    "clientExecutor", (Executor) Runnable::run, "serverWork", work).entrySet()) {
+                var field = ClientAssistant.class.getDeclaredField(entry.getKey());
+                field.setAccessible(true);
+                field.set(assistant, entry.getValue());
+            }
+            var knowledgeMethod = ClientAssistant.class.getDeclaredMethod("knowledge", java.util.function.Supplier.class);
+            knowledgeMethod.setAccessible(true);
+            var knowledge = (KnowledgeService) knowledgeMethod.invoke(assistant, (java.util.function.Supplier<Evidence.Scope>) () -> scope);
+            var providers = KnowledgeService.class.getDeclaredField("providers");
+            providers.setAccessible(true);
+            var worldTools = (dev.packsage.world.WorldTools) ((List<?>) providers.get(knowledge)).stream()
+                    .filter(dev.packsage.world.WorldTools.class::isInstance).findFirst().orElseThrow();
+            var old = worldTools.resolveAnchor(new dev.packsage.world.Anchor.OfNote("n0000abcd")).toCompletableFuture();
+            while (!old.isDone()) work.tick();
+            assertEquals(place, old.get());
+            journal.close().get();
+            journal.open(directory.resolve("first.db"), () -> 500);
+            journal.write(store -> null).toCompletableFuture().get();
+            assertEquals(place, journal.notes().place("n0000abcd"));
+            journal.notes().put(new dev.packsage.journal.Note("n00001234", "new farm", "words", List.of(), place, 2, 2, 2, null, null));
+            var current = worldTools.resolveAnchor(new dev.packsage.world.Anchor.OfNote("n00001234")).toCompletableFuture();
+            while (!current.isDone()) work.tick();
+            journal.notes().remove("n0000abcd");
+            var forgotten = worldTools.resolveAnchor(new dev.packsage.world.Anchor.OfNote("n0000abcd")).toCompletableFuture();
+            while (!forgotten.isDone()) work.tick();
+            journal.notes().put(new dev.packsage.journal.Note("n00005678", "lost dimension", "words", List.of(),
+                    new dev.packsage.world.BlockPlace("fixture:removed", 1, 2, 3), 3, 3, 3, null, null));
+            var removed = worldTools.resolveAnchor(new dev.packsage.world.Anchor.OfNote("n00005678")).toCompletableFuture();
+            while (!removed.isDone()) work.tick();
+            var blocked = new CompletableFuture<Void>();
+            journal.write(store -> { blocked.join(); return null; });
+            var closing = journal.close();
+            journal.open(directory.resolve("third.db"), () -> 600);
+            var opening = worldTools.resolveAnchor(new dev.packsage.world.Anchor.OfNote("n00001234")).toCompletableFuture();
+            try {
+                while (!opening.isDone()) work.tick();
+                assertAll(
+                        () -> assertEquals(place, current.get()),
+                        () -> {
+                            var failure = org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.ExecutionException.class, forgotten::get);
+                            assertEquals(dev.packsage.knowledge.Toolbox.Code.UNAVAILABLE,
+                                    ((dev.packsage.knowledge.Toolbox.Failure) failure.getCause()).code());
+                            assertTrue(failure.getCause().getMessage().contains("has no saved place"));
+                        },
+                        () -> assertTrue(org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.ExecutionException.class, removed::get)
+                                .getCause().getMessage().contains("dimension fixture:removed is not loaded")),
+                        () -> assertTrue(org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.ExecutionException.class, opening::get)
+                                .getCause().getMessage().contains("still opening")));
+            } finally {
+                blocked.complete(null);
+                closing.get();
+            }
+        } finally {
+            journal.close().get();
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
     void backgroundFailurePushesTerminalSessionActivityWithoutRefreshingOnTokens() throws Exception {
         Executor direct = Runnable::run;
         var model = new ModelBackend.ModelInfo("fixture-model", "Fixture Model", true, true, 16_000, 2_048);

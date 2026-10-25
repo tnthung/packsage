@@ -941,7 +941,7 @@ public final class AssistantScreen extends Screen {
                               int scrollThumbOffset) { }
 
     private static final List<Map.Entry<String, String>> ADAPTERS = List.of(Map.entry("native", "Minecraft"),
-            Map.entry("config", "NeoForge configs"), Map.entry("world", "World"), Map.entry("progress", "Progress"), Map.entry("history", "Chat history"));
+            Map.entry("config", "NeoForge configs"), Map.entry("world", "World"), Map.entry("progress", "Progress"), Map.entry("journal", "Journal"), Map.entry("history", "Chat history"));
 
     static AdapterTooltipRows adapterTooltipRows(Font font, Map<String, Boolean> availability, boolean hideInactive,
                                                  int offset, int screenWidth, int screenHeight) {
@@ -962,6 +962,13 @@ public final class AssistantScreen extends Screen {
                 clampedOffset, visibleRows, Math.min(maxHeight, 36 + visibleRows * 14), tooltipWidth,
                 Math.max(1, tooltipWidth - 20 - (overflowing ? 8 : 0) - bulletWidth), overflowing ? trackHeight : 0,
                 thumbHeight, overflowing ? clampedOffset * (trackHeight - thumbHeight) / (rows.size() - visibleRows) : 0);
+    }
+
+    String adapterFooter(Map<String, Boolean> availability, AdapterTooltipRows layout) {
+        if (availability.getOrDefault("journal", false) || layout.rows().stream().noneMatch(row -> row.getKey().equals("journal"))) return "";
+        if (!availability.getOrDefault("world", false) && view.sources().stream().noneMatch(source -> source.providerId().equals("journal"))
+                && view.conversation().turns().stream().flatMap(turn -> turn.sources().stream()).noneMatch(source -> source.providerId().equals("journal"))) return "";
+        return actions.adapterDetails().getOrDefault("journal", "");
     }
 
     List<ToolbarItem> toolbarItems() {
@@ -1091,6 +1098,7 @@ public final class AssistantScreen extends Screen {
                     adapterScroll = 0;
                 }
                 adapterLayout = adapterTooltipRows(font, availability, settings.hideInactiveAdapters(), adapterScroll, width, height);
+                footer = adapterFooter(availability, adapterLayout);
                 adapterScroll = adapterLayout.offset();
                 for (var adapter : adapterLayout.rows()) {
                     lines.add(Component.literal("• ").withStyle(style -> style.withColor(
@@ -1118,7 +1126,8 @@ public final class AssistantScreen extends Screen {
             for (Component line : lines) wrapped.addAll(font.split(line.copy().withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 20));
             List<net.minecraft.util.FormattedCharSequence> footerLines = footer.isEmpty() ? List.of()
                     : font.split(Component.literal(footer).withStyle(style -> style.withFont(ModernUi.FONT)), tooltipWidth - 20);
-            int tooltipHeight = item.kind().equals("adapters") ? adapterLayout.height() : Math.min(height - 8, title.isEmpty()
+            int tooltipHeight = item.kind().equals("adapters") ? Math.min(height - 8,
+                    adapterLayout.height() + (footerLines.isEmpty() ? 0 : 6 + footerLines.size() * 14)) : Math.min(height - 8, title.isEmpty()
                     ? 12 + Math.max(0, wrapped.size() - 1) * 14 + font.lineHeight
                     : 36 + wrapped.size() * 14
                     + values.stream().mapToInt(value -> Math.max(1, value.size()) * 14).sum()

@@ -193,6 +193,25 @@ class ScreenTextTest {
     }
 
     @Test
+    void journalCitationsRenderTheirPlaceChipAndUnboundMarker() {
+        var target = new Evidence.NavigationTarget(SCOPE, "journal", "event:1", "journal-place|minecraft:overworld|10,64,-3");
+        for (var citation : List.of("[journal:event:1]", "\uE200cite\uE202journal:event:1\uE201")) {
+            var span = ScreenText.inlineLines(citation, List.of(target)).getFirst().spans().getFirst();
+            assertEquals("in world", span.text());
+            assertEquals(target, span.target());
+        }
+        var named = ScreenText.inlineLines("[Sand](journal:event:1)", List.of(target)).getFirst().spans().getFirst();
+        assertEquals("Sand", named.text());
+        assertEquals(target, named.target());
+        assertEquals("[note]", ScreenText.inlineLines("[journal:note:n12345678]", List.of()).getFirst().spans().getFirst().text());
+        assertEquals("[journal]", ScreenText.inlineLines("[journal:event:2]", List.of()).getFirst().spans().getFirst().text());
+        assertEquals("Show", ScreenText.navigationVerb(target));
+        assertEquals("Show in world: minecraft:overworld|10,64,-3", ScreenText.navigationLabel(target));
+        assertEquals("Show noted place", ScreenText.navigationLabel(new Evidence.NavigationTarget(SCOPE, "journal", "note:n12345678",
+                "journal-note|n12345678")));
+    }
+
+    @Test
     void worldTargetsAreLabeledInWorld() {
         var target = new Evidence.NavigationTarget(SCOPE, "world", "block|minecraft:overworld|10,64,-3",
                 "world-block|minecraft:overworld|10,64,-3");
@@ -475,7 +494,6 @@ class ScreenTextTest {
     @Test
     void citationsFromEveryRegisteredProviderBecomeChips() {
         // ClientAssistant.knowledge registers native/config/world/progress; AssistantRuntime adds history.
-        // Stage 4 will register journal in ClientAssistant.knowledge.
         assertEquals(List.of("native", "config", "history", "world", "progress", "journal"), ScreenText.CITATION_PROVIDERS);
         for (String provider : List.of("native", "config", "history", "world", "progress", "journal")) {
             var source = new Evidence.Source(SCOPE, provider, "1", "note:abc", 1, java.time.Instant.EPOCH,
@@ -487,7 +505,7 @@ class ScreenTextTest {
                 assertEquals(source, spans.getFirst().source(), marker);
                 assertFalse(spans.getFirst().text().contains(provider + ":note:abc"), marker);
             }
-            assertEquals(provider.equals("native") ? "[game]" : "[" + provider + "]",
+            assertEquals(provider.equals("native") ? "[game]" : provider.equals("journal") ? "[note]" : "[" + provider + "]",
                     ScreenText.markdownLines("[" + provider + ":note:abc]").getFirst().getString());
         }
     }

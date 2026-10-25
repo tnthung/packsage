@@ -21,6 +21,7 @@ final class ActivityLabels {
     }
 
     static String tool(ModelBackend.ToolCall call, int step) {
+        if (call.name().equals("remember") || call.name().equals("update_note") || call.name().equals("forget_note")) return THINKING;
         String label = switch (call.name()) {
             case "search_pack" -> withArgument("Searching pack", call, "text");
             case "search_config" -> withArgument("Searching configs", call, "text");

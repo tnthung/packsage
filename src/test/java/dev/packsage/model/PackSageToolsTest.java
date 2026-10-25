@@ -19,7 +19,8 @@ class PackSageToolsTest {
     private static final List<String> NAMES = List.of("search_recipe", "search_registry", "read_evidence", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
             "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
             "list_progress", "inspect_progress", "list_statistics",
-            "read_loot", "locate", "search_commands", "read_command");
+            "read_loot", "locate", "search_commands", "read_command",
+            "search_journal", "remember", "update_note", "forget_note");
 
     @Test
     void continuationCallPreservesQueryAndExecutesAnotherLiveRead() throws Exception {
@@ -59,19 +60,58 @@ class PackSageToolsTest {
     }
 
     @Test
-    void exposesExactlyTwentyFourToolsAndKeepsOptionalArgumentsOptional() {
+    void exposesExactlyTwentyEightToolsAndKeepsOptionalArgumentsOptional() {
         var definitions = PackSageTools.definitions();
         assertEquals(NAMES, definitions.stream().map(ModelBackend.ToolDefinition::name).toList());
         for (var definition : definitions) {
             var schema = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject();
             assertFalse(schema.get("additionalProperties").getAsBoolean());
             assertTrue(schema.getAsJsonArray("required").size() < schema.getAsJsonObject("properties").size()
-                    || List.of("read_evidence", "read_history", "inspect_block", "inspect_entity", "inspect_item", "inspect_progress").contains(definition.name()));
+                    || List.of("read_evidence", "read_history", "inspect_block", "inspect_entity", "inspect_item", "inspect_progress", "forget_note").contains(definition.name()));
         }
         for (var name : List.of("search_recipe", "search_registry")) {
             var schema = definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow();
             assertEquals(64, JsonParser.parseString(schema.serializedSchema()).getAsJsonObject().getAsJsonObject("properties").getAsJsonObject("limit").get("maximum").getAsInt());
         }
+    }
+
+    @Test
+    void listsJournalTools() throws Exception {
+        var definitions = PackSageTools.definitions();
+        for (var name : List.of("search_journal", "remember", "update_note", "forget_note")) {
+            var schema = JsonParser.parseString(definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow().serializedSchema()).getAsJsonObject();
+            assertEquals(switch (name) {
+                case "search_journal" -> List.of("filter");
+                case "remember" -> List.of("text");
+                case "update_note" -> List.of("id", "text");
+                default -> List.of("id");
+            }, schema.getAsJsonArray("required").asList().stream().map(value -> value.getAsString()).toList());
+            assertEquals(switch (name) {
+                case "search_journal" -> java.util.Set.of("filter", "cursor");
+                case "remember" -> java.util.Set.of("text", "at", "tags");
+                case "update_note" -> java.util.Set.of("id", "text", "at", "clearPlace", "tags");
+                default -> java.util.Set.of("id");
+            }, schema.getAsJsonObject("properties").keySet());
+        }
+        var search = JsonParser.parseString(definitions.stream().filter(value -> value.name().equals("search_journal")).findFirst().orElseThrow().serializedSchema())
+                .getAsJsonObject().getAsJsonObject("properties").getAsJsonObject("filter").getAsJsonObject("properties");
+        assertEquals(java.util.Set.of("time", "area", "dimension", "types", "subjects", "text", "notesOnly"), search.keySet());
+        assertEquals(17, search.getAsJsonObject("types").getAsJsonObject("items").getAsJsonArray("enum").size());
+        assertEquals(32, search.getAsJsonObject("subjects").get("maxItems").getAsInt());
+        assertEquals(256, search.getAsJsonObject("text").get("maxLength").getAsInt());
+        assertEquals(256, search.getAsJsonObject("area").getAsJsonObject("properties").getAsJsonObject("radius").get("maximum").getAsInt());
+        assertEquals(5_256_000, search.getAsJsonObject("time").getAsJsonObject("properties").getAsJsonObject("lastMinutes").get("maximum").getAsInt());
+        var calls = new AtomicInteger();
+        var tools = new PackSageTools(request -> {
+            calls.incrementAndGet();
+            return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
+        });
+        assertFalse(tools.execute(new ModelBackend.ToolCall("valid", "search_journal", "{\"filter\":{}}"), SCOPE).toCompletableFuture().get().result().error());
+        for (var args : List.of("{}", "{\"filter\":null}", "{\"filter\":{\"area\":{}}}", "{\"filter\":{\"types\":[\"invented\"]}}",
+                "{\"filter\":{\"subjects\":[\"invalid\"]}}")) {
+            assertTrue(tools.execute(new ModelBackend.ToolCall("invalid", "search_journal", args), SCOPE).toCompletableFuture().get().result().error());
+        }
+        assertEquals(1, calls.get());
     }
 
     @Test
@@ -444,7 +484,7 @@ class PackSageToolsTest {
         }
         var center = JsonParser.parseString(definitions.stream().filter(value -> value.name().equals("inspect_area")).findFirst().orElseThrow()
                 .serializedSchema()).getAsJsonObject().getAsJsonObject("properties").getAsJsonObject("center");
-        assertEquals(List.of("player", "entity", "block"), center.getAsJsonObject("properties").getAsJsonObject("type")
+        assertEquals(List.of("player", "entity", "block", "note"), center.getAsJsonObject("properties").getAsJsonObject("type")
                 .getAsJsonArray("enum").asList().stream().map(value -> value.getAsString()).toList());
         var tools = new PackSageTools(request -> CompletableFuture.completedFuture(
                 new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));

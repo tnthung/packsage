@@ -36,6 +36,8 @@ public interface ChatActions {
 
     default Map<String, Boolean> adapterAvailability() { return Map.of(); }
 
+    default Map<String, String> adapterDetails() { return Map.of(); }
+
     default PackSageSettings settings() { return PackSageSettings.defaults(); }
 
     default ChatContracts.HistoryPreview historyPreview() {

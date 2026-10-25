@@ -26,8 +26,8 @@ import java.util.function.Supplier;
  * evidence, and opening checks that the block or mob still exists before anything is drawn. A place is only coordinates,
  * usually in unloaded or ungenerated chunks, so it is marked without any check.
  */
-final class WorldNavigation {
-    static final long HIGHLIGHT_MILLIS = 30_000;
+public final class WorldNavigation {
+    public static final long HIGHLIGHT_MILLIS = 30_000;
     private static final String BLOCK = "world-block|";
     private static final String ENTITY = "world-entity|";
     private static final String PLACE = "world-place|";

@@ -39,6 +39,28 @@ class GroundingInstructionsTest {
     }
 
     @Test
+    void defaultInstructionsSaveNotesSilentlyAndUseTheJournal() {
+        var text = GroundingInstructions.defaultInstructions();
+        assertTrue(text.contains("Your tools read information, keep the player's notes and offer player-selected navigation; they cannot perform gameplay actions."));
+        assertTrue(text.contains("When the player reports something they did, built, achieved or found, save it with remember without mentioning it, with at for a place they mean; when they correct, move or retire something already noted, find it with search_journal notesOnly and use update_note or forget_note instead of adding another."));
+        assertTrue(text.contains("Questions and requests are not notes."));
+        assertTrue(text.contains("Use search_journal for what happened before now, such as what broke or died and why, what the player stored or where they travelled, and for places and achievements the player told you about."));
+        assertTrue(text.contains("Recent events can explain current state; combine them with live reads."));
+        assertTrue(text.contains("A journal result covers only the recording period and coverage it reports."));
+        assertTrue(text.contains("Notes are what the player said: present them as the player's report, check them against journal events or live reads when it matters, and never as confirmed by the game."));
+    }
+
+    @Test
+    void defaultInstructionsLimitGameplayActionsButAllowNoteMaintenance() {
+        var text = GroundingInstructions.defaultInstructions();
+        assertTrue(text.contains("For a request only to perform gameplay actions, briefly explain the read-only limit and offer to help with instructions."));
+        assertTrue(text.contains("Do not call tools for those gameplay actions or add an unrequested assessment of the scene, materials or execution."));
+        assertTrue(text.contains("These limits apply only to gameplay actions, not to saving, updating or forgetting the player's notes."));
+        assertFalse(text.contains("For an action-only request"));
+        assertFalse(text.contains("Do not call tools or add"));
+    }
+
+    @Test
     void promptNamesNoRemovedTool() {
         var text = GroundingInstructions.defaultInstructions();
         for (var removed : List.of("search_inventory", "slotReference", "target opened")) {
@@ -110,7 +132,7 @@ class GroundingInstructionsTest {
         assertEquals(ModelBackend.Role.USER, current.role());
         assertEquals(1, current.content().size());
         assertEquals("hi", ((ModelBackend.TextContent) current.content().getFirst()).text());
-        assertEquals(24, request.tools().size());
+        assertEquals(28, request.tools().size());
     }
 
     @Test

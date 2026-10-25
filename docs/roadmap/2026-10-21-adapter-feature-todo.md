@@ -10,6 +10,14 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 
 ## 1. Has adapter, not fully implemented
 
+### Journal and notes (v2)
+
+Stage 4 is implemented with automated tests; not yet checked in game. Keep these entries unchecked until the final acceptance run passes the corresponding checks in the [v2 note](2026-10-22-v2-minecraft-only.md#journal-and-notes).
+
+- [ ] Minecraft — automatic event journal with run merging; singleplayer recording and background flushing, without blocking the game on disk or the database.
+- [ ] Minecraft — player notes with place links; silent `remember`, `update_note` and `forget_note`, player-reported trust, note anchors and saved links that survive restarts and follow moved notes.
+- [ ] Minecraft — journal search over events and notes; `search_journal` with recording-since and honest partial coverage, plus persistent place highlights.
+
 ### World block, mob and storage reading (v2)
 
 - [x] Minecraft — nearby storage search, including items nested inside other items, with block highlights; installed acceptance passed ([validation record](../validation/2026-10-22-v2-world-reading.md)).

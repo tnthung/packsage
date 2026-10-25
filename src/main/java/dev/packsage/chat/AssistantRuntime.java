@@ -5,6 +5,7 @@ import dev.packsage.client.AssistantScreen;
 import dev.packsage.client.GameplayContextCapture;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeService;
+import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.model.ReferenceAliasBackend;
@@ -339,14 +340,25 @@ public final class AssistantRuntime implements ChatActions {
             activeWorld = world != null && holder != null && holder.world.worldOrServer().equals(world.worldOrServer());
         }
         if (!activeWorld || !holder.loaded || holder.knowledge == null || holder.knowledgeUnavailable) return Map.ofEntries(
-                Map.entry("native", false), Map.entry("config", false), Map.entry("world", false), Map.entry("progress", false), Map.entry("history", false));
+                Map.entry("native", false), Map.entry("config", false), Map.entry("world", false), Map.entry("progress", false), Map.entry("journal", false), Map.entry("history", false));
         var availability = new java.util.LinkedHashMap<String, Boolean>();
         Map<String, Boolean> providers = holder.knowledge.adapterAvailability();
-        for (String id : List.of("native", "config", "world", "progress")) {
+        for (String id : List.of("native", "config", "world", "progress", "journal")) {
             availability.put(id, providers.getOrDefault(id, false));
         }
         availability.put("history", true);
         return Map.copyOf(availability);
+    }
+
+    @Override
+    public Map<String, String> adapterDetails() {
+        KnowledgeService knowledge;
+        synchronized (stateLock) {
+            if (world == null || selected == null || !selected.world.worldOrServer().equals(world.worldOrServer())
+                    || !selected.loaded || selected.knowledge == null || selected.knowledgeUnavailable) return Map.of();
+            knowledge = selected.knowledge;
+        }
+        return knowledge.adapterDetails();
     }
 
     public void onRenderGuiPost() {
@@ -1253,7 +1265,8 @@ public final class AssistantRuntime implements ChatActions {
             currentKnowledge = holder.knowledge;
         }
         PackSageTools currentTools = new PackSageTools(read -> currentKnowledge.execute(read,
-                request.submission().replacing() == null ? null : request.submission().replacing().value()), currentKnowledge.metadata());
+                request.submission().replacing() == null ? null : request.submission().replacing().value(),
+                new Toolbox.Origin(holder.id, request.submission().requestId().value(), request.submission().question())), currentKnowledge.metadata());
         return currentTools.execute(request.call(), request.submission().scope()).thenApply(response -> {
             List<Evidence.Source> sources = response.records().stream().map(Evidence.Record::source).distinct().toList();
             List<Evidence.NavigationTarget> targets = response.records().stream().flatMap(record -> record.targets().stream())

@@ -68,6 +68,11 @@ public final class ProgressListing {
      * {@link AreaScan#LIST_PAGE} items from {@code offset}; the cursor is the next offset.
      */
     public static Page<Item> page(List<ProgressSnapshot> snapshots, Filter filter, int offset) {
+        return page(snapshots, filter, offset, null);
+    }
+
+    public static Page<Item> page(List<ProgressSnapshot> snapshots, Filter filter, int offset,
+                                  java.util.function.ToIntFunction<Item> encodedBytes) {
         var needle = filter.text().toLowerCase(Locale.ROOT);
         var entries = new ArrayList<ProgressEntry>();
         var entryTrees = new HashSet<ProgressId>();
@@ -91,6 +96,6 @@ public final class ProgressListing {
             items.add(new Item(null, entry));
         }
         var notes = snapshots.stream().map(ProgressSnapshot::note).filter(Objects::nonNull).toList();
-        return ListingPages.slice(items, offset, notes, NO_MATCH_NOTE);
+        return ListingPages.slice(items, offset, notes, NO_MATCH_NOTE, encodedBytes);
     }
 }

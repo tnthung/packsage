@@ -24,6 +24,11 @@ public final class StatisticListing {
      * listing says unlisted counters are zero; an empty partial one does not.
      */
     public static Page<Statistic> page(List<List<Statistic>> perAdapter, int offset, List<String> notes) {
+        return page(perAdapter, offset, notes, null);
+    }
+
+    public static Page<Statistic> page(List<List<Statistic>> perAdapter, int offset, List<String> notes,
+                                       java.util.function.ToIntFunction<Statistic> encodedBytes) {
         var seen = new HashSet<List<String>>();
         var rows = new ArrayList<Statistic>();
         for (var adapterRows : perAdapter) {
@@ -35,7 +40,7 @@ public final class StatisticListing {
         }
         rows.sort(ORDER);
         // A partial read may have missed counters, so only a complete one says the unlisted counters are zero.
-        return ListingPages.slice(rows, offset, notes, notes.isEmpty() ? NO_MATCH_NOTE + "; " + ZERO_NOTE : NO_MATCH_NOTE);
+        return ListingPages.slice(rows, offset, notes, notes.isEmpty() ? NO_MATCH_NOTE + "; " + ZERO_NOTE : NO_MATCH_NOTE, encodedBytes);
     }
 
     private static int rank(String category) {

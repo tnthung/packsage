@@ -22,6 +22,7 @@ public final class KnowledgeService {
     private final Map<String, Toolbox.Reference> observed = new LinkedHashMap<>();
     private final Set<Evidence.NavigationTarget> refreshedNavigation = new LinkedHashSet<>();
     private Evidence.Scope cacheScope;
+    private final PackSageTools.OutputPages outputPages = new PackSageTools.OutputPages(this::observe);
 
     public KnowledgeService(List<? extends Toolbox> adapters, Supplier<Evidence.Scope> currentScope) {
         this.providers = adapters.stream().filter(KnowledgeProvider.class::isInstance).map(KnowledgeProvider.class::cast).toList();
@@ -31,6 +32,7 @@ public final class KnowledgeService {
     }
 
     public void register(Toolbox adapter) { registry.register(adapter); }
+    public PackSageTools.OutputPages outputPages() { return outputPages; }
     public List<Toolbox.Metadata> metadata() { return registry.metadata(); }
     public CompletionStage<Evidence.Result> execute(PackSageTools.ReadRequest request) { return execute(request, null); }
 
@@ -89,21 +91,23 @@ public final class KnowledgeService {
             }
         } else read = registry.dispatch(request, context);
         return read.thenApply(result -> {
-            synchronized (this) {
-                if (!request.scope().equals(currentScope.get()) || !request.scope().equals(cacheScope)
-                        || result.records().stream().anyMatch(record -> !record.source().scope().equals(request.scope()))) {
-                    throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "scope changed while reading");
-                }
-                for (var record : result.records()) {
-                    observed.put(record.source().providerId() + ":" + record.source().sourceHandle(),
-                            new Toolbox.Reference(record.source().providerId(), record.source().sourceHandle(), record.kind(), request.scope()));
-                    refreshedNavigation.addAll(record.targets());
-                }
-                while (observed.size() > 512) observed.remove(observed.keySet().iterator().next());
-                while (refreshedNavigation.size() > 64) refreshedNavigation.remove(refreshedNavigation.iterator().next());
-            }
+            observe(request.scope(), result.records());
             return result;
         });
+    }
+
+    private synchronized void observe(Evidence.Scope scope, List<Evidence.Record> records) {
+        if (!scope.equals(currentScope.get()) || !scope.equals(cacheScope)
+                || records.stream().anyMatch(record -> !record.source().scope().equals(scope))) {
+            throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "scope changed while reading");
+        }
+        for (var record : records) {
+            observed.put(record.source().providerId() + ":" + record.source().sourceHandle(),
+                    new Toolbox.Reference(record.source().providerId(), record.source().sourceHandle(), record.kind(), scope));
+            refreshedNavigation.addAll(record.targets());
+        }
+        while (observed.size() > 512) observed.remove(observed.keySet().iterator().next());
+        while (refreshedNavigation.size() > 64) refreshedNavigation.remove(refreshedNavigation.iterator().next());
     }
 
     public Map<String, Boolean> adapterAvailability() {

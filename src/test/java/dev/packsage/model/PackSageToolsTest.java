@@ -488,7 +488,7 @@ class PackSageToolsTest {
                     Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.RECIPE, "Route " + i,
                     new Evidence.JsonObject(Map.of()), List.of())).toList();
             var response = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
-                    Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null))).execute(new ModelBackend.ToolCall(
+                    Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null, "\u0000".repeat(2048)))).execute(new ModelBackend.ToolCall(
                     "plan", "plan_recipe", "{\"identity\":\"minecraft:result\",\"quantity\":1}"), SCOPE).toCompletableFuture().get();
             assertFalse(response.result().error());
             assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
@@ -496,6 +496,19 @@ class PackSageToolsTest {
             assertEquals(handle.equals("route") ? 64 : 0, json.getAsJsonArray("records").size());
             assertTrue(json.get("detail").getAsString().contains((256 - response.records().size()) + " records omitted"));
         }
+    }
+
+    @Test
+    void oversizedProviderEnvelopeReturnsBoundedPartialJson() throws Exception {
+        var response = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, "\u754c".repeat(100_000)))).execute(
+                new ModelBackend.ToolCall("large", "search_recipe", "{}"), SCOPE).toCompletableFuture().get();
+        assertFalse(response.result().error());
+        assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
+        var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals("PARTIAL", json.get("coverage").getAsString());
+        assertTrue(json.get("detail").getAsString().contains("response envelope"));
+        assertTrue(response.records().isEmpty());
     }
 
     @Test

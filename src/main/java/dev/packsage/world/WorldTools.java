@@ -29,6 +29,7 @@ import java.lang.ref.WeakReference;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -529,12 +530,33 @@ public final class WorldTools implements KnowledgeProvider {
                 // This continuation runs on the worker. Leave room for source/target metadata and the tool envelope.
                 if (Evidence.serialize(record.payload()).getBytes(java.nio.charset.StandardCharsets.UTF_8).length
                         + record.title().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 65_536) return record;
-                var payload = new LinkedHashMap<String, Evidence.JsonValue>();
-                for (var key : List.of("entity", "id", "dimension", "x", "y", "z", "holder", "gameTime", "dayTime")) {
-                    if (record.payload().values().containsKey(key)) payload.put(key, record.payload().values().get(key));
+                var payload = new LinkedHashMap<>(record.payload().values());
+                var sections = new LinkedHashMap<>(((Evidence.JsonObject) payload.get("sections")).values());
+                record Detail(String adapter, String key, int bytes) {
                 }
-                payload.put("note", text("Entity inspection details exceed the 64 KiB byte budget and were omitted; coverage is partial"));
-                payload.put("sections", new Evidence.JsonObject(Map.of()));
+                var details = new ArrayList<Detail>();
+                sections.forEach((adapter, value) -> ((Evidence.JsonObject) ((Evidence.JsonObject) value).values().get("facts"))
+                        .values().forEach((key, fact) -> details.add(new Detail(adapter, key,
+                                Evidence.serialize(fact).getBytes(java.nio.charset.StandardCharsets.UTF_8).length))));
+                details.sort(Comparator.comparingInt(Detail::bytes).reversed());
+                payload.put("note", text("Entity inspection details exceed the 64 KiB byte budget; the largest facts were omitted, coverage is partial"));
+                for (var detail : details) {
+                    if (Evidence.serialize(new Evidence.JsonObject(payload)).getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 60_000) break;
+                    var section = new LinkedHashMap<>(((Evidence.JsonObject) sections.get(detail.adapter())).values());
+                    var facts = new LinkedHashMap<>(((Evidence.JsonObject) section.get("facts")).values());
+                    facts.remove(detail.key());
+                    section.put("facts", new Evidence.JsonObject(facts));
+                    section.put("coverage", text("PARTIAL"));
+                    section.put("note", text((section.get("note") instanceof Evidence.JsonString previous ? previous.value() + "; " : "")
+                            + detail.key() + " omitted for the byte budget"));
+                    sections.put(detail.adapter(), new Evidence.JsonObject(section));
+                    payload.put("sections", new Evidence.JsonObject(sections));
+                }
+                if (Evidence.serialize(new Evidence.JsonObject(payload)).getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 60_000) {
+                    // Oversized metadata can still require the compact identity fallback after trimming all facts.
+                    payload.keySet().retainAll(List.of("entity", "id", "dimension", "x", "y", "z", "holder", "gameTime", "dayTime", "note"));
+                    payload.put("sections", new Evidence.JsonObject(Map.of()));
+                }
                 return evidence(scope, record.source().sourceHandle(), record.kind(), "Entity " + id, payload,
                         Evidence.Coverage.PARTIAL, WorldNavigation.entityId(id));
             });

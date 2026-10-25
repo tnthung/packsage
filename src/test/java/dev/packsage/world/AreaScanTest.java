@@ -18,6 +18,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AreaScanTest {
     @Test
+    void denseEntityPagesContinueWithoutDroppingOrRepeatingMatches() throws Exception {
+        var world = DenseWorld.create(130);
+        var ids = new java.util.HashSet<java.util.UUID>();
+        String cursor = null;
+        int pages = 0;
+        do {
+            var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, cursor);
+            while (slice.step()) {
+            }
+            var page = slice.result();
+            for (var entity : page.items()) assertTrue(ids.add(entity.id()), "repeated " + entity.id());
+            cursor = page.nextCursor();
+            assertTrue(++pages <= 3);
+        } while (cursor != null);
+        assertEquals(130, ids.size());
+        assertEquals(3, pages);
+    }
+    @Test
     void aDenseChunkIsEnumeratedInBoundedStepsEvenWhenNothingMatches() throws Exception {
         var world = DenseWorld.create(4000);
         var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4,

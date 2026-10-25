@@ -19,6 +19,18 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldToolsTest {
     @Test
+    void aSearchContinuationWithOnlyResolvedRootsDoesNotEnumerateEntitiesAgain() throws Exception {
+        var tools = tools();
+        var type = Class.forName("dev.packsage.world.WorldTools$FindSlice");
+        var constructor = type.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        var slice = constructor.newInstance(tools, null, new Anchor.Player(), 4, KindFilter.ANY, false,
+                new WorldTools.FindState(java.util.List.of(), 0, null));
+        var collect = type.getDeclaredMethod("collectEntities");
+        collect.setAccessible(true);
+        assertEquals(false, collect.invoke(slice));
+    }
+    @Test
     void findingHoldersInADenseChunkBoundsEnumerationAndInventoryChecks() throws Exception {
         var world = DenseWorld.create(4000);
         var checked = new java.util.concurrent.atomic.AtomicInteger();

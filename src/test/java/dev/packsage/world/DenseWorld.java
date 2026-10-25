@@ -36,6 +36,7 @@ final class DenseWorld {
         Chunks chunks;
         List<Entity> entities;
         int visited;
+        boolean forbidGlobal;
         World() { super(null, null, null, null, null, null, null, false, 0, List.of(), false, null); }
         @Override public ServerChunkCache getChunkSource() { return chunks; }
         @Override public int getMinBuildHeight() { return -64; }
@@ -46,6 +47,7 @@ final class DenseWorld {
         @Override public Entity getEntity(java.util.UUID id) { return entities.stream().filter(entity -> entity.getUUID().equals(id)).findFirst().orElse(null); }
         @Override public net.minecraft.core.RegistryAccess registryAccess() { return net.minecraft.core.RegistryAccess.fromRegistryOfRegistries(net.minecraft.core.registries.BuiltInRegistries.REGISTRY); }
         @Override public Iterable<Entity> getAllEntities() {
+            if (forbidGlobal) throw new AssertionError("global entity traversal");
             return () -> new Iterator<>() {
                 final Iterator<Entity> iterator = entities.iterator();
                 @Override public boolean hasNext() { return iterator.hasNext(); }

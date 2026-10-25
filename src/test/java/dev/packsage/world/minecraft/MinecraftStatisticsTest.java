@@ -4,6 +4,7 @@ import dev.packsage.world.KindFilter;
 import dev.packsage.world.ServerWork;
 import dev.packsage.world.Statistic;
 import dev.packsage.world.StatisticUnit;
+import dev.packsage.world.StatisticListing;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.MappedRegistry;
 import net.minecraft.core.Registry;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import it.unimi.dsi.fastutil.objects.AbstractObjectSet;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
@@ -231,7 +233,25 @@ class MinecraftStatisticsTest {
         assertTrue(BuiltInRegistries.ITEM.size() > 1024);
         assertTrue(steps > 1, "steps " + steps);
         var expected = BuiltInRegistries.ITEM.stream().map(item -> BuiltInRegistries.ITEM.getKey(item).toString()).toList();
-        assertEquals(expected.stream().sorted().toList(), slice.result().stream().map(Statistic::subject).sorted().toList());
+        var ordered = new ArrayList<Statistic>();
+        for (var offset = 0; offset < expected.size(); offset += 64) {
+            ordered.addAll(StatisticListing.page(List.of(slice.result()), offset, List.of()).items());
+        }
+        assertEquals(expected.stream().sorted().toList(), ordered.stream().map(Statistic::subject).toList());
+    }
+
+    @Test
+    void aNewCounterBetweenStepsRestartsTheWalkWithoutFailing() {
+        var map = new Object2IntOpenHashMap<Stat<?>>();
+        for (var item : BuiltInRegistries.ITEM) map.put(Stats.ITEM_CRAFTED.get(item), 1);
+        var slice = statistics.statistics(() -> map, List.of(), KindFilter.ANY);
+        assertTrue(slice.step());
+        map.put(Stats.BLOCK_MINED.get(Blocks.STONE), 3);
+        while (slice.step()) {
+        }
+        assertEquals(map.size(), slice.result().size());
+        assertEquals(3, row(slice.result(), "minecraft:stone").raw());
+        assertEquals(map.size(), slice.result().stream().map(row -> row.category() + "/" + row.subject()).distinct().count());
     }
 
     @Test

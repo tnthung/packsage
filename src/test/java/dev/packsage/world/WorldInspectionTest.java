@@ -108,5 +108,6 @@ class WorldInspectionTest {
         var payload = Evidence.serialize(result.records().getFirst().payload());
         assertTrue(payload.getBytes(StandardCharsets.UTF_8).length < 64_000, "payload bytes " + payload.length());
         assertTrue(payload.contains("byte budget"), payload);
+        assertTrue(payload.contains("health"), "small entity facts survive oversized offers");
     }
 }

@@ -9,6 +9,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.HashSet;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -17,10 +19,60 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AreaScanTest {
+    @BeforeAll
+    static void bootstrapMinecraft() {
+        Bootstrap.bootStrap();
+    }
+
+    @Test
+    void removingAnEarlierEntityBetweenPagesDoesNotSkipTheNextMatch() throws Exception {
+        var world = DenseWorld.create(130);
+        var scan = new AreaScan(new WorldRegistry());
+        var first = scan.listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, null);
+        while (first.step()) {
+        }
+        var ids = new HashSet<UUID>();
+        first.result().items().forEach(entity -> ids.add(entity.id()));
+        world.entities.removeIf(entity -> entity.getUUID().equals(first.result().items().getFirst().id()));
+        var cursor = first.result().nextCursor();
+        while (cursor != null) {
+            var slice = scan.listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, cursor);
+            while (slice.step()) {
+            }
+            for (var entity : slice.result().items()) assertTrue(ids.add(entity.id()), "repeated " + entity.id());
+            cursor = slice.result().nextCursor();
+        }
+        assertEquals(130, ids.size());
+    }
+
+    @Test
+    void entityMutationBetweenStepsReturnsUniqueRevalidatedResultsWithHonestCoverage() throws Exception {
+        var world = DenseWorld.create(130);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4,
+                new KindFilter(List.of("minecraft:zombie"), List.of(), ""), null);
+        while (world.visited == 0) assertTrue(slice.step());
+        world.entities.remove(world.entities.size() - 1);
+        world.entities.add(new net.minecraft.world.entity.item.ItemEntity(net.minecraft.world.entity.EntityType.ITEM, world));
+        while (slice.step()) {
+        }
+        assertEquals(Evidence.Coverage.PARTIAL, slice.result().coverage());
+        assertTrue(slice.result().note().contains("snapshot"));
+    }
+
+    @Test
+    void aSmallRadiusNeverTraversesTheGlobalEntityLookup() throws Exception {
+        var world = DenseWorld.create(1);
+        world.forbidGlobal = true;
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, null);
+        while (slice.step()) {
+        }
+        assertEquals(1, slice.result().items().size());
+    }
+
     @Test
     void denseEntityPagesContinueWithoutDroppingOrRepeatingMatches() throws Exception {
         var world = DenseWorld.create(130);
-        var ids = new java.util.HashSet<java.util.UUID>();
+        var ids = new HashSet<UUID>();
         String cursor = null;
         int pages = 0;
         do {
@@ -35,6 +87,7 @@ class AreaScanTest {
         assertEquals(130, ids.size());
         assertEquals(3, pages);
     }
+
     @Test
     void aDenseChunkIsEnumeratedInBoundedStepsEvenWhenNothingMatches() throws Exception {
         var world = DenseWorld.create(4000);
@@ -51,11 +104,7 @@ class AreaScanTest {
         assertTrue(steps > 60);
         assertEquals(4000, world.visited);
         assertTrue(slice.result().items().isEmpty());
-        assertEquals(Evidence.Coverage.COMPLETE, slice.result().coverage());
-    }
-    @BeforeAll
-    static void bootstrapMinecraft() {
-        Bootstrap.bootStrap();
+        assertEquals(Evidence.Coverage.PARTIAL, slice.result().coverage());
     }
 
     @Test

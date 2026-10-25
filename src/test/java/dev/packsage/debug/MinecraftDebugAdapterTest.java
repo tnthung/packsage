@@ -31,9 +31,11 @@ class MinecraftDebugAdapterTest {
         class Client extends Minecraft {
             java.util.concurrent.Executor executor;
             Runnable afterCall;
+            Thread thread;
             Client() { super(null); }
             @Override public void execute(Runnable task) {
                 executor.execute(() -> {
+                    thread = Thread.currentThread();
                     var after = afterCall;
                     afterCall = null;
                     task.run();
@@ -75,13 +77,14 @@ class MinecraftDebugAdapterTest {
                     try { clientThread.submit(() -> runtime.settings().save(path)).get(1, java.util.concurrent.TimeUnit.SECONDS); }
                     catch (Exception failure) { throw new RuntimeException(failure); }
                     if (concurrent.equals("stale_restore") && writes.get() == 3) {
-                        client.afterCall = () -> {
+                        // Skip the third conflict check, then save after the restore check's client task.
+                        client.afterCall = () -> client.afterCall = () -> {
                             runtime.settings().saveDeveloperPrompt(path, "newest screen prompt");
                             screenSaved.countDown();
                         };
                     }
                 }
-                if (concurrent.equals("stale_restore") && writes.get() == 4) {
+                if (concurrent.equals("stale_restore") && writes.get() == 4 && Thread.currentThread() != client.thread) {
                     try { assertTrue(screenSaved.await(5, java.util.concurrent.TimeUnit.SECONDS)); }
                     catch (InterruptedException failure) { throw new RuntimeException(failure); }
                 }
@@ -125,7 +128,8 @@ class MinecraftDebugAdapterTest {
                         () -> response.get(5, java.util.concurrent.TimeUnit.SECONDS));
                 assertInstanceOf(IllegalStateException.class, failure.getCause());
                 assertTrue(failure.getCause().getMessage().contains("conflict"));
-                assertEquals(concurrent.equals("conflict") ? 4 : 3, writes.get());
+                if (concurrent.equals("stale_restore")) assertTrue(screenSaved.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                assertEquals(4, writes.get());
                 assertEquals(concurrent.equals("conflict") ? null : "newest screen prompt", runtime.settings().developerPrompt());
                 assertEquals(runtime.settings().developerPrompt(), dev.packsage.chat.PackSageSettings.load(path).developerPrompt());
                 return;

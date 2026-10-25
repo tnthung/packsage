@@ -7,6 +7,7 @@ import net.minecraft.server.level.ServerPlayer;
 public interface ProgressReader {
     String adapterId();
 
+    /** A visible entry or tree with no display title is titled with its local id, since a handle title may not be blank. */
     ServerWork.Slice<ProgressSnapshot> snapshot(ServerPlayer player);
 
     /** Returns null when {@code local} is not this adapter's. */

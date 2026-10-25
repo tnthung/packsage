@@ -2,6 +2,7 @@ package dev.packsage.world;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -17,6 +18,31 @@ class ProgressTypesTest {
         assertNull(bare.adapter());
         assertEquals("minecraft:story/root", bare.local());
         assertThrows(IllegalArgumentException.class, () -> ProgressId.parse(" "));
+    }
+    @Test
+    void progressIdRejectsInvalidAdaptersAndParsesEdgeCases() {
+        assertThrows(IllegalArgumentException.class, () -> new ProgressId("a:b", "x"));
+        assertThrows(IllegalArgumentException.class, () -> new ProgressId("a/b", "x"));
+        assertThrows(IllegalArgumentException.class, () -> new ProgressId("", "x"));
+        assertThrows(IllegalArgumentException.class, () -> ProgressId.parse("/x"));
+        assertThrows(IllegalArgumentException.class, () -> ProgressId.parse("x/"));
+        assertEquals(new ProgressId(null, "x"), ProgressId.parse("x"));
+    }
+
+    @Test
+    void aBareLocalIdWithASlashMustBeNamespaced() {
+        assertThrows(IllegalArgumentException.class, () -> new ProgressId(null, "story/root"));
+        assertDoesNotThrow(() -> new ProgressId(null, "minecraft:story/root"));
+        assertDoesNotThrow(() -> new ProgressId("ftbquests", "chapter/quest"));
+    }
+
+    @Test
+    void aHandleTitleIsNullExactlyWhenHidden() {
+        var id = new ProgressId("minecraft", "minecraft:story/root");
+        assertThrows(IllegalArgumentException.class, () -> new ProgressHandle(id, id, "Minecraft", ProgressStatus.HIDDEN));
+        assertThrows(IllegalArgumentException.class, () -> new ProgressHandle(id, id, null, ProgressStatus.DONE));
+        assertThrows(IllegalArgumentException.class, () -> new ProgressHandle(id, id, " ", ProgressStatus.AVAILABLE));
+        assertDoesNotThrow(() -> new ProgressHandle(id, id, null, ProgressStatus.HIDDEN));
     }
 
     @Test

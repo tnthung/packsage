@@ -1,5 +1,6 @@
 package dev.packsage.journal;
 
+import dev.packsage.knowledge.Evidence;
 import dev.packsage.world.BlockPlace;
 
 import java.util.List;
@@ -30,6 +31,14 @@ public sealed interface JournalEntry {
     }
 
     record NoteEntry(Note note) implements JournalEntry {
+        public Evidence.Authority authority() {
+            return Evidence.Authority.PLAYER_REPORTED;
+        }
+
+        public String trust() {
+            return "player-said";
+        }
+
         @Override
         public long sortWall() {
             return note.createdWall();

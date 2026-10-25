@@ -20,10 +20,12 @@ public final class Journal {
         final JournalStats stats = new JournalStats();
         final NoteBook notes = new NoteBook();
         final JournalWriter writer;
+        final LongSupplier gameTime;
         volatile boolean recording = true;
         volatile Throwable failure;
 
         Session(Path file, LongSupplier gameTime, CompletableFuture<Void> previous, SqlFunction<Path, JournalStore> opener) {
+            this.gameTime = gameTime;
             writer = new JournalWriter(() -> {
                 previous.join();
                 var store = opener.apply(file);
@@ -126,6 +128,11 @@ public final class Journal {
     public JournalStats stats() {
         var current = session;
         return current == null ? idleStats : current.stats;
+    }
+
+    /** Reads the same captured world clock as the writer; used inside note writer commands. */
+    long gameTime() {
+        return session.gameTime.getAsLong();
     }
 
     public <T> CompletionStage<T> read(SqlFunction<JournalStore, T> query) {

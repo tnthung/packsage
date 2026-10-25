@@ -1228,6 +1228,10 @@ public final class WorldTools implements KnowledgeProvider {
         return new Failure(Code.INVALID_ARGUMENTS, message);
     }
 
+    public static Anchor parseAnchor(Evidence.JsonValue value) {
+        return anchor(value);
+    }
+
     static Anchor anchor(Evidence.JsonValue value) {
         if (value == null) return new Anchor.Player();
         if (!(value instanceof Evidence.JsonObject object) || !(object.values().get("type") instanceof Evidence.JsonString type)) {

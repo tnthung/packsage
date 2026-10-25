@@ -166,6 +166,20 @@ class ScreenTextTest {
     }
 
     @Test
+    void journalCitationsRenderTheirPlaceChipAndUnboundMarker() {
+        var target = new Evidence.NavigationTarget(SCOPE, "journal", "event:1", "journal-place|minecraft:overworld|10,64,-3");
+        for (var citation : List.of("[journal:event:1]", "\uE200cite\uE202journal:event:1\uE201")) {
+            var span = ScreenText.inlineLines(citation, List.of(target)).getFirst().spans().getFirst();
+            assertEquals("in world", span.text());
+            assertEquals(target, span.target());
+        }
+        var named = ScreenText.inlineLines("[Sand](journal:event:1)", List.of(target)).getFirst().spans().getFirst();
+        assertEquals("Sand", named.text());
+        assertEquals(target, named.target());
+        assertEquals("[in world]", ScreenText.inlineLines("[journal:note:n12345678]", List.of()).getFirst().spans().getFirst().text());
+    }
+
+    @Test
     void worldTargetsAreLabeledInWorld() {
         var target = new Evidence.NavigationTarget(SCOPE, "world", "block|minecraft:overworld|10,64,-3",
                 "world-block|minecraft:overworld|10,64,-3");

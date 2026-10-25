@@ -482,7 +482,7 @@ class PackSageToolsTest {
         }
         var center = JsonParser.parseString(definitions.stream().filter(value -> value.name().equals("inspect_area")).findFirst().orElseThrow()
                 .serializedSchema()).getAsJsonObject().getAsJsonObject("properties").getAsJsonObject("center");
-        assertEquals(List.of("player", "entity", "block"), center.getAsJsonObject("properties").getAsJsonObject("type")
+        assertEquals(List.of("player", "entity", "block", "note"), center.getAsJsonObject("properties").getAsJsonObject("type")
                 .getAsJsonArray("enum").asList().stream().map(value -> value.getAsString()).toList());
         var tools = new PackSageTools(request -> CompletableFuture.completedFuture(
                 new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)));

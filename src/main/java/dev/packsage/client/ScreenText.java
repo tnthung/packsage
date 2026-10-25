@@ -28,7 +28,7 @@ final class ScreenText {
     static final int CODE_COLOR = 0xffd27f;
     static final int DIM_COLOR = 0x808080;
     private static final String CELL_GAP = "   ";
-    private static final Pattern CITATION_MARKER = Pattern.compile("\\[(native|config|history|world):([^\\]\\s]+)\\]");
+    private static final Pattern CITATION_MARKER = Pattern.compile("\\[(native|config|history|world|journal):([^\\]\\s]+)\\]");
     private static final String BULLET = "• ";
     private static final String SEPARATOR = " · ";
     private static final Pattern HEADING = Pattern.compile("^(#{1,6}) +(.*)$");
@@ -134,6 +134,7 @@ final class ScreenText {
     private static String markerTag(String provider, String handle) {
         return "[" + switch (provider) {
             case "native" -> "game";
+            case "journal" -> "in world";
             default -> provider; // config
         } + "]";
     }
@@ -401,7 +402,7 @@ final class ScreenText {
                                     .reduce((first, latest) -> latest).orElse(null);
                             if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
                                 case "config" -> "Config";
-                                case "world" -> "in world";
+                                case "world", "journal" -> "in world";
                                 default -> "Source";
                             }, target, ModernUi.TEXT, false, false, source));
                             else {
@@ -429,7 +430,7 @@ final class ScreenText {
                             && value.sourceHandle().equals(marker.group(2))).reduce((first, latest) -> latest).orElse(null);
                     if (target != null) spans.add(new InlineSpan(switch (target.providerId()) {
                         case "config" -> "Config";
-                        case "world" -> "in world";
+                        case "world", "journal" -> "in world";
                         default -> "Source";
                     }, target, ModernUi.TEXT, false, false, source));
                     else if (source != null) spans.add(new InlineSpan(sourceLabels.getOrDefault(source,

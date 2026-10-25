@@ -22,7 +22,6 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -245,6 +244,54 @@ class JournalToolsTest {
             assertFalse(first.records().stream().anyMatch(record -> record.source().sourceHandle().equals(second.records().getFirst().source().sourceHandle())));
         } finally {
             journal.close().get();
+        }
+    }
+
+    @Test
+    void failedWritesLeaveTheNoteMirrorUnchanged() throws Exception {
+        var journal = open();
+        try {
+            var tools = tools(journal);
+            call(tools, "remember", "{\"text\":\"farm\"}").toCompletableFuture().get();
+            var original = journal.notes().all().getFirst();
+            journal.write(store -> {
+                try (var statement = store.writer().createStatement()) {
+                    for (var operation : List.of("INSERT", "UPDATE", "DELETE")) {
+                        statement.execute("CREATE TRIGGER fail_" + operation + " BEFORE " + operation + " ON notes BEGIN SELECT RAISE(ABORT, 'refused'); END");
+                    }
+                }
+                return null;
+            }).toCompletableFuture().get();
+            assertThrows(java.util.concurrent.ExecutionException.class, () -> call(tools, "remember", "{\"text\":\"other\"}").toCompletableFuture().get());
+            assertThrows(java.util.concurrent.ExecutionException.class, () -> call(tools, "update_note", "{\"id\":\"" + original.id() + "\",\"text\":\"changed\"}").toCompletableFuture().get());
+            assertThrows(java.util.concurrent.ExecutionException.class, () -> call(tools, "forget_note", "{\"id\":\"" + original.id() + "\"}").toCompletableFuture().get());
+            assertEquals(List.of(original), journal.notes().all());
+            assertEquals(List.of(original), journal.read(store -> store.notes()).toCompletableFuture().get());
+        } finally {
+            journal.close().get();
+        }
+    }
+
+    @Test
+    void searchAndRecordBuildingRunOnTheWorker() throws Exception {
+        try (var worker = Executors.newSingleThreadExecutor(action -> new Thread(action, "test-journal-worker"))) {
+            var journal = new Journal(worker);
+            journal.open(dir.resolve("journal.db"), () -> 400);
+            journal.write(store -> null).toCompletableFuture().get();
+            try {
+                var tools = new JournalTools(journal, () -> SCOPE, worker, () -> server, anchor -> CompletableFuture.completedFuture(PLACE));
+                var completedOn = new CompletableFuture<String>();
+                var start = new CountDownLatch(1);
+                worker.submit(() -> {
+                    assertTrue(start.await(10, TimeUnit.SECONDS));
+                    return null;
+                });
+                call(tools, "search_journal", "{\"filter\":{}}").thenAccept(result -> completedOn.complete(Thread.currentThread().getName()));
+                start.countDown();
+                assertEquals("test-journal-worker", completedOn.get(10, TimeUnit.SECONDS));
+            } finally {
+                journal.close().get();
+            }
         }
     }
 

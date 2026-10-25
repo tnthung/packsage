@@ -240,7 +240,7 @@ public final class JournalSearch {
     }
 
     /** Decodes exact positions only after the R*Tree has admitted the candidate. */
-    private static JournalEntry.EventEntry event(ResultSet row, JournalFilter.Area area) throws SQLException {
+    static JournalEntry.EventEntry event(ResultSet row, JournalFilter.Area area) throws SQLException {
         var dimension = row.getString("dimension");
         var countOnly = row.getBoolean("count_only");
         var inArea = new ArrayList<BlockPlace>();

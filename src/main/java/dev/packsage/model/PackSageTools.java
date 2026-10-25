@@ -15,7 +15,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
 public final class PackSageTools {
-    private static final String WORLD_ANCHOR = "{\"type\":[\"object\",\"null\"],\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"player\",\"entity\",\"block\"]},\"id\":{\"type\":[\"string\",\"null\"],\"maxLength\":36},\"place\":{\"type\":[\"string\",\"null\"],\"maxLength\":300}},\"required\":[\"type\"],\"additionalProperties\":false}";
+    private static final String WORLD_ANCHOR = "{\"type\":[\"object\",\"null\"],\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"player\",\"entity\",\"block\",\"note\"]},\"id\":{\"type\":[\"string\",\"null\"],\"maxLength\":36},\"place\":{\"type\":[\"string\",\"null\"],\"maxLength\":300}},\"required\":[\"type\"],\"additionalProperties\":false}";
     private static final String WORLD_RADIUS = "{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":256}";
     private static final String WORLD_FILTER = "{\"type\":\"object\",\"properties\":{\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256}},\"additionalProperties\":false}";
     private static final String WORLD_ITEM_FILTER = "{\"type\":\"object\",\"properties\":{\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256},\"tooltip\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}}},\"additionalProperties\":false}";
@@ -64,7 +64,8 @@ public final class PackSageTools {
         var definitions = new ArrayList<ModelBackend.ToolDefinition>();
         for (var name : List.of("search_recipe", "search_registry", "read_evidence",
                 "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
-                "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items")) {
+                "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
+                "search_journal", "remember", "update_note", "forget_note")) {
             var properties = new JsonObject();
             var required = new JsonArray();
             switch (name) {
@@ -129,6 +130,28 @@ public final class PackSageTools {
                     properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
                     required.add("filter");
                 }
+                case "search_journal" -> {
+                    properties.add("filter", JsonParser.parseString("{\"type\":\"object\",\"properties\":{\"time\":{\"type\":[\"object\",\"null\"],\"properties\":{\"after\":{\"type\":[\"string\",\"null\"],\"maxLength\":64},\"before\":{\"type\":[\"string\",\"null\"],\"maxLength\":64},\"lastMinutes\":{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":5256000}},\"additionalProperties\":false},\"area\":{\"type\":[\"object\",\"null\"],\"properties\":{\"center\":{\"type\":[\"object\",\"null\"],\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"player\",\"entity\",\"block\",\"note\"]},\"id\":{\"type\":[\"string\",\"null\"],\"maxLength\":36},\"place\":{\"type\":[\"string\",\"null\"],\"maxLength\":300}},\"required\":[\"type\"],\"additionalProperties\":false},\"radius\":{\"type\":\"integer\",\"minimum\":0,\"maximum\":256}},\"required\":[\"radius\"],\"additionalProperties\":false},\"dimension\":{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"},\"types\":{\"type\":[\"array\",\"null\"],\"maxItems\":17,\"items\":{\"type\":\"string\",\"enum\":[\"place\",\"break\",\"deposit\",\"withdraw\",\"death\",\"kill\",\"dimension\",\"advancement\",\"profession\",\"cured\",\"converted\",\"trade\",\"raid_start\",\"raid_end\",\"structure\",\"explosion\",\"note\"]}},\"subjects\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256},\"notesOnly\":{\"type\":[\"boolean\",\"null\"]}},\"additionalProperties\":false}"));
+                    properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
+                    required.add("filter");
+                }
+                case "remember", "update_note" -> {
+                    properties.add("text", JsonParser.parseString("{\"type\":\"string\",\"minLength\":1,\"maxLength\":1000}"));
+                    var at = JsonParser.parseString(WORLD_ANCHOR).getAsJsonObject();
+                    at.getAsJsonObject("properties").getAsJsonObject("type").add("enum", JsonParser.parseString("[\"player\",\"block\",\"entity\"]"));
+                    properties.add("at", at);
+                    properties.add("tags", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"maxItems\":8,\"items\":{\"type\":\"string\",\"minLength\":1,\"maxLength\":32,\"pattern\":\"^[a-z0-9_-]+$\"}}"));
+                    if (name.equals("update_note")) {
+                        properties.add("id", JsonParser.parseString("{\"type\":\"string\",\"pattern\":\"^n[0-9a-f]{8}$\",\"maxLength\":9}"));
+                        properties.add("clearPlace", JsonParser.parseString("{\"type\":[\"boolean\",\"null\"]}"));
+                        required.add("id");
+                    }
+                    required.add("text");
+                }
+                case "forget_note" -> {
+                    properties.add("id", JsonParser.parseString("{\"type\":\"string\",\"pattern\":\"^n[0-9a-f]{8}$\",\"maxLength\":9}"));
+                    required.add("id");
+                }
                 default -> throw new IllegalStateException(name);
             }
             if (List.of("search_recipe", "search_registry").contains(name)) {
@@ -166,6 +189,10 @@ public final class PackSageTools {
                 case "list_items" -> "List the items in one holder (player, a returned holder, an item path whose item holdsItems, or a word: held, offhand, targeted for the block or entity under the crosshair, ridden, opened for the open menu, optionally followed by >steps) grouped by item with counts, variants, up to 8 location paths and slot facts (selected hotbar slot, equipmentSlot, menuSlot); the first record summarizes the holder's inventories with emptySlots and the player's selectedSlot, or an open menu's menuType, title and excludedSlots, the output previews such as a crafting result that are never listed as contents; opened:<id> paths last only while that menu stays open; a word that cannot resolve, such as held with an empty hand, returns no records and says why; inventory limits it to one section; filter.tooltip matches the tooltip lines shown to the player, for example [\"Luck\"]. Inspect a location with inspect_item, or list_items it again to step inside.";
                 case "inspect_item" -> "Read one item by its location path or by held or offhand (optionally followed by >steps, as can targeted and ridden): its tooltip lines as the player sees them (tooltipStatus bounded or unknown when cut or unreadable), enchantments, durability, full potion contents, custom name, attribute modifiers, enchantment eligibility (always present, with a none note when nothing applies), raw components, a component fingerprint that tells same-id variants apart, and the inventories it has.";
                 case "find_items" -> "Search every inventory in range at once: the player's own, containers and entities, including items nested in shulker boxes and bundles, grouped by item with location paths; filter.tooltip matches the tooltip lines shown to the player, for example [\"Luck\"]. Prefer it over opening containers one by one; then inspect_item a returned path. Each container or entity holding a match comes back as its own record with a highlight link.";
+                case "search_journal" -> "Search what this world's journal recorded since it began: blocks placed and broken (also by explosions), items put into or taken from containers, deaths with their cause, kills, dimension changes with the portal, advancements, villager profession changes, curing, conversion and trades, raids, first structure entries, explosions, and the player's notes. Filter by time, area around an anchor, dimension, types, subject ids and text. Newest first, 64 per page. Repeated similar events come back as one run with a count, time span and box. A result covers only the recording period it reports. Notes are what the player said, not facts the game confirmed.";
+                case "remember" -> "Save a note when the player reports something they did, built, achieved or found. Pass their statement as text, at for the place they mean (the player for 'here'), and a few lowercase tags such as build, achievement or resource. If possibleDuplicates shows the same thing, update_note it instead. Save silently; mention notes only when the player asks.";
+                case "update_note" -> "Correct a saved note when the player changes, moves or renames what they reported: replace its text, move it with at, clear its place or replace its tags. Find its id with search_journal notesOnly.";
+                case "forget_note" -> "Delete a saved note when the player says it no longer applies or asks you to forget it.";
                 default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
             }, schema.toString()));
         }

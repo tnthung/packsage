@@ -7,6 +7,7 @@ import dev.packsage.chat.PackSageSettings;
 import dev.packsage.client.highlight.WorldHighlighter;
 import dev.packsage.journal.Journal;
 import dev.packsage.journal.JournalHooks;
+import dev.packsage.journal.JournalTools;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.KnowledgeService;
@@ -382,6 +383,9 @@ public final class ClientAssistant {
         world.register(new MinecraftWorld());
         world.register(new MinecraftEntities());
         providers.add(new WorldTools(client, world, scope, workerExecutor, serverWork, () -> client.submit(() -> GameplayContextCapture.focus(client))));
+        providers.add(new JournalTools(journal, scope, workerExecutor, client::getSingleplayerServer,
+                anchor -> CompletableFuture.failedFuture(new dev.packsage.knowledge.Toolbox.Failure(
+                        dev.packsage.knowledge.Toolbox.Code.UNAVAILABLE, "journal anchor resolution is not available yet"))));
         return new KnowledgeService(providers, scope);
     }
 

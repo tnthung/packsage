@@ -171,6 +171,9 @@ public final class MinecraftStatistics implements StatisticReader {
         private int size;
         private int zeroType;
         private int zeroSubject;
+        private int restarts;
+        private String note;
+        private boolean done;
 
         Walk(Supplier<Object2IntMap<Stat<?>>> source, List<StatType<?>> types, KindFilter subjects) {
             this.source = source;
@@ -180,6 +183,7 @@ public final class MinecraftStatistics implements StatisticReader {
 
         @Override
         public boolean step() {
+            if (done) return false;
             if (counted == null) {
                 counted = source.get();
                 synchronized (counted) {
@@ -187,16 +191,33 @@ public final class MinecraftStatistics implements StatisticReader {
                     entries = counted.object2IntEntrySet().iterator();
                 }
             }
+            var read = 0;
             synchronized (counted) {
-                // A resize invalidates fastutil's retained iterator. Do not turn a torn traversal into absence proof.
-                if (counted.size() != size) throw new IllegalStateException("statistics changed while reading; repeat list_statistics");
-                for (int read = 0; read < STEP_ENTRIES && entries.hasNext(); read++) {
-                    var entry = entries.next();
-                    if (types.contains(entry.getKey().getType())) read(entry.getKey(), entry.getIntValue());
+                // The engine only adds counter keys or updates values. Growth invalidates fastutil's iterator.
+                if (counted.size() != size) {
+                    if (restarts++ >= 3) {
+                        note = "Statistics kept changing while reading; partial counters only, repeat list_statistics";
+                        done = true;
+                        return false;
+                    }
+                    rows.clear();
+                    present.clear();
+                    zeroType = 0;
+                    zeroSubject = 0;
+                    size = counted.size();
+                    entries = counted.object2IntEntrySet().iterator();
+                    return true;
                 }
-                if (entries.hasNext()) return true;
+                if (entries != null) {
+                    for (; read < STEP_ENTRIES && entries.hasNext(); read++) {
+                        var entry = entries.next();
+                        if (types.contains(entry.getKey().getType())) read(entry.getKey(), entry.getIntValue());
+                    }
+                    if (entries.hasNext()) return true;
+                    entries = null;
+                }
             }
-            for (int read = 0; read < STEP_ENTRIES && zeroType < types.size(); read++) {
+            for (; read < STEP_ENTRIES && zeroType < types.size(); read++) {
                 if (zeroSubject < subjects.ids().size()) {
                     zero(types.get(zeroType), subjects.ids().get(zeroSubject++));
                 } else {
@@ -204,7 +225,20 @@ public final class MinecraftStatistics implements StatisticReader {
                     zeroSubject = 0;
                 }
             }
-            return zeroType < types.size();
+            done = zeroType >= types.size();
+            return !done;
+        }
+
+        @Override
+        public String note() {
+            return note;
+        }
+
+        @Override
+        public boolean stopEarly() {
+            note = "Statistics read reached the server work budget; partial counters only, repeat list_statistics";
+            done = true;
+            return true;
         }
 
         @Override

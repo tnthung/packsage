@@ -304,6 +304,7 @@ public final class ProgressTools implements KnowledgeProvider {
                     if (slice == null) slice = readers.get(index).statistics(player, categories, subjects);
                     if (slice.step()) return true;
                     rows.add(List.copyOf(slice.result()));
+                    if (slice.note() != null) notes.add(readers.get(index).adapterId() + ": " + slice.note());
                 } catch (VirtualMachineError failure) {
                     throw failure;
                 } catch (Throwable failure) {

@@ -41,7 +41,7 @@ class DebugBridgeTest {
                 "GET /state HTTP/1.1\r\n" + "X: a\r\n".repeat(65) + "\r\n",
                 "GET /state HTTP/1.1\r\nX: " + "a".repeat(17000) + "\r\n\r\n",
                 "GET /state HTTP/1.0\r\n\r\n" }) {
-            assertThrows(DebugHttp.Failure.class, () -> DebugHttp.parse(new ByteArrayInputStream(wire.getBytes(StandardCharsets.UTF_8))), wire.substring(0, 25));
+            assertThrows(DebugHttp.Failure.class, () -> DebugHttp.parse(new ByteArrayInputStream(wire.getBytes(StandardCharsets.UTF_8))), wire.substring(0, Math.min(25, wire.length())));
         }
     }
 

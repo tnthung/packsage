@@ -198,6 +198,8 @@ Investigate before fixing, under `superpowers:systematic-debugging`.
 
 - [x] **Candidate 5 follow-up: provider citation markup.** Translate each complete U+E200 `cite` U+E202 reference group into consecutive bracket citations for exact current-request aliases/references, dropping unknown references and delimiters. Preserve replay and web offsets across every two-delta split. Strip private-use characters on saved-reply display without rewriting stored text, retaining known chips even in mixed groups. Focused tests: 68 passed; full build: 1,057 tests, zero failures/errors, four skipped. Installed/live acceptance remains pending; the [Candidate 5 failure evidence](../validation/2026-10-25-v2-acceptance.md#candidate-5) is unchanged.
 
+- [x] **Candidate 5 review fix round 1: preserve malformed-group prose.** Stop group bodies at whitespace, another group start or an opening bracket; on those boundaries, overflow or finish, remove only the full group prefix and private-use markers while preserving the body through recorded replacements. A failed prefix match removes only private-use markers. Saved-display group matching uses the same boundaries and static compiled patterns. Focused RED: 72 tests, four expected failures; GREEN: 72 passed. Full build: 1,061 tests, zero failures/errors, four skipped. Short canonical references still count toward the 4,096-reference request registry because recognizing them inside groups requires bounded retained state. Installed/live acceptance remains pending.
+
 ### Task 4: Whole-prompt rewrite and tool descriptions (candidate 1)
 
 **Files:**

@@ -4,6 +4,7 @@
 
 ### 2026-10-25
 
+- Malformed or unfinished provider citation groups now preserve surrounding prose in streamed replies and terminal replay, including oversized groups and later valid citations. Stray private-use markers no longer delete ordinary letters, and saved-reply display stops group parsing at prose boundaries. Automated regression checks pass; installed verification is pending.
 - Provider citation groups now become ordinary bracket citations in streamed and saved replies, keeping only references known to the request and preserving web-citation offsets. Older saved replies keep their stored text while the screen hides private-use markers and retains known source and navigation chips. Automated checks pass; installed verification is pending.
 - Inspected air blocks no longer offer a Show link that cannot resolve. Ordinary block inspection and its highlight links keep their existing behavior.
 - Fixed debug bridge navigation rejecting repeated links to the same destination in one reply. It selects the first source for the same provider and target id, while rejecting missing targets and collisions between providers.

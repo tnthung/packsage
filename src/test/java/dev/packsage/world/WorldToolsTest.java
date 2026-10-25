@@ -524,6 +524,18 @@ class WorldToolsTest {
         assertEquals(java.util.Set.of("unknown is not a vanilla menu; some listed slots may be previews"), notes);
         assertFalse(WorldTools.menuFacts(holder, new ClientFocus(null, 8, "Other"), notes).values().containsKey("title"),
                 "the client shows a different menu");
+
+        var broken = new TestMenu(7);
+        broken.slots.add(new net.minecraft.world.inventory.Slot(storage, 0, 0, 0) {
+            @Override
+            public boolean isActive() {
+                throw new IllegalStateException("slot broke");
+            }
+        });
+        var brokenNotes = new java.util.LinkedHashSet<String>();
+        var brokenFacts = WorldTools.menuFacts(new LiveHolder.OfMenu(broken, new net.minecraft.world.SimpleContainer(36)), ClientFocus.NONE, brokenNotes).values();
+        assertEquals(new Evidence.JsonNull(), brokenFacts.get("excludedSlots"));
+        assertEquals(java.util.Set.of("The preview slots of unknown could not be read: slot broke"), brokenNotes);
     }
 
     private static final class TestMenu extends net.minecraft.world.inventory.AbstractContainerMenu {

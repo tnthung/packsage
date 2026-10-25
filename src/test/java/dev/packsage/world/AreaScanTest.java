@@ -88,7 +88,8 @@ class AreaScanTest {
     @Test
     void anEntityMovingIntoAnAlreadyReadChunkMakesTheReadPartial() throws Exception {
         var world = DenseWorld.create(1);
-        world.chunks.neighbor = world.chunks.chunk;
+        world.chunks.neighbor = DenseWorld.create(0).chunks.chunk;
+        ((DenseWorld.Chunk) world.chunks.neighbor).position = new ChunkPos(1, 0);
         world.entities.getFirst().setPos(20, 64, 8);
         var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(16, 64, 8), 6, KindFilter.ANY, null);
         assertTrue(slice.step(), "the empty first chunk is read before the move");
@@ -103,13 +104,14 @@ class AreaScanTest {
 
     @Test
     void aBorderEntityIsReturnedOnlyOnceAcrossPages() throws Exception {
-        var world = DenseWorld.create(65);
-        world.chunks.neighbor = world.chunks.chunk;
-        for (int i = 0; i < 64; i++) {
+        var world = DenseWorld.create(66);
+        world.chunks.neighbor = DenseWorld.create(0).chunks.chunk;
+        ((DenseWorld.Chunk) world.chunks.neighbor).position = new ChunkPos(1, 0);
+        for (int i = 0; i < 65; i++) {
             world.entities.get(i).setUUID(new UUID(0, i + 1));
             world.entities.get(i).setPos(i == 0 ? 15.95 : 12, 64, 8);
         }
-        world.entities.getLast().setUUID(new UUID(0, 65));
+        world.entities.getLast().setUUID(new UUID(0, 66));
         world.entities.getLast().setPos(20, 64, 8);
         var ids = new HashSet<UUID>();
         String cursor = null;
@@ -123,7 +125,7 @@ class AreaScanTest {
             if (cursor == null) assertEquals(Evidence.Coverage.COMPLETE, slice.result().coverage());
             assertTrue(++pages <= 2);
         } while (cursor != null);
-        assertEquals(65, ids.size());
+        assertEquals(66, ids.size());
         assertEquals(2, pages);
     }
 

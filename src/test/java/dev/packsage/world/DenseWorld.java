@@ -31,8 +31,9 @@ import java.util.function.Predicate;
 final class DenseWorld {
     static final class Chunk extends LevelChunk {
         Map<BlockPos, BlockEntity> blockEntities;
+        ChunkPos position;
         Chunk() { super(null, new ChunkPos(0, 0)); }
-        @Override public ChunkPos getPos() { return new ChunkPos(0, 0); }
+        @Override public ChunkPos getPos() { return position; }
         @Override public Map<BlockPos, BlockEntity> getBlockEntities() { return blockEntities; }
         @Override public BlockState getBlockState(BlockPos pos) { return Blocks.BARREL.defaultBlockState(); }
     }
@@ -91,6 +92,7 @@ final class DenseWorld {
         var world = (World) unsafe.allocateInstance(World.class);
         world.chunks = (Chunks) unsafe.allocateInstance(Chunks.class);
         world.chunks.chunk = (Chunk) unsafe.allocateInstance(Chunk.class);
+        ((Chunk) world.chunks.chunk).position = new ChunkPos(0, 0);
         ((Chunk) world.chunks.chunk).blockEntities = new Object2ObjectOpenHashMap<>();
         world.entities = new ArrayList<>();
         world.gameTime = 400;

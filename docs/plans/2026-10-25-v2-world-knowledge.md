@@ -111,7 +111,7 @@ src/main/java/dev/packsage/world/minecraft/
   MinecraftLoot.java         NEW  table resolution, encoding, pool paging, item and tag summary
   LocateBiome.java           NEW  ServerWork.Slice spiral biome sampler
   StructureCandidates.java   NEW  candidate chunks per placement, in vanilla ring order
-  SavedStarts.java           NEW  region-file guard, scan selector, saved-NBT verdict
+  SavedStarts.java           NEW  optional region pre-check, selective NBT visitor and classifier for PackSage's read-only region reader; no vanilla storage scan
   LocateStructure.java       NEW  ServerWork.Slice over candidates: loaded check, placement and biome prediction
   CommandReader.java         NEW  generic Brigadier tree reader
 src/main/java/dev/packsage/client/highlight/WorldHighlighter.java   MOD  highlightPlace column

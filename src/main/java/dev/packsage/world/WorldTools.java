@@ -170,8 +170,8 @@ public final class WorldTools implements KnowledgeProvider {
 
     public WorldTools(Minecraft client, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
                       Supplier<CompletionStage<ClientFocus>> focus, Function<String, BlockPlace> notePlaces) {
-        this(client::getSingleplayerServer, registry, scope, worker, work, focus, WorldNavigation.blockLookup(client::getSingleplayerServer),
-                WorldNavigation.entityLookup(client::getSingleplayerServer), WorldNavigation.client(client), notePlaces);
+        this(client::getSingleplayerServer, registry, scope, worker, work, focus,
+                new WorldNavigation(client::getSingleplayerServer, WorldNavigation.client(client)), notePlaces);
     }
 
     /** Highlights check {@code blockExists} and {@code entityPlace} before drawing through {@code client}. */
@@ -183,6 +183,11 @@ public final class WorldTools implements KnowledgeProvider {
     WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
                Supplier<CompletionStage<ClientFocus>> focus, Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace,
                WorldNavigation.Client client, Function<String, BlockPlace> notePlaces) {
+        this(server, registry, scope, worker, work, focus, new WorldNavigation(blockExists, entityPlace, client), notePlaces);
+    }
+
+    private WorldTools(Supplier<MinecraftServer> server, WorldRegistry registry, Supplier<Evidence.Scope> scope, Executor worker, ServerWork work,
+                       Supplier<CompletionStage<ClientFocus>> focus, WorldNavigation navigation, Function<String, BlockPlace> notePlaces) {
         this.server = server;
         this.registry = registry;
         this.scope = scope;
@@ -190,7 +195,7 @@ public final class WorldTools implements KnowledgeProvider {
         this.work = work;
         this.focus = focus;
         this.scan = new AreaScan(registry);
-        this.navigation = new WorldNavigation(blockExists, entityPlace, client);
+        this.navigation = navigation;
         this.notePlaces = notePlaces;
         this.knowledge = new WorldKnowledgeTools(this);
     }
@@ -275,6 +280,9 @@ public final class WorldTools implements KnowledgeProvider {
 
     @Override
     public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+        if (!scope.equals(this.scope.get()) || !scope.equals(target.scope())) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.STALE, "observation scope changed");
+        }
         return navigation.open(target);
     }
 

@@ -12,11 +12,11 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.TickTask;
 
 import java.util.UUID;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -60,13 +60,23 @@ public final class WorldNavigation {
         void highlightPlace(BlockPlace place, long untilMillis);
     }
 
-    private final Function<BlockPlace, Boolean> blockExists;
-    private final Function<UUID, BlockPlace> entityPlace;
+    private final Function<BlockPlace, CompletionStage<Boolean>> blockExists;
+    private final Function<UUID, CompletionStage<BlockPlace>> entityPlace;
     private final Client client;
+    private final Map<Evidence.NavigationTarget, CompletableFuture<Check>> checks = new LinkedHashMap<>();
+
+    private record Check(Destination destination, Boolean blockExists, BlockPlace entityPlace, String failure) {
+    }
 
     WorldNavigation(Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace, Client client) {
-        this.blockExists = blockExists;
-        this.entityPlace = entityPlace;
+        this.blockExists = place -> CompletableFuture.completedFuture(blockExists.apply(place));
+        this.entityPlace = id -> CompletableFuture.completedFuture(entityPlace.apply(id));
+        this.client = client;
+    }
+
+    WorldNavigation(Supplier<MinecraftServer> servers, Client client) {
+        this.blockExists = blockLookup(servers);
+        this.entityPlace = entityLookup(servers);
         this.client = client;
     }
 
@@ -99,28 +109,63 @@ public final class WorldNavigation {
         throw new IllegalArgumentException("Invalid world target: " + targetId);
     }
 
-    /** Rebinds a well-formed saved target to the current scope; existence is checked when it opens. */
+    /** Resolves server state without waiting on the client. The runtime rechecks selection/scope before opening. */
     CompletionStage<Evidence.NavigationTarget> refresh(Evidence.NavigationTarget target, Evidence.Scope scope) {
         if (!WorldTools.ID.equals(target.providerId())) return CompletableFuture.completedFuture(null);
-        try {
-            parse(target.targetId());
-        } catch (IllegalArgumentException failure) {
-            return CompletableFuture.completedFuture(null);
-        }
-        return CompletableFuture.completedFuture(new Evidence.NavigationTarget(scope, WorldTools.ID, target.sourceHandle(), target.targetId()));
-    }
-
-    Evidence.NavigationResult open(Evidence.NavigationTarget target) {
         Destination destination;
         try {
             destination = parse(target.targetId());
         } catch (IllegalArgumentException failure) {
+            return CompletableFuture.completedFuture(null);
+        }
+        var current = new Evidence.NavigationTarget(scope, WorldTools.ID, target.sourceHandle(), target.targetId());
+        var pending = new CompletableFuture<Check>();
+        synchronized (checks) {
+            checks.put(current, pending);
+            while (checks.size() > 64) checks.remove(checks.keySet().iterator().next());
+        }
+        CompletionStage<Check> resolution;
+        try {
+            resolution = switch (destination) {
+                case Destination.Block block -> blockExists.apply(block.place())
+                        .thenApply(exists -> new Check(destination, exists, null, null));
+                case Destination.Entity entity -> entityPlace.apply(entity.id())
+                        .thenApply(place -> new Check(destination, null, place, null));
+                case Destination.Place place -> CompletableFuture.completedFuture(new Check(destination, null, null, null));
+            };
+        } catch (RuntimeException failure) {
+            resolution = CompletableFuture.failedFuture(failure);
+        }
+        return resolution.handle((check, failure) -> {
+            if (failure != null) {
+                while (failure.getCause() != null) failure = failure.getCause();
+                check = new Check(destination, null, null, failure.getMessage() == null ? "world check failed" : failure.getMessage());
+            }
+            pending.complete(check);
+            synchronized (checks) {
+                return checks.get(current) == pending ? current : null;
+            }
+        });
+    }
+
+    Evidence.NavigationResult open(Evidence.NavigationTarget target) {
+        try {
+            parse(target.targetId());
+        } catch (IllegalArgumentException failure) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.ERROR, failure.getMessage());
         }
+        CompletableFuture<Check> pending;
+        synchronized (checks) {
+            pending = checks.remove(target);
+        }
+        // getNow never waits, even when a caller skips the asynchronous refresh contract.
+        var check = pending == null ? null : pending.getNow(null);
+        if (check == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "world target has not been resolved");
+        if (check.failure() != null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, check.failure());
         try {
-            return switch (destination) {
-                case Destination.Block block -> openBlock(block.place());
-                case Destination.Entity entity -> openEntity(entity.id());
+            return switch (check.destination()) {
+                case Destination.Block block -> openBlock(block.place(), check.blockExists());
+                case Destination.Entity entity -> openEntity(entity.id(), check.entityPlace());
                 case Destination.Place place -> openPlace(place.place());
             };
         } catch (RuntimeException failure) {
@@ -128,15 +173,15 @@ public final class WorldNavigation {
         }
     }
 
-    private Evidence.NavigationResult openBlock(BlockPlace place) {
+    private Evidence.NavigationResult openBlock(BlockPlace place, Boolean exists) {
         var here = client.dimension();
         if (here == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "the player is not in a world");
-        if (!here.equals(place.dimension())) {
-            return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, coordinates(place) + " in " + place.dimension());
-        }
-        if (!Boolean.TRUE.equals(blockExists.apply(place))) {
+        if (!Boolean.TRUE.equals(exists)) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE,
                     "no block remains at " + coordinates(place) + " in " + place.dimension() + ", or its chunk is not loaded");
+        }
+        if (!here.equals(place.dimension())) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, coordinates(place) + " in " + place.dimension());
         }
         client.highlightBlock(place, System.currentTimeMillis() + HIGHLIGHT_MILLIS);
         return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, null);
@@ -157,8 +202,7 @@ public final class WorldNavigation {
         return place.x() + ", " + place.y() + ", " + place.z();
     }
 
-    private Evidence.NavigationResult openEntity(UUID id) {
-        var place = entityPlace.apply(id);
+    private Evidence.NavigationResult openEntity(UUID id, BlockPlace place) {
         if (place == null) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "entity " + id + " is no longer loaded and alive");
         }
@@ -172,7 +216,7 @@ public final class WorldNavigation {
     // Production lookups and client
 
     /** True when the place holds a non-air block in a loaded chunk; never loads a chunk. */
-    static Function<BlockPlace, Boolean> blockLookup(Supplier<MinecraftServer> servers) {
+    static Function<BlockPlace, CompletionStage<Boolean>> blockLookup(Supplier<MinecraftServer> servers) {
         return place -> onServer(servers, server -> {
             var dimension = ResourceLocation.tryParse(place.dimension());
             var level = dimension == null ? null : server.getLevel(ResourceKey.create(Registries.DIMENSION, dimension));
@@ -185,7 +229,7 @@ public final class WorldNavigation {
     }
 
     /** Where the loaded, living entity with the id stands in any dimension, or null when there is none. */
-    static Function<UUID, BlockPlace> entityLookup(Supplier<MinecraftServer> servers) {
+    static Function<UUID, CompletionStage<BlockPlace>> entityLookup(Supplier<MinecraftServer> servers) {
         return id -> onServer(servers, server -> {
             for (var level : server.getAllLevels()) {
                 var entity = level.getEntity(id);
@@ -233,28 +277,20 @@ public final class WorldNavigation {
         };
     }
 
-    /** Runs a world read on the server thread, waiting at most a second so a click never stalls the client for long. */
-    private static <T> T onServer(Supplier<MinecraftServer> servers, Function<MinecraftServer, T> read) {
+    /** Completes a queued server read asynchronously; no caller waits for a tick or a timeout. */
+    private static <T> CompletionStage<T> onServer(Supplier<MinecraftServer> servers, Function<MinecraftServer, T> read) {
         var server = servers.get();
-        if (server == null) throw new IllegalStateException(NO_SERVER);
-        if (server.isSameThread()) return read.apply(server);
+        if (server == null) return CompletableFuture.failedFuture(new IllegalStateException(NO_SERVER));
+        if (server.isSameThread()) return CompletableFuture.completedFuture(read.apply(server));
         var answer = new CompletableFuture<T>();
         server.tell(new TickTask(server.getTickCount(), () -> {
             try {
+                if (servers.get() != server) throw new IllegalStateException(NO_SERVER);
                 answer.complete(read.apply(server));
             } catch (RuntimeException failure) {
                 answer.completeExceptionally(failure);
             }
         }));
-        try {
-            return answer.get(CHECK_MILLIS, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException failure) {
-            throw new IllegalStateException("the server did not answer in time");
-        } catch (InterruptedException failure) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("interrupted while checking the world");
-        } catch (ExecutionException failure) {
-            throw new IllegalStateException(failure.getCause() == null ? "world check failed" : failure.getCause().getMessage());
-        }
+        return answer.orTimeout(CHECK_MILLIS, TimeUnit.MILLISECONDS);
     }
 }

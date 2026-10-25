@@ -88,6 +88,10 @@ class WorldNavigationTest {
         return new WorldTools(() -> null, new WorldRegistry(), () -> scope, Runnable::run, new ServerWork(System::nanoTime), () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), blockExists, entityPlace, client);
     }
 
+    private static Evidence.NavigationResult open(WorldTools tools, Evidence.NavigationTarget target, Evidence.Scope scope) {
+        var refreshed = tools.refreshNavigation(target, scope).toCompletableFuture().join();
+        return tools.open(refreshed == null ? target : refreshed, scope);
+    }
     /** The living mob stands at MOB_PLACE; any other id is gone. */
     private static BlockPlace mob(UUID id) {
         return MOB.equals(id) ? MOB_PLACE : null;
@@ -121,33 +125,39 @@ class WorldNavigationTest {
     void openingABrokenBlockOrDeadMobIsUnavailableAndDrawsNothing() {
         var client = new FakeClient();
         var gone = tools(SCOPE, place -> false, id -> null, client);
-        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, gone.open(block(SCOPE), SCOPE).status());
-        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, gone.open(entity(SCOPE), SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, open(gone, block(SCOPE), SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, open(gone, entity(SCOPE), SCOPE).status());
         var failing = tools(SCOPE, place -> {
             throw new IllegalStateException("world highlights need an integrated singleplayer server");
         }, id -> {
             throw new IllegalStateException("world highlights need an integrated singleplayer server");
         }, client);
-        var failed = failing.open(block(SCOPE), SCOPE);
+        var failed = open(failing, block(SCOPE), SCOPE);
         assertEquals(Evidence.NavigationStatus.UNAVAILABLE, failed.status());
         assertEquals("world highlights need an integrated singleplayer server", failed.detail());
-        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, failing.open(entity(SCOPE), SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, open(failing, entity(SCOPE), SCOPE).status());
         assertEquals(List.of(), client.drawn);
 
         var before = System.currentTimeMillis();
         var present = tools(SCOPE, PLACE::equals, WorldNavigationTest::mob, client);
-        assertEquals(Evidence.NavigationStatus.OPENED, present.open(block(SCOPE), SCOPE).status());
-        assertEquals(Evidence.NavigationStatus.OPENED, present.open(entity(SCOPE), SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.OPENED, open(present, block(SCOPE), SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.OPENED, open(present, entity(SCOPE), SCOPE).status());
         assertEquals(List.of("block " + PLACE.text(), "entity " + MOB), client.drawn);
         for (long until : client.until) assertTrue(until >= before + 30_000 && until <= System.currentTimeMillis() + 30_000, "until " + until);
 
         client.drawn.clear();
         client.dimension = "minecraft:the_nether";
-        var elsewhere = tools(SCOPE, place -> {
-            throw new AssertionError("another dimension is not read");
-        }, WorldNavigationTest::mob, client).open(block(SCOPE), SCOPE);
+        var elsewhere = open(tools(SCOPE, PLACE::equals, WorldNavigationTest::mob, client), block(SCOPE), SCOPE);
         assertEquals(Evidence.NavigationStatus.OPENED, elsewhere.status());
         assertEquals("10, 64, -3 in minecraft:overworld", elsewhere.detail());
+        assertEquals(List.of(), client.drawn);
+    }
+
+    @Test
+    void aMissingBlockInAnotherDimensionIsUnavailableInsteadOfSubstitutingCoordinates() {
+        var client = new FakeClient();
+        client.dimension = "minecraft:the_nether";
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, open(tools(SCOPE, place -> false, id -> null, client), block(SCOPE), SCOPE).status());
         assertEquals(List.of(), client.drawn);
     }
 
@@ -156,25 +166,25 @@ class WorldNavigationTest {
         var client = new FakeClient();
         var tools = tools(SCOPE, PLACE::equals, WorldNavigationTest::mob, client);
         client.dimension = "minecraft:the_nether";
-        var elsewhere = tools.open(entity(SCOPE), SCOPE);
+        var elsewhere = open(tools, entity(SCOPE), SCOPE);
         assertEquals(Evidence.NavigationStatus.OPENED, elsewhere.status());
         assertEquals("12, 65, -8 in minecraft:overworld", elsewhere.detail());
 
         client.dimension = "minecraft:overworld";
         client.tracksMob = false;
-        var untracked = tools.open(entity(SCOPE), SCOPE);
+        var untracked = open(tools, entity(SCOPE), SCOPE);
         assertEquals(Evidence.NavigationStatus.OPENED, untracked.status());
         assertEquals("12, 65, -8 in minecraft:overworld", untracked.detail());
         assertEquals(List.of(), client.drawn);
 
         client.tracksMob = true;
-        var shown = tools.open(entity(SCOPE), SCOPE);
+        var shown = open(tools, entity(SCOPE), SCOPE);
         assertEquals(Evidence.NavigationStatus.OPENED, shown.status());
         assertNull(shown.detail());
         assertEquals(List.of("entity " + MOB), client.drawn);
 
         var malformed = new Evidence.NavigationTarget(SCOPE, WorldTools.ID, "block|x", "world-block|x");
-        assertEquals(Evidence.NavigationStatus.ERROR, tools.open(malformed, SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.ERROR, open(tools, malformed, SCOPE).status());
         assertEquals(List.of("entity " + MOB), client.drawn);
     }
 
@@ -239,7 +249,7 @@ class WorldNavigationTest {
             throw new AssertionError("a place is never read");
         }, id -> null, client);
         var before = System.currentTimeMillis();
-        var opened = tools.open(place(SCOPE), SCOPE);
+        var opened = open(tools, place(SCOPE), SCOPE);
         assertEquals(Evidence.NavigationStatus.OPENED, opened.status());
         assertNull(opened.detail());
         assertEquals(List.of("place " + PLACE.text()), client.drawn);
@@ -248,7 +258,7 @@ class WorldNavigationTest {
 
         client.drawn.clear();
         client.dimension = null;
-        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, tools.open(place(SCOPE), SCOPE).status());
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, open(tools, place(SCOPE), SCOPE).status());
         assertEquals(List.of(), client.drawn);
     }
 
@@ -256,9 +266,9 @@ class WorldNavigationTest {
     void placesInAnotherDimensionOpenWithCoordinates() {
         var client = new FakeClient();
         client.dimension = "minecraft:the_nether";
-        var opened = tools(SCOPE, place -> {
+        var opened = open(tools(SCOPE, place -> {
             throw new AssertionError("a place is never read");
-        }, id -> null, client).open(place(SCOPE), SCOPE);
+        }, id -> null, client), place(SCOPE), SCOPE);
         assertEquals(Evidence.NavigationStatus.OPENED, opened.status());
         assertEquals("10, 64, -3 in minecraft:overworld", opened.detail());
         assertEquals(List.of(), client.drawn);

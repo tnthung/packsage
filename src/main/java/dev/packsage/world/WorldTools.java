@@ -313,20 +313,14 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private CompletionStage<Evidence.Result> listBlocks(PackSageTools.ReadRequest request) {
-        return list(request, (level, center, radius, filter, cursor) -> scan.listBlocks(level, center, radius, filter, cursor), this::blockRecord);
+        return list(request, (level, center, radius, filter, cursor) -> scan.listBlocks(level, center.position(), radius, filter, cursor), this::blockRecord);
     }
 
     private CompletionStage<Evidence.Result> listEntities(PackSageTools.ReadRequest request) {
-        var anchor = anchor(argument(request, "center"));
-        var radius = radius(argument(request, "radius"));
-        var filter = filter(argument(request, "filter"), false);
-        var cursor = cursor(request);
-        var server = server();
-        var state = cursor == null ? null : state(cursor, ListState.class);
-        return run(server, spanned(gameTime(server), then(() -> state == null ? center(server, anchor) : state.center(), center -> {
-            var slice = scan.listEntities(level(server, center.dimension()), center.position(), radius, filter, state == null ? null : state.scan());
+        return list(request, (level, center, radius, filter, cursor) -> {
+            var slice = scan.listEntities(level, center.position(), radius, filter, cursor);
             return mapped(slice, page -> new EntityRead(center, page, List.copyOf(slice.cursors)));
-        }))).thenApply(read -> {
+        }).thenApply(read -> {
             var page = read.value().page();
             var records = new ArrayList<Evidence.Record>();
             var bytes = 0;
@@ -358,23 +352,27 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private interface ListScan<T> {
-        ServerWork.Slice<Page<T>> scan(ServerLevel level, Vec3 center, int radius, KindFilter filter, String cursor);
+        ServerWork.Slice<T> scan(ServerLevel level, Center center, int radius, KindFilter filter, String cursor);
     }
 
     private interface RecordOf<T> {
         Evidence.Record record(Evidence.Scope scope, T handle, ReadSpan span);
     }
 
-    private <T> CompletionStage<Evidence.Result> list(PackSageTools.ReadRequest request, ListScan<T> listing, RecordOf<T> records) {
+    private <T> CompletionStage<Spanned<T>> list(PackSageTools.ReadRequest request, ListScan<T> listing) {
         var anchor = anchor(argument(request, "center"));
         var radius = radius(argument(request, "radius"));
         var filter = filter(argument(request, "filter"), false);
         var cursor = cursor(request);
         var server = server();
         var state = cursor == null ? null : state(cursor, ListState.class);
-        return run(server, spanned(gameTime(server), then(() -> state == null ? center(server, anchor) : state.center(), center -> mapped(
-                listing.scan(level(server, center.dimension()), center.position(), radius, filter, state == null ? null : state.scan()),
-                page -> Map.entry(center, page))))).thenApply(read -> {
+        return run(server, spanned(gameTime(server), then(() -> state == null ? center(server, anchor) : state.center(), center ->
+                listing.scan(level(server, center.dimension()), center, radius, filter, state == null ? null : state.scan()))));
+    }
+
+    private <T> CompletionStage<Evidence.Result> list(PackSageTools.ReadRequest request, ListScan<Page<T>> listing, RecordOf<T> records) {
+        return list(request, (level, center, radius, filter, cursor) -> mapped(listing.scan(level, center, radius, filter, cursor),
+                page -> Map.entry(center, page))).thenApply(read -> {
             var page = read.value().getValue();
             var next = page.nextCursor() == null ? null : remember(request, new ListState(read.value().getKey(), page.nextCursor()));
             return result(page.items().stream().map(handle -> records.record(request.scope(), handle, read.span())).toList(), page.coverage(), next, page.note());

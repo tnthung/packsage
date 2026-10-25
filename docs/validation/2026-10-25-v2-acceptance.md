@@ -22873,3 +22873,18 @@ The NeoForge 21.1.202 sources show that `RenderStateShard.NO_DEPTH_TEST` does no
 Evidence folder: `build/nether-column-recheck/`. The three `*-chat.json` files preserve complete replies, navigation targets, actual tool calls/results and request timing; matching `*-navigation.json` and `*-state.json` record navigation and camera state. `baseline-column-check.json`, `column-pixel-checks.json`, `duration-captures.json`, `build.log`, `test-totals.json`, `WorldHighlighterTest.xml` and `build-metadata.json` preserve the failing check, comparison, timings and automated evidence. The two pure helper unit tests cover the original L1/L2 distance fixtures, zero distance and small far planes; OpenGL visibility is established by the live screenshots.
 
 Final state: New World / `PackSage Adapter Filter Live Test`, Overworld, restored original position `(1003.5,250,1002.5)`, yaw 0, pitch 10, `screen:null`, `running:true`, `paused:false`; render distance 12, prompt override cleared, empty main hand, F3 hidden. [Final screenshot](../../build/nether-column-recheck/final-state.png). No push, merge, formatting tools, other worktrees or `build/prompt-candidates/` changes.
+
+## Candidate 7 - M1 note move
+
+Date: 2026-10-26. Candidate 7 adds one sentence to the note-keeping rule of the promoted candidate 6: a move passes `at` with the place the player names, or the player when they name none; `clearPlace` only when they say it no longer has a place; one note per thing. Run through the debug bridge with the candidate as the developer override on the running installed build (save PackSage Adapter Filter Live Test), each question in a new chat. A fresh gold-farm fixture avoided the two pre-existing iron-farm notes. Raw bridge JSON is retained in `build/m1-live/` (ignored).
+
+| Step | Question | Calls | Result |
+|---|---|---|---|
+| Report | `I built a gold farm here` at (1003,250,1002) | remember, at player | PASS: silent reply |
+| Move, no destination | `I moved my gold farm` after teleporting to (1040,250,1002); the player landed at y=100 | search_journal notesOnly, then update_note on note n1090dce0, at player, clearPlace null | PASS: one note, no cleared place |
+| Recall | `where is my gold farm?` | search_journal notesOnly, then a redundant search_journal without notesOnly | PASS: (1040,100,1002) with the note link |
+| Move, named place | `I moved my gold farm to 1010 100 990` | update_note, at the named block place, clearPlace false | PASS |
+| Old link | `/navigate` on the recall reply's `journal-note\|n1090dce0` target | OPENED | PASS: the column marks (1010,100,990), the new place |
+| Retirement | `I tore down my gold farm, it's gone now` | forget_note | PASS: the player's position was not saved as a place |
+
+Remaining observations, not failures: the recall made one redundant second journal search, and its reply called the place "the position shown in your latest gameplay observation". Candidate 7 was promoted to the code default in 701162a, and the override was cleared. The installed-default recheck follows the next install.

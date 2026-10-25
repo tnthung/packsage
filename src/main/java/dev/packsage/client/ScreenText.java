@@ -81,9 +81,10 @@ final class ScreenText {
 
     /** Renders Markdown for display; markers covered by one of the given navigation targets are omitted. */
     static List<Component> markdownLines(String text, List<Evidence.NavigationTarget> targets) {
-        text = PRIVATE_USE_MARKERS.matcher(CITATION_GROUP.matcher(text).replaceAll(group -> Matcher.quoteReplacement(
+        text = CITATION_GROUP.matcher(text).replaceAll(group -> Matcher.quoteReplacement(
                 List.of(group.group(1).split("\uE202", -1)).stream().filter(value -> CITATION_MARKER.matcher("[" + value + "]").matches())
-                        .map(value -> "[" + value + "]").collect(Collectors.joining()))))).replaceAll("");
+                        .map(value -> "[" + value + "]").collect(Collectors.joining())));
+        text = PRIVATE_USE_MARKERS.matcher(text).replaceAll("");
         Set<String> covered = new HashSet<>();
         for (Evidence.NavigationTarget target : targets) covered.add(target.providerId() + ":" + target.sourceHandle());
         List<Component> lines = new ArrayList<>();

@@ -54,6 +54,12 @@ class WorldNavigationTest {
             drawn.add("entity " + id);
             until.add(untilMillis);
         }
+
+        @Override
+        public void highlightPlace(BlockPlace place, long untilMillis) {
+            drawn.add("place " + place.text());
+            until.add(untilMillis);
+        }
     }
 
     private static WorldTools tools(Evidence.Scope scope, Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace,
@@ -72,6 +78,10 @@ class WorldNavigationTest {
 
     private static Evidence.NavigationTarget entity(Evidence.Scope scope) {
         return new Evidence.NavigationTarget(scope, WorldTools.ID, "entity|" + MOB, WorldNavigation.entityId(MOB));
+    }
+
+    private static Evidence.NavigationTarget place(Evidence.Scope scope) {
+        return new Evidence.NavigationTarget(scope, WorldTools.ID, "locate|minecraft:overworld|minecraft:desert|10,-3", WorldNavigation.placeId(PLACE));
     }
 
     @Test

@@ -72,7 +72,7 @@ public final class JournalWriter {
         return ready;
     }
 
-    /** Runs {@code command} on the writer thread ahead of the next batch; fails once the writer is closing. */
+    /** Runs {@code command} on the writer thread after any due periodic drain; fails once the writer is closing. */
     public <T> CompletableFuture<T> submit(StoreCommand<T> command) {
         var future = new CompletableFuture<T>();
         synchronized (taskLock) {

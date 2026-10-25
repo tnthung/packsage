@@ -22,6 +22,7 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.PlayerAdvancements;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.math.BigDecimal;
@@ -34,7 +35,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -52,7 +55,7 @@ public final class MinecraftProgress implements ProgressReader {
      * reload replaces; {@code criterionLabel} names a criterion for the player.
      */
     record Source(Supplier<Object> generation, Supplier<AdvancementTree> tree, Function<AdvancementHolder, AdvancementProgress> progress,
-                  Function<String, String> criterionLabel) {
+                  Predicate<AdvancementHolder> visible, Function<String, String> criterionLabel) {
     }
 
     @Override
@@ -73,8 +76,16 @@ public final class MinecraftProgress implements ProgressReader {
     private static Source source(ServerPlayer player) {
         var server = player.getServer();
         var registries = player.registryAccess();
-        return new Source(server::getAdvancements, () -> server.getAdvancements().tree(), player.getAdvancements()::getOrStartProgress,
-                name -> criterionLabel(registries, name));
+        try {
+            // Read vanilla's packet visibility set on the server thread, without evaluating or flushing dirty progress.
+            var field = PlayerAdvancements.class.getDeclaredField("visible");
+            field.setAccessible(true);
+            var visible = (Set<?>) field.get(player.getAdvancements());
+            return new Source(server::getAdvancements, () -> server.getAdvancements().tree(), player.getAdvancements()::getOrStartProgress,
+                    visible::contains, name -> criterionLabel(registries, name));
+        } catch (ReflectiveOperationException | RuntimeException failure) {
+            throw new IllegalStateException("advancement tab visibility could not be read", failure);
+        }
     }
 
     /** A biome, entity type or item named by the criterion gives its translated name; anything else is the name itself. */
@@ -110,21 +121,22 @@ public final class MinecraftProgress implements ProgressReader {
         var node = source.tree().get().get(id);
         if (node == null || node.advancement().display().isEmpty() || node.root().advancement().display().isEmpty()) return null;
         var tree = id(node.root());
+        var tabVisible = source.visible().test(node.root().holder());
         var parent = displayedParent(node);
         var parentProgress = parent == null ? null : source.progress().apply(parent.holder());
         var progress = source.progress().apply(node.holder());
-        var handle = handle(node, tree, progress, parentProgress == null ? null : parentProgress.isDone());
+        var handle = handle(node, tree, progress, parentProgress == null ? null : parentProgress.isDone(), tabVisible);
         if (handle.status() == ProgressStatus.HIDDEN) return Progress.hidden(handle);
 
         var requires = new ArrayList<ProgressHandle>();
         if (parent != null) {
             var grandparent = displayedParent(parent);
             requires.add(handle(parent, tree, parentProgress,
-                    grandparent == null ? null : source.progress().apply(grandparent.holder()).isDone()));
+                    grandparent == null ? null : source.progress().apply(grandparent.holder()).isDone(), tabVisible));
         }
         var unlocks = new ArrayList<ProgressHandle>();
         for (var child : displayedChildren(node)) {
-            unlocks.add(handle(child, tree, source.progress().apply(child.holder()), progress.isDone()));
+            unlocks.add(handle(child, tree, source.progress().apply(child.holder()), progress.isDone(), tabVisible));
         }
 
         var advancement = node.advancement();
@@ -186,6 +198,7 @@ public final class MinecraftProgress implements ProgressReader {
         private List<AdvancementNode> roots;
         private int nextRoot;
         private AdvancementNode root;
+        private boolean tabVisible;
         private int done;
         private int total;
         private String note;
@@ -210,11 +223,12 @@ public final class MinecraftProgress implements ProgressReader {
             for (var handled = 0; handled < STEP_NODES; handled++) {
                 if (pending.isEmpty()) {
                     if (root != null) {
-                        trees.add(new ProgressTree(id(root), title(root), done, total));
+                        trees.add(new ProgressTree(id(root), title(root), done, total, tabVisible));
                         root = null;
                     }
                     if (nextRoot == roots.size()) return false;
                     root = roots.get(nextRoot++);
+                    tabVisible = source.visible().test(root.holder());
                     done = 0;
                     total = 0;
                     pending.push(new Pending(root, null));
@@ -230,7 +244,7 @@ public final class MinecraftProgress implements ProgressReader {
             var parentDone = next.parentDone();
             if (display.isPresent()) {
                 var progress = source.progress().apply(node.holder());
-                var handle = handle(node, id(root), progress, parentDone);
+                var handle = handle(node, id(root), progress, parentDone, tabVisible);
                 entries.add(new ProgressEntry(handle, handle.status() == ProgressStatus.HIDDEN ? null : description(display.get())));
                 total++;
                 if (progress.isDone()) done++;
@@ -248,10 +262,10 @@ public final class MinecraftProgress implements ProgressReader {
         }
     }
 
-    private static ProgressHandle handle(AdvancementNode node, ProgressId tree, AdvancementProgress progress, Boolean parentDone) {
+    private static ProgressHandle handle(AdvancementNode node, ProgressId tree, AdvancementProgress progress, Boolean parentDone, boolean tabVisible) {
         var display = node.advancement().display().orElseThrow();
         var status = status(progress.isDone(), progress.hasProgress(), display.isHidden(), parentDone);
-        return new ProgressHandle(id(node), tree, status == ProgressStatus.HIDDEN ? null : title(node), status);
+        return new ProgressHandle(id(node), tree, status == ProgressStatus.HIDDEN ? null : title(node), status, tabVisible);
     }
 
     private static ProgressId id(AdvancementNode node) {

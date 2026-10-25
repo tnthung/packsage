@@ -37,9 +37,9 @@ class ProgressListingTest {
     @Test
     void textNeverMatchesHiddenEntries() {
         var tree = new ProgressId("minecraft", "minecraft:adventure/root");
-        var hidden = new ProgressEntry(new ProgressHandle(new ProgressId("minecraft", "minecraft:adventure/levitate"), tree, null, ProgressStatus.HIDDEN), null);
+        var hidden = new ProgressEntry(new ProgressHandle(new ProgressId("minecraft", "minecraft:adventure/levitate"), tree, null, ProgressStatus.HIDDEN, true), null);
         var visible = entry(new ProgressId("minecraft", "minecraft:adventure/sleep_in_bed"), tree, "Sweet Dreams", ProgressStatus.DONE);
-        var snapshots = List.of(new ProgressSnapshot(List.of(new ProgressTree(tree, "Adventure", 1, 2)), List.of(visible, hidden), null));
+        var snapshots = List.of(new ProgressSnapshot(List.of(new ProgressTree(tree, "Adventure", 1, 2, true)), List.of(visible, hidden), null));
         var byText = ProgressListing.page(snapshots, new ProgressListing.Filter(null, Set.of(), "LEVITATE"), 0);
         assertTrue(byText.items().isEmpty());
         assertEquals(Evidence.Coverage.COMPLETE, byText.coverage());
@@ -58,7 +58,7 @@ class ProgressListingTest {
         var nether = new ProgressId("minecraft", "minecraft:nether/root");
         var mineStone = entry(new ProgressId("minecraft", "minecraft:story/mine_stone"), story, "Stone Age", ProgressStatus.DONE);
         var hotStuff = entry(new ProgressId("minecraft", "minecraft:nether/return_to_sender"), nether, "Return to Sender", ProgressStatus.LOCKED);
-        var snapshots = List.of(new ProgressSnapshot(List.of(new ProgressTree(story, "Minecraft", 1, 1), new ProgressTree(nether, "Nether", 0, 1)),
+        var snapshots = List.of(new ProgressSnapshot(List.of(new ProgressTree(story, "Minecraft", 1, 1, true), new ProgressTree(nether, "Nether", 0, 1, true)),
                 List.of(mineStone, hotStuff), null));
         var page = ProgressListing.page(snapshots, new ProgressListing.Filter(ProgressId.parse("minecraft:story/root"), Set.of(), null), 0);
         assertEquals(2, page.items().size());
@@ -90,7 +90,7 @@ class ProgressListingTest {
     private static ProgressSnapshot snapshot(String adapter, int trees, int entries, String note) {
         var treeList = new ArrayList<ProgressTree>();
         for (var i = 0; i < trees; i++) {
-            treeList.add(new ProgressTree(new ProgressId(adapter, "t" + i), "Tree " + i, 0, entries));
+            treeList.add(new ProgressTree(new ProgressId(adapter, "t" + i), "Tree " + i, 0, entries, true));
         }
         var entryList = new ArrayList<ProgressEntry>();
         for (var i = 0; i < entries; i++) {
@@ -100,6 +100,6 @@ class ProgressListingTest {
     }
 
     private static ProgressEntry entry(ProgressId id, ProgressId tree, String title, ProgressStatus status) {
-        return new ProgressEntry(new ProgressHandle(id, tree, title, status), "About " + title);
+        return new ProgressEntry(new ProgressHandle(id, tree, title, status, true), "About " + title);
     }
 }

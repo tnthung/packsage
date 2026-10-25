@@ -24,6 +24,7 @@ import net.minecraft.advancements.critereon.ImpossibleTrigger;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.Bootstrap;
+import net.minecraft.server.advancements.AdvancementVisibilityEvaluator;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
@@ -87,8 +88,8 @@ class MinecraftProgressTest {
         var snapshot = run(new MinecraftProgress().snapshot(world.source()), steps);
 
         assertNull(snapshot.note());
-        assertEquals(List.of(new ProgressTree(id("test:a/root"), "test:a/root title", 2, 6),
-                new ProgressTree(id("test:b/root"), "test:b/root title", 0, 144)), snapshot.trees());
+        assertEquals(List.of(new ProgressTree(id("test:a/root"), "test:a/root title", 2, 6, true),
+                new ProgressTree(id("test:b/root"), "test:b/root title", 0, 144, false)), snapshot.trees());
         var locals = snapshot.entries().stream().map(entry -> entry.handle().id().local()).toList();
         var expected = new ArrayList<>(List.of("test:a/root", "test:a/first", "test:a/first_child", "test:a/hidden", "test:a/recipe_child",
                 "test:a/second", "test:b/root"));
@@ -96,12 +97,40 @@ class MinecraftProgressTest {
         assertEquals(expected, locals);
         assertTrue(steps[0] >= 3, "steps: " + steps[0]);
         var firstEntry = snapshot.entries().get(locals.indexOf("test:a/first"));
-        assertEquals(new ProgressEntry(new ProgressHandle(id("test:a/first"), id("test:a/root"), "test:a/first title", ProgressStatus.DONE),
+        assertEquals(new ProgressEntry(new ProgressHandle(id("test:a/first"), id("test:a/root"), "test:a/first title", ProgressStatus.DONE, true),
                 "test:a/first description"), firstEntry);
         assertEquals(ProgressStatus.AVAILABLE, snapshot.entries().get(locals.indexOf("test:a/first_child")).handle().status());
         assertEquals(ProgressStatus.AVAILABLE, snapshot.entries().get(locals.indexOf("test:a/recipe_child")).handle().status());
         assertEquals(ProgressStatus.AVAILABLE, snapshot.entries().get(6).handle().status());
         assertEquals(ProgressStatus.LOCKED, snapshot.entries().get(7).handle().status());
+    }
+
+    @Test
+    void tabVisibilityIsIndependentOfAvailableStatusAndSharedByTheWholeTree() {
+        var world = new World();
+        var root = world.add(displayed("test:adventure/root", null, false, "c"));
+        var first = world.add(displayed("test:adventure/first", root, false, "c"));
+        var second = world.add(displayed("test:adventure/second", first, false, "c"));
+        var deep = world.add(displayed("test:adventure/deep", second, false, "c"));
+        var reader = new MinecraftProgress();
+
+        var unavailable = run(reader.snapshot(world.source()), new int[1]);
+
+        assertEquals(ProgressStatus.AVAILABLE, entry(unavailable, "test:adventure/root").handle().status());
+        assertFalse(unavailable.trees().getFirst().tabVisible());
+        for (var entry : unavailable.entries()) assertFalse(entry.handle().tabVisible());
+        assertFalse(reader.inspect(world.source(), "test:adventure/root").handle().tabVisible());
+
+        world.progress.get(root).grantProgress("c");
+        var visible = run(reader.snapshot(world.source()), new int[1]);
+
+        assertTrue(visible.trees().getFirst().tabVisible());
+        for (var entry : visible.entries()) assertTrue(entry.handle().tabVisible());
+        assertEquals(ProgressStatus.AVAILABLE, entry(visible, "test:adventure/first").handle().status());
+        // This entry itself is beyond vanilla's visibility depth, but its root tab still opens.
+        assertTrue(reader.inspect(world.source(), deep.id().toString()).handle().tabVisible());
+        assertTrue(reader.inspect(world.source(), "test:adventure/first").requires().getFirst().tabVisible());
+        assertTrue(reader.inspect(world.source(), "test:adventure/first").unlocks().getFirst().tabVisible());
     }
 
     @Test
@@ -113,7 +142,7 @@ class MinecraftProgressTest {
         var reader = new MinecraftProgress();
 
         var entry = entry(run(reader.snapshot(world.source()), new int[1]), "test:a/secret");
-        var handle = new ProgressHandle(id("test:a/secret"), id("test:a/root"), null, ProgressStatus.HIDDEN);
+        var handle = new ProgressHandle(id("test:a/secret"), id("test:a/root"), null, ProgressStatus.HIDDEN, true);
         assertEquals(new ProgressEntry(handle, null), entry);
         assertEquals(Progress.hidden(handle), reader.inspect(world.source(), "test:a/secret"));
         assertEquals(List.of(handle), reader.inspect(world.source(), "test:a/root").unlocks());
@@ -149,15 +178,15 @@ class MinecraftProgressTest {
         var progress = reader.inspect(world.source(), "test:adventure/adventuring_time");
 
         var tree = id("test:adventure/root");
-        assertEquals(new ProgressHandle(id("test:adventure/adventuring_time"), tree, "Adventuring Time", ProgressStatus.IN_PROGRESS), progress.handle());
+        assertEquals(new ProgressHandle(id("test:adventure/adventuring_time"), tree, "Adventuring Time", ProgressStatus.IN_PROGRESS, true), progress.handle());
         assertEquals("Discover every biome", progress.description());
         var plains = world.progress.get(adventuring).getCriterion("minecraft:plains").getObtained();
         assertNotNull(plains);
         assertEquals(List.of(new ProgressCriterion("minecraft:plains", "label minecraft:plains", true, plains),
                 new ProgressCriterion("minecraft:desert", "label minecraft:desert", false, null)), progress.criteria());
-        assertEquals(List.of(new ProgressHandle(tree, tree, "test:adventure/root title", ProgressStatus.DONE)), progress.requires());
-        assertEquals(List.of(new ProgressHandle(id("test:adventure/next"), tree, "test:adventure/next title", ProgressStatus.LOCKED),
-                new ProgressHandle(id("test:adventure/recipe_child"), tree, "test:adventure/recipe_child title", ProgressStatus.LOCKED)),
+        assertEquals(List.of(new ProgressHandle(tree, tree, "test:adventure/root title", ProgressStatus.DONE, true)), progress.requires());
+        assertEquals(List.of(new ProgressHandle(id("test:adventure/next"), tree, "test:adventure/next title", ProgressStatus.LOCKED, true),
+                new ProgressHandle(id("test:adventure/recipe_child"), tree, "test:adventure/recipe_child title", ProgressStatus.LOCKED, true)),
                 progress.unlocks());
         assertEquals(List.of(progress.handle()), reader.inspect(world.source(), "test:adventure/recipe_child").requires());
         assertEquals(List.of("experience: 100", "recipe: minecraft:torch"), progress.rewards());
@@ -303,12 +332,18 @@ class MinecraftProgressTest {
         }
 
         MinecraftProgress.Source source() {
+            var visible = new HashSet<AdvancementHolder>();
+            for (var root : tree.roots()) {
+                AdvancementVisibilityEvaluator.evaluateVisibility(root, node -> progress.get(node.holder()).isDone(), (node, shown) -> {
+                    if (shown) visible.add(node.holder());
+                });
+            }
             return new MinecraftProgress.Source(() -> generation, () -> tree, holder -> {
                 lookups++;
                 var entry = progress.get(holder);
                 if (entry == null) fail("progress looked up for an unknown holder " + holder.id());
                 return entry;
-            }, name -> "label " + name);
+            }, visible::contains, name -> "label " + name);
         }
     }
 }

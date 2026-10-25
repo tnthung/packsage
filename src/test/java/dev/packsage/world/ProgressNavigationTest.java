@@ -60,8 +60,10 @@ class ProgressNavigationTest {
         assertEquals(TARGET, ProgressNavigation.targetId(ROOT, MINE_STONE));
         assertEquals(new ProgressNavigation.Destination(ResourceLocation.parse("minecraft:story/root"),
                 ResourceLocation.parse("minecraft:story/mine_stone")), ProgressNavigation.parse(TARGET));
-        assertEquals(TARGET, ProgressNavigation.targetId(new ProgressHandle(MINE_STONE, ROOT, "Stone Age", ProgressStatus.DONE)));
-        assertNull(ProgressNavigation.targetId(new ProgressHandle(MINE_STONE, ROOT, null, ProgressStatus.HIDDEN)));
+        assertEquals(TARGET, ProgressNavigation.targetId(new ProgressHandle(MINE_STONE, ROOT, "Stone Age", ProgressStatus.DONE, true)));
+        assertEquals(TARGET, ProgressNavigation.targetId(new ProgressHandle(MINE_STONE, ROOT, "Stone Age", ProgressStatus.AVAILABLE, true)));
+        assertNull(ProgressNavigation.targetId(new ProgressHandle(MINE_STONE, ROOT, "Stone Age", ProgressStatus.AVAILABLE, false)));
+        assertNull(ProgressNavigation.targetId(new ProgressHandle(MINE_STONE, ROOT, null, ProgressStatus.HIDDEN, true)));
         assertNull(ProgressNavigation.targetId(new ProgressId("ftbquests", "chapter"), new ProgressId("ftbquests", "quest")));
     }
 

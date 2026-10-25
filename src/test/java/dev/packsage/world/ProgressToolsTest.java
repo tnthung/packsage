@@ -30,8 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ProgressToolsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
     private static final ProgressId ROOT = new ProgressId("minecraft", "minecraft:story/root");
-    private static final ProgressHandle STONE = new ProgressHandle(new ProgressId("minecraft", "minecraft:story/mine_stone"), ROOT, "Stone Age", ProgressStatus.DONE);
-    private static final ProgressHandle HIDDEN = new ProgressHandle(new ProgressId("minecraft", "minecraft:story/hidden"), ROOT, null, ProgressStatus.HIDDEN);
+    private static final ProgressHandle STONE = new ProgressHandle(new ProgressId("minecraft", "minecraft:story/mine_stone"), ROOT, "Stone Age", ProgressStatus.DONE, true);
+    private static final ProgressHandle HIDDEN = new ProgressHandle(new ProgressId("minecraft", "minecraft:story/hidden"), ROOT, null, ProgressStatus.HIDDEN, true);
 
     @BeforeAll
     static void bootstrap() {
@@ -118,9 +118,9 @@ class ProgressToolsTest {
     @Test
     void listProgressCombinesAdaptersTreesFirstWithLinksExceptHidden() throws Exception {
         var fixture = new Fixture();
-        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 1, 2)), List.of(new ProgressEntry(STONE, "Mine stone"), new ProgressEntry(HIDDEN, null)), null), null));
-        var quest = new ProgressHandle(new ProgressId("quests", "first"), new ProgressId("quests", "chapter"), "First quest", ProgressStatus.AVAILABLE);
-        fixture.registry.register(new Reader("quests", new ProgressSnapshot(List.of(new ProgressTree(quest.tree(), "Chapter", 0, 1)), List.of(new ProgressEntry(quest, "Begin")), null), null));
+        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 1, 2, true)), List.of(new ProgressEntry(STONE, "Mine stone"), new ProgressEntry(HIDDEN, null)), null), null));
+        var quest = new ProgressHandle(new ProgressId("quests", "first"), new ProgressId("quests", "chapter"), "First quest", ProgressStatus.AVAILABLE, true);
+        fixture.registry.register(new Reader("quests", new ProgressSnapshot(List.of(new ProgressTree(quest.tree(), "Chapter", 0, 1, true)), List.of(new ProgressEntry(quest, "Begin")), null), null));
 
         var result = fixture.call("list_progress", "{}");
 
@@ -143,8 +143,8 @@ class ProgressToolsTest {
     void availableProgressWithoutAVisibleTabHasNoLinks() throws Exception {
         var fixture = new Fixture();
         var root = new ProgressId("minecraft", "minecraft:adventure/root");
-        var available = new ProgressHandle(root, root, "Adventure", ProgressStatus.AVAILABLE);
-        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(new ProgressTree(root, "Adventure", 0, 1)),
+        var available = new ProgressHandle(root, root, "Adventure", ProgressStatus.AVAILABLE, false);
+        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(new ProgressTree(root, "Adventure", 0, 1, false)),
                 List.of(new ProgressEntry(available, "Kill or be killed")), null),
                 new Progress(available, "Kill or be killed", List.of(), List.of(), List.of(), List.of(), null, Map.of())));
 
@@ -160,8 +160,8 @@ class ProgressToolsTest {
     void listProgressCursorContinuesAndRejectsAChangedFilter() throws Exception {
         var fixture = new Fixture();
         var entries = new ArrayList<ProgressEntry>();
-        for (var i = 0; i < 70; i++) entries.add(new ProgressEntry(new ProgressHandle(new ProgressId("minecraft", "minecraft:entry_" + i), ROOT, "Entry " + i, ProgressStatus.AVAILABLE), "Read"));
-        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 0, 70)), entries, null), null));
+        for (var i = 0; i < 70; i++) entries.add(new ProgressEntry(new ProgressHandle(new ProgressId("minecraft", "minecraft:entry_" + i), ROOT, "Entry " + i, ProgressStatus.AVAILABLE, true), "Read"));
+        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(new ProgressTree(ROOT, "Story", 0, 70, true)), entries, null), null));
 
         var first = fixture.call("list_progress", "{}");
         assertEquals(64, first.records().size());
@@ -463,7 +463,7 @@ class ProgressToolsTest {
     @Test
     void workerRecordBuildingFailuresAreTypedExtractionFailures() throws Exception {
         var fixture = new Fixture();
-        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(), List.of(new ProgressEntry(new ProgressHandle(STONE.id(), null, STONE.title(), STONE.status()), "Mine stone")), null),
+        fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(), List.of(new ProgressEntry(new ProgressHandle(STONE.id(), null, STONE.title(), STONE.status(), true), "Mine stone")), null),
                 new Progress(STONE, "Mine stone", List.of(new ProgressCriterion("stone", null, true, null)), List.of(), List.of(), List.of(), null, Map.of())));
         fixture.registry.register(new StatisticReader() {
             @Override

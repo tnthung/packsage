@@ -40,10 +40,10 @@ class ProgressTypesTest {
     @Test
     void aHandleTitleIsNullExactlyWhenHidden() {
         var id = new ProgressId("minecraft", "minecraft:story/root");
-        assertThrows(IllegalArgumentException.class, () -> new ProgressHandle(id, id, "Minecraft", ProgressStatus.HIDDEN));
-        assertThrows(IllegalArgumentException.class, () -> new ProgressHandle(id, id, null, ProgressStatus.DONE));
-        assertThrows(IllegalArgumentException.class, () -> new ProgressHandle(id, id, " ", ProgressStatus.AVAILABLE));
-        assertDoesNotThrow(() -> new ProgressHandle(id, id, null, ProgressStatus.HIDDEN));
+        assertThrows(IllegalArgumentException.class, () -> new ProgressHandle(id, id, "Minecraft", ProgressStatus.HIDDEN, true));
+        assertThrows(IllegalArgumentException.class, () -> new ProgressHandle(id, id, null, ProgressStatus.DONE, true));
+        assertThrows(IllegalArgumentException.class, () -> new ProgressHandle(id, id, " ", ProgressStatus.AVAILABLE, true));
+        assertDoesNotThrow(() -> new ProgressHandle(id, id, null, ProgressStatus.HIDDEN, true));
     }
 
     @Test

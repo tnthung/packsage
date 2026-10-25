@@ -47,9 +47,9 @@ final class ProgressNavigation {
         return PREFIX + "|" + tree.local() + "|" + entry.local();
     }
 
-    /** As {@link #targetId(ProgressId, ProgressId)}, and none for a hidden entry, whose link would reveal it. */
+    /** No link for an absent tab or a hidden entry, whose link would reveal it. */
     static String targetId(ProgressHandle handle) {
-        return handle.status() == ProgressStatus.HIDDEN ? null : targetId(handle.tree(), handle.id());
+        return handle.status() == ProgressStatus.HIDDEN || !handle.tabVisible() ? null : targetId(handle.tree(), handle.id());
     }
 
     static Destination parse(String targetId) {

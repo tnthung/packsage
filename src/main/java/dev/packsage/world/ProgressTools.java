@@ -193,7 +193,7 @@ public final class ProgressTools implements KnowledgeProvider {
                     payload.put("done", new Evidence.JsonNumber(BigDecimal.valueOf(value.done())));
                     payload.put("total", new Evidence.JsonNumber(BigDecimal.valueOf(value.total())));
                     records.add(evidence(request.scope(), "tree|" + value.id().text(), Evidence.RecordKind.OTHER, value.title(), payload, page.coverage(),
-                            ProgressNavigation.targetId(new ProgressHandle(value.id(), value.id(), value.title(), ProgressStatus.AVAILABLE))));
+                            ProgressNavigation.targetId(new ProgressHandle(value.id(), value.id(), value.title(), ProgressStatus.AVAILABLE, value.tabVisible()))));
                 } else {
                     var value = item.entry();
                     records.add(evidence(request.scope(), "progress|" + value.handle().id().text(), Evidence.RecordKind.QUEST,

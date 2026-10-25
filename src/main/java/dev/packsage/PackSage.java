@@ -3,8 +3,11 @@ package dev.packsage;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.packsage.client.ClientAssistant;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.common.NeoForge;
 import org.lwjgl.glfw.GLFW;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.api.distmarker.Dist;
@@ -36,7 +39,8 @@ public final class PackSage {
                         }, gameExecutor);
                     }
                 }));
-        modEventBus.addListener((net.neoforged.fml.event.lifecycle.FMLClientSetupEvent event) ->
-                event.enqueueWork(() -> assistant = new ClientAssistant(openAssistant)));
+        NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> {
+            if (assistant == null && Minecraft.getInstance().isSameThread()) assistant = new ClientAssistant(openAssistant);
+        });
     }
 }

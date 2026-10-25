@@ -56,7 +56,8 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
         return switch (operation) {
             case STATE -> call(client, () -> {
                 var json = new JsonObject();
-                json.addProperty("world", client.level == null ? null : runtime.view().activeWorld().readableLabel());
+                var world = runtime.view().activeWorld();
+                json.addProperty("world", client.level == null || world == null ? null : world.readableLabel());
                 var server = client.getSingleplayerServer();
                 json.addProperty("save", server == null ? null : server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT)
                         .toAbsolutePath().normalize().getFileName().toString());
@@ -108,10 +109,11 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                     if (client.getSingleplayerServer() == null || client.player == null) throw new IllegalStateException("Singleplayer world required");
                     return new ServerSession(client.getSingleplayerServer(), client.player.getUUID());
                 });
-                yield call(session.server(), () -> {
+                yield call(session.server()::executeIfPossible, () -> {
                     var server = session.server();
+                    if (server.isStopped()) throw new IllegalStateException("Server stopped");
                     var player = server.getPlayerList().getPlayer(session.player());
-                    if (player == null || server.isStopped()) throw new IllegalStateException("Player left the world");
+                    if (player == null) throw new IllegalStateException("Player left the world");
                     var json = new JsonObject();
                     switch (operation) {
                         case COMMAND -> {
@@ -135,7 +137,11 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                                 String id = body.get("entity").getAsString();
                                 var entity = player.serverLevel().getEntity(UUID.fromString(id.startsWith("entity:") ? id.substring(7) : id));
                                 if (entity == null) throw new IllegalArgumentException("Entity not found in this dimension");
-                                json.addProperty("interaction", player.interactOn(entity, InteractionHand.MAIN_HAND).name());
+                                var location = new Vec3(0, entity.getBbHeight() / 2.0, 0);
+                                var interaction = net.neoforged.neoforge.common.CommonHooks.onInteractEntityAt(player, entity, location, InteractionHand.MAIN_HAND);
+                                if (interaction == null) interaction = entity.interactAt(player, location, InteractionHand.MAIN_HAND);
+                                if (!interaction.consumesAction()) interaction = player.interactOn(entity, InteractionHand.MAIN_HAND);
+                                json.addProperty("interaction", interaction.name());
                             } else {
                                 var pos = new BlockPos(body.get("x").getAsInt(), body.get("y").getAsInt(), body.get("z").getAsInt());
                                 json.addProperty("interaction", player.gameMode.useItemOn(player, player.serverLevel(), player.getMainHandItem(),
@@ -147,9 +153,20 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                         case MENU_MOVE -> {
                             var menu = player.containerMenu;
                             if (menu == player.inventoryMenu) throw new IllegalStateException("No open container menu");
+                            if (player.isSpectator()) {
+                                menu.sendAllDataToRemote();
+                                throw new IllegalStateException("Spectators cannot move menu items");
+                            }
+                            if (!menu.stillValid(player)) throw new IllegalStateException("Open menu is no longer valid");
                             int slot = body.get("slot").getAsInt();
-                            if (slot >= menu.slots.size()) throw new IllegalArgumentException("Slot is outside the open menu");
-                            menu.clicked(slot, 0, body.has("shift") && body.get("shift").getAsBoolean() ? ClickType.QUICK_MOVE : ClickType.PICKUP, player);
+                            if (slot < 0 || slot >= menu.slots.size()) throw new IllegalArgumentException("Slot is outside the open menu");
+                            player.resetLastActionTime();
+                            menu.suppressRemoteUpdates();
+                            try {
+                                menu.clicked(slot, 0, body.has("shift") && body.get("shift").getAsBoolean() ? ClickType.QUICK_MOVE : ClickType.PICKUP, player);
+                            } finally {
+                                menu.resumeRemoteUpdates();
+                            }
                             menu.broadcastChanges();
                             json.addProperty("menuId", menu.containerId);
                             json.addProperty("success", true);
@@ -222,12 +239,8 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                     String id = body.get("requestId").getAsString();
                     var view = call(client, () -> runtime.requestView(new ChatContracts.RequestId(id)));
                     if (view == null) throw new IllegalArgumentException("Unknown request");
-                    var turn = view.conversation().turns().stream().filter(value -> value.requestId().value().equals(id)).findFirst().orElse(null);
-                    var targets = turn == null ? java.util.List.<dev.packsage.knowledge.Evidence.NavigationTarget>of()
-                            : view.navigationTargets().stream().filter(target -> target.scope().equals(turn.context().scope())).toList();
-                    if (targets.isEmpty() && id.equals(view.activeRequestId())) targets = view.navigationTargets();
                     String targetId = body.get("targetId").getAsString();
-                    var matching = targets.stream().filter(target -> target.targetId().equals(targetId)).toList();
+                    var matching = view.navigationTargets().stream().filter(target -> target.targetId().equals(targetId)).toList();
                     if (matching.size() != 1) throw new IllegalArgumentException("Target id is missing or ambiguous for this reply");
                     call(client, () -> {
                         if (!runtime.view().conversation().id().equals(view.conversation().id())) runtime.openSession(new ChatContracts.SessionSummary(
@@ -310,11 +323,15 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
 
     private static <T> T call(Executor executor, Supplier<T> action) throws Exception {
         var result = new CompletableFuture<T>();
-        executor.execute(() -> {
-            if (result.isDone()) return;
-            try { result.complete(action.get()); }
-            catch (Throwable failure) { result.completeExceptionally(failure); }
-        });
+        try {
+            executor.execute(() -> {
+                if (result.isDone()) return;
+                try { result.complete(action.get()); }
+                catch (Throwable failure) { result.completeExceptionally(failure); }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException exception) {
+            throw new IllegalStateException("Game executor is unavailable", exception);
+        }
         try {
             return result.get(10, TimeUnit.SECONDS);
         } catch (TimeoutException | InterruptedException exception) {

@@ -34,8 +34,7 @@ public final class DebugChatState {
         json.addProperty("detail", active ? view.activity() : turn.outcome().detail());
         json.add("errors", GSON.toJsonTree(view.errors()));
         json.add("activities", GSON.toJsonTree(active ? view.activities() : turn.activities()));
-        json.add("navigationTargets", GSON.toJsonTree(active ? view.navigationTargets() : view.navigationTargets().stream()
-                .filter(target -> target.scope().equals(turn.context().scope())).toList()));
+        json.add("navigationTargets", GSON.toJsonTree(active ? view.navigationTargets() : turn.navigationTargets()));
         var citations = new JsonArray();
         (active ? view.sources() : turn.sources()).forEach(source -> citations.add(GSON.toJsonTree(source)));
         var tools = new JsonArray();

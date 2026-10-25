@@ -848,7 +848,15 @@ public final class AssistantRuntime implements ChatActions {
             if (holder.controller == null) continue;
             var view = holder.controller.view();
             if (requestId.value().equals(view.activeRequestId()) || view.conversation().turns().stream()
-                    .anyMatch(turn -> turn.requestId().equals(requestId))) return wrap(view, holder);
+                    .anyMatch(turn -> turn.requestId().equals(requestId))) {
+                var current = wrap(view, holder);
+                var turn = view.conversation().turns().stream().filter(value -> value.requestId().equals(requestId)).findFirst().orElse(null);
+                return new ChatContracts.View(current.active(), current.signIn(), current.paused(), current.conversation(),
+                        current.context(), current.sources(), (turn == null ? view.navigationTargets() : turn.navigationTargets()).stream()
+                        .filter(current.navigationTargets()::contains).toList(), current.errors(), current.streamingAnswer(),
+                        current.activity(), current.activeWorld(), current.readOnly(), current.activeQuestion(), current.activeSentAt(),
+                        current.activities(), current.activeRequestId(), current.activeSteeringMessages());
+            }
             ChatContracts.Turn failed;
             synchronized (stateLock) {
                 failed = holder.failedStarts.get(requestId);

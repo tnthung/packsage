@@ -70,8 +70,14 @@ public final class DebugBridge implements AutoCloseable {
             ServerSocket accepting = listener;
             var thread = new Thread(() -> {
                 while (!accepting.isClosed()) {
+                    Socket socket;
                     try {
-                        Socket socket = accepting.accept();
+                        socket = accepting.accept();
+                    } catch (IOException exception) {
+                        if (!accepting.isClosed()) close();
+                        break;
+                    }
+                    try {
                         socket.setSoTimeout(10_000);
                         synchronized (DebugBridge.this) {
                             if (listener != accepting || accepting.isClosed()) {
@@ -86,8 +92,9 @@ public final class DebugBridge implements AutoCloseable {
                                 socket.close();
                             }
                         }
-                    } catch (IOException exception) {
-                        if (!accepting.isClosed()) close();
+                    } catch (IOException ignored) {
+                        connections.remove(socket);
+                        try { socket.close(); } catch (IOException ignoredClose) { }
                     }
                 }
             }, "packsage-debug-bridge");

@@ -158,11 +158,7 @@ public final class ClientAssistant {
                     && event.getKeyCode() <= org.lwjgl.glfw.GLFW.GLFW_KEY_KP_ADD
                     || event.getKeyCode() == org.lwjgl.glfw.GLFW.GLFW_KEY_KP_EQUAL)) return;
             event.setCanceled(true);
-            assistantScreen = runtime.openScreen(() -> openSettings(false));
-            assistantScreen.setContainerScreen(screen);
-            assistantScreen.setAdvancedSettingsOpener(() -> openSettings(true));
-            assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));
-            client.setScreen(assistantScreen);
+            openAssistantScreen(screen);
         });
         NeoForge.EVENT_BUS.addListener((RenderGuiEvent.Post ignored) -> runtime.onRenderGuiPost());
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingIn ignored) -> loggingIn());
@@ -179,27 +175,33 @@ public final class ClientAssistant {
         });
         if (DebugBridge.enabled(settings)) {
             debugTiming = new DebugRequestLog();
-            debugAdapter = new MinecraftDebugAdapter(client, runtime, settingsPath, () -> {
-                assistantScreen = runtime.openScreen(() -> openSettings(false));
-                assistantScreen.setAdvancedSettingsOpener(() -> openSettings(true));
-                assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));
-                client.setScreen(assistantScreen);
-            }, debugTiming);
+            debugAdapter = new MinecraftDebugAdapter(client, runtime, settingsPath, () -> openAssistantScreen(null), debugTiming);
             debugBridge = new DebugBridge(client.gameDirectory.toPath(), settings.debugBridgePort(), debugAdapter,
                     message -> dev.packsage.PackSageLog.LOGGER.info(message));
             if (debugBridge.start()) {
                 previousPauseOnLostFocus = client.options.pauseOnLostFocus;
-                client.options.pauseOnLostFocus = false;
                 debugTiming.start();
+                NeoForge.EVENT_BUS.addListener((ScreenEvent.Opening ignored) -> {
+                    client.options.pauseOnLostFocus = previousPauseOnLostFocus;
+                });
                 NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.RenderFrameEvent.Post ignored) -> debugAdapter.onRenderFrame());
                 NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.GameShuttingDownEvent ignored) -> {
                     debugBridge.close();
                     debugAdapter.close();
                     debugTiming.close();
                     client.options.pauseOnLostFocus = previousPauseOnLostFocus;
+                    client.options.save();
                 });
             }
         }
+    }
+
+    private void openAssistantScreen(AbstractContainerScreen<?> containerScreen) {
+        assistantScreen = runtime.openScreen(() -> openSettings(false));
+        assistantScreen.setContainerScreen(containerScreen);
+        assistantScreen.setAdvancedSettingsOpener(() -> openSettings(true));
+        assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));
+        client.setScreen(assistantScreen);
     }
 
     /** Lets a paused integrated server, which skips ServerTickEvent, keep stepping pending world reads. */
@@ -234,7 +236,9 @@ public final class ClientAssistant {
 
     private void tick() {
         if (!client.isSameThread()) return;
-        if (debugTiming != null && debugTiming.isStarted()) client.options.pauseOnLostFocus = false;
+        if (debugTiming != null && debugTiming.isStarted()) {
+            client.options.pauseOnLostFocus = client.screen != null && !(client.screen instanceof AssistantScreen) && previousPauseOnLostFocus;
+        }
         tickPausedServerWork();
         if (settingsOpen && client.screen == null && assistantScreen != null) {
             settingsOpen = false;
@@ -242,10 +246,7 @@ public final class ClientAssistant {
         }
         while (openAssistant.consumeClick()) {
             if (client.level == null || client.screen != null) continue;
-            assistantScreen = runtime.openScreen(() -> openSettings(false));
-            assistantScreen.setAdvancedSettingsOpener(() -> openSettings(true));
-            assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));
-            client.setScreen(assistantScreen);
+            openAssistantScreen(null);
         }
         if (client.level == null) {
             if (activeWorld != null || pendingInitialization != null) resetSession();

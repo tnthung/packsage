@@ -792,7 +792,9 @@ public final class RequestController {
     }
 
     private void toolReady(ActiveRequest request, ModelBackend.ToolCall call, ChatContracts.ToolResponse response) {
+        int resultBytes = toolResultBytes.applyAsInt(response.result().serializedResult());
         ModelBackend.Exchange targetExchange = null;
+        ToolTiming.Interval timing = null;
         ChatContracts.View snapshot = null;
         boolean dropped;
         synchronized (stateLock) {
@@ -826,6 +828,8 @@ public final class RequestController {
                 snapshot = currentView();
                 if (request.exchange != null && request.submittedResults.add(call.callId())) {
                     targetExchange = request.exchange;
+                    timing = new ToolTiming.Interval(request.toolReceivedAtNanos.get(call.callId()), System.nanoTime());
+                    request.toolIntervals.add(timing);
                 }
             }
         }
@@ -835,12 +839,6 @@ public final class RequestController {
             return;
         }
         if (targetExchange != null) {
-            int resultBytes = toolResultBytes.applyAsInt(response.result().serializedResult());
-            ToolTiming.Interval timing;
-            synchronized (stateLock) {
-                timing = new ToolTiming.Interval(request.toolReceivedAtNanos.get(call.callId()), System.nanoTime());
-                request.toolIntervals.add(timing);
-            }
             PackSageLog.LOGGER.info("PackSage timing request={} phase=tool_result_sent call={} tool={} event_ns={} toolMs={} resultBytes={} error={}",
                     request.submission.requestId().value(), call.callId(), call.name(), timing.endNanos(),
                     (timing.endNanos() - timing.startNanos()) / 1_000_000, resultBytes, response.result().error());

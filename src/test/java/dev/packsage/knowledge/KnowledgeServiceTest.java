@@ -29,6 +29,15 @@ class KnowledgeServiceTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
 
     @Test
+    void nativeAdapterIsAvailableBeforeItsFirstRead() {
+        var nativeProvider = new dev.packsage.knowledge.nativegame.NativeProvider(() -> {
+            throw new AssertionError("availability must not read native evidence");
+        }, Runnable::run);
+        assertEquals(KnowledgeProvider.Availability.UNAVAILABLE, nativeProvider.status().availability());
+        assertTrue(new KnowledgeService(List.of(nativeProvider), () -> SCOPE).adapterAvailability().get("native"));
+    }
+
+    @Test
     void originReachesTheToolContext() {
         var received = new AtomicReference<Toolbox.Context>();
         var provider = new PagedProvider("fixture", query -> page(List.of(), null)) {

@@ -1595,6 +1595,32 @@ class RequestControllerTest {
     }
 
     @Test
+    void noteWritesNeverExposeExpandedActivitiesWhileRunningOrAfterCompletion() {
+        FakeBackend backend = new FakeBackend();
+        var responses = new java.util.LinkedHashMap<String, CompletableFuture<ChatContracts.ToolResponse>>();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> {
+                    var response = new CompletableFuture<ChatContracts.ToolResponse>();
+                    responses.put(request.call().callId(), response);
+                    return response;
+                }, ignored -> { });
+        controller.begin(submission("invisible-notes", WORLD_A, SCOPE_A, false,
+                new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
+        for (var tool : List.of("remember", "update_note", "forget_note")) {
+            backend.emit("invisible-notes", toolEvent(tool, tool, "{\"text\":\"private farm report\",\"id\":\"n0000abcd\"}"));
+            assertEquals(ActivityLabels.THINKING, controller.view().activity());
+            assertTrue(controller.view().activities().stream().noneMatch(step -> step.id().equals("tool:" + tool)));
+            responses.get(tool).complete(new ChatContracts.ToolResponse(new ModelBackend.ToolResult(tool,
+                    "{\"error\":{\"message\":\"private farm report\"}}", true), new ChatContracts.EvidenceSelection(List.of(), List.of())));
+            assertTrue(controller.view().activities().stream().noneMatch(step -> step.id().equals("tool:" + tool)));
+        }
+        backend.emit("invisible-notes", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(), null));
+        assertTrue(controller.view().conversation().turns().getLast().activities().stream().noneMatch(step -> step.id().startsWith("tool:")));
+    }
+
+    @Test
     void toolArgumentsStayBoundToTheirActivityFromRunningThroughCompletion() {
         FakeBackend backend = new FakeBackend();
         CompletableFuture<ChatContracts.ToolResponse> response = new CompletableFuture<>();

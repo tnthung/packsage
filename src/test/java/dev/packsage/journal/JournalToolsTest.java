@@ -383,6 +383,9 @@ class JournalToolsTest {
             var knowledge = new KnowledgeService(List.of(tools), () -> SCOPE);
             assertFalse(knowledge.adapterAvailability().get("journal"));
             assertTrue(knowledge.adapterDetails().get("journal").contains("database refused"));
+            var result = tools.open(new Evidence.NavigationTarget(SCOPE, "journal", "saved-note", "journal-note|n0000abcd"), SCOPE);
+            assertEquals(Evidence.NavigationStatus.UNAVAILABLE, result.status());
+            assertTrue(result.detail().contains("database refused"), result.detail());
         } finally {
             journal.close().handle((value, failure) -> null).get();
         }

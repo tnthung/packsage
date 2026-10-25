@@ -1724,6 +1724,32 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void adapterDetailsReadsProviderStatusOutsideTheRuntimeLock() throws Exception {
+        var lock = new AtomicReference<Object>();
+        var provider = new KnowledgeProvider() {
+            @Override public String id() { return "journal"; }
+            @Override public ProviderStatus status() {
+                assertFalse(Thread.holdsLock(lock.get()), "provider status must run outside stateLock");
+                return new ProviderStatus(Availability.UNAVAILABLE, "fixture", "database refused");
+            }
+            @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
+                return CompletableFuture.failedFuture(new AssertionError("not queried"));
+            }
+            @Override public Evidence.NavigationResult open(Evidence.NavigationTarget target, Evidence.Scope scope) {
+                return new Evidence.NavigationResult(Evidence.NavigationStatus.UNSUPPORTED, "fixture");
+            }
+        };
+        var runtime = runtime(new FakeBackend(), captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
+                new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
+                current -> new KnowledgeService(List.of(provider), current), DIRECT);
+        var stateLock = AssistantRuntime.class.getDeclaredField("stateLock");
+        stateLock.setAccessible(true);
+        lock.set(stateLock.get(runtime));
+        runtime.enterWorld(WORLD, SCOPE);
+        assertEquals(Map.of("journal", "database refused"), runtime.adapterDetails());
+    }
+
+    @Test
     void adapterAvailabilityTracksWorldHistoryAndFactoryFailure() throws Exception {
         FakeBackend backend = new FakeBackend();
         Map<String, Boolean> unavailableAdapters = Map.ofEntries(Map.entry("native", false), Map.entry("config", false), Map.entry("world", false),

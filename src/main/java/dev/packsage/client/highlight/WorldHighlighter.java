@@ -14,6 +14,7 @@ import net.minecraft.world.entity.Entity;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.common.NeoForge;
+import org.lwjgl.opengl.GL11;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,7 +38,18 @@ public final class WorldHighlighter {
                     .setLayeringState(RenderStateShard.VIEW_OFFSET_Z_LAYERING)
                     .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
                     .setWriteMaskState(RenderStateShard.COLOR_WRITE)
-                    .setDepthTestState(RenderStateShard.NO_DEPTH_TEST)
+                    // Vanilla NO_DEPTH_TEST is a no-op; the translucent layer still has depth testing enabled here.
+                    .setDepthTestState(new RenderStateShard.DepthTestStateShard("always", GL11.GL_ALWAYS) {
+                        @Override
+                        public void setupRenderState() {
+                            RenderSystem.disableDepthTest();
+                        }
+
+                        @Override
+                        public void clearRenderState() {
+                            RenderSystem.enableDepthTest();
+                        }
+                    })
                     .setCullState(RenderStateShard.NO_CULL)
                     .createCompositeState(false));
     private static final Map<BlockPlace, Long> BLOCKS = new ConcurrentHashMap<>();

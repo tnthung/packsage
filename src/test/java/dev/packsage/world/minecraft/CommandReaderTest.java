@@ -93,6 +93,27 @@ class CommandReaderTest {
     }
 
     @Test
+    void argumentWalkSkipsCyclesButRevisitsSharedNodesOnOtherPaths() {
+        var command = dispatcher.register(LiteralArgumentBuilder.<Integer>literal("cycle"));
+        var value = RequiredArgumentBuilder.<Integer, String>argument("value", word())
+                .redirect(LiteralArgumentBuilder.<Integer>literal("external").build()).build();
+        value.addChild(command);
+        for (var branch : List.of("left", "right")) {
+            var literal = LiteralArgumentBuilder.<Integer>literal(branch).build();
+            literal.addChild(value);
+            command.addChild(literal);
+        }
+        var reader = new CommandReader<>(dispatcher, 0, type -> "word");
+        var detail = reader.read("cycle");
+        assertEquals(List.of("cycle left value", "cycle right value"), detail.arguments().stream().map(CommandReader.Argument::path).toList());
+        assertFalse(detail.argumentsBounded());
+        assertEquals(List.of("cycle right value"), reader.read("cycle", 1).arguments().stream().map(CommandReader.Argument::path).toList());
+        var snapshot = reader.snapshot();
+        while (snapshot.step()) { }
+        assertEquals(detail, snapshot.result().read("cycle"));
+    }
+
+    @Test
     void readingNeverExecutes() {
         var reader = new CommandReader<>(dispatcher, 4, type -> type.getClass().getSimpleName());
         for (var command : reader.search(null)) reader.read(command.name());

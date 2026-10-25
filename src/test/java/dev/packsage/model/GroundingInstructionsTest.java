@@ -105,7 +105,7 @@ class GroundingInstructionsTest {
         assertEquals(ModelBackend.Role.USER, current.role());
         assertEquals(1, current.content().size());
         assertEquals("hi", ((ModelBackend.TextContent) current.content().getFirst()).text());
-        assertEquals(17, request.tools().size());
+        assertEquals(21, request.tools().size());
     }
 
     @Test

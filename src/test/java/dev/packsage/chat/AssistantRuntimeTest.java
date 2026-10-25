@@ -1727,7 +1727,7 @@ class AssistantRuntimeTest {
     void adapterAvailabilityTracksWorldHistoryAndFactoryFailure() throws Exception {
         FakeBackend backend = new FakeBackend();
         Map<String, Boolean> unavailableAdapters = Map.ofEntries(Map.entry("native", false), Map.entry("config", false), Map.entry("world", false),
-                Map.entry("history", false));
+                Map.entry("journal", false), Map.entry("history", false));
         AtomicInteger factoryCalls = new AtomicInteger();
         var knowledgeFactory = (java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService>) current -> {
             if (factoryCalls.incrementAndGet() == 2) throw new IllegalStateException("provider refresh failed");

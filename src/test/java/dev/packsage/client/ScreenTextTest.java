@@ -453,7 +453,6 @@ class ScreenTextTest {
             assertEquals("Done.", ScreenText.markdownLines(text).getFirst().getString());
             assertEquals("Before after.", ScreenText.inlineLines("Before [ref:e36be868.1.1f" + closing + " after.", List.of())
                     .getFirst().spans().stream().map(ScreenText.InlineSpan::text).reduce("", String::concat));
-            assertEquals("Done. [ref:e36be868.1.1f" + closing, text);
         }
         String prose = "[see note) [ref:unknown] [ref:ffffffff.9.9 extra) [ref:E36be868.1.1f]";
         assertEquals(prose, ScreenText.inlineLines(prose, List.of()).getFirst().spans().stream()

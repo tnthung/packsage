@@ -423,6 +423,10 @@ public final class ReferenceAliasBackend implements ModelBackend {
                     if (mode == 1 && character == ']') {
                         if (resolve(token.substring(1, token.length() - 1)) != null) mode = 6;
                         else mode = 2;
+                    } else if (mode == 1 && character == ')'
+                            && evidence.containsKey(token.substring(1, token.length() - 1))) {
+                        token.setCharAt(token.length() - 1, ']');
+                        emit(output);
                     } else if (mode == 2 && Character.isWhitespace(character)) mode = 7;
                     else if (mode == 2) mode = 3;
                     else if (mode == 6 && Character.isWhitespace(character)) mode = 7;

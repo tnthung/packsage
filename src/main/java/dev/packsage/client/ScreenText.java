@@ -28,7 +28,9 @@ final class ScreenText {
     static final int CODE_COLOR = 0xffd27f;
     static final int DIM_COLOR = 0x808080;
     private static final String CELL_GAP = "   ";
-    private static final Pattern CITATION_MARKER = Pattern.compile("\\[(native|config|history|world|progress):([^\\]\\s]+)\\]");
+    static final List<String> CITATION_PROVIDERS = List.of("native", "config", "history", "world", "progress", "journal");
+    private static final Pattern CITATION_MARKER = Pattern.compile("\\[(" + String.join("|", CITATION_PROVIDERS) + "):([^\\]\\s]+)\\]");
+    private static final Pattern UNRESOLVED_MODEL_ALIAS = Pattern.compile("\\[ref:[0-9a-f]{8}\\.[0-9a-z]+\\.[0-9a-z]+[\\])]");
     private static final String BULLET = "• ";
     private static final String SEPARATOR = " · ";
     private static final Pattern HEADING = Pattern.compile("^(#{1,6}) +(.*)$");
@@ -87,7 +89,8 @@ final class ScreenText {
                 continue;
             }
             if (inCode) {
-                lines.add(Component.literal(line).withStyle(style -> style.withColor(CODE_COLOR)));
+                lines.add(Component.literal(UNRESOLVED_MODEL_ALIAS.matcher(line).replaceAll(""))
+                        .withStyle(style -> style.withColor(CODE_COLOR)));
                 continue;
             }
             Matcher heading = HEADING.matcher(line);
@@ -144,6 +147,13 @@ final class ScreenText {
         int index = 0;
         while (index < text.length()) {
             if (text.charAt(index) == '[') {
+                Matcher alias = UNRESOLVED_MODEL_ALIAS.matcher(text).region(index, text.length());
+                if (alias.lookingAt()) {
+                    index = alias.end();
+                    if ((index >= text.length() || ".,;:!?) ".indexOf(text.charAt(index)) >= 0)
+                            && !plain.isEmpty() && plain.charAt(plain.length() - 1) == ' ') plain.setLength(plain.length() - 1);
+                    continue;
+                }
                 Matcher marker = CITATION_MARKER.matcher(text).region(index, text.length());
                 if (marker.lookingAt()) {
                     index = marker.end();
@@ -170,7 +180,7 @@ final class ScreenText {
                 int close = text.indexOf('`', index + 1);
                 if (close > index + 1) {
                     flush(result, plain);
-                    result.append(Component.literal(text.substring(index + 1, close))
+                    result.append(Component.literal(UNRESOLVED_MODEL_ALIAS.matcher(text.substring(index + 1, close)).replaceAll(""))
                             .withStyle(style -> style.withColor(CODE_COLOR)));
                     index = close + 1;
                     continue;
@@ -226,7 +236,7 @@ final class ScreenText {
             boolean bold = false;
             List<InlineSpan> spans = new ArrayList<>();
             if (inCode) {
-                spans.add(new InlineSpan(line, null, CODE_COLOR, false, true));
+                spans.add(new InlineSpan(UNRESOLVED_MODEL_ALIAS.matcher(line).replaceAll(""), null, CODE_COLOR, false, true));
             } else {
                 Matcher blockquote = BLOCKQUOTE.matcher(line);
                 if (blockquote.find()) {
@@ -345,6 +355,15 @@ final class ScreenText {
         boolean code = false;
         int index = 0;
         while (index < text.length()) {
+            if (text.charAt(index) == '[') {
+                Matcher alias = UNRESOLVED_MODEL_ALIAS.matcher(text).region(index, text.length());
+                if (alias.lookingAt()) {
+                    index = alias.end();
+                    if ((index >= text.length() || ".,;:!?) ".indexOf(text.charAt(index)) >= 0)
+                            && !plain.isEmpty() && plain.charAt(plain.length() - 1) == ' ') plain.setLength(plain.length() - 1);
+                    continue;
+                }
+            }
             ModelBackend.UrlCitation citation = null;
             for (ModelBackend.UrlCitation value : citations) {
                 if (!code && value.startIndex() == absoluteStart + index && value.endIndex() > value.startIndex()) {

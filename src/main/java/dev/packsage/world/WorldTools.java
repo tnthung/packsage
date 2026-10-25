@@ -864,7 +864,7 @@ public final class WorldTools implements KnowledgeProvider {
                     blocks.add(at.immutable());
                 }
                 if (chunk.getBlockEntities().size() > AreaScan.SNAPSHOT_LIMIT) notes.add("Block entity snapshot reached the per-chunk bound; some holders were not searched");
-                if (blocks.size() > RESOLVE_PER_STEP) notes.add(AreaScan.SNAPSHOT_NOTE);
+                if (!blocks.isEmpty()) notes.add(AreaScan.SNAPSHOT_NOTE);
                 blockIndex = 0;
                 if (!level.areEntitiesLoaded(pos.toLong())) entitiesUnloaded++;
                 return false;
@@ -893,6 +893,7 @@ public final class WorldTools implements KnowledgeProvider {
             }
             if (entities == null) {
                 entities = level.areEntitiesLoaded(pos.toLong()) ? AreaScan.entitySnapshot(level, pos, notes) : List.of();
+                if (!entities.isEmpty()) notes.add(AreaScan.SNAPSHOT_NOTE);
                 entityIndex = 0;
                 return false;
             }

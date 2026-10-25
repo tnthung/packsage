@@ -548,6 +548,14 @@ public final class AreaScan {
                 var id = entities.get(index);
                 var entity = level.getEntity(id);
                 if (entity == null || entity.isRemoved()) notes.add("An entity from a chunk snapshot disappeared during the read");
+                if (entity != null && !entity.isRemoved()) {
+                    var x = SectionPos.blockToSectionCoord(entity.getBlockX());
+                    var z = SectionPos.blockToSectionCoord(entity.getBlockZ());
+                    if (level.getChunkSource().getChunkNow(x, z) == null || !level.areEntitiesLoaded(ChunkPos.asLong(x, z))) {
+                        notes.add("An entity moved outside loaded chunks during the read");
+                        entity = null;
+                    }
+                }
                 if (entity != null && !entity.isRemoved() && !seen.contains(id) && entity.position().distanceToSqr(center) <= radiusSquared) {
                     var kind = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
                     var tags = filter.tags().isEmpty() ? List.<String>of()

@@ -51,6 +51,16 @@ class GroundingInstructionsTest {
     }
 
     @Test
+    void defaultInstructionsLimitGameplayActionsButAllowNoteMaintenance() {
+        var text = GroundingInstructions.defaultInstructions();
+        assertTrue(text.contains("For a request only to perform gameplay actions, briefly explain the read-only limit and offer to help with instructions."));
+        assertTrue(text.contains("Do not call tools for those gameplay actions or add an unrequested assessment of the scene, materials or execution."));
+        assertTrue(text.contains("These limits apply only to gameplay actions, not to saving, updating or forgetting the player's notes."));
+        assertFalse(text.contains("For an action-only request"));
+        assertFalse(text.contains("Do not call tools or add"));
+    }
+
+    @Test
     void promptNamesNoRemovedTool() {
         var text = GroundingInstructions.defaultInstructions();
         for (var removed : List.of("search_inventory", "slotReference", "target opened")) {

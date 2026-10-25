@@ -161,7 +161,11 @@ public final class CommandReader<S> {
                 if (redirects == null) redirects = copies.entrySet().iterator();
                 if (redirects.hasNext()) {
                     var entry = redirects.next();
-                    if (entry.getValue() instanceof SnapshotNode<S> copy) copy.redirect = copies.get(entry.getKey().getRedirect());
+                    if (entry.getValue() instanceof SnapshotNode<S> copy && entry.getKey().getRedirect() != null) {
+                        var target = entry.getKey().getRedirect();
+                        copy.redirect = copies.get(target);
+                        if (copy.redirect == null) copy.redirect = new SnapshotNode<>(target.getName(), target.getUsageText(), false, false, null);
+                    }
                     return true;
                 }
                 result = new CommandReader<>(new CommandDispatcher<>(root), source, typeId);

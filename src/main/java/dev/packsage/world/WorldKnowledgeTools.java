@@ -110,7 +110,7 @@ final class WorldKnowledgeTools {
     private record CommandSearchState(List<CommandReader.Summary> summaries, int permission, int offset) {
     }
 
-    private record CommandReadState(CommandReader<?> reader, int permission, int usageOffset, int argumentOffset) {
+    record CommandReadState(CommandReader<?> reader, int permission, int usageOffset, int argumentOffset) {
     }
 
     private final WorldTools calls;
@@ -649,8 +649,7 @@ final class WorldKnowledgeTools {
                 "no command " + name + "; search_commands lists them");
         int usageEnd = Math.min(usageOffset + CommandReader.MAX_USAGE, detail.usage().size());
         int playerEnd = Math.min(usageOffset + CommandReader.MAX_USAGE, detail.playerUsage().size());
-        boolean moreUsage = usageEnd < detail.usage().size() || playerEnd < detail.playerUsage().size();
-        boolean more = moreUsage || detail.argumentsBounded();
+        boolean more = usageEnd < detail.usage().size() || playerEnd < detail.playerUsage().size() || detail.argumentsBounded();
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("path", WorldTools.text(detail.path()));
         payload.put("canUse", new Evidence.JsonBoolean(detail.canUse()));
@@ -667,7 +666,7 @@ final class WorldKnowledgeTools {
         var coverage = more ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
         return WorldTools.result(List.of(WorldTools.evidence(request.scope(), "command|" + detail.path(), Evidence.RecordKind.OTHER,
                 "/" + detail.path(), payload, coverage, null)), coverage,
-                more ? calls.remember(request, new CommandReadState(reader, permission, moreUsage ? usageOffset + CommandReader.MAX_USAGE : usageOffset,
+                more ? calls.remember(request, new CommandReadState(reader, permission, usageOffset + CommandReader.MAX_USAGE,
                         argumentOffset + detail.arguments().size())) : null,
                 more ? "command usage or arguments reached the page bound; continue with the cursor" : null);
     }
@@ -685,5 +684,4 @@ final class WorldKnowledgeTools {
             throw WorldTools.invalid("give exactly one of " + String.join(", ", names));
         }
     }
-
 }

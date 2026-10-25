@@ -110,6 +110,26 @@ class WorldKnowledgeToolsTest {
     }
 
     @Test
+    void argumentContinuationDoesNotRepeatAnAlreadyCompleteUsagePage() {
+        var dispatcher = new com.mojang.brigadier.CommandDispatcher<Integer>();
+        var tail = com.mojang.brigadier.builder.RequiredArgumentBuilder.<Integer, Integer>argument("arg299",
+                com.mojang.brigadier.arguments.IntegerArgumentType.integer()).executes(context -> fail("executed chain"));
+        for (int i = 298; i >= 0; i--) tail = com.mojang.brigadier.builder.RequiredArgumentBuilder.<Integer, Integer>argument(
+                "arg" + i, com.mojang.brigadier.arguments.IntegerArgumentType.integer()).then(tail);
+        dispatcher.register(com.mojang.brigadier.builder.LiteralArgumentBuilder.<Integer>literal("chain").then(tail));
+        var tools = tools();
+        var knowledge = new WorldKnowledgeTools(tools);
+        var request = new PackSageTools.ReadRequest("read_command", Evidence.deserializeObject("{\"name\":\"chain\"}"), SCOPE);
+        var first = knowledge.commandResult(request, new CommandReader<>(dispatcher, 0, type -> "integer"), 0, "chain", 0, 0);
+        var state = (WorldKnowledgeTools.CommandReadState) tools.cursor(new PackSageTools.ReadRequest("read_command",
+                Evidence.deserializeObject("{\"name\":\"chain\",\"cursor\":\"" + first.nextCursor() + "\"}"), SCOPE));
+        var rest = knowledge.commandResult(request, state.reader(), state.permission(), "chain", state.usageOffset(), state.argumentOffset());
+        assertEquals(new Evidence.JsonArray(List.of()), rest.records().getFirst().payload().values().get("usage"));
+        assertEquals(44, ((Evidence.JsonArray) rest.records().getFirst().payload().values().get("arguments")).values().size());
+        assertEquals(Evidence.Coverage.COMPLETE, rest.coverage());
+    }
+
+    @Test
     void savedVerdictsConfirmDropOrKeepPredictions() {
         var hits = IntStream.range(0, 3).mapToObj(x -> new LocateStructure.Hit(
                 "minecraft:test", x, 0, x * 16, 72, 0, LocateStructure.Kind.PREDICTED,

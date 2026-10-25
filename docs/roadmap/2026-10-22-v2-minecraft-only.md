@@ -13,7 +13,7 @@ The `feat/packsage-v2` branch removes every non-Minecraft adapter so mod adapter
 - Curios equipment sections and Relics instance reads in the Minecraft inventory reader.
 - Optional mod detection, version range checks and the reflective provider wrappers in the client.
 - Build dependencies, repositories and version properties used only by these adapters.
-- The `search_document` and `read_progress` tools, which have no source left. They stay out of the model-facing tool list until a document or quest source returns. The internal document discovery and progress plumbing remains so a future adapter can restore them.
+- The `search_document` and `read_progress` tools. Internal document discovery remains for a future document adapter; the old `read_progress` plumbing is removed and the v2 progress tools replace it.
 
 ## Remaining
 
@@ -21,6 +21,7 @@ The `feat/packsage-v2` branch removes every non-Minecraft adapter so mod adapter
 - Conversation history tools: `search_history` and `read_history`.
 - Config reader: `list_configs`, `search_config` and `read_config`.
 - Minecraft adapter: recipes and brewing, recipe planning, registries, effects, attributes, dimensions, and inventory, equipment and storage reading through the world tools.
+- Advancement progress and player statistics through `list_progress`, `inspect_progress` and `list_statistics` in singleplayer; implemented, not yet checked in game.
 
 ## World model
 
@@ -48,6 +49,31 @@ The [plan](../plans/2026-10-22-v2-world-reading.md) is implemented. The [validat
   - N4: an early stop can make no progress. Fixed: a stop waits for at least one new container or chunk.
   - N5: `inspect_area` can drop the entity page's note. Fixed: the note is kept alongside the `list_entities` pointer.
 
+### Progress and statistics
+
+Stage 2's [plan](../plans/2026-10-22-v2-progress-statistics.md) is implemented. The full build reports 736 automated tests: 732 passed, 4 skipped, no failures or errors. These features are not yet checked in game; keep each item unchecked until it passes the single acceptance run at the end of all stages.
+
+- [ ] `list_progress`, `inspect_progress` and `list_statistics`: advancement status and per-criterion state, plus player counters in blocks, seconds and health points. Interrupted or failed reads report PARTIAL with notes; multiplayer reports unavailable.
+- [ ] Hidden advancements redacted until earned: no names, descriptions, criteria, requirements, unlocks or rewards, including through filters and inspection.
+- [ ] Advancement links labeled `Open advancements`, supplied by provider `progress`, open the current tab and survive a full Minecraft restart. Missing advancement destinations report unavailable.
+- [ ] The old `read_progress` plumbing removed, with earlier chats still displaying their saved quest sources and links.
+
+Live checks for the final acceptance run, on the installed JAR with the developer prompt override cleared (singleplayer except the multiplayer check):
+
+- [ ] Adventuring Time: with a few biomes visited, ask "what advancements am I missing for Adventuring Time?" Expect missing biomes by name from `inspect_progress` and an `Open advancements` link that opens the Adventure tab.
+- [ ] Diamonds: after mining diamond ore, ask "how many diamonds have I mined?" Expect the exact `mined` counts for `minecraft:diamond_ore` and `minecraft:deepslate_diamond_ore`; picked-up diamonds may also be counted if clearly distinguished.
+- [ ] Walking: ask "how far have I walked?" Expect `walk_one_cm` in blocks, or kilometres derived from blocks, rather than centimetres.
+- [ ] Never mined: in a fresh world, ask "how much ancient debris have I mined?" Expect an explicit zero counter value rather than unknown.
+- [ ] Hidden advancement: with a hidden advancement partly progressed, ask "what hidden advancements do I have left?" Expect a count with no names or criteria.
+- [ ] Play time: ask "how long have I played this world?" Expect `play_time` in seconds, converted sensibly for the reply.
+- [ ] Next goal: ask "what should I do next for advancements?" Expect `available` entries from `list_progress`, each with a working link.
+- [ ] Saved link: open a saved advancement link after a full Minecraft restart and expect its tab to open.
+- [ ] Multiplayer: join a multiplayer server and expect all three progress and statistics tools to report unavailable.
+- [ ] Performance: run `list_progress` with a large advancement datapack loaded and expect no visible stall.
+- [ ] Retired tool and saved chats: verify the model-facing tool list has no `read_progress`, and earlier chats still display their saved quest sources and links.
+
+After the final run, record results in `docs/validation/2026-10-22-v2-progress-statistics.md` and check only passing items here and in both roadmaps. That validation record has not been created yet.
+
 ### Next plans
 
 The Minecraft adapter is finished before this branch merges back. The [completion specification](../specs/2026-10-25-v2-minecraft-completion.md) adds stages 1 and 3. The work lands in this order:
@@ -61,7 +87,7 @@ The Minecraft adapter is finished before this branch merges back. The [completio
   - [ ] Tooltip lines in `inspect_item` and the `filter.tooltip` search in `list_items` and `find_items`.
   - [ ] `search_inventory` and the legacy inventory and storage readers removed; old `inventory:` and `storage:` handles reread as unavailable.
   - [x] N2–N5 fixed (see the backlog above).
-- [ ] 2. Progress and statistics (below).
+- [ ] 2. Progress and statistics ([plan](../plans/2026-10-22-v2-progress-statistics.md), [acceptance checks](#progress-and-statistics)). Implemented; not yet checked in game. Acceptance runs once at the end of all stages.
 - [ ] 3. More world knowledge (`docs/plans/2026-10-25-v2-world-knowledge.md`):
   - villager trades without generating them;
   - `read_loot`;
@@ -73,7 +99,7 @@ The Minecraft adapter is finished before this branch merges back. The [completio
 Plan details:
 
 - [ ] Journal and notes (`docs/plans/2026-10-22-v2-journal.md`): automatic event recording into SQLite with run-length merging, `search_journal`, and invisible model-chosen notes.
-- [ ] Progress and statistics (`docs/plans/2026-10-22-v2-progress-statistics.md`): the `ProgressReader` and `StatisticReader` traits, `list_progress`, `inspect_progress` and `list_statistics`.
+- [ ] Progress and statistics ([plan](../plans/2026-10-22-v2-progress-statistics.md)): the `ProgressReader` and `StatisticReader` capabilities, `list_progress`, `inspect_progress` and `list_statistics` are implemented; not yet checked in game (see the [acceptance checks](#progress-and-statistics)).
 - [ ] Prompt and acceptance (`docs/plans/2026-10-22-v2-prompt-acceptance.md`, not written). Includes the Round 1 failures:
   - the armor reply omitted eligible enchantments that the evidence returned;
   - the mule reply gave no coordinates;

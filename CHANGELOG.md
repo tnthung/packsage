@@ -4,6 +4,8 @@
 
 ### 2026-10-26
 
+- Bounded area entity summaries and inspection names, replaced advancement reflection with owned reference snapshots, and added public block-cursor and deterministic restore-order regressions; full build passes, installed checks pending.
+- Fixed byte-aware item/block paging, wide advancement-tree pacing, worker-side conflict restoration with newer screen saves, and concrete entity-gap details in area summaries; automated regressions pass, installed checks pending.
 - Fixed entity snapshot resumption after section removals/recreation with bounded rescans and explicit PARTIAL coverage under repeated churn; debug conflict restoration now checks and writes in one client task. Shared world-list setup and documented snapshot paging cost; automated regressions pass, live checks pending.
 - Fixed W3: stable entity and item searches stay COMPLETE across server ticks and report their game-time span, including under /tick freeze; concrete gaps still report PARTIAL. Automated regressions pass; installed reacceptance is pending.
 

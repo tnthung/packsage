@@ -57,6 +57,28 @@ class WorldInspectionTest {
     }
 
     @Test
+    void hugeCustomNameIsCappedWithoutDroppingTheEntityFacts() throws Exception {
+        var world = DenseWorld.create(0);
+        var cow = new Cow(EntityType.COW, world);
+        cow.setCustomName(Component.literal("x".repeat(1023) + "\uD83D\uDE00" + "x".repeat(300_000)));
+
+        var result = inspect(world, cow);
+
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        var record = result.records().getFirst();
+        assertTrue(PackSageTools.encodeRecord(record).toString().getBytes(StandardCharsets.UTF_8).length < 65_536);
+        assertTrue(record.title().length() < 2048);
+        assertEquals(new Evidence.JsonString("x".repeat(1023)), record.payload().values().get("name"));
+        assertEquals(new Evidence.JsonBoolean(true), record.payload().values().get("nameTruncated"));
+        var section = (Evidence.JsonObject) ((Evidence.JsonObject) record.payload().values().get("sections")).values().get("minecraft");
+        var facts = (Evidence.JsonObject) section.values().get("facts");
+        assertEquals(new Evidence.JsonString("x".repeat(1023)), facts.values().get("customName"));
+        assertEquals(new Evidence.JsonBoolean(true), facts.values().get("nameTruncated"));
+        assertTrue(facts.values().containsKey("health"));
+        assertTrue(((Evidence.JsonString) section.values().get("note")).value().contains("truncated"));
+    }
+
+    @Test
     void cappedOffersPropagatePartialCoverageThroughTheToolResult() throws Exception {
         var world = DenseWorld.create(0);
         var villager = new Villager(EntityType.VILLAGER, world);

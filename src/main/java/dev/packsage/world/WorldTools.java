@@ -65,6 +65,9 @@ public final class WorldTools implements KnowledgeProvider {
     static final int CURSORS = 256;
     private static final long TIMEOUT_SECONDS = 60;
     private static final int RESOLVE_PER_STEP = 64;
+    /** Encoded-size budgets inside one inspect_area record, well under the 128 KiB tool output limit. */
+    static final int AREA_NOTABLE_BYTES = 32 * 1024;
+    static final int AREA_COUNT_BYTES = 16 * 1024;
 
     private record Cursor(String tool, Evidence.JsonObject signature, Evidence.Scope scope, Object state) {
     }
@@ -73,7 +76,10 @@ public final class WorldTools implements KnowledgeProvider {
     record Center(String dimension, Vec3 position) {
     }
 
-    private record ListState(Center center, String scan) {
+    private record ListState(Center center, String scan, Page<BlockHandle> pending, ReadSpan span) {
+        ListState(Center center, String scan) {
+            this(center, scan, null, null);
+        }
     }
 
     private record EntityRead(Center center, Page<EntityHandle> page, List<String> cursors) {
@@ -313,7 +319,13 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private CompletionStage<Evidence.Result> listBlocks(PackSageTools.ReadRequest request) {
-        return list(request, (level, center, radius, filter, cursor) -> scan.listBlocks(level, center.position(), radius, filter, cursor), this::blockRecord);
+        var token = cursor(request);
+        if (token != null && state(token, ListState.class).pending() != null) {
+            server();
+            return CompletableFuture.completedFuture(blocks(request, null, null, null));
+        }
+        return list(request, (level, center, radius, filter, cursor) -> mapped(scan.listBlocks(level, center.position(), radius, filter, cursor),
+                page -> Map.entry(center, page))).thenApply(read -> blocks(request, read.value().getKey(), read.value().getValue(), read.span()));
     }
 
     private CompletionStage<Evidence.Result> listEntities(PackSageTools.ReadRequest request) {
@@ -355,10 +367,6 @@ public final class WorldTools implements KnowledgeProvider {
         ServerWork.Slice<T> scan(ServerLevel level, Center center, int radius, KindFilter filter, String cursor);
     }
 
-    private interface RecordOf<T> {
-        Evidence.Record record(Evidence.Scope scope, T handle, ReadSpan span);
-    }
-
     private <T> CompletionStage<Spanned<T>> list(PackSageTools.ReadRequest request, ListScan<T> listing) {
         var anchor = anchor(argument(request, "center"));
         var radius = radius(argument(request, "radius"));
@@ -370,13 +378,35 @@ public final class WorldTools implements KnowledgeProvider {
                 listing.scan(level(server, center.dimension()), center, radius, filter, state == null ? null : state.scan()))));
     }
 
-    private <T> CompletionStage<Evidence.Result> list(PackSageTools.ReadRequest request, ListScan<Page<T>> listing, RecordOf<T> records) {
-        return list(request, (level, center, radius, filter, cursor) -> mapped(listing.scan(level, center, radius, filter, cursor),
-                page -> Map.entry(center, page))).thenApply(read -> {
-            var page = read.value().getValue();
-            var next = page.nextCursor() == null ? null : remember(request, new ListState(read.value().getKey(), page.nextCursor()));
-            return result(page.items().stream().map(handle -> records.record(request.scope(), handle, read.span())).toList(), page.coverage(), next, page.note());
-        });
+    private Evidence.Result blocks(PackSageTools.ReadRequest request, Center center, Page<BlockHandle> page, ReadSpan span) {
+        var cursor = cursor(request);
+        if (cursor != null) {
+            var state = state(cursor, ListState.class);
+            if (state.pending() != null) {
+                center = state.center();
+                page = state.pending();
+                span = state.span();
+            }
+        }
+        var records = new ArrayList<Evidence.Record>();
+        var bytes = 0;
+        for (var block : page.items()) {
+            var record = blockRecord(request.scope(), block, span);
+            var recordBytes = PackSageTools.encodeRecord(record).toString().getBytes(StandardCharsets.UTF_8).length + 1;
+            if (bytes + recordBytes > 64 * 1024) {
+                if (records.isEmpty()) throw new Failure(Code.EXTRACTION_FAILED, "one block record exceeds the page byte budget");
+                break;
+            }
+            records.add(record);
+            bytes += recordBytes;
+        }
+        var cut = records.size() < page.items().size();
+        var next = cut ? remember(request, new ListState(center, page.nextCursor(),
+                new Page<>(page.items().subList(records.size(), page.items().size()), page.nextCursor(), page.coverage(), page.note()), span))
+                : page.nextCursor() == null ? null : remember(request, new ListState(center, page.nextCursor()));
+        var note = page.note();
+        if (cut) note = (note == null ? "" : note + "; ") + "Block page byte budget reached; continue with the cursor";
+        return result(records, page.coverage(), next, note);
     }
 
     private CompletionStage<Evidence.Result> inspect(PackSageTools.ReadRequest request, String handle) {
@@ -509,13 +539,20 @@ public final class WorldTools implements KnowledgeProvider {
         var notes = new LinkedHashSet<String>();
         if (state.note() != null) notes.add(state.note());
         if (note != null) notes.add(note);
-        var merged = notes.isEmpty() ? null : String.join("; ", notes);
-        // Entries and their holder records share one page of LIST_PAGE records, the tool output limit, so nothing on
-        // the page is cut after it is built. A page always shows at least one entry.
+        // Measure entries and their holder links before advancing the pending entry cursor. Leave room for the
+        // result envelope beneath the outer encoder's 128 KiB cap, as list_entities does.
         // The holder summary leads the first page and counts toward it; its root already has its record there.
         var summary = state.summary();
         var lead = summary == null ? 0 : 1;
         var roots = new LinkedHashSet<PathRoot>();
+        var records = new ArrayList<Evidence.Record>();
+        var holders = new ArrayList<Evidence.Record>();
+        var bytes = 0;
+        if (summary != null) {
+            var record = summaryRecord(request.scope(), summary, state.span(), sticky);
+            records.add(record);
+            bytes += PackSageTools.encodeRecord(record).toString().getBytes(StandardCharsets.UTF_8).length + 1;
+        }
         var shownCount = 0;
         for (var entry : state.pending()) {
             var added = new LinkedHashSet<PathRoot>();
@@ -523,29 +560,41 @@ public final class WorldTools implements KnowledgeProvider {
                 var root = location.root();
                 if (!(root instanceof PathRoot.Player) && !(root instanceof PathRoot.Opened) && !roots.contains(root) && (summary == null || !summary.root().equals(root))) added.add(root);
             }
-            if (shownCount > 0 && lead + shownCount + 1 + roots.size() + added.size() > AreaScan.LIST_PAGE) break;
+            var record = entryRecord(request.scope(), entry, state.slotFacts(), state.span());
+            var addedHolders = new ArrayList<Evidence.Record>();
+            var addedBytes = PackSageTools.encodeRecord(record).toString().getBytes(StandardCharsets.UTF_8).length + 1;
+            for (var root : added) {
+                var holder = holderRecord(request.scope(), root, state.span());
+                var holderBytes = PackSageTools.encodeRecord(holder).toString().getBytes(StandardCharsets.UTF_8).length + 1;
+                if (lead + shownCount + 1 + holders.size() + addedHolders.size() >= AreaScan.LIST_PAGE
+                        || bytes + addedBytes + holderBytes > 64 * 1024) break;
+                addedHolders.add(holder);
+                addedBytes += holderBytes;
+            }
+            if (shownCount > 0 && (lead + shownCount + 1 + roots.size() + added.size() > AreaScan.LIST_PAGE
+                    || bytes + addedBytes > 64 * 1024 || addedHolders.size() < added.size())) break;
+            if (bytes + addedBytes > 64 * 1024) throw new Failure(Code.EXTRACTION_FAILED, "one item record exceeds the page byte budget");
+            records.add(record);
+            holders.addAll(addedHolders);
+            bytes += addedBytes;
             roots.addAll(added);
             shownCount++;
+            if (record.source().coverage() == Evidence.Coverage.PARTIAL) {
+                sticky = Evidence.Coverage.PARTIAL;
+                notes.add("Item names longer than 1,024 characters were truncated; nameTruncated marks the affected records");
+            }
         }
-        var shown = state.pending().subList(0, shownCount);
-        var rest = List.copyOf(state.pending().subList(shown.size(), state.pending().size()));
+        var rest = List.copyOf(state.pending().subList(shownCount, state.pending().size()));
+        var merged = notes.isEmpty() ? null : String.join("; ", notes);
         var next = rest.isEmpty() && state.search() == null ? null
                 : remember(request, new EntriesState(rest, state.search(), sticky, merged, state.span(), null, state.slotFacts()));
         if (bound != null) notes.add(bound);
-        if (!rest.isEmpty()) notes.add("This page shows " + shown.size() + " entries, the page limit with their holders; continue with the cursor");
-        var records = new ArrayList<Evidence.Record>();
-        if (summary != null) records.add(summaryRecord(request.scope(), summary, state.span(), sticky));
-        for (var entry : shown) records.add(entryRecord(request.scope(), entry, state.slotFacts(), state.span()));
+        if (!rest.isEmpty()) notes.add("This page shows " + shownCount + " entries, the page limit with their holders and encoded byte budget; continue with the cursor");
         // One record per block or entity holder on the page, so each holder has its own highlight link.
-        var linked = 0;
-        for (var root : roots) {
-            if (records.size() >= AreaScan.LIST_PAGE) break;
-            var holder = holderRecord(request.scope(), root, state.span());
-            if (holder != null) records.add(holder);
-            linked++;
-        }
+        records.addAll(holders);
+        var linked = holders.size();
         if (linked < roots.size()) {
-            notes.add("Highlight links are shown for " + linked + " of " + roots.size() + " holders of " + shown.getFirst().name()
+            notes.add("Highlight links are shown for " + linked + " of " + roots.size() + " holders of the first entry"
                     + "; list or inspect the others by their item paths");
         }
         return result(records, sticky, next, notes.isEmpty() ? null : String.join("; ", notes));
@@ -653,14 +702,15 @@ public final class WorldTools implements KnowledgeProvider {
         var root = entity instanceof ServerPlayer ? new PathRoot.Player(id) : new PathRoot.Entity(id);
         var inventories = registry.inventories(holder);
         var sections = registry.inspectEntity(entity);
-        var handle = handle(entity);
-        var payload = new LinkedHashMap<String, Evidence.JsonValue>(entityFacts(handle));
+        var identity = entityRecord(scope, handle(entity), null);
+        var payload = new LinkedHashMap<>(identity.payload().values());
         payload.put("holder", text(new ItemPath(root, List.of()).text()));
         payload.put("sections", sections(sections));
         payload.put("inventories", inventories(inventories));
         putTime(payload, entity.level());
-        return evidence(scope, "entity|" + id, Evidence.RecordKind.OTHER, entityTitle(handle), payload,
-                coverage(sections, inventories), WorldNavigation.entityId(id));
+        return evidence(scope, "entity|" + id, Evidence.RecordKind.OTHER, identity.title(), payload,
+                identity.source().coverage() == Evidence.Coverage.PARTIAL ? Evidence.Coverage.PARTIAL : coverage(sections, inventories),
+                WorldNavigation.entityId(id));
     }
 
     private Evidence.Record inspectItem(MinecraftServer server, ItemPath path, Evidence.Scope scope) {
@@ -1549,32 +1599,49 @@ public final class WorldTools implements KnowledgeProvider {
 
     // Records
 
-    /** The block page's note, the notable cap, a cut entity list's list_entities pointer, then the entity page's load notes. */
+    /** The block page's note, the notable cap, a cut entity list's list_entities pointer, then concrete entity gaps. */
     static List<String> areaNotes(Page<BlockSummary> blocks, Page<EntityHandle> entities) {
         var notes = new LinkedHashSet<String>();
         if (blocks.note() != null) notes.add(blocks.note());
         if (blocks.items().getFirst().notable().size() >= AreaScan.SUMMARY_NOTABLE) {
             notes.add("Notable blocks reached the " + AreaScan.SUMMARY_NOTABLE + " cap; use list_blocks with a filter for the rest");
         }
-        // inspect_area returns no cursor, so a cut entity page points at list_entities and keeps only its load notes,
-        // never its cursor instructions.
+        // inspect_area returns no cursor, so translate paging instructions and keep concrete omission reasons.
         if (entities.nextCursor() != null) {
             notes.add(entities.items().size() >= AreaScan.LIST_PAGE
                     ? "More than " + AreaScan.LIST_PAGE + " entities are in range; use list_entities with a filter for the rest"
                     : "The entity scan stopped at the per-call work limit; use list_entities for the rest");
         }
-        if (entities.loadNote() != null) notes.add(entities.loadNote());
+        if (entities.note() != null) {
+            for (var part : entities.note().split("; ")) {
+                if (part.equals(AreaScan.PAGE_LIMIT_NOTE.split("; ")[0]) || part.equals("continue with the cursor")
+                        || part.startsWith("Stopped at the per-call work limit") || part.startsWith("The read spanned multiple server ticks")
+                        || part.startsWith("game-time span:")) continue;
+                notes.add(part);
+            }
+        }
         return List.copyOf(notes);
     }
 
     private Evidence.Result area(Evidence.Scope scope, Anchor anchor, int radius, AreaRead read, ReadSpan span) {
         var summary = read.blocks().items().getFirst();
-        var notes = areaNotes(read.blocks(), read.entities());
+        var notes = new LinkedHashSet<>(areaNotes(read.blocks(), read.entities()));
         var notable = new TreeMap<String, Map<String, List<Evidence.JsonValue>>>();
+        // Block ids and positions are ASCII, so string lengths bound their encoded bytes; entities get the remaining budget.
+        int notableBytes = 0, notableListed = 0;
         for (var block : summary.notable()) {
             var place = block.handle().place();
+            var position = place.x() + "," + place.y() + "," + place.z();
+            notableBytes += position.length() + 3 + (notable.containsKey(block.role()) && notable.get(block.role()).containsKey(block.handle().kind())
+                    ? 0 : block.role().length() + block.handle().kind().length() + 8);
+            if (notableBytes > AREA_NOTABLE_BYTES) break;
             notable.computeIfAbsent(block.role(), key -> new TreeMap<>()).computeIfAbsent(block.handle().kind(), key -> new ArrayList<>())
-                    .add(text(place.x() + "," + place.y() + "," + place.z()));
+                    .add(text(position));
+            notableListed++;
+        }
+        if (notableListed < summary.notable().size()) {
+            notes.add("Area notable-block byte budget reached; " + (summary.notable().size() - notableListed)
+                    + " notable blocks omitted from this summary; use list_blocks with a filter for the rest");
         }
         var roles = new LinkedHashMap<String, Evidence.JsonValue>();
         notable.forEach((role, kinds) -> {
@@ -1583,7 +1650,18 @@ public final class WorldTools implements KnowledgeProvider {
             roles.put(role, new Evidence.JsonObject(byKind));
         });
         var counts = new LinkedHashMap<String, Evidence.JsonValue>();
-        summary.counts().forEach((kind, count) -> counts.put(kind, number(count)));
+        int countBytes = 0;
+        var byCount = summary.counts().entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed()
+                .thenComparing(Map.Entry.comparingByKey())).toList();
+        for (var entry : byCount) {
+            countBytes += entry.getKey().length() + 16;
+            if (countBytes > AREA_COUNT_BYTES) {
+                notes.add("Area block-count byte budget reached; the " + (byCount.size() - counts.size())
+                        + " least common block ids are omitted; use list_blocks with a filter for them");
+                break;
+            }
+            counts.put(entry.getKey(), number(entry.getValue()));
+        }
         var center = new LinkedHashMap<String, Evidence.JsonValue>();
         center.put("dimension", text(read.center().dimension()));
         center.put("x", decimal(read.center().position().x));
@@ -1597,13 +1675,29 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("notableCount", number(summary.notable().size()));
         payload.put("unloadedChunks", number(summary.unloadedChunks()));
         putSpan(payload, span);
-        payload.put("entities", new Evidence.JsonArray(read.entities().items().stream()
-                .map(entity -> (Evidence.JsonValue) new Evidence.JsonObject(entityFacts(entity))).toList()));
+        var entities = new ArrayList<Evidence.JsonValue>();
+        var handle = "area|" + anchorText(anchor) + "|" + radius;
+        var title = "Area within " + radius + " blocks of " + anchorText(anchor);
+        for (var entity : read.entities().items()) {
+            var record = entityRecord(scope, entity, null);
+            entities.add(record.payload());
+            payload.put("entities", new Evidence.JsonArray(entities));
+            // Measure the entire record with the real encoder, including escaped names and the block summary.
+            if (PackSageTools.encodeRecord(evidence(scope, handle, Evidence.RecordKind.OTHER, title, payload,
+                    Evidence.Coverage.PARTIAL, null)).toString().getBytes(StandardCharsets.UTF_8).length > 64 * 1024) {
+                entities.removeLast();
+                notes.add("Area entity byte budget reached; " + (read.entities().items().size() - entities.size())
+                        + " entities omitted from this summary; use list_entities for the rest");
+                break;
+            }
+            if (record.source().coverage() == Evidence.Coverage.PARTIAL) {
+                notes.add("Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records");
+            }
+        }
+        payload.put("entities", new Evidence.JsonArray(entities));
         var coverage = notes.isEmpty() && read.blocks().coverage() == Evidence.Coverage.COMPLETE
                 && read.entities().coverage() == Evidence.Coverage.COMPLETE ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
-        var handle = "area|" + anchorText(anchor) + "|" + radius;
-        var record = evidence(scope, handle, Evidence.RecordKind.OTHER, "Area within " + radius + " blocks of " + anchorText(anchor),
-                payload, coverage, null);
+        var record = evidence(scope, handle, Evidence.RecordKind.OTHER, title, payload, coverage, null);
         return result(List.of(record), coverage, null, notes.isEmpty() ? null : String.join("; ", notes));
     }
 
@@ -1657,9 +1751,12 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private Evidence.Record entryRecord(Evidence.Scope scope, ItemEntry entry, Map<String, Evidence.JsonObject> slotFacts, ReadSpan span) {
+        var truncated = entry.name().length() > 1024;
+        var name = truncated ? entry.name().substring(0, Character.isHighSurrogate(entry.name().charAt(1023)) ? 1023 : 1024) : entry.name();
         var payload = new LinkedHashMap<String, Evidence.JsonValue>();
         payload.put("item", text(entry.item()));
-        payload.put("name", text(entry.name()));
+        payload.put("name", text(name));
+        payload.put("nameTruncated", new Evidence.JsonBoolean(truncated));
         payload.put("count", number(entry.count()));
         payload.put("variants", number(entry.variants()));
         payload.put("holdsItems", new Evidence.JsonBoolean(entry.holdsItems()));
@@ -1676,8 +1773,8 @@ public final class WorldTools implements KnowledgeProvider {
         if (!slots.isEmpty()) payload.put("slots", new Evidence.JsonArray(slots));
         putSpan(payload, span);
         var first = entry.locations().getFirst();
-        return evidence(scope, "item|" + first.text(), Evidence.RecordKind.ITEM, entry.name() + " x" + entry.count(), payload,
-                Evidence.Coverage.COMPLETE, rootTarget(first.root()));
+        return evidence(scope, "item|" + first.text(), Evidence.RecordKind.ITEM, name + " x" + entry.count(), payload,
+                truncated ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE, rootTarget(first.root()));
     }
 
     /** A block or entity holder of listed items, with its highlight target; the player and an open menu have none. */

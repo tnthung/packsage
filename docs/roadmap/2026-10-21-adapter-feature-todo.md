@@ -26,7 +26,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### World block, mob and storage reading (v2)
 
-- [ ] Minecraft — installed checks for cached-only POI facts and partial coverage, mutation-safe chunk snapshots/UUID paging without chunk-border repeats, section-shift/recreation recovery and bounded churn with concrete PARTIAL coverage, stable single- and multi-tick COMPLETE coverage with informational game-time spans (including /tick freeze), concrete revalidation gaps, single-count unavailable entity chunks, bounded neighboring-candidate traversal, reachable entity/holder tails beyond 4,096 entries, byte-bounded long-name entity pages, dense entity/holder pacing, capped attribute coverage and asynchronous highlights; [automated regressions pass](../validation/2026-10-26-world-review-fixes.md), live acceptance pending.
+- [ ] Minecraft — installed checks for cached-only POI facts and partial coverage, mutation-safe chunk snapshots/UUID paging without chunk-border repeats, section-shift/recreation recovery and bounded churn with concrete PARTIAL coverage, stable single- and multi-tick COMPLETE coverage with informational game-time spans (including /tick freeze), concrete revalidation gaps retained in area summaries, single-count unavailable entity chunks, bounded neighboring-candidate traversal, reachable entity/holder tails beyond 4,096 entries, byte-bounded long-name entity/item pages, area summaries and block pages, capped inspection custom names, dense entity/holder pacing, capped attribute coverage and asynchronous highlights; [automated regressions pass](../validation/2026-10-26-world-review-fixes.md), live acceptance pending.
 - [x] Minecraft — nearby/nested storage search, both stone stores and per-holder highlights, continued complete 72-type catalogue, sampled responsive 320-chest search and exact saved chest link after full restart (W1/W4/W5/W6/W7).
 - [x] Minecraft — villager home/job/sleep/work facts and gameTime interpretation combined with fresh bed-break/zombie-death evidence (C6/Q5, W2); specific golem expiry conversion remains unexercised.
 - [x] Minecraft — mob attributes and horse-like jump/speed facts, including cited 1.62-block mule jump (W8) and earlier horse acceptance. Its omitted coordinates remain a separate E6 failure below.
@@ -74,6 +74,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### Progress and statistics (v2)
 
+- [ ] Minecraft — installed public-node advancement reference snapshots with bounded root/sibling processing and hidden-alias ordering; [20,000-node automated regressions pass](../validation/2026-10-26-world-review-fixes.md), live acceptance pending.
 - [ ] Minecraft — fresh progress-tree evidence rereads with current counts and removed-tree refusal: implemented with automated regressions; installed acceptance pending.
 - [ ] Minecraft — installed large-counter pacing and changing-counter retry checks after the bounded traversal fix; [automated batch-count and restart regressions pass](../validation/2026-10-26-world-review-fixes.md).
 - [x] Minecraft — per-criterion missing biome names, available goals, anonymous hidden entries after the P5 fix, visible-tab links and restart reopening (P1/P5/P7/P8). Q11 confirms invisible tabs stay source-only.
@@ -90,7 +91,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### Developer prompt persistence (v2)
 
-- [ ] PackSage — debug prompt saves persist off the client thread and retain concurrent screen saves: blocking-writer, failure, validation and reset regressions pass; installed acceptance pending.
+- [ ] PackSage — debug prompt saves and final conflict restores persist off the client thread and retain concurrent screen saves: blocked-restore responsiveness, both save orderings, failure, validation and reset regressions pass; installed acceptance pending.
 
 ### Inventory and equipment inspection
 

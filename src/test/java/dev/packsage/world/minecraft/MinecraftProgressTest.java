@@ -39,6 +39,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -126,6 +128,45 @@ class MinecraftProgressTest {
         assertEquals(ProgressStatus.AVAILABLE, snapshot.entries().get(locals.indexOf("test:a/recipe_child")).handle().status());
         assertEquals(ProgressStatus.AVAILABLE, snapshot.entries().get(6).handle().status());
         assertEquals(ProgressStatus.LOCKED, snapshot.entries().get(7).handle().status());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"siblings", "roots"})
+    void veryWideTreesCopyReferencesFirstThenBoundPreparationAndVisitsPerStep(String shape) {
+        var world = new World();
+        var root = displayed("test:root", null, false, "c");
+        var holders = new ArrayList<AdvancementHolder>();
+        if (shape.equals("siblings")) holders.add(root);
+        for (var i = 0; i < 20_000; i++) holders.add(displayed("test:hidden_" + i, shape.equals("siblings") ? root : null, true, "c"));
+        world.tree.addAll(holders);
+        for (var holder : holders) {
+            var progress = new AdvancementProgress();
+            progress.update(holder.value().requirements());
+            world.progress.put(holder, progress);
+        }
+        var reader = new MinecraftProgress();
+        var slice = reader.snapshot(world.source());
+        assertTrue(slice.step(), "the first step copies node references without preparing progress");
+        assertEquals(0, world.lookups);
+        assertTrue(slice.result().entries().isEmpty());
+        var steps = 1;
+        boolean more;
+        do {
+            var before = world.lookups;
+            more = slice.step();
+            assertTrue(world.lookups - before <= MinecraftProgress.STEP_NODES,
+                    "step " + steps + " prepared " + (world.lookups - before) + " nodes");
+            assertTrue(++steps < 5000);
+        } while (more);
+        var snapshot = slice.result();
+        assertNull(snapshot.note());
+        assertEquals(holders.size(), snapshot.entries().size());
+        assertEquals(shape.equals("siblings") ? 1 : 20_000, snapshot.trees().size());
+        var hidden = snapshot.entries().stream().filter(entry -> entry.handle().status() == ProgressStatus.HIDDEN)
+                .map(entry -> entry.handle().id().local()).toList();
+        assertEquals(20_000, new HashSet<>(hidden).size());
+        assertEquals(hidden.stream().sorted().toList(), hidden);
+        assertTrue(steps > holders.size() / MinecraftProgress.STEP_NODES);
     }
 
     @Test
@@ -420,7 +461,7 @@ class MinecraftProgressTest {
         }
         var slice = new MinecraftProgress().snapshot(world.source());
 
-        assertTrue(slice.step());
+        while (slice.result().entries().isEmpty()) assertTrue(slice.step());
         var lookups = world.lookups;
         assertTrue(lookups > 0);
         world.generation = new Object();

@@ -35,6 +35,8 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.function.Function;
@@ -188,14 +190,15 @@ public final class MinecraftProgress implements ProgressReader {
     }
 
     /**
-     * Walks each displayed root depth-first, at most {@link #STEP_NODES} nodes a step. Visible roots and siblings use id
-     * order; unearned hidden ones follow them in alias order.
+     * Copies node references in the first step, prepares at most {@link #STEP_NODES} nodes a step in owned ordered
+     * sibling maps, then walks at most that many nodes or finished sibling frames a step. Visible roots and siblings
+     * use id order; unearned hidden ones follow them in alias order. No engine iterator or collection view survives a step.
      * A node without a display is not listed, but its displayed descendants are, under its nearest displayed ancestor.
      * A partial read lists only the trees it finished counting.
      */
     private final class Read implements ServerWork.Slice<ProgressSnapshot> {
         /** {@code parentDone} is whether the nearest displayed ancestor is done; null for a root. */
-        private record Pending(AdvancementNode node, Boolean parentDone) {
+        private record Pending(NavigableMap<String, AdvancementNode> siblings, Boolean parentDone) {
         }
 
         private final Source source;
@@ -203,8 +206,11 @@ public final class MinecraftProgress implements ProgressReader {
         private final List<ProgressTree> trees = new ArrayList<>();
         private final List<ProgressEntry> entries = new ArrayList<>();
         private Object generation;
-        private List<AdvancementNode> roots;
-        private int nextRoot;
+        private List<AdvancementNode> nodes;
+        private final NavigableMap<String, AdvancementNode> roots = new TreeMap<>();
+        private final Map<AdvancementNode, NavigableMap<String, AdvancementNode>> children = new HashMap<>();
+        private int nextNode;
+        private boolean acquired;
         private AdvancementNode root;
         private ProgressId tree;
         private boolean tabVisible;
@@ -220,14 +226,26 @@ public final class MinecraftProgress implements ProgressReader {
         public boolean step() {
             if (generation == null) {
                 generation = source.generation().get();
-                roots = new ArrayList<>();
-                for (var node : source.tree().get().roots()) {
-                    if (node.advancement().display().isPresent()) roots.add(node);
-                }
-                roots = sorted(source, roots);
+                // O(n) plain reference copy: a few thousand references normally take microseconds. Progress lookups,
+                // hidden aliases and ordering are paced below; no engine iterator survives this first step.
+                nodes = new ArrayList<>(source.tree().get().nodes());
+                return true;
             } else if (source.generation().get() != generation) {
                 note = RELOADED_NOTE;
                 return false;
+            }
+            if (!acquired) {
+                for (var handled = 0; handled < STEP_NODES && nextNode < nodes.size(); handled++) {
+                    var node = nodes.get(nextNode++);
+                    if (node.parent() == null && node.advancement().display().isEmpty()) continue;
+                    var key = node.advancement().display().isPresent() && node.advancement().display().get().isHidden()
+                            && !source.progress().apply(node.holder()).isDone()
+                            ? "1" + id(source, node, source.progress().apply(node.holder())).local() : "0" + node.holder().id();
+                    if (node.parent() == null) roots.put(key, node);
+                    else children.computeIfAbsent(node.parent(), ignored -> new TreeMap<>()).put(key, node);
+                }
+                acquired = nextNode == nodes.size();
+                return true;
             }
             for (var handled = 0; handled < STEP_NODES; handled++) {
                 if (pending.isEmpty()) {
@@ -235,23 +253,24 @@ public final class MinecraftProgress implements ProgressReader {
                         trees.add(new ProgressTree(tree, tree.equals(id(root)) ? title(root) : "Hidden progress tree", done, total, tabVisible));
                         root = null;
                     }
-                    if (nextRoot == roots.size()) return false;
-                    root = roots.get(nextRoot++);
+                    if (roots.isEmpty()) return false;
+                    root = roots.pollFirstEntry().getValue();
                     tree = id(source, root, source.progress().apply(root.holder()));
                     tabVisible = tree.equals(id(root)) && source.visible().test(root.holder());
                     done = 0;
                     total = 0;
-                    pending.push(new Pending(root, null));
+                    visit(root, null);
+                } else {
+                    var frame = pending.peek();
+                    if (frame.siblings().isEmpty()) pending.pop();
+                    else visit(frame.siblings().pollFirstEntry().getValue(), frame.parentDone());
                 }
-                visit(pending.pop());
             }
             return true;
         }
 
-        private void visit(Pending next) {
-            var node = next.node();
+        private void visit(AdvancementNode node, Boolean parentDone) {
             var display = node.advancement().display();
-            var parentDone = next.parentDone();
             if (display.isPresent()) {
                 var progress = source.progress().apply(node.holder());
                 var handle = handle(source, node, tree, progress, parentDone, tabVisible);
@@ -260,10 +279,8 @@ public final class MinecraftProgress implements ProgressReader {
                 if (progress.isDone()) done++;
                 parentDone = progress.isDone();
             }
-            var children = sorted(source, node.children());
-            for (var i = children.size() - 1; i >= 0; i--) {
-                pending.push(new Pending(children.get(i), parentDone));
-            }
+            var siblings = children.remove(node);
+            if (siblings != null) pending.push(new Pending(siblings, parentDone));
         }
 
         @Override

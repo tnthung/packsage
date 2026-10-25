@@ -669,6 +669,214 @@ class WorldToolsTest {
         assertEquals(Evidence.Coverage.COMPLETE, page.coverage());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"list_items", "find_items"})
+    void longItemNamesKeepEveryEntryReachableThroughTheRealEncoder(String tool) throws Exception {
+        var provider = tools();
+        var entries = new java.util.ArrayList<ItemEntry>();
+        for (var i = 0; i < 65; i++) {
+            entries.add(new ItemEntry("minecraft:item_" + i, "\"\n世".repeat(i == 0 ? 100_000 : 1000), 1, 1,
+                    List.of(ItemPath.parse("block:minecraft:overworld|" + i % 3 + ",64,0>minecraft/container#" + i + "@minecraft:item_" + i)), false));
+        }
+        var arguments = tool.equals("list_items") ? "{\"holder\":\"player\"}" : "{\"filter\":{}}";
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(provider.entries(request,
+                request.arguments().values().containsKey("cursor") ? (WorldTools.EntriesState) provider.cursor(request)
+                        : new WorldTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null), Evidence.Coverage.COMPLETE, null)));
+        var seen = new HashSet<String>();
+        int pages = 0;
+        do {
+            var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("items", tool, arguments), SCOPE).toCompletableFuture().get();
+            assertFalse(response.result().error(), response.result().serializedResult());
+            var encoded = response.result().serializedResult();
+            assertTrue(encoded.getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
+            var json = com.google.gson.JsonParser.parseString(encoded).getAsJsonObject();
+            for (var value : json.getAsJsonArray("records")) {
+                var record = value.getAsJsonObject();
+                var payload = record.getAsJsonObject("payload");
+                if (!payload.has("item")) continue;
+                assertTrue(seen.add(payload.get("item").getAsString()), "entries must be delivered exactly once");
+                assertTrue(payload.get("name").getAsString().length() <= 1024);
+                assertTrue(payload.get("nameTruncated").getAsBoolean());
+                assertEquals("PARTIAL", record.getAsJsonObject("source").get("coverage").getAsString());
+            }
+            assertEquals("PARTIAL", json.get("coverage").getAsString());
+            assertTrue(json.get("detail").getAsString().contains("truncated"));
+            assertTrue(++pages < 20);
+            if (!json.has("nextCall")) break;
+            arguments = json.getAsJsonObject("nextCall").get("arguments").toString();
+        } while (true);
+        assertEquals(65, seen.size(), "the outer encoder must not discard entries or their continuation");
+        assertTrue(pages > 2, "encoded bytes must cut pages before their record-count bound");
+    }
+
+    @Test
+    void longBlockIdsKeepEveryBlockReachableThroughByteBoundedPages() throws Exception {
+        var provider = tools();
+        var blocks = new java.util.ArrayList<BlockHandle>();
+        for (var i = 0; i < 64; i++) blocks.add(new BlockHandle("test:" + "long_path/".repeat(300), new BlockPlace("minecraft:overworld", i, 64, 0)));
+        var page = new Page<>(blocks, null, Evidence.Coverage.COMPLETE, null);
+        var method = WorldTools.class.getDeclaredMethod("blocks", PackSageTools.ReadRequest.class, WorldTools.Center.class, Page.class, WorldTools.ReadSpan.class);
+        method.setAccessible(true);
+        var tools = new PackSageTools(request -> {
+            try {
+                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider, request,
+                        new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), page, null));
+            } catch (ReflectiveOperationException failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+        var arguments = "{\"filter\":{}}";
+        var seen = new HashSet<String>();
+        int pages = 0;
+        do {
+            var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("blocks", "list_blocks", arguments), SCOPE).toCompletableFuture().get();
+            assertFalse(response.result().error(), response.result().serializedResult());
+            var json = com.google.gson.JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+            for (var record : json.getAsJsonArray("records")) assertTrue(seen.add(record.getAsJsonObject().getAsJsonObject("payload").get("place").getAsString()));
+            assertTrue(++pages < 20);
+            if (!json.has("nextCall")) break;
+            arguments = json.getAsJsonObject("nextCall").get("arguments").toString();
+        } while (true);
+        assertEquals(64, seen.size());
+        assertTrue(pages > 1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 64})
+    void inspectAreaKeepsBlockFactsWhenEntityNamesExceedTheWireBudget(int count) throws Exception {
+        var provider = tools();
+        var entities = new java.util.ArrayList<EntityHandle>();
+        for (var i = 0; i < count; i++) {
+            entities.add(new EntityHandle("minecraft:cow", new java.util.UUID(0, i + 1), "minecraft:overworld", 8, 64, 8,
+                    count == 1 ? "x".repeat(1023) + "\uD83D\uDE00" + "x".repeat(300_000) : "\u0001\u4e16".repeat(2100)));
+        }
+        var type = Class.forName("dev.packsage.world.WorldTools$AreaRead");
+        var constructor = type.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
+                new Page<>(List.of(new BlockSummary(Map.of("minecraft:stone", 15), List.of(), 0)), null, Evidence.Coverage.COMPLETE, null),
+                new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
+        var method = WorldTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
+        method.setAccessible(true);
+        var tools = new PackSageTools(request -> {
+            try {
+                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider, SCOPE, new Anchor.Player(), 16, read, null));
+            } catch (ReflectiveOperationException failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+
+        var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("area", "inspect_area", "{}"), SCOPE).toCompletableFuture().get();
+
+        assertFalse(response.result().error(), response.result().serializedResult());
+        assertTrue(response.result().serializedResult().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 131_072);
+        var json = com.google.gson.JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals(1, json.getAsJsonArray("records").size(), "the area record and block counts must survive the outer encoder");
+        var record = json.getAsJsonArray("records").get(0).getAsJsonObject();
+        assertEquals("PARTIAL", json.get("coverage").getAsString());
+        assertEquals("PARTIAL", record.getAsJsonObject("source").get("coverage").getAsString());
+        var payload = record.getAsJsonObject("payload");
+        assertEquals(15, payload.getAsJsonObject("blockCounts").get("minecraft:stone").getAsInt());
+        var shown = payload.getAsJsonArray("entities");
+        assertFalse(shown.isEmpty());
+        for (var value : shown) {
+            var entity = value.getAsJsonObject();
+            var name = entity.get("name").getAsString();
+            assertTrue(name.length() <= 1024);
+            assertFalse(Character.isHighSurrogate(name.charAt(name.length() - 1)));
+            assertTrue(entity.get("nameTruncated").getAsBoolean());
+        }
+        assertTrue(json.get("detail").getAsString().contains("truncated"));
+        if (count == 1) assertEquals(1, shown.size());
+        else {
+            assertTrue(shown.size() < count, "escaped names must trigger the encoded byte budget");
+            assertTrue(json.get("detail").getAsString().contains("list_entities"));
+            assertTrue(json.get("detail").getAsString().contains(Integer.toString(count - shown.size())), "the omitted tail count must be concrete");
+        }
+    }
+
+    @Test
+    void inspectAreaBoundsLargeBlockSummariesUnderTheWireBudget() throws Exception {
+        var provider = tools();
+        var counts = new java.util.HashMap<String, Integer>();
+        for (var i = 0; i < 2000; i++) counts.put("examplemod:a_rather_long_decorative_block_variant_" + i, i + 1);
+        var notable = new java.util.ArrayList<NotableBlock>();
+        for (var i = 0; i < 4096; i++) {
+            notable.add(new NotableBlock(new BlockHandle("examplemod:storage_crate_" + (i % 300),
+                    new BlockPlace("minecraft:overworld", -29_999_000 + i, -64, -29_999_000 - i)), "container"));
+        }
+        var entities = new java.util.ArrayList<EntityHandle>();
+        for (var i = 0; i < 64; i++) {
+            entities.add(new EntityHandle("minecraft:cow", new java.util.UUID(0, i + 1), "minecraft:overworld", 8, 64, 8, "Cow " + i));
+        }
+        var type = Class.forName("dev.packsage.world.WorldTools$AreaRead");
+        var constructor = type.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
+                new Page<>(List.of(new BlockSummary(counts, notable, 0)), null, Evidence.Coverage.COMPLETE, null),
+                new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
+        var method = WorldTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
+        method.setAccessible(true);
+        var tools = new PackSageTools(request -> {
+            try {
+                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider, SCOPE, new Anchor.Player(), 256, read, null));
+            } catch (ReflectiveOperationException failure) {
+                throw new RuntimeException(failure);
+            }
+        });
+
+        var response = tools.execute(new dev.packsage.model.ModelBackend.ToolCall("area", "inspect_area", "{}"), SCOPE).toCompletableFuture().get();
+
+        assertFalse(response.result().error(), response.result().serializedResult());
+        var json = com.google.gson.JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+        assertEquals(1, json.getAsJsonArray("records").size(), "a large block summary must not drop the whole area record");
+        assertEquals("PARTIAL", json.get("coverage").getAsString());
+        var payload = json.getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("payload");
+        assertEquals(2000, payload.getAsJsonObject("blockCounts").get("examplemod:a_rather_long_decorative_block_variant_1999").getAsInt(),
+                "the most common block ids are kept");
+        assertTrue(payload.getAsJsonObject("blockCounts").size() < 2000);
+        assertTrue(json.get("detail").getAsString().contains("list_blocks"), json.get("detail").getAsString());
+        assertTrue(json.get("detail").getAsString().contains("notable blocks omitted"), json.get("detail").getAsString());
+        assertFalse(payload.getAsJsonArray("entities").isEmpty());
+    }
+
+    @Test
+    void listBlocksServesTheSavedPartialPageBeforeResumingTheScan() throws Exception {
+        var field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        // No live levels or player: touching either would prove the public path rescanned instead of serving pending data.
+        var server = (net.minecraft.client.server.IntegratedServer) ((sun.misc.Unsafe) field.get(null))
+                .allocateInstance(net.minecraft.client.server.IntegratedServer.class);
+        var provider = new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
+                () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
+        var arguments = Evidence.deserializeObject("{\"filter\":{}}");
+        var block = new BlockHandle("minecraft:stone", new BlockPlace("minecraft:overworld", 5, 64, 8));
+        var type = Class.forName("dev.packsage.world.WorldTools$ListState");
+        var constructor = type.getDeclaredConstructor(WorldTools.Center.class, String.class, Page.class, WorldTools.ReadSpan.class);
+        constructor.setAccessible(true);
+        var token = provider.remember("list_blocks", arguments, SCOPE, constructor.newInstance(
+                new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), "scan-after-pending",
+                new Page<>(List.of(block), "scan-after-pending", Evidence.Coverage.PARTIAL, "2 unloaded chunks were not searched"),
+                new WorldTools.ReadSpan(10, 20)));
+
+        var pending = provider.handle(new PackSageTools.ReadRequest("list_blocks", Evidence.deserializeObject(
+                "{\"filter\":{},\"cursor\":\"" + token + "\"}"), SCOPE),
+                new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null)).toCompletableFuture();
+
+        assertTrue(pending.isDone(), "a saved page must not queue another server scan");
+        var result = pending.get();
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertEquals("2 unloaded chunks were not searched", result.detail());
+        assertEquals(1, result.records().size());
+        assertEquals(new Evidence.JsonString(block.place().text()), result.records().getFirst().payload().values().get("place"));
+        assertEquals(WorldTools.spanPayload(new WorldTools.ReadSpan(10, 20)), result.records().getFirst().payload().values().get("readSpan"));
+        var continued = provider.cursor(new PackSageTools.ReadRequest("list_blocks", Evidence.deserializeObject(
+                "{\"filter\":{},\"cursor\":\"" + result.nextCursor() + "\"}"), SCOPE));
+        var scan = type.getDeclaredMethod("scan");
+        scan.setAccessible(true);
+        assertEquals("scan-after-pending", scan.invoke(continued));
+    }
+
     @Test
     void anEntryWithMoreHoldersThanFitLinksTheFirstOnesAndSaysHowManyAreLeft() {
         var tools = tools();
@@ -922,6 +1130,21 @@ class WorldToolsTest {
         assertTrue(notes.getFirst().contains("list_entities"), notes.getFirst());
         assertEquals("2 chunks in range did not have their entities loaded yet, so entities there were not read", notes.get(1));
         assertTrue(notes.stream().noneMatch(note -> note.contains("cursor")), notes.toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"An entity from a chunk snapshot disappeared during the read",
+            "An entity section changed repeatedly during acquisition; this chunk snapshot is incomplete",
+            "An entity section became unavailable during acquisition; this chunk snapshot is incomplete"})
+    void inspectAreaKeepsConcreteEntityGapsWithoutCursorOrSpanInstructions(String gap) {
+        var blocks = new Page<>(List.of(new BlockSummary(Map.of(), List.of(), 0)), null, Evidence.Coverage.COMPLETE, null);
+        for (var cut : List.of(false, true)) {
+            var entities = new Page<EntityHandle>(List.of(), cut ? "5:0" : null, Evidence.Coverage.PARTIAL,
+                    gap + (cut ? "; " + AreaScan.PAGE_LIMIT_NOTE : "") + "; " + AreaScan.SNAPSHOT_NOTE.formatted(1, 2));
+            var notes = WorldTools.areaNotes(blocks, entities);
+            assertTrue(String.join("; ", notes).contains(gap), notes.toString());
+            assertTrue(notes.stream().noneMatch(note -> note.contains("cursor") || note.contains("game-time span")), notes.toString());
+        }
     }
 
     @Test

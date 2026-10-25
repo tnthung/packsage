@@ -156,4 +156,58 @@ class PackSageSettingsTest {
         settings.saveDeveloperPrompt(path, null);
         assertEquals(null, PackSageSettings.load(path).developerPrompt());
     }
+
+    @Test
+    void aScreenSaveBeforeRestoreSkipsTheStaleWorkerWrite() throws Exception {
+        var settings = PackSageSettings.defaults();
+        var path = temporaryDirectory.resolve("settings.properties");
+        var snapshot = settings.withDeveloperPrompt(settings.developerPrompt());
+        settings.saveDeveloperPrompt(path, "screen prompt");
+        assertFalse(settings.saveIfUnchanged(snapshot, () -> snapshot.save(path)));
+        assertEquals("screen prompt", PackSageSettings.load(path).developerPrompt());
+        var changed = settings.withDeveloperPrompt(settings.developerPrompt());
+        settings.setHistoryTurns(25);
+        assertFalse(settings.saveIfUnchanged(changed, () -> changed.save(path)));
+        var saved = settings.withDeveloperPrompt(settings.developerPrompt());
+        settings.save(path);
+        assertFalse(settings.saveIfUnchanged(saved, () -> saved.save(path)));
+    }
+
+    @Test
+    void aScreenSaveDuringRestoreWritesLastUnderTheSameSaveLock() throws Exception {
+        var settings = PackSageSettings.defaults();
+        var path = temporaryDirectory.resolve("settings.properties");
+        var snapshot = settings.withDeveloperPrompt(settings.developerPrompt());
+        var started = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var screenStarted = new java.util.concurrent.CountDownLatch(1);
+        var screenThread = new java.util.concurrent.atomic.AtomicReference<Thread>();
+        try (var worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+             var client = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+            var restore = worker.submit(() -> settings.saveIfUnchanged(snapshot, () -> {
+                started.countDown();
+                try { assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS)); }
+                catch (InterruptedException failure) { throw new RuntimeException(failure); }
+                snapshot.save(path);
+            }));
+            assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            var save = client.submit(() -> {
+                screenThread.set(Thread.currentThread());
+                screenStarted.countDown();
+                settings.saveDeveloperPrompt(path, "newest screen prompt");
+            });
+            try {
+                assertTrue(screenStarted.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                var deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+                while (!save.isDone() && screenThread.get().getState() != Thread.State.BLOCKED && System.nanoTime() < deadline) Thread.onSpinWait();
+                assertEquals(Thread.State.BLOCKED, screenThread.get().getState(), "the screen save must wait for the restore's save lock");
+            } finally {
+                release.countDown();
+            }
+            assertEquals(true, restore.get(5, java.util.concurrent.TimeUnit.SECONDS));
+            save.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        }
+        assertEquals("newest screen prompt", settings.developerPrompt());
+        assertEquals("newest screen prompt", PackSageSettings.load(path).developerPrompt());
+    }
 }

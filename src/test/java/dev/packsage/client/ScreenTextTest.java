@@ -520,6 +520,30 @@ class ScreenTextTest {
     }
 
     @Test
+    void savedProviderGroupsKeepKnownChipsAndNeverDisplayPrivateUseMarkers() {
+        var target = new Evidence.NavigationTarget(SCOPE, "world", "item|player:abc>minecraft/armor#3@minecraft:diamond_helmet",
+                "world-item|player:abc>minecraft/armor#3@minecraft:diamond_helmet");
+        var source = new Evidence.Source(SCOPE, "world", "1", target.sourceHandle(), 1, java.time.Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        String saved = "Before \uE200cite\uE202ref:ffffffff.9.9\uE202world:" + target.sourceHandle()
+                + "\uE202unknown:missing\uE201 after.";
+        var spans = ScreenText.inlineLines(saved, List.of(target), List.of(), List.of(source)).getFirst().spans();
+
+        assertEquals(List.of(target), spans.stream().map(ScreenText.InlineSpan::target).filter(java.util.Objects::nonNull).toList());
+        assertEquals(List.of(source), spans.stream().map(ScreenText.InlineSpan::source).filter(java.util.Objects::nonNull).toList());
+        assertEquals("Before in world after.", spans.stream().map(ScreenText.InlineSpan::text).reduce("", String::concat));
+        assertEquals("Before [world] after.", ScreenText.markdownLines(saved).getFirst().getString());
+        assertTrue(saved.contains("\uE200cite\uE202"));
+        for (String text : List.of("orphan \uE200 \uE201 \uE202", "\uE200cite\uE202ref:ffffffff.9.9",
+                "`\uE200cite\uE202unknown:missing\uE201`", "```\n\uE200cite\uE202unknown:missing\uE201\n```")) {
+            assertTrue(ScreenText.inlineLines(text, List.of()).stream().flatMap(line -> line.spans().stream())
+                    .noneMatch(span -> span.text().chars().anyMatch(value -> value >= 0xE200 && value <= 0xE202)), text);
+            assertTrue(ScreenText.markdownLines(text).stream()
+                    .noneMatch(line -> line.getString().chars().anyMatch(value -> value >= 0xE200 && value <= 0xE202)), text);
+        }
+    }
+
+    @Test
     void groupedCitationsUseShortTagsWithoutInventingNavigationTargets() {
         String grouped = "\uE200cite\uE202config:cfg/first\uE202config:cfg/second\uE202history:turn/1\uE201";
         var spans = ScreenText.inlineLines(grouped + " [unknown:source]", List.of()).getFirst().spans();

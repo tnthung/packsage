@@ -76,13 +76,68 @@ class ReferenceAliasBackendTest {
                         List.of(new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"),
                                 actual.results.getFirst(), new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
                                         ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(answer, List.of())))), null));
-                String canonicalAnswer = template.replace("native:%s", "%s").formatted(REFERENCE, REFERENCE);
+                String canonicalAnswer = template.startsWith("\uE200") ? "[" + REFERENCE + "][" + REFERENCE + "]"
+                        : template.replace("native:%s", "%s").formatted(REFERENCE, REFERENCE);
                 assertEquals(canonicalAnswer, events.stream()
                         .filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA).map(ModelBackend.Event::text)
                         .reduce("", String::concat), "split " + split);
                 assertEquals(RESULT, events.getLast().replayItems().get(1));
                 assertEquals(canonicalAnswer, ((ModelBackend.OutputText) ((ModelBackend.AssistantOutput)
                         events.getLast().replayItems().getLast()).content().getFirst()).text(), "replay split " + split);
+            }
+        }
+    }
+
+    @Test
+    void everyProviderGroupSplitDropsUnknownReferencesAndReplaysBracketCitationsWithWebOffsets() {
+        String helmet = "world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/armor#3@minecraft:diamond_helmet";
+        for (String[] fixture : List.of(
+                new String[]{"\uE200cite\uE202%s\uE201", "[" + REFERENCE + "]"},
+                new String[]{"\uE200cite\uE202" + helmet + "\uE201", "[" + helmet + "]"},
+                new String[]{"\uE200cite\uE202native:%s\uE202" + helmet + "\uE202journal:note:n1\uE201",
+                        "[" + REFERENCE + "][" + helmet + "][journal:note:n1]"},
+                new String[]{"\uE200cite\uE202ref:ffffffff.9.9\uE202%s\uE202wrong:%s\uE202world:missing\uE201", "[" + REFERENCE + "]"},
+                new String[]{"\uE200cite\uE202ref:ffffffff.9.9\uE202world:missing\uE201", ""})) {
+            for (int split = 0; ; split++) {
+                var actual = new FakeBackend();
+                var events = new ArrayList<ModelBackend.Event>();
+                var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                        new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
+                var json = JsonParser.parseString(RESULT.serializedResult()).getAsJsonObject();
+                for (String reference : List.of(helmet, "journal:note:n1")) {
+                    var record = new JsonObject();
+                    record.addProperty("reference", reference);
+                    var source = new JsonObject();
+                    source.addProperty("providerId", reference.substring(0, reference.indexOf(':')));
+                    source.addProperty("sourceHandle", reference.substring(reference.indexOf(':') + 1));
+                    record.add("source", source);
+                    json.getAsJsonArray("records").add(record);
+                }
+                exchange.submit(new ModelBackend.ToolResult("inventory", json.toString(), false));
+                String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
+                        .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
+                String group = fixture[0].formatted(alias, alias);
+                String answer = "\uD83C\uDF0B Before " + group + " then docs.";
+                if (split > answer.length()) break;
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(0, split), null, List.of(), null));
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(split), null, List.of(), null));
+                actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
+                        List.of(new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                                ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(answer, List.of(
+                                        new ModelBackend.UrlCitation(answer.indexOf(group), answer.indexOf(group) + group.length(), "Group", "https://example.org/group"),
+                                        new ModelBackend.UrlCitation(answer.indexOf("docs"), answer.length(), "Docs", "https://example.org/docs")))))), null));
+
+                String expected = "\uD83C\uDF0B Before " + fixture[1] + " then docs.";
+                assertEquals(expected, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
+                        .map(ModelBackend.Event::text).reduce("", String::concat), "split " + split + " for " + fixture[0]);
+                assertTrue(events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
+                        .noneMatch(event -> event.text().chars().anyMatch(value -> value >= 0xE200 && value <= 0xE202)));
+                var replay = (ModelBackend.OutputText) ((ModelBackend.AssistantOutput)
+                        events.getLast().replayItems().getLast()).content().getFirst();
+                assertEquals(expected, replay.text(), "replay split " + split);
+                assertEquals(fixture[1], replay.text().substring(replay.citations().getFirst().startIndex(), replay.citations().getFirst().endIndex()));
+                assertEquals("docs.", replay.text().substring(replay.citations().getLast().startIndex(), replay.citations().getLast().endIndex()));
             }
         }
     }

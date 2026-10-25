@@ -214,7 +214,9 @@ class WorldNavigationTest {
     @Test
     void placesOpenWithoutAnExistenceCheckInTheSameDimension() {
         var client = new FakeClient();
-        var tools = tools(SCOPE, place -> false, id -> null, client);
+        var tools = tools(SCOPE, place -> {
+            throw new AssertionError("a place is never read");
+        }, id -> null, client);
         var before = System.currentTimeMillis();
         var opened = tools.open(place(SCOPE), SCOPE);
         assertEquals(Evidence.NavigationStatus.OPENED, opened.status());

@@ -1272,6 +1272,61 @@ class RequestControllerTest {
     }
 
     @Test
+    void cancellationLogsToolSummaryBeforeCancel() {
+        FakeBackend backend = new FakeBackend();
+        RequestController controller = controller(new ConversationStore(temporaryDirectory, DIRECT), backend,
+                (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                        new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                request -> request.call().callId().equals("sent") ? CompletableFuture.completedFuture(new ChatContracts.ToolResponse(
+                        new ModelBackend.ToolResult("sent", "ready", false), new ChatContracts.EvidenceSelection(List.of(), List.of())))
+                        : new CompletableFuture<>(), ignored -> { });
+        List<String> lines = new ArrayList<>();
+        try (var capture = new LogCapture(lines::add)) {
+            controller.begin(submission("cancel-summary", WORLD_A, SCOPE_A, false,
+                    new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))
+                    .toCompletableFuture().join();
+            backend.emit("cancel-summary", toolEvent("sent", "lookup", "{}"));
+            backend.emit("cancel-summary", toolEvent("waiting", "lookup", "{}"));
+            controller.stop();
+            controller.stop();
+        }
+        assertEquals(1, lines.stream().filter(line -> line.contains("phase=tool_summary ")).count());
+        String summary = lines.stream().filter(line -> line.contains("phase=tool_summary toolCalls=2 toolWallMs="))
+                .findFirst().orElseThrow();
+        String sent = lines.stream().filter(line -> line.contains("phase=tool_result_sent ")).findFirst().orElseThrow();
+        assertTrue(summary.contains("toolWallMs=" + sent.split(" toolMs=")[1].split(" ")[0] + " event_ns="), summary);
+        assertTrue(lines.get(lines.indexOf(summary) + 1).contains("phase=cancel "));
+    }
+
+    @Test
+    void startFailureLogsToolSummaryBeforeFailure() {
+        for (boolean callsTool : new boolean[] { false, true }) {
+            FakeBackend backend = new FakeBackend();
+            RequestController controller = controller(new ConversationStore(temporaryDirectory.resolve("start-" + callsTool), DIRECT), backend,
+                    (capture, ignored) -> CompletableFuture.completedFuture(new ChatContracts.CapturedContext(
+                            new ChatContracts.Context("fresh", null, capture.scope()), new byte[0])), ignored -> { },
+                    request -> CompletableFuture.completedFuture(new ChatContracts.ToolResponse(
+                            new ModelBackend.ToolResult(request.call().callId(), "ready", false),
+                            new ChatContracts.EvidenceSelection(List.of(), List.of()))), ignored -> { });
+            backend.onStart = listener -> {
+                if (callsTool) listener.accept(toolEvent("early", "lookup", "{}"));
+                throw new IllegalStateException("backend start failed");
+            };
+            List<String> lines = new ArrayList<>();
+            try (var capture = new LogCapture(lines::add)) {
+                assertTrue(controller.begin(submission("start-summary", WORLD_A, SCOPE_A, false,
+                        new ChatContracts.HistoryLimits(10, 12_000), ModelBackend.SearchMode.AUTOMATIC, 4_096))
+                        .toCompletableFuture().isCompletedExceptionally());
+            }
+            assertEquals(1, lines.stream().filter(line -> line.contains("phase=tool_summary ")).count());
+            String summary = lines.stream().filter(line -> line.contains("phase=tool_summary toolCalls=" + (callsTool ? 1 : 0)
+                    + " toolWallMs=0 event_ns=")).findFirst().orElseThrow();
+            assertTrue(lines.get(lines.indexOf(summary) + 1).contains("phase=start_failed "));
+            assertTrue(backend.submitted.isEmpty());
+        }
+    }
+
+    @Test
     void toolTimingLogsRunOutsideStateLock() throws Exception {
         FakeBackend backend = new FakeBackend();
         Map<String, CompletableFuture<ChatContracts.ToolResponse>> responses = new LinkedHashMap<>();

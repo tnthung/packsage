@@ -523,7 +523,19 @@ public final class WorldTools implements KnowledgeProvider {
         if (handle.startsWith("entity|")) {
             var id = uuid(handle.substring(7));
             var server = server();
-            return run(server, once(() -> inspectEntity(server, id, scope)));
+            return run(server, once(() -> inspectEntity(server, id, scope))).thenApply(record -> {
+                // This continuation runs on the worker. Leave room for source/target metadata and the tool envelope.
+                if (Evidence.serialize(record.payload()).getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                        + record.title().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 65_536) return record;
+                var payload = new LinkedHashMap<String, Evidence.JsonValue>();
+                for (var key : List.of("entity", "id", "dimension", "x", "y", "z", "holder", "gameTime", "dayTime")) {
+                    if (record.payload().values().containsKey(key)) payload.put(key, record.payload().values().get(key));
+                }
+                payload.put("note", text("Entity inspection details exceed the 64 KiB byte budget and were omitted; coverage is partial"));
+                payload.put("sections", new Evidence.JsonObject(Map.of()));
+                return evidence(scope, record.source().sourceHandle(), record.kind(), "Entity " + id, payload,
+                        Evidence.Coverage.PARTIAL, WorldNavigation.entityId(id));
+            });
         }
         if (handle.startsWith("item|")) {
             var path = itemPath(handle.substring(5));

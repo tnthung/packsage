@@ -35,7 +35,7 @@ final class MinecraftTrades {
     }
 
     /** Adds the merchant's offers, whether it is trading, and this player's reputation and prices. */
-    static void facts(AbstractVillager merchant, ServerPlayer player, Map<String, Evidence.JsonValue> values) {
+    static boolean facts(AbstractVillager merchant, ServerPlayer player, Map<String, Evidence.JsonValue> values) {
         var offers = storedOffers(merchant);
         var trading = merchant.isTrading();
         var level = merchant.level();
@@ -59,6 +59,7 @@ final class MinecraftTrades {
         values.put("trading", new Evidence.JsonBoolean(trading));
         if (reputation != null) values.put("playerReputation", number(reputation));
         if (offers != null) values.put("pricesNote", new Evidence.JsonString(pricesNote(trading)));
+        return offers == null || offers.size() <= MAX_OFFERS;
     }
 
     /** While trading, the game has already lowered each offer's price for the trading player. */

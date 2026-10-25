@@ -3,6 +3,7 @@ package dev.packsage.world.minecraft;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.world.BlockPlace;
 import dev.packsage.world.EntityInspector;
+import dev.packsage.world.Section;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.AgeableMob;
@@ -41,8 +42,9 @@ public final class MinecraftEntities implements EntityInspector {
     }
 
     @Override
-    public Evidence.JsonObject inspectEntity(Entity entity) {
+    public Section inspectEntity(Entity entity) {
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
+        var notes = new ArrayList<String>();
         if (entity instanceof LivingEntity living) {
             values.put("health", decimal(living.getHealth()));
             values.put("maxHealth", decimal(living.getMaxHealth()));
@@ -54,7 +56,12 @@ public final class MinecraftEntities implements EntityInspector {
                         "durationTicks", number(effect.getDuration()))));
             }
             values.put("effects", new Evidence.JsonArray(effects));
-            values.put("attributes", attributes(living.getAttributes()));
+            var attributes = attributes(living.getAttributes());
+            values.put("attributes", attributes);
+            if (attributes.values().stream().map(Evidence.JsonObject.class::cast)
+                    .anyMatch(attribute -> attribute.values().containsKey("modifiersStatus"))) {
+                notes.add("Attribute modifiers are bounded to " + MAX_MODIFIERS + " per attribute");
+            }
             if (entity instanceof AbstractHorse horse) {
                 values.put("mount", mount(horse.getAttributeValue(Attributes.JUMP_STRENGTH),
                         horse.getAttributeValue(Attributes.MOVEMENT_SPEED)));
@@ -79,10 +86,14 @@ public final class MinecraftEntities implements EntityInspector {
         if (entity instanceof Villager villager) villager(villager, values);
         if (entity instanceof AbstractVillager merchant) {
             var server = merchant.level().getServer();
-            MinecraftTrades.facts(merchant, server == null ? null : MinecraftInventories.host(server), values);
+            if (!MinecraftTrades.facts(merchant, server == null ? null : MinecraftInventories.host(server), values)) {
+                notes.add("Trade offers are bounded to " + MinecraftTrades.MAX_OFFERS);
+            }
         }
         if (entity instanceof IronGolem golem) values.put("playerCreated", new Evidence.JsonBoolean(golem.isPlayerCreated()));
-        return values.isEmpty() ? null : new Evidence.JsonObject(values);
+        return values.isEmpty() ? null : new Section(new Evidence.JsonObject(values),
+                notes.isEmpty() ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
+                notes.isEmpty() ? null : String.join("; ", notes));
     }
 
     private static void villager(Villager villager, Map<String, Evidence.JsonValue> values) {

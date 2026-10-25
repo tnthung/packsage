@@ -20,6 +20,10 @@ On `feat/packsage-v2`, only the Minecraft adapter remains. Entries for other mod
 - [x] PackSage — item pages keep holder links and their continuation within the 64-record tool-output limit (N1); installed recheck passed with 52 items, 12 holders and a cursor.
 - [ ] PackSage — prompt: the armor reply omitted eligible enchantments from returned evidence, and the mule reply gave no coordinates, the farm reply did not reason from villager times, a broad storage reply did not continue its cursor, and one reply ended with a malformed source token.
 
+### Biome locating (v2)
+
+- [ ] Minecraft — `locate(biome)` resolves biome ids and tags, samples without loading or generating chunks, continues paced searches by cursor, and returns persistent place links; implemented on the world-knowledge branch with automated tests, in-game acceptance pending ([plan, Task 5](../plans/2026-10-25-v2-world-knowledge.md)).
+
 ### Held and offhand item facts (v2)
 
 - [ ] Minecraft — `inspect_item` and `list_items` read the held and offhand items through `held` and `offhand`, with full item facts, tooltip lines and always-present `enchantmentEligibility`; implemented with automated tests, not yet checked in game ([plan](../plans/2026-10-25-v2-item-reading-consolidation.md)).

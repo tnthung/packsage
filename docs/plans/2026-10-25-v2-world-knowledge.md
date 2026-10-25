@@ -354,15 +354,15 @@ src/main/java/dev/packsage/model/GroundingInstructions.java          MOD  one sh
   - **No hit:** COMPLETE with no records and the note "no matching biome within <r> chunks".
   - **Stopped early:** PARTIAL with a cursor holding `(center, predicate inputs, nextIndex)`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `sampledOrderMatchesTheVanillaSpiral`: with a fake sampler that records calls, radius 4 chunks visits the same (x, z) sequence as iterating `BlockPos.spiralAround` directly.
   - `stopsAtTheFirstMatchingColumn`: a fake sampler returns `minecraft:desert` only at x = 64, z = 0. The hit is at (64, y, 0), with `nextIndex == -1`.
   - `earlyStopResumesFromTheNextColumn`: after `stopEarly()` at column 10, a new slice with `startIndex = 10` visits column 10 first.
   - `noMatchWithinRadiusFinishesEmpty`.
-- [ ] **Step 2: Run** `LocateBiomeTest`. Expect a compile failure.
-- [ ] **Step 3: Implement** `LocateBiome` and the biome branch of `locate`.
-- [ ] **Step 4: Run them.** Expect a pass.
-- [ ] **Step 5: Commit.**
+- [x] **Step 2: Run** `LocateBiomeTest`. Expect a compile failure.
+- [x] **Step 3: Implement** `LocateBiome` and the biome branch of `locate`.
+- [x] **Step 4: Run them.** Expect a pass.
+- [x] **Step 5: Commit.**
 
 ### Task 6: Structure candidates and saved-start verdicts
 

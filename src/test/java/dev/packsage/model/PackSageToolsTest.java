@@ -18,7 +18,8 @@ class PackSageToolsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
     private static final List<String> NAMES = List.of("search_recipe", "search_registry", "read_evidence", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
             "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
-            "list_progress", "inspect_progress", "list_statistics");
+            "list_progress", "inspect_progress", "list_statistics",
+            "read_loot", "locate", "search_commands", "read_command");
 
     @Test
     void continuationCallPreservesQueryAndExecutesAnotherLiveRead() throws Exception {
@@ -58,7 +59,7 @@ class PackSageToolsTest {
     }
 
     @Test
-    void exposesExactlyTwentyToolsAndKeepsOptionalArgumentsOptional() {
+    void exposesExactlyTwentyFourToolsAndKeepsOptionalArgumentsOptional() {
         var definitions = PackSageTools.definitions();
         assertEquals(NAMES, definitions.stream().map(ModelBackend.ToolDefinition::name).toList());
         for (var definition : definitions) {
@@ -489,5 +490,26 @@ class PackSageToolsTest {
         var tools = new PackSageTools(request -> { calls.incrementAndGet(); return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)); });
         assertTrue(tools.execute(new ModelBackend.ToolCall("finished", "list_progress", "{\"status\":[\"finished\"]}"), SCOPE).toCompletableFuture().get().result().error());
         assertEquals(0, calls.get());
+    }
+
+    @Test void listsWorldKnowledgeTools() {
+        var expected = Map.of(
+                "read_loot", List.of(List.of("table", "block", "entity", "place", "cursor"), List.<String>of()),
+                "locate", List.of(List.of("biome", "structure", "center", "radius", "cursor"), List.<String>of()),
+                "search_commands", List.of(List.of("text", "cursor"), List.<String>of()),
+                "read_command", List.of(List.of("name", "cursor"), List.of("name")));
+        var definitions = PackSageTools.definitions();
+        for (var tool : expected.entrySet()) {
+            var definition = definitions.stream().filter(value -> value.name().equals(tool.getKey())).findFirst().orElseThrow();
+            var schema = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject();
+            assertEquals(java.util.Set.copyOf(tool.getValue().get(0)), schema.getAsJsonObject("properties").keySet(), tool.getKey());
+            assertEquals(tool.getValue().get(1), schema.getAsJsonArray("required").asList().stream().map(value -> value.getAsString()).toList(), tool.getKey());
+            assertFalse(definition.description().startsWith("Read current evidence for"), tool.getKey());
+        }
+        var locate = JsonParser.parseString(definitions.stream().filter(value -> value.name().equals("locate")).findFirst().orElseThrow()
+                .serializedSchema()).getAsJsonObject().getAsJsonObject("properties");
+        assertEquals(1, locate.getAsJsonObject("radius").get("minimum").getAsInt());
+        assertEquals(512, locate.getAsJsonObject("radius").get("maximum").getAsInt());
+        assertTrue("#minecraft:village".matches(locate.getAsJsonObject("structure").get("pattern").getAsString()));
     }
 }

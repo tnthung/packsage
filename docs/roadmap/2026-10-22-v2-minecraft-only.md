@@ -88,13 +88,23 @@ The Minecraft adapter is finished before this branch merges back. The [completio
   - [ ] `search_inventory` and the legacy inventory and storage readers removed; old `inventory:` and `storage:` handles reread as unavailable.
   - [x] N2–N5 fixed (see the backlog above).
 - [ ] 2. Progress and statistics ([plan](../plans/2026-10-22-v2-progress-statistics.md), [acceptance checks](#progress-and-statistics)). Implemented; not yet checked in game. Acceptance runs once at the end of all stages.
-- [ ] 3. More world knowledge (`docs/plans/2026-10-25-v2-world-knowledge.md`):
-  - villager trades without generating them;
-  - `read_loot`;
-  - `locate` for biomes and structures without generating chunks;
-  - read-only `search_commands` and `read_command`.
+- [ ] 3. More world knowledge ([plan](../plans/2026-10-25-v2-world-knowledge.md)). Implemented with the short prompt mention and review fixes; the build reports 781 automated tests: 777 passed and 4 skipped. Not yet checked in game; awaiting the final in-game acceptance run below.
+  - [ ] Villager and wandering-trader offers and prices through `inspect_entity`, without generating trades; implemented, not yet checked in game.
+  - [ ] `read_loot` for table, block, entity and pending container loot, without rolling or unpacking it; implemented, not yet checked in game.
+  - [ ] `locate` for biome ids/tags and found or predicted structures, with persistent place links, without loading or generating chunks; implemented, not yet checked in game.
+  - [ ] `search_commands` and `read_command` from a paced detached snapshot, including usage, argument types and player permissions, without running commands; implemented, not yet checked in game.
 - [ ] 4. Journal and notes (below).
 - [ ] 5. Prompt and acceptance (below).
+
+Stage 3 live checks for the final run, using the installed build in singleplayer with the default prompt and the developer override cleared. All are not yet checked in game:
+
+- [ ] Trades: at a librarian already traded with, ask "what does this villager sell?" Check cited offers, distinguishing item facts such as enchantments, and prices for the player. Also check a wandering trader.
+- [ ] Trades without generation: give a fresh villager a lectern and ask twice before the next autosave. Both reads must say "not generated yet"; then right-click it to confirm the game generates its offers normally.
+- [ ] Loot: ask "what does a zombie drop?" Check that `read_loot` supplies the table's drops and conditions without rolling it. For an unopened chest, check its pending table and seed, then open it normally and confirm it still yields loot. Unknown and empty tables must be explicit.
+- [ ] Biomes: locate a biome by id and tag. Check coordinates, sampling resolution and a working place link. Continue a partial result by its cursor when one is returned.
+- [ ] Structures: in a new world, ask "where is the nearest village?" Check coordinates, a found or predicted label, and a working place link. Repeat near a visited village and expect found. Compare region-directory listings before and after the call: it must create no region files or load or generate chunks. Unknown saved-start confirmation must not be presented as proof of absence.
+- [ ] Place links: check nearby and distant marker columns in the same dimension, a different-dimension link's coordinates, and a saved link after a full Minecraft restart. Check that columns are visible in the Nether at default render distance and in the Overworld at 8 chunks.
+- [ ] Commands: ask "how do I use /fill?" without cheats. Check usage forms, argument names/types and `canUse: false`; `search_commands` must still discover the command. No command is run.
 
 Plan details:
 

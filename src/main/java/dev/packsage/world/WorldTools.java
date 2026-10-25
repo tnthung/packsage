@@ -68,7 +68,7 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     /** A resolved scan center, kept in list cursors so later pages scan the same sphere. */
-    private record Center(String dimension, Vec3 position) {
+    record Center(String dimension, Vec3 position) {
     }
 
     private record ListState(Center center, String scan) {
@@ -145,6 +145,7 @@ public final class WorldTools implements KnowledgeProvider {
     private final ServerWork work;
     private final WorldNavigation navigation;
     private final Supplier<CompletionStage<ClientFocus>> focus;
+    private final WorldKnowledgeTools knowledge;
     private final Map<String, Cursor> cursors = new LinkedHashMap<>(16, 0.75f, true);
     /**
      * The menu each opened id was issued for, on the server in openedOn. Ids restart for every new player and wrap after
@@ -174,6 +175,7 @@ public final class WorldTools implements KnowledgeProvider {
         this.focus = focus;
         this.scan = new AreaScan(registry);
         this.navigation = new WorldNavigation(blockExists, entityPlace, client);
+        this.knowledge = new WorldKnowledgeTools(this);
     }
 
     @Override
@@ -205,7 +207,8 @@ public final class WorldTools implements KnowledgeProvider {
                 case "list_items" -> listItems(request);
                 case "inspect_item" -> inspectItem(request);
                 case "find_items" -> findItems(request);
-                default -> CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, request.tool()));
+                default -> WorldKnowledgeTools.TOOLS.contains(request.tool()) ? knowledge.handle(request)
+                        : CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, request.tool()));
             };
         } catch (Failure failure) {
             return CompletableFuture.failedFuture(failure);
@@ -258,7 +261,7 @@ public final class WorldTools implements KnowledgeProvider {
         return navigation.open(target);
     }
 
-    private static Evidence.Result single(Evidence.Record record) {
+    static Evidence.Result single(Evidence.Record record) {
         var complete = record.source().coverage() == Evidence.Coverage.COMPLETE;
         return new Evidence.Result(List.of(record), complete ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
                 complete ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, null);
@@ -487,13 +490,13 @@ public final class WorldTools implements KnowledgeProvider {
         return result(records, sticky, next, notes.isEmpty() ? null : String.join("; ", notes));
     }
 
-    private static Evidence.Result result(List<Evidence.Record> records, Evidence.Coverage coverage, String next, String note) {
+    static Evidence.Result result(List<Evidence.Record> records, Evidence.Coverage coverage, String next, String note) {
         var complete = next == null && coverage == Evidence.Coverage.COMPLETE;
         return new Evidence.Result(records, complete ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
                 complete ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, next, note);
     }
 
-    /** Reads one block, entity or item handle fresh. */
+    /** Reads one block, entity, item, loot or command handle fresh. */
     private CompletionStage<Evidence.Record> reread(String handle, Evidence.Scope scope) {
         if (handle.startsWith("block|")) {
             var place = place(handle.substring(6));
@@ -511,10 +514,11 @@ public final class WorldTools implements KnowledgeProvider {
             var server = server();
             return run(server, once(() -> inspectItem(server, path, scope)));
         }
+        if (handle.startsWith("loot|") || handle.startsWith("command|")) return knowledge.reread(handle, scope);
         if (handle.startsWith("holder|")) {
             throw new Failure(Code.INVALID_REFERENCE, "a holder summary is not reread; repeat list_items with holder " + handle.substring(7));
         }
-        throw new Failure(Code.INVALID_REFERENCE, "only block, entity and item records can be reread; repeat the area lookup");
+        throw new Failure(Code.INVALID_REFERENCE, "only block, entity, item, loot and command records can be reread; repeat the lookup that produced it");
     }
 
     // Server-thread reads
@@ -891,7 +895,7 @@ public final class WorldTools implements KnowledgeProvider {
 
     // Live lookups; server thread only
 
-    private Center center(MinecraftServer server, Anchor anchor) {
+    Center center(MinecraftServer server, Anchor anchor) {
         return switch (anchor) {
             case Anchor.Player player -> {
                 var host = host(server);
@@ -909,7 +913,7 @@ public final class WorldTools implements KnowledgeProvider {
         };
     }
 
-    private static ServerPlayer host(MinecraftServer server) {
+    static ServerPlayer host(MinecraftServer server) {
         var player = hostOrNull(server);
         if (player == null) throw new Failure(Code.UNAVAILABLE, "the player is not in the world");
         return player;
@@ -925,17 +929,17 @@ public final class WorldTools implements KnowledgeProvider {
         return location == null ? null : server.getLevel(ResourceKey.create(Registries.DIMENSION, location));
     }
 
-    private static ServerLevel level(MinecraftServer server, String dimension) {
+    static ServerLevel level(MinecraftServer server, String dimension) {
         var level = levelOrNull(server, dimension);
         if (level == null) throw new Failure(Code.UNAVAILABLE, "dimension " + dimension + " is not loaded");
         return level;
     }
 
-    private static boolean loaded(ServerLevel level, BlockPos pos) {
+    static boolean loaded(ServerLevel level, BlockPos pos) {
         return level.getChunkSource().getChunkNow(SectionPos.blockToSectionCoord(pos.getX()), SectionPos.blockToSectionCoord(pos.getZ())) != null;
     }
 
-    private static Entity entity(MinecraftServer server, UUID id) {
+    static Entity entity(MinecraftServer server, UUID id) {
         for (var level : server.getAllLevels()) {
             var entity = level.getEntity(id);
             if (entity != null && !entity.isRemoved()) return entity;
@@ -1011,14 +1015,18 @@ public final class WorldTools implements KnowledgeProvider {
 
     // Running slices
 
-    private MinecraftServer server() {
+    Executor worker() {
+        return worker;
+    }
+
+    MinecraftServer server() {
         var current = server.get();
         if (current == null) throw new Failure(Code.UNAVAILABLE, "world tools need an integrated singleplayer server");
         return current;
     }
 
     /** Queues the slice on the shared {@link ServerWork}, which steps it within each server tick's budget. */
-    private <T> CompletionStage<T> run(MinecraftServer server, ServerWork.Slice<T> slice) {
+    <T> CompletionStage<T> run(MinecraftServer server, ServerWork.Slice<T> slice) {
         return run(() -> this.server.get() == server && server.isRunning(), slice);
     }
 
@@ -1035,7 +1043,7 @@ public final class WorldTools implements KnowledgeProvider {
         }, worker);
     }
 
-    private static <T> ServerWork.Slice<T> once(Supplier<T> read) {
+    static <T> ServerWork.Slice<T> once(Supplier<T> read) {
         return then(read, value -> mapped(done(), ignored -> value));
     }
 
@@ -1171,7 +1179,7 @@ public final class WorldTools implements KnowledgeProvider {
         return token;
     }
 
-    private String remember(PackSageTools.ReadRequest request, Object state) {
+    String remember(PackSageTools.ReadRequest request, Object state) {
         return remember(request.tool(), request.arguments(), request.scope(), state);
     }
 
@@ -1189,7 +1197,7 @@ public final class WorldTools implements KnowledgeProvider {
         return cursor.state();
     }
 
-    private static <T> T state(Object state, Class<T> type) {
+    static <T> T state(Object state, Class<T> type) {
         if (!type.isInstance(state)) throw new Failure(Code.INVALID_CURSOR, "cursor does not match this query; restart without a cursor");
         return type.cast(state);
     }
@@ -1214,17 +1222,17 @@ public final class WorldTools implements KnowledgeProvider {
 
     // Arguments
 
-    private static Evidence.JsonValue argument(PackSageTools.ReadRequest request, String name) {
+    static Evidence.JsonValue argument(PackSageTools.ReadRequest request, String name) {
         var value = request.arguments().values().get(name);
         return value instanceof Evidence.JsonNull ? null : value;
     }
 
-    private static String requiredText(PackSageTools.ReadRequest request, String name) {
+    static String requiredText(PackSageTools.ReadRequest request, String name) {
         if (!(argument(request, name) instanceof Evidence.JsonString value)) throw invalid(name + " must be a string");
         return value.value();
     }
 
-    private static Failure invalid(String message) {
+    static Failure invalid(String message) {
         return new Failure(Code.INVALID_ARGUMENTS, message);
     }
 
@@ -1547,7 +1555,7 @@ public final class WorldTools implements KnowledgeProvider {
         };
     }
 
-    private static Evidence.Record evidence(Evidence.Scope scope, String handle, Evidence.RecordKind kind, String title,
+    static Evidence.Record evidence(Evidence.Scope scope, String handle, Evidence.RecordKind kind, String title,
                                           Map<String, Evidence.JsonValue> payload, Evidence.Coverage coverage, String targetId) {
         var source = new Evidence.Source(scope, ID, VERSION, handle, scope.requestGeneration(), Instant.now(),
                 Evidence.Activity.ACTIVE, coverage, Evidence.Authority.SERVER_READ, List.of());
@@ -1584,11 +1592,11 @@ public final class WorldTools implements KnowledgeProvider {
                 ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
     }
 
-    private static Evidence.JsonString text(String value) {
+    static Evidence.JsonString text(String value) {
         return new Evidence.JsonString(value);
     }
 
-    private static Evidence.JsonNumber number(long value) {
+    static Evidence.JsonNumber number(long value) {
         return new Evidence.JsonNumber(BigDecimal.valueOf(value));
     }
 

@@ -1,5 +1,6 @@
 package dev.packsage.client.highlight;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexFormat;
@@ -21,11 +22,14 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Draws world navigation highlights until they expire: a see-through line box around a block, or a glow on a loaded
- * mob. Blocks are drawn only in the player's current dimension; mobs glow only while the client has them loaded.
+ * Draws world navigation highlights until they expire: a see-through line box around a block, a see-through column
+ * through the whole build height at a place, or a glow on a loaded mob. Blocks and places are drawn only in the
+ * player's current dimension; mobs glow only while the client has them loaded.
  */
 public final class WorldHighlighter {
     private static final double INSET = 0.002;
+    /** Horizontal blocks from the camera beyond which a place's column is drawn at this distance in its direction. */
+    static final double MARKER_RANGE = 128;
     private static final RenderType LINES = RenderType.create("packsage_highlight_lines", DefaultVertexFormat.POSITION_COLOR_NORMAL,
             VertexFormat.Mode.LINES, 1536, false, false, RenderType.CompositeState.builder()
                     .setShaderState(RenderStateShard.RENDERTYPE_LINES_SHADER)
@@ -38,6 +42,7 @@ public final class WorldHighlighter {
                     .createCompositeState(false));
     private static final Map<BlockPlace, Long> BLOCKS = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> ENTITIES = new ConcurrentHashMap<>();
+    private static final Map<BlockPlace, Long> PLACES = new ConcurrentHashMap<>();
     /** Mobs glowing because of a highlight, with whether they glowed before it; render thread only. */
     private static final Map<UUID, Glow> GLOWING = new HashMap<>();
 
@@ -53,6 +58,7 @@ public final class WorldHighlighter {
         NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut ignored) -> {
             BLOCKS.clear();
             ENTITIES.clear();
+            PLACES.clear();
         });
     }
 
@@ -64,6 +70,11 @@ public final class WorldHighlighter {
         ENTITIES.put(id, untilMillis);
     }
 
+    /** Marks x, z with a column from the level's minimum to its maximum build height; y is not used. */
+    public static void highlightPlace(BlockPlace place, long untilMillis) {
+        PLACES.put(place, untilMillis);
+    }
+
     private static void render(RenderLevelStageEvent event) {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
         var minecraft = Minecraft.getInstance();
@@ -71,8 +82,9 @@ public final class WorldHighlighter {
         long now = System.currentTimeMillis();
         BLOCKS.values().removeIf(until -> until <= now);
         ENTITIES.values().removeIf(until -> until <= now);
+        PLACES.values().removeIf(until -> until <= now);
         glow(level);
-        if (level == null || BLOCKS.isEmpty()) return;
+        if (level == null || BLOCKS.isEmpty() && PLACES.isEmpty()) return;
         var dimension = level.dimension().location().toString();
         var camera = event.getCamera().getPosition();
         var buffers = minecraft.renderBuffers().bufferSource();
@@ -87,6 +99,36 @@ public final class WorldHighlighter {
                     1.0F, 0.85F, 0.2F, 1.0F);
         }
         buffers.endBatch(LINES);
+        if (PLACES.isEmpty()) return;
+        lines = buffers.getBuffer(LINES);
+        double bottom = level.getMinBuildHeight() - camera.y;
+        double top = level.getMaxBuildHeight() - camera.y;
+        double far = minecraft.gameRenderer.getDepthFar();
+        for (var place : PLACES.keySet()) {
+            if (!place.dimension().equals(dimension)) continue;
+            double x = place.x() + 0.5 - camera.x;
+            double z = place.z() + 0.5 - camera.z;
+            double distance = Math.sqrt(x * x + z * z);
+            double shown = markerDistance(distance, far);
+            if (shown < distance) {
+                x *= shown / distance;
+                z *= shown / distance;
+            }
+            LevelRenderer.renderLineBox(pose, lines, x - 0.5, bottom, z - 0.5, x + 0.5, top, z + 0.5, 0.3F, 0.85F, 1.0F, 1.0F);
+        }
+        // A marker far away would fade out in terrain fog, which ends at the render distance or nearer in thick-fog dimensions.
+        float fogStart = RenderSystem.getShaderFogStart();
+        RenderSystem.setShaderFogStart(Float.MAX_VALUE);
+        buffers.endBatch(LINES);
+        RenderSystem.setShaderFogStart(fogStart);
+    }
+
+    /**
+     * How far from the camera, horizontally, a place's column is drawn: its own distance, at most the marker range,
+     * and at most half the projection's far plane so tiny render distances do not clip it away.
+     */
+    static double markerDistance(double distance, double farPlane) {
+        return Math.min(distance, Math.min(MARKER_RANGE, farPlane / 2));
     }
 
     /** Keeps highlighted mobs glowing, re-applying after server syncs, and restores them when the highlight ends. */

@@ -54,6 +54,12 @@ class WorldNavigationTest {
             drawn.add("entity " + id);
             until.add(untilMillis);
         }
+
+        @Override
+        public void highlightPlace(BlockPlace place, long untilMillis) {
+            drawn.add("place " + place.text());
+            until.add(untilMillis);
+        }
     }
 
     private static WorldTools tools(Evidence.Scope scope, Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace,
@@ -72,6 +78,10 @@ class WorldNavigationTest {
 
     private static Evidence.NavigationTarget entity(Evidence.Scope scope) {
         return new Evidence.NavigationTarget(scope, WorldTools.ID, "entity|" + MOB, WorldNavigation.entityId(MOB));
+    }
+
+    private static Evidence.NavigationTarget place(Evidence.Scope scope) {
+        return new Evidence.NavigationTarget(scope, WorldTools.ID, "locate|minecraft:overworld|minecraft:desert|10,-3", WorldNavigation.placeId(PLACE));
     }
 
     @Test
@@ -190,5 +200,73 @@ class WorldNavigationTest {
         var foreign = new Evidence.NavigationTarget(SCOPE, "config", "block|" + PLACE.text(), WorldNavigation.blockId(PLACE));
         assertNull(tools.refreshNavigation(foreign, RELOADED).toCompletableFuture().get());
         assertNull(tools.refreshNavigation(block(SCOPE), SCOPE).toCompletableFuture().get());
+    }
+
+    @Test
+    void placeIdsRoundTrip() {
+        assertEquals("world-place|minecraft:overworld|10,64,-3", WorldNavigation.placeId(PLACE));
+        assertEquals(new WorldNavigation.Destination.Place(PLACE), WorldNavigation.parse(WorldNavigation.placeId(PLACE)));
+        for (var malformed : List.of("world-place|", "world-place|minecraft:overworld|1,2", "world-place|minecraft:overworld|1,2,x")) {
+            assertThrows(IllegalArgumentException.class, () -> WorldNavigation.parse(malformed), malformed);
+        }
+    }
+
+    @Test
+    void placesOpenWithoutAnExistenceCheckInTheSameDimension() {
+        var client = new FakeClient();
+        var tools = tools(SCOPE, place -> {
+            throw new AssertionError("a place is never read");
+        }, id -> null, client);
+        var before = System.currentTimeMillis();
+        var opened = tools.open(place(SCOPE), SCOPE);
+        assertEquals(Evidence.NavigationStatus.OPENED, opened.status());
+        assertNull(opened.detail());
+        assertEquals(List.of("place " + PLACE.text()), client.drawn);
+        long until = client.until.getFirst();
+        assertTrue(until >= before + 30_000 && until <= System.currentTimeMillis() + 30_000, "until " + until);
+
+        client.drawn.clear();
+        client.dimension = null;
+        assertEquals(Evidence.NavigationStatus.UNAVAILABLE, tools.open(place(SCOPE), SCOPE).status());
+        assertEquals(List.of(), client.drawn);
+    }
+
+    @Test
+    void placesInAnotherDimensionOpenWithCoordinates() {
+        var client = new FakeClient();
+        client.dimension = "minecraft:the_nether";
+        var opened = tools(SCOPE, place -> {
+            throw new AssertionError("a place is never read");
+        }, id -> null, client).open(place(SCOPE), SCOPE);
+        assertEquals(Evidence.NavigationStatus.OPENED, opened.status());
+        assertEquals("10, 64, -3 in minecraft:overworld", opened.detail());
+        assertEquals(List.of(), client.drawn);
+    }
+
+    @Test
+    void savedPlaceTargetsRefreshIntoANewScope(@TempDir Path directory) throws Exception {
+        var world = new ChatContracts.WorldIdentity("world", "World");
+        var store = new ConversationStore(directory, Runnable::run);
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        var source = new Evidence.Source(SCOPE, WorldTools.ID, WorldTools.VERSION, place(SCOPE).sourceHandle(), 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.SERVER_READ, List.of());
+        store.appendTurn(world, SCOPE, conversation.id(), new ChatContracts.Turn(new ChatContracts.RequestId("saved"), "Where is a desert?",
+                "There.", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(source), List.of(place(SCOPE)),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
+
+        // A new store, provider and scope stand in for a Minecraft restart; only the serialized turn survives.
+        var saved = new ConversationStore(directory, Runnable::run).openLatest(world).toCompletableFuture().join()
+                .turns().getFirst().navigationTargets();
+        assertEquals(List.of(place(SCOPE)), saved);
+        var client = new FakeClient();
+        var tools = tools(RELOADED, place -> false, id -> null, client);
+        var knowledge = new KnowledgeService(List.of(tools), () -> RELOADED);
+        var refreshed = knowledge.refreshNavigation(saved.getFirst(), RELOADED).toCompletableFuture().get();
+        assertEquals(new Evidence.NavigationTarget(RELOADED, WorldTools.ID, saved.getFirst().sourceHandle(), saved.getFirst().targetId()), refreshed);
+        assertEquals(Evidence.NavigationStatus.OPENED, knowledge.open(refreshed, RELOADED).status());
+        assertEquals(List.of("place " + PLACE.text()), client.drawn);
+
+        var malformed = new Evidence.NavigationTarget(SCOPE, WorldTools.ID, "locate|x", "world-place|x");
+        assertNull(tools.refreshNavigation(malformed, RELOADED).toCompletableFuture().get());
     }
 }

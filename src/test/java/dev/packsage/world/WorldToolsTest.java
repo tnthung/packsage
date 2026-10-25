@@ -45,7 +45,7 @@ class WorldToolsTest {
     }
 
     @Test
-    void noteAnchorsResolveToTheNotesPlaceAndUnknownNotesFail() throws Exception {
+    void noteAnchorsResolveToTheNotesPlaceAndUnknownNotesFail(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
         net.minecraft.SharedConstants.tryDetectVersion();
         net.minecraft.server.Bootstrap.bootStrap();
         var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
@@ -66,6 +66,26 @@ class WorldToolsTest {
         var result = tools.resolveAnchor(anchor).toCompletableFuture();
         while (!result.isDone()) work.tick();
         assertEquals(place, result.get());
+        var level = (net.minecraft.server.level.ServerLevel) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, net.minecraft.server.level.ServerLevel.class);
+        var levels = net.minecraft.server.MinecraftServer.class.getDeclaredField("levels");
+        levels.setAccessible(true);
+        levels.set(server, Map.of(net.minecraft.world.level.Level.OVERWORLD, level));
+        var journal = new dev.packsage.journal.Journal(Runnable::run);
+        journal.open(directory.resolve("journal.db"), () -> 400);
+        journal.write(store -> null).toCompletableFuture().get();
+        try {
+            var journalTools = new dev.packsage.journal.JournalTools(journal, () -> SCOPE, Runnable::run, () -> server, tools::resolveAnchor);
+            var remembered = journalTools.handle(new PackSageTools.ReadRequest("remember", Evidence.deserializeObject(
+                    "{\"text\":\"iron farm\",\"at\":{\"type\":\"block\",\"place\":\"minecraft:overworld|40,70,-8\"}}"), SCOPE),
+                    new Toolbox.Context(() -> SCOPE, Map.of(), new AdapterRegistry(), new Toolbox.DocumentBudget(), null)).toCompletableFuture();
+            while (work.hasWork()) work.tick();
+            assertEquals(place.text(), ((Evidence.JsonString) remembered.get(10, java.util.concurrent.TimeUnit.SECONDS)
+                    .records().getFirst().payload().values().get("place")).value());
+            assertEquals(place, journal.notes().all().getFirst().place());
+        } finally {
+            journal.close().get();
+        }
         var unknown = new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE, Runnable::run, work,
                 () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), block -> false, id -> null, null, id -> null);
         var missing = unknown.resolveAnchor(anchor).toCompletableFuture();

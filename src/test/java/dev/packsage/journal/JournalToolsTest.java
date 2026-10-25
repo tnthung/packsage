@@ -3,6 +3,7 @@ package dev.packsage.journal;
 import dev.packsage.knowledge.AdapterRegistry;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.knowledge.KnowledgeProvider;
+import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.knowledge.Toolbox;
 import dev.packsage.model.PackSageTools;
 import dev.packsage.world.Anchor;
@@ -231,7 +232,8 @@ class JournalToolsTest {
                         1_000 + i, 400, 1_000 + i, null, null));
                 return null;
             }).toCompletableFuture().get();
-            var tools = tools(journal);
+            var scope = new java.util.concurrent.atomic.AtomicReference<>(SCOPE);
+            var tools = new JournalTools(journal, scope::get, Runnable::run, () -> server, anchor -> CompletableFuture.completedFuture(PLACE));
             var first = call(tools, "search_journal", "{\"filter\":{\"notesOnly\":true}}").toCompletableFuture().get();
             assertEquals(64, first.records().size());
             assertNotNull(first.nextCursor());
@@ -242,8 +244,143 @@ class JournalToolsTest {
             assertEquals(1, second.records().size());
             assertNull(second.nextCursor());
             assertFalse(first.records().stream().anyMatch(record -> record.source().sourceHandle().equals(second.records().getFirst().source().sourceHandle())));
+            failure(Toolbox.Code.NOT_HANDLED, call(tools, "search_recipe", "{\"filter\":{\"notesOnly\":true},\"cursor\":\"" + first.nextCursor() + "\"}"));
+            var schema = new PackSageTools(request -> tools.handle(request, context()));
+            assertTrue(schema.execute(new dev.packsage.model.ModelBackend.ToolCall("wrong-tool", "remember",
+                    "{\"text\":\"farm\",\"cursor\":\"" + first.nextCursor() + "\"}"), SCOPE).toCompletableFuture().get().result().error());
+            scope.set(new Evidence.Scope("world", "resources", "team", "runtime", 2));
+            failure(Toolbox.Code.STALE_SCOPE, tools.handle(new PackSageTools.ReadRequest("search_journal", Evidence.deserializeObject(
+                    "{\"filter\":{\"notesOnly\":true},\"cursor\":\"" + first.nextCursor() + "\"}"), scope.get()), context()));
         } finally {
             journal.close().get();
+        }
+    }
+
+    @Test
+    void timeRangeErrorsNameTheFieldsThatWereSent() throws Exception {
+        var journal = open();
+        try {
+            var failed = call(tools(journal), "search_journal", "{\"filter\":{\"time\":{\"lastMinutes\":1,\"before\":\"1970-01-01T00:00:01Z\"}}}");
+            var error = assertThrows(java.util.concurrent.ExecutionException.class, () -> failed.toCompletableFuture().get());
+            assertInstanceOf(Toolbox.Failure.class, error.getCause());
+            assertTrue(error.getCause().getMessage().contains("lastMinutes"));
+            assertTrue(error.getCause().getMessage().contains("before"));
+            assertFalse(error.getCause().getMessage().contains("after"));
+        } finally {
+            journal.close().get();
+        }
+    }
+
+    @Test
+    void areaSearchReportsExactPositionsCountsAndEventPayload() throws Exception {
+        var journal = open();
+        try {
+            journal.write(store -> {
+                var run = new Run(JournalEvents.broken(new JournalEvents.Stamp(400, 1_000, PLACE.dimension()),
+                        "player:A", "Alex", "minecraft:sand", 10, 64, -3));
+                run.add(JournalEvents.broken(new JournalEvents.Stamp(420, 2_000, PLACE.dimension()),
+                        "player:A", "Alex", "minecraft:sand", 12, 64, -3));
+                store.writeBatch(List.of(run), List.of());
+                return null;
+            }).toCompletableFuture().get();
+            var record = call(tools(journal), "search_journal", "{\"filter\":{\"area\":{\"center\":{\"type\":\"player\"},\"radius\":0}}}")
+                    .toCompletableFuture().get().records().getFirst();
+            var payload = com.google.gson.JsonParser.parseString(Evidence.serialize(record.payload())).getAsJsonObject();
+            assertEquals("break", payload.get("type").getAsString());
+            assertEquals("player:A", payload.get("actor").getAsString());
+            assertEquals("Alex", payload.get("actorName").getAsString());
+            assertEquals("minecraft:sand", payload.get("subject").getAsString());
+            assertEquals(PLACE.dimension(), payload.get("dimension").getAsString());
+            assertEquals(2, payload.get("count").getAsInt());
+            assertEquals(2, payload.get("amount").getAsInt());
+            assertEquals(400, payload.get("fromGameTime").getAsLong());
+            assertEquals(420, payload.get("toGameTime").getAsLong());
+            assertEquals("1970-01-01T00:00:01Z", payload.get("from").getAsString());
+            assertEquals("1970-01-01T00:00:02Z", payload.get("to").getAsString());
+            assertEquals(PLACE.text(), payload.get("at").getAsString());
+            assertEquals("[10,64,-3]", payload.getAsJsonObject("box").get("min").toString());
+            assertEquals("[12,64,-3]", payload.getAsJsonObject("box").get("max").toString());
+            assertFalse(payload.get("countOnly").getAsBoolean());
+            assertTrue(payload.get("minutesAgo").getAsDouble() > 0);
+            assertEquals(record.title(), payload.get("summary").getAsString());
+            assertEquals(1, payload.get("inAreaCount").getAsInt());
+            assertEquals(List.of(PLACE.text()), payload.getAsJsonArray("inArea").asList().stream().map(value -> value.getAsString()).toList());
+            assertEquals("Alex", payload.getAsJsonObject("detail").get("actorName").getAsString());
+        } finally {
+            journal.close().get();
+        }
+    }
+
+    @Test
+    void observedNoteEvidenceRereadsTheCurrentNoteAndReportsDeletion() throws Exception {
+        var journal = open();
+        try {
+            var knowledge = new KnowledgeService(List.of(tools(journal)), () -> SCOPE);
+            var remembered = knowledge.execute(new PackSageTools.ReadRequest("remember", Evidence.deserializeObject("{\"text\":\"farm\"}"), SCOPE))
+                    .toCompletableFuture().get().records().getFirst();
+            var handle = remembered.source().sourceHandle();
+            var read = new PackSageTools.ReadRequest("read_evidence", Evidence.deserializeObject("{\"handles\":[\"journal:" + handle + "\"]}"), SCOPE);
+            var result = knowledge.execute(read).toCompletableFuture().get().records().getFirst();
+            assertEquals(handle, result.source().sourceHandle());
+            assertEquals(Evidence.Authority.PLAYER_REPORTED, result.source().authority());
+            var id = handle.substring(5);
+            call(tools(journal), "update_note", "{\"id\":\"" + id + "\",\"text\":\"moved farm\"}").toCompletableFuture().get();
+            assertEquals("moved farm", knowledge.execute(read).toCompletableFuture().get().records().getFirst().title());
+            call(tools(journal), "forget_note", "{\"id\":\"" + id + "\"}").toCompletableFuture().get();
+            var deleted = knowledge.execute(read).toCompletableFuture().get();
+            assertTrue(deleted.records().isEmpty());
+            assertEquals("journal entry no longer exists", deleted.detail());
+        } finally {
+            journal.close().get();
+        }
+    }
+
+    @Test
+    void noteWriteCompletionsRunOnTheWorker() throws Exception {
+        try (var worker = Executors.newSingleThreadExecutor(action -> new Thread(action, "test-journal-worker"))) {
+            var journal = new Journal(worker);
+            journal.open(dir.resolve("journal.db"), () -> 400);
+            journal.write(store -> null).toCompletableFuture().get();
+            try {
+                var tools = new JournalTools(journal, () -> SCOPE, worker, () -> server, anchor -> CompletableFuture.completedFuture(PLACE));
+                for (var name : List.of("remember", "update_note", "forget_note")) {
+                    var release = new CountDownLatch(1);
+                    var entered = new CountDownLatch(1);
+                    journal.write(store -> {
+                        entered.countDown();
+                        assertTrue(release.await(10, TimeUnit.SECONDS));
+                        return null;
+                    });
+                    assertTrue(entered.await(10, TimeUnit.SECONDS));
+                    try {
+                        var arguments = name.equals("remember") ? "{\"text\":\"farm\"}" : "{\"id\":\"" + journal.notes().all().getFirst().id()
+                                + "\"" + (name.equals("update_note") ? ",\"text\":\"moved farm\"" : "") + "}";
+                        var result = call(tools, name, arguments).thenApply(value -> Thread.currentThread().getName());
+                        worker.submit(() -> {}).get(10, TimeUnit.SECONDS);
+                        release.countDown();
+                        assertEquals("test-journal-worker", result.toCompletableFuture().get(10, TimeUnit.SECONDS));
+                    } finally {
+                        release.countDown();
+                    }
+                }
+            } finally {
+                journal.close().get();
+            }
+        }
+    }
+
+    @Test
+    void failedOpenMakesTheJournalAdapterUnavailableWithItsReason() throws Exception {
+        var journal = new Journal(Runnable::run, file -> { throw new java.sql.SQLException("database refused"); });
+        journal.open(dir.resolve("refused.db"), () -> 400);
+        try {
+            assertThrows(java.util.concurrent.ExecutionException.class, () -> journal.write(store -> null).toCompletableFuture().get());
+            var tools = tools(journal);
+            var knowledge = new KnowledgeService(List.of(tools), () -> SCOPE);
+            assertFalse(knowledge.adapterAvailability().get("journal"));
+            assertTrue(knowledge.adapterDetails().get("journal").contains("database refused"));
+        } finally {
+            journal.close().handle((value, failure) -> null).get();
         }
     }
 

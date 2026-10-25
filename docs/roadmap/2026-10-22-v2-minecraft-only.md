@@ -115,7 +115,8 @@ Stages 1–5 are implemented. Checked entries below describe the accepted scope,
 
 ## Open
 
-- Journal final-review fixes preserve recording-loss intervals across restarts with an additive schema-v1 table. Automated regression/build results and remaining live acceptance are recorded separately; these fixes do not close the broader journal checklist.
+- Journal final-review fixes preserve recording-loss intervals across restarts with an additive schema-v1 table and keep byte-bounded pages resumable after their last delivered record. Automated regression/build results and remaining live acceptance are recorded separately; these fixes do not close the broader journal checklist.
+
 The [cross-stage follow-ups](../../.superpowers/sdd/final-followups.md) include both deferred work and already completed integration items. Keep the deferred items below open; this list does not reopen the completed WorldTools.run delegation, merged tool-count updates or whole-prompt rewrite.
 
 - [ ] Fix E6 coordinates in located-entity answers and revalidate the changed prompt rule.

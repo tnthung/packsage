@@ -13,6 +13,7 @@ import dev.packsage.world.WorldTools;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.MinecraftServer;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -30,6 +31,11 @@ import java.util.function.Supplier;
 public final class JournalTools implements KnowledgeProvider {
     public static final String ID = "journal";
     public static final String VERSION = "1";
+    // Leave 32 KiB for the response envelope, coverage reasons and nextCall's repeated filter.
+    private static final int PAGE_BYTES = 96 * 1024;
+    private static final com.google.gson.Gson JSON = new com.google.gson.GsonBuilder().serializeNulls()
+            .registerTypeAdapter(Instant.class, (com.google.gson.JsonSerializer<Instant>) (value, type, context) -> new com.google.gson.JsonPrimitive(value.toString()))
+            .create();
 
     private record Cursor(String tool, Evidence.JsonObject signature, Evidence.Scope scope, JournalFilter filter, String keyset, long nowWall) {
     }
@@ -152,18 +158,49 @@ public final class JournalTools implements KnowledgeProvider {
             available(request.scope());
             return journal.search(query, keyset, now).thenCompose(page -> journal.read(store -> store.meta()).thenApplyAsync(meta -> {
                 available(request.scope());
+                var records = new ArrayList<Evidence.Record>();
+                var bytes = 0;
+                var nextKeyset = page.nextCursor();
+                var coverage = page.coverage();
+                var note = page.note();
+                for (var entry : page.items()) {
+                    var record = record(entry, request.scope(), now, query.area() != null, page.coverage());
+                    var encoded = new JsonObject();
+                    encoded.addProperty("reference", record.source().providerId() + ":" + record.source().sourceHandle());
+                    encoded.add("source", JSON.toJsonTree(record.source()));
+                    encoded.addProperty("kind", record.kind().name());
+                    encoded.addProperty("navigable", !record.targets().isEmpty());
+                    encoded.addProperty("title", record.title());
+                    encoded.add("payload", JsonParser.parseString(Evidence.serialize(record.payload())));
+                    encoded.add("recipe", com.google.gson.JsonNull.INSTANCE);
+                    var recordBytes = encoded.toString().getBytes(StandardCharsets.UTF_8).length + (records.isEmpty() ? 0 : 1);
+                    if (bytes + recordBytes > PAGE_BYTES) {
+                        if (records.isEmpty()) throw new Failure(Code.EXTRACTION_FAILED, "one journal entry exceeds the page byte budget");
+                        var last = page.items().get(records.size() - 1);
+                        nextKeyset = last.sortWall() + ":" + last.ref();
+                        coverage = Evidence.Coverage.PARTIAL;
+                        note = (note == null ? "" : note + "; ") + "journal page byte budget reached; continue with the cursor";
+                        break;
+                    }
+                    records.add(record);
+                    bytes += recordBytes;
+                }
+                if (coverage != page.coverage()) {
+                    for (int i = 0; i < records.size(); i++) {
+                        records.set(i, record(page.items().get(i), request.scope(), now, query.area() != null, coverage));
+                    }
+                }
                 String next = null;
-                if (page.nextCursor() != null) {
+                if (nextKeyset != null) {
                     next = UUID.randomUUID().toString();
                     synchronized (cursors) {
-                        cursors.put(next, new Cursor(request.tool(), signature, request.scope(), query, page.nextCursor(), now));
+                        cursors.put(next, new Cursor(request.tool(), signature, request.scope(), query, nextKeyset, now));
                         while (cursors.size() > 256) cursors.remove(cursors.keySet().iterator().next());
                     }
                 }
-                return new Evidence.Result(page.items().stream().map(entry -> record(entry, request.scope(), now, query.area() != null, page.coverage())).toList(),
-                        page.coverage(), page.coverage() == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, next,
+                return new Evidence.Result(records, coverage, coverage == Evidence.Coverage.COMPLETE ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, next,
                         "recording since " + (meta == null ? "unknown (not recording yet)" : Instant.ofEpochMilli(meta.createdWall()))
-                                + (page.note() == null ? "" : "; " + page.note()));
+                                + (note == null ? "" : "; " + note));
             }, worker));
         }, worker);
     }
@@ -329,13 +366,18 @@ public final class JournalTools implements KnowledgeProvider {
         if (entry instanceof JournalEntry.NoteEntry report) {
             var note = report.note();
             handle = "note:" + note.id();
-            title = note.text();
+            title = note.text().length() <= 96 ? note.text()
+                    : note.text().substring(0, Character.isHighSurrogate(note.text().charAt(95)) ? 95 : 96) + "…";
             target = note.place() == null ? null : JournalNavigation.noteId(note.id());
             authority = report.authority();
             payload.addProperty("type", "note");
             payload.addProperty("id", note.id());
             payload.addProperty("text", note.text());
-            payload.addProperty("playerWords", note.playerWords());
+            if (note.playerWords() != null && !note.playerWords().equals(note.text())) {
+                payload.addProperty("playerWords", note.playerWords().length() <= 1_000 ? note.playerWords()
+                        : note.playerWords().substring(0, Character.isHighSurrogate(note.playerWords().charAt(999)) ? 999 : 1_000));
+                if (note.playerWords().length() > 1_000) payload.addProperty("playerWordsTruncated", true);
+            }
             payload.addProperty("trust", report.trust());
             var tags = new JsonArray();
             note.tags().forEach(tags::add);

@@ -7,7 +7,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 
-/** Server-thread raid polling, retaining at most 1,024 dimension/id pairs, including finished raids until absent. */
+/**
+ * Server-thread raid polling, retaining at most 1,024 dimension/id pairs, including finished raids until absent.
+ * A raid first seen finished without having started records only its finish; no start is invented.
+ */
 public final class RaidWatch {
     static final int MAX_RAIDS = 1_024;
 
@@ -21,6 +24,7 @@ public final class RaidWatch {
     }
 
     private final LinkedHashMap<Key, Tracked> raids = new LinkedHashMap<>(16, 0.75f, true);
+    private long evictions;
 
     public List<JournalEvent> observe(int raidId, RaidState state, Stamp stamp) {
         var key = new Key(stamp.dimension(), raidId);
@@ -39,6 +43,7 @@ public final class RaidWatch {
         raids.put(key, new Tracked(state, started, finished));
         if (raids.size() > MAX_RAIDS) {
             raids.pollFirstEntry();
+            evictions++;
         }
         return List.copyOf(events);
     }
@@ -60,5 +65,9 @@ public final class RaidWatch {
             iterator.remove();
         }
         return List.copyOf(events);
+    }
+
+    public long evictions() {
+        return evictions;
     }
 }

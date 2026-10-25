@@ -46,7 +46,7 @@ public final class JournalEvents {
             detail.addProperty("actorName", playerName);
         }
         return new JournalEvent(EventType.PLACE, stamp.gameTime(), stamp.wallMillis(), stamp.dimension(), playerRef,
-                block, null, 1, new long[]{Positions.pack(x, y, z)}, detail.toString());
+                block, null, 1, new long[]{Positions.pack(x, y, z)}, playerName == null ? null : detail.toString());
     }
 
     public static JournalEvent broken(Stamp stamp, String playerRef, String playerName, String block, int x, int y, int z) {
@@ -55,7 +55,7 @@ public final class JournalEvents {
             detail.addProperty("actorName", playerName);
         }
         return new JournalEvent(EventType.BREAK, stamp.gameTime(), stamp.wallMillis(), stamp.dimension(), playerRef,
-                block, null, 1, new long[]{Positions.pack(x, y, z)}, detail.toString());
+                block, null, 1, new long[]{Positions.pack(x, y, z)}, playerName == null ? null : detail.toString());
     }
 
     /** The hook must cap the whole explosion at 4,096 positions before grouping by block id. */

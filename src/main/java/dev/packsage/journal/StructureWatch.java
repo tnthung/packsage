@@ -13,6 +13,7 @@ public final class StructureWatch {
     }
 
     private final LinkedHashMap<Start, Boolean> visited = new LinkedHashMap<>(16, 0.75f, true);
+    private long evictions;
 
     public List<JournalEvent> inside(String playerRef, String structure, int chunkX, int chunkZ, int x, int y, int z, Stamp stamp) {
         if (visited.put(new Start(stamp.dimension(), structure, chunkX, chunkZ), true) != null) {
@@ -20,7 +21,12 @@ public final class StructureWatch {
         }
         if (visited.size() > MAX_STARTS) {
             visited.pollFirstEntry();
+            evictions++;
         }
         return List.of(JournalEvents.structure(stamp, playerRef, structure, chunkX, chunkZ, x, y, z));
+    }
+
+    public long evictions() {
+        return evictions;
     }
 }

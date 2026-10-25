@@ -14,11 +14,13 @@ public final class PortalTracker {
     }
 
     private final LinkedHashMap<String, Departure> departures = new LinkedHashMap<>(16, 0.75f, true);
+    private long evictions;
 
     public void leaving(String playerRef, String fromDimension, BlockPlace at, long gameTime) {
         departures.put(playerRef, new Departure(fromDimension, at, gameTime));
         if (departures.size() > MAX_PLAYERS) {
             departures.pollFirstEntry();
+            evictions++;
         }
     }
 
@@ -29,5 +31,9 @@ public final class PortalTracker {
             return Optional.empty();
         }
         return Optional.of(departure.at());
+    }
+
+    public long evictions() {
+        return evictions;
     }
 }

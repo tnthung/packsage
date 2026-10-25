@@ -21,6 +21,8 @@ public final class ContainerSessions {
     }
 
     private final LinkedHashMap<String, Session> sessions = new LinkedHashMap<>(16, 0.75f, true);
+    private long evictions;
+    private long oversizedSnapshots;
 
     /** Oversized snapshots are rejected rather than truncated into fictitious transfers. */
     public void open(String playerRef, int containerId, Holder holder, Map<String, Long> contents) {
@@ -30,6 +32,7 @@ public final class ContainerSessions {
         sessions.put(playerRef, new Session(containerId, holder, Map.copyOf(contents)));
         if (sessions.size() > MAX_SESSIONS) {
             sessions.pollFirstEntry();
+            evictions++;
         }
     }
 
@@ -40,7 +43,8 @@ public final class ContainerSessions {
         }
         sessions.remove(playerRef);
         if (contents.size() > MAX_ITEMS) {
-            throw new IllegalArgumentException("a container snapshot exceeds 4,096 item ids");
+            oversizedSnapshots++;
+            return List.of();
         }
         var items = new TreeSet<>(session.contents().keySet());
         items.addAll(contents.keySet());
@@ -58,5 +62,13 @@ public final class ContainerSessions {
 
     public Set<String> openPlayers() {
         return Set.copyOf(sessions.keySet());
+    }
+
+    public long evictions() {
+        return evictions;
+    }
+
+    public long oversizedSnapshots() {
+        return oversizedSnapshots;
     }
 }

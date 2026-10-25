@@ -22899,3 +22899,1152 @@ Date: 2026-10-26. Candidate 8 extends candidate 7's coordinate rule so the coord
 | `how fast is this mule?` | inspect_entity | PASS: 7.38 blocks per second, "It's at (1004, 250, 1006)", with the mule link |
 
 The model copied the coordinates from the record's title. The title rounds entity positions to the nearest whole number, so 1003.5 became 1004, the neighbouring block, while F3 shows block 1003. That is a code defect in the entity title, not a prompt failure; it is fixed separately. Candidate 8 was promoted in f66b3e6, and the override was cleared.
+
+
+## Final-review installed recheck
+
+Date: 2026-10-26, approximately 02:59-03:19 Asia/Taipei (raw bridge timestamps use UTC on 2026-10-25). **10 PASS, 2 FAIL, 1 NOT RUN** across the 13 requested checks. Historical results above remain unchanged.
+
+Installed JAR SHA-256: **E4AC8CB95F71E8FA60E1CF2EE005A08E3891323D1041FBFB2E1A145D5D0EA739**. Tested source HEAD: **8a194c46310672696da8e9bd5b86b59894f5f7a6**, branch **feat/packsage-v2**, main checkout D:/Project/packsage. Dist and installed hashes matched after installation and the installed hash matched again at the final check.
+
+Conditions: CurseForge instance Packsage; Minecraft 1.21.1 / NeoForge 21.1.259; save PackSage Adapter Filter Live Test (world display name New World in the save list). Clean Save and Quit, Quit Game, no remaining javaw, then scripts/build.ps1 and CurseForge relaunch. Build reported BUILD SUCCESSFUL in 7s; all 11 tasks were UP-TO-DATE. Existing XML totals were 1,126 tests, 1,122 passed, 4 skipped, zero failures/errors; this run reused those test results rather than freshly executing the suite. [Build log](../../build/final-review-live/build.log), [build metadata](../../build/final-review-live/build-metadata.json), [test totals](../../build/final-review-live/test-totals.json).
+
+The player's model/search/screenshot settings were preserved: accepted request timing records model=gpt-6-sol, effort=MEDIUM, screenshot=true, search=AUTOMATIC; properties retain modelId=gpt-6-sol and automaticWebSearch=true. No request supplied screenshot or webSearch overrides. Every accepted question used a new conversation. Render distance remained 12. The default candidate-8 prompt had no developer override during every question. C1 temporarily saved only its short test override after all questions and then cleared it. All acceptance interactions used the token-authenticated loopback bridge; computer use was limited to clean shutdown, CurseForge relaunch and the J1 title/re-entry sequence. The token was never printed or copied into evidence. No code, formatting tools, roadmap or changelog changes. Only this validation file is committed.
+
+Raw JSON, submissions, complete calls/results/timings, fixture command feedback and inspected screenshots are under [build/final-review-live/](../../build/final-review-live/) (ignored). br.sh and ask.sh were copied/adapted there; live.cjs adds file-backed JSON, polling and raw capture. W1's failed request and W3's failing acceptance result were retained and not retried. Two initial R1 commands were rejected locally by shell JSON parsing before reaching the bridge; the actual creation coordinates and successful move fixture are recorded below.
+
+| Check | Result | Evidence / limitation |
+|---|---|---|
+| D1 | PASS | No override; effective prompt equals candidate 8 byte for byte. |
+| R1 | PASS | One copper-farm note moved 30 blocks; same id, player location, no clearPlace; new-place navigation opened. |
+| R2 | PASS | Mule jump reply uses floor coordinates (1005,250,1006) beside its entity link. |
+| W1 | FAIL | First required job-sites question timed out without calls or reply. Targeted home/job-site memories passed; uncached POI branch not exercised. |
+| W2 | PASS | 64 + 16 records; 80 unique chicken ids, no duplicates; final page COMPLETE. |
+| W3 | FAIL | All three chests found, but stable-fixture find_items is PARTIAL across two server ticks, rather than the required COMPLETE. |
+| W4 | PASS | 80-offer villager retains small facts; 64 offers with a concrete cap note and PARTIAL section. |
+| W5 | PASS | Live highlight visible; navigation returned in 38 ms. Removed target returned UNAVAILABLE without substitution. |
+| S1 | PASS | Both statistics requests complete without errors; reply values ordered. Available reads contained 24 and 7 counters. |
+| J1 | PASS | Player breaks survive rejoin; broader post-rejoin read retains and reports the earlier recording gap as PARTIAL. |
+| J2 | PASS | 1,787-character message recalled; title 97 characters, original words bounded to 1,000; history continuation consumed. |
+| P1 | NOT RUN | Overview and 2,000-entry tree totals observed; model used list_progress only. Required complete snapshot reread was not exercised. |
+| C1 | PASS | Short override saved/read/cleared; game responsive; developerPrompt property absent afterward. |
+
+### D1 - PASS
+
+GET /prompt returned text:null. effectiveText and build/prompt-candidates/candidate-8.txt are byte-for-byte equal, both 22,192 UTF-8 bytes and SHA-256 **64815DD5FE24B2CCA7E042F26E0AAB12FFD58AC50C808D1BAB29F99359E240DD**. [Raw prompt](../../build/final-review-live/D1-prompt.json), [comparison](../../build/final-review-live/D1-comparison.json). No chat request, tool calls, reply or navigation applies.
+
+### R1 - PASS
+
+Fresh copper-farm subject: the initial search returned zero matching notes. The accepted creation was at the original test area, (1003.5,250,1002.5), block (1003,250,1002); the intended preparatory teleport was rejected locally by shell JSON parsing before reaching the bridge. That setup deviation is retained, rather than claiming the intended (1090.5,250,1000.5) fixture was used. After a successful bridge teleport exactly 30 blocks east to (1033.5,250,1002.5), update_note kept n849b2d93, used at.type=player, and clearPlace=null. Recall returned exactly one copper-farm note at the new place. Navigation from the original position returned OPENED for journal-note|n849b2d93 in 49 ms. The inspected [highlight screenshot](../../build/final-review-live/R1-highlight.png) shows the column centered on the new place. Full commands, state and navigation: [move fixture](../../build/final-review-live/R1-move-fixture.json), [navigation](../../build/final-review-live/R1-navigation.json).
+
+**R1-create** — request `5d3146c9-b605-4529-b72a-d15ac5537074`, conversation `4c5eb4e2-14bc-431c-bd83-8f9f3365c5e9`, status `completed`, model terminal 15881 ms. [Raw result](../../build/final-review-live/R1-create.json).
+
+Question:
+
+```text
+I built a copper farm here
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_DTld6blAkWve0KXPDK6odYje",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "copper farm",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "callId": "call_Exz1fzbiNa1y33aDkTfBnLdL",
+    "name": "remember",
+    "arguments": {
+      "text": "I built a copper farm here.",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "farm",
+        "copper"
+      ]
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Nice—your copper farm is built here.
+```
+
+**R1-move** — request `cddcfe8e-55ed-46d1-88f8-9485adaf825f`, conversation `38bdaf42-83c8-4283-918f-ff1612dfdc2b`, status `completed`, model terminal 16883 ms. [Raw result](../../build/final-review-live/R1-move.json).
+
+Question:
+
+```text
+I moved my copper farm
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_75FLsZ1Qw2pFeLNjq4E9DMDo",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "copper farm",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "callId": "call_T9bpTFeIw4aBWbfK9che6PU9",
+    "name": "update_note",
+    "arguments": {
+      "text": "I built a copper farm and later moved it here.",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "copper",
+        "farm"
+      ],
+      "id": "n849b2d93",
+      "clearPlace": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Got it—the copper farm is at the new spot now.
+```
+
+**R1-recall** — request `48d1805e-3b21-4cd7-9693-a6ee77cd70bc`, conversation `f7c23974-5d2a-4bbe-9406-2034c319499b`, status `completed`, model terminal 14021 ms. [Raw result](../../build/final-review-live/R1-recall.json).
+
+Question:
+
+```text
+where is my copper farm?
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_B8xk3WmFojh2AsLThEfhSnMJ",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "copper farm",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "callId": "call_5yhMFAm8qD8MQFpq3Vh1IToP",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "copper farm",
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You said you moved your copper farm to **(1033, 250, 1002) in the Overworld**—the coordinates in your current gameplay observation. [Go to your marked location](journal:note:n849b2d93) I have your report of the move, but haven’t verified the build itself.
+```
+
+### R2 - PASS
+
+Summoned a new Tame/NoAI/NoGravity mule with whole-block x/z command coordinates 1005 and 1006. Its precise returned position was (1005.5,250,1006.5); the F3 block-position rule floors this to (1005,250,1006). Both the title and reply use that floor, rather than rounding to the neighbouring block. The crosshair UUID was d813cc7c-d734-48f6-94fb-973e2b819982. Jump strength 0.5 returned jumpHeightBlocks=1.62. F3 was not toggled; block-coordinate agreement is checked against the exact bridge position and floor rule. [Fixture and state](../../build/final-review-live/R2-fixture.json).
+
+**R2** — request `cd1d5959-4992-4ca3-a98f-4ae385cc311a`, conversation `ce9ceec9-82e3-442e-9de0-1b568d7ab6b0`, status `completed`, model terminal 8740 ms. [Raw result](../../build/final-review-live/R2.json).
+
+Question:
+
+```text
+how high can this mule jump?
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_qGNilHjON0WrVWpipOz4q7w5",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "d813cc7c-d734-48f6-94fb-973e2b819982"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+This mule at **(1005, 250, 1006)** can jump approximately **1.62 blocks high**, based on its current jump-strength attribute. [Mule](world:entity|d813cc7c-d734-48f6-94fb-973e2b819982)
+```
+
+### W1 - FAIL
+
+Two NoAI villagers were summoned with explicit job-site memories; the librarian also had home and distant meeting-point memories, with a bed and lectern at its local remembered places. The first exact question ended FAILED after 60,061 ms: request failed: request timed out; zero calls and an empty reply. It was not retried. The separately required targeted home/job-site question returned home minecraft:overworld|1100,250,1029 and jobSite minecraft:overworld|1102,250,1025 with COMPLETE minecraft section coverage. No returned uncached POI fact was observed, so unavailable/PARTIAL POI behavior remains NOT RUN within this failed check. No code-level cause is inferred from the provider timeout. [Fixture](../../build/final-review-live/W1-fixture.json).
+
+**W1-sites** — request `912ed8a7-c2e2-48c9-81ce-2b5582b997fa`, conversation `5b4ec597-ced0-4706-bcf2-98e0bdb080c1`, status `failed`, model terminal 60061 ms. [Raw result](../../build/final-review-live/W1-sites.json).
+
+Question:
+
+```text
+what job sites do these villagers have?
+```
+
+Terminal detail: request failed: request timed out
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[]
+```
+
+Verbatim reply (empty):
+
+```text
+
+```
+
+**W1-home** — request `40ab7323-81b9-4153-873c-362882ae4208`, conversation `15c1aa4c-38be-4ff5-96b0-327265439262`, status `completed`, model terminal 9441 ms. [Raw result](../../build/final-review-live/W1-home.json).
+
+Question:
+
+```text
+What are the home and job site of the villager I am looking at?
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_t4ePEI92goadrgSpIy2oIF0P",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "328ef9ed-47fd-4994-8703-441959b71c3d"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The librarian you’re looking at, at **(1100, 250, 1025)**, has its **home at (1100, 250, 1029)** and its **job site at (1102, 250, 1025)**. [Villager](world:entity|328ef9ed-47fd-4994-8703-441959b71c3d)
+```
+
+### W2 - PASS
+
+Summoned Final Chicken 00 through Final Chicken 79, stationary, at x=1114.5..1129.5 and z=1040.5..1044.5, spanning the x=1120 chunk boundary. Player center (1117.5,250,1035.5), radius 24. The server command independently counted 80 tagged chickens. list_entities returned 64 records with PARTIAL and the concrete page-limit note, then 16 with COMPLETE, detail=null, cursor=null. Across both pages there are exactly 80 unique payload.id values, every fixture name 00..79 once, and no duplicate ids. The final stable read reports COMPLETE; the first PARTIAL is pagination, not unexplained incompleteness. [Fixture/count](../../build/final-review-live/W2-fixture.json), [analysis](../../build/final-review-live/W2-analysis.json).
+
+**W2** — request `5945c943-85e1-45ba-927f-3d9f27727222`, conversation `12739bb4-ac2f-4b4f-89f5-b8a95c3f038f`, status `completed`, model terminal 75951 ms. [Raw result](../../build/final-review-live/W2.json).
+
+Question:
+
+```text
+list the chickens within 24 blocks. Continue through every page so every chicken is listed exactly once.
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_5Jrv82CcgnRDveypv0XyH41B",
+    "name": "list_entities",
+    "arguments": {
+      "center": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "radius": 24,
+      "filter": {
+        "ids": [
+          "minecraft:chicken"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "This page holds 64 matches, the page limit; continue with the cursor",
+    "recordCount": 64,
+    "nextCursor": "42969b40-6a7b-476a-8308-6c64810dafbf"
+  },
+  {
+    "callId": "call_WdSqQbj2zhMRHriN9JNjNeOF",
+    "name": "list_entities",
+    "arguments": {
+      "center": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "radius": 24,
+      "filter": {
+        "ids": [
+          "minecraft:chicken"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": "42969b40-6a7b-476a-8308-6c64810dafbf"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 16,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I found **80 chickens within 24 blocks** and continued through the final page. Each is listed once below. All coordinates are in the Overworld.
+
+**z = 1040**
+- Final Chicken 00 — (1114, 250, 1040) [world:entity|ce28f98f-c0d9-41d6-b34d-e7675cdf9c32]
+- Final Chicken 01 — (1115, 250, 1040) [world:entity|a57ff82e-2a13-46cd-b3a6-6dfca8db7533]
+- Final Chicken 02 — (1116, 250, 1040) [world:entity|e660a37e-27c7-4f44-bce5-afd06d7458b1]
+- Final Chicken 03 — (1117, 250, 1040) [world:entity|8f7d1bce-70b7-47b3-acb7-6a22771a4932]
+- Final Chicken 04 — (1118, 250, 1040) [world:entity|a6822858-3d7d-4376-97cc-1df5da140fee]
+- Final Chicken 05 — (1119, 250, 1040) [world:entity|04693f26-3e68-4abb-8731-ee7d8a2f98eb]
+- Final Chicken 06 — (1120, 250, 1040) [world:entity|51bd6b50-997f-47c6-95c4-92f393cb6cf7]
+- Final Chicken 07 — (1121, 250, 1040) [world:entity|58f3a20a-6415-4080-ae6a-73d914933f23]
+- Final Chicken 08 — (1122, 250, 1040) [world:entity|a8875ed6-341e-4910-b5a8-1d2e64f37059]
+- Final Chicken 09 — (1123, 250, 1040) [world:entity|06915877-c604-4843-b5c2-b896207a090d]
+- Final Chicken 10 — (1124, 250, 1040) [world:entity|3ba2b62f-5a42-40cd-9944-8912228792a9]
+- Final Chicken 11 — (1125, 250, 1040) [world:entity|6313e298-08ec-4cf7-ad7d-d5e1c32ad932]
+- Final Chicken 12 — (1126, 250, 1040) [world:entity|3c53bcf5-6035-4f9c-9172-df1604a14169]
+- Final Chicken 13 — (1127, 250, 1040) [world:entity|98345379-ff04-4b22-95f5-ac570c73c9cd]
+- Final Chicken 14 — (1128, 250, 1040) [world:entity|0f9176f9-4a28-4a6e-9805-8ffeacc45fab]
+- Final Chicken 15 — (1129, 250, 1040) [world:entity|86dfa322-8f52-478f-9269-2639ea4c76a1]
+
+**z = 1041**
+- Final Chicken 16 — (1114, 250, 1041) [world:entity|b01d0e27-65ae-42af-8943-3a8bda2782bd]
+- Final Chicken 17 — (1115, 250, 1041) [world:entity|024a3b87-4d05-4421-9f9b-2adaa35d6edf]
+- Final Chicken 18 — (1116, 250, 1041) [world:entity|eaa2a15c-e692-4d15-9b85-defdfcb7e4a8]
+- Final Chicken 19 — (1117, 250, 1041) [world:entity|d96f53c4-1061-48e0-b80a-1918f2be5d78]
+- Final Chicken 20 — (1118, 250, 1041) [world:entity|ffc48633-a500-4c55-bd88-29fa7ee9cfd6]
+- Final Chicken 21 — (1119, 250, 1041) [world:entity|0786659d-7cf9-4fec-9b8b-f06db68561b7]
+- Final Chicken 22 — (1120, 250, 1041) [world:entity|9bd46231-01dd-4e06-8397-194b851bf6d8]
+- Final Chicken 23 — (1121, 250, 1041) [world:entity|621cad22-105e-4608-85c6-f6fc1a9cc7ae]
+- Final Chicken 24 — (1122, 250, 1041) [world:entity|45bc9430-f2cf-4852-8a7d-8c0f73c84ea8]
+- Final Chicken 25 — (1123, 250, 1041) [world:entity|06a80734-9772-43d3-8a1a-9d4c762e90fd]
+- Final Chicken 26 — (1124, 250, 1041) [world:entity|76fc484d-f62e-4aef-a1f8-b1a4bf7df87d]
+- Final Chicken 27 — (1125, 250, 1041) [world:entity|c1f77c06-8bc3-43b0-bf5b-eb73a15f76da]
+- Final Chicken 28 — (1126, 250, 1041) [world:entity|2a22c3c2-f04d-441b-9f36-f48d3947f3be]
+- Final Chicken 29 — (1127, 250, 1041) [world:entity|b8d91c17-fe48-4ae7-b9eb-2cce3285e814]
+- Final Chicken 30 — (1128, 250, 1041) [world:entity|4bb8edb3-654e-4e31-8600-944bbb8b554b]
+- Final Chicken 31 — (1129, 250, 1041) [world:entity|4f325139-58be-461e-814a-75595ef1f4ae]
+
+**z = 1042**
+- Final Chicken 32 — (1114, 250, 1042) [world:entity|d1940b1e-9ccc-460c-b7e0-9e2cb660af71]
+- Final Chicken 33 — (1115, 250, 1042) [world:entity|19b05776-a491-40ac-8a39-55dea91dcf29]
+- Final Chicken 34 — (1116, 250, 1042) [world:entity|45859945-cfcc-4abe-b12a-18cbeb9f58d4]
+- Final Chicken 35 — (1117, 250, 1042) [world:entity|77a43e07-041e-4740-a527-cb0f505fd149]
+- Final Chicken 36 — (1118, 250, 1042) [world:entity|c355e060-03b7-4f90-8aa9-86ed6ae3e7ca]
+- Final Chicken 37 — (1119, 250, 1042) [world:entity|2a66ace7-4126-4fba-8287-a4e4acbeaae4]
+- Final Chicken 38 — (1120, 250, 1042) [world:entity|82f252a5-9fd4-4321-b832-911b24263689]
+- Final Chicken 39 — (1121, 250, 1042) [world:entity|239d1fdf-be9e-4679-b111-7bc0b91bdc72]
+- Final Chicken 40 — (1122, 250, 1042) [world:entity|cea913ec-b75c-412e-a3a4-ef1309cc80ae]
+- Final Chicken 41 — (1123, 250, 1042) [world:entity|c25da1b5-57a6-4a80-95ba-f6f2e17a03f2]
+- Final Chicken 42 — (1124, 250, 1042) [world:entity|44e2a5c5-54c1-4e9b-b348-c51218d9da3f]
+- Final Chicken 43 — (1125, 250, 1042) [world:entity|7b568678-4dcf-4387-8fe5-f1cee5ac12f0]
+- Final Chicken 44 — (1126, 250, 1042) [world:entity|0e2ac0b4-7b6d-4890-9193-4f6608091b11]
+- Final Chicken 45 — (1127, 250, 1042) [world:entity|6380c853-6508-4ce1-9f6c-493c62468c74]
+- Final Chicken 46 — (1128, 250, 1042) [world:entity|3d403428-90c7-4dcc-adf6-0653a71e950e]
+- Final Chicken 47 — (1129, 250, 1042) [world:entity|86871f94-7fbe-4545-a2d7-73ccee79ecd5]
+
+**z = 1043**
+- Final Chicken 48 — (1114, 250, 1043) [world:entity|d79090f2-cf8b-40fc-8ee4-2685a26ab990]
+- Final Chicken 49 — (1115, 250, 1043) [world:entity|421faa6e-889c-449b-92f9-773bf35777c7]
+- Final Chicken 50 — (1116, 250, 1043) [world:entity|1e5dca58-7836-475b-935e-eae483d5c0ee]
+- Final Chicken 51 — (1117, 250, 1043) [world:entity|271873fa-f1c1-418d-bec7-6c7eb9d16dc7]
+- Final Chicken 52 — (1118, 250, 1043) [world:entity|45a59261-57a8-4556-b4fe-938dc9afa775]
+- Final Chicken 53 — (1119, 250, 1043) [world:entity|87276efb-9b9f-48bc-8c7b-56ef2ebd0ea4]
+- Final Chicken 54 — (1120, 250, 1043) [world:entity|46a96741-624b-4d2f-9b54-795a4e37dc37]
+- Final Chicken 55 — (1121, 250, 1043) [world:entity|a45f7310-cf71-4962-83d1-92ae8d79a681]
+- Final Chicken 56 — (1122, 250, 1043) [world:entity|8ffcc8cf-ab9d-45cf-a350-a36ac3af7b48]
+- Final Chicken 57 — (1123, 250, 1043) [world:entity|d67c3b28-c7c4-4931-9a26-8198d7dadde3]
+- Final Chicken 58 — (1124, 250, 1043) [world:entity|5970019a-1661-4888-ba75-f0d52c32f798]
+- Final Chicken 59 — (1125, 250, 1043) [world:entity|ce1e175f-0a1c-46d3-88d2-08b410b0ea8a]
+- Final Chicken 60 — (1126, 250, 1043) [world:entity|4b34c1e7-ef09-4e76-81ed-1856df87c030]
+- Final Chicken 61 — (1127, 250, 1043) [world:entity|0bc0b238-43bd-4d48-81b6-8daf5efc7f2a]
+- Final Chicken 62 — (1128, 250, 1043) [world:entity|5ef2de1a-18b3-4dc8-b645-18eab4a43a8c]
+- Final Chicken 63 — (1129, 250, 1043) [world:entity|d9fa5430-fe38-45b4-b805-86e668e25804]
+
+**z = 1044**
+- Final Chicken 64 — (1114, 250, 1044) [world:entity|289fa0eb-281d-4b88-8e0e-a5a7f0fb4a5d]
+- Final Chicken 65 — (1115, 250, 1044) [world:entity|7e9a29c0-3842-4976-91c7-58ee59f30591]
+- Final Chicken 66 — (1116, 250, 1044) [world:entity|9c9089cb-68ef-4be3-a786-652c1ed3286a]
+- Final Chicken 67 — (1117, 250, 1044) [world:entity|0e442398-7b74-4468-88dc-7e908bb42ea5]
+- Final Chicken 68 — (1118, 250, 1044) [world:entity|ed9eac80-aa4d-400e-ae59-fbee26251f1e]
+- Final Chicken 69 — (1119, 250, 1044) [world:entity|d7c057c1-a87d-4ef2-906b-db4e3e1a2748]
+- Final Chicken 70 — (1120, 250, 1044) [world:entity|15902d4e-548a-4d6b-8001-74dc452a275b]
+- Final Chicken 71 — (1121, 250, 1044) [world:entity|916b16b3-a93b-40fe-99a6-1774065393b3]
+- Final Chicken 72 — (1122, 250, 1044) [world:entity|d25e1630-9bf8-41b1-99e5-1c153b05a390]
+- Final Chicken 73 — (1123, 250, 1044) [world:entity|04847493-65bd-467c-9d24-e83a11c548b8]
+- Final Chicken 74 — (1124, 250, 1044) [world:entity|5f5754db-fe0f-4c9a-9c7b-505f4b1b7eed]
+- Final Chicken 75 — (1125, 250, 1044) [world:entity|665c1d71-e3f2-4fe0-915c-9caba9fd52c1]
+- Final Chicken 76 — (1126, 250, 1044) [world:entity|a9234ffd-78db-471c-b8f1-d6fede15247a]
+- Final Chicken 77 — (1127, 250, 1044) [world:entity|352fde82-ef35-45fa-b950-beb548f5e283]
+- Final Chicken 78 — (1128, 250, 1044) [world:entity|efdf5b9d-2e75-41e9-9a7f-9570604be43a]
+- Final Chicken 79 — (1129, 250, 1044) [world:entity|b529c85b-9abd-4644-ab04-7077e19f726a]
+```
+
+### W3 - FAIL
+
+Three new chests within 16 blocks held 31, 23 and 17 iron ingots at (1094,250,1024), (1096,250,1024) and (1098,250,1024), respectively. Player inventory held another 5; total 76. No fixture mutation was performed during the question. find_items found all three holders but its readSpan was game times 1110344..1110345, and it returned PARTIAL with an explicit multi-tick note. The four subsequent targeted list_items calls were COMPLETE. This does not satisfy the stated stable-world COMPLETE criterion for find_items. No narrower-radius retry was made and no code defect is inferred beyond the observed acceptance mismatch. [Fixture](../../build/final-review-live/W3-fixture.json).
+
+**W3** — request `6457a704-81e8-4f91-b079-7139e2d1c2d1`, conversation `64af3e71-791d-40ea-90e7-80cb628b1fe3`, status `completed`, model terminal 20957 ms. [Raw result](../../build/final-review-live/W3.json).
+
+Question:
+
+```text
+find iron ingots near me
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_VqGiV65qx6lk9r4cQbEwZ1MW",
+    "name": "find_items",
+    "arguments": {
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "center": null,
+      "radius": 16,
+      "includeNested": true,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "The read spanned multiple server ticks; entities or block entities added or moved into already-read chunks may be absent; a smaller radius can be read within one tick",
+    "recordCount": 4,
+    "nextCursor": null
+  },
+  {
+    "callId": "call_qwHCgpbzDPZ6yN3iSSmMROsa",
+    "name": "list_items",
+    "arguments": {
+      "holder": "player",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null
+  },
+  {
+    "callId": "call_gUKeO4RACHg2ZAgcOC7DWJzA",
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1094,250,1024",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null
+  },
+  {
+    "callId": "call_jvqePrh1kGnCYgYPkjIR3bfz",
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1096,250,1024",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null
+  },
+  {
+    "callId": "call_upiOiXLNyAetaAjtFAcKZUmO",
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1098,250,1024",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:iron_ingot"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I found **76 iron ingots** in the nearby search: 5 in your inventory and 71 in three containers. [world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#8@minecraft:iron_ingot]
+
+- **31** at (1094, 250, 1024) [container](world:block|minecraft:overworld|1094,250,1024) [world:item|block:minecraft:overworld|1094,250,1024>minecraft/container#0@minecraft:iron_ingot]
+- **23** at (1096, 250, 1024) [container](world:block|minecraft:overworld|1096,250,1024) [world:item|block:minecraft:overworld|1096,250,1024>minecraft/container#0@minecraft:iron_ingot]
+- **17** at (1098, 250, 1024) [container](world:block|minecraft:overworld|1098,250,1024) [world:item|block:minecraft:overworld|1098,250,1024>minecraft/container#0@minecraft:iron_ingot]
+
+The search spanned multiple game ticks, so something moved into an already-checked area might have been missed. [world:item|player:682d6bb8-6e5c-4b6e-877b-ba2d54222fa5>minecraft/main#8@minecraft:iron_ingot]
+```
+
+### W4 - PASS
+
+The targeted master librarian was assigned 80 paper-to-emerald offers through /data. inspect_entity retained offerCount=80, 64 actual offers, minecraft.coverage=PARTIAL and minecraft.note="Trade offers are bounded to 64"; top-level coverage=PARTIAL and detail=null. Small facts remained: health=20, maxHealth=20, level=5, profession=minecraft:librarian, home, jobSite, meetingPoint, xp, restocksToday and attributes. The reply disclosed the other 16 unread offers. [Fixture](../../build/final-review-live/W4-fixture.json).
+
+**W4** — request `5504ecf2-b6a2-4204-8d21-6c1fde00b517`, conversation `9fd3f015-2608-4ac7-8f3b-bd33115c3a0f`, status `completed`, model terminal 11877 ms. [Raw result](../../build/final-review-live/W4.json).
+
+Question:
+
+```text
+what does this villager trade?
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_Rmc4HH6Wh96MZjc82iyfwvTn",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "328ef9ed-47fd-4994-8703-441959b71c3d"
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The librarian at **(1100, 250, 1025)** has 80 offers, but I can see only the first 64. Each visible offer takes **1–64 paper**—one offer at each amount—and gives **1 emerald**. For you, those prices currently match the listed amounts; the game can adjust prices for reputation or Hero of the Village when trading starts. I can’t tell what the other 16 offers are from this read. [Librarian](world:entity|328ef9ed-47fd-4994-8703-441959b71c3d)
+```
+
+### W5 - PASS
+
+Used W4 request `5504ecf2-b6a2-4204-8d21-6c1fde00b517` and exact target `world-entity|328ef9ed-47fd-4994-8703-441959b71c3d`. [Full navigation/state/command record](../../build/final-review-live/W5.json). Inspected [before](../../build/final-review-live/W5-before.png), [highlight](../../build/final-review-live/W5-highlight.png) and [missing-target](../../build/final-review-live/W5-missing.png) captures. The second capture shows the same librarian outlined; the third shows its death animation, not another substituted target. No visible stall was observed in these captures: live navigation took 38 ms and /state remained running=true, paused=false while gameTime advanced. This is a sampled visual/responsiveness observation, not a continuous frame-time measurement. After killing only the tagged fixture villager, the same target returned UNAVAILABLE in 34 ms. No extra chat request. All /navigate results for this check:
+
+```json
+[
+  {
+    "request": {
+      "body": {
+        "targetId": "world-entity|328ef9ed-47fd-4994-8703-441959b71c3d",
+        "requestId": "5504ecf2-b6a2-4204-8d21-6c1fde00b517"
+      },
+      "route": "/navigate"
+    },
+    "started": "2026-10-25T19:12:33.050Z",
+    "finished": "2026-10-25T19:12:33.088Z",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "request": {
+      "body": {
+        "targetId": "world-entity|328ef9ed-47fd-4994-8703-441959b71c3d",
+        "requestId": "5504ecf2-b6a2-4204-8d21-6c1fde00b517"
+      },
+      "route": "/navigate"
+    },
+    "started": "2026-10-25T19:12:33.178Z",
+    "finished": "2026-10-25T19:12:33.212Z",
+    "result": {
+      "status": "UNAVAILABLE",
+      "detail": "entity 328ef9ed-47fd-4994-8703-441959b71c3d is no longer loaded and alive"
+    }
+  }
+]
+```
+
+### S1 - PASS
+
+The unfiltered list_statistics read returned 24 counters with COMPLETE coverage and no cursor/error. The top reply orders comparable count values 74,8,5,4, with time and travel separately expressed in their own units. The broader mining/use/crafting/pickup read returned seven nonzero counters, COMPLETE, ordered 3,2,1,1,1,1,1 in the reply; it correctly reports no nonzero crafting counters and fewer than ten entries. This fixture did not produce statistics pagination or a greater-than-64-counter read; no such coverage is claimed.
+
+**S1-top** — request `b3e3547a-2350-4ccc-85fa-6c7bde027217`, conversation `0480110f-3981-4a41-bdd4-a2b48d790081`, status `completed`, model terminal 15340 ms. [Raw result](../../build/final-review-live/S1-top.json).
+
+Question:
+
+```text
+what are my top statistics?
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_5XV2FDDX6PnvM6jNecYGSBtw",
+    "name": "list_statistics",
+    "arguments": {
+      "categories": null,
+      "subjects": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 24,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Your standout stats are **15 hours, 25 minutes of play time** [progress:stat|minecraft|custom|minecraft:play_time], **74 games quit** [progress:stat|minecraft|custom|minecraft:leave_game], **8 jumps** [progress:stat|minecraft|custom|minecraft:jump], **5 villager conversations** [progress:stat|minecraft|custom|minecraft:talked_to_villager], and **4 chests opened** [progress:stat|minecraft|custom|minecraft:open_chest].
+
+For travel, you’ve walked **38.37 blocks** [progress:stat|minecraft|custom|minecraft:walk_one_cm] and walked **33.02 blocks underwater** [progress:stat|minecraft|custom|minecraft:walk_under_water_one_cm].
+```
+
+**S1-many** — request `be327276-b2ff-4e59-bb68-ae7d7f9aea59`, conversation `d8913834-110e-40bc-b457-3291f6823eca`, status `completed`, model terminal 15035 ms. [Raw result](../../build/final-review-live/S1-many.json).
+
+Question:
+
+```text
+Compare all my nonzero mining, item-use, crafting and pickup counters, and give the ten highest individual counters in descending order. Continue through any remaining pages.
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_BTUeSexlOrhx5727DMwFPhgT",
+    "name": "list_statistics",
+    "arguments": {
+      "categories": [
+        "mined",
+        "used",
+        "crafted",
+        "picked_up"
+      ],
+      "subjects": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 7,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The counter read is complete—there are **seven nonzero counters** across those four categories, so there’s no remaining page or tenth entry. In descending order:
+
+| Rank | Counter | Count |
+|---:|---|---:|
+| 1 | Item use: Stripped Oak Wood [progress:stat|minecraft|used|minecraft:stripped_oak_wood] | 3 |
+| 2 | Item use: Diamond Pickaxe [progress:stat|minecraft|used|minecraft:diamond_pickaxe] | 2 |
+| 3 | Mined: Deepslate Diamond Ore [progress:stat|minecraft|mined|minecraft:deepslate_diamond_ore] | 1 |
+| 4 | Mined: Diamond Ore [progress:stat|minecraft|mined|minecraft:diamond_ore] | 1 |
+| 5 | Item use: Horse Spawn Egg [progress:stat|minecraft|used|minecraft:horse_spawn_egg] | 1 |
+| 6 | Item use: Skeleton Horse Spawn Egg [progress:stat|minecraft|used|minecraft:skeleton_horse_spawn_egg] | 1 |
+| 7 | Picked up: Diamond [progress:stat|minecraft|picked_up|minecraft:diamond] | 1 |
+
+The counters tied at 1 have no distinct ranking by count. **Crafting has no nonzero counters** in this read.
+```
+
+### J1 - PASS
+
+Via real player endpoints, broke three gold blocks, placed one diamond block using the held item on a support block (interaction=CONSUME), and broke it. All four break operations returned success=true. Clean Save and Quit to Title, then re-entered the same save using computer use only for that close/relaunch sequence. [Fixture](../../build/final-review-live/J1-fixture.json), [title state](../../build/final-review-live/J1-title-state.json), [ready state](../../build/final-review-live/J1-ready-state.json). An early submission while loading was rejected with HTTP 409, "World history is not ready", before any request id or model request was created; [the rejection is retained](../../build/final-review-live/J1-loading-rejection.json). The first accepted question was submitted only after /state confirmed running=true, screen=null. It returned the new diamond and gold break records with COMPLETE coverage for the last hour. The older known recording gap lies outside that hour, so one distinct broader question was used to exercise the gap clause: after rejoin it returned PARTIAL and the same 2026-10-25T11:09:30.574Z..13:37:24.381Z gap seen before rejoin, and the reply explicitly disclosed it. This is a different time-scope check, not a retry of a failed model request.
+
+**J1** — request `f58bbd0d-4a9c-46ab-a5a7-dc8dc0d39165`, conversation `38ca5de7-1a6d-40f8-a4e5-ac0ef8cf1a65`, status `completed`, model terminal 10869 ms. [Raw result](../../build/final-review-live/J1.json).
+
+Question:
+
+```text
+what did I break in the last hour?
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_H8lja0Qiewc6RVrddxO5WfrV",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 60
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 2,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+In the last hour, the journal records you breaking **1 diamond block** at (1097, 250, 1021) [journal:event:70] and **3 gold blocks** across (1097–1099, 250, 1021) [journal:event:68], all in the Overworld.
+```
+
+**J1-gap** — request `0b61b2f6-0866-4d07-a6dc-68a24dca19d2`, conversation `1b06c9e7-9d04-4203-92e1-39cd37cf57f5`, status `completed`, model terminal 29450 ms. [Raw result](../../build/final-review-live/J1-gap.json).
+
+Question:
+
+```text
+What have I broken since the journal began recording? Include any recording gaps.
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_9TnrHQvoOoLOAIb2gKLTBF4F",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 25,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Since the journal began recording on **October 25, 2026, at 10:23:33 UTC**, it records **2,037 blocks broken by you** in the Overworld:
+
+- **2,000 sand**, across the area from (1150, 140, 1150) to (1199, 140, 1189). [View the recorded area](journal:event:47)
+- **22 stone**, in nine recorded groups: near (1020, 251, 1020) [2](journal:event:2); along the column at (1020, 45, 1019) [1](journal:event:3), (1020, 44, 1019) [3](journal:event:4), (1020, 41, 1019) [4](journal:event:5), (1020, 14, 1019) [1](journal:event:6), (1020, 13, 1019) [6](journal:event:7), and (1020, 7, 1019) [2](journal:event:8); then near (1021, 251, 1020) [2](journal:event:9) and at (1021, 251, 1022) [1](journal:event:10).
+- **6 red beds**, all recorded at (1004, 250, 1010). The six breaks are recorded [here](journal:event:13), [here](journal:event:17), [here](journal:event:19), [here](journal:event:22), [here](journal:event:25), and [here](journal:event:30).
+- **5 gold blocks**: one at (1005, 250, 1009) [view](journal:event:15), one at (1004, 250, 1003) [view](journal:event:29), and three in the area from (1097, 250, 1021) to (1099, 250, 1021) [view](journal:event:68).
+- **One each:** a chest at (1003, 250, 1006) [view](journal:event:28), diamond ore at (1004, 250, 1004) [view](journal:event:33), deepslate diamond ore at (1005, 250, 1004) [view](journal:event:34), and a diamond block at (1097, 250, 1021) [view](journal:event:70).
+
+**Recorded separately as explosion damage—not breaks attributed to you:** 75 sand in the area from (1153, 140, 1168) to (1157, 142, 1172) [view](journal:event:49), and 26 sandstone in the area from (1153, 139, 1168) to (1157, 139, 1173) [view](journal:event:50).
+
+**Recording gap:** The world ran without journal recording from **October 25, 2026, 11:09:30 to 13:37:24 UTC**. The counts above cannot include anything broken during that gap or before recording began. [Journal record](journal:event:70)
+```
+
+### J2 - PASS
+
+The write question contains 1,787 characters, ten repetitions of the archive description and a final brass-comet marker. remember saved a 223-character summary in note n17c90a15 (actual lengths are preserved in J2-analysis.json), a 97-character title, playerWords limited to 1,000 characters and playerWordsTruncated=true. Recall returned exactly that note. No journal cursor was necessary for this one-note match; journal cross-page traversal is not claimed. The model additionally recovered the full original exchange using search_history/read_history and consumed the real history cursor: first page one matching exchange/PARTIAL, terminal page zero records/COMPLETE. The note was not lost, and the final marker survived in its summary. [Length and identity analysis](../../build/final-review-live/J2-analysis.json).
+
+**J2-write** — request `45aa8e97-d99f-45db-b6ad-017b74153114`, conversation `26fd47c8-81a8-4fd0-b3c2-f59fa072e187`, status `completed`, model terminal 14044 ms. [Raw result](../../build/final-review-live/J2-write.json).
+
+Question:
+
+```text
+Remember this as my amber observatory archive note. The amber observatory archive has an east reading alcove, a copper clock above the entrance, numbered shelves, a dry map room, and a blue lantern beside its telescope. The amber observatory archive has an east reading alcove, a copper clock above the entrance, numbered shelves, a dry map room, and a blue lantern beside its telescope. The amber observatory archive has an east reading alcove, a copper clock above the entrance, numbered shelves, a dry map room, and a blue lantern beside its telescope. The amber observatory archive has an east reading alcove, a copper clock above the entrance, numbered shelves, a dry map room, and a blue lantern beside its telescope. The amber observatory archive has an east reading alcove, a copper clock above the entrance, numbered shelves, a dry map room, and a blue lantern beside its telescope. The amber observatory archive has an east reading alcove, a copper clock above the entrance, numbered shelves, a dry map room, and a blue lantern beside its telescope. The amber observatory archive has an east reading alcove, a copper clock above the entrance, numbered shelves, a dry map room, and a blue lantern beside its telescope. The amber observatory archive has an east reading alcove, a copper clock above the entrance, numbered shelves, a dry map room, and a blue lantern beside its telescope. The amber observatory archive has an east reading alcove, a copper clock above the entrance, numbered shelves, a dry map room, and a blue lantern beside its telescope. The amber observatory archive has an east reading alcove, a copper clock above the entrance, numbered shelves, a dry map room, and a blue lantern beside its telescope. The last page says the brass comet is the final marker.
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_uthmZVhpllbl6kAzCi5GsiPx",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "amber observatory archive",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "callId": "call_1ZruWK4UOv8IoLiuFqj0PYoc",
+    "name": "remember",
+    "arguments": {
+      "text": "The amber observatory archive has an east reading alcove, a copper clock above the entrance, numbered shelves, a dry map room, and a blue lantern beside its telescope. The last page says the brass comet is the final marker.",
+      "at": null,
+      "tags": [
+        "build",
+        "archive",
+        "observatory"
+      ]
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I’ll remember the amber observatory archive’s features and that its last page names the brass comet as the final marker.
+```
+
+**J2-recall** — request `07610959-d619-46dd-8263-f46a79ba929a`, conversation `72ba5ddd-3a15-4c35-bf5d-07c9a6fb4d4c`, status `completed`, model terminal 28496 ms. [Raw result](../../build/final-review-live/J2-recall.json).
+
+Question:
+
+```text
+what do you remember about my amber observatory archive? Return its original wording, and continue any remaining pages without losing records.
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_emGJ2JBMPZaXZgHUzbtSaQ5Y",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "amber observatory archive",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "callId": "call_vInZWdPDkJmBKzJUe8QLWJEK",
+    "name": "search_history",
+    "arguments": {
+      "text": "amber observatory archive",
+      "limit": 16,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "More history remains; continue with the returned cursor.",
+    "recordCount": 1,
+    "nextCursor": "0a4c968f-e407-461e-bee6-2c1e915cc541"
+  },
+  {
+    "callId": "call_DTWyhQ63iJzUEMFjW0s6lqkZ",
+    "name": "read_history",
+    "arguments": {
+      "handles": [
+        "history:b0eb1289-1326-42d5-9bce-1290d8cec4e9"
+      ],
+      "maxChars": 16000
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "callId": "call_E3zTHv89zkJ4sWhRCTn40UZn",
+    "name": "search_history",
+    "arguments": {
+      "text": "amber observatory archive",
+      "limit": 16,
+      "cursor": "0a4c968f-e407-461e-bee6-2c1e915cc541"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "",
+    "recordCount": 0,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I found one saved note for your amber observatory archive. Its wording is:
+
+> The amber observatory archive has an east reading alcove, a copper clock above the entrance, numbered shelves, a dry map room, and a blue lantern beside its telescope. The last page says the brass comet is the final marker. [journal:note:n17c90a15]
+
+Your **original message** repeated the first sentence ten times before the final sentence. The full original wording is preserved in the earlier exchange [history:b0eb1289-1326-42d5-9bce-1290d8cec4e9]. I continued the remaining search page; it returned no further matching exchanges.
+```
+
+### P1 - NOT RUN
+
+The first list_progress page supplied all seven tree summary records, including Acceptance 0 with total=2000 and done=0. The follow-up named that exact provider-owned source. It invoked only list_progress(tree="minecraft/packsage_acceptance:root"), returning a 64-record PARTIAL page, detail=null, and a non-null cursor; the reply correctly gave 0/2000. No read_evidence/read_progress snapshot reread was invoked. Pagination PARTIAL alone does not establish a defect in snapshot coverage, and the requested COMPLETE reread assertion therefore remains NOT RUN. The model question was not repeated or tuned until passing.
+
+**P1** — request `68ba2952-96c3-4873-af4a-750cc423284b`, conversation `3222321a-5059-462d-ab4b-3390eb308241`, status `completed`, model terminal 12506 ms. [Raw result](../../build/final-review-live/P1.json).
+
+Question:
+
+```text
+which advancement trees have I made the most progress in?
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_p4hPwTDDP43eXaXejipE4odi",
+    "name": "list_progress",
+    "arguments": {
+      "tree": null,
+      "status": null,
+      "text": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "64.774184d3"
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+**Minecraft** is your most-completed advancement tree: **4 of 16 (25%)**. **Nether** and **Adventure** are tied for second by completed advancements, with **2 each**; Nether is further along by percentage (**2/24**, versus **2/44**). [Minecraft](progress:tree|minecraft/minecraft:story/root) [Nether](progress:tree|minecraft/minecraft:nether/root) [Adventure](progress:tree|minecraft/minecraft:adventure/root)
+
+The End, Husbandry, Nature’s Aura, and Acceptance 0 each show **0 completed**. [The End](progress:tree|minecraft/minecraft:end/root) [Husbandry](progress:tree|minecraft/minecraft:husbandry/root) [progress:tree|minecraft/naturesaura:root] [progress:tree|minecraft/packsage_acceptance:root]
+```
+
+**P1-reread** — request `d9161702-16d9-4bf9-b403-cdc83f5766b0`, conversation `e07983e1-cdd4-4e01-9064-aa03174d9fe2`, status `completed`, model terminal 11938 ms. [Raw result](../../build/final-review-live/P1-reread.json).
+
+Question:
+
+```text
+Reread the Acceptance 0 advancement tree source, progress:tree|minecraft/packsage_acceptance:root, and tell me its overall completion. I do not need a list of all 2,000 entries.
+```
+
+Calls, exact arguments, coverage/detail and paging:
+
+```json
+[
+  {
+    "callId": "call_xpUl7u0M1aF1ZYS7LiNUF5OC",
+    "name": "list_progress",
+    "arguments": {
+      "tree": "minecraft/packsage_acceptance:root",
+      "status": null,
+      "text": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "64.6f9101a6"
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The **Acceptance 0** advancement tree is **0 of 2,000 complete (0%)**. [progress:tree|minecraft/packsage_acceptance:root]
+```
+
+### C1 - PASS
+
+No chat or tool call was sent with the test override. POST /prompt {"text":"PackSage final-review persistence acceptance test."} succeeded in 76 ms and GET returned that same text. POST /prompt {"text":null} succeeded in 16 ms; the following GET returned text:null and the candidate-8 effective default. Both surrounding state reads reported running=true, paused=false and gameTime advanced 1118239 to 1118240. The properties file ended without developerPrompt. [Full request/response record](../../build/final-review-live/C1.json), [property check](../../build/final-review-live/C1-config-check.json). No model reply or navigation applies.
+
+### Remaining limitations and final state
+
+W1 failed at the backend timeout before tools, leaving the uncached-POI branch unverified. W3 failed the required COMPLETE outcome despite finding all fixture chests. P1 remains NOT RUN for the complete snapshot reread path; its paginated list was observed but is not proof of that branch. Statistics pagination and journal-note cross-page traversal were not triggered by their available matching records; the actual counters and note/history paging exercised above are the scope of those passes. No failure was tuned or rerun to obtain a pass.
+
+Final bridge verification at **2026-10-25T19:18:59.357Z**: same save, minecraft:overworld, original position (1003.5,250,1002.5), yaw 11.309933, pitch 17.829372, screen:null, running:true, paused:false, health 20, creative mode, empty selected hand. Minecraft remains open in the save with debugBridge=true. Prompt text:null, candidate8Equal=true, developerPrompt property absent; original model and automatic-search properties retained; final installed JAR hash unchanged. [Final state and commands](../../build/final-review-live/final.json), [final prompt/settings/hash checks](../../build/final-review-live/final-checks.json), inspected [final screenshot](../../build/final-review-live/final-state.png). Test fixtures and notes remain in the disposable acceptance save; the W5 librarian was removed as part of its required missing-target check.

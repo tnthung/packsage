@@ -187,6 +187,20 @@ class MinecraftInventoriesTest {
         assertEquals(Evidence.Coverage.PARTIAL, section.coverage());
     }
 
+    @Test
+    void playerSlotFactsMarkTheSelectedSlotAndArmorPieces() {
+        assertEquals(Evidence.deserializeObject("{\"slot\":3,\"selected\":true}"), MinecraftInventories.playerSlotFacts("main", 3, 3));
+        assertEquals(Evidence.deserializeObject("{\"slot\":4}"), MinecraftInventories.playerSlotFacts("main", 4, 3));
+        var pieces = List.of("feet", "legs", "chest", "head");
+        for (var index = 0; index < pieces.size(); index++) {
+            assertEquals(Evidence.deserializeObject("{\"slot\":" + index + ",\"equipmentSlot\":\"" + pieces.get(index) + "\"}"),
+                    MinecraftInventories.playerSlotFacts("armor", index, 3));
+        }
+        assertEquals(Evidence.deserializeObject("{\"equipmentSlot\":\"offhand\"}"), MinecraftInventories.playerSlotFacts("offhand", 0, 3));
+        assertNull(MinecraftInventories.playerSlotFacts("ender_chest", 3, 3));
+        assertNull(inventories.entryFacts(new LiveHolder.OfItem(new ItemStack(Items.SHULKER_BOX)), "container", "0"));
+    }
+
     private static InventoryInfo only(List<InventoryInfo> infos) {
         assertEquals(1, infos.size());
         return infos.getFirst();

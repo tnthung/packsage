@@ -58,7 +58,7 @@ class WorldNavigationTest {
 
     private static WorldTools tools(Evidence.Scope scope, Function<BlockPlace, Boolean> blockExists, Function<UUID, BlockPlace> entityPlace,
                                     FakeClient client) {
-        return new WorldTools(() -> null, new WorldRegistry(), () -> scope, Runnable::run, new ServerWork(System::nanoTime), blockExists, entityPlace, client);
+        return new WorldTools(() -> null, new WorldRegistry(), () -> scope, Runnable::run, new ServerWork(System::nanoTime), () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), blockExists, entityPlace, client);
     }
 
     /** The living mob stands at MOB_PLACE; any other id is gone. */

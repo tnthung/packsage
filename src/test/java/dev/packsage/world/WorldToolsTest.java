@@ -20,7 +20,7 @@ class WorldToolsTest {
     private static final String ENTITY = "3f1c2a4e-0000-4000-8000-000000000001";
 
     private static WorldTools tools() {
-        return new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime), place -> false, id -> null, null);
+        return new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime), () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
     }
 
     private static Toolbox.Code failure(WorldTools tools, String tool, String arguments) {
@@ -127,7 +127,7 @@ class WorldToolsTest {
         var work = new ServerWork(System::nanoTime);
         var worker = java.util.concurrent.Executors.newSingleThreadExecutor(task -> new Thread(task, "world-worker"));
         try {
-            var tools = new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, worker, work, place -> false, id -> null, null);
+            var tools = new WorldTools(() -> null, new WorldRegistry(), () -> SCOPE, worker, work, () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
             ServerWork.Slice<String> slice = new ServerWork.Slice<>() {
                 @Override
                 public boolean step() {
@@ -346,6 +346,78 @@ class WorldToolsTest {
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"cursor\":\"" + merged.nextCursor() + "\"}"), SCOPE));
         assertEquals(Evidence.Coverage.PARTIAL, carried.coverage());
         assertEquals(merged.detail(), carried.note());
+    }
+
+    @Test
+    void unresolvedWordsAnswerWithACompleteResultAndADetail() {
+        var result = WorldTools.unresolved("Your main hand is empty");
+        assertTrue(result.records().isEmpty());
+        assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
+        assertEquals(Evidence.Outcome.COMPLETE, result.outcome());
+        assertEquals(null, result.nextCursor());
+        assertEquals("Your main hand is empty", result.detail());
+
+        var tools = tools();
+        assertEquals(Toolbox.Code.UNAVAILABLE, failure(tools, "list_items", "{\"holder\":\"held\"}"));
+        assertEquals(Toolbox.Code.UNAVAILABLE, failure(tools, "list_items", "{\"holder\":\"targeted>minecraft/container#0@minecraft:shulker_box\"}"));
+        assertEquals(Toolbox.Code.UNAVAILABLE, failure(tools, "inspect_item", "{\"path\":\"offhand\"}"));
+        assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failure(tools, "inspect_item", "{\"path\":\"targeted\"}"), "targeted names a holder");
+        assertEquals(Toolbox.Code.INVALID_ARGUMENTS, failure(tools, "list_items", "{\"holder\":\"held>bad\"}"));
+    }
+
+    @Test
+    void theHolderSummaryLeadsTheFirstPageAndCountsTowardTheRecordLimit() {
+        var tools = tools();
+        var arguments = Evidence.deserializeObject("{\"holder\":\"player\"}");
+        var request = new PackSageTools.ReadRequest("list_items", arguments, SCOPE);
+        var entries = new java.util.ArrayList<ItemEntry>();
+        var slotFacts = new java.util.HashMap<String, Evidence.JsonObject>();
+        for (var i = 0; i < 70; i++) {
+            var location = ItemPath.parse("player:" + ENTITY + ">minecraft/main#" + i + "@minecraft:item_" + i);
+            entries.add(new ItemEntry("minecraft:item_" + i, "Item " + i, 1, 1, java.util.List.of(location), false));
+            slotFacts.put(location.text(), Evidence.deserializeObject(i == 3 ? "{\"slot\":3,\"selected\":true}" : "{\"slot\":" + i + "}"));
+        }
+        var root = new PathRoot.Player(java.util.UUID.fromString(ENTITY));
+        var main = new InventoryInfo(new InventoryId("minecraft", "main"), "Main inventory", 36, SlotRole.STORAGE);
+        var bundle = new InventoryInfo(new InventoryId("minecraft", "bundle"), "Bundle", -1, SlotRole.STORAGE);
+        var summary = new WorldTools.HolderSummary(root, java.util.List.of(new WorldTools.InventorySummary(main, 0),
+                new WorldTools.InventorySummary(bundle, null)), Evidence.deserializeObject("{\"selectedSlot\":3}"));
+
+        var first = tools.entries(request, new WorldTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null, null, summary, slotFacts),
+                Evidence.Coverage.COMPLETE, null);
+
+        assertEquals(64, first.records().size());
+        var lead = first.records().getFirst();
+        assertEquals("holder|player:" + ENTITY, lead.source().sourceHandle());
+        assertTrue(lead.targets().isEmpty(), "the player summary has no link");
+        var payload = lead.payload().values();
+        assertEquals(new Evidence.JsonString("player:" + ENTITY), payload.get("holder"));
+        assertEquals(Evidence.deserializeObject("{\"selectedSlot\":3}").values().get("selectedSlot"), payload.get("selectedSlot"));
+        var inventories = ((Evidence.JsonArray) payload.get("inventories")).values();
+        assertEquals(Evidence.deserializeObject("{\"inventory\":\"minecraft/main\",\"label\":\"Main inventory\",\"slots\":36,\"role\":\"storage\",\"emptySlots\":0}"),
+                inventories.getFirst());
+        assertTrue(((Evidence.JsonObject) inventories.get(1)).values().get("emptySlots") instanceof Evidence.JsonNull);
+        var selected = first.records().stream().filter(record -> record.source().sourceHandle().contains("#3@")).findFirst().orElseThrow();
+        var slots = ((Evidence.JsonArray) selected.payload().values().get("slots")).values();
+        assertEquals(Evidence.deserializeObject("{\"path\":\"player:" + ENTITY + ">minecraft/main#3@minecraft:item_3\",\"slot\":3,\"selected\":true}"),
+                slots.getFirst());
+
+        var continued = new PackSageTools.ReadRequest("list_items", Evidence.deserializeObject(
+                "{\"holder\":\"player\",\"cursor\":\"" + first.nextCursor() + "\"}"), SCOPE);
+        var second = tools.entries(continued, (WorldTools.EntriesState) tools.cursor(continued), Evidence.Coverage.COMPLETE, null);
+        assertEquals(7, second.records().size());
+        assertTrue(second.records().stream().noneMatch(record -> record.source().sourceHandle().startsWith("holder|")));
+        assertTrue(second.records().getFirst().payload().values().containsKey("slots"), "slot facts carry over to later pages");
+
+        var place = "minecraft:overworld|1,64,2";
+        var chest = ItemPath.parse("block:" + place + ">minecraft/container#0@minecraft:stone");
+        var blockSummary = new WorldTools.HolderSummary(chest.root(), java.util.List.of(), new Evidence.JsonObject(Map.of()));
+        var block = tools.entries(new PackSageTools.ReadRequest("list_items", Evidence.deserializeObject("{\"holder\":\"block:" + place + "\"}"), SCOPE),
+                new WorldTools.EntriesState(java.util.List.of(new ItemEntry("minecraft:stone", "Stone", 1, 1, java.util.List.of(chest), false)),
+                        null, Evidence.Coverage.COMPLETE, null, null, blockSummary, Map.of()), Evidence.Coverage.COMPLETE, null);
+        assertEquals(java.util.List.of("block|" + place, "item|" + chest.text()),
+                block.records().stream().map(record -> record.source().sourceHandle()).toList(), "the summary's root is not repeated as a holder");
+        assertEquals("world-block|" + place, block.records().getFirst().targets().getFirst().targetId());
     }
 
     @Test

@@ -403,7 +403,7 @@ public final class JournalHooks {
                     session.raidPolling = false;
                 }
             }
-            if (session.ticks % 40 == 0) {
+            if (session.ticks % 40 == 5) {
                 for (var player : level.players()) {
                     var pos = player.blockPosition();
                     if (!level.hasChunkAt(pos)) continue;
@@ -420,7 +420,7 @@ public final class JournalHooks {
                     }
                 }
             }
-            if (session.ticks % 100 == 0) {
+            if (session.ticks % 100 == 10) {
                 for (var entity : level.getAllEntities()) {
                     if (entity instanceof Villager villager) {
                         var pos = villager.blockPosition();

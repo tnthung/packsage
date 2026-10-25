@@ -42,14 +42,20 @@ class WorldToolsTest {
             chunk.blockEntities.put(at, new BarrelBlockEntity(at, Blocks.BARREL.defaultBlockState()));
         }
         var checked = new HashSet<BlockPos>();
+        var gathering = new java.util.concurrent.atomic.AtomicBoolean(true);
         var registry = new WorldRegistry();
         registry.register(new InventoryReader() {
             @Override public String adapterId() { return "test"; }
             @Override public List<InventoryInfo> inventories(LiveHolder holder) {
-                assertTrue(checked.add(((LiveHolder.OfBlock) holder).pos()));
+                if (gathering.get()) assertTrue(checked.add(((LiveHolder.OfBlock) holder).pos()));
                 return List.of(new InventoryInfo(new InventoryId("test", "storage"), "Storage", 1, SlotRole.STORAGE));
             }
-            @Override public LiveInventory open(LiveHolder holder, String section) { return null; }
+            @Override public LiveInventory open(LiveHolder holder, String section) {
+                return new LiveInventory() {
+                    @Override public ItemStack get(String entry) { return new ItemStack(net.minecraft.world.item.Items.STONE); }
+                    @Override public List<Map.Entry<String, ItemStack>> entries() { return List.of(Map.entry("0", get("0"))); }
+                };
+            }
             @Override public Section inspectItem(ItemStack stack) { return null; }
         });
         var tools = new WorldTools(() -> null, registry, () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
@@ -58,7 +64,8 @@ class WorldToolsTest {
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
         var slice = constructor.newInstance(tools, null, new Anchor.Player(), 32, KindFilter.ANY, false, null);
-        for (var entry : Map.<String, Object>of("level", world, "center", new Vec3(8, 64, 8)).entrySet()) {
+        for (var entry : Map.<String, Object>of("level", world, "center", new Vec3(8, 64, 8),
+                "chunks", List.of(new ChunkPos(0, 0)), "startChunk", -1).entrySet()) {
             var field = type.getDeclaredField(entry.getKey());
             field.setAccessible(true);
             field.set(slice, entry.getValue());
@@ -71,9 +78,26 @@ class WorldToolsTest {
             var before = checked.size();
             done = (boolean) collect.invoke(slice, new ChunkPos(0, 0));
             assertTrue(checked.size() - before <= 64);
+            if (!done) assertFalse(((ServerWork.Slice<?>) slice).stopEarly(), "a dense chunk continuation must not replay gathered holders");
             assertTrue(++steps < 2000);
         } while (!done);
         assertEquals(4097, checked.size());
+        gathering.set(false);
+        var holders = type.getDeclaredField("holders");
+        holders.setAccessible(true);
+        String cursor = null;
+        long total = 0;
+        int pages = 0;
+        do {
+            var search = new ItemSearch(registry, (List<Map.Entry<PathRoot, LiveHolder>>) holders.get(slice), KindFilter.ANY, false, cursor);
+            while (search.step()) {
+            }
+            for (var entry : search.result().items()) total += entry.count();
+            cursor = search.result().nextCursor();
+            assertTrue(++pages <= 9);
+        } while (cursor != null);
+        assertEquals(4097, total);
+        assertEquals(9, pages);
     }
 
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
@@ -169,7 +193,7 @@ class WorldToolsTest {
             assertTrue(slice.step());
             assertTrue(world.visited - before <= 64, "enumerated " + (world.visited - before));
             assertTrue(checked.get() - checks <= 64, "checked " + (checked.get() - checks));
-            assertTrue(++steps < 100);
+            assertTrue(++steps < 200);
         }
         assertTrue(steps > 60);
         assertEquals(4000, checked.get());

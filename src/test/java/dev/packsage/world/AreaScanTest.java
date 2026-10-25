@@ -23,6 +23,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AreaScanTest {
     @Test
+    void aWorkLimitCannotDiscardAnUnfinishedChunkSnapshot() throws Exception {
+        var world = DenseWorld.create(130);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4, KindFilter.ANY, null);
+        assertTrue(slice.step());
+        assertFalse(slice.stopEarly(), "finishing candidate acquisition avoids a cursor that repeats the same unfinished prefix");
+    }
+
+    @Test
     void neighboringNonmatchesCannotExhaustAServerStep() throws Exception {
         var world = DenseWorld.create(5000);
         for (var entity : world.entities) entity.setPos(-8, 64, 8);
@@ -224,8 +232,10 @@ class AreaScanTest {
         boolean more;
         do {
             var before = world.visited;
+            var candidates = world.candidates;
             more = slice.step();
             assertTrue(world.visited - before <= 64, "entity visits in one step: " + (world.visited - before));
+            assertTrue(world.candidates - candidates <= 64, "snapshot candidates in one step: " + (world.candidates - candidates));
             steps++;
         } while (more);
         assertTrue(steps > 60);

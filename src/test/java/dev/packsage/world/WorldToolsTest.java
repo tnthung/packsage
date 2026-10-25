@@ -13,6 +13,7 @@ import java.util.concurrent.ExecutionException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -125,6 +126,22 @@ class WorldToolsTest {
         }
         assertEquals(Toolbox.Code.INVALID_CURSOR, failure(tools, "find_items",
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"radius\":24,\"cursor\":\"" + first + "\"}"));
+    }
+
+    @Test
+    void runMapsFailuresLikeServerReads() throws Exception {
+        var tools = tools();
+        var field = WorldTools.class.getDeclaredField("work");
+        field.setAccessible(true);
+        var work = (ServerWork) field.get(tools);
+        for (var failure : new RuntimeException[] { new IllegalArgumentException("bad"), new IllegalStateException("x") }) {
+            var result = tools.run(() -> true, WorldTools.once(() -> { throw failure; })).toCompletableFuture();
+            while (work.hasWork()) work.tick();
+            var mapped = (Toolbox.Failure) assertThrows(ExecutionException.class, result::get).getCause();
+            assertEquals(failure instanceof IllegalArgumentException ? Toolbox.Code.INVALID_ARGUMENTS : Toolbox.Code.EXTRACTION_FAILED,
+                    mapped.code());
+            assertEquals(failure.getMessage(), mapped.getMessage());
+        }
     }
 
     @Test

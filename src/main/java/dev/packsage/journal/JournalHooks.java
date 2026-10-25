@@ -118,8 +118,9 @@ public final class JournalHooks {
             if (server == null || event.getServer() != server) return;
             newSession();
             session.server = server;
+            var overworld = server.overworld();
             journal.open(server.getWorldPath(LevelResource.ROOT).resolve("packsage").resolve("journal.db"),
-                    () -> server.overworld().getGameTime());
+                    overworld::getGameTime);
         }));
         bus.addListener(EventPriority.NORMAL, false, ServerStoppingEvent.class, event -> hook(server -> {
             if (server == null || event.getServer() != server) return;

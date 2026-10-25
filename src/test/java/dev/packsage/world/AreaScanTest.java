@@ -17,6 +17,24 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AreaScanTest {
+    @Test
+    void aDenseChunkIsEnumeratedInBoundedStepsEvenWhenNothingMatches() throws Exception {
+        var world = DenseWorld.create(4000);
+        var slice = new AreaScan(new WorldRegistry()).listEntities(world, new Vec3(8, 64, 8), 4,
+                new KindFilter(List.of("minecraft:zombie"), List.of(), ""), null);
+        var steps = 0;
+        boolean more;
+        do {
+            var before = world.visited;
+            more = slice.step();
+            assertTrue(world.visited - before <= 64, "entity visits in one step: " + (world.visited - before));
+            steps++;
+        } while (more);
+        assertTrue(steps > 60);
+        assertEquals(4000, world.visited);
+        assertTrue(slice.result().items().isEmpty());
+        assertEquals(Evidence.Coverage.COMPLETE, slice.result().coverage());
+    }
     @BeforeAll
     static void bootstrapMinecraft() {
         Bootstrap.bootStrap();

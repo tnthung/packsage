@@ -18,6 +18,41 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 class WorldToolsTest {
+    @Test
+    void findingHoldersInADenseChunkBoundsEnumerationAndInventoryChecks() throws Exception {
+        var world = DenseWorld.create(4000);
+        var checked = new java.util.concurrent.atomic.AtomicInteger();
+        var registry = new WorldRegistry();
+        registry.register(new InventoryReader() {
+            @Override public String adapterId() { return "test"; }
+            @Override public java.util.List<InventoryInfo> inventories(LiveHolder holder) { checked.incrementAndGet(); return java.util.List.of(); }
+            @Override public LiveInventory open(LiveHolder holder, String section) { return null; }
+            @Override public Section inspectItem(net.minecraft.world.item.ItemStack stack) { return null; }
+        });
+        var tools = new WorldTools(() -> null, registry, () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
+                () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
+        var type = Class.forName("dev.packsage.world.WorldTools$FindSlice");
+        var constructor = type.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        var slice = (ServerWork.Slice<?>) constructor.newInstance(tools, null, new Anchor.Player(), 4, KindFilter.ANY, false, null);
+        for (var entry : Map.<String, Object>of("level", world, "center", new net.minecraft.world.phys.Vec3(8, 64, 8),
+                "chunks", java.util.List.of(new net.minecraft.world.level.ChunkPos(0, 0))).entrySet()) {
+            var field = type.getDeclaredField(entry.getKey());
+            field.setAccessible(true);
+            field.set(slice, entry.getValue());
+        }
+        var steps = 0;
+        while (world.visited < 4000) {
+            var before = world.visited;
+            var checks = checked.get();
+            assertTrue(slice.step());
+            assertTrue(world.visited - before <= 64, "enumerated " + (world.visited - before));
+            assertTrue(checked.get() - checks <= 64, "checked " + (checked.get() - checks));
+            assertTrue(++steps < 100);
+        }
+        assertTrue(steps > 60);
+        assertEquals(4000, checked.get());
+    }
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {"air", "cave_air", "void_air", "stone"})
     void inspectedAirDoesNotAdvertiseABlockHighlight(String kind) throws Exception {

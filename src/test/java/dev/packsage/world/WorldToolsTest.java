@@ -250,6 +250,58 @@ class WorldToolsTest {
     }
 
     @Test
+    void entriesAndHolderRecordsTogetherStayWithinTheToolOutputLimitAndTheRestContinues() {
+        var tools = tools();
+        var arguments = Evidence.deserializeObject("{\"filter\":{\"text\":\"\"}}");
+        var request = new PackSageTools.ReadRequest("find_items", arguments, SCOPE);
+        var entries = new java.util.ArrayList<ItemEntry>();
+        for (var i = 0; i < 72; i++) {
+            var location = ItemPath.parse("block:minecraft:overworld|" + i + ",64,0>minecraft/container#0@minecraft:item_" + i);
+            entries.add(new ItemEntry("minecraft:item_" + i, "Item " + i, 1, 1, java.util.List.of(location), false));
+        }
+        var seen = new java.util.HashSet<String>();
+        var page = tools.entries(request, new WorldTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null),
+                Evidence.Coverage.COMPLETE, null);
+        var pages = 0;
+        while (true) {
+            pages++;
+            assertTrue(page.records().size() <= 64, "page " + pages + " has " + page.records().size() + " records");
+            var handles = page.records().stream().map(record -> record.source().sourceHandle()).collect(java.util.stream.Collectors.toSet());
+            for (var record : page.records()) {
+                if (!record.source().sourceHandle().startsWith("item|")) continue;
+                seen.add(record.source().sourceHandle());
+                var holder = record.source().sourceHandle().substring(5).split(">")[0].replace("block:", "block|");
+                assertTrue(handles.contains(holder), "the holder of " + record.source().sourceHandle() + " has a record on its page");
+            }
+            if (page.nextCursor() == null) break;
+            var continued = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
+                    "{\"filter\":{\"text\":\"\"},\"cursor\":\"" + page.nextCursor() + "\"}"), SCOPE);
+            page = tools.entries(continued, (WorldTools.EntriesState) tools.cursor(continued), Evidence.Coverage.COMPLETE, null);
+        }
+        assertEquals(72, seen.size(), "every entry appears on some page");
+        assertEquals(Evidence.Coverage.COMPLETE, page.coverage());
+    }
+
+    @Test
+    void anEntryWithMoreHoldersThanFitLinksTheFirstOnesAndSaysHowManyAreLeft() {
+        var tools = tools();
+        var request = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject("{\"filter\":{\"ids\":[\"minecraft:stone\"]}}"), SCOPE);
+        var locations = new java.util.ArrayList<ItemPath>();
+        for (var i = 0; i < 70; i++) locations.add(ItemPath.parse("block:minecraft:overworld|" + i + ",64,0>minecraft/container#0@minecraft:stone"));
+        var stone = new ItemEntry("minecraft:stone", "Stone", 70, 1, locations, false);
+        var dirt = new ItemEntry("minecraft:dirt", "Dirt", 1, 1, java.util.List.of(
+                ItemPath.parse("block:minecraft:overworld|0,64,0>minecraft/container#1@minecraft:dirt")), false);
+
+        var page = tools.entries(request, new WorldTools.EntriesState(java.util.List.of(stone, dirt), null, Evidence.Coverage.COMPLETE, null),
+                Evidence.Coverage.COMPLETE, null);
+
+        assertEquals(64, page.records().size());
+        assertEquals("item|" + locations.getFirst().text(), page.records().getFirst().source().sourceHandle());
+        assertTrue(page.detail().contains("63 of 70"), page.detail());
+        assertTrue(page.nextCursor() != null, "dirt continues on the next page");
+    }
+
+    @Test
     void continuationPagesKeepTheFirstPagesPartialCoverageAndNotes() {
         var tools = tools();
         var arguments = Evidence.deserializeObject("{\"filter\":{\"ids\":[\"minecraft:stone\"]}}");

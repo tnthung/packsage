@@ -39,7 +39,8 @@ class MinecraftStatisticsTest {
     static void bootstrap() {
         SharedConstants.tryDetectVersion();
         Bootstrap.bootStrap();
-        // Stands in for a mod registering its own stat types during startup.
+        // Stands in for a mod registering its own stat types during startup. The registry is global to the test JVM, so
+        // these types stay registered and are visible to every test class that runs after this one.
         var types = (MappedRegistry<StatType<?>>) BuiltInRegistries.STAT_TYPE;
         types.unfreeze();
         MOD_SMELTED = Registry.register(types, ResourceLocation.fromNamespaceAndPath("examplemod", "smelted"),
@@ -132,6 +133,20 @@ class MinecraftStatisticsTest {
                 rows.stream().map(Statistic::category).toList());
         assertTrue(rows.stream().allMatch(row -> row.raw() == 0), rows.toString());
         assertFalse(Stats.BLOCK_MINED.contains(Blocks.ANCIENT_DEBRIS));
+    }
+
+    @Test
+    void namedAbsentCustomCountersKeepTheirVanillaUnits() {
+        var subjects = new KindFilter(List.of("minecraft:walk_one_cm", "minecraft:play_time", "minecraft:damage_taken", "minecraft:deaths"),
+                List.of(), "");
+
+        var rows = run(statistics.statistics(new StatsCounter(), List.of("custom"), subjects));
+
+        assertEquals(StatisticUnit.DISTANCE, row(rows, "minecraft:walk_one_cm").unit());
+        assertEquals(StatisticUnit.TIME, row(rows, "minecraft:play_time").unit());
+        assertEquals(StatisticUnit.HEALTH, row(rows, "minecraft:damage_taken").unit());
+        assertEquals(StatisticUnit.COUNT, row(rows, "minecraft:deaths").unit());
+        assertTrue(rows.stream().allMatch(row -> row.raw() == 0 && row.value() == 0), rows.toString());
     }
 
     @Test

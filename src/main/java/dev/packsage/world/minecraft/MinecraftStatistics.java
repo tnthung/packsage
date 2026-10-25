@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -39,6 +40,27 @@ public final class MinecraftStatistics implements StatisticReader {
     private static final int SAMPLE = 123456;
     private static final Field STATS;
     private static final String STATS_FAILURE;
+    /**
+     * The units of vanilla's custom counters that {@code Stats} registers with a non-count formatter. A formatter lives
+     * only on its {@link Stat}, held in the stat type's map, which is never read; so a named counter the player's counter
+     * does not hold looks its unit up here, and a mod's counter it does not hold is a count.
+     */
+    private static final Map<ResourceLocation, StatisticUnit> CUSTOM_UNITS = Map.ofEntries(
+            Map.entry(Stats.PLAY_TIME, StatisticUnit.TIME), Map.entry(Stats.TOTAL_WORLD_TIME, StatisticUnit.TIME),
+            Map.entry(Stats.TIME_SINCE_DEATH, StatisticUnit.TIME), Map.entry(Stats.TIME_SINCE_REST, StatisticUnit.TIME),
+            Map.entry(Stats.CROUCH_TIME, StatisticUnit.TIME),
+            Map.entry(Stats.WALK_ONE_CM, StatisticUnit.DISTANCE), Map.entry(Stats.CROUCH_ONE_CM, StatisticUnit.DISTANCE),
+            Map.entry(Stats.SPRINT_ONE_CM, StatisticUnit.DISTANCE), Map.entry(Stats.WALK_ON_WATER_ONE_CM, StatisticUnit.DISTANCE),
+            Map.entry(Stats.FALL_ONE_CM, StatisticUnit.DISTANCE), Map.entry(Stats.CLIMB_ONE_CM, StatisticUnit.DISTANCE),
+            Map.entry(Stats.FLY_ONE_CM, StatisticUnit.DISTANCE), Map.entry(Stats.WALK_UNDER_WATER_ONE_CM, StatisticUnit.DISTANCE),
+            Map.entry(Stats.MINECART_ONE_CM, StatisticUnit.DISTANCE), Map.entry(Stats.BOAT_ONE_CM, StatisticUnit.DISTANCE),
+            Map.entry(Stats.PIG_ONE_CM, StatisticUnit.DISTANCE), Map.entry(Stats.HORSE_ONE_CM, StatisticUnit.DISTANCE),
+            Map.entry(Stats.AVIATE_ONE_CM, StatisticUnit.DISTANCE), Map.entry(Stats.SWIM_ONE_CM, StatisticUnit.DISTANCE),
+            Map.entry(Stats.STRIDER_ONE_CM, StatisticUnit.DISTANCE),
+            Map.entry(Stats.DAMAGE_DEALT, StatisticUnit.HEALTH), Map.entry(Stats.DAMAGE_DEALT_ABSORBED, StatisticUnit.HEALTH),
+            Map.entry(Stats.DAMAGE_DEALT_RESISTED, StatisticUnit.HEALTH), Map.entry(Stats.DAMAGE_TAKEN, StatisticUnit.HEALTH),
+            Map.entry(Stats.DAMAGE_BLOCKED_BY_SHIELD, StatisticUnit.HEALTH), Map.entry(Stats.DAMAGE_ABSORBED, StatisticUnit.HEALTH),
+            Map.entry(Stats.DAMAGE_RESISTED, StatisticUnit.HEALTH));
 
     static {
         Field field = null;
@@ -230,7 +252,8 @@ public final class MinecraftStatistics implements StatisticReader {
             var value = registry.getOptional(key);
             if (value.isEmpty()) return;
             present.add(List.of(statType, id));
-            add(statType, value.get(), id, 0, StatisticUnit.COUNT, BuiltInRegistries.STAT_TYPE.getId(statType), registry.getId(value.get()));
+            var unit = statType == Stats.CUSTOM ? CUSTOM_UNITS.getOrDefault(key, StatisticUnit.COUNT) : StatisticUnit.COUNT;
+            add(statType, value.get(), id, 0, unit, BuiltInRegistries.STAT_TYPE.getId(statType), registry.getId(value.get()));
         }
 
         private <T> void add(StatType<T> statType, T value, String id, int raw, StatisticUnit unit, int typeId, int valueId) {

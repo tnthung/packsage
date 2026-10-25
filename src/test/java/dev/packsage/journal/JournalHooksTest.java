@@ -66,7 +66,7 @@ class JournalHooksTest {
     }
 
     @Test
-    void explosionsCapPositionsBeforeReadingStatesAndGroupingAndCountWhatWasDropped() {
+    void explosionsCapNonAirPositionsAndCountOnlyDroppedNonAir() {
         var stats = new JournalStats();
         var reads = new AtomicInteger();
         var positions = IntStream.range(0, 5_000).mapToObj(x -> new BlockPos(x, 64, 0)).toList();
@@ -74,11 +74,24 @@ class JournalHooksTest {
             reads.incrementAndGet();
             return pos.getX() == 0 ? null : pos.getX() % 2 == 0 ? "minecraft:stone" : "minecraft:sand";
         }, stats);
-        assertEquals(4_096, reads.get());
-        assertEquals(2_047, grouped.get("minecraft:stone").length);
+        assertEquals(5_000, reads.get());
+        assertEquals(2_048, grouped.get("minecraft:stone").length);
         assertEquals(2_048, grouped.get("minecraft:sand").length);
-        assertEquals(904, stats.droppedExplosionPositions());
+        assertEquals(903, stats.droppedExplosionPositions());
         assertEquals(Positions.pack(4_095, 64, 0), grouped.get("minecraft:sand")[2_047]);
+    }
+
+    @Test
+    void explosionStateReadsAreBoundedEvenWhenEveryPositionIsAir() {
+        var stats = new JournalStats();
+        var reads = new AtomicInteger();
+        assertTrue(JournalHooks.explosionBlocks(IntStream.range(0, 10_000)
+                .mapToObj(x -> new BlockPos(x, 64, 0)).toList(), pos -> {
+                    reads.incrementAndGet();
+                    return null;
+                }, stats).isEmpty());
+        assertEquals(8_192, reads.get());
+        assertEquals(0, stats.droppedExplosionPositions());
     }
 
     @Test

@@ -21,14 +21,16 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
- * Opens {@code world-block|<place>} and {@code world-entity|<uuid>} targets as 30-second highlights. The target id is
- * the stable destination: a saved link resolves into the current scope without re-reading evidence, and opening checks
- * that the block or mob still exists before anything is drawn.
+ * Opens {@code world-block|<place>}, {@code world-entity|<uuid>} and {@code world-place|<place>} targets as 30-second
+ * highlights. The target id is the stable destination: a saved link resolves into the current scope without re-reading
+ * evidence, and opening checks that the block or mob still exists before anything is drawn. A place is only coordinates,
+ * usually in unloaded or ungenerated chunks, so it is marked without any check.
  */
 final class WorldNavigation {
     static final long HIGHLIGHT_MILLIS = 30_000;
     private static final String BLOCK = "world-block|";
     private static final String ENTITY = "world-entity|";
+    private static final String PLACE = "world-place|";
     private static final long CHECK_MILLIS = 1_000;
     private static final String NO_SERVER = "world highlights need an integrated singleplayer server";
 
@@ -37,6 +39,9 @@ final class WorldNavigation {
         }
 
         record Entity(UUID id) implements Destination {
+        }
+
+        record Place(BlockPlace place) implements Destination {
         }
     }
 
@@ -51,6 +56,8 @@ final class WorldNavigation {
         void highlightBlock(BlockPlace place, long untilMillis);
 
         void highlightEntity(UUID id, long untilMillis);
+
+        void highlightPlace(BlockPlace place, long untilMillis);
     }
 
     private final Function<BlockPlace, Boolean> blockExists;
@@ -71,7 +78,12 @@ final class WorldNavigation {
         return ENTITY + id;
     }
 
+    static String placeId(BlockPlace place) {
+        return PLACE + place.text();
+    }
+
     static Destination parse(String targetId) {
+        if (targetId.startsWith(PLACE)) return new Destination.Place(BlockPlace.parse(targetId.substring(PLACE.length())));
         if (targetId.startsWith(BLOCK)) return new Destination.Block(BlockPlace.parse(targetId.substring(BLOCK.length())));
         if (targetId.startsWith(ENTITY)) {
             var text = targetId.substring(ENTITY.length());
@@ -109,6 +121,7 @@ final class WorldNavigation {
             return switch (destination) {
                 case Destination.Block block -> openBlock(block.place());
                 case Destination.Entity entity -> openEntity(entity.id());
+                case Destination.Place place -> openPlace(place.place());
             };
         } catch (RuntimeException failure) {
             return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, failure.getMessage());
@@ -126,6 +139,17 @@ final class WorldNavigation {
                     "no block remains at " + coordinates(place) + " in " + place.dimension() + ", or its chunk is not loaded");
         }
         client.highlightBlock(place, System.currentTimeMillis() + HIGHLIGHT_MILLIS);
+        return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, null);
+    }
+
+    /** Marks the place without reading the world: its chunk may be unloaded or not generated yet. */
+    private Evidence.NavigationResult openPlace(BlockPlace place) {
+        var here = client.dimension();
+        if (here == null) return new Evidence.NavigationResult(Evidence.NavigationStatus.UNAVAILABLE, "the player is not in a world");
+        if (!here.equals(place.dimension())) {
+            return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, coordinates(place) + " in " + place.dimension());
+        }
+        client.highlightPlace(place, System.currentTimeMillis() + HIGHLIGHT_MILLIS);
         return new Evidence.NavigationResult(Evidence.NavigationStatus.OPENED, null);
     }
 
@@ -200,6 +224,11 @@ final class WorldNavigation {
             @Override
             public void highlightEntity(UUID id, long untilMillis) {
                 WorldHighlighter.highlightEntity(id, untilMillis);
+            }
+
+            @Override
+            public void highlightPlace(BlockPlace place, long untilMillis) {
+                WorldHighlighter.highlightPlace(place, untilMillis);
             }
         };
     }

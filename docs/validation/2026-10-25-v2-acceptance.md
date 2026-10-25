@@ -2,13 +2,14 @@
 
 ## Acceptance summary
 
-Final assessment: 2026-10-26, applying the controller rulings in [the progress ledger](../../.superpowers/sdd/2026-10-25-v2-prompt-acceptance/progress.md). The chronological records below preserve the original scores and failures; this summary gives the final disposition after rulings, corrected fixtures and installed rechecks. Acceptance remains incomplete: **E6 and M1 FAIL; M5, P9, J7 and P11 NOT RUN**. Aliases M2–M4 and J1–J3 inherit their covering checks below.
+Final assessment: 2026-10-26, applying the controller rulings in [the progress ledger](../../.superpowers/sdd/2026-10-25-v2-prompt-acceptance/progress.md). The chronological records below preserve the original scores and failures; this summary gives the final disposition after rulings, corrected fixtures and installed rechecks. After the final-review fixes, **E6 and M1 PASS** through prompt candidates 7 and 8 and their installed rechecks; **M5, P9, J7 and P11 remain NOT RUN**. The final-review installed rechecks are recorded at the end of this file. Aliases M2–M4 and J1–J3 inherit their covering checks below.
 
 ### Builds and promoted prompt
 
 - Environment: Minecraft **1.21.1**, NeoForge **21.1.259**, Windows, Java 21; build/source artifacts use NeoForge **21.1.202**. Model **gpt-6-sol**, **medium**, automatic Search, Screenshot=true. Save: `PackSage Adapter Filter Live Test`.
 - Candidate 1 tested `999ac78`, installed SHA-256 `A3AFCE496047933A9C18A4ED745F0324FDFD4DE8712DCEAF79B195F7EF0CA7BB`. Candidates used evolving code/fixtures, so scores are single-run observations rather than a controlled benchmark.
-- **Promoted prompt: Candidate 6**, commit `0c77af1`; 21,853 characters, SHA-256 `DD455D40627CE42E67FDB204B4FE91E42040403BFA1BE26BC3C1020D0733DA76`. Compiled default equality was verified. The policy covers every v2 tool, whole-set/per-piece answers, continued storage discovery, exact evidence/navigation binding, coordinates, clock interpretation, distinct event actors, silent note actions and bracket citations.
+- **Current promoted prompt: Candidate 8**, commit `f66b3e6`, 22,192 UTF-8 bytes, SHA-256 `64815DD5FE24B2CCA7E042F26E0AAB12FFD58AC50C808D1BAB29F99359E240DD`. It adds the note-move rule (candidate 7, `701162a`) and coordinates for the question's own subject (candidate 8) to candidate 6. The installed default equals it byte for byte with no override (final-review rechecks D1, rounds 1–4).
+- **Previously promoted prompt: Candidate 6**, commit `0c77af1`; 21,853 characters, SHA-256 `DD455D40627CE42E67FDB204B4FE91E42040403BFA1BE26BC3C1020D0733DA76`. Compiled default equality was verified. The policy covers every v2 tool, whole-set/per-piece answers, continued storage discovery, exact evidence/navigation binding, coordinates, clock interpretation, distinct event actors, silent note actions and bracket citations.
 - Installed-default verification and Part A used build HEAD `48e59e8`, SHA-256 `731C8442CFD230A24B33E4E2770C4C2675469366F74692F00D8535C6E7090242` (verification record commit `396bd3a`). Part B used `48e8d2c`, SHA-256 `FC8C27671A0C52DDDF4C878A2F0C82381E424028E96623F7349F6A1BF5E3237F`.
 - Final L1 recheck used renderer fix `edbf6c0` and tests `4937c69`, installed SHA-256 `7E0C517E7371E84901D14D9932E459597482AE7A02B1A3913BC632CCD603F311`. It passed in the Nether and Overworld at render distance 12; L2's 8-chunk evidence belongs to Part B's earlier build. Each installed-default run verified `developerPrompt` absent / bridge `text:null`. Other checks were not all rerun on the final renderer build.
 
@@ -47,7 +48,7 @@ The [Task 7 checklist](../plans/2026-10-22-v2-prompt-acceptance.md#task-7-full-a
 | C6 | PASS | Part A: zombie loot definition, common and conditional rare drops, no roll implied. |
 | C7 | PASS | Part A: fresh prediction, visited found result, coordinates/link and unchanged region listing. Part B: saved place link works after full restart. |
 | C8 | PASS | Part A: cheats-off /fill usage, argument types and permission restriction without execution. |
-| M1 | FAIL | Part B: persistence/recall pass, but move uses clearPlace instead of the new position; old link unavailable and two pre-existing notes remain. Ambiguous wording/duplicate fixture does not turn this into a pass. |
+| M1 | PASS | Part B failed (the move used clearPlace). Candidate 7 passed the move, recall, old-link and retirement checks on a clean fixture, and installed recheck R1 passed: the move updates the same note with the player's place, one note remains and the old link marks the new place. |
 | M2 | PASS | Covered by W1. |
 | M3 | PASS | Covered by W2. |
 | M4 | PASS | Covered by W3. |
@@ -64,7 +65,7 @@ The [Task 7 checklist](../plans/2026-10-22-v2-prompt-acceptance.md#task-7-full-a
 | P10 | PASS | Part A: 2,000-advancement tree, 85 ms tool read, no visible stall in sampled frame/tick evidence. |
 | P11 | NOT RUN | Logs expose tool count, not tool names; JSONL lacks offered-tool definitions. No observed read_progress call proves no absence. W7/P8 separately pass historical source/link reopening. |
 | J0 | PASS | Part A: journal.db/WAL present, fresh events readable, no SQLite native-library error. |
-| J1 | FAIL | Covered by M1, including its remaining move failure. |
+| J1 | PASS | Covered by M1. |
 | J2 | PASS | Covered by W2. |
 | J3 | NOT RUN | Covered by M5; shutdown summary not captured. |
 | J4 | PASS | Controller ruling: “what did I put in chests” correctly selects deposits only; 10-stone deposit, coordinates and working chest link. Withdrawal omission is not a failure of this question. |
@@ -78,7 +79,7 @@ The [Task 7 checklist](../plans/2026-10-22-v2-prompt-acceptance.md#task-7-full-a
 | E3 | PASS | Part A: greeting and read-only crafting response, both zero tools. |
 | E4 | PASS | Part A: active_effect/player_attribute in one overlapping call group; bonuses correctly distinguished. |
 | E5 | PASS | Part A: all 42 saved replies scanned, no raw ref: or unmatched references; sampled UI chips clean. Unscored Part B unsupported fortress-link observation remains a follow-up below. |
-| E6 | FAIL | Part A W8 omits mule coordinates in text despite locating/citing it. No seventh prompt candidate was authorized. |
+| E6 | PASS | Part A W8 omitted the mule's coordinates. Candidate 8 passed the W8 wording, and installed recheck R2 passed with floor-block coordinates beside the mule link. |
 | E7 | PASS | Part A W2/C7/P1: receipt, submission and summary timing lines; backend/tool wall totals recorded. |
 
 ### Live-found code defects and fixes
@@ -27503,3 +27504,8 @@ Within 16 blocks, you’re on a stone platform with **six chests** in a row, a c
 Minecraft remains running/unpaused in save **PackSage Adapter Filter Live Test**, player restored to (1003.5,250,1002.5), bridge enabled on `127.0.0.1:25599`. After the required title exit/rejoin, all settings remain intact, GET /prompt is text:null and effectiveText still equals candidate 8. [round4-final.json](../../build/final-review-live/round4-final.json), [round4-final-state.png](../../build/final-review-live/round4-final-state.png), [round4-final-prompt.json](../../build/final-review-live/round4-final-prompt.json).
 
 Remaining acceptance blockers: (1) W2 unexpectedly ends PARTIAL on the no-AI/no-gravity fixture despite exact-once UUID coverage; its first result is retained for controller review. (2) Both plan_recipe calls return no routes under bounded-live-recipe-scan, leaving route omission counts and complete leading inputs unexercised. No confirmed encoder/tool error occurred. The build wrapper terminal exit code was unavailable as noted in setup; Gradle success and matching installed artifact are separately evidenced. No code changes or failure retries were made. Only this validation file is included in the requested commit; raw artifacts remain ignored.
+
+#### Controller rulings on round 4
+
+- **W2 final page PARTIAL: code defect, fixed in 744a96d.** All 160 chickens came back exactly once. The last page still reported "Entity cursor anchor is gone or moved". When a page fills, its cursor anchors on the last entity seen in UUID order, which need not be a listed match. The no-AI fixture chickens still lay eggs, so a short-lived item entity can be that anchor. Pages resume after the anchor's UUID in the sorted snapshot, so a vanished anchor skips nothing, and the note was a false gap. It is removed; the regression now asserts exact UUID-order resumption after a removed anchor. A controller rerun at the same position before the fix (request in `build/m1-live/w2-repro.json`) returned 64 + 64 + 32 and COMPLETE.
+- **plan_recipe leading routes: NOT RUN, existing planner limitation.** The encoder's route-limit branch is covered by automated tests (64, 128 and 256 realistic routes). Live beacon and enchanting-table plans returned no route records because the bounded live recipe scan is partial, and a controller probe also got zero routes for oak planks. RecipePlanner and the native recipe reader are unchanged on this branch, so this is a pre-existing planner limitation, recorded as a follow-up. The model fell back to search_recipe and answered correctly.

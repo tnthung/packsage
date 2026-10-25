@@ -13266,3 +13266,42 @@ Scores use the original 14 scored probes (Q8a/Q8b separate); cactus is supplemen
 | 4 | 13 | Q5 | PASS |
 | 5 | 12 | Q1, Q5 | PASS |
 | 6 | 13 | Q8a (explicit write-call miss; existing-note confounder) | PASS |
+
+## Installed default (Task 6)
+
+- Build/install HEAD: `48e59e8`. Clean native Save and Quit to Title, then Quit Game; the instance Java process exited before `powershell -ExecutionPolicy Bypass -File scripts\build.ps1`. The script completed successfully (`test` and `build` were up-to-date) and installed `mods/packsage.jar`.
+- Installed SHA-256, verified again after both smokes: **731C8442CFD230A24B33E4E2770C4C2675469366F74692F00D8535C6E7090242**.
+- Removed only the single `developerPrompt` property with UTF-8 without a BOM; `debugBridge=true` and the other settings were preserved. The property remained absent after testing. On this fresh launch, `GET /prompt` returned `text:null` (effective default length 21,853 characters), both before and after the smokes.
+- Relaunched through CurseForge Packsage -> Play and opened New World, folder `PackSage Adapter Filter Live Test`. Bridge PID `43024`; initial `GET /state`: `running=true`, `paused=false`, `screen=null`, position `(1003.5,250,1002.5)`. Native control ended after the minimize action; subsequent game operations used HTTP only. Both requests used new chats, GPT-6-Sol, medium, Screenshot=true, Search=AUTOMATIC.
+
+### Stone smoke - PASS
+
+- Exact question: `where is my stone?` Request `0cc490b6-d164-4941-853c-776b562187b3`; conversation `e39f188d-b60a-466f-ac4d-dc2cb00121fd`; completed and saved. One call in one group, elapsed 10,473 ms; tool wall 188 ms.
+- `find_items` arguments: `{"filter":{"ids":null,"tags":null,"text":"stone","tooltip":null},"center":null,"radius":16,"includeNested":true,"cursor":null}`. Result: COMPLETE, 6 records, no continuation; `minecraft:stone` count 64 at `block:minecraft:overworld|1002,250,1006>minecraft/container#0@minecraft:stone`.
+- Rendered **Show Stone** and **Show Container** links. `POST /navigate` with the reply-owned target `world-block|minecraft:overworld|1002,250,1006` returned `{"status":"OPENED","detail":null}`. The unobscured screenshot visibly showed the intended chest outlined in yellow.
+- Reply screenshot: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/screenshots/packsage-debug-09254a6f-0c2f-48dd-bea6-f6bf712edabd.png`. Outline screenshot: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/screenshots/packsage-debug-6141ca97-5d71-4a0c-809a-fd79b341b487.png`.
+
+Verbatim reply:
+
+```text
+Your **64 stone** is in the container at **(1002, 250, 1006)**—one block west and four blocks south of where you were standing. [Stone](world:item|block:minecraft:overworld|1002,250,1006>minecraft/container#0@minecraft:stone) [Container](world:block|minecraft:overworld|1002,250,1006)
+```
+
+### Fresh-launch journal smoke - PASS
+
+- Created one disposable block with `setblock 1004 250 1003 minecraft:gold_block keep` (success, result=1), then `POST /player/break` with `{"x":1004,"y":250,"z":1003}` returned `{"success":true}`.
+- Exact question: `what did I just break?` Request `b1dcbbe8-d0b5-45f5-abd6-80f45be2f641`; conversation `bf1d710a-21c8-495a-8ef1-66ea30d80607`; completed and saved. One call in one group, elapsed 13,128 ms; tool wall 16 ms.
+- `search_journal` arguments: `{"filter":{"time":{"after":null,"before":null,"lastMinutes":10},"area":null,"dimension":null,"types":["break"],"subjects":null,"text":null,"notesOnly":null},"cursor":null}`. Result: COMPLETE, 2 records, no continuation, detail `recording since 2026-10-25T10:23:33.174Z`. New event `journal:event:29` records `type=break`, `subject=minecraft:gold_block`, `amount=1`, `at=minecraft:overworld|1004,250,1003`, timestamp `2026-10-25T15:24:14.100Z`. This confirms journal recording and reads work on the fresh launch.
+- Rendered reply included **Show in world**. Reply screenshot: `C:/Users/hung1/curseforge/minecraft/Instances/Packsage/screenshots/packsage-debug-7a93d551-428d-48c4-9962-1ba730d1a638.png`.
+
+Verbatim reply:
+
+```text
+You just broke a **gold block** at (1004, 250, 1003). [journal:event:29]
+```
+
+### Incident and final state
+
+The minimize action coincided with an unintended player break of the chest at `(1003,250,1006)`, recorded as `journal:event:28` at `2026-10-25T15:22:34.919Z`. The stone smoke ran while that chest was absent, so its result covered the remaining 64-stone chest. After the smokes, bridge commands restored the affected chest facing north. Its two observed dropped stacks were preserved: one shulker box with 7 stone in its container slot 0, and 16 stripped oak wood. `data get block 1003 250 1006 Items` confirmed those contents in chest slots 0 and 1; only the two identified duplicate item entities were then removed. The historical break event remains.
+
+Final bridge state: `running=true`, `paused=false`, `screen=null`, world `PackSage Adapter Filter Live Test`, position `(1003.5,250,1002.5)`. The default remains active. Raw bridge evidence is retained under ignored `build/task6-installed-default/` (`stone.json`, `break.json`, `launch.json`, `restoration.json`). No code changes or push; this validation file is the only repository change.

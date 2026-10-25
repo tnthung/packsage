@@ -15,11 +15,6 @@ public final class AdapterRegistry {
         if (adapters.stream().anyMatch(value -> value.metadata().id().equals(adapter.metadata().id()))) {
             throw new IllegalArgumentException("duplicate adapter id: " + adapter.metadata().id());
         }
-        for (var type : adapter.metadata().inventoryTargets().keySet()) {
-            if (adapters.stream().anyMatch(value -> value.metadata().inventoryTargets().containsKey(type))) {
-                throw new IllegalArgumentException("duplicate inventory target: " + type);
-            }
-        }
         adapters.add(adapter);
     }
 
@@ -37,7 +32,6 @@ public final class AdapterRegistry {
         CompletionStage<Evidence.Result> result;
         try {
             result = switch (request.tool()) {
-                case "search_inventory" -> adapters.get(index).searchInventory(request, context);
                 case "search_document" -> adapters.get(index).searchDocument(request, context);
                 case "search_recipe" -> adapters.get(index).searchRecipe(request, context);
                 case "search_registry" -> adapters.get(index).searchRegistry(request, context);

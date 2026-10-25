@@ -22,25 +22,25 @@ class ToolboxTest {
             var called = new ArrayList<String>();
             var registry = new AdapterRegistry();
             registry.register(new Adapter("decline") {
-                @Override public CompletionStage<Evidence.Result> searchInventory(PackSageTools.ReadRequest request, Context context) {
+                @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) {
                     called.add("decline");
                     throw new Failure(Code.NOT_HANDLED, "not mine");
                 }
             });
             var expected = new Evidence.Result(List.of(), coverage, Evidence.Outcome.PARTIAL, null);
             registry.register(new Adapter("owner") {
-                @Override public CompletionStage<Evidence.Result> searchInventory(PackSageTools.ReadRequest request, Context context) {
+                @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) {
                     called.add("owner");
                     return CompletableFuture.completedFuture(expected);
                 }
             });
             registry.register(new Adapter("later") {
-                @Override public CompletionStage<Evidence.Result> searchInventory(PackSageTools.ReadRequest request, Context context) {
+                @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) {
                     fail("handled empty/partial result must stop dispatch");
                     return null;
                 }
             });
-            assertSame(expected, registry.dispatch(new PackSageTools.ReadRequest("search_inventory", new Evidence.JsonObject(Map.of()), SCOPE),
+            assertSame(expected, registry.dispatch(new PackSageTools.ReadRequest("search_recipe", new Evidence.JsonObject(Map.of()), SCOPE),
                     new Toolbox.Context(() -> SCOPE, Map.of(), registry, new Toolbox.DocumentBudget(), null)).toCompletableFuture().join());
             assertEquals(List.of("decline", "owner"), called);
         }
@@ -152,18 +152,12 @@ class ToolboxTest {
     }
 
     @Test
-    void registrationRejectsDuplicateIdentityAndTargetButAllowsOverlappingSources() {
+    void registrationRejectsDuplicateIdentityButAllowsOverlappingSources() {
         var registry = new AdapterRegistry();
         registry.register(new Adapter("first"));
         registry.register(new Adapter("second"));
         assertEquals(2, registry.metadata().size());
         assertThrows(IllegalArgumentException.class, () -> registry.register(new Adapter("first")));
-        registry.register(new Adapter("target") {
-            @Override public Metadata metadata() { return new Metadata(id, List.of(), false, List.of(), Map.of("example:bag", "{}")); }
-        });
-        assertThrows(IllegalArgumentException.class, () -> registry.register(new Adapter("duplicate_target") {
-            @Override public Metadata metadata() { return new Metadata(id, List.of(), false, List.of(), Map.of("example:bag", "{}")); }
-        }));
     }
 
     @Test
@@ -184,6 +178,6 @@ class ToolboxTest {
     private static class Adapter implements Toolbox {
         final String id;
         Adapter(String id) { this.id = id; }
-        @Override public Metadata metadata() { return new Metadata(id, List.of("guide"), true, List.of(), Map.of()); }
+        @Override public Metadata metadata() { return new Metadata(id, List.of("guide"), true, List.of()); }
     }
 }

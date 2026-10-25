@@ -14,13 +14,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ReferenceAliasBackendTest {
     private static final String REFERENCE = "native:inventory:07cd5168-5d6e-48b3-95ac-9f9889de7ef6:player:main";
-    private static final String SLOT = "native:inventory:07cd5168-5d6e-48b3-95ac-9f9889de7ef6:player:main:12";
     private static final ModelBackend.ToolResult RESULT = new ModelBackend.ToolResult("inventory", """
             {"coverage":"COMPLETE","outcome":"COMPLETE","records":[{
               "reference":"native:inventory:07cd5168-5d6e-48b3-95ac-9f9889de7ef6:player:main",
               "source":{"providerId":"native","sourceHandle":"inventory:07cd5168-5d6e-48b3-95ac-9f9889de7ef6:player:main"},
-              "payload":{"slotReference":"native:inventory:07cd5168-5d6e-48b3-95ac-9f9889de7ef6:player:main:12",
-                "text":"Quote native:inventory:07cd5168-5d6e-48b3-95ac-9f9889de7ef6:player:main exactly.",
+              "payload":{"text":"Quote native:inventory:07cd5168-5d6e-48b3-95ac-9f9889de7ef6:player:main exactly.",
                 "identity":"minecraft:bundle","count":1},"title":"Bundle"}]}
             """, false);
 
@@ -30,22 +28,16 @@ class ReferenceAliasBackendTest {
         var events = new ArrayList<ModelBackend.Event>();
         var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
         exchange.submit(RESULT);
         var record = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
                 .getAsJsonArray("records").get(0).getAsJsonObject();
         String reference = record.get("reference").getAsString();
-        String slot = record.getAsJsonObject("payload").get("slotReference").getAsString();
 
         assertTrue(reference.matches("ref:[0-9a-f]{8}\\.[0-9a-z]+\\.[0-9a-z]+"), reference);
-        assertTrue(slot.matches("slot:[0-9a-f]{8}\\.[0-9a-z]+\\.[0-9a-z]+"), slot);
         assertEquals(reference, record.getAsJsonObject("source").get("sourceHandle").getAsString());
         assertEquals("Quote " + REFERENCE + " exactly.", record.getAsJsonObject("payload").get("text").getAsString());
         assertEquals("minecraft:bundle", record.getAsJsonObject("payload").get("identity").getAsString());
-        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("nested", "search_inventory", "{\"target\":{\"type\":\"item\",\"slotReference\":\"" + slot + "\"}}"), List.of(), null));
-        assertEquals(SLOT, JsonParser.parseString(events.getLast().toolCall().serializedArguments()).getAsJsonObject()
-                .getAsJsonObject("target").get("slotReference").getAsString());
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
                 new ModelBackend.ToolCall("read", "read_evidence", "{\"handles\":[\"" + reference + "\"]}"), List.of(), null));
         assertEquals(REFERENCE, JsonParser.parseString(events.getLast().toolCall().serializedArguments()).getAsJsonObject()
@@ -70,7 +62,7 @@ class ReferenceAliasBackendTest {
                 var events = new ArrayList<ModelBackend.Event>();
                 var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
                 actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                        new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                        new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
                 exchange.submit(RESULT);
                 String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
                         .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
@@ -81,7 +73,7 @@ class ReferenceAliasBackendTest {
                 actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(0, split), null, List.of(), null));
                 actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(split), null, List.of(), null));
                 actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
-                        List.of(new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"),
+                        List.of(new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"),
                                 actual.results.getFirst(), new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
                                         ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(answer, List.of())))), null));
                 String canonicalAnswer = template.replace("native:%s", "%s").formatted(REFERENCE, REFERENCE);
@@ -102,7 +94,7 @@ class ReferenceAliasBackendTest {
             var events = new ArrayList<ModelBackend.Event>();
             var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
             actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                    new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                    new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
             exchange.submit(RESULT);
             String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
                     .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
@@ -112,7 +104,7 @@ class ReferenceAliasBackendTest {
             actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(0, split), null, List.of(), null));
             actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(split), null, List.of(), null));
             actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
-                    List.of(new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"),
+                    List.of(new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"),
                             actual.results.getFirst(), new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
                                     ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(answer, List.of())))), null));
             String expected = "[native:" + alias + "](" + REFERENCE + ")";
@@ -131,7 +123,7 @@ class ReferenceAliasBackendTest {
                 var events = new ArrayList<ModelBackend.Event>();
                 var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
                 actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                        new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                        new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
                 exchange.submit(RESULT);
                 var record = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
                         .getAsJsonArray("records").get(0).getAsJsonObject();
@@ -142,7 +134,7 @@ class ReferenceAliasBackendTest {
                 actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(0, split), null, List.of(), null));
                 actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer.substring(split), null, List.of(), null));
                 actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
-                        List.of(new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"),
+                        List.of(new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"),
                                 actual.results.getFirst(), new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
                                         ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText(answer, List.of())))), null));
                 String expected = "[Springy Boot](" + REFERENCE + ")";
@@ -157,14 +149,13 @@ class ReferenceAliasBackendTest {
         var events = new ArrayList<ModelBackend.Event>();
         var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
         exchange.submit(RESULT);
         var record = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
                 .getAsJsonArray("records").get(0).getAsJsonObject();
         String alias = record.get("reference").getAsString();
-        String slot = record.getAsJsonObject("payload").get("slotReference").getAsString();
         String unchanged = "[Springy Boot] (ref:00000000.0.0) [Springy Boot] (wrong:" + alias
-                + ") [Springy Boot] (" + slot + ") and [label] remains prose.";
+                + ") and [label] remains prose.";
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, unchanged, null, List.of(), null));
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.FAILED, null, null, List.of(), "fixture"));
         assertEquals(unchanged, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
@@ -177,7 +168,7 @@ class ReferenceAliasBackendTest {
         var events = new ArrayList<ModelBackend.Event>();
         var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
         exchange.submit(RESULT);
         String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
                 .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
@@ -194,7 +185,7 @@ class ReferenceAliasBackendTest {
         var events = new ArrayList<ModelBackend.Event>();
         var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
         exchange.submit(RESULT);
         String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
                 .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
@@ -216,13 +207,11 @@ class ReferenceAliasBackendTest {
         var events = new ArrayList<ModelBackend.Event>();
         var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
         exchange.submit(RESULT);
         String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
                 .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
-        String slot = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
-                .getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("payload").get("slotReference").getAsString();
-        String answer = "[other:" + alias + "] [native:" + alias + "0] [native:" + slot + "] [native:ref:00000000.0.0]";
+        String answer = "[other:" + alias + "] [native:" + alias + "0] [native:ref:00000000.0.0]";
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer, null, List.of(), null));
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.FAILED, null, null, List.of(), "fixture"));
         assertEquals(answer, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
@@ -236,18 +225,17 @@ class ReferenceAliasBackendTest {
         var backend = new ReferenceAliasBackend(actual);
         var exchange = backend.start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
         exchange.submit(RESULT);
         var record = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
                 .getAsJsonArray("records").get(0).getAsJsonObject();
         String reference = record.get("reference").getAsString();
-        String slot = record.getAsJsonObject("payload").get("slotReference").getAsString();
-        for (String invalid : List.of(reference, slot + "0", slot.substring(0, slot.length() - 1) + "z", "slot:00000000.0.0")) {
-            var call = new ModelBackend.ToolCall("invalid-" + invalid, "search_inventory", "{\"target\":{\"type\":\"item\",\"slotReference\":\"" + invalid + "\"}}");
+        for (String invalid : List.of(reference + "0", reference.substring(0, reference.length() - 1) + "z", "ref:00000000.0.0")) {
+            var call = new ModelBackend.ToolCall("invalid-" + invalid, "read_evidence", "{\"handles\":[\"" + invalid + "\"]}");
             actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, call, List.of(), null));
             assertEquals(call, events.getLast().toolCall());
         }
-        var wrongKind = new ModelBackend.ToolCall("wrong-kind", "read_evidence", "{\"handles\":[\"" + slot + "\"]}");
+        var wrongKind = new ModelBackend.ToolCall("wrong-kind", "inspect_item", "{\"path\":\"" + reference + "\"}");
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, wrongKind, List.of(), null));
         assertEquals(wrongKind, events.getLast().toolCall());
         exchange.cancel();
@@ -256,13 +244,13 @@ class ReferenceAliasBackendTest {
         assertTrue(events.isEmpty());
         exchange = backend.start(new ModelBackend.Request("model", "instructions", List.of(new ModelBackend.Message(ModelBackend.Role.ASSISTANT,
                 List.of(new ModelBackend.TextContent("Previous [" + REFERENCE + "]")))), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
-        var prior = new ModelBackend.ToolCall("prior", "search_inventory", "{\"target\":{\"type\":\"item\",\"slotReference\":\"" + slot + "\"}}");
+        var prior = new ModelBackend.ToolCall("prior", "read_evidence", "{\"handles\":[\"" + reference + "\"]}");
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, prior, List.of(), null));
         assertEquals(prior, events.getLast().toolCall());
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "[" + reference + "].", null, List.of(), null));
         assertEquals("[" + reference + "].", events.getLast().text());
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
         exchange.submit(RESULT);
         String fresh = JsonParser.parseString(actual.results.getLast().serializedResult()).getAsJsonObject()
                 .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
@@ -272,62 +260,25 @@ class ReferenceAliasBackendTest {
     }
 
     @Test
-    void structuralLocationsAndContinuationArgumentsTranslateWhileProvenanceOwnerIdsAndCursorsStayExact() {
+    void continuationArgumentsTranslateWhileProvenanceLocationsAndCursorsStayExact() {
         var json = JsonParser.parseString(RESULT.serializedResult()).getAsJsonObject();
         var record = json.getAsJsonArray("records").get(0).getAsJsonObject();
-        var payload = record.getAsJsonObject("payload");
-        payload.add("owner", JsonParser.parseString("{\"slotReference\":\"" + SLOT + "\",\"ownerIdentity\":\"" + SLOT + "\"}"));
-        payload.add("mainhandLocation", JsonParser.parseString("{\"slotReference\":\"" + SLOT + "\"}"));
-        payload.add("metadata", JsonParser.parseString("{\"slotReference\":\"" + SLOT + "\"}"));
-        record.getAsJsonObject("source").add("provenance", JsonParser.parseString("[\"" + SLOT + "\"]"));
-        json.add("nextCall", JsonParser.parseString("{\"name\":\"search_inventory\",\"arguments\":{\"target\":{\"type\":\"item\",\"slotReference\":\"" + SLOT + "\"},\"cursor\":\"" + SLOT + "\"}}"));
+        record.getAsJsonObject("payload").add("location", JsonParser.parseString("{\"slotReference\":\"" + REFERENCE + "\"}"));
+        record.getAsJsonObject("source").add("provenance", JsonParser.parseString("[\"" + REFERENCE + "\"]"));
+        json.add("nextCall", JsonParser.parseString("{\"name\":\"list_items\",\"arguments\":{\"holder\":\"player\",\"cursor\":\"" + REFERENCE + "\"}}"));
         json.add("restartCall", JsonParser.parseString("{\"name\":\"read_evidence\",\"arguments\":{\"handles\":[\"" + REFERENCE + "\"]}}"));
         var actual = new FakeBackend();
         var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), ignored -> { });
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
         exchange.submit(new ModelBackend.ToolResult("inventory", json.toString(), false));
         var encoded = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject();
         var encodedRecord = encoded.getAsJsonArray("records").get(0).getAsJsonObject();
-        var encodedPayload = encodedRecord.getAsJsonObject("payload");
-        String slot = encodedPayload.get("slotReference").getAsString();
-        assertTrue(slot.startsWith("slot:"));
-        assertEquals(slot, encodedPayload.getAsJsonObject("owner").get("slotReference").getAsString());
-        assertEquals(slot, encodedPayload.getAsJsonObject("mainhandLocation").get("slotReference").getAsString());
-        assertEquals(SLOT, encodedPayload.getAsJsonObject("owner").get("ownerIdentity").getAsString());
-        assertEquals(SLOT, encodedPayload.getAsJsonObject("metadata").get("slotReference").getAsString());
-        assertEquals(SLOT, encodedRecord.getAsJsonObject("source").getAsJsonArray("provenance").get(0).getAsString());
-        assertEquals(slot, encoded.getAsJsonObject("nextCall").getAsJsonObject("arguments").getAsJsonObject("target").get("slotReference").getAsString());
-        assertEquals(SLOT, encoded.getAsJsonObject("nextCall").getAsJsonObject("arguments").get("cursor").getAsString());
+        assertTrue(encodedRecord.get("reference").getAsString().startsWith("ref:"));
+        assertEquals(REFERENCE, encodedRecord.getAsJsonObject("payload").getAsJsonObject("location").get("slotReference").getAsString());
+        assertEquals(REFERENCE, encodedRecord.getAsJsonObject("source").getAsJsonArray("provenance").get(0).getAsString());
+        assertEquals(REFERENCE, encoded.getAsJsonObject("nextCall").getAsJsonObject("arguments").get("cursor").getAsString());
         assertEquals(encodedRecord.get("reference"), encoded.getAsJsonObject("restartCall").getAsJsonObject("arguments").getAsJsonArray("handles").get(0));
-    }
-
-    @Test
-    void nativeStorageOwnersAndEntryPayloadLocationsReuseTheTypedSlotAlias() {
-        var json = JsonParser.parseString(RESULT.serializedResult()).getAsJsonObject();
-        var payload = json.getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("payload");
-        payload.add("owners", JsonParser.parseString("[{\"slotReference\":\"" + SLOT + "\",\"ownerIdentity\":\"" + SLOT + "\"}]"));
-        payload.add("entries", JsonParser.parseString("[{\"kind\":\"item\",\"payload\":{\"slotReference\":\"" + SLOT
-                + "\",\"location\":{\"slotReference\":\"" + SLOT + "\"},\"ownerIdentity\":\"" + SLOT + "\"}}]"));
-        payload.add("metadata", JsonParser.parseString("{\"owners\":[{\"slotReference\":\"" + SLOT
-                + "\"}],\"entries\":[{\"payload\":{\"slotReference\":\"" + SLOT + "\"}}]}"));
-        var actual = new FakeBackend();
-        var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), ignored -> { });
-        actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"item\",\"slotReference\":\"" + SLOT + "\"}}"), List.of(), null));
-        exchange.submit(new ModelBackend.ToolResult("inventory", json.toString(), false));
-        var encoded = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
-                .getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("payload");
-        String alias = encoded.get("slotReference").getAsString();
-        assertTrue(alias.startsWith("slot:"));
-        var owner = encoded.getAsJsonArray("owners").get(0).getAsJsonObject();
-        var entry = encoded.getAsJsonArray("entries").get(0).getAsJsonObject().getAsJsonObject("payload");
-        assertEquals(alias, owner.get("slotReference").getAsString());
-        assertEquals(alias, entry.get("slotReference").getAsString());
-        assertEquals(alias, entry.getAsJsonObject("location").get("slotReference").getAsString());
-        assertEquals(SLOT, owner.get("ownerIdentity").getAsString());
-        assertEquals(SLOT, entry.get("ownerIdentity").getAsString());
-        assertEquals(payload.get("metadata"), encoded.get("metadata"));
     }
 
     @Test
@@ -335,8 +286,8 @@ class ReferenceAliasBackendTest {
         var actual = new FakeBackend();
         var events = new ArrayList<ModelBackend.Event>();
         var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
-        var calls = List.of(new ModelBackend.ToolCall("first", "search_inventory", "{\"target\":{\"type\":\"player\"}}"),
-                new ModelBackend.ToolCall("second", "search_inventory", "{\"target\":{\"type\":\"player\"}}"));
+        var calls = List.of(new ModelBackend.ToolCall("first", "list_items", "{\"holder\":\"player\"}"),
+                new ModelBackend.ToolCall("second", "list_items", "{\"holder\":\"player\"}"));
         calls.forEach(call -> actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, call, List.of(), null)));
         CompletableFuture.allOf(CompletableFuture.runAsync(() -> exchange.submit(new ModelBackend.ToolResult("first", RESULT.serializedResult(), false))),
                 CompletableFuture.runAsync(() -> exchange.submit(new ModelBackend.ToolResult("second", RESULT.serializedResult(), false)))).join();
@@ -355,7 +306,7 @@ class ReferenceAliasBackendTest {
             var actual = new FakeBackend();
             var events = new ArrayList<ModelBackend.Event>();
             var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
-            var call = new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}");
+            var call = new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}");
             actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, call, List.of(), null));
             exchange.submit(RESULT);
             actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
@@ -372,7 +323,7 @@ class ReferenceAliasBackendTest {
         var actual = new FakeBackend();
         var events = new ArrayList<ModelBackend.Event>();
         var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
-        var call = new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}");
+        var call = new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}");
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, call, List.of(), null));
         exchange.submit(RESULT);
         String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
@@ -397,7 +348,7 @@ class ReferenceAliasBackendTest {
         var actual = new FakeBackend();
         var events = new ArrayList<ModelBackend.Event>();
         var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
-        var call = new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}");
+        var call = new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}");
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null, call, List.of(), null));
         exchange.submit(RESULT);
         String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
@@ -418,7 +369,7 @@ class ReferenceAliasBackendTest {
         var events = new ArrayList<ModelBackend.Event>();
         var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
         var json = JsonParser.parseString(RESULT.serializedResult()).getAsJsonObject();
         var record = json.getAsJsonArray("records").get(0).getAsJsonObject();
         record.addProperty("reference", "native:item:minecraft:bundle");
@@ -427,8 +378,7 @@ class ReferenceAliasBackendTest {
         var wire = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject().getAsJsonArray("records").get(0).getAsJsonObject();
         assertEquals("native:item:minecraft:bundle", wire.get("reference").getAsString());
         assertEquals("item:minecraft:bundle", wire.getAsJsonObject("source").get("sourceHandle").getAsString());
-        String slot = wire.getAsJsonObject("payload").get("slotReference").getAsString();
-        String answer = "Use " + slot + " as prose, [" + slot + "] as a wrong-kind citation, and `[` as code. [native:item:minecraft:bundle].";
+        String answer = "Use [item:minecraft:bundle] as an unqualified short reference, and `[` as code. [native:item:minecraft:bundle].";
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, answer, null, List.of(), null));
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.FAILED, null, null, List.of(), "fixture"));
         assertEquals(answer, events.stream().filter(event -> event.kind() == ModelBackend.EventKind.TEXT_DELTA)
@@ -441,7 +391,7 @@ class ReferenceAliasBackendTest {
         var events = new ArrayList<ModelBackend.Event>();
         var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
         actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                new ModelBackend.ToolCall("inventory", "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                new ModelBackend.ToolCall("inventory", "list_items", "{\"holder\":\"player\"}"), List.of(), null));
         exchange.submit(RESULT);
         String alias = JsonParser.parseString(actual.results.getFirst().serializedResult()).getAsJsonObject()
                 .getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString();
@@ -473,17 +423,17 @@ class ReferenceAliasBackendTest {
             var actual = new FakeBackend();
             var events = new ArrayList<ModelBackend.Event>();
             var exchange = new ReferenceAliasBackend(actual).start(new ModelBackend.Request("model", "instructions", List.of(), List.of(), ModelBackend.SearchMode.DISABLED, "request", 512), events::add);
-            var json = JsonParser.parseString("{\"records\":[{\"reference\":\"native:a\",\"source\":{\"providerId\":\"native\",\"sourceHandle\":\"a\"},\"payload\":{\"slotReference\":\"x\",\"mainhandSlotReference\":\"x\",\"offhandSlotReference\":\"x\",\"padding\":\"\"}}]}").getAsJsonObject();
+            var json = JsonParser.parseString("{\"records\":[{\"reference\":\"native:a\",\"source\":{\"providerId\":\"native\",\"sourceHandle\":\"a\"},\"payload\":{\"padding\":\"\"}}]}").getAsJsonObject();
             if (outputLimit) {
-                json.getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("payload").addProperty("padding", "x".repeat(131_071 - json.toString().length()));
-                assertEquals(131_071, json.toString().length());
+                json.getAsJsonArray("records").get(0).getAsJsonObject().getAsJsonObject("payload").addProperty("padding", "x".repeat(131_073 - json.toString().length()));
+                assertEquals(131_073, json.toString().length());
             } else {
                 json = new JsonObject();
                 json.addProperty("detail", "x".repeat(100_000));
             }
             for (int index = 0; index < (outputLimit ? 1 : 30); index++) {
                 actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
-                        new ModelBackend.ToolCall("call-" + index, "search_inventory", "{\"target\":{\"type\":\"player\"}}"), List.of(), null));
+                        new ModelBackend.ToolCall("call-" + index, "list_items", "{\"holder\":\"player\"}"), List.of(), null));
                 exchange.submit(new ModelBackend.ToolResult("call-" + index, json.toString(), false));
                 if (events.getLast().kind() == ModelBackend.EventKind.FAILED) break;
             }

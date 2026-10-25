@@ -396,7 +396,7 @@ class KnowledgeServiceTest {
         private final List<Evidence.Query> queries = new ArrayList<>();
         private PagedProvider(String id, Function<Evidence.Query, Evidence.Result> pages) { this.id = id; this.pages = pages; }
         @Override public String id() { return id; }
-        @Override public Metadata metadata() { return new Metadata(id, List.of("guide", "quest"), false, List.of(), Map.of()); }
+        @Override public Metadata metadata() { return new Metadata(id, List.of("guide", "quest"), false, List.of()); }
         @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
         @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) { queries.add(query); return CompletableFuture.completedFuture(pages.apply(query)); }
         @Override public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Context context) {
@@ -423,7 +423,7 @@ class KnowledgeServiceTest {
                     query.cursor() == null && query.limit() == 1 ? "more" : null));
             this.enabled = enabled;
         }
-        @Override public Metadata metadata() { return new Metadata(id(), List.of(), true, List.of(), Map.of()); }
+        @Override public Metadata metadata() { return new Metadata(id(), List.of(), true, List.of()); }
         @Override public boolean enabled() { return enabled.getAsBoolean(); }
         @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) {
             var filter = request.arguments().values().get("filter") instanceof Evidence.JsonObject value ? value : new Evidence.JsonObject(Map.of());

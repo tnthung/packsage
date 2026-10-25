@@ -1144,7 +1144,7 @@ class AssistantIntegrationTest {
             this.fail = fail;
         }
 
-        @Override public Metadata metadata() { return new Metadata(id, List.of("quest"), true, List.of(), Map.of()); }
+        @Override public Metadata metadata() { return new Metadata(id, List.of("quest"), true, List.of()); }
         @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) {
             var filter = request.arguments().values().get("filter") instanceof Evidence.JsonObject value ? value.values() : Map.<String, Evidence.JsonValue>of();
             if (!new Evidence.JsonString(id).equals(filter.get("provider"))) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "other source"));

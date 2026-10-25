@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PackSageToolsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
-    private static final List<String> NAMES = List.of("search_recipe", "search_registry", "search_inventory", "read_evidence", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
+    private static final List<String> NAMES = List.of("search_recipe", "search_registry", "read_evidence", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
             "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items");
 
     @Test
@@ -57,7 +57,7 @@ class PackSageToolsTest {
     }
 
     @Test
-    void exposesExactlyEighteenToolsAndKeepsOptionalArgumentsOptional() {
+    void exposesExactlySeventeenToolsAndKeepsOptionalArgumentsOptional() {
         var definitions = PackSageTools.definitions();
         assertEquals(NAMES, definitions.stream().map(ModelBackend.ToolDefinition::name).toList());
         for (var definition : definitions) {
@@ -66,9 +66,6 @@ class PackSageToolsTest {
             assertTrue(schema.getAsJsonArray("required").size() < schema.getAsJsonObject("properties").size()
                     || List.of("read_evidence", "read_history", "inspect_block", "inspect_entity", "inspect_item").contains(definition.name()));
         }
-        var inventory = JsonParser.parseString(definitions.get(2).serializedSchema()).getAsJsonObject();
-        assertTrue(inventory.getAsJsonObject("properties").getAsJsonObject("target").has("oneOf"));
-        assertEquals(32, inventory.getAsJsonObject("properties").getAsJsonObject("limit").get("maximum").getAsInt());
         for (var name : List.of("search_recipe", "search_registry")) {
             var schema = definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow();
             assertEquals(64, JsonParser.parseString(schema.serializedSchema()).getAsJsonObject().getAsJsonObject("properties").getAsJsonObject("limit").get("maximum").getAsInt());
@@ -83,13 +80,6 @@ class PackSageToolsTest {
         assertTrue(recipe.contains("outputItem without text"));
         assertTrue(recipe.contains("Find Minecraft's loaded recipes"));
         assertTrue(recipe.contains("case-insensitive literal match"));
-        var inventory = definitions.stream().filter(value -> value.name().equals("search_inventory")).findFirst().orElseThrow().description();
-        assertTrue(inventory.contains("Player summaries do not include nested containers"));
-        assertTrue(inventory.contains("returned slotReference"));
-        assertTrue(inventory.contains("vanilla inventory and equipment slots"));
-        assertTrue(inventory.contains("selected item's own record first, in section item"));
-        assertTrue(inventory.contains("enchantmentEligibility"));
-        assertTrue(inventory.contains("Target opened reads the open menu named by openedMenu when it is a supported vanilla menu"));
         var registry = definitions.stream().filter(value -> value.name().equals("search_registry")).findFirst().orElseThrow().description();
         assertTrue(registry.contains("active_effect lists the player's current effect instances"));
         assertTrue(registry.contains("(durationTicks, amplifier, ambient, attributeModifiers)"));
@@ -107,7 +97,7 @@ class PackSageToolsTest {
             assertTrue(description.contains("Do not pass search cursors"));
         }
         var evidence = definitions.stream().filter(value -> value.name().equals("read_evidence")).findFirst().orElseThrow().description();
-        assertTrue(evidence.contains("An inventory slot record's reference rereads that item's current record, including enchantmentEligibility"));
+        assertTrue(evidence.contains("An item record's reference rereads that item's current record, including enchantmentEligibility."));
     }
 
     @Test
@@ -238,34 +228,22 @@ class PackSageToolsTest {
     }
 
     @Test
-    void validatesNestedTargetFilterAndRegisteredMetadataBeforeDispatch() throws Exception {
+    void validatesRegisteredMetadataBeforeDispatch() throws Exception {
         var calls = new AtomicInteger();
-        var custom = new Toolbox.Metadata("ae2", List.of("network_doc"), false, List.of("channel"), Map.of(
-                "ae2:network", "{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"ae2:network\"},\"reference\":{\"type\":\"string\",\"maxLength\":128}},\"required\":[\"type\",\"reference\"],\"additionalProperties\":false}"));
+        var custom = new Toolbox.Metadata("ae2", List.of("network_doc"), false, List.of("channel"));
         var tools = new PackSageTools(request -> { calls.incrementAndGet(); return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)); }, List.of(custom));
-        for (var arguments : List.of(
-                "{\"target\":{\"type\":\"ae2:network\",\"reference\":\"seen\"}}",
-                "{\"target\":{\"type\":\"ae2:network\",\"reference\":\"seen\"},\"filter\":{\"ids\":[\"minecraft:iron_ingot\"],\"tags\":[\"minecraft:ingots/iron\"]}}")) {
-            assertFalse(tools.execute(new ModelBackend.ToolCall("ok", "search_inventory", arguments), SCOPE).toCompletableFuture().get().result().error());
-        }
         assertFalse(tools.execute(new ModelBackend.ToolCall("recipe", "search_recipe", "{}"), SCOPE).toCompletableFuture().get().result().error());
         assertFalse(tools.execute(new ModelBackend.ToolCall("registry", "search_registry", "{\"registry\":\"channel\"}"), SCOPE).toCompletableFuture().get().result().error());
-        for (var arguments : List.of(
-                "{\"target\":{\"type\":\"unknown\"}}",
-                "{\"target\":{\"type\":\"ae2:network\",\"reference\":\"seen\",\"extra\":true}}",
-                "{\"target\":{\"type\":\"ae2:network\",\"reference\":5}}",
-                "{\"target\":{\"type\":\"ae2:network\",\"reference\":\"seen\"},\"filter\":{\"ids\":[\"Bad:ID\"]}}",
-                "{\"target\":{\"type\":\"ae2:network\",\"reference\":\"seen\"},\"filter\":{\"unknown\":true}}")) {
-            assertTrue(tools.execute(new ModelBackend.ToolCall("bad", "search_inventory", arguments), SCOPE).toCompletableFuture().get().result().error());
-        }
-        assertEquals(4, calls.get());
+        assertTrue(tools.execute(new ModelBackend.ToolCall("bad", "search_registry", "{\"registry\":\"item\"}"), SCOPE).toCompletableFuture().get().result().error());
+        assertTrue(tools.execute(new ModelBackend.ToolCall("bad", "search_recipe", "{\"filter\":{\"unknown\":true}}"), SCOPE).toCompletableFuture().get().result().error());
+        assertEquals(2, calls.get());
     }
 
     @Test
     void omittedOptionalArgumentsAreAcceptedAndRequiredArgumentsRemainRequired() throws Exception {
         var requests = new java.util.ArrayList<PackSageTools.ReadRequest>();
         var tools = new PackSageTools(request -> { requests.add(request); return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)); });
-        for (var call : List.of(new ModelBackend.ToolCall("inv", "search_inventory", "{\"target\":{\"type\":\"player\"}}"),
+        for (var call : List.of(new ModelBackend.ToolCall("items", "list_items", "{\"holder\":\"player\"}"),
                 new ModelBackend.ToolCall("plan", "plan_recipe", "{\"identity\":\"minecraft:iron_ingot\",\"quantity\":1}"),
                 new ModelBackend.ToolCall("recipe", "search_recipe", "{}"),
                 new ModelBackend.ToolCall("registry", "search_registry", "{\"registry\":\"item\"}"),

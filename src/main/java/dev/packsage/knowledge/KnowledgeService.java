@@ -126,7 +126,7 @@ public final class KnowledgeService {
                               List<String> sources, int index, String sourceCursor) { }
         private final Map<String, Cursor> cursors = new LinkedHashMap<>();
 
-        @Override public Metadata metadata() { return new Metadata("discovery", List.of(), false, List.of(), Map.of()); }
+        @Override public Metadata metadata() { return new Metadata("discovery", List.of(), false, List.of()); }
         @Override public CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Context context) { return search(request, context); }
         @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) { return search(request, context); }
 

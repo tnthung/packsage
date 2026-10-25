@@ -6,9 +6,7 @@ import dev.packsage.knowledge.KnowledgeIndex;
 import dev.packsage.knowledge.KnowledgeProvider;
 import dev.packsage.knowledge.RecipePlanner;
 import dev.packsage.knowledge.Toolbox;
-import dev.packsage.knowledge.inventory.InventoryReader;
 import dev.packsage.knowledge.storage.NativeStorageReader;
-import dev.packsage.knowledge.storage.StorageReader;
 import dev.packsage.model.PackSageTools;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.Registries;
@@ -74,8 +72,7 @@ public final class NativeProvider implements KnowledgeProvider {
     @Override
     public Toolbox.Metadata metadata() {
         return new Toolbox.Metadata(id(), List.of(), true, List.of("item", "block", "item_tag", "enchantment", "mob_effect", "potion", "active_effect", "player_attribute",
-                "dimension", "dimension_type"),
-                PackSageTools.NATIVE_INVENTORY_TARGETS);
+                "dimension", "dimension_type"));
     }
 
     @Override public ProviderStatus status() { return latestStatus; }
@@ -133,68 +130,6 @@ public final class NativeProvider implements KnowledgeProvider {
         var requested = List.copyOf(identities);
         return execute(scope, requested, index -> index.search(new Evidence.Query(Evidence.Operation.SEARCH,
                 new Evidence.JsonObject(Map.of()), 64, null, null), scope).toCompletableFuture().join(), true);
-    }
-
-    @Override
-    public CompletionStage<Evidence.Result> searchInventory(PackSageTools.ReadRequest request, Toolbox.Context context) {
-        if (client == null || inventory == null || storage == null) return unavailable(request.scope(), "native inventory source unavailable");
-        var target = request.arguments().values().get("target");
-        if (!(target instanceof Evidence.JsonObject object)
-                || !(object.values().get("type") instanceof Evidence.JsonString type)) return CompletableFuture.failedFuture(
-                new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "inventory target is invalid"));
-        var filterValue = request.arguments().values().get("filter");
-        if (filterValue != null && !(filterValue instanceof Evidence.JsonObject) && !(filterValue instanceof Evidence.JsonNull)) {
-            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "inventory filter is invalid"));
-        }
-        var fields = filterValue instanceof Evidence.JsonObject value ? value : new Evidence.JsonObject(Map.of());
-        try {
-            var filterValues = new LinkedHashMap<String, List<String>>();
-            for (String field : List.of("names", "ids", "tags", "tooltip", "sections")) {
-                var value = fields.values().get(field);
-                if (value == null || value instanceof Evidence.JsonNull) {
-                    filterValues.put(field, List.of());
-                } else if (value instanceof Evidence.JsonArray array
-                        && array.values().stream().allMatch(Evidence.JsonString.class::isInstance)) {
-                    filterValues.put(field, array.values().stream().map(Evidence.JsonString.class::cast)
-                            .map(Evidence.JsonString::value).toList());
-                } else {
-                    throw new IllegalArgumentException(field + " must be an array of strings");
-                }
-            }
-            var filter = new InventoryReader.Filter(filterValues.get("names"), filterValues.get("ids"), filterValues.get("tags"),
-                    filterValues.get("tooltip"), filterValues.get("sections"));
-            var limitValue = request.arguments().values().get("limit");
-            if (limitValue != null && !(limitValue instanceof Evidence.JsonNull) && !(limitValue instanceof Evidence.JsonNumber)) {
-                throw new IllegalArgumentException("limit must be an integer");
-            }
-            int limit = limitValue instanceof Evidence.JsonNumber number ? number.value().intValueExact() : 32;
-            var cursorValue = request.arguments().values().get("cursor");
-            if (cursorValue != null && !(cursorValue instanceof Evidence.JsonNull) && !(cursorValue instanceof Evidence.JsonString)) {
-                throw new IllegalArgumentException("cursor must be a string");
-            }
-            String cursor = cursorValue instanceof Evidence.JsonString value ? value.value() : null;
-            if (type.value().equals("player")) return inventory.read(new InventoryReader.Request(InventoryReader.Operation.SEARCH,
-                    filter, limit, cursor, request.scope()));
-            if (type.value().equals("opened") || type.value().equals("targeted") || type.value().equals("ridden") || type.value().equals("item")) {
-                var storageTarget = switch (type.value()) {
-                    case "opened" -> StorageReader.Target.OPENED;
-                    case "targeted" -> StorageReader.Target.TARGETED;
-                    case "ridden" -> StorageReader.Target.RIDDEN;
-                    case "item" -> StorageReader.Target.ITEM;
-                    default -> throw new IllegalStateException(type.value());
-                };
-                var reference = object.values().get("slotReference") instanceof Evidence.JsonString value ? value.value() : null;
-                if (storageTarget == StorageReader.Target.ITEM && reference == null
-                        && object.values().get("slot") instanceof Evidence.JsonString hand) {
-                    return client.submit(() -> inventory.selectedReference(hand.value(), request.scope())).thenCompose(value ->
-                            storage.read(new StorageReader.Request(storageTarget, value, null, List.of(), limit, cursor, request.scope(), filter)));
-                }
-                return storage.read(new StorageReader.Request(storageTarget, reference, null, List.of(), limit, cursor, request.scope(), filter));
-            }
-            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.NOT_HANDLED, "native inventory target"));
-        } catch (IllegalArgumentException failure) {
-            return CompletableFuture.failedFuture(new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, failure.getMessage()));
-        }
     }
 
     @Override

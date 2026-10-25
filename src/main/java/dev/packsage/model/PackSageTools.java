@@ -10,18 +10,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 
 public final class PackSageTools {
-    public static final Map<String, String> NATIVE_INVENTORY_TARGETS = Map.of(
-            "player", "{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"player\"}},\"required\":[\"type\"],\"additionalProperties\":false}",
-            "opened", "{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"opened\"}},\"required\":[\"type\"],\"additionalProperties\":false}",
-            "targeted", "{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"targeted\"}},\"required\":[\"type\"],\"additionalProperties\":false}",
-            "ridden", "{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"ridden\"}},\"required\":[\"type\"],\"additionalProperties\":false}",
-            "item", "{\"type\":\"object\",\"properties\":{\"type\":{\"const\":\"item\"},\"slot\":{\"type\":\"string\",\"enum\":[\"mainhand\",\"offhand\"]},\"slotReference\":{\"type\":\"string\",\"maxLength\":1024}},\"required\":[\"type\"],\"additionalProperties\":false}");
     private static final String WORLD_ANCHOR = "{\"type\":[\"object\",\"null\"],\"properties\":{\"type\":{\"type\":\"string\",\"enum\":[\"player\",\"entity\",\"block\"]},\"id\":{\"type\":[\"string\",\"null\"],\"maxLength\":36},\"place\":{\"type\":[\"string\",\"null\"],\"maxLength\":300}},\"required\":[\"type\"],\"additionalProperties\":false}";
     private static final String WORLD_RADIUS = "{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":256}";
     private static final String WORLD_FILTER = "{\"type\":\"object\",\"properties\":{\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256}},\"additionalProperties\":false}";
@@ -64,16 +57,12 @@ public final class PackSageTools {
     }
 
     private static List<Toolbox.Metadata> nativeMetadata() {
-        return List.of(new Toolbox.Metadata("native", List.of(), true, NATIVE_REGISTRIES, NATIVE_INVENTORY_TARGETS));
+        return List.of(new Toolbox.Metadata("native", List.of(), true, NATIVE_REGISTRIES));
     }
 
     public static List<ModelBackend.ToolDefinition> definitions(List<Toolbox.Metadata> metadata) {
-        var targetChoices = new JsonArray();
-        metadata.forEach(adapter -> adapter.inventoryTargets().values().forEach(schema -> targetChoices.add(JsonParser.parseString(schema))));
-        var targetSchema = new JsonObject();
-        targetSchema.add("oneOf", targetChoices);
         var definitions = new ArrayList<ModelBackend.ToolDefinition>();
-        for (var name : List.of("search_recipe", "search_registry", "search_inventory", "read_evidence",
+        for (var name : List.of("search_recipe", "search_registry", "read_evidence",
                 "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
                 "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items")) {
             var properties = new JsonObject();
@@ -86,11 +75,6 @@ public final class PackSageTools {
                     properties.add("registry", registry);
                     required.add("registry");
                     properties.add("filter", JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":512},\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":64,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}}},\"additionalProperties\":false}"));
-                }
-                case "search_inventory" -> {
-                    properties.add("target", targetSchema);
-                    required.add("target");
-                    properties.add("filter", JsonParser.parseString("{\"type\":[\"object\",\"null\"],\"properties\":{\"names\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256}},\"ids\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tags\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"tooltip\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":512}},\"sections\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":64}}},\"additionalProperties\":false}"));
                 }
                 case "read_evidence" -> { properties.add("handles", JsonParser.parseString("{\"type\":\"array\",\"minItems\":1,\"maxItems\":16,\"items\":{\"type\":\"string\",\"maxLength\":1024}}")); required.add("handles"); }
                 case "read_history" -> {
@@ -156,9 +140,9 @@ public final class PackSageTools {
                 provider.add("enum", choices);
                 properties.getAsJsonObject("filter").getAsJsonObject("properties").add("provider", provider);
             }
-            if (List.of("search_recipe", "search_registry", "search_inventory", "list_configs", "search_config", "search_history").contains(name)) {
+            if (List.of("search_recipe", "search_registry", "list_configs", "search_config", "search_history").contains(name)) {
                 var limit = JsonParser.parseString("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":64}").getAsJsonObject();
-                limit.addProperty("maximum", name.equals("search_inventory") ? 32 : name.equals("search_history") ? 16 : 64);
+                limit.addProperty("maximum", name.equals("search_history") ? 16 : 64);
                 properties.add("limit", limit);
                 properties.add("cursor", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":1024}"));
             }
@@ -170,11 +154,10 @@ public final class PackSageTools {
             definitions.add(new ModelBackend.ToolDefinition(name, switch (name) {
                 case "search_recipe" -> "Find Minecraft's loaded recipes, including supported brewing transformations. Text is a case-insensitive literal match. For an exact output, use outputItem without text unless text is an additional intended filter; variants can differ in components. requiredInputTotals, when present, totals only unambiguous returned inputs and inherits record coverage. An advancing nextCall can scan other recipes before brewing and return empty pages.";
                 case "search_registry" -> "Find identities in one registry catalog. active_effect lists the player's current effect instances (durationTicks, amplifier, ambient, attributeModifiers), with description when the mod provides one; descriptionStatus reports not_provided, unknown, or bounded for a truncated description. player_attribute lists current attribute base and value with modifiers whose IDs name their sources, such as minecraft:effect.luck or an item's modifier ID. Minecraft does not record who applied an effect.";
-                case "search_inventory" -> "Read current contents of one target. Target item (mainhand, offhand or a slotReference) returns the selected item's own record first, in section item with components, potion contents and enchantmentEligibility, before any contents it holds. Target opened reads the open menu named by openedMenu when it is a supported vanilla menu. Player summaries do not include nested containers; inspect each relevant carried container, including multiple matching items, with its returned slotReference. Player reads cover vanilla inventory and equipment slots.";
                 case "search_config" -> "Find accessible config keys and comments, including machine speed, energy and upgrade settings. Use returned config references with read_config; preserve scope and effective-value authority.";
                 case "read_config" -> "Read a discovered config key or section at call time. A file value is not necessarily the effective server setting; preserve returned authority and scope.";
                 case "plan_recipe" -> "Plan recipe routes for an item identity and quantity, including brewing routes, with unresolved dependencies and coverage. It does not read owned materials or establish affordability. Routes cover every component variant of the identity; match output components. The live recipe scan is bounded, so a missing route is not absence. Brewing routes withhold operation counts (batches null); state only what their operationSemantics supports.";
-                case "read_evidence" -> "Read current evidence for returned record references only. Do not pass search cursors, labels or guessed references. An inventory slot record's reference rereads that item's current record, including enchantmentEligibility.";
+                case "read_evidence" -> "Read current evidence for returned record references only. Do not pass search cursors, labels or guessed references. An item record's reference rereads that item's current record, including enchantmentEligibility.";
                 case "inspect_area" -> "Summarize the loaded world around center (default the player, radius 16): block counts, notable blocks such as containers, workstations, beds and spawners grouped by role and block, and nearby entities. Then list_blocks or list_entities with a filter for linkable places, and inspect_block or inspect_entity what matters.";
                 case "list_blocks" -> "List blocks matching filter (ids, tags or name text) within radius of center, 64 per page, each with its place and a highlight link. Inspect what matters with inspect_block.";
                 case "list_entities" -> "List entities such as mobs, villagers, item frames and minecarts matching filter within radius of center, 64 per page, each with its id, position and a highlight link. Inspect what matters with inspect_entity.";
@@ -260,13 +243,6 @@ public final class PackSageTools {
             if (call.name().equals("search_history")
                     && ((Evidence.JsonString) arguments.values().get("text")).value().isBlank()) {
                 throw new IllegalArgumentException("search text must not be blank");
-            }
-            if (call.name().equals("search_inventory")) {
-                var target = JsonParser.parseString(Evidence.serialize(arguments.values().get("target"))).getAsJsonObject();
-                if (target.get("type").getAsString().equals("item") && target.has("slot") == target.has("slotReference")) {
-                    throw new IllegalArgumentException("item target requires exactly one of slot or slotReference");
-                }
-                if (target.has("slotReference") && target.get("slotReference").getAsString().isBlank()) throw new IllegalArgumentException("slotReference must not be blank");
             }
             if (call.name().equals("read_config") && !(arguments.values().get("key") instanceof Evidence.JsonString)
                     && !(arguments.values().get("section") instanceof Evidence.JsonString)) throw new IllegalArgumentException("select a config key or section");

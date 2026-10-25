@@ -68,8 +68,6 @@ public final class ReferenceAliasBackend implements ModelBackend {
         private final Consumer<Event> events;
         private final Map<String, String> evidence = new HashMap<>();
         private final Map<String, String> evidenceAliases = new HashMap<>();
-        private final Map<String, String> slots = new HashMap<>();
-        private final Map<String, String> slotAliases = new HashMap<>();
         private final Map<String, ToolCall> wireCalls = new HashMap<>();
         private final Map<String, ToolCall> canonicalCalls = new HashMap<>();
         private final Map<String, ToolResult> wireResults = new HashMap<>();
@@ -250,13 +248,12 @@ public final class ReferenceAliasBackend implements ModelBackend {
                             && source.get("providerId") instanceof com.google.gson.JsonPrimitive provider && provider.isString()
                             && source.get("sourceHandle") instanceof com.google.gson.JsonPrimitive handle && handle.isString()
                             && reference.getAsString().equals(provider.getAsString() + ":" + handle.getAsString())) {
-                        String alias = register(reference.getAsString(), false);
+                        String alias = register(reference.getAsString());
                         if (!alias.equals(reference.getAsString())) {
                             record.addProperty("reference", alias);
                             source.addProperty("sourceHandle", alias);
                         }
                     }
-                    if (record.get("payload") instanceof JsonObject payload) encodeSlots(payload, 0);
                 }
             }
             for (String key : List.of("nextCall", "restartCall")) {
@@ -273,39 +270,14 @@ public final class ReferenceAliasBackend implements ModelBackend {
             return new ToolResult(result.callId(), encoded, result.error());
         }
 
-        private void encodeSlots(JsonObject object, int depth) {
-            if (depth > 16) throw new IllegalStateException("reference location nesting limit reached");
-            for (String key : List.of("slotReference", "mainhandSlotReference", "offhandSlotReference")) {
-                if (object.get(key) instanceof com.google.gson.JsonPrimitive value && value.isString() && !value.getAsString().isBlank()) {
-                    object.addProperty(key, register(value.getAsString(), true));
-                }
-            }
-            for (String key : List.of("owner", "location", "mainhandLocation", "offhandLocation")) {
-                if (object.get(key) instanceof JsonObject nested) encodeSlots(nested, depth + 1);
-            }
-            if (object.get("owners") instanceof com.google.gson.JsonArray owners) {
-                for (JsonElement value : owners) {
-                    if (value instanceof JsonObject owner) encodeSlots(owner, depth + 1);
-                }
-            }
-            if (object.get("entries") instanceof com.google.gson.JsonArray entries) {
-                for (JsonElement value : entries) {
-                    if (value instanceof JsonObject entry && entry.get("payload") instanceof JsonObject payload) {
-                        encodeSlots(payload, depth + 1);
-                    }
-                }
-            }
-        }
-
-        private String register(String canonical, boolean slot) {
-            if (!slot && canonical.length() <= 32) return canonical;
-            Map<String, String> aliases = slot ? slotAliases : evidenceAliases;
-            if (aliases.containsKey(canonical)) return aliases.get(canonical);
-            if (evidence.size() + slots.size() == MAX_REFERENCES) throw new IllegalStateException("reference registry limit reached");
-            String alias = (slot ? "slot:" : "ref:") + prefix + Long.toString(++entryCounter, 36);
+        private String register(String canonical) {
+            if (canonical.length() <= 32) return canonical;
+            if (evidenceAliases.containsKey(canonical)) return evidenceAliases.get(canonical);
+            if (evidence.size() == MAX_REFERENCES) throw new IllegalStateException("reference registry limit reached");
+            String alias = "ref:" + prefix + Long.toString(++entryCounter, 36);
             retain((long) canonical.getBytes(StandardCharsets.UTF_8).length + alias.length());
-            aliases.put(canonical, alias);
-            (slot ? slots : evidence).put(alias, canonical);
+            evidenceAliases.put(canonical, alias);
+            evidence.put(alias, canonical);
             return alias;
         }
 
@@ -338,13 +310,6 @@ public final class ReferenceAliasBackend implements ModelBackend {
                 arguments.addProperty("handle", references.get(handle.getAsString()));
                 changed = true;
             }
-            Map<String, String> locations = encode ? slotAliases : slots;
-            if (name.equals("search_inventory") && arguments.get("target") instanceof JsonObject target
-                    && target.get("slotReference") instanceof com.google.gson.JsonPrimitive location && location.isString()
-                    && locations.containsKey(location.getAsString())) {
-                target.addProperty("slotReference", locations.get(location.getAsString()));
-                changed = true;
-            }
             return changed;
         }
 
@@ -365,8 +330,6 @@ public final class ReferenceAliasBackend implements ModelBackend {
         private void clear() {
             evidence.clear();
             evidenceAliases.clear();
-            slots.clear();
-            slotAliases.clear();
             wireCalls.clear();
             canonicalCalls.clear();
             wireResults.clear();

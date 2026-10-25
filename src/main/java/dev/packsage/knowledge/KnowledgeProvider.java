@@ -17,7 +17,7 @@ public interface KnowledgeProvider extends Toolbox {
     String id();
 
     @Override
-    default Metadata metadata() { return new Metadata(id(), java.util.List.of(), false, java.util.List.of(), java.util.Map.of()); }
+    default Metadata metadata() { return new Metadata(id(), java.util.List.of(), false, java.util.List.of()); }
 
     /** Whether this logical provider is enabled for the current runtime, independent of coverage. */
     default boolean enabled() { return true; }

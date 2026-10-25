@@ -568,7 +568,7 @@ class AssistantRuntimeTest {
             clientQueues.add(queue);
             return new KnowledgeService(List.of(new KnowledgeProvider() {
                 @Override public String id() { return "fixture"; }
-                @Override public Metadata metadata() { return new Metadata(id(), List.of(), true, List.of(), Map.of()); }
+                @Override public Metadata metadata() { return new Metadata(id(), List.of(), true, List.of()); }
                 @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture-1", null); }
                 @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope requestScope) {
                     return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
@@ -834,11 +834,11 @@ class AssistantRuntimeTest {
         FakeBackend backend = new FakeBackend();
         Toolbox provider = new Toolbox() {
             @Override public Metadata metadata() {
-                if (metadataCalls.incrementAndGet() == 3 && reentered.compareAndSet(false, true)) {
+                if (metadataCalls.incrementAndGet() == 2 && reentered.compareAndSet(false, true)) {
                     runtimeReference.get().openSession(summary);
                     nestedCallReturned.set(true);
                 }
-                return new Metadata("fixture", List.of(), false, List.of(), Map.of());
+                return new Metadata("fixture", List.of(), false, List.of());
             }
         };
         var runtime = new AssistantRuntime(store, backend, scope -> {
@@ -950,10 +950,10 @@ class AssistantRuntimeTest {
         AtomicBoolean failRegistration = new AtomicBoolean(true);
         Toolbox provider = new Toolbox() {
             @Override public Metadata metadata() {
-                if (metadataCalls.incrementAndGet() == 3 && failRegistration.compareAndSet(true, false)) {
+                if (metadataCalls.incrementAndGet() == 2 && failRegistration.compareAndSet(true, false)) {
                     throw new IllegalStateException("metadata registration failed once");
                 }
-                return new Metadata("fixture", List.of(), false, List.of(), Map.of());
+                return new Metadata("fixture", List.of(), false, List.of());
             }
         };
         var runtime = new AssistantRuntime(store, new FakeBackend(), scope -> {
@@ -976,7 +976,7 @@ class AssistantRuntimeTest {
         assertFalse(runtime.view().activity().equals("Loading session..."));
         assertEquals(2, captureCalls.get());
         assertEquals(2, knowledgeCalls.get());
-        assertTrue(metadataCalls.get() >= 6);
+        assertTrue(metadataCalls.get() >= 4);
     }
 
     @Test
@@ -986,7 +986,7 @@ class AssistantRuntimeTest {
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
                 new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
                 current -> new KnowledgeService(List.of(new Toolbox() {
-                    @Override public Metadata metadata() { return new Metadata("native", List.of(), true, List.of(), Map.of()); }
+                    @Override public Metadata metadata() { return new Metadata("native", List.of(), true, List.of()); }
                     @Override public CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Context context) {
                         assertEquals(request.scope(), current.get());
                         toolCalls.incrementAndGet();
@@ -1246,7 +1246,7 @@ class AssistantRuntimeTest {
         AtomicInteger toolCalls = new AtomicInteger();
         var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
                 current -> new KnowledgeService(List.of(new Toolbox() {
-                    @Override public Metadata metadata() { return new Metadata("native", List.of(), true, List.of(), Map.of()); }
+                    @Override public Metadata metadata() { return new Metadata("native", List.of(), true, List.of()); }
                     @Override public CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Context context) {
                         toolCalls.incrementAndGet();
                         return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE,
@@ -1722,7 +1722,7 @@ class AssistantRuntimeTest {
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(), new AtomicReference<>(),
                 new AtomicReference<>(), PackSageSettings.defaults(), model -> 512, ignored -> { }, ignored -> { },
                 current -> new KnowledgeService(List.of(new Toolbox() {
-                    @Override public Metadata metadata() { return new Metadata("fixture", List.of(), true, List.of(), Map.of()); }
+                    @Override public Metadata metadata() { return new Metadata("fixture", List.of(), true, List.of()); }
                     @Override public CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) {
                         Evidence.Scope scope = request.scope();
                         Evidence.Source source = new Evidence.Source(scope, "fixture", "fixture", "recipe-id",
@@ -1867,7 +1867,7 @@ class AssistantRuntimeTest {
         var knowledgeFactory = (java.util.function.Function<java.util.function.Supplier<Evidence.Scope>, KnowledgeService>) current -> {
             factoryCalls.incrementAndGet();
             return new KnowledgeService(List.of(new Toolbox() {
-                @Override public Metadata metadata() { return new Metadata("native", List.of(), true, List.of(), Map.of()); }
+                @Override public Metadata metadata() { return new Metadata("native", List.of(), true, List.of()); }
                 @Override public CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Context context) { return pendingTool; }
             }), current);
         };
@@ -2166,7 +2166,7 @@ class AssistantRuntimeTest {
         var navigations = new AtomicInteger();
         KnowledgeProvider provider = new KnowledgeProvider() {
             @Override public String id() { return "fixture"; }
-            @Override public Metadata metadata() { return new Metadata(id(), List.of(), true, List.of(), Map.of()); }
+            @Override public Metadata metadata() { return new Metadata(id(), List.of(), true, List.of()); }
             @Override public ProviderStatus status() { return new ProviderStatus(Availability.AVAILABLE, "fixture", "fixture"); }
             @Override public CompletionStage<Evidence.Result> query(Evidence.Query query, Evidence.Scope scope) {
                 var source = new Evidence.Source(scope, id(), "fixture", handle, scope.requestGeneration(), Instant.EPOCH,
@@ -2267,7 +2267,7 @@ class AssistantRuntimeTest {
                 scope -> {
                     if (failKnowledge.get()) throw new IllegalStateException("provider refresh failed");
                     return new KnowledgeService(List.of(new Toolbox() {
-                        @Override public Metadata metadata() { return new Metadata("native", List.of(), true, List.of(), Map.of()); }
+                        @Override public Metadata metadata() { return new Metadata("native", List.of(), true, List.of()); }
                         @Override public CompletionStage<Evidence.Result> planRecipe(PackSageTools.ReadRequest request, Context context) {
                             return CompletableFuture.completedFuture(new Evidence.Result(List.of(), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null));
                         }

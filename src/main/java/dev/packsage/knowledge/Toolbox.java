@@ -24,13 +24,11 @@ public interface Toolbox {
         public Code code() { return code; }
     }
 
-    record Metadata(String id, List<String> documentTypes, boolean recipes, List<String> registries,
-                    Map<String, String> inventoryTargets) {
+    record Metadata(String id, List<String> documentTypes, boolean recipes, List<String> registries) {
         public Metadata {
             Objects.requireNonNull(id);
             documentTypes = List.copyOf(documentTypes);
             registries = List.copyOf(registries);
-            inventoryTargets = Map.copyOf(inventoryTargets);
         }
     }
 
@@ -97,7 +95,6 @@ public interface Toolbox {
 
     Metadata metadata();
 
-    default CompletionStage<Evidence.Result> searchInventory(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "inventory")); }
     default CompletionStage<Evidence.Result> searchDocument(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "document")); }
     default CompletionStage<Evidence.Result> searchRecipe(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "recipe")); }
     default CompletionStage<Evidence.Result> searchRegistry(PackSageTools.ReadRequest request, Context context) { return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "registry")); }

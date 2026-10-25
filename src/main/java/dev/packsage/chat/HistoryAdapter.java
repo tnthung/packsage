@@ -16,7 +16,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
 
 final class HistoryAdapter implements Toolbox {
-    @Override public Metadata metadata() { return new Metadata("history", List.of(), false, List.of(), java.util.Map.of()); }
+    @Override public Metadata metadata() { return new Metadata("history", List.of(), false, List.of()); }
 
     @Override public CompletionStage<Evidence.Result> searchHistory(PackSageTools.ReadRequest request, Context context) {
         return execute(request, context.replacingRequestId() == null ? null : new ChatContracts.RequestId(context.replacingRequestId()));

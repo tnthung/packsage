@@ -519,3 +519,51 @@ world-block|minecraft:overworld|1003,250,1006
 ## Final state
 
 Minecraft remains open in the test world, paused on the final performance conversation (the play control is visible). Open paused was restored to its original checked setting and F3 debug display was hidden. The test fixtures remain at the coordinates above; the player still wears the test armor. Only this validation record was edited in the repository. No push was performed.
+
+## Round 2: review fixes and mob attributes
+
+Date: 2026-10-25 (Asia/Taipei). **BLOCKED before live testing: native computer control was unavailable.** Earlier results above remain historical evidence for the earlier JAR; they do not establish acceptance of this build.
+
+### Build, installation and prompt state
+
+- Repository: `D:\Project\packsage`, branch `feat/packsage-v2`, source HEAD `09fe4d76beeb50ee9d10f3be6be0243f78e9d949`. The worktree and index were clean before this validation edit. No code or prompt text changed.
+- Profile: `C:\Users\hung1\curseforge\minecraft\Instances\Packsage`.
+- Before installation, a process check at 09:27:44 +08:00 found one Java process, identified as a Gradle daemon, with no Minecraft/NeoForge/gameDir or profile-path match. There was no detected Minecraft process to close. This was a process check, not an observed menu exit.
+- Ran `$env:JAVA_HOME = 'D:\Project\packsage\.tools\jdk\jdk-21.0.12.1'; & .\scripts\build.ps1` from the repository. Result: `BUILD SUCCESSFUL in 1s`, 11 actionable tasks, all up-to-date, including `test` and `build`. Gradle accepted the cached test outputs; this invocation did not execute a fresh unit-test run. The script completed with exit code 0 and installed the JAR after its own running-instance guard.
+- Installed `mods/packsage.jar` and built `dist/packsage.jar` both had SHA-256 `D3F568A283E99B333D31E5C4D557B08BCCC4B10C8A4E227EDC3D1F948A7F74A3`, independently compared at 09:28:08 +08:00. This differs from the replaced JAR, `2FE71303B378F7F8CC8DBBDCC5DE7E9343DB968EA0BF156E3674B4BEC4F4EAD1`.
+- Build metadata: PackSage 0.1.0, Minecraft 1.21.1, NeoForge build dependency 21.1.202, Java 21.0.12.1. No running-client version was observed in this round.
+- `config/packsage.properties` had no `developerPrompt` property before or after installation. No prompt text or settings were edited. Installed-default runtime acceptance remains unverified because no chat ran.
+
+### Native control blocker and recovery
+
+Read `AGENTS.md` and the computer-use skill and its guidance, API and confirmations references. Imported `@oai/sky` in `mcp__node_repl__js`. Every attempted native window/app discovery returned this exact error before yielding any target window or screenshot:
+
+```text
+Computer Use native pipe is unavailable: failed to connect native pipe: The system cannot find the file specified. (os error 2)
+```
+
+Attempt sequence:
+
+1. `sky.list_windows()` failed; retried after two seconds with the same result.
+2. Reset the JavaScript kernel, reimported `@oai/sky`, and retried `sky.list_windows()`; the same error persisted.
+3. The player reported opening the Codex app and requested another attempt. Retried `sky.list_windows()`, then reset the kernel and reimported `@oai/sky` again.
+4. `sky.list_apps()` failed in the fresh session; a retry after two seconds failed identically. The final retry completed at approximately `2026-10-25T01:29:01Z`.
+
+No window could be selected, captured or controlled. No Minecraft launch, world selection, command, PackSage submission, setting toggle or link click was attempted. No game-tool results or new saved conversation evidence were produced by this round. The earlier JSONL was not reused as evidence for this build.
+
+### Acceptance and per-check evidence
+
+No passes are checked. **BLOCKED** means the check did not run; it does not establish a product failure.
+
+- [ ] **1. Mob attributes — BLOCKED.** Planned fresh-chat questions: `how high can this mule jump?` beside/looking at V2Mule, and `how fast is this horse?` for the horse. No submissions, `inspect_entity` calls or arguments, mount/attribute facts, citations, links, replies or timing observations are available.
+- [ ] **2. Storage regression — BLOCKED.** Planned question: `where is my stone?` in the 20-chest room. No submissions, tool calls or arguments, coverage/notes/cursors, replies, links or highlight observations are available. Both stone locations and per-holder link records remain unverified on this JAR.
+- [ ] **3. Big storage and output limit — BLOCKED.** Planned question: `what items are stored around here?` after filling the approximately 320-chest fixture with more than 64 distinct item types. No fixture commands were entered. No `find_items`/`list_items` page, record count, coverage, notes, cursor/`nextCall`, holder links, continuation or reply was observed. **The 64-record limit was not exercised.** Whether `tool output limit reached` appears and whether it drops links and continuation remain unverified.
+- [ ] **4. Pacing — BLOCKED in both modes.** Neither keep-running nor chat-paused mode was exercised. No find request, PARTIAL continuation, 500 ms work-budget outcome, model/tool time, response time or visible-stutter observation is available. The 5 ms tick pacing was not measured.
+- [ ] **5. Farm regression — BLOCKED.** Planned question: `why isn't my iron farm working?`. No submission, tool calls or arguments, villager facts, `gameTime`/`dayTime`/read span, `golemDetectedUntil`, reply, citations or timing observations are available. Timestamp interpretation remains unverified.
+- [ ] **6. Saved links across restart — BLOCKED.** No earlier conversation was opened and no full Minecraft restart or saved chest-link click occurred. Link persistence and the resulting highlighted chest remain unverified.
+
+For every check, request IDs, JSONL line references, tool-call arguments, result `observedAt` timestamps, model-versus-tool timing, coverage, notes, cursors, navigation destinations and verbatim replies are unavailable because no live request ran. There is no observed Round 2 product failure to report separately; the native-control failure is the execution blocker. The known output-limit issue remains open and untested.
+
+### Round 2 final state
+
+The new JAR is installed and hash-verified, with no developer prompt override. No native input was sent, so the world, test fixtures and saved chats were not changed by this round. Minecraft's final UI state could not be observed. Only this validation record was edited in the repository; no code or prompt change, formatting tool or push was performed.

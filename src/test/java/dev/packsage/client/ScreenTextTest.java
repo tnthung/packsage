@@ -25,13 +25,18 @@ class ScreenTextTest {
         var source = new Evidence.Source(SCOPE, "quests", "1", "quest:1000000000000002", 1, java.time.Instant.EPOCH,
                 Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
         var target = new Evidence.NavigationTarget(SCOPE, "quests", source.sourceHandle(), "1000000000000002");
-        var record = new Evidence.Record(source, Evidence.RecordKind.QUEST, "Old quest",
-                new Evidence.JsonObject(java.util.Map.of("completed", new Evidence.JsonBoolean(true))), List.of(target));
         var turn = new ChatContracts.Turn(new ChatContracts.RequestId("legacy-progress"), "Did I finish it?",
                 "[Old quest](quests:quest:1000000000000002)", List.of(
                 new ModelBackend.ToolCall("old-progress", "read_progress", "{\"handles\":[\"quests:quest:1000000000000002\"]}"),
-                new ModelBackend.ToolResult("old-progress", new Gson().toJson(
-                        new Evidence.Result(List.of(record), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)), false)),
+                new ModelBackend.ToolResult("old-progress", """
+                        {"coverage":"COMPLETE","outcome":"COMPLETE","records":[{
+                          "source":{"providerId":"quests","version":"1","sourceHandle":"quest:1000000000000002",
+                            "observedAt":"1970-01-01T00:00:00Z","observedGeneration":1,
+                            "activity":"ACTIVE","coverage":"COMPLETE","authority":"LOADED","provenance":[],
+                            "scope":{"worldSession":"world","resourcesLocale":"en_us","playerTeam":"team",
+                              "providerRuntime":"runtime","requestGeneration":1}},
+                          "kind":"QUEST","title":"Old quest","payload":{"completed":true}}]}
+                        """, false)),
                 new ChatContracts.Context("{}", null, SCOPE), List.of(source), List.of(target),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
 

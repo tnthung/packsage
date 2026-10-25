@@ -73,6 +73,7 @@ The Minecraft adapter is finished before this branch merges back. The [completio
 Plan details:
 
 - [ ] Journal and notes (`docs/plans/2026-10-22-v2-journal.md`): automatic event recording into SQLite with run-length merging, `search_journal`, and invisible model-chosen notes.
+  - Task 6 search and summaries are implemented with automated checks: events and notes share stable cursor paging, exact area matching and explicit partial coverage. The note record exists; note writes, lifecycle and provider integration remain for later tasks. Production search must receive the writer's actual `JournalStats` and run on the worker executor. Live acceptance remains pending.
 - [ ] Progress and statistics (`docs/plans/2026-10-22-v2-progress-statistics.md`): the `ProgressReader` and `StatisticReader` traits, `list_progress`, `inspect_progress` and `list_statistics`.
 - [ ] Prompt and acceptance (`docs/plans/2026-10-22-v2-prompt-acceptance.md`, not written). Includes the Round 1 failures:
   - the armor reply omitted eligible enchantments that the evidence returned;

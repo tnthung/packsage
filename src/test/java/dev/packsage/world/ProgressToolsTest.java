@@ -20,7 +20,12 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ProgressToolsTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "resources", "team", "runtime", 1);
@@ -223,7 +228,7 @@ class ProgressToolsTest {
         assertTrue(result.detail().contains("broken"));
         assertTrue(result.detail().contains("counter cannot be reflected"));
         assertEquals("Times Mined: Diamond Ore = 12", result.records().getFirst().title());
-        assertEquals(Evidence.deserializeObject("{\"adapter\":\"minecraft\",\"category\":\"mined\",\"subject\":\"minecraft:diamond_ore\",\"label\":\"Times Mined: Diamond Ore\",\"value\":12,\"unit\":\"count\",\"raw\":12}"), result.records().getFirst().payload());
+        assertEquals(Evidence.deserializeObject("{\"adapter\":\"minecraft\",\"category\":\"mined\",\"subject\":\"minecraft:diamond_ore\",\"label\":\"Times Mined: Diamond Ore\",\"value\":12.0,\"unit\":\"count\",\"raw\":12}"), result.records().getFirst().payload());
         assertTrue(result.records().getFirst().targets().isEmpty());
     }
 

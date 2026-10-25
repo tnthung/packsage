@@ -42,7 +42,7 @@ class ReferenceAliasBackendTest {
                 new ModelBackend.ToolCall("read", "read_evidence", "{\"handles\":[\"" + reference + "\"]}"), List.of(), null));
         assertEquals(REFERENCE, JsonParser.parseString(events.getLast().toolCall().serializedArguments()).getAsJsonObject()
                 .getAsJsonArray("handles").get(0).getAsString());
-        for (String name : List.of("read_progress", "read_history", "read_config")) {
+        for (String name : List.of("read_history", "read_config")) {
             actual.events.accept(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
                     new ModelBackend.ToolCall(name, name, name.equals("read_config") ? "{\"handle\":\"" + reference + "\",\"key\":\"" + reference + "\"}"
                             : "{\"handles\":[\"" + reference + "\"]}"), List.of(), null));

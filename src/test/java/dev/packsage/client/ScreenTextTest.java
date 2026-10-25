@@ -21,6 +21,28 @@ class ScreenTextTest {
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world", "en_us", "team", "runtime", 1);
 
     @Test
+    void legacyQuestToolResultsStillRenderStoredSourcesAndLinks() {
+        var source = new Evidence.Source(SCOPE, "quests", "1", "quest:1000000000000002", 1, java.time.Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+        var target = new Evidence.NavigationTarget(SCOPE, "quests", source.sourceHandle(), "1000000000000002");
+        var record = new Evidence.Record(source, Evidence.RecordKind.QUEST, "Old quest",
+                new Evidence.JsonObject(java.util.Map.of("completed", new Evidence.JsonBoolean(true))), List.of(target));
+        var turn = new ChatContracts.Turn(new ChatContracts.RequestId("legacy-progress"), "Did I finish it?",
+                "[Old quest](quests:quest:1000000000000002)", List.of(
+                new ModelBackend.ToolCall("old-progress", "read_progress", "{\"handles\":[\"quests:quest:1000000000000002\"]}"),
+                new ModelBackend.ToolResult("old-progress", new Gson().toJson(
+                        new Evidence.Result(List.of(record), Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)), false)),
+                new ChatContracts.Context("{}", null, SCOPE), List.of(source), List.of(target),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+
+        var span = ScreenText.inlineLines(turn.answer(), turn.navigationTargets(), List.of(), turn.sources(),
+                ScreenText.sourceLabels(turn)).getFirst().spans().getFirst();
+        assertEquals("Old quest", span.text());
+        assertEquals(source, span.source());
+        assertEquals(target, span.target());
+    }
+
+    @Test
     void nativeBrewingAndPotionCitationsUseExactSavedDetailsForReadableLabels() {
         String brewingHandle = "brewing:potion:56:0:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
         String splashHandle = "brewing:container:3:0:1123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";

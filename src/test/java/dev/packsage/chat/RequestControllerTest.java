@@ -1416,8 +1416,8 @@ class RequestControllerTest {
         assertEquals("Searching pack: packsage:fixture_lantern (step 1)", published.getLast().activity());
         assertEquals(published.getLast(), controller.view());
 
-        backend.emit("activity-tool", toolEvent("call-2", "read_progress", "{\"handles\":[\"quests:1000000000000002\"]}"));
-        assertEquals("Reading quest progress (step 2)", published.getLast().activity());
+        backend.emit("activity-tool", toolEvent("call-2", "read_evidence", "{\"handles\":[\"quests:1000000000000002\"]}"));
+        assertEquals("Reading evidence (step 2)", published.getLast().activity());
         assertFalse(published.getLast().activity().contains("SECRET"));
     }
 
@@ -1500,7 +1500,7 @@ class RequestControllerTest {
         controller.begin(submission("activity-return", WORLD_A, SCOPE_A, false, new ChatContracts.HistoryLimits(10, 12_000),
                 ModelBackend.SearchMode.AUTOMATIC, 4_096)).toCompletableFuture().join();
 
-        backend.emit("activity-return", toolEvent("call-1", "read_progress", "{\"handles\":[\"x\"]}"));
+        backend.emit("activity-return", toolEvent("call-1", "read_evidence", "{\"handles\":[\"x\"]}"));
         assertEquals("Waiting for the model…", published.getLast().activity());
 
         backend.emit("activity-return", new ModelBackend.Event(ModelBackend.EventKind.REASONING, null, null, List.of(), null));

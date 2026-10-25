@@ -90,7 +90,7 @@ public final class AreaScan {
                     var entity = current.storage.allInstances.get(index++);
                     if (entity.chunkPosition().equals(pos)) ids.add(entity.getUUID());
                 } else {
-                    // Obtain a fresh iterator only to choose the next section; never keep it across server steps.
+                    // Choose the next section from a fresh sorted view; no engine iterator survives a step.
                     var remaining = storage.getChunkSections(pos.x, pos.z).tailSet(section + 1);
                     if (remaining.isEmpty()) return false;
                     section = remaining.firstLong();
@@ -509,7 +509,7 @@ public final class AreaScan {
         }
     }
 
-    /** Revalidates a bounded per-chunk UUID snapshot, resuming pages after a stable sorted anchor. */
+    /** Revalidates incrementally copied chunk UUIDs, resuming pages after a stable sorted anchor. */
     static final class EntityListSlice implements ServerWork.Slice<Page<EntityHandle>> {
         final List<String> cursors = new ArrayList<>();
         private final ServerLevel level;
@@ -564,7 +564,7 @@ public final class AreaScan {
                 if (snapshot.step(level, pos, notes)) return true;
                 entities = snapshot.ids;
                 if (anchor != null && !entities.contains(anchor)) notes.add("Entity cursor anchor is gone or moved; continuing after its UUID with partial coverage");
-                if (entities.size() > LIST_PAGE) return true;
+                // Deliver progress before the call budget can stop us and discard this acquired snapshot.
             }
             for (int read = 0; read < LIST_PAGE; read++) {
                 var id = anchor == null ? (entities.isEmpty() ? null : entities.first()) : entities.higher(anchor);

@@ -52,8 +52,12 @@ class DeveloperSettingsScreenTest {
         assertEquals(GroundingInstructions.defaultInstructions(), ((MultilineEditor) screen.children().getFirst()).value());
         assertEquals("old prompt", settings.developerPrompt());
         screen.mouseClicked(278, y, 0);
+        org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(java.time.Duration.ofSeconds(5), () -> {
+            while (returned.get() == 0) Thread.sleep(1);
+        });
         assertEquals(null, settings.developerPrompt());
         assertEquals(1, returned.get());
+        settings.flushAndClose(path).join();
         assertEquals(null, PackSageSettings.load(path).developerPrompt());
     }
 

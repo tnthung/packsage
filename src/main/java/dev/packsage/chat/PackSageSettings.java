@@ -105,10 +105,12 @@ public final class PackSageSettings {
     }
 
     public CompletableFuture<Void> save(Path path) {
+        if (!detached) saveGeneration = writer.nextGeneration();
         return observed(writer.submit(path, snapshot()));
     }
 
     public CompletableFuture<Void> flushAndClose(Path path) {
+        if (!detached) saveGeneration = writer.nextGeneration();
         return observed(writer.flushAndClose(path, snapshot()));
     }
 
@@ -175,15 +177,14 @@ public final class PackSageSettings {
                 && (value.isBlank() || value.length() > MAX_DEVELOPER_PROMPT_LENGTH)) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("developerPrompt is out of bounds"));
         }
-        PackSageSettings candidate = withDeveloperPrompt(
-                dev.packsage.model.GroundingInstructions.defaultInstructions().equals(value) ? null : value);
-        candidate.detached = false;
-        candidate.saveGeneration = writer.nextGeneration();
-        return observed(writer.submit(path, candidate.snapshot()));
+        if (!setDeveloperPrompt(dev.packsage.model.GroundingInstructions.defaultInstructions().equals(value) ? null : value)) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("developerPrompt is out of bounds"));
+        }
+        return save(path);
     }
 
     public PackSageSettings withDeveloperPrompt(String value) {
-        PackSageSettings copy = new PackSageSettings(openPaused, automaticWebSearch, historyTurns, historicalTokens);
+        PackSageSettings copy = new PackSageSettings(openPaused, automaticWebSearch, historyTurns, historicalTokens, writer);
         copy.sendShortcut = sendShortcut;
         copy.sessionsBeforeCollapse = sessionsBeforeCollapse;
         copy.modelId = modelId;

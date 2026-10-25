@@ -19,6 +19,7 @@ public final class DeveloperSettingsScreen extends Screen {
     private MultilineEditor editor;
     private String draft;
     private String error;
+    private boolean saving;
 
     public DeveloperSettingsScreen(PackSageSettings settings, Path path, ChatActions actions, Runnable returnToAssistant) {
         super(Component.literal("Developer Settings"));
@@ -89,13 +90,18 @@ public final class DeveloperSettingsScreen extends Screen {
                 }
                 if (mouseX >= secondButton && mouseX < secondButton + buttonWidths[1]) { finish(); return true; }
                 if (mouseX >= thirdButton && mouseX < thirdButton + buttonWidths[2]) {
+                    if (saving) return true;
                     draft = editor.value();
                     if (draft.isBlank()) { error = "Prompt cannot be blank"; return true; }
                     if (draft.length() > PackSageSettings.MAX_DEVELOPER_PROMPT_LENGTH) { error = "Prompt is too long"; return true; }
-                    try {
-                        settings.saveDeveloperPrompt(path, draft);
-                        finish();
-                    } catch (RuntimeException failure) { error = "Could not save settings"; }
+                    saving = true;
+                    error = null;
+                    settings.saveDeveloperPrompt(path, draft).whenComplete((ignored, failure) -> onSaveComplete(() -> {
+                        saving = false;
+                        if (failure != null) { error = "Could not save settings"; return; }
+                        if (minecraft == null || minecraft.screen == this) finish();
+                        else settings.save(path);
+                    }));
                     return true;
                 }
             }
@@ -121,5 +127,10 @@ public final class DeveloperSettingsScreen extends Screen {
     private void finish() {
         draft = editor == null ? draft : editor.value();
         returnToAssistant.run();
+    }
+
+    private void onSaveComplete(Runnable action) {
+        if (minecraft == null) action.run();
+        else minecraft.execute(action);
     }
 }

@@ -44,14 +44,20 @@ public final class SettingsWriter {
 
     synchronized CompletableFuture<Void> submit(Path path, Snapshot snapshot) {
         if (closed) return CompletableFuture.failedFuture(new IllegalStateException("settings writer is closed"));
+        if (latest != null && (snapshot.generation() < latest.generation()
+                || snapshot.generation() == latest.generation() && !snapshot.properties().equals(latest.properties()))) {
+            return CompletableFuture.completedFuture(null);
+        }
         if (latest == null || snapshot.generation() > latest.generation()) {
             latest = snapshot;
-            latestPath = path;
         }
+        latestPath = path;
         var result = new CompletableFuture<Void>();
         executor.execute(() -> {
             try {
-                if (snapshot.generation() < latest.generation() || snapshot.generation() < writtenGeneration) {
+                if (snapshot.generation() < latest.generation()
+                        || snapshot.generation() == latest.generation() && !snapshot.properties().equals(latest.properties())
+                        || snapshot.generation() < writtenGeneration) {
                     result.complete(null);
                     return;
                 }
@@ -67,8 +73,11 @@ public final class SettingsWriter {
 
     synchronized CompletableFuture<Void> flushAndClose(Path path, Snapshot snapshot) {
         if (closed) return CompletableFuture.failedFuture(new IllegalStateException("settings writer is closed"));
-        if (latest == null || snapshot.generation() >= latest.generation()) {
+        if (latest == null || snapshot.generation() > latest.generation()) {
             latest = snapshot;
+            latestPath = path;
+        } else if (snapshot.generation() == latest.generation()
+                && snapshot.properties().equals(latest.properties())) {
             latestPath = path;
         }
         Path target = latestPath == null ? path : latestPath;

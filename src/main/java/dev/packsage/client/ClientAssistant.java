@@ -194,6 +194,12 @@ public final class ClientAssistant {
                 });
             }
         }
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.GameShuttingDownEvent ignored) -> {
+            try { settings.flushAndClose(settingsPath).join(); }
+            catch (java.util.concurrent.CompletionException failure) {
+                dev.packsage.PackSageLog.LOGGER.error("Could not flush PackSage settings during shutdown", failure);
+            }
+        });
     }
 
     private void openAssistantScreen(AbstractContainerScreen<?> containerScreen) {

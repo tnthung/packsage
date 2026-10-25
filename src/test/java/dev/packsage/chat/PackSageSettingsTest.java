@@ -143,19 +143,16 @@ class PackSageSettingsTest {
     }
 
     @Test
-    void savingDeveloperPromptAppliesOnlyAfterPersistenceAndNormalizesTheDefault() throws Exception {
+    void savingDeveloperPromptPublishesBeforePersistenceAndNormalizesTheDefault() throws Exception {
         Path path = temporaryDirectory.resolve("prompt.properties");
         var settings = PackSageSettings.defaults();
         settings.saveDeveloperPrompt(path, "custom prompt").join();
-        assertNull(settings.developerPrompt(), "screen settings apply the prompt after the save completes");
-        assertTrue(settings.setDeveloperPrompt("custom prompt"));
+        assertEquals("custom prompt", settings.developerPrompt());
         assertEquals("custom prompt", PackSageSettings.load(path).developerPrompt());
         assertThrows(java.util.concurrent.CompletionException.class,
                 () -> settings.saveDeveloperPrompt(temporaryDirectory, "unsaved prompt").join());
-        assertEquals("custom prompt", settings.developerPrompt());
+        assertEquals("unsaved prompt", settings.developerPrompt(), "a failed write does not publish a second value later");
         settings.saveDeveloperPrompt(path, dev.packsage.model.GroundingInstructions.defaultInstructions()).join();
-        assertEquals("custom prompt", settings.developerPrompt());
-        assertTrue(settings.setDeveloperPrompt(null));
         assertEquals(null, settings.developerPrompt());
         assertEquals(null, PackSageSettings.load(path).developerPrompt());
         settings.saveDeveloperPrompt(path, "another prompt").join();
@@ -190,8 +187,7 @@ class PackSageSettingsTest {
             client.shutdownNow();
         }
         promptSave.join();
-        assertNull(settings.developerPrompt(), "the editor applies only after persistence succeeds");
-        assertTrue(settings.setDeveloperPrompt("newest screen prompt"));
+        assertEquals("newest screen prompt", settings.developerPrompt());
         settings.save(path).join();
         settings.flushAndClose(path).join();
         assertEquals("newest screen prompt", settings.developerPrompt());
@@ -208,5 +204,32 @@ class PackSageSettingsTest {
         writer.submit(path, new SettingsWriter.Snapshot(1, older)).join();
         writer.flushAndClose(path, new SettingsWriter.Snapshot(2, newer)).join();
         assertEquals("new", PackSageSettings.load(path).developerPrompt());
+    }
+
+    @Test
+    void staleDetachedSettingsCannotAcquireANewerGeneration() throws Exception {
+        var path = temporaryDirectory.resolve("settings.properties");
+        var settings = PackSageSettings.defaults();
+        settings.setDeveloperPrompt("current");
+        settings.save(path).join();
+        var stale = settings.withDeveloperPrompt("stale");
+        settings.setDeveloperPrompt("newest");
+        settings.save(path).join();
+
+        stale.save(path).join();
+
+        assertEquals("newest", PackSageSettings.load(path).developerPrompt());
+        settings.flushAndClose(path).join();
+    }
+
+    @Test
+    void shutdownFlushWritesLatestSettingsEvenWithoutAnEarlierSave() throws Exception {
+        var path = temporaryDirectory.resolve("settings.properties");
+        var settings = PackSageSettings.defaults();
+        settings.setDeveloperPrompt("shutdown prompt");
+
+        settings.flushAndClose(path).join();
+
+        assertEquals("shutdown prompt", PackSageSettings.load(path).developerPrompt());
     }
 }

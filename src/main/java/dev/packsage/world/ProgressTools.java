@@ -371,7 +371,7 @@ public final class ProgressTools implements KnowledgeProvider {
                     if (result.coverage() != Evidence.Coverage.COMPLETE) throw new Failure(Code.EXTRACTION_FAILED, result.detail());
                     throw new Failure(Code.INVALID_REFERENCE, "progress tree is no longer available; repeat list_progress");
                 }
-                return result(records, result.coverage(), null, result.detail());
+                return result(records, records.getFirst().source().coverage(), null, null);
             });
         }
         if (handle.startsWith("progress|")) return inspect(ProgressId.parse(handle.substring(9)), scope);

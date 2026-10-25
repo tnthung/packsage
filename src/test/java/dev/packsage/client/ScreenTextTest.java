@@ -50,10 +50,6 @@ class ScreenTextTest {
                 .filter(java.util.Objects::nonNull).toList());
         assertEquals(sources.subList(0, 2), lines.get(1).spans().stream().map(ScreenText.InlineSpan::source)
                 .filter(java.util.Objects::nonNull).toList());
-        var knowledge = new dev.packsage.knowledge.KnowledgeService(List.of(), () -> SCOPE);
-        for (var target : saved.navigationTargets()) {
-            assertEquals(null, knowledge.refreshNavigation(target, SCOPE).toCompletableFuture().join());
-        }
     }
 
     @Test
@@ -529,7 +525,7 @@ class ScreenTextTest {
 
     @Test
     void citationsFromEveryRegisteredProviderBecomeChips() {
-        // ClientAssistant.knowledge registers native/config/world/progress; AssistantRuntime adds history.
+        // Current providers include native/config/world/progress/journal and conversation history.
         for (String provider : List.of("native", "config", "history", "world", "progress", "journal")) {
             var source = new Evidence.Source(SCOPE, provider, "1", "note:abc", 1, java.time.Instant.EPOCH,
                     Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());

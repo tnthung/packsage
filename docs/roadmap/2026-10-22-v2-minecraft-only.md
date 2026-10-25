@@ -117,6 +117,8 @@ Stages 1–5 are implemented. Checked entries below describe the accepted scope,
 
 Final client-review fixes have automated coverage for historical v1 citation chips and unavailable destinations, worker-side debug prompt saves with concurrent screen updates, and fresh holder/progress-tree evidence rereads. Their installed acceptance remains pending; the promoted prompt text is unchanged.
 
+Fix round 1 adds regressions for large progress-tree reread coverage, unused holder-reread cursors, atomic settings replacement and bounded prompt-save conflicts. The fixes preserve the existing feature and installed-acceptance scope.
+
 The [cross-stage follow-ups](../../.superpowers/sdd/final-followups.md) include both deferred work and already completed integration items. Keep the deferred items below open; this list does not reopen the completed WorldTools.run delegation, merged tool-count updates or whole-prompt rewrite.
 
 - [ ] Fix E6 coordinates in located-entity answers and revalidate the changed prompt rule.

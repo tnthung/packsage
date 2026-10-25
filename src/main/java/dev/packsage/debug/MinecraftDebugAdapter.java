@@ -241,7 +241,7 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                         return new PendingPrompt(settings.withDeveloperPrompt(settings.developerPrompt()), settings.withDeveloperPrompt(
                                 dev.packsage.model.GroundingInstructions.defaultInstructions().equals(text) ? null : text));
                     });
-                    while (pending != null) {
+                    for (int attempt = 0; pending != null && attempt < 3; attempt++) {
                         var written = pending;
                         promptWriter.accept(written.candidate(), written.candidate().developerPrompt());
                         pending = call(client, () -> {
@@ -256,6 +256,7 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                                             ? written.candidate().developerPrompt() : settings.developerPrompt()));
                         });
                     }
+                    if (pending != null) throw new IllegalStateException("Prompt save conflict: settings kept changing; retry the request");
                     yield execute(DebugRouter.Operation.PROMPT_GET, body);
                 }
             }

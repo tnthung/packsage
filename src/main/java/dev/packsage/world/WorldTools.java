@@ -530,9 +530,15 @@ public final class WorldTools implements KnowledgeProvider {
         if (handle.startsWith("loot|") || handle.startsWith("command|")) return knowledge.reread(handle, scope);
         if (handle.startsWith("holder|")) {
             return listItems(new PackSageTools.ReadRequest("list_items", new Evidence.JsonObject(Map.of(
-                    "holder", text(handle.substring(7)))), scope)).thenApply(result -> result.records().stream()
-                    .filter(record -> record.source().sourceHandle().equals(handle)).findFirst()
-                    .orElseThrow(() -> new Failure(Code.INVALID_REFERENCE, "holder summary is no longer available; repeat list_items")));
+                    "holder", text(handle.substring(7)))), scope)).thenApply(result -> {
+                if (result.nextCursor() != null) {
+                    synchronized (cursors) {
+                        cursors.remove(result.nextCursor());
+                    }
+                }
+                return result.records().stream().filter(record -> record.source().sourceHandle().equals(handle)).findFirst()
+                        .orElseThrow(() -> new Failure(Code.INVALID_REFERENCE, "holder summary is no longer available; repeat list_items"));
+            });
         }
         throw new Failure(Code.INVALID_REFERENCE, "only block, entity, item, holder, loot and command records can be reread; repeat the lookup that produced it");
     }

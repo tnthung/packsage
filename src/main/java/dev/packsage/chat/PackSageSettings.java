@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Properties;
 
 public final class PackSageSettings {
@@ -99,8 +100,14 @@ public final class PackSageSettings {
         Properties properties = properties();
         try {
             if (path.getParent() != null) Files.createDirectories(path.getParent());
-            try (OutputStream output = Files.newOutputStream(path)) {
-                properties.store(output, "PackSage settings");
+            var temporary = Files.createTempFile(path.toAbsolutePath().getParent(), "packsage-", ".properties.tmp");
+            try {
+                try (OutputStream output = Files.newOutputStream(temporary)) {
+                    properties.store(output, "PackSage settings");
+                }
+                Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } finally {
+                Files.deleteIfExists(temporary);
             }
             saveGeneration++;
         } catch (IOException exception) {

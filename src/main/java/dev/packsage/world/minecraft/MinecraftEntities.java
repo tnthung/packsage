@@ -68,7 +68,14 @@ public final class MinecraftEntities implements EntityInspector {
             }
         }
         var customName = entity.getCustomName();
-        if (customName != null) values.put("customName", new Evidence.JsonString(customName.getString()));
+        if (customName != null) {
+            var name = customName.getString();
+            var truncated = name.length() > 1024;
+            values.put("customName", new Evidence.JsonString(truncated
+                    ? name.substring(0, Character.isHighSurrogate(name.charAt(1023)) ? 1023 : 1024) : name));
+            values.put("nameTruncated", new Evidence.JsonBoolean(truncated));
+            if (truncated) notes.add("Entity custom name longer than 1,024 characters was truncated; nameTruncated marks the affected fact");
+        }
         if (entity instanceof AgeableMob ageable) values.put("age", number(ageable.getAge()));
         if (entity instanceof OwnableEntity ownable && ownable.getOwnerUUID() != null) {
             values.put("tamedOwner", new Evidence.JsonString(ownable.getOwnerUUID().toString()));

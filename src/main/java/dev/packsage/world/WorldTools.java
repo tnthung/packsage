@@ -699,14 +699,15 @@ public final class WorldTools implements KnowledgeProvider {
         var root = entity instanceof ServerPlayer ? new PathRoot.Player(id) : new PathRoot.Entity(id);
         var inventories = registry.inventories(holder);
         var sections = registry.inspectEntity(entity);
-        var handle = handle(entity);
-        var payload = new LinkedHashMap<String, Evidence.JsonValue>(entityFacts(handle));
+        var identity = entityRecord(scope, handle(entity), null);
+        var payload = new LinkedHashMap<>(identity.payload().values());
         payload.put("holder", text(new ItemPath(root, List.of()).text()));
         payload.put("sections", sections(sections));
         payload.put("inventories", inventories(inventories));
         putTime(payload, entity.level());
-        return evidence(scope, "entity|" + id, Evidence.RecordKind.OTHER, entityTitle(handle), payload,
-                coverage(sections, inventories), WorldNavigation.entityId(id));
+        return evidence(scope, "entity|" + id, Evidence.RecordKind.OTHER, identity.title(), payload,
+                identity.source().coverage() == Evidence.Coverage.PARTIAL ? Evidence.Coverage.PARTIAL : coverage(sections, inventories),
+                WorldNavigation.entityId(id));
     }
 
     private Evidence.Record inspectItem(MinecraftServer server, ItemPath path, Evidence.Scope scope) {
@@ -1621,7 +1622,7 @@ public final class WorldTools implements KnowledgeProvider {
 
     private Evidence.Result area(Evidence.Scope scope, Anchor anchor, int radius, AreaRead read, ReadSpan span) {
         var summary = read.blocks().items().getFirst();
-        var notes = areaNotes(read.blocks(), read.entities());
+        var notes = new LinkedHashSet<>(areaNotes(read.blocks(), read.entities()));
         var notable = new TreeMap<String, Map<String, List<Evidence.JsonValue>>>();
         for (var block : summary.notable()) {
             var place = block.handle().place();
@@ -1649,13 +1650,29 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("notableCount", number(summary.notable().size()));
         payload.put("unloadedChunks", number(summary.unloadedChunks()));
         putSpan(payload, span);
-        payload.put("entities", new Evidence.JsonArray(read.entities().items().stream()
-                .map(entity -> (Evidence.JsonValue) new Evidence.JsonObject(entityFacts(entity))).toList()));
+        var entities = new ArrayList<Evidence.JsonValue>();
+        var handle = "area|" + anchorText(anchor) + "|" + radius;
+        var title = "Area within " + radius + " blocks of " + anchorText(anchor);
+        for (var entity : read.entities().items()) {
+            var record = entityRecord(scope, entity, null);
+            entities.add(record.payload());
+            payload.put("entities", new Evidence.JsonArray(entities));
+            // Measure the entire record with the real encoder, including escaped names and the block summary.
+            if (PackSageTools.encodeRecord(evidence(scope, handle, Evidence.RecordKind.OTHER, title, payload,
+                    Evidence.Coverage.PARTIAL, null)).toString().getBytes(StandardCharsets.UTF_8).length > 64 * 1024) {
+                entities.removeLast();
+                notes.add("Area entity byte budget reached; " + (read.entities().items().size() - entities.size())
+                        + " entities omitted from this summary; use list_entities for the rest");
+                break;
+            }
+            if (record.source().coverage() == Evidence.Coverage.PARTIAL) {
+                notes.add("Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records");
+            }
+        }
+        payload.put("entities", new Evidence.JsonArray(entities));
         var coverage = notes.isEmpty() && read.blocks().coverage() == Evidence.Coverage.COMPLETE
                 && read.entities().coverage() == Evidence.Coverage.COMPLETE ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;
-        var handle = "area|" + anchorText(anchor) + "|" + radius;
-        var record = evidence(scope, handle, Evidence.RecordKind.OTHER, "Area within " + radius + " blocks of " + anchorText(anchor),
-                payload, coverage, null);
+        var record = evidence(scope, handle, Evidence.RecordKind.OTHER, title, payload, coverage, null);
         return result(List.of(record), coverage, null, notes.isEmpty() ? null : String.join("; ", notes));
     }
 

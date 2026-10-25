@@ -26,6 +26,67 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class MinecraftDebugAdapterTest {
     @ParameterizedTest
+    @ValueSource(strings = {"settings", "prompt", "save"})
+    void promptSaveLeavesTheClientResponsiveAndPreservesConcurrentScreenSaves(String concurrent, @TempDir Path directory) throws Exception {
+        class Client extends Minecraft {
+            java.util.concurrent.Executor executor;
+            Client() { super(null); }
+            @Override public void execute(Runnable task) { executor.execute(task); }
+        }
+        var field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        var unsafe = field.get(null);
+        var client = (Client) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Client.class);
+        var backend = (ModelBackend) Proxy.newProxyInstance(ModelBackend.class.getClassLoader(), new Class<?>[]{ModelBackend.class},
+                (proxy, method, args) -> { throw new AssertionError("prompt editing must not call the model"); });
+        var runtime = new AssistantRuntime(new ConversationStore(directory, Runnable::run), backend,
+                current -> { throw new AssertionError("prompt editing must not capture context"); }, Runnable::run, Runnable::run,
+                current -> new KnowledgeService(List.of(), current), turn -> 0,
+                prepared -> { throw new AssertionError("prompt editing must not submit requests"); }, model -> 0, paused -> { }, url -> { });
+        var path = directory.resolve("settings.properties");
+        var started = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var writes = new java.util.concurrent.atomic.AtomicInteger();
+        try (var clientThread = java.util.concurrent.Executors.newSingleThreadExecutor();
+             var worker = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+            client.executor = clientThread;
+            var adapter = new MinecraftDebugAdapter(client, runtime, path, () -> { }, new DebugRequestLog(), (settings, text) -> {
+                if (writes.incrementAndGet() == 1) {
+                    started.countDown();
+                    try { assertTrue(release.await(5, java.util.concurrent.TimeUnit.SECONDS)); }
+                    catch (InterruptedException failure) { throw new RuntimeException(failure); }
+                }
+                settings.saveDeveloperPrompt(path, text);
+            });
+            var body = new com.google.gson.JsonObject();
+            body.addProperty("text", "bridge prompt");
+            var response = worker.submit(() -> adapter.execute(DebugRouter.Operation.PROMPT_SET, body));
+            try {
+                assertTrue(started.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                clientThread.submit(() -> {
+                    assertNull(runtime.settings().developerPrompt(), "unpersisted prompt must not be published");
+                    if (concurrent.equals("settings")) {
+                        runtime.settings().setOpenPaused(false);
+                        runtime.settings().setHistoryTurns(25);
+                    } else if (concurrent.equals("prompt")) {
+                        runtime.settings().saveDeveloperPrompt(path, "screen prompt");
+                    }
+                    runtime.settings().save(path);
+                }).get(1, java.util.concurrent.TimeUnit.SECONDS);
+            } finally {
+                release.countDown();
+            }
+            response.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            var saved = dev.packsage.chat.PackSageSettings.load(path);
+            assertEquals(concurrent.equals("prompt") ? "screen prompt" : "bridge prompt", saved.developerPrompt());
+            assertEquals(saved.developerPrompt(), runtime.settings().developerPrompt());
+            assertEquals(!concurrent.equals("settings"), saved.openPaused());
+            assertEquals(concurrent.equals("settings") ? 25 : 10, saved.historyTurns());
+            assertEquals(saved.historyTurns(), runtime.settings().historyTurns());
+        }
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"chest", "advancement", "collision", "missing"})
     void replyNavigationAcceptsOnlyOneDestination(String scenario, @TempDir Path directory) throws Exception {
         class Client extends Minecraft {

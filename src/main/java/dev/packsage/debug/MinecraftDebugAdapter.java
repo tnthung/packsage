@@ -27,6 +27,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /** Only bridge workers wait. Every game object is read or changed on its owning thread. */
@@ -39,16 +40,23 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
     private final Path settingsPath;
     private final Runnable openChat;
     private final DebugRequestLog timing;
+    private final BiConsumer<dev.packsage.chat.PackSageSettings, String> promptWriter;
     private final Object conversationLock = new Object();
     private PendingScreenshot screenshot;
 
     public MinecraftDebugAdapter(Minecraft client, AssistantRuntime runtime, Path settingsPath, Runnable openChat,
                                  DebugRequestLog timing) {
+        this(client, runtime, settingsPath, openChat, timing, (settings, text) -> settings.saveDeveloperPrompt(settingsPath, text));
+    }
+
+    MinecraftDebugAdapter(Minecraft client, AssistantRuntime runtime, Path settingsPath, Runnable openChat,
+                          DebugRequestLog timing, BiConsumer<dev.packsage.chat.PackSageSettings, String> promptWriter) {
         this.client = client;
         this.runtime = runtime;
         this.settingsPath = settingsPath;
         this.openChat = openChat;
         this.timing = timing;
+        this.promptWriter = promptWriter;
     }
 
     @Override
@@ -226,7 +234,7 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
             case PROMPT_GET, PROMPT_SET -> call(client, () -> {
                 var settings = runtime.settings();
                 if (operation == DebugRouter.Operation.PROMPT_SET) {
-                    settings.saveDeveloperPrompt(settingsPath, body.get("text").isJsonNull() ? null : body.get("text").getAsString());
+                    promptWriter.accept(settings, body.get("text").isJsonNull() ? null : body.get("text").getAsString());
                 }
                 var json = new JsonObject();
                 json.addProperty("text", settings.developerPrompt());

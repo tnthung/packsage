@@ -317,6 +317,24 @@ class NativeRecipeReaderTest {
     }
 
     @Test
+    void mapExtensionAndDataPackTrimsAreIndexedByWhatTheyReallyMake() {
+        var recipes = new ArrayList<RecipeHolder<?>>();
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("minecraft:map_extending"),
+                new net.minecraft.world.item.crafting.MapExtendingRecipe(net.minecraft.world.item.crafting.CraftingBookCategory.MISC)));
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:star_trim"),
+                new net.minecraft.world.item.crafting.SmithingTrimRecipe(Ingredient.of(Items.SENTRY_ARMOR_TRIM_SMITHING_TEMPLATE),
+                        Ingredient.of(Items.NETHER_STAR), Ingredient.of(Items.QUARTZ))));
+        var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build();
+        var source = NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE);
+        var none = new Evidence.JsonObject(Map.of());
+
+        assertTrue(source.recipeOutputs("minecraft:map", none, SCOPE).isEmpty());
+        assertFalse(source.recipesComplete("minecraft:filled_map", none));
+        assertFalse(source.recipesComplete("minecraft:nether_star", none));
+        assertTrue(source.recipesComplete("minecraft:obsidian", none));
+    }
+
+    @Test
     void aKnownVanillaSpecialRecipeOnlyQualifiesTheItemsItCanMake() {
         var recipes = new ArrayList<RecipeHolder<?>>();
         recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("minecraft:repair_item"),
@@ -327,8 +345,11 @@ class NativeRecipeReaderTest {
         var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build();
         var source = NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE);
 
-        assertTrue(source.recipesComplete("minecraft:nether_star"));
-        assertFalse(source.recipesComplete("minecraft:elytra"));
+        var none = new Evidence.JsonObject(Map.of());
+        assertTrue(source.recipesComplete("minecraft:nether_star", none));
+        assertFalse(source.recipesComplete("minecraft:elytra", none));
+        assertTrue(source.recipesComplete("minecraft:saddle", none));
+        assertFalse(source.recipesComplete("minecraft:saddle", new Evidence.JsonObject(Map.of("minecraft:max_damage", new Evidence.JsonNumber(java.math.BigDecimal.TEN)))));
         var beacon = NativeProvider.planRecipe(source, "minecraft:beacon", 1, SCOPE, 4);
         assertTrue(beacon.detail().contains("obtained rather than crafted=[minecraft:nether_star]"), beacon.detail());
     }

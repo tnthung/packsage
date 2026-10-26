@@ -107,6 +107,27 @@ class RecipePlannerTest {
     }
 
     @Test
+    void uncheckedMaterialsBeyondSixteenAreCounted() {
+        var index = new KnowledgeIndex();
+        index.replace(new dev.packsage.knowledge.nativegame.NativeSnapshot(SCOPE, List.of(record("mod:output", new Evidence.RecipePayload("mod:output",
+                java.util.stream.IntStream.range(0, 18).mapToObj(i -> new Evidence.RecipeSlot("input-" + i, List.of(new Evidence.RecipeAlternative("item",
+                        "mod:raw_" + i, new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED)))).toList(),
+                List.of(new Evidence.RecipeOutput("item", "mod:output", new Evidence.JsonObject(Map.of()), 1)),
+                List.of(), List.of(), List.of(), Evidence.DecodingStatus.VERIFIED)))));
+        var unchecked = new RecipePlanner.Source() {
+            @Override public boolean available(Evidence.Scope scope) { return index.available(scope); }
+            @Override public List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components, Evidence.Scope scope) {
+                return index.recipeOutputs(identity, components, scope);
+            }
+            @Override public boolean recipesComplete(String identity, Evidence.JsonObject components) { return false; }
+        };
+
+        var result = new RecipePlanner(unchecked).plan("mod:output", 1, SCOPE, 2);
+
+        assertTrue(result.detail().contains("at least 2 beyond the 16 listed"), result.detail());
+    }
+
+    @Test
     void anIncompleteRecipeLookupIsNotCalledAnObtainedMaterial() {
         var index = new KnowledgeIndex();
         index.replace(new dev.packsage.knowledge.nativegame.NativeSnapshot(SCOPE, List.of(record("mod:output", new Evidence.RecipePayload("mod:output",
@@ -119,7 +140,7 @@ class RecipePlannerTest {
             @Override public List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components, Evidence.Scope scope) {
                 return index.recipeOutputs(identity, components, scope);
             }
-            @Override public boolean recipesComplete(String identity) { return !identity.equals("mod:hidden"); }
+            @Override public boolean recipesComplete(String identity, Evidence.JsonObject components) { return !identity.equals("mod:hidden"); }
         };
 
         var result = new RecipePlanner(capped).plan("mod:output", 1, SCOPE, 2);

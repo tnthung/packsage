@@ -32,24 +32,32 @@ final class NativeRecipeReader {
     private static final int MAX_PLAN_COPIES = 512;
     private static final int MAX_PLAN_TAG_SCAN = 4096;
     private static final int MAX_PLAN_TAG_MEMBERS = 16;
-    /** What each vanilla special recipe, whose result is computed from the grid, can produce. Any other class could produce anything. */
-    private static final Map<Class<?>, java.util.function.Predicate<Item>> SPECIAL_OUTPUTS = Map.ofEntries(
-            Map.entry(net.minecraft.world.item.crafting.FireworkRocketRecipe.class, item -> item == net.minecraft.world.item.Items.FIREWORK_ROCKET),
-            Map.entry(net.minecraft.world.item.crafting.FireworkStarRecipe.class, item -> item == net.minecraft.world.item.Items.FIREWORK_STAR),
-            Map.entry(net.minecraft.world.item.crafting.FireworkStarFadeRecipe.class, item -> item == net.minecraft.world.item.Items.FIREWORK_STAR),
-            Map.entry(net.minecraft.world.item.crafting.TippedArrowRecipe.class, item -> item == net.minecraft.world.item.Items.TIPPED_ARROW),
-            Map.entry(net.minecraft.world.item.crafting.SuspiciousStewRecipe.class, item -> item == net.minecraft.world.item.Items.SUSPICIOUS_STEW),
-            Map.entry(net.minecraft.world.item.crafting.MapCloningRecipe.class, item -> item == net.minecraft.world.item.Items.FILLED_MAP),
-            Map.entry(net.minecraft.world.item.crafting.MapExtendingRecipe.class, item -> item == net.minecraft.world.item.Items.FILLED_MAP),
-            Map.entry(net.minecraft.world.item.crafting.BookCloningRecipe.class, item -> item == net.minecraft.world.item.Items.WRITTEN_BOOK),
-            Map.entry(net.minecraft.world.item.crafting.DecoratedPotRecipe.class, item -> item == net.minecraft.world.item.Items.DECORATED_POT),
-            Map.entry(net.minecraft.world.item.crafting.ShieldDecorationRecipe.class, item -> item == net.minecraft.world.item.Items.SHIELD),
-            Map.entry(net.minecraft.world.item.crafting.BannerDuplicateRecipe.class, item -> item instanceof net.minecraft.world.item.BannerItem),
-            Map.entry(net.minecraft.world.item.crafting.ShulkerBoxColoring.class, item -> item instanceof net.minecraft.world.item.BlockItem block
+    /** Whether a recipe could make the item, in the requested components, when its result is only computed from the grid. */
+    private interface Producer {
+        boolean test(net.minecraft.world.item.crafting.Recipe<?> recipe, Item item, Evidence.JsonObject components);
+    }
+
+    /** What each vanilla special recipe can produce; any other class with a computed result could produce anything. */
+    private static final Map<Class<?>, Producer> SPECIAL_OUTPUTS = Map.ofEntries(
+            Map.entry(net.minecraft.world.item.crafting.FireworkRocketRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.FIREWORK_ROCKET),
+            Map.entry(net.minecraft.world.item.crafting.FireworkStarRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.FIREWORK_STAR),
+            Map.entry(net.minecraft.world.item.crafting.FireworkStarFadeRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.FIREWORK_STAR),
+            Map.entry(net.minecraft.world.item.crafting.TippedArrowRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.TIPPED_ARROW),
+            Map.entry(net.minecraft.world.item.crafting.SuspiciousStewRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.SUSPICIOUS_STEW),
+            Map.entry(net.minecraft.world.item.crafting.MapCloningRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.FILLED_MAP),
+            Map.entry(net.minecraft.world.item.crafting.MapExtendingRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.FILLED_MAP),
+            Map.entry(net.minecraft.world.item.crafting.BookCloningRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.WRITTEN_BOOK),
+            Map.entry(net.minecraft.world.item.crafting.DecoratedPotRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.DECORATED_POT),
+            Map.entry(net.minecraft.world.item.crafting.ShieldDecorationRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.SHIELD),
+            Map.entry(net.minecraft.world.item.crafting.BannerDuplicateRecipe.class, (recipe, item, components) -> item instanceof net.minecraft.world.item.BannerItem),
+            Map.entry(net.minecraft.world.item.crafting.ShulkerBoxColoring.class, (recipe, item, components) -> item instanceof net.minecraft.world.item.BlockItem block
                     && block.getBlock() instanceof net.minecraft.world.level.block.ShulkerBoxBlock),
-            Map.entry(net.minecraft.world.item.crafting.ArmorDyeRecipe.class, item -> new net.minecraft.world.item.ItemStack(item).is(net.minecraft.tags.ItemTags.DYEABLE)),
-            Map.entry(net.minecraft.world.item.crafting.SmithingTrimRecipe.class, item -> new net.minecraft.world.item.ItemStack(item).is(net.minecraft.tags.ItemTags.TRIMMABLE_ARMOR)),
-            Map.entry(net.minecraft.world.item.crafting.RepairItemRecipe.class, item -> item.components().has(net.minecraft.core.component.DataComponents.MAX_DAMAGE)));
+            Map.entry(net.minecraft.world.item.crafting.ArmorDyeRecipe.class, (recipe, item, components) -> new net.minecraft.world.item.ItemStack(item).is(net.minecraft.tags.ItemTags.DYEABLE)),
+            // A trim result is the recipe's own base item with a trim, whatever base a data pack names.
+            Map.entry(net.minecraft.world.item.crafting.SmithingTrimRecipe.class, (recipe, item, components) -> ((net.minecraft.world.item.crafting.SmithingTrimRecipe) recipe).isBaseIngredient(new net.minecraft.world.item.ItemStack(item))),
+            // A repaired stack carries durability; it can stand for a request only when that request can have it.
+            Map.entry(net.minecraft.world.item.crafting.RepairItemRecipe.class, (recipe, item, components) -> item.components().has(net.minecraft.core.component.DataComponents.MAX_DAMAGE)
+                    || components.values().containsKey("minecraft:max_damage")));
 
     private NativeRecipeReader() { }
 
@@ -151,14 +159,19 @@ final class NativeRecipeReader {
             }
             try {
                 // A trim recipe's result is only an illustration; the real item is the base armor with its trim.
+                // Map extension shows an empty map but makes a filled one.
                 var output = holder.value() instanceof net.minecraft.world.item.crafting.SmithingTrimRecipe
+                        || holder.value() instanceof net.minecraft.world.item.crafting.MapExtendingRecipe
                         ? net.minecraft.world.item.ItemStack.EMPTY : holder.value().getResultItem(registries);
                 if (output.isEmpty()) {
                     // Special recipes compute their result from the grid; they matter only for an item with no indexed recipe.
                     result.dynamicOutputs++;
                     var produces = SPECIAL_OUTPUTS.get(holder.value().getClass());
                     if (produces == null) result.unknownDynamic = true;
-                    else result.dynamicProducers.add(produces);
+                    else {
+                        var recipe = holder.value();
+                        result.dynamicProducers.add((item, components) -> produces.test(recipe, item, components));
+                    }
                     continue;
                 }
                 var identity = NativeSnapshot.itemIdentity(output, itemRegistry);
@@ -255,7 +268,7 @@ final class NativeRecipeReader {
         private boolean indexIncomplete;
         private boolean unknownDynamic;
         private boolean brewingIncomplete;
-        private final Set<java.util.function.Predicate<Item>> dynamicProducers = new LinkedHashSet<>();
+        private final List<java.util.function.BiPredicate<Item, Evidence.JsonObject>> dynamicProducers = new ArrayList<>();
         private Registry<Item> items;
         private final Set<String> incomplete = new java.util.HashSet<>();
 
@@ -266,11 +279,11 @@ final class NativeRecipeReader {
         @Override public boolean available(Evidence.Scope requestedScope) { return scope.equals(requestedScope); }
 
         @Override
-        public boolean recipesComplete(String identity) {
+        public boolean recipesComplete(String identity, Evidence.JsonObject components) {
             if (indexIncomplete || unknownDynamic || brewingIncomplete || incomplete.contains(identity)) return false;
             var key = ResourceLocation.tryParse(identity);
             var item = key == null || items == null ? null : items.getOptional(key).orElse(null);
-            return item == null || dynamicProducers.stream().noneMatch(produces -> produces.test(item));
+            return item == null || dynamicProducers.stream().noneMatch(produces -> produces.test(item, components));
         }
 
         @Override

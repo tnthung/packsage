@@ -1154,7 +1154,7 @@ class AssistantScreenStateTest {
     }
 
     @Test
-    void sidebarOtherSessionsToggleFiltersAndSavesFromTheSidebar() {
+    void sidebarDoesNotToggleOtherSessions() {
         FakeActions actions = new FakeActions();
         actions.sessions = CompletableFuture.completedFuture(List.of(
                 new ChatContracts.SessionSummary(actions.view.activeWorld(), "here", "Here", "", Instant.EPOCH),
@@ -1163,17 +1163,11 @@ class AssistantScreenStateTest {
         var screen = new AssistantScreen(actions);
         screen.width = 640;
         screen.height = 480;
-        int[] saves = {0};
-        screen.setSettingsSaver(() -> saves[0]++);
         ScreenTestHost.initialize(screen);
 
         assertEquals(List.of("here"), screen.sessionRows().stream().filter(row -> row.session() != null)
                 .map(row -> row.session().id()).toList());
-        assertTrue(screen.mouseClicked(24, 90, 0));
-        assertTrue(actions.settings.showChatsFromOtherSessions());
-        assertEquals(2, screen.sessionRows().stream().filter(row -> row.session() != null).count());
-        assertEquals(1, saves[0]);
-        assertTrue(screen.mouseClicked(24, 90, 0));
+        assertFalse(screen.mouseClicked(24, 90, 0));
         assertFalse(actions.settings.showChatsFromOtherSessions());
         assertEquals(1, screen.sessionRows().stream().filter(row -> row.session() != null).count());
     }

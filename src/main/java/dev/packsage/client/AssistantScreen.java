@@ -272,9 +272,6 @@ public final class AssistantScreen extends Screen {
                 18, 60 + (20 - 12) / 2, 12, 12, 0.0F, 0.0F, 64, 64, 64, 64);
         graphics.drawString(font, Component.literal("New chat").withStyle(style ->
                 style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), 36, 60 + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
-        graphics.drawString(font, Language.getInstance().getVisualOrder(font.substrByWidth(Component.literal(
-                (settings.showChatsFromOtherSessions() ? "[x] " : "[ ] ") + "Show chats from other sessions")
-                .withStyle(style -> style.withFont(ModernUi.FONT)), Math.max(1, sidebarWidth - 24))), 12, 87, ModernUi.MUTED, false);
         drawSessionGroups(graphics, mouseX, mouseY);
         int controlY = Math.max(0, height - 32);
         ModernUi.surface(graphics, 12, controlY, 32, Math.min(height, controlY + 20),
@@ -1350,12 +1347,6 @@ public final class AssistantScreen extends Screen {
         setFocused(null);
         if (mouseX < sidebarWidth) {
             if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 60 && mouseY < 80) { newChat(); return true; }
-            if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 84 && mouseY < 102) {
-                settings.setShowChatsFromOtherSessions(!settings.showChatsFromOtherSessions());
-                sidebarScroll = 0;
-                settingsSaver.run();
-                return true;
-            }
             if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 104 && mouseY < height - 56) {
                 for (SessionRow row : sessionRows()) {
                     if (mouseY < row.top() || mouseY >= row.top() + row.height()) continue;

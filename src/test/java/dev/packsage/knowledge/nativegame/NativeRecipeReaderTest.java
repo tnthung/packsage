@@ -317,7 +317,7 @@ class NativeRecipeReaderTest {
     }
 
     @Test
-    void mapExtensionAndDataPackTrimsAreIndexedByWhatTheyReallyMake() {
+    void mapExtensionAndTrimsAreNeitherIndexedByTheirIllustrationNorASourceOfTheirItem() {
         var recipes = new ArrayList<RecipeHolder<?>>();
         recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("minecraft:map_extending"),
                 new net.minecraft.world.item.crafting.MapExtendingRecipe(net.minecraft.world.item.crafting.CraftingBookCategory.MISC)));
@@ -329,8 +329,9 @@ class NativeRecipeReaderTest {
         var none = new Evidence.JsonObject(Map.of());
 
         assertTrue(source.recipeOutputs("minecraft:map", none, SCOPE).isEmpty());
-        assertFalse(source.recipesComplete("minecraft:filled_map", none));
-        assertFalse(source.recipesComplete("minecraft:nether_star", none));
+        // Both need the item itself as an input, so neither is how it is first obtained.
+        assertTrue(source.recipesComplete("minecraft:filled_map", none));
+        assertTrue(source.recipesComplete("minecraft:nether_star", none));
         assertTrue(source.recipesComplete("minecraft:obsidian", none));
     }
 
@@ -339,6 +340,8 @@ class NativeRecipeReaderTest {
         var recipes = new ArrayList<RecipeHolder<?>>();
         recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("minecraft:repair_item"),
                 new net.minecraft.world.item.crafting.RepairItemRecipe(net.minecraft.world.item.crafting.CraftingBookCategory.MISC)));
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("minecraft:suspicious_stew"),
+                new net.minecraft.world.item.crafting.SuspiciousStewRecipe(net.minecraft.world.item.crafting.CraftingBookCategory.MISC)));
         recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:beacon"),
                 new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
                         new ItemStack(Items.BEACON), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.NETHER_STAR)))));
@@ -347,9 +350,10 @@ class NativeRecipeReaderTest {
 
         var none = new Evidence.JsonObject(Map.of());
         assertTrue(source.recipesComplete("minecraft:nether_star", none));
-        assertFalse(source.recipesComplete("minecraft:elytra", none));
-        assertTrue(source.recipesComplete("minecraft:saddle", none));
-        assertFalse(source.recipesComplete("minecraft:saddle", new Evidence.JsonObject(Map.of("minecraft:max_damage", new Evidence.JsonNumber(java.math.BigDecimal.TEN)))));
+        assertFalse(source.recipesComplete("minecraft:suspicious_stew", none));
+        // Repair turns two of an item into one, so it never supplies an item the player lacks.
+        assertTrue(source.recipesComplete("minecraft:elytra", none));
+        assertTrue(source.recipesComplete("minecraft:saddle", new Evidence.JsonObject(Map.of("minecraft:max_damage", new Evidence.JsonNumber(java.math.BigDecimal.TEN)))));
         var beacon = NativeProvider.planRecipe(source, "minecraft:beacon", 1, SCOPE, 4);
         assertTrue(beacon.detail().contains("obtained rather than crafted=[minecraft:nether_star]"), beacon.detail());
     }

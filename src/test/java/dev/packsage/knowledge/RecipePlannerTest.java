@@ -124,7 +124,27 @@ class RecipePlannerTest {
 
         var result = new RecipePlanner(unchecked).plan("mod:output", 1, SCOPE, 2);
 
-        assertTrue(result.detail().contains("at least 2 beyond the 16 listed"), result.detail());
+        assertTrue(result.detail().contains("materials with no recipe found, 2 beyond the 16 listed"), result.detail());
+    }
+
+    @Test
+    void aMaterialReachedThroughSeveralBranchesIsCountedOnce() {
+        java.util.function.BiFunction<String, List<String>, Evidence.Record> recipe = (output, inputs) -> record(output, new Evidence.RecipePayload(output,
+                inputs.stream().map(input -> new Evidence.RecipeSlot("slot:" + input, List.of(new Evidence.RecipeAlternative("item", input,
+                        new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED)))).toList(),
+                List.of(new Evidence.RecipeOutput("item", output, new Evidence.JsonObject(Map.of()), 1)), List.of(), List.of(), List.of(),
+                Evidence.DecodingStatus.VERIFIED));
+        var roots = new java.util.ArrayList<String>();
+        for (int i = 0; i < 16; i++) roots.add("mod:raw_" + i);
+        roots.add("mod:left");
+        roots.add("mod:right");
+        var index = new KnowledgeIndex();
+        index.replace(new dev.packsage.knowledge.nativegame.NativeSnapshot(SCOPE, List.of(recipe.apply("mod:output", roots),
+                recipe.apply("mod:left", List.of("mod:shared")), recipe.apply("mod:right", List.of("mod:shared")))));
+
+        var result = new RecipePlanner(index).plan("mod:output", 1, SCOPE, 3);
+
+        assertTrue(result.detail().contains("more materials with no recipe, 1 beyond the 16 listed"), result.detail());
     }
 
     @Test

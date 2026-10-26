@@ -37,27 +37,27 @@ final class NativeRecipeReader {
         boolean test(net.minecraft.world.item.crafting.Recipe<?> recipe, Item item, Evidence.JsonObject components);
     }
 
-    /** What each vanilla special recipe can produce; any other class with a computed result could produce anything. */
+    /**
+     * What each vanilla special recipe can produce from other materials. Recipes that need the item itself as an input,
+     * such as repair, trims, dyeing, recolouring, copying and extending, change a stack the player already has, so they are
+     * never how that item is first obtained and do not count. Any other class with a computed result could produce anything.
+     */
     private static final Map<Class<?>, Producer> SPECIAL_OUTPUTS = Map.ofEntries(
             Map.entry(net.minecraft.world.item.crafting.FireworkRocketRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.FIREWORK_ROCKET),
             Map.entry(net.minecraft.world.item.crafting.FireworkStarRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.FIREWORK_STAR),
-            Map.entry(net.minecraft.world.item.crafting.FireworkStarFadeRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.FIREWORK_STAR),
             Map.entry(net.minecraft.world.item.crafting.TippedArrowRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.TIPPED_ARROW),
             Map.entry(net.minecraft.world.item.crafting.SuspiciousStewRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.SUSPICIOUS_STEW),
-            Map.entry(net.minecraft.world.item.crafting.MapCloningRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.FILLED_MAP),
-            Map.entry(net.minecraft.world.item.crafting.MapExtendingRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.FILLED_MAP),
-            Map.entry(net.minecraft.world.item.crafting.BookCloningRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.WRITTEN_BOOK),
             Map.entry(net.minecraft.world.item.crafting.DecoratedPotRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.DECORATED_POT),
-            Map.entry(net.minecraft.world.item.crafting.ShieldDecorationRecipe.class, (recipe, item, components) -> item == net.minecraft.world.item.Items.SHIELD),
-            Map.entry(net.minecraft.world.item.crafting.BannerDuplicateRecipe.class, (recipe, item, components) -> item instanceof net.minecraft.world.item.BannerItem),
-            Map.entry(net.minecraft.world.item.crafting.ShulkerBoxColoring.class, (recipe, item, components) -> item instanceof net.minecraft.world.item.BlockItem block
-                    && block.getBlock() instanceof net.minecraft.world.level.block.ShulkerBoxBlock),
-            Map.entry(net.minecraft.world.item.crafting.ArmorDyeRecipe.class, (recipe, item, components) -> new net.minecraft.world.item.ItemStack(item).is(net.minecraft.tags.ItemTags.DYEABLE)),
-            // A trim result is the recipe's own base item with a trim, whatever base a data pack names.
-            Map.entry(net.minecraft.world.item.crafting.SmithingTrimRecipe.class, (recipe, item, components) -> ((net.minecraft.world.item.crafting.SmithingTrimRecipe) recipe).isBaseIngredient(new net.minecraft.world.item.ItemStack(item))),
-            // A repaired stack carries durability; it can stand for a request only when that request can have it.
-            Map.entry(net.minecraft.world.item.crafting.RepairItemRecipe.class, (recipe, item, components) -> item.components().has(net.minecraft.core.component.DataComponents.MAX_DAMAGE)
-                    || components.values().containsKey("minecraft:max_damage")));
+            Map.entry(net.minecraft.world.item.crafting.FireworkStarFadeRecipe.class, (recipe, item, components) -> false),
+            Map.entry(net.minecraft.world.item.crafting.MapCloningRecipe.class, (recipe, item, components) -> false),
+            Map.entry(net.minecraft.world.item.crafting.MapExtendingRecipe.class, (recipe, item, components) -> false),
+            Map.entry(net.minecraft.world.item.crafting.BookCloningRecipe.class, (recipe, item, components) -> false),
+            Map.entry(net.minecraft.world.item.crafting.ShieldDecorationRecipe.class, (recipe, item, components) -> false),
+            Map.entry(net.minecraft.world.item.crafting.BannerDuplicateRecipe.class, (recipe, item, components) -> false),
+            Map.entry(net.minecraft.world.item.crafting.ShulkerBoxColoring.class, (recipe, item, components) -> false),
+            Map.entry(net.minecraft.world.item.crafting.ArmorDyeRecipe.class, (recipe, item, components) -> false),
+            Map.entry(net.minecraft.world.item.crafting.SmithingTrimRecipe.class, (recipe, item, components) -> false),
+            Map.entry(net.minecraft.world.item.crafting.RepairItemRecipe.class, (recipe, item, components) -> false));
 
     private NativeRecipeReader() { }
 

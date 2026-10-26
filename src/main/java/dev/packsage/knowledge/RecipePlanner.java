@@ -70,9 +70,9 @@ public final class RecipePlanner {
             state.partial = true;
             if (!index.recipesComplete(itemIdentity, components)) {
                 if (state.uncheckedLeaves.size() < 16) state.uncheckedLeaves.add(itemIdentity);
-                else if (!state.uncheckedLeaves.contains(itemIdentity)) state.omittedUncheckedLeaves++;
+                else if (!state.uncheckedLeaves.contains(itemIdentity)) state.omittedUncheckedLeaves.add(itemIdentity);
             } else if (state.noRecipeLeaves.size() < 16) state.noRecipeLeaves.add(itemIdentity);
-            else state.omittedNoRecipeLeaves++;
+            else if (!state.noRecipeLeaves.contains(itemIdentity)) state.omittedNoRecipeLeaves.add(itemIdentity);
             return false;
         }
         boolean anyComplete = false;
@@ -253,8 +253,9 @@ public final class RecipePlanner {
         private final Set<String> uncheckedLeaves = new LinkedHashSet<>();
         private int nodes;
         private int branches;
-        private int omittedNoRecipeLeaves;
-        private int omittedUncheckedLeaves;
+        private final Set<String> omittedNoRecipeLeaves = new HashSet<>();
+        // Bounded by the planner's node cap.
+        private final Set<String> omittedUncheckedLeaves = new HashSet<>();
         private boolean partial;
 
         private String detail() {
@@ -263,8 +264,8 @@ public final class RecipePlanner {
             if (!noRecipeLeaves.isEmpty()) detail.add("materials with no recipe here, obtained rather than crafted=" + noRecipeLeaves.stream().limit(16).toList());
             if (!uncheckedLeaves.isEmpty()) detail.add("materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them="
                     + uncheckedLeaves);
-            if (omittedUncheckedLeaves > 0) detail.add("more materials with no recipe found, at least " + omittedUncheckedLeaves + " beyond the 16 listed");
-            if (omittedNoRecipeLeaves > 0) detail.add("more materials with no recipe, at least " + omittedNoRecipeLeaves + " beyond the 16 listed");
+            if (!omittedUncheckedLeaves.isEmpty()) detail.add("more materials with no recipe found, " + omittedUncheckedLeaves.size() + " beyond the 16 listed");
+            if (!omittedNoRecipeLeaves.isEmpty()) detail.add("more materials with no recipe, " + omittedNoRecipeLeaves.size() + " beyond the 16 listed");
             if (detail.isEmpty()) detail.add("planning-stopped-before-route: node cap or unresolved recipe output");
             return String.join("; ", detail);
         }

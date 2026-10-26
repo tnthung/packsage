@@ -1077,6 +1077,7 @@ public final class ConversationStore {
         value.addProperty("answer", turn.answer());
         value.addProperty("tokenCount", turn.tokenCount());
         if (turn.sentAt() != null) value.addProperty("sentAt", turn.sentAt().toString());
+        if (turn.assistantSentAt() != null) value.addProperty("assistantSentAt", turn.assistantSentAt().toString());
         if (turn.durationMillis() != null) value.addProperty("durationMillis", turn.durationMillis());
         value.addProperty("outcome", turn.outcome().status().name());
         if (turn.outcome().detail() != null) value.addProperty("outcomeDetail", turn.outcome().detail());
@@ -1323,7 +1324,9 @@ public final class ConversationStore {
                 sources, targets, new ChatContracts.Outcome(ChatContracts.OutcomeStatus.valueOf(value.get("outcome").getAsString()), detail),
                 value.get("tokenCount").getAsInt(), value.has("sentAt") && !value.get("sentAt").isJsonNull()
                 ? Instant.parse(value.get("sentAt").getAsString()) : null, activities, steeringMessages,
-                value.has("durationMillis") ? value.get("durationMillis").getAsLong() : null);
+                value.has("durationMillis") ? value.get("durationMillis").getAsLong() : null,
+                value.has("assistantSentAt") && !value.get("assistantSentAt").isJsonNull()
+                        ? Instant.parse(value.get("assistantSentAt").getAsString()) : null);
     }
 
     private static dev.packsage.model.ModelBackend.InputItem replayFromJson(JsonObject value) {

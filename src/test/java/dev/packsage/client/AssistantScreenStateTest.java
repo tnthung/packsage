@@ -1156,7 +1156,7 @@ class AssistantScreenStateTest {
     }
 
     @Test
-    void sidebarGroupsCurrentWorldFirstExpandsAndScrollsToEverySession() {
+    void sidebarGroupsCurrentWorldFirstPagesAndScrollsToEverySession() {
         FakeActions actions = new FakeActions();
         actions.settings.setShowChatsFromOtherSessions(true);
         var activeWorld = actions.view.activeWorld();
@@ -1171,9 +1171,10 @@ class AssistantScreenStateTest {
         screen.height = 480;
         ScreenTestHost.initialize(screen);
         assertEquals(activeWorld, screen.sessionRows().getFirst().world());
-        assertEquals(3, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+        assertEquals(2, screen.sessionRows().stream().filter(row -> row.session() != null).count());
         actions.settings.setSessionsBeforeCollapse(4);
-        assertEquals(5, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+        screen.loadSessions();
+        assertEquals(4, screen.sessionRows().stream().filter(row -> row.session() != null).count());
         actions.settings.setSessionsBeforeCollapse(2);
         var expand = screen.sessionRows().stream().filter(AssistantScreen.SessionRow::expand).findFirst().orElseThrow();
         screen.mouseClicked(24, expand.top() + 5, 0);

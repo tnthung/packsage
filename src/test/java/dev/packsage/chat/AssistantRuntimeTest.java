@@ -2866,6 +2866,11 @@ class AssistantRuntimeTest {
         assertFalse(storeTasks.isEmpty(), "the second completion metadata should be persisted before its list snapshot");
         storeTasks.removeFirst().run();
         assertFalse(storeTasks.isEmpty(), "the second completion list snapshot should be queued");
+        java.nio.file.Path stateFile = conversationFile.resolveSibling(conversationFile.getFileName().toString().replace(".jsonl", ".state.json"));
+        while (!Files.readString(stateFile).contains(secondRequestId)) {
+            assertFalse(storeTasks.isEmpty(), "completion metadata should be saved before its catalog snapshot");
+            storeTasks.removeFirst().run();
+        }
         Files.move(conversationFile, retainedConversationFile);
         try {
             storeTasks.removeFirst().run();

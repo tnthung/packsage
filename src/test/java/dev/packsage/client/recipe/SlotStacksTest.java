@@ -52,6 +52,19 @@ class SlotStacksTest {
     }
 
     @Test
+    void itemCountsAreClampedToStackLimits() {
+        var zero = SlotStacks.resolve(new RecipeCardModel.Stack(RecipeCardModel.Stack.Kind.ITEM,
+                "minecraft:stone", "{}", 0, ""), registries).getFirst();
+        var negative = SlotStacks.resolve(new RecipeCardModel.Stack(RecipeCardModel.Stack.Kind.ITEM,
+                "minecraft:stone", "{}", -3, ""), registries).getFirst();
+        var oversized = SlotStacks.resolve(new RecipeCardModel.Stack(RecipeCardModel.Stack.Kind.ITEM,
+                "minecraft:ender_pearl", "{}", 100, ""), registries).getFirst();
+        assertEquals(1, zero.getCount());
+        assertEquals(1, negative.getCount());
+        assertEquals(16, oversized.getCount());
+    }
+
+    @Test
     void customIngredientDoesNotInventAnItem() {
         assertTrue(SlotStacks.resolve(new RecipeCardModel.Stack(RecipeCardModel.Stack.Kind.CUSTOM,
                 "custom", "{}", 1, "custom"), registries).isEmpty());

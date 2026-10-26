@@ -4,6 +4,7 @@
 
 ### 2026-10-26
 
+- The chat opens in about 11–50 ms from the open key to the first frame, with the selected chat already shown (live check). The debug bridge looks up a chat in the current world only, instead of scanning every saved chat. The New chat button no longer has a gap below it, and tool-row labels use an accent color. Each stage of opening the chat is logged with its timing.
 - Chat follow-ups from play testing:
   - **Opening speed:** on the real chat data, opening a chat dropped from about 2.9 s to 0.19 s. The selected chat no longer waits behind the sidebar.
   - **Sidebar:** it lists only the newest chats, up to the "Sessions before Show more" setting, and each "Show more" loads 10 more. Chats you have not opened load only their summary.

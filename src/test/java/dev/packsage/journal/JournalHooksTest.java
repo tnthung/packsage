@@ -239,8 +239,8 @@ class JournalHooksTest {
             var bus = BusBuilder.builder().build();
             new JournalHooks(journal, () -> server).register(bus);
             journal.open(dir.resolve("journal.db"), () -> 400L);
+            var realStart = System.currentTimeMillis();
             try {
-                var realStart = System.currentTimeMillis();
                 bus.post(new net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent.Post(player, partial,
                         new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 8)));
                 bus.post(new net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent.Post(player, full,

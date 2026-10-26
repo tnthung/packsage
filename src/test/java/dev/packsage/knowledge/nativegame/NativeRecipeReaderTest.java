@@ -438,6 +438,71 @@ class NativeRecipeReaderTest {
     }
 
     @Test
+    void nativeRemainderPreservesStackSensitiveCount() throws ReflectiveOperationException {
+        var unsafeClass = Class.forName("sun.misc.Unsafe");
+        var unsafeField = unsafeClass.getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var input = (Item) unsafeClass.getMethod("allocateInstance", Class.class).invoke(unsafeField.get(null), CountedRemainderItem.class);
+        for (var field : Item.class.getDeclaredFields()) {
+            if (!java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                field.setAccessible(true);
+                field.set(input, field.get(Items.MILK_BUCKET));
+            }
+        }
+        var countField = CountedRemainderItem.class.getDeclaredField("remainderCount");
+        countField.setAccessible(true);
+        countField.setInt(input, 2);
+        var recipe = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                new ItemStack(Items.CAKE), NonNullList.of(Ingredient.EMPTY, Ingredient.of(input)));
+
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:counted_remainder"), recipe),
+                registries, ITEMS, null, SCOPE, null);
+
+        assertEquals(2, record.recipePayload().remainders().getFirst().quantity());
+    }
+
+    @Test
+    void differingAlternativeRemainderCountsRemainAmbiguous() throws ReflectiveOperationException {
+        var unsafeClass = Class.forName("sun.misc.Unsafe");
+        var unsafeField = unsafeClass.getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var allocateInstance = unsafeClass.getMethod("allocateInstance", Class.class);
+        var twoBuckets = (Item) allocateInstance.invoke(unsafeField.get(null), CountedRemainderItem.class);
+        var oneBucket = (Item) allocateInstance.invoke(unsafeField.get(null), CountedRemainderItem.class);
+        for (var field : Item.class.getDeclaredFields()) {
+            if (!java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                field.setAccessible(true);
+                field.set(twoBuckets, field.get(Items.MILK_BUCKET));
+                field.set(oneBucket, field.get(Items.MILK_BUCKET));
+            }
+        }
+        var countField = CountedRemainderItem.class.getDeclaredField("remainderCount");
+        countField.setAccessible(true);
+        countField.setInt(twoBuckets, 2);
+        countField.setInt(oneBucket, 1);
+        var recipe = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                new ItemStack(Items.CAKE), NonNullList.of(Ingredient.EMPTY, Ingredient.of(twoBuckets, oneBucket)));
+
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:ambiguous_remainder"), recipe),
+                registries, ITEMS, null, SCOPE, null);
+
+        assertEquals(Evidence.DecodingStatus.PARTIAL, record.recipePayload().decodingStatus());
+        assertTrue(record.recipePayload().constraints().contains("remainders=ambiguous-by-ingredient-alternative"));
+    }
+
+    private static final class CountedRemainderItem extends Item {
+        private int remainderCount;
+
+        private CountedRemainderItem() {
+            super(new Item.Properties());
+        }
+
+        @Override public boolean hasCraftingRemainingItem(ItemStack stack) { return true; }
+
+        @Override public ItemStack getCraftingRemainingItem(ItemStack stack) { return new ItemStack(Items.BUCKET, remainderCount); }
+    }
+
+    @Test
     void shapedRecipeWithEmptyCellsNumbersSlotsByRowTimesWidthPlusColumn() {
         var pattern = net.minecraft.world.item.crafting.ShapedRecipePattern.of(java.util.Map.of(
                 'P', Ingredient.of(Items.OAK_PLANKS), 'I', Ingredient.of(Items.IRON_INGOT)), " P ", "PIP", " P ");

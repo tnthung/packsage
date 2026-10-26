@@ -88,9 +88,11 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                                                String exactOutputItem) {
         Recipe<?> recipe = holder.value();
         var decoding = Evidence.DecodingStatus.VERIFIED;
+        var constraints = new ArrayList<String>();
         ItemStack output;
         try {
-            output = recipe.getResultItem(registries);
+            output = recipe.getClass() == net.minecraft.world.item.crafting.SmithingTrimRecipe.class
+                    ? ItemStack.EMPTY : recipe.getResultItem(registries);
         } catch (RuntimeException failure) {
             if (exactOutputItem != null) return null;
             output = ItemStack.EMPTY;
@@ -109,10 +111,31 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                 || recipe.getClass() == net.minecraft.world.item.crafting.SmithingTransformRecipe.class
                 || recipe.getClass() == net.minecraft.world.item.crafting.SmithingTrimRecipe.class;
         if (!knownRecipe) decoding = Evidence.DecodingStatus.UNKNOWN;
+        List<Ingredient> ingredients = recipe.getIngredients();
+        if (recipe.getClass() == net.minecraft.world.item.crafting.SmithingTransformRecipe.class
+                || recipe.getClass() == net.minecraft.world.item.crafting.SmithingTrimRecipe.class) {
+            ingredients = new ArrayList<>();
+            try {
+                // NeoForge 21.1.202 exposes no accessors on these exact vanilla classes.
+                // Their package-private fields are the smithing slots, each consumed once.
+                for (String name : List.of("template", "base", "addition")) {
+                    var field = recipe.getClass().getDeclaredField(name);
+                    field.setAccessible(true);
+                    ingredients.add((Ingredient) Objects.requireNonNull(field.get(recipe)));
+                }
+            } catch (ReflectiveOperationException | RuntimeException failure) {
+                ingredients.clear();
+                decoding = Evidence.DecodingStatus.PARTIAL;
+                constraints.add("inputs=unknown:smithing-field-decoding-failed:" + failure.getClass().getSimpleName());
+            }
+            if (recipe.getClass() == net.minecraft.world.item.crafting.SmithingTransformRecipe.class)
+                constraints.add("result keeps the base item's components");
+            else constraints.add("output=unknown:dynamic base item with a trim determined by template and addition");
+        }
         var remainders = new ArrayList<Evidence.RecipeOutput>();
         boolean ambiguousRemainders = false;
         int slotIndex = 0;
-        for (Ingredient ingredient : recipe.getIngredients()) {
+        for (Ingredient ingredient : ingredients) {
             var alternatives = new ArrayList<Evidence.RecipeAlternative>();
             var ingredientRemainders = new ArrayList<ItemStack>();
             int itemAlternatives = 0;
@@ -169,7 +192,6 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                 componentPayload(output, registries), output.getCount()));
         if (output.isEmpty()) decoding = Evidence.DecodingStatus.PARTIAL;
         if (ambiguousRemainders && decoding == Evidence.DecodingStatus.VERIFIED) decoding = Evidence.DecodingStatus.PARTIAL;
-        var constraints = new ArrayList<String>();
         constraints.add("recipeType=" + recipe.getType());
         constraints.add("serializer=" + recipe.getSerializer());
         if (!knownRecipe || decoding == Evidence.DecodingStatus.OPAQUE) constraints.add("catalysts=unknown");

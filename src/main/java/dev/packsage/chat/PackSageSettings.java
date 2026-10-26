@@ -16,9 +16,9 @@ public final class PackSageSettings {
 
     /** How much explanation answers carry; one request instruction, never a change to the evidence or citation rules. */
     public enum Verbosity {
-        CONCISE("Answer detail: concise. Give the conclusion and only the steps, amounts and links the player needs to act; leave out alternatives, background and intermediate breakdowns unless asked."),
+        CONCISE("Answer detail: concise. Keep the whole reply to about three short sentences or a short list: the conclusion, then only the amounts, steps and links needed to act. Leave out alternatives, side notes, background and intermediate breakdowns unless the player asks for them."),
         NORMAL(null),
-        DETAILED("Answer detail: detailed. After the conclusion, include the relevant alternatives, intermediate steps with their amounts, and the reasons behind each recommendation.");
+        DETAILED("Answer detail: detailed. After the conclusion, walk through the full picture the evidence supports: each intermediate step with its amounts, where each material comes from, the relevant alternatives with their tradeoffs, and the reason behind each recommendation.");
 
         private final String instruction;
 

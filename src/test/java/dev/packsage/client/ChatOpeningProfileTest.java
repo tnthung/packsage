@@ -32,7 +32,8 @@ class ChatOpeningProfileTest {
         assumeTrue(root.startsWith(Path.of(System.getProperty("java.io.tmpdir")).toAbsolutePath().normalize()),
                 "benchmark data must be a temporary copy");
         Path directory = root.resolve("PackSage_Adapter_Filter_Live_Test-e341466b58d81012");
-        String selected = Files.readString(directory.resolve("latest")).trim();
+        String selected = System.getenv("PACKSAGE_OPENING_CONVERSATION") == null
+                ? Files.readString(directory.resolve("latest")).trim() : System.getenv("PACKSAGE_OPENING_CONVERSATION");
         Path selectedFile;
         try (var files = Files.list(directory)) {
             selectedFile = files.filter(file -> file.getFileName().toString().startsWith(selected)
@@ -71,6 +72,10 @@ class ChatOpeningProfileTest {
         screen.width = 960;
         screen.height = 600;
         ScreenTestHost.initialize(screen);
+        var font = new ScreenPreparationFont();
+        var fontField = net.minecraft.client.gui.screens.Screen.class.getDeclaredField("font");
+        fontField.setAccessible(true);
+        fontField.set(screen, font);
         long widgets = System.nanoTime();
         while (screen.view().conversation().turns().isEmpty()) {
             Runnable task = queue.poll(30, TimeUnit.SECONDS);
@@ -92,14 +97,17 @@ class ChatOpeningProfileTest {
             GroundingInstructions.historyTokenCounts(turn);
             tokenNanos += System.nanoTime() - tokenStart;
             long layoutStart = System.nanoTime();
-            screen.messageLayout(ScreenText.inlineLines(turn.question(), List.of()), 600);
+            font.split(net.minecraft.network.chat.Component.literal(turn.question()), 340);
             for (var segment : AssistantScreen.answerSegments(turn.answer(), turn.steeringMessages())) {
-                screen.messageLayout(ScreenText.inlineLines(segment.text(), turn.navigationTargets(), List.of(),
-                        turn.sources(), ScreenText.sourceLabels(turn)), 574);
+                var lines = ScreenText.inlineLines(segment.text(), turn.navigationTargets(), List.of(),
+                        turn.sources(), ScreenText.sourceLabels(turn));
+                screen.messageLayout(lines, 340);
+                screen.messageLayout(lines, 340);
             }
             layoutNanos += System.nanoTime() - layoutStart;
         }
         long prepared = System.nanoTime();
+        System.out.printf("SCREEN BASELINE glyph-visits=%d%n", font.measuredGlyphs);
         while (!queue.isEmpty()) queue.remove().run();
         long lookupStart = System.nanoTime();
         var allSessions = runtime.sessions().toCompletableFuture();

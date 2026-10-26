@@ -50,6 +50,28 @@ The facts below come from the code as of `a72eb9bd`.
 
 ## Design
 
+### Reference mockup
+
+The mockup below is the reference for how chips and cards look. It is drawn at GUI scale 2, so 1 GUI pixel equals 2 image pixels. The slot, output slot, arrow and panel art are JEI 19's own sprites; the chat colors are the `ModernUi` constants.
+
+- **Fixed by the mockup:** the shape of each element and what tells them apart.
+  - **Item chip:** neutral fill, a 16 px item render on the left, then the label.
+  - **Result chip:** the output item's icon and label, with an accent fill and accent outline.
+  - **Card:** JEI's light gray panel, JEI's slots, arrow and output slot, and a muted caption below the panel.
+  - **Floating panel:** a dark `ModernUi` surface around the card and caption.
+- **Not fixed by the mockup:** exact pixel coordinates. These come from JEI 19's category layouts, as the acceptance section requires.
+
+![Recipe card and chip reference mockup](assets/2026-10-27-recipe-cards-mockup.png)
+
+1. **Concise answer.** One result chip, Beacon, plus item chips for the ingredients, inline in the sentence.
+2. **Hovering the result chip.** The card appears as a floating panel next to the chip.
+3. **Shift pinned.** With Shift held, the panel stays in place. The mouse is over the Nether Star slot, which gets the vanilla slot highlight and the normal item tooltip.
+4. **Normal or Detailed answer.** The card is a block row inside the bubble, left-aligned with the text, with its caption underneath. Today's source chip is unchanged.
+5. **Edge cases.**
+   - An unresolved item ID renders as plain text, with no chip.
+   - A slot whose item is missing from the registries shows a barrier icon.
+   - A custom ingredient shows a "?" slot.
+
 ### What the model writes
 
 - **Recipe cards.** The model cites the recipe record where the card should appear, on a line of its own: `[native:<handle>]` or its alias. In a Normal or Detailed answer, a citation that stands alone on a line and resolves to a recipe record with a recognized layout (see below) becomes a card. A recipe citation inside a sentence stays a source chip. Plan citations resolve to the plan's step recipe through the `plan|…|<recipeHandle>` suffix.
@@ -106,7 +128,7 @@ JEI shows the station in its category header, not in the recipe layout. Every ca
 - **Resolving items.** Each slot resolves its alternatives against the current registries: the item ID plus the recorded component data.
 - **Tags.** Tag alternatives expand from the client's synced tags, and the slot cycles through the members once a second, as JEI does.
 - **Counts.** Output counts above 1 show as the stack count.
-- **Missing items.** A missing or unresolvable item shows a placeholder slot, and its tooltip gives the recorded identity.
+- **Missing items.** A missing or unresolvable item shows a barrier icon in the slot, and its tooltip gives the recorded identity.
 - **Custom ingredients.** These show a "?" slot whose tooltip lists the payload's description.
 - **Hover.** Hovering a slot draws the standard item tooltip (`GuiGraphics.renderTooltip` with the stack's tooltip lines), including advanced tooltip lines when they are enabled.
 
@@ -115,7 +137,7 @@ JEI shows the station in its category header, not in the recipe layout. Every ca
 - **Block elements.** Message layout gains block elements. A card occupies its own row, with height equal to the card's height plus padding, and is aligned to the bubble's text left edge.
 - **Culling and caching.** Cards follow the same culling and scroll clipping as text, and they are cached with the prepared turn.
 - **Width.** Cards are drawn at GUI scale and never scaled down. A card wider than the bubble falls back to a source chip.
-- **Item chips.** These are inline like source chips: a 16 px icon, then the label, with the chip height unchanged. A 16 px icon fits the existing chip height.
+- **Item chips and result chips.** These are inline like source chips: a full-size 16 px item render, then the label. Items are never scaled down. A line that holds one of these chips grows from the usual 12 GUI px to 18 GUI px. Other lines keep 12.
 - **Result chip hover.** The card draws as a floating panel near the mouse.
   - Holding Shift freezes it in place, and hovering its slots shows their item tooltips above the panel.
   - The panel closes when Shift is released and the mouse is outside both the chip and the panel.

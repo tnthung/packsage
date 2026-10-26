@@ -18,7 +18,7 @@ import java.util.Objects;
 
 public final class AssistantSettingsScreen extends Screen {
     record Layout(int left, int width, int top, int bottom, int accountTop, int accountHeight, int accountLeft, int accountWidth,
-                  int behaviorTop, int shortcutTop, int historyTop,
+                  int behaviorTop, int shortcutTop, int confirmationTop, int historyTop,
                   boolean historyStacked, int contentHeight) { }
 
     private final PackSageSettings settings;
@@ -102,12 +102,14 @@ public final class AssistantSettingsScreen extends Screen {
         int behaviorTop = y;
         y += 72 + 26;
         int shortcutTop = y;
-        y += 46 + 6;
+        y += 46 + 26;
+        int confirmationTop = y;
+        y += 72 + 26;
         int historyTop = y;
         boolean stacked = rowWidth < 280;
         y += stacked ? 112 : 68;
         Layout result = new Layout(left, panelWidth, 50, Math.max(51, height - 12), accountTop, accountHeight, left + 16, rowWidth,
-                behaviorTop, shortcutTop, historyTop, stacked, y + scrollOffset - 50);
+                behaviorTop, shortcutTop, confirmationTop, historyTop, stacked, y + scrollOffset - 50);
         if (turnsEditor != null) {
             int fieldWidth = result.historyStacked() ? rowWidth : (rowWidth - 16) / 2;
             int tokensX = result.historyStacked() ? left + 16 : left + 16 + fieldWidth + 16;
@@ -222,6 +224,24 @@ public final class AssistantSettingsScreen extends Screen {
                             .withStyle(style -> style.withFont(ModernUi.FONT)),
                     x + 24, y + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
+        graphics.drawString(font, Component.literal("Command confirmation").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
+                x, layout.confirmationTop() - 20, ModernUi.TEXT, false);
+        for (int index = 0; index < 3; index++) {
+            PackSageSettings.CommandConfirmation confirmation = index == 0 ? PackSageSettings.CommandConfirmation.ALWAYS
+                    : index == 1 ? PackSageSettings.CommandConfirmation.RISKY : PackSageSettings.CommandConfirmation.DIRECT;
+            int y = layout.confirmationTop() + index * 26;
+            boolean selected = settings.commandConfirmation() == confirmation;
+            ModernUi.surface(graphics, x, y, x + rowWidth, y + 20,
+                    selected ? ModernUi.ACCENT_DARK
+                            : mouseX >= x && mouseX < x + rowWidth && mouseY >= y && mouseY < y + 20
+                            ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+            graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/"
+                            + (selected ? "radio-button" : "circle") + ".png"),
+                    x + 5, y + (20 - 12) / 2, 12, 12, 0f, 0f, 64, 64, 64, 64);
+            graphics.drawString(font, Component.literal(index == 0 ? "Always" : index == 1 ? "Risky commands" : "Direct")
+                            .withStyle(style -> style.withFont(ModernUi.FONT)),
+                    x + 24, y + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        }
         int fieldWidth = layout.historyStacked() ? rowWidth : (rowWidth - 16) / 2;
         int tokensX = layout.historyStacked() ? x : x + fieldWidth + 16;
         int tokensY = layout.historyTop() + (layout.historyStacked() ? 40 : 0);
@@ -322,6 +342,18 @@ public final class AssistantSettingsScreen extends Screen {
             }
             if (mouseY >= layout.shortcutTop() + 26 && mouseY < layout.shortcutTop() + 46) {
                 settings.setSendShortcut(PackSageSettings.SendShortcut.CTRL_ENTER);
+                return true;
+            }
+            if (mouseY >= layout.confirmationTop() && mouseY < layout.confirmationTop() + 20) {
+                settings.setCommandConfirmation(PackSageSettings.CommandConfirmation.ALWAYS);
+                return true;
+            }
+            if (mouseY >= layout.confirmationTop() + 26 && mouseY < layout.confirmationTop() + 46) {
+                settings.setCommandConfirmation(PackSageSettings.CommandConfirmation.RISKY);
+                return true;
+            }
+            if (mouseY >= layout.confirmationTop() + 52 && mouseY < layout.confirmationTop() + 72) {
+                settings.setCommandConfirmation(PackSageSettings.CommandConfirmation.DIRECT);
                 return true;
             }
         }

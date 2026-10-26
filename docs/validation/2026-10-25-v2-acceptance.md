@@ -34858,6 +34858,8 @@ Date: 2026-10-26 (Asia/Taipei). Main checkout `D:/Project/packsage`, branch `fea
 
 The bridge completed /world/leave and /game/quit. No PackSage Java remained before scripts/build.ps1; Gradle test/build were up to date and successful, wrapper exit 0, and the built and installed hashes match. The completed idle build daemon retained the output pipe; stopping only that daemon released the wrapper. CurseForge relaunched the instance, then /world/open entered PackSage Adapter Filter Live Test. Computer use was confined to that relaunch, without interruption. No source changes, worktrees, branch changes or model-setting changes were made by this tester. [Preinstall evidence](../../build/native-readiness-live/round4/preinstall.json), [daemon release](../../build/native-readiness-live/round4/build-daemon-release.json).
 
+The checkout advanced during the round with external source commits 5322be0 (bounded mount-owner matching) and 921b153 (smithing component status). The installed JAR hash remained unchanged. These results apply to installed HEAD 2200931, and do not establish installed acceptance for those later source changes.
+
 GET /prompt first returned text=null with effectiveText equal to candidate 9 byte for byte. POST /prompt used a JSON file body containing the exact candidate-10.txt contents; both returned text and effectiveText equal that file. Candidate 10 stayed active for every round-4 question. [Default check](../../build/native-readiness-live/round4/prompt-default-check.json), [override check](../../build/native-readiness-live/round4/prompt-candidate10-check.json), [JSON body](../../build/native-readiness-live/round4/prompt-candidate10-body.json).
 
 The earlier controller rulings apply: v2 has no recipe viewer, loot replies need the table and its undefined/empty status but may omit seeds, and unavailable fixture conditions are not inferred passes. Every question starts a fresh chat. Failed answers are retained without resubmission; any transport/provider retry is listed explicitly. All request/response bodies are in the token-free [HTTP ledger](../../build/native-readiness-live/round4/http.jsonl). Provider-round call groups, exact arguments, coverage/detail, continuations, verbatim replies, navigation and wall timings follow below. Local script argument/file errors before HTTP submission did not create model requests.
@@ -34873,6 +34875,7 @@ The earlier controller rulings apply: v2 has no recipe viewer, loot replies need
 | N2 | PASS | One lapis-workshop note follows the move and recall; the plain beacon question creates no note or saving chatter. |
 | W18r | PASS | Resource pack rescans/enables successfully; Speed description is returned exactly, then disabling restores descriptionStatus=not_provided. |
 | M5r | FAIL | 2,000 sand and TNT/9 stone journal correctly; logs now contain summaries and request_built, but slowest tick is 3,541 us (limit under 1,000 us). |
+| P9/J7r | PASS | Matched-mod NeoForge 21.1.202 server accepts the client; progress, statistics and journal tools and replies all report unavailable. |
 
 ### Passing checks and checks not run
 
@@ -35615,6 +35618,166 @@ Verbatim reply:
 Timing: {"wallMs":14846,"modelTerminalMs":"13543","toolWallMs":"4","persistMs":"8"}.
 
 
+#### P9/J7r - PASS
+
+Matched-mod NeoForge 21.1.202 server accepts the client; progress, statistics and journal tools and replies all report unavailable.
+
+Copied all seven instance JARs except packsage.jar, with names and SHA-256 recorded in server-mods.json. The server runs on the specified Java 21.0.12.1, binds 127.0.0.1:25565 with online-mode=false, and logs the player joining. Candidate 10 remains exact before all three fresh chats. list_progress and list_statistics return UNAVAILABLE because they require an integrated singleplayer server; search_journal does the same. All three replies clearly state the unavailability. There was no server-side mod failure or retry. /world/leave disconnects; stop on stdin saves all dimensions and Java exits 0, with no Java process or listener left.
+
+Evidence: [server-mods.json](../../build/native-readiness-live/round4/server-mods.json).
+
+Evidence: [server-console.log](../../build/native-readiness-live/round4/server-console.log).
+
+Evidence: [server-process.json](../../build/native-readiness-live/round4/server-process.json).
+
+Evidence: [p9-j7r-connect.json](../../build/native-readiness-live/round4/p9-j7r-connect.json).
+
+Evidence: [p9-j7r-state.json](../../build/native-readiness-live/round4/p9-j7r-state.json).
+
+Evidence: [p9-j7r-prompt-check.json](../../build/native-readiness-live/round4/p9-j7r-prompt-check.json).
+
+Evidence: [p9-j7r-disconnect.json](../../build/native-readiness-live/round4/p9-j7r-disconnect.json).
+
+Evidence: [server-stop-sent.json](../../build/native-readiness-live/round4/server-stop-sent.json).
+
+Evidence: [server-exit.json](../../build/native-readiness-live/round4/server-exit.json).
+
+Evidence: [server-stop-verified.json](../../build/native-readiness-live/round4/server-stop-verified.json).
+
+Question: `what advancements am I missing?`
+
+Request `dadbce68-74a9-4d6a-8771-69459e1f58d0`; conversation `5d4d04c1-e016-4347-be45-482b1220cd0c`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/p9-advancements.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_progress",
+    "arguments": {
+      "tree": null,
+      "status": [
+        "in_progress",
+        "available",
+        "locked",
+        "hidden"
+      ],
+      "text": null,
+      "cursor": null
+    },
+    "error": true,
+    "coverage": "ERROR",
+    "detail": "UNAVAILABLE: progress tools need an integrated singleplayer server",
+    "recordCount": 0
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I can’t see your advancement progress in this world—the progress reader is unavailable here—so I can’t reliably tell which ones you’re missing. If you share a screenshot of your Advancements screen, I can help identify the unfinished ones.
+```
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":14285,"modelTerminalMs":"12208","toolWallMs":"2","persistMs":"2"}.
+
+Question: `how many blocks have I mined?`
+
+Request `6640029b-4606-404c-b1ca-fcef9975bfbb`; conversation `e8e82bf0-dbce-46a3-8bc8-27b1e5630142`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/p9-statistics.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_statistics",
+    "arguments": {
+      "categories": [
+        "mined"
+      ],
+      "subjects": null,
+      "cursor": null
+    },
+    "error": true,
+    "coverage": "ERROR",
+    "detail": "UNAVAILABLE: progress tools need an integrated singleplayer server",
+    "recordCount": 0
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I can’t read your blocks-mined total in this world because the statistics aren’t available to me here. You can check it in **Statistics → Items**, where blocks mined are counted by block type.
+```
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":12811,"modelTerminalMs":"11023","toolWallMs":"1","persistMs":"16"}.
+
+Question: `what did I do today?`
+
+Request `cefaaaeb-3d74-4a76-af68-6b560dee9ce1`; conversation `b0378729-9294-4793-95fa-af319afe335d`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/j7r-journal.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": "2026-10-26T00:00:00+08:00",
+          "before": null,
+          "lastMinutes": null
+        },
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": true,
+    "coverage": "ERROR",
+    "detail": "UNAVAILABLE: journal tools need an integrated singleplayer server",
+    "recordCount": 0
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I can’t see what you did today, October 26, because this world’s activity journal is unavailable. I don’t want to guess from where you’re standing now.
+```
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":16221,"modelTerminalMs":"14560","toolWallMs":"0","persistMs":"7"}.
+
+
 ### Failures
 
 #### A3r - FAIL
@@ -36053,3 +36216,38 @@ Then **TNT exploded** at (2534, 254, 2506), breaking **9 stone blocks** nearby. 
 ```
 
 Timing: {"wallMs":12192,"modelTerminalMs":"10662","toolWallMs":"6","persistMs":"9"}.
+
+
+### Final state
+
+```json
+{
+  "world": "PackSage Adapter Filter Live Test",
+  "save": "PackSage Adapter Filter Live Test",
+  "paused": false,
+  "running": true,
+  "screen": null,
+  "dimension": "minecraft:overworld",
+  "position": [
+    1191.5,
+    250,
+    1057.5
+  ],
+  "yaw": -161.56505,
+  "pitch": 21.41126,
+  "health": 20,
+  "gamemode": "creative",
+  "gameTime": 1522641,
+  "dayTime": 174933,
+  "selectedHotbarSlot": 0,
+  "crosshairTarget": null,
+  "riddenEntity": null,
+  "menuId": 0
+}
+```
+
+Final verification: {"time":"2026-10-26T03:41:24.108Z","prompt":{"textNull":true,"candidate9Exact":true},"runningInSave":true,"bridgeEnabled":true,"head":"921b1537922afdf6a3be7582b4f1cc7ce6287350","installedSha256":"9F39B04E92E8502FC0ECEC95010C4E43F193A7B0BA88C23FC73D34CEE4670FDA","serverExit":{"code":0,"signal":null,"time":"2026-10-26T03:40:36.412Z"},"screenshotCopyNote":"Initial copy raced the asynchronous PNG writer (EBUSY); same returned PNG copied after writer finished, with no new screenshot or model request."}. [Final state](../../build/native-readiness-live/round4/final-state.json), [final prompt](../../build/native-readiness-live/round4/final-prompt-check.json), [evidence completeness](../../build/native-readiness-live/round4/evidence-completeness.json), [screenshot](../../build/native-readiness-live/round4/final-state.png).
+
+Round result: **6 PASS, 3 FAIL, 0 NOT RUN** across the nine requested round-4 checks, plus prompt setup PASS. All 21 requests completed and saved in 21 fresh conversations; no model/provider/transport retry was needed. All 16 navigation attempts opened. Raw inputs, calls, results, replies, groups and timings are retained; no evidence file/link is missing and the private token scan found no bridge token in the round evidence. The initial screenshot copy raced the asynchronous PNG writer (EBUSY); the same returned file copied successfully after writing finished, without a new screenshot or question.
+
+Minecraft remains running and unpaused in PackSage Adapter Filter Live Test at the original position, menu closed and bridge enabled. The override is cleared (text=null, exact candidate 9), the Speed fixture pack is disabled, and the dedicated server is stopped cleanly. All 21 temporary M5 force-loaded chunks were released. [Chunk cleanup](../../build/native-readiness-live/round4/cleanup-m5-forceload.json), [server stop verification](../../build/native-readiness-live/round4/server-stop-verified.json). No source edits, failure reruns or code acceptance claims for later external commits were made. Only this validation file is committed by this tester; raw artifacts remain ignored.

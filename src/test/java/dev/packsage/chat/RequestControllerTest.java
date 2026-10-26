@@ -1765,7 +1765,10 @@ class RequestControllerTest {
         assertTrue(completed.resultDetail().contains("minecraft:lantern"), completed.resultDetail());
         assertTrue(completed.durationMillis() != null);
         assertTrue(completed.durationMillis() >= 0);
+        assertTrue(completed.durationNanos() != null);
+        assertEquals(completed.durationMillis(), completed.durationNanos() / 1_000_000);
 
+        Instant beforeResponse = Instant.now();
         backend.emit("activity-arguments", new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(),
                 List.of(new ModelBackend.ToolCall("call-1", "packsage", "lookup", arguments),
                         response.join().result()), null));
@@ -1773,6 +1776,10 @@ class RequestControllerTest {
         assertEquals(ChatContracts.OutcomeStatus.COMPLETED, saved.outcome().status());
         assertTrue(saved.durationMillis() != null);
         assertTrue(saved.durationMillis() >= completed.durationMillis());
+        assertFalse(saved.assistantSentAt().isBefore(beforeResponse));
+        assertFalse(saved.assistantSentAt().isAfter(Instant.now()));
+        assertEquals(saved.assistantSentAt(), new ConversationStore(temporaryDirectory, DIRECT).openLatest(WORLD_A)
+                .toCompletableFuture().join().turns().getLast().assistantSentAt());
         assertEquals(completed.resultDetail(), saved.activities().stream()
                 .filter(step -> step.id().equals("tool:call-1")).findFirst().orElseThrow().resultDetail());
     }

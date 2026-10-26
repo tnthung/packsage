@@ -85,6 +85,31 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void messageMetadataUsesEachMessagesLocalSentTimeAndOmitsMissingResponseTime() {
+        var previousZone = java.util.TimeZone.getDefault();
+        var previousLocale = java.util.Locale.getDefault();
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Taipei"));
+        java.util.Locale.setDefault(java.util.Locale.US);
+        try {
+            var actions = new FakeActions();
+            var screen = new AssistantScreen(actions);
+            var original = actions.view.conversation().turns().getFirst();
+            var turn = new ChatContracts.Turn(original.requestId(), "Question", "Answer", List.of(), original.context(),
+                    List.of(), List.of(), original.outcome(), 7, Instant.parse("2026-10-26T04:01:00Z"), List.of(),
+                    List.of(), 125_000L, Instant.parse("2026-10-26T04:03:05Z"));
+            assertEquals("Oct 26, 12:01 · ~3 tokens", screen.messageMetadata(turn, true, 3));
+            assertEquals("Oct 26, 12:03 · ~4 tokens", screen.messageMetadata(turn, false, 4));
+            var legacy = new ChatContracts.Turn(original.requestId(), "Question", "Answer", List.of(), original.context(),
+                    List.of(), List.of(), original.outcome(), 7, Instant.parse("2026-10-26T04:01:00Z"));
+            assertEquals("~4 tokens", screen.messageMetadata(legacy, false, 4));
+            assertEquals("~3 tokens", screen.messageMetadata(original, true, 3));
+        } finally {
+            java.util.TimeZone.setDefault(previousZone);
+            java.util.Locale.setDefault(previousLocale);
+        }
+    }
+
+    @Test
     void expandedToolShowsSavedResultAndLegacyToolsOmitIt() {
         var screen = new AssistantScreen(new FakeActions());
         var step = new ChatContracts.ActivityStep("tool:result", "Reading", "Completed",

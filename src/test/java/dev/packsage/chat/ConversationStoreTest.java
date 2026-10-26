@@ -54,7 +54,7 @@ class ConversationStoreTest {
                 "Reading evidence", "Completed", ChatContracts.ActivityStatus.COMPLETED,
                 "{\"filters\":[null,{\"item\":\"packsage:fixture_lantern\"}] }", "lookup",
                 "Coverage: COMPLETE; records: 1\nLoaded fixture", 125L, "Loaded fixture\nLantern\nitem: minecraft:lantern")),
-                List.of(new ChatContracts.SteeringMessage("Actually, here.", 5)), 1_250L);
+                List.of(new ChatContracts.SteeringMessage("Actually, here.", 5)), 1_250L, Instant.parse("2026-10-13T01:02:05Z"));
 
         store.appendMedia(world, conversation.id(), screenshot, new byte[]{1, 2, 3}).toCompletableFuture().join();
         store.appendTurn(world, SCOPE, conversation.id(), turn).toCompletableFuture().join();
@@ -63,6 +63,7 @@ class ConversationStoreTest {
         assertTrue(reopened.turns().contains(turn));
         assertEquals(List.of(target), reopened.turns().getFirst().navigationTargets());
         assertEquals(turn.sentAt(), reopened.turns().getFirst().sentAt());
+        assertEquals(Instant.parse("2026-10-13T01:02:05Z"), reopened.turns().getFirst().assistantSentAt());
         assertEquals(turn.activities(), reopened.turns().getFirst().activities());
         assertEquals("{\"filters\":[null,{\"item\":\"packsage:fixture_lantern\"}] }",
                 reopened.turns().getFirst().activities().getFirst().serializedArguments());
@@ -112,6 +113,7 @@ class ConversationStoreTest {
         ChatContracts.Turn loaded = store.openConversation(world, conversation.id()).toCompletableFuture().join().turns().getFirst();
 
         assertNull(loaded.durationMillis());
+        assertNull(loaded.assistantSentAt());
         assertEquals("Answer", loaded.answer());
     }
 

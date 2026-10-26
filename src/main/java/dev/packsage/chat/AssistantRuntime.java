@@ -434,6 +434,17 @@ public final class AssistantRuntime implements ChatActions {
         return store.sessions().thenApply(this::mergeSessions);
     }
 
+    public CompletionStage<ChatContracts.SessionSummary> sessionSummary(ChatContracts.WorldIdentity expectedWorld, String conversationId) {
+        Objects.requireNonNull(expectedWorld);
+        Objects.requireNonNull(conversationId);
+        synchronized (stateLock) {
+            if (world == null || !world.worldOrServer().equals(expectedWorld.worldOrServer())) {
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+        return store.summaryInWorld(expectedWorld, conversationId);
+    }
+
     @Override
     public CompletionStage<Void> loadSessions(Consumer<List<ChatContracts.SessionSummary>> refresh) {
         return sessionPage(0, settings().sessionsBeforeCollapse()).thenAccept(page -> refresh.accept(page.sessions()));
@@ -591,7 +602,7 @@ public final class AssistantRuntime implements ChatActions {
             if (holder.unreadRequestId == null) holder.unreadRequestId = session.unreadRequestId();
             if (!holder.active && !holder.requestStarting) holder.scope = worldScope;
             selected = holder;
-            startLoad = !holder.loading && !holder.active && !holder.requestStarting;
+            startLoad = !holder.loaded && !holder.loading && !holder.active && !holder.requestStarting;
             if (startLoad) {
                 holder.loading = true;
                 loadGeneration = ++holder.loadGeneration;

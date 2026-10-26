@@ -3,6 +3,7 @@ package dev.packsage.debug;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mojang.blaze3d.platform.NativeImage;
+import dev.packsage.PackSageLog;
 import dev.packsage.chat.AssistantRuntime;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.PackSageSettings;
@@ -74,7 +75,12 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
 
     @Override
     public JsonObject execute(DebugRouter.Operation operation, JsonObject body) throws Exception {
-        return switch (operation) {
+        String bridgeRequest = UUID.randomUUID().toString();
+        long bridgeStartNs = System.nanoTime();
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=bridge_request operation={} start_ns={} event_ns={} elapsed_ms=0",
+                bridgeRequest, operation.name().toLowerCase(java.util.Locale.ROOT), bridgeStartNs, bridgeStartNs);
+        try {
+            JsonObject response = switch (operation) {
             case STATE -> call(client, () -> {
                 var json = new JsonObject();
                 var world = runtime.view().activeWorld();
@@ -438,31 +444,34 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                 });
                 synchronized (conversationLock) {
                     var world = call(client, () -> {
-                        if (client.level == null || !runtime.sessionReady()) throw new IllegalStateException("World history is not ready");
-                        return runtime.view().activeWorld();
+                        var currentWorld = runtime.view().activeWorld();
+                        if (currentWorld == null) throw new IllegalStateException("World history is not ready");
+                        return currentWorld;
                     });
                     ChatContracts.SessionSummary selected = null;
                     if (body.has("conversationId")) {
                         String conversation = body.get("conversationId").getAsString();
-                        selected = call(client, runtime::sessions).toCompletableFuture().get(10, TimeUnit.SECONDS).stream()
-                                .filter(session -> session.id().equals(conversation) && session.world().equals(world)).findFirst()
-                                .orElseThrow(() -> new IllegalArgumentException("Conversation not found in this world"));
+                        long selectionStartNs = System.nanoTime();
+                        selected = runtime.sessionSummary(world, conversation).toCompletableFuture().get(10, TimeUnit.SECONDS);
+                        long selectionEventNs = System.nanoTime();
+                        PackSageLog.LOGGER.info("PackSage timing request={} phase=bridge_selection conversation={} start_ns={} event_ns={} elapsed_ms={} found={}",
+                                bridgeRequest, conversation, selectionStartNs, selectionEventNs,
+                                TimeUnit.NANOSECONDS.toMillis(selectionEventNs - selectionStartNs), selected != null);
+                        if (selected == null) throw new IllegalArgumentException("Conversation not found in this world");
                     }
                     var chosen = selected;
-                    if (chosen != null) call(client, () -> { runtime.openSession(chosen); return null; });
-                    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-                    while (!call(client, runtime::sessionReady)) {
-                        if (System.nanoTime() >= deadline) throw new TimeoutException("Conversation load timeout");
-                        Thread.sleep(10);
-                    }
                     yield call(client, () -> {
-                        if (!runtime.view().activeWorld().equals(world)
-                                || chosen != null && !runtime.view().conversation().id().equals(chosen.id())) {
+                        if (!world.equals(runtime.view().activeWorld())) {
                             throw new IllegalStateException("Conversation selection changed");
                         }
+                        if (chosen != null) runtime.openSession(chosen);
                         var json = openScreen.apply(screen);
                         json.addProperty("open", client.screen instanceof AssistantScreen);
                         if (chosen != null) json.addProperty("conversationId", chosen.id());
+                        long eventNs = System.nanoTime();
+                        PackSageLog.LOGGER.info("PackSage timing request={} phase=bridge_readiness conversation={} ready={} start_ns={} event_ns={} elapsed_ms={}",
+                                bridgeRequest, chosen == null ? "none" : chosen.id(), runtime.sessionReady(), bridgeStartNs, eventNs,
+                                TimeUnit.NANOSECONDS.toMillis(eventNs - bridgeStartNs));
                         return json;
                     });
                 }
@@ -548,7 +557,19 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                     return json;
                 });
             }
-        };
+            };
+            long responseEventNs = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing request={} phase=bridge_response operation={} start_ns={} event_ns={} elapsed_ms={} success=true",
+                    bridgeRequest, operation.name().toLowerCase(java.util.Locale.ROOT), bridgeStartNs, responseEventNs,
+                    TimeUnit.NANOSECONDS.toMillis(responseEventNs - bridgeStartNs));
+            return response;
+        } catch (Exception | Error failure) {
+            long responseEventNs = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing request={} phase=bridge_response operation={} start_ns={} event_ns={} elapsed_ms={} failureType={}",
+                    bridgeRequest, operation.name().toLowerCase(java.util.Locale.ROOT), bridgeStartNs, responseEventNs,
+                    TimeUnit.NANOSECONDS.toMillis(responseEventNs - bridgeStartNs), failure.getClass().getSimpleName());
+            throw failure;
+        }
     }
 
     @Override

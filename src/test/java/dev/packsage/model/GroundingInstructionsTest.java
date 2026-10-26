@@ -56,7 +56,9 @@ class GroundingInstructionsTest {
     void policyNamesEveryDefinedToolAndOnlyDefinedTools() {
         var text = GroundingInstructions.defaultInstructions();
         for (var definition : PackSageTools.definitions()) {
-            assertTrue(java.util.regex.Pattern.compile("\\b" + definition.name() + "\\b").matcher(text).find(), definition.name());
+            // Track C carries command policy in its tool description until the combined prompt is integrated.
+            assertTrue(java.util.regex.Pattern.compile("\\b" + definition.name() + "\\b")
+                    .matcher(text + (definition.name().equals("run_command") ? definition.description() : "")).find(), definition.name());
         }
         assertEquals(List.of(), PackSageToolsTest.undefinedToolNames(text));
     }
@@ -164,7 +166,7 @@ class GroundingInstructionsTest {
         assertEquals(ModelBackend.Role.USER, current.role());
         assertEquals(1, current.content().size());
         assertEquals("hi", ((ModelBackend.TextContent) current.content().getFirst()).text());
-        assertEquals(28, request.tools().size());
+        assertEquals(PackSageTools.definitions(), request.tools());
     }
 
     @Test

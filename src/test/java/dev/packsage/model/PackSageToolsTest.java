@@ -60,7 +60,7 @@ class PackSageToolsTest {
     }
 
     @Test
-    void exposesExactlyTwentyEightToolsAndKeepsOptionalArgumentsOptional() {
+    void exposesDefinedToolsAndKeepsOptionalArgumentsOptional() {
         var definitions = PackSageTools.definitions();
         assertEquals(NAMES, definitions.stream().map(ModelBackend.ToolDefinition::name).toList());
         for (var definition : definitions) {

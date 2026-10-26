@@ -58,8 +58,6 @@ class RequestControllerTest {
         assertEquals(PackSageSettings.Verbosity.DETAILED, controller.view().conversation().turns().getLast().verbosity());
     }
 
-
-
     private static final Executor DIRECT = Runnable::run;
     private static final Evidence.Scope SCOPE_A = new Evidence.Scope("session-a", "en_us", "team-a", "provider-1", 2);
     private static final Evidence.Scope SCOPE_B = new Evidence.Scope("session-b", "en_us", "team-b", "provider-1", 3);
@@ -2239,4 +2237,4 @@ class RequestControllerTest {
             events.get(requestId).accept(event);
         }
     }
-}
+}

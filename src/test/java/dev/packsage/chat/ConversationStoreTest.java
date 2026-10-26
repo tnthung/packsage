@@ -55,8 +55,6 @@ class ConversationStoreTest {
         assertNull(store.openConversation(world, conversation.id()).toCompletableFuture().join().turns().getFirst().verbosity());
     }
 
-
-
     private static final Executor DIRECT = Runnable::run;
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world-a", "en_us", "team-a", "provider-1", 4);
 
@@ -770,4 +768,4 @@ class ConversationStoreTest {
         assertTrue(result.isCompletedExceptionally());
         assertFalse(store.errors().isEmpty());
     }
-}
+}

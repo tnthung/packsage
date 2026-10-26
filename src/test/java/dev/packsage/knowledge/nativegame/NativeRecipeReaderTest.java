@@ -212,6 +212,35 @@ class NativeRecipeReaderTest {
     }
 
     @Test
+    void sharedTagCacheKeepsConsumptionSpecificToEachRecipeClass() {
+        var planks = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM,
+                net.minecraft.resources.ResourceLocation.parse("minecraft:planks"));
+        var itemRegistry = (net.minecraft.core.MappedRegistry<Item>) ITEMS;
+        itemRegistry.bindTags(Map.of(planks, List.<net.minecraft.core.Holder<Item>>of(Items.OAK_PLANKS.builtInRegistryHolder(),
+                Items.SPRUCE_PLANKS.builtInRegistryHolder())));
+        var vanilla = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                new ItemStack(Items.DIAMOND), NonNullList.of(Ingredient.EMPTY, Ingredient.of(planks)));
+        var modded = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                new ItemStack(Items.GOLD_INGOT), NonNullList.of(Ingredient.EMPTY, Ingredient.of(planks))) {
+        };
+        var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build();
+        var source = NativeRecipeReader.planSource(List.of(
+                new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:vanilla_tagged"), vanilla),
+                new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:modded_tagged"), modded)), brewing,
+                registries, ITEMS, null, SCOPE);
+        try {
+            var vanillaPlan = NativeProvider.planRecipe(source, "minecraft:diamond", 1, SCOPE, 1);
+            var moddedPlan = NativeProvider.planRecipe(source, "minecraft:gold_ingot", 1, SCOPE, 1);
+            assertTrue(vanillaPlan.records().getFirst().recipePayload().inputs().getFirst().alternatives().stream()
+                    .allMatch(alternative -> alternative.consumption() == Evidence.Consumption.CONSUMED));
+            assertTrue(moddedPlan.records().getFirst().recipePayload().inputs().getFirst().alternatives().stream()
+                    .allMatch(alternative -> alternative.consumption() == Evidence.Consumption.UNKNOWN));
+        } finally {
+            itemRegistry.resetTags();
+        }
+    }
+
+    @Test
     void planIncludesLateBrewingOutputsAndTheirStableRecipeIdentity() {
         var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS);
         for (int index = 0; index < 600; index++) {

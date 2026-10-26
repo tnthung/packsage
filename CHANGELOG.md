@@ -4,7 +4,7 @@
 
 ### 2026-10-26
 
-- The journal records items the player picks up and drops, with the item, count, time and place. Mining interleaves breaks and pickups, but they still merge into one break run and one pickup run. Search reports summed item amounts, such as "picked up 9 Diamond". The journal schema is unchanged. Automated checks pass; installed check pending.
+- The journal records items the player picks up and drops, with the item, count, time and place. Mining interleaves breaks and pickups, but they still merge into one break run and one pickup run. Search reports summed item amounts, such as "picked up 9 Diamond". The journal schema is unchanged. Live checks pass. Prompt candidate 12 is the default: picked-up and dropped items, and amounts over a recent period, come from the journal, while lifetime totals stay with statistics.
 - Native adapter readiness:
   - **Final review:** Astra returned READY at 6b2e903 with no findings.
   - **Live acceptance:** eight installed rounds pass M5, P9/J7, P11 and the journal, world, item and planner checks.

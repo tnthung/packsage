@@ -27,7 +27,7 @@ public final class RecipeCardModels {
             var source = record.get("source");
             var sourceHandle = source != null && source.isJsonObject() ? source.getAsJsonObject().get("sourceHandle") : null;
             var reference = record.get("reference");
-            brewing = brewing || sourceHandle != null && sourceHandle.isJsonPrimitive() && sourceHandle.getAsString().contains("brewing:")
+            brewing = brewing || sourceHandle != null && sourceHandle.isJsonPrimitive() && (sourceHandle.getAsString().startsWith("brewing:") || sourceHandle.getAsString().contains("|brewing:"))
                     || reference != null && reference.isJsonPrimitive() && reference.getAsString().startsWith("native:brewing:");
             var shape = payload.get("shape");
             var category = brewing ? RecipeCardModel.Category.BREWING : switch (type) {

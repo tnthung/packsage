@@ -206,7 +206,8 @@ public final class MinecraftStatistics implements StatisticReader {
                     zeroType = 0;
                     zeroSubject = 0;
                     nextEntry = 0;
-                    keys = null;
+                    keys = counted.keySet().toArray();
+                    size = counted.size();
                     return true;
                 }
                 for (; read < STEP_ENTRIES && nextEntry < keys.length; read++) {

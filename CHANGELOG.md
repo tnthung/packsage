@@ -4,6 +4,8 @@
 
 ### 2026-10-26
 
+- Recipe plans now expand intermediate recipes. Vanilla crafting, cooking, stonecutting and smithing recipes mark their ingredients consumed and report remainders such as empty buckets, and tag ingredients expand to up to 16 member items. Every PARTIAL plan names its reasons, such as raw materials with no recipe or the depth bound.
+- The debug bridge can leave and open worlds, join a server, open a mount's inventory, open the adapter, settings and chat screens, select resource packs and quit the game, so live checks no longer need desktop control.
 - The assistant no longer brings back a note the player asked it to forget or delete from earlier chats (prompt candidate 9, live J12r/N1 passed).
 - An unopened loot container now reports its table, its seed and whether that table is undefined or empty, checked against the server's loot tables, and points to read_loot. Inspected inventories carry the same pendingLoot fact.
 - The shared tool encoder now skips an oversized record in a retained tail, keeping the rows after it. Request logs list offered tool names as one comma-joined field.

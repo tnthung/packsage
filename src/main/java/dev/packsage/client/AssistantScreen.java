@@ -1629,7 +1629,7 @@ public final class AssistantScreen extends Screen {
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && (picker != null || editingRequest != null)) {
             picker = null;
-            if (editingRequest != null) { editingRequest = null; setInput(""); }
+            if (editingRequest != null) { editingRequest = null; history = null; setInput(""); }
             return true;
         }
         if (inputEditor != null && inputEditor.isFocused() && inputEditor.keyPressed(keyCode, scanCode, modifiers)) return true;

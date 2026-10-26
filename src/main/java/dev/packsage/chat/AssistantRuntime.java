@@ -1358,19 +1358,7 @@ public final class AssistantRuntime implements ChatActions {
             }
             currentKnowledge = holder.knowledge;
         }
-        PackSageTools currentTools = new PackSageTools(read -> read.tool().equals("run_command") && commandRunner != null
-                ? commandRunner.run(((Evidence.JsonString) read.arguments().values().get("command")).value(),
-                        request.submission().requestId().value(), read.scope(), () -> {
-                            synchronized (stateLock) {
-                                return holder.active && signIn == ChatContracts.SignInState.SIGNED_IN
-                                        && holder.requestAuthEpochs.containsKey(request.submission().requestId())
-                                        && request.submission().scope().equals(holder.scope)
-                                        && world != null && world.worldOrServer().equals(holder.world.worldOrServer())
-                                        && holder.controller.view().active()
-                                        && request.submission().requestId().value().equals(holder.controller.view().activeRequestId());
-                            }
-                        })
-                : currentKnowledge.execute(read,
+        PackSageTools currentTools = new PackSageTools(read -> currentKnowledge.execute(read,
                 request.submission().replacing() == null ? null : request.submission().replacing().value(),
                 new Toolbox.Origin(holder.id, request.submission().requestId().value(), request.submission().question())), currentKnowledge.metadata(), currentKnowledge.outputPages());
         return currentTools.execute(request.call(), request.submission().scope()).thenApply(response -> {
@@ -1794,6 +1782,25 @@ public final class AssistantRuntime implements ChatActions {
                 knowledgeError = "Knowledge providers could not be refreshed: " + failureMessage(failure);
             }
             KnowledgeService initializedKnowledge = knowledge;
+            if (commandRunner != null) knowledge.register(new Toolbox() {
+                @Override public Metadata metadata() { return new Metadata("command", List.of(), false, List.of()); }
+                @Override public CompletionStage<Evidence.Result> handle(PackSageTools.ReadRequest request, Context context) {
+                    if (!request.tool().equals("run_command")) return Toolbox.super.handle(request, context);
+                    if (context.origin() == null) return CompletableFuture.failedFuture(new Failure(Code.UNAVAILABLE, "command needs an active player request"));
+                    var requestId = new ChatContracts.RequestId(context.origin().requestId());
+                    return commandRunner.run(((Evidence.JsonString) request.arguments().values().get("command")).value(),
+                            requestId.value(), request.scope(), () -> {
+                                synchronized (stateLock) {
+                                    return holder.active && signIn == ChatContracts.SignInState.SIGNED_IN
+                                            && Objects.equals(holder.requestAuthEpochs.get(requestId), authEpoch)
+                                            && request.scope().equals(holder.scope)
+                                            && world != null && world.worldOrServer().equals(holder.world.worldOrServer())
+                                            && holder.controller != null && holder.controller.view().active()
+                                            && requestId.value().equals(holder.controller.view().activeRequestId());
+                                }
+                            });
+                }
+            });
             HistoryAdapter historyAdapter = new HistoryAdapter(store, holder.world, () -> holder.scope);
             if (!knowledgeUnavailable) knowledge.register(historyAdapter);
             RequestController controller = new RequestController(store, backend, controllerExecutor,

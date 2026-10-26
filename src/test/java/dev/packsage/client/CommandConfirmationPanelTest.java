@@ -31,7 +31,13 @@ class CommandConfirmationPanelTest {
         }
         var actions = new Actions();
         var panel = new CommandConfirmationPanel(actions);
-        var rows = panel.layout(new MultilineEditorTest.FakeFont(), 10, 20, 180, 0, 500);
+        var font = new net.minecraft.client.gui.Font(ignored -> null, false) {
+            @Override public List<net.minecraft.util.FormattedCharSequence> split(net.minecraft.network.chat.FormattedText text, int width) {
+                return net.minecraft.locale.Language.getInstance().getVisualOrder(new net.minecraft.client.StringSplitter((code, style) -> 5)
+                        .splitLines(text, width, net.minecraft.network.chat.Style.EMPTY));
+            }
+        };
+        var rows = panel.layout(font, 10, 20, 180, 0, 500);
         assertEquals("/give @s minecraft:diamond 1", rows.getFirst().confirmation().command());
         assertFalse(rows.getFirst().lines().isEmpty());
         assertTrue(panel.mouseClicked(20, rows.getFirst().buttonsY() + 5, 0));
@@ -39,7 +45,7 @@ class CommandConfirmationPanelTest {
         assertTrue(panel.mouseClicked(90, rows.getFirst().buttonsY() + 5, 0));
         assertEquals("id:false", actions.decision);
         actions.decision = null;
-        panel.layout(new MultilineEditorTest.FakeFont(), 10, 20, 180, 0, 21);
+        panel.layout(font, 10, 20, 180, 0, 21);
         assertFalse(panel.mouseClicked(20, rows.getFirst().buttonsY() + 5, 0));
         assertNull(actions.decision);
     }

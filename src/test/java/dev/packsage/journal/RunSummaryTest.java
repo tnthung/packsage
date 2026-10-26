@@ -36,7 +36,8 @@ class RunSummaryTest {
 
     @Test
     void summarizesEveryTypeAndCountOnlyRows() {
-        var verbs = List.of("placed", "broke", "put 2,000 minecraft:sand into minecraft:chest", "took 2,000 minecraft:sand from minecraft:chest",
+        var verbs = List.of("placed", "broke", "picked up 2,000 minecraft:sand", "dropped 2,000 minecraft:sand",
+                "put 2,000 minecraft:sand into minecraft:chest", "took 2,000 minecraft:sand from minecraft:chest",
                 "died", "killed", "travelled to", "earned", "changed profession to minecraft:farmer", "was cured",
                 "turned into a zombie villager", "traded for", "raid started", "raid ended", "entered", "explosion");
         for (var type : EventType.values()) {

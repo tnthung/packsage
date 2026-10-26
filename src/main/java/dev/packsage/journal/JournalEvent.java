@@ -9,8 +9,8 @@ import java.util.Objects;
  * @param actor     {@code player:<uuid>}, {@code entity:<type id>}, {@code explosion} for blocks an explosion broke, or
  *                  {@code environment} when there is no attacker
  * @param group     an extra merge discriminator, null for most types
- * @param amount    items moved for container transfers, blocks destroyed for an explosion, items received for a trade,
- *                  and the number of positions otherwise
+ * @param amount    items picked up, dropped or moved in a container, blocks destroyed for an explosion, items received
+ *                  for a trade, and the number of positions otherwise
  * @param positions {@link Positions#pack} values, at least one
  * @param detail    compact JSON or null, cut to at most {@link #MAX_DETAIL} characters without splitting a surrogate pair
  */

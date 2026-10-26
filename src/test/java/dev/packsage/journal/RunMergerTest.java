@@ -94,6 +94,41 @@ class RunMergerTest {
     }
 
     @Test
+    void interleavedBreakPickupAndDropKeepOneRunEachAndSumItems() {
+        var merger = new RunMerger();
+        for (int i = 0; i < 1_000; i++) {
+            var time = 3L * i;
+            merger.add(new JournalEvent(EventType.BREAK, time, 1_000L + time * 50, OVERWORLD, "player:A",
+                    "minecraft:stone", null, 1, at(i % 16, 64, 0), null));
+            merger.add(new JournalEvent(EventType.byId("pickup"), time + 1, 1_050L + time * 50, OVERWORLD, "player:A",
+                    "minecraft:cobblestone", null, 1, at(i % 16, 64, 0), null));
+            merger.add(new JournalEvent(EventType.byId("drop"), time + 2, 1_100L + time * 50, OVERWORLD, "player:A",
+                    "minecraft:diamond", null, 3, at(i % 16, 64, 0), null));
+        }
+        var runs = merger.takeChanged();
+        assertEquals(3, runs.size());
+        assertEquals(List.of("break", "drop", "pickup"), runs.stream().map(run -> run.key().type().id()).sorted().toList());
+        for (var run : runs) {
+            switch (run.key().type().id()) {
+                case "break" -> {
+                    assertEquals(1_000, run.count());
+                    assertEquals(1_000, run.amount());
+                }
+                case "pickup" -> {
+                    assertEquals(1_000, run.count());
+                    assertEquals(1_000, run.amount());
+                    assertEquals("minecraft:cobblestone", run.key().subject());
+                }
+                case "drop" -> {
+                    assertEquals(1_000, run.count());
+                    assertEquals(3_000, run.amount());
+                }
+                default -> throw new AssertionError(run.key().type());
+            }
+        }
+    }
+
+    @Test
     void deathsNeverMerge() {
         var merger = new RunMerger();
         merger.add(event(EventType.DEATH, 10, OVERWORLD, "entity:minecraft:zombie", "minecraft:villager", null, at(5, 64, 5)));

@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.world.level.storage.WritableLevelData;
 import net.neoforged.bus.api.BusBuilder;
@@ -145,17 +146,139 @@ class JournalHooksTest {
         new JournalHooks(journal, () -> {
             throw new IllegalStateException("a failed integration lookup");
         }).register(bus);
-        assertEquals(17, listeners.size());
+        assertEquals(19, listeners.size());
         for (var listener : listeners.values()) {
             assertFalse(listener.receiveCanceled());
             assertDoesNotThrow(() -> listener.action().accept(null));
         }
-        assertEquals(18, journal.stats().hookFailures());
+        assertEquals(20, journal.stats().hookFailures());
         journal.stats().endTick();
         assertEquals(0, journal.stats().maxHookNanosPerTick.get());
         for (var type : List.of(BlockEvent.BreakEvent.class, BlockEvent.EntityPlaceEvent.class,
+                net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent.Post.class,
+                net.neoforged.neoforge.event.entity.item.ItemTossEvent.class,
                 LivingDeathEvent.class, EntityTravelToDimensionEvent.class)) {
             assertEquals(EventPriority.LOWEST, listeners.get(type).priority());
+        }
+    }
+
+    @Test
+    void pickupAndTossHooksRecordActualCountsAndIgnoreZeroCanceledAndOffThreadEvents(@TempDir Path dir) throws Exception {
+        class Server extends IntegratedServer {
+            Thread serverThread;
+
+            Server() { super(null, null, null, null, null, null, null); }
+
+            @Override public boolean isSameThread() { return Thread.currentThread() == serverThread; }
+        }
+        class Level extends ServerLevel {
+            MinecraftServer server;
+
+            Level() { super(null, null, null, null, net.minecraft.world.level.Level.OVERWORLD, null, null, false, 0L,
+                    List.of(), false, null); }
+
+            @Override public MinecraftServer getServer() { return server; }
+        }
+        class Player extends ServerPlayer {
+            Level level;
+            MinecraftServer server;
+
+            Player() { super(null, null, null, null); }
+
+            @Override public net.minecraft.world.level.Level level() { return level; }
+            @Override public MinecraftServer getServer() { return server; }
+            @Override public BlockPos blockPosition() { return new BlockPos(10, 64, -3); }
+            @Override public java.util.UUID getUUID() { return java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"); }
+            @Override public String getScoreboardName() { return "Alex"; }
+        }
+        class Item extends net.minecraft.world.entity.item.ItemEntity {
+            Level level;
+            net.minecraft.world.item.ItemStack stack;
+
+            Item() { super((net.minecraft.world.level.Level) null, 0, 0, 0, net.minecraft.world.item.ItemStack.EMPTY); }
+
+            @Override public net.minecraft.world.level.Level level() { return level; }
+            @Override public BlockPos blockPosition() { return new BlockPos(10, 64, -3); }
+            @Override public net.minecraft.world.item.ItemStack getItem() { return stack; }
+        }
+        var unsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        var unsafe = unsafeField.get(null);
+        var server = (Server) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Server.class);
+        server.serverThread = Thread.currentThread();
+        var level = (Level) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Level.class);
+        level.server = server;
+        var dimension = net.minecraft.world.level.Level.class.getDeclaredField("dimension");
+        dimension.setAccessible(true);
+        dimension.set(level, net.minecraft.world.level.Level.OVERWORLD);
+        var levelData = net.minecraft.world.level.Level.class.getDeclaredField("levelData");
+        levelData.setAccessible(true);
+        levelData.set(level, java.lang.reflect.Proxy.newProxyInstance(net.minecraft.world.level.storage.WritableLevelData.class.getClassLoader(),
+                new Class<?>[]{net.minecraft.world.level.storage.WritableLevelData.class}, (proxy, method, args) -> 400L));
+        var levels = MinecraftServer.class.getDeclaredField("levels");
+        levels.setAccessible(true);
+        levels.set(server, Map.of(net.minecraft.world.level.Level.OVERWORLD, level));
+        var player = (Player) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Player.class);
+        player.level = level;
+        player.server = server;
+        var partial = (Item) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Item.class);
+        partial.level = level;
+        partial.stack = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 3);
+        var full = (Item) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Item.class);
+        full.level = level;
+        full.stack = net.minecraft.world.item.ItemStack.EMPTY;
+        var zero = (Item) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Item.class);
+        zero.level = level;
+        zero.stack = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 2);
+        var toss = (Item) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Item.class);
+        toss.level = level;
+        toss.stack = new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 4);
+
+        try (var worker = Executors.newSingleThreadExecutor()) {
+            var journal = new Journal(worker);
+            var bus = BusBuilder.builder().build();
+            new JournalHooks(journal, () -> server).register(bus);
+            journal.open(dir.resolve("journal.db"), () -> 400L);
+            var realStart = System.currentTimeMillis();
+            try {
+                bus.post(new net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent.Post(player, partial,
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 8)));
+                bus.post(new net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent.Post(player, full,
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 7)));
+                bus.post(new net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent.Post(player, zero,
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 2)));
+                var canceled = new net.neoforged.neoforge.event.entity.item.ItemTossEvent(toss, player);
+                canceled.setCanceled(true);
+                bus.post(canceled);
+                bus.post(new net.neoforged.neoforge.event.entity.item.ItemTossEvent(toss, player));
+                var offThread = new Thread(() -> bus.post(new net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent.Post(player, partial,
+                        new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 6))));
+                offThread.start();
+                offThread.join();
+
+                assertEquals(3, journal.stats().offered.sum());
+            } finally {
+                journal.close().get(10, TimeUnit.SECONDS);
+            }
+            try (var store = JournalStore.open(dir.resolve("journal.db"))) {
+                var pickup = new JournalSearch(store).search(new JournalFilter(null, null, null, "minecraft:overworld",
+                        java.util.Set.of("pickup"), List.of("minecraft:diamond"), null, false), null, System.currentTimeMillis()).items();
+                assertEquals(1, pickup.size());
+                assertEquals(2, ((JournalEntry.EventEntry) pickup.getFirst()).count());
+                assertEquals(12, ((JournalEntry.EventEntry) pickup.getFirst()).amount());
+                assertEquals("player:00000000-0000-0000-0000-000000000001", ((JournalEntry.EventEntry) pickup.getFirst()).actor());
+                assertEquals(400, ((JournalEntry.EventEntry) pickup.getFirst()).firstGameTime());
+                assertTrue(((JournalEntry.EventEntry) pickup.getFirst()).firstWall() >= realStart);
+                assertEquals(new dev.packsage.world.BlockPlace("minecraft:overworld", 10, 64, -3),
+                        ((JournalEntry.EventEntry) pickup.getFirst()).at());
+                assertTrue(RunSummary.describe((JournalEntry.EventEntry) pickup.getFirst(), "Alex")
+                        .contains("Alex picked up 12 minecraft:diamond"));
+                var drop = new JournalSearch(store).search(new JournalFilter(null, null, null, "minecraft:overworld",
+                        java.util.Set.of("drop"), List.of("minecraft:diamond"), null, false), null, System.currentTimeMillis()).items();
+                assertEquals(1, drop.size());
+                assertEquals(4, ((JournalEntry.EventEntry) drop.getFirst()).amount());
+                assertEquals(400, ((JournalEntry.EventEntry) drop.getFirst()).firstGameTime());
+            }
         }
     }
 

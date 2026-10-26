@@ -161,6 +161,26 @@ class JournalEventsTest {
     }
 
     @Test
+    void itemEventFactoryKeepsThePlayerItemCountStampAndPosition() throws Exception {
+        var create = JournalEvents.class.getMethod("item", JournalEvents.Stamp.class, EventType.class, String.class,
+                String.class, String.class, long.class, int.class, int.class, int.class);
+        for (var type : List.of("pickup", "drop")) {
+            var amount = type.equals("pickup") ? 9L : 4L;
+            var event = (JournalEvent) create.invoke(null, STAMP, EventType.byId(type), "player:A", "Alex", "minecraft:diamond",
+                    amount, 1, 64, 2);
+            assertEquals(EventType.byId(type), event.type());
+            assertEquals(200, event.gameTime());
+            assertEquals(10_000, event.wallMillis());
+            assertEquals("minecraft:overworld", event.dimension());
+            assertEquals("player:A", event.actor());
+            assertEquals("minecraft:diamond", event.subject());
+            assertEquals(amount, event.amount());
+            assertArrayEquals(new long[]{Positions.pack(1, 64, 2)}, event.positions());
+            assertEquals("Alex", JsonParser.parseString(event.detail()).getAsJsonObject().get("actorName").getAsString());
+        }
+    }
+
+    @Test
     void transferKeepsContainerIdentityAndRejectsZeroOrUnrepresentableAmounts() {
         var deposit = JournalEvents.transfer(STAMP, "player:A", "Alex", "minecraft:stone", 5,
                 "minecraft:chest", 1, 64, 2, null);

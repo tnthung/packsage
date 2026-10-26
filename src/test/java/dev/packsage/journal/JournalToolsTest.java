@@ -182,6 +182,46 @@ class JournalToolsTest {
     }
 
     @Test
+    void searchJournalFiltersPickupAndDropByTypeAndSubjectWithItemAmounts() throws Exception {
+        var journal = open();
+        try {
+            journal.write(store -> {
+                var merger = new RunMerger();
+                for (int i = 0; i < 9; i++) {
+                    merger.add(new JournalEvent(EventType.byId("pickup"), 400 + i, 1_000 + 50L * i, PLACE.dimension(),
+                            "player:A", "minecraft:diamond", null, 1, new long[]{Positions.pack(10, 64, -3)}, null));
+                }
+                for (int i = 0; i < 2; i++) {
+                    merger.add(new JournalEvent(EventType.byId("drop"), 410 + i, 1_500 + 50L * i, PLACE.dimension(),
+                            "player:A", "minecraft:diamond", null, 2, new long[]{Positions.pack(10, 64, -3)}, null));
+                }
+                store.writeBatch(merger.takeChanged(), List.of());
+                return null;
+            }).toCompletableFuture().get();
+            var pickup = call(tools(journal), "search_journal",
+                    "{\"filter\":{\"types\":[\"pickup\"],\"subjects\":[\"minecraft:diamond\"]}}").toCompletableFuture().get();
+            assertEquals(1, pickup.records().size());
+            assertEquals(new Evidence.JsonString("pickup"), pickup.records().getFirst().payload().values().get("type"));
+            assertTrue(((Evidence.JsonString) pickup.records().getFirst().payload().values().get("summary")).value()
+                    .contains("player:A picked up 9 minecraft:diamond"));
+            assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(9)), pickup.records().getFirst().payload().values().get("amount"));
+            var drop = call(tools(journal), "search_journal",
+                    "{\"filter\":{\"types\":[\"drop\"],\"subjects\":[\"minecraft:diamond\"]}}").toCompletableFuture().get();
+            assertEquals(1, drop.records().size());
+            assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(4)), drop.records().getFirst().payload().values().get("amount"));
+        } finally {
+            journal.close().get();
+        }
+    }
+
+    @Test
+    void searchJournalDescriptionIncludesPickupAndDropHistory() {
+        assertTrue(dev.packsage.model.PackSageTools.definitions().stream()
+                .filter(definition -> definition.name().equals("search_journal"))
+                .findFirst().orElseThrow().description().contains("items picked up and dropped"));
+    }
+
+    @Test
     void rememberSavesThePlayersWordsPlaceAndOriginAndReportsPossibleDuplicates() throws Exception {
         var journal = open();
         try {

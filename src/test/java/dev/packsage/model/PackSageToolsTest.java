@@ -96,7 +96,7 @@ class PackSageToolsTest {
         var search = JsonParser.parseString(definitions.stream().filter(value -> value.name().equals("search_journal")).findFirst().orElseThrow().serializedSchema())
                 .getAsJsonObject().getAsJsonObject("properties").getAsJsonObject("filter").getAsJsonObject("properties");
         assertEquals(java.util.Set.of("time", "area", "dimension", "types", "subjects", "text", "notesOnly"), search.keySet());
-        assertEquals(17, search.getAsJsonObject("types").getAsJsonObject("items").getAsJsonArray("enum").size());
+        assertEquals(19, search.getAsJsonObject("types").getAsJsonObject("items").getAsJsonArray("enum").size());
         assertEquals(32, search.getAsJsonObject("subjects").get("maxItems").getAsInt());
         assertEquals(256, search.getAsJsonObject("text").get("maxLength").getAsInt());
         assertEquals(256, search.getAsJsonObject("area").getAsJsonObject("properties").getAsJsonObject("radius").get("maximum").getAsInt());

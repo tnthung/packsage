@@ -22,13 +22,17 @@ public final class DebugRequestLog extends AbstractAppender implements AutoClose
     @Override
     public void start() {
         super.start();
-        ((Logger) LogManager.getLogger("PackSage")).addAppender(this);
+        // Logger.addAppender would give PackSage its own logger config, which cut its lines out of the game log files.
+        // Listening on the config PackSage already uses leaves the file appenders untouched.
+        var context = ((Logger) LogManager.getLogger("PackSage")).getContext();
+        context.getConfiguration().getLoggerConfig("PackSage").addAppender(this, null, null);
+        context.updateLoggers();
     }
 
     @Override
     public synchronized void append(LogEvent event) {
         String message = event.getMessage().getFormattedMessage();
-        if (!message.startsWith("PackSage timing request=")) return;
+        if (!"PackSage".equals(event.getLoggerName()) || !message.startsWith("PackSage timing request=")) return;
         var fields = new JsonObject();
         for (String field : message.substring("PackSage timing ".length()).split(" ")) {
             int separator = field.indexOf('=');
@@ -47,7 +51,9 @@ public final class DebugRequestLog extends AbstractAppender implements AutoClose
 
     @Override
     public synchronized void close() {
-        ((Logger) LogManager.getLogger("PackSage")).removeAppender(this);
+        var context = ((Logger) LogManager.getLogger("PackSage")).getContext();
+        context.getConfiguration().getLoggerConfig("PackSage").removeAppender(getName());
+        context.updateLoggers();
         stop();
         requests.clear();
     }

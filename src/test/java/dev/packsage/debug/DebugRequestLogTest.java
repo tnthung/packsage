@@ -23,4 +23,19 @@ class DebugRequestLogTest {
         PackSageLog.LOGGER.info("PackSage timing request={} phase=accepted start_ns={}", "debug-test", 111);
         assertEquals(0, log.read("debug-test").size());
     }
+
+    @Test
+    void capturingLeavesPackSageOnItsExistingLoggerConfigSoFileAppendersStillReceiveIt() {
+        var context = ((org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getLogger("PackSage")).getContext();
+        var before = context.getConfiguration().getLoggerConfig("PackSage");
+        var log = new DebugRequestLog();
+        log.start();
+        try {
+            assertSame(before, context.getConfiguration().getLoggerConfig("PackSage"));
+            assertTrue(before.getAppenders().containsKey(log.getName()));
+        } finally {
+            log.close();
+        }
+        assertFalse(before.getAppenders().containsKey(log.getName()));
+    }
 }

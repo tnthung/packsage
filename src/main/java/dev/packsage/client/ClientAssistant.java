@@ -134,7 +134,12 @@ public final class ClientAssistant {
         settings = PackSageSettings.load(settingsPath);
         var backend = new ChatGptBackend(new ChatGptAuth(ChatGptAuth.defaultCredentialFile()));
         runtime = new AssistantRuntime(
-                new ConversationStore(client.gameDirectory.toPath().resolve("packsage"), workerExecutor), backend,
+                new ConversationStore(client.gameDirectory.toPath().resolve("packsage"), workerExecutor,
+                        Executors.newSingleThreadExecutor(runnable -> {
+                            var thread = new Thread(runnable, "packsage-chat-catalog");
+                            thread.setDaemon(true);
+                            return thread;
+                        })), backend,
                 scope -> GameplayContextCapture.forMinecraft(clientExecutor, scope), workerExecutor, clientExecutor,
                 this::knowledge, GroundingInstructions::historyTextBudget, GroundingInstructions::build,
                 model -> model.outputTokens() == null ? 4096 : Math.min(4096, model.outputTokens()),

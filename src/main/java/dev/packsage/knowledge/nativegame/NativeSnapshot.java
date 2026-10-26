@@ -99,27 +99,46 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         if (exactOutputItem != null && (output.isEmpty() || !exactOutputItem.equals(itemIdentity(output, itemRegistry)))) return null;
         var slots = new ArrayList<Evidence.RecipeSlot>();
         var tags = new LinkedHashSet<String>();
+        boolean knownRecipe = recipe.getClass() == net.minecraft.world.item.crafting.ShapedRecipe.class
+                || recipe.getClass() == net.minecraft.world.item.crafting.ShapelessRecipe.class
+                || recipe.getClass() == net.minecraft.world.item.crafting.SmeltingRecipe.class
+                || recipe.getClass() == net.minecraft.world.item.crafting.BlastingRecipe.class
+                || recipe.getClass() == net.minecraft.world.item.crafting.SmokingRecipe.class
+                || recipe.getClass() == net.minecraft.world.item.crafting.CampfireCookingRecipe.class
+                || recipe.getClass() == net.minecraft.world.item.crafting.StonecutterRecipe.class
+                || recipe.getClass() == net.minecraft.world.item.crafting.SmithingTransformRecipe.class
+                || recipe.getClass() == net.minecraft.world.item.crafting.SmithingTrimRecipe.class;
+        if (!knownRecipe) decoding = Evidence.DecodingStatus.UNKNOWN;
+        var remainders = new ArrayList<Evidence.RecipeOutput>();
+        boolean ambiguousRemainders = false;
         int slotIndex = 0;
         for (Ingredient ingredient : recipe.getIngredients()) {
             var alternatives = new ArrayList<Evidence.RecipeAlternative>();
+            var ingredientRemainders = new ArrayList<ItemStack>();
+            int itemAlternatives = 0;
+            boolean hasTagAlternative = false;
             if (ingredient.isEmpty()) {
                 slotIndex++;
                 continue;
             }
             if (ingredient.isCustom()) {
                 decoding = Evidence.DecodingStatus.OPAQUE;
+                ambiguousRemainders = true;
                 alternatives.add(customAlternative(ingredient, registries, slotIndex));
             } else {
                 for (Ingredient.Value value : ingredient.getValues()) {
                     if (value instanceof Ingredient.ItemValue itemValue) {
                         var stack = itemValue.item();
                         alternatives.add(new Evidence.RecipeAlternative("item", itemIdentity(stack, itemRegistry), componentPayload(stack, registries),
-                                stack.getCount(), Evidence.Consumption.UNKNOWN));
+                                1, knownRecipe ? Evidence.Consumption.CONSUMED : Evidence.Consumption.UNKNOWN));
+                        itemAlternatives++;
+                        if (knownRecipe && stack.hasCraftingRemainingItem()) ingredientRemainders.add(stack.getCraftingRemainingItem());
                     } else if (value instanceof Ingredient.TagValue tagValue) {
                         var identity = "#" + tagValue.tag().location();
                         tags.add(identity);
                         alternatives.add(new Evidence.RecipeAlternative("tag", identity, new Evidence.JsonObject(Map.of()), 1,
-                                Evidence.Consumption.UNKNOWN));
+                                knownRecipe ? Evidence.Consumption.CONSUMED : Evidence.Consumption.UNKNOWN));
+                        hasTagAlternative = true;
                     } else {
                         decoding = Evidence.DecodingStatus.OPAQUE;
                         alternatives.add(new Evidence.RecipeAlternative("unknown", "unknown:ingredient:" + slotIndex,
@@ -132,17 +151,28 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                 alternatives.add(new Evidence.RecipeAlternative("unknown", "unknown:ingredient:" + slotIndex,
                         new Evidence.JsonObject(Map.of()), null, Evidence.Consumption.UNKNOWN));
             }
+            if (!ingredient.isCustom() && knownRecipe) {
+                if (hasTagAlternative) ambiguousRemainders = true;
+                else if (itemAlternatives > 0 && ingredientRemainders.size() == itemAlternatives) {
+                    var remainder = ingredientRemainders.getFirst();
+                    if (ingredientRemainders.stream().allMatch(stack -> ItemStack.isSameItemSameComponents(stack, remainder))) {
+                        remainders.add(new Evidence.RecipeOutput("item", itemIdentity(remainder, itemRegistry), componentPayload(remainder, registries), 1));
+                    } else ambiguousRemainders = true;
+                } else if (!ingredientRemainders.isEmpty()) ambiguousRemainders = true;
+            }
             slots.add(new Evidence.RecipeSlot("slot-" + slotIndex++, alternatives));
         }
         var outputs = output.isEmpty() ? List.of(new Evidence.RecipeOutput("unknown", "unknown:output:" + holder.id(),
                 new Evidence.JsonObject(Map.of()), null)) : List.of(new Evidence.RecipeOutput("item", itemIdentity(output, itemRegistry),
                 componentPayload(output, registries), output.getCount()));
         if (output.isEmpty()) decoding = Evidence.DecodingStatus.PARTIAL;
+        if (ambiguousRemainders && decoding == Evidence.DecodingStatus.VERIFIED) decoding = Evidence.DecodingStatus.PARTIAL;
         var constraints = new ArrayList<String>();
         constraints.add("recipeType=" + recipe.getType());
         constraints.add("serializer=" + recipe.getSerializer());
-        constraints.add("catalysts=unknown");
-        constraints.add("remainders=unknown");
+        if (!knownRecipe || decoding == Evidence.DecodingStatus.OPAQUE) constraints.add("catalysts=unknown");
+        if (ambiguousRemainders) constraints.add("remainders=ambiguous-by-ingredient-alternative");
+        else if (!knownRecipe || decoding == Evidence.DecodingStatus.OPAQUE) constraints.add("remainders=unknown");
         Evidence.JsonValue shape = null;
         if (recipe instanceof net.minecraft.world.item.crafting.ShapedRecipe shaped) {
             try {
@@ -161,7 +191,6 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
             constraints.add("shape=shapeless");
             shape = new Evidence.JsonString("shapeless");
         }
-        if (decoding == Evidence.DecodingStatus.VERIFIED) decoding = Evidence.DecodingStatus.PARTIAL;
         var provenance = new ArrayList<String>();
         provenance.add("client-recipe-manager");
         if (resourceManager != null) {
@@ -173,16 +202,17 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
             }
         }
         if (provenance.size() == 1) provenance.add("resource-provenance=unknown");
-        var coverage = decoding == Evidence.DecodingStatus.OPAQUE ? Evidence.Coverage.OPAQUE : Evidence.Coverage.PARTIAL;
+        var coverage = decoding == Evidence.DecodingStatus.VERIFIED ? Evidence.Coverage.COMPLETE
+                : decoding == Evidence.DecodingStatus.OPAQUE ? Evidence.Coverage.OPAQUE : Evidence.Coverage.PARTIAL;
         var source = new Evidence.Source(scope, "native", "1.21.1", holder.id().toString(), scope.requestGeneration(), Instant.now(),
                 Evidence.Activity.ACTIVE, coverage, Evidence.Authority.LOADED, provenance);
-        var payload = recipePayloadJson(holder.id().toString(), slots, outputs, List.of(), List.of(), constraints, decoding, tags);
+        var payload = recipePayloadJson(holder.id().toString(), slots, outputs, remainders, List.of(), constraints, decoding, tags);
         if (shape != null) {
             var withShape = new LinkedHashMap<>(payload.values());
             withShape.put("shape", shape);
             payload = new Evidence.JsonObject(withShape);
         }
-        var typed = new Evidence.RecipePayload(holder.id().toString(), slots, outputs, List.of(), List.of(), constraints, decoding);
+        var typed = new Evidence.RecipePayload(holder.id().toString(), slots, outputs, remainders, List.of(), constraints, decoding);
         return new Evidence.Record(source, Evidence.RecordKind.RECIPE, holder.id().toString(), payload, List.of(), typed);
     }
 

@@ -92,7 +92,11 @@ class RecipePlannerTest {
     @Test
     void partialPlanExplainsUnresolvedRawLeaves() {
         var index = new KnowledgeIndex();
-        index.replace(new dev.packsage.knowledge.nativegame.NativeSnapshot(SCOPE, List.of(alternativeRecipe("mod:output", "mod:raw"))));
+        index.replace(new dev.packsage.knowledge.nativegame.NativeSnapshot(SCOPE, List.of(record("mod:output", new Evidence.RecipePayload("mod:output",
+                List.of(new Evidence.RecipeSlot("input", List.of(new Evidence.RecipeAlternative("item", "mod:raw",
+                        new Evidence.JsonObject(Map.of()), 1, Evidence.Consumption.CONSUMED)))),
+                List.of(new Evidence.RecipeOutput("item", "mod:output", new Evidence.JsonObject(Map.of()), 1)),
+                List.of(), List.of(), List.of(), Evidence.DecodingStatus.VERIFIED)))));
 
         var result = new RecipePlanner(index).plan("mod:output", 2, SCOPE, 2);
 

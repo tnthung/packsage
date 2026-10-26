@@ -441,7 +441,7 @@ public final class NativeProvider implements KnowledgeProvider {
                     record.kind(), record.title(), record.payload(), record.targets(), record.recipePayload());
         }).toList();
         return new Evidence.Result(records, Evidence.Coverage.PARTIAL, Evidence.Outcome.PARTIAL, result.nextCursor(),
-                result.detail() == null ? provenance : result.detail());
+                result.detail() == null ? provenance : result.detail() + "; " + provenance);
     }
 
     private static CompletionStage<Evidence.Result> invalid(String detail) {

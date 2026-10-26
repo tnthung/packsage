@@ -64,7 +64,7 @@ class NativeRecipeReaderTest {
         assertEquals(1, result.records().size());
         assertEquals("plan|minecraft:beacon|2|4|0|test:late_beacon", result.records().getFirst().source().sourceHandle());
         assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(2)), result.records().getFirst().payload().values().get("batches"));
-        assertEquals(null, result.detail());
+        assertTrue(result.detail().contains("minecraft:nether_star"));
     }
 
     @Test
@@ -157,7 +157,7 @@ class NativeRecipeReaderTest {
         var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build();
         var exact = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE),
                 "minecraft:diamond", 1, SCOPE, 0);
-        assertEquals(null, exact.detail());
+        assertTrue(exact.detail().contains("bounded-depth:minecraft:diamond"));
         recipes.add(recipe("test:over_copy_cap", new AtomicReference<>(Items.DIAMOND), new AtomicInteger(), true));
 
         var capped = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE),
@@ -183,7 +183,7 @@ class NativeRecipeReaderTest {
                 "minecraft:firework_rocket", 1, SCOPE, 4);
 
         assertEquals(1, beacon.records().size());
-        assertEquals(null, beacon.detail());
+        assertTrue(beacon.detail().contains("minecraft:nether_star"));
         assertTrue(rocket.records().isEmpty());
         assertTrue(rocket.detail().contains("native-recipe-dynamic-outputs-unindexed=1"));
     }

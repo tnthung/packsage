@@ -101,7 +101,7 @@ class RecipePlannerTest {
         var result = new RecipePlanner(index).plan("mod:output", 2, SCOPE, 2);
 
         assertEquals(Evidence.Outcome.PARTIAL, result.outcome());
-        assertTrue(result.detail().contains("no-recipe"));
+        assertTrue(result.detail().contains("materials with no recipe here, obtained rather than crafted="));
         assertTrue(result.detail().contains("mod:raw"));
     }
 

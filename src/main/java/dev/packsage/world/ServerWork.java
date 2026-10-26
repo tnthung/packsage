@@ -97,7 +97,10 @@ public final class ServerWork {
         jobs.incrementAndGet();
         submitted.add(job);
         // Checked after queueing, so a close racing this call either sees the job or is seen here.
-        if (!worldOpen.getAsBoolean()) job.future.completeExceptionally(closed());
+        if (!worldOpen.getAsBoolean()) {
+            if (submitted.remove(job)) jobs.decrementAndGet();
+            job.future.completeExceptionally(closed());
+        }
         return job.future;
     }
 

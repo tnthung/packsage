@@ -444,6 +444,29 @@ class PackSageToolsTest {
     }
 
     @Test
+    void skipsAnUnshrinkableCursorRecordWithoutLosingLaterRecordsOrProviderCursor() throws Exception {
+        var oversized = new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "x".repeat(70_000), 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Oversized", new Evidence.JsonObject(Map.of()), List.of());
+        var later = new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "later", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Later", new Evidence.JsonObject(Map.of()), List.of());
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(oversized, later),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, "provider-next")));
+
+        var response = tools.execute(new ModelBackend.ToolCall("page", "search_recipe", "{\"filter\":{\"text\":\"fixture\"}}"), SCOPE)
+                .toCompletableFuture().get();
+        var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+
+        assertFalse(response.result().error());
+        assertEquals(1, json.getAsJsonArray("records").size());
+        assertEquals("native:later", json.getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString());
+        assertEquals("provider-next", json.get("nextCursor").getAsString());
+        assertTrue(json.get("detail").getAsString().contains("1 record omitted"));
+        assertFalse(json.get("detail").getAsString().contains("depth/quantity"));
+    }
+
+    @Test
     void largeExactRecipePlansKeepLeadingRoutesAndCountTheOmittedTail() throws Exception {
         for (int count : List.of(128, 256)) {
             var inputs = java.util.stream.IntStream.range(0, 9).mapToObj(i -> new Evidence.RecipeSlot("slot:" + i,
@@ -832,5 +855,33 @@ class PackSageToolsTest {
         assertEquals(1, locate.getAsJsonObject("radius").get("minimum").getAsInt());
         assertEquals(512, locate.getAsJsonObject("radius").get("maximum").getAsInt());
         assertTrue("#minecraft:village".matches(locate.getAsJsonObject("structure").get("pattern").getAsString()));
+    }
+
+    @Test
+    void failedOutputReplayDeliveryDiscardsTheTailItCreates() throws Exception {
+        var observations = new AtomicInteger();
+        var pages = new PackSageTools.OutputPages((scope, records) -> {
+            if (observations.incrementAndGet() == 2) throw new Toolbox.Failure(Toolbox.Code.STALE_SCOPE, "world changed");
+        });
+        var records = java.util.stream.IntStream.range(0, 64).mapToObj(i -> new Evidence.Record(new Evidence.Source(SCOPE,
+                "fixture", "1", "row:" + i, 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.OTHER, "Row " + i, new Evidence.JsonObject(Map.of(
+                "text", new Evidence.JsonString("\u754c".repeat(2048)))), List.of())).toList();
+        var first = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(records,
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, null)), List.of(), pages);
+        var json = JsonParser.parseString(first.execute(new ModelBackend.ToolCall("first", "search_recipe", "{}"), SCOPE)
+                .toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        var next = json.getAsJsonObject("nextCall");
+        var retainedBytes = PackSageTools.OutputPages.class.getDeclaredField("retainedBytes");
+        retainedBytes.setAccessible(true);
+        assertTrue(retainedBytes.getInt(pages) > 0);
+
+        var replay = new PackSageTools(request -> { fail("pending rows must not reacquire provider data"); return null; }, List.of(), pages)
+                .execute(new ModelBackend.ToolCall("next", "search_recipe", next.get("arguments").toString()), SCOPE)
+                .toCompletableFuture().get();
+
+        assertTrue(replay.result().error());
+        assertTrue(replay.result().serializedResult().contains("STALE_SCOPE"));
+        assertEquals(0, retainedBytes.getInt(pages));
     }
 }

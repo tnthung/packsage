@@ -418,9 +418,12 @@ public final class PackSageTools {
                 int outputBytes = json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
                 int ordinaryRecords = 0;
                 boolean trimmed = false;
-                for (var record : result.records()) {
+                int skipped = 0;
+                int index = 0;
+                for (; index < result.records().size(); index++) {
+                    var record = result.records().get(index);
                     if (!record.source().sourceHandle().startsWith("status:") && ordinaryRecords == 64) break;
-                    var encoded = pendingRecords == null ? encodeRecord(record) : pendingRecords.get(accepted.size()).deepCopy();
+                    var encoded = pendingRecords == null ? encodeRecord(record) : pendingRecords.get(index).deepCopy();
                     int recordBytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + (records.isEmpty() ? 0 : 1);
                     boolean crossesBudget = outputBytes + recordBytes > 131_072 - 12_800;
                     if (crossesBudget) {
@@ -428,7 +431,11 @@ public final class PackSageTools {
                         // Keep complete leading routes; only the crossing record can use the remaining space.
                         trimRecord(encoded, 131_072 - outputBytes - 12_800 - (records.isEmpty() ? 0 : 1));
                         recordBytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + (records.isEmpty() ? 0 : 1);
-                        if (outputBytes + recordBytes > 131_072 - 12_800) break;
+                        if (outputBytes + recordBytes > 131_072 - 12_800) {
+                            if (overflowCursor == null) break;
+                            skipped++;
+                            continue;
+                        }
                     }
                     records.add(encoded);
                     if (encoded.has("truncationNote")) {
@@ -441,10 +448,13 @@ public final class PackSageTools {
                     accepted.add(record);
                     if (!record.source().sourceHandle().startsWith("status:")) ordinaryRecords++;
                     outputBytes += recordBytes;
-                    if (crossesBudget) break;
+                    if (crossesBudget) {
+                        index++;
+                        break;
+                    }
                 }
-                if (accepted.size() < result.records().size()) {
-                    if (overflowCursor != null && !accepted.isEmpty()) {
+                if (index < result.records().size() || skipped > 0) {
+                    if (index < result.records().size() && overflowCursor != null && !accepted.isEmpty()) {
                         var signature = new java.util.LinkedHashMap<>(arguments.values());
                         signature.remove("cursor");
                         var tail = new ArrayList<Evidence.Record>();
@@ -452,7 +462,7 @@ public final class PackSageTools {
                         int tailBytes = Evidence.serialize(new Evidence.JsonObject(signature)).getBytes(java.nio.charset.StandardCharsets.UTF_8).length
                                 + JSON.toJsonTree(scope).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 12_800
                                 + (result.nextCursor() == null ? 0 : result.nextCursor().getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
-                        for (int i = accepted.size(); i < result.records().size(); i++) {
+                        for (int i = index; i < result.records().size(); i++) {
                             var record = result.records().get(i);
                             var encoded = pendingRecords == null ? encodeRecord(record) : pendingRecords.get(i);
                             int bytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
@@ -471,13 +481,17 @@ public final class PackSageTools {
                             encodedTail.add(encoded);
                             tailBytes += bytes;
                         }
-                        int omitted = result.records().size() - accepted.size() - tail.size();
-                        var tailDetail = boundedString((omitted == 0 ? "" : omitted + " records omitted at the retained-output byte limit; narrow the requested selection; ")
-                                + (result.detail() == null ? "" : result.detail()));
+                        int omitted = result.records().size() - index - tail.size();
+                        var skippedDetail = skipped == 0 ? "" : skipped == 1
+                                ? "1 record omitted because its canonical identity exceeded the output budget; refine the request to reduce output size"
+                                : skipped + " records omitted because their canonical identities exceeded the output budget; refine the request to reduce output size";
+                        var tailDetail = boundedString((omitted == 0 ? "" : omitted + " records omitted at the retained-output byte limit; refine the request to reduce output size")
+                                + (skippedDetail.isEmpty() ? "" : (omitted == 0 ? "" : "; ") + skippedDetail)
+                                + (result.detail() == null ? "" : ((omitted == 0 && skippedDetail.isEmpty() ? "" : "; ") + result.detail())));
                         synchronized (outputPages) {
                             outputPages.pending.put(overflowCursor, new OutputPages.Pending(new ReadRequest(call.name(), new Evidence.JsonObject(signature), scope),
-                                    new Evidence.Result(tail, omitted == 0 ? result.coverage() : Evidence.Coverage.PARTIAL,
-                                            omitted == 0 ? result.outcome() : Evidence.Outcome.PARTIAL, result.nextCursor(), tailDetail), encodedTail, tailBytes));
+                                    new Evidence.Result(tail, omitted == 0 && skipped == 0 ? result.coverage() : Evidence.Coverage.PARTIAL,
+                                            omitted == 0 && skipped == 0 ? result.outcome() : Evidence.Outcome.PARTIAL, result.nextCursor(), tailDetail), encodedTail, tailBytes));
                             outputPages.retainedBytes += tailBytes;
                             while (outputPages.pending.size() > 256 || outputPages.retainedBytes > 8 * 1024 * 1024) {
                                 outputPages.retainedBytes -= outputPages.pending.remove(outputPages.pending.keySet().iterator().next()).bytes();
@@ -485,13 +499,21 @@ public final class PackSageTools {
                         }
                         continuation.accept(overflowCursor);
                     } else {
-                        continuation.accept(null);
+                        continuation.accept(index == result.records().size() ? result.nextCursor() : null);
                     }
                     json.addProperty("coverage", "PARTIAL");
                     json.addProperty("outcome", "PARTIAL");
-                    json.addProperty("detail", boundedString((overflowCursor != null && !accepted.isEmpty() ? "encoded page byte or record budget reached; continue with nextCursor"
-                            : (result.records().size() - accepted.size()) + " records omitted at the output byte or record limit; narrow depth/quantity or the requested selection")
-                            + (result.detail() == null ? "" : "; " + result.detail())));
+                    var skippedDetail = skipped == 0 ? "" : skipped == 1
+                            ? "1 record omitted because its canonical identity exceeded the output budget; refine the request to reduce output size"
+                            : skipped + " records omitted because their canonical identities exceeded the output budget; refine the request to reduce output size";
+                    var outputDetail = index < result.records().size() && overflowCursor != null && !accepted.isEmpty()
+                            ? "encoded page byte or record budget reached; continue with nextCursor"
+                            : index < result.records().size()
+                                    ? (result.records().size() - index) + " records omitted at the output byte or record limit; refine the request to reduce output size"
+                                    : "";
+                    json.addProperty("detail", boundedString((skippedDetail.isEmpty() ? outputDetail
+                            : skippedDetail + (outputDetail.isEmpty() ? "" : "; " + outputDetail))
+                            + (result.detail() == null ? "" : ((skippedDetail.isEmpty() && outputDetail.isEmpty() ? "" : "; ") + result.detail()))));
                 } else continuation.accept(result.nextCursor());
                 if (trimmed) {
                     json.addProperty("coverage", "PARTIAL");
@@ -509,7 +531,15 @@ public final class PackSageTools {
                             "{\"coverage\":\"PARTIAL\",\"outcome\":\"PARTIAL\",\"records\":[],\"detail\":\""
                                     + result.records().size() + " records omitted because the response envelope exceeds the byte limit; narrow the requested selection\"}", false), List.of());
                 }
-                outputPages.delivered.accept(scope, accepted);
+                try {
+                    outputPages.delivered.accept(scope, accepted);
+                } catch (RuntimeException | Error failure) {
+                    synchronized (outputPages) {
+                        var discarded = outputPages.pending.remove(overflowCursor);
+                        if (discarded != null) outputPages.retainedBytes -= discarded.bytes();
+                    }
+                    throw failure;
+                }
                 return new ToolResponse(new ModelBackend.ToolResult(call.callId(), serialized, result.outcome() == Evidence.Outcome.ERROR), accepted);
             }).exceptionally(failure -> {
                 while (failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null) failure = failure.getCause();

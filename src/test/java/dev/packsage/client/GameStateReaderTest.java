@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.KnowledgeService;
 import dev.packsage.model.ModelBackend;
 import dev.packsage.model.PackSageTools;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,8 @@ class GameStateReaderTest {
     void encodesOneStructuredF3RecordThroughTheSharedToolEncoder() {
         var capture = new FakeCapture(new GameStateReader.Snapshot(false, SNAPSHOT));
         var reader = new GameStateReader(capture);
-        var tools = new PackSageTools(request -> reader.handle(request, null));
+        var knowledge = new KnowledgeService(java.util.List.of(reader), () -> SCOPE);
+        var tools = new PackSageTools(knowledge::execute, knowledge.metadata(), knowledge.outputPages());
         var response = tools.execute(new ModelBackend.ToolCall("f3", "read_game_state", "{}"), SCOPE).toCompletableFuture().join();
 
         assertFalse(response.result().error());

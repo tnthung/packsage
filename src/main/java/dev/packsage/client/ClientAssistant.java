@@ -468,7 +468,9 @@ public final class ClientAssistant {
         providers.add(new ProgressTools(client, world, scope, workerExecutor, serverWork));
         providers.add(new JournalTools(journal, scope, workerExecutor, client::getSingleplayerServer,
                 worldTools::resolveAnchor));
-        return new KnowledgeService(providers, scope);
+        var knowledge = new KnowledgeService(providers, scope);
+        knowledge.register(new GameStateReader(client));
+        return knowledge;
     }
 
     private void openSettings(boolean advanced) {

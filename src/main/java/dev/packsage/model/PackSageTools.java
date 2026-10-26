@@ -93,7 +93,7 @@ public final class PackSageTools {
                 "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
                 "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
                 "list_progress", "inspect_progress", "list_statistics",
-                "read_loot", "locate", "search_commands", "read_command",
+                "read_loot", "locate", "search_commands", "read_command", "read_game_state",
                 "search_journal", "remember", "update_note", "forget_note")) {
             var properties = new JsonObject();
             var required = new JsonArray();
@@ -196,6 +196,7 @@ public final class PackSageTools {
                     properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
                     required.add("name");
                 }
+                case "read_game_state" -> properties.add("sections", JsonParser.parseString("{\"type\":[\"array\",\"null\"],\"maxItems\":5,\"uniqueItems\":true,\"items\":{\"type\":\"string\",\"enum\":[\"performance\",\"entities_and_chunks\",\"light_and_environment\",\"position\",\"looking_at\"]}}"));
                 case "search_journal" -> {
                     var filter = JsonParser.parseString("{\"type\":\"object\",\"properties\":{\"time\":{\"type\":[\"object\",\"null\"],\"properties\":{\"after\":{\"type\":[\"string\",\"null\"],\"maxLength\":64},\"before\":{\"type\":[\"string\",\"null\"],\"maxLength\":64},\"lastMinutes\":{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":5256000}},\"additionalProperties\":false},\"area\":{\"type\":[\"object\",\"null\"],\"properties\":{\"radius\":{\"type\":\"integer\",\"minimum\":0,\"maximum\":256}},\"required\":[\"radius\"],\"additionalProperties\":false},\"dimension\":{\"type\":[\"string\",\"null\"],\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"},\"types\":{\"type\":[\"array\",\"null\"],\"maxItems\":17,\"items\":{\"type\":\"string\"}},\"subjects\":{\"type\":[\"array\",\"null\"],\"maxItems\":32,\"items\":{\"type\":\"string\",\"maxLength\":256,\"pattern\":\"^[a-z0-9_.-]+:[a-z0-9/._-]+$\"}},\"text\":{\"type\":[\"string\",\"null\"],\"maxLength\":256},\"notesOnly\":{\"type\":[\"boolean\",\"null\"]}},\"additionalProperties\":false}").getAsJsonObject();
                     filter.getAsJsonObject("properties").getAsJsonObject("area").getAsJsonObject("properties").add("center", JsonParser.parseString(WORLD_ANCHOR));
@@ -276,6 +277,7 @@ public final class PackSageTools {
                 case "locate" -> "Find the nearest biome or structure (ids or tags such as #minecraft:village) around center within radius chunks (default 100), without loading or generating chunks. Biomes come back as sampled (read from the biome source at sampled columns); structures come back as found (present in a generated chunk) or predicted (placement and biome checks pass for an ungenerated chunk). Up to 5 nearest first, each with its kind and a link that marks the place.";
                 case "search_commands" -> "List the server's commands matching text in their name or usage, with whether the player can run them and short usage. Read one with read_command.";
                 case "read_command" -> "Read one command or subcommand path such as fill or execute if block: its usage forms for the player's permission level, every argument with its type and examples, redirects and whether the player can run it.";
+                case "read_game_state" -> "Read what the F3 debug screen reports: client performance, entities and chunks, light and environment, position, and the block, fluid or entity under the crosshair. Request sections when only part of the snapshot is needed. Reads run on the client thread and use current renderer counts and the current chunk only. Unreadable values are unavailable; integrated server performance is unavailable in multiplayer.";
                 default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
             }, schema.toString()));
         }

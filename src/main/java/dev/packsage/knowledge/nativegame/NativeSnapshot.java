@@ -101,9 +101,9 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         if (exactOutputItem != null && (output.isEmpty() || !exactOutputItem.equals(itemIdentity(output, itemRegistry)))) return null;
         var slots = new ArrayList<Evidence.RecipeSlot>();
         var tags = new LinkedHashSet<String>();
-        boolean knownRecipe = recipe.getClass() == net.minecraft.world.item.crafting.ShapedRecipe.class
-                || recipe.getClass() == net.minecraft.world.item.crafting.ShapelessRecipe.class
-                || recipe.getClass() == net.minecraft.world.item.crafting.SmeltingRecipe.class
+        boolean craftingRecipe = recipe.getClass() == net.minecraft.world.item.crafting.ShapedRecipe.class
+                || recipe.getClass() == net.minecraft.world.item.crafting.ShapelessRecipe.class;
+        boolean knownRecipe = craftingRecipe || recipe.getClass() == net.minecraft.world.item.crafting.SmeltingRecipe.class
                 || recipe.getClass() == net.minecraft.world.item.crafting.BlastingRecipe.class
                 || recipe.getClass() == net.minecraft.world.item.crafting.SmokingRecipe.class
                 || recipe.getClass() == net.minecraft.world.item.crafting.CampfireCookingRecipe.class
@@ -146,7 +146,7 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
             }
             if (ingredient.isCustom()) {
                 decoding = Evidence.DecodingStatus.OPAQUE;
-                ambiguousRemainders = true;
+                ambiguousRemainders = craftingRecipe;
                 alternatives.add(customAlternative(ingredient, registries, slotIndex));
             } else {
                 for (Ingredient.Value value : ingredient.getValues()) {
@@ -155,7 +155,7 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                         alternatives.add(new Evidence.RecipeAlternative("item", itemIdentity(stack, itemRegistry), componentPayload(stack, registries),
                                 1, knownRecipe ? Evidence.Consumption.CONSUMED : Evidence.Consumption.UNKNOWN));
                         itemAlternatives++;
-                        if (knownRecipe && stack.hasCraftingRemainingItem()) ingredientRemainders.add(stack.getCraftingRemainingItem());
+                        if (craftingRecipe && stack.hasCraftingRemainingItem()) ingredientRemainders.add(stack.getCraftingRemainingItem());
                     } else if (value instanceof Ingredient.TagValue tagValue) {
                         var identity = "#" + tagValue.tag().location();
                         tags.add(identity);
@@ -174,7 +174,7 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                 alternatives.add(new Evidence.RecipeAlternative("unknown", "unknown:ingredient:" + slotIndex,
                         new Evidence.JsonObject(Map.of()), null, Evidence.Consumption.UNKNOWN));
             }
-            if (!ingredient.isCustom() && knownRecipe) {
+            if (!ingredient.isCustom() && craftingRecipe) {
                 if (hasTagAlternative) ambiguousRemainders = true;
                 else if (itemAlternatives > 0 && ingredientRemainders.size() == itemAlternatives) {
                     var remainder = ingredientRemainders.getFirst();

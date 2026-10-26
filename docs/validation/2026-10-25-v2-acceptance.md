@@ -34870,6 +34870,8 @@ The earlier controller rulings apply: v2 has no recipe viewer, loot replies need
 | W12r3 | FAIL | Missing/empty loot status is correct and every chest stays sealed, but visible replies omit the required table IDs. |
 | J8r | PASS | Ridden donkey deposit and withdrawal both journal 17 gold ingots, with correct local-day filters, coordinates and working links. |
 | W11r | PASS | With the open donkey menu and crosshair away, list_items ridden returns the actual 13 emeralds and empty slots. |
+| N2 | PASS | One lapis-workshop note follows the move and recall; the plain beacon question creates no note or saving chatter. |
+| W18r | PASS | Resource pack rescans/enables successfully; Speed description is returned exactly, then disabling restores descriptionStatus=not_provided. |
 
 ### Passing checks and checks not run
 
@@ -35264,6 +35266,352 @@ Your donkey at (1605, 250, 1602) [Donkey](world:entity|11111111-1111-1111-1111-1
 ```
 
 Timing: {"wallMs":18221,"modelTerminalMs":"16297","toolWallMs":"84","persistMs":"8"}.
+
+
+#### N2 - PASS
+
+One lapis-workshop note follows the move and recall; the plain beacon question creates no note or saving chatter.
+
+remember creates naeae8c78 at the player. update_note uses that same ID with at=player and clearPlace=false; recall returns exactly one workshop note at (1740,55,1700), matching its new anchor. The player fell after the fixture teleports, so the recorded ground positions, not the command Y=250, are the actual reported locations. Its navigation opens. All four replies avoid saving/remembering commentary, and the plain question calls only search_registry.
+
+Evidence: [n2-report-state.json](../../build/native-readiness-live/round4/n2-report-state.json).
+
+Evidence: [n2-move-state.json](../../build/native-readiness-live/round4/n2-move-state.json).
+
+Question: `I built a lapis workshop here`
+
+Request `b26ab705-7be4-43e9-bd41-a84616d61b61`; conversation `3c9b469f-f45d-48ab-bda2-3e16d3fc759b`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/n2-report.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "remember",
+    "arguments": {
+      "text": "I built a lapis workshop here.",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "workshop",
+        "lapis"
+      ]
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Nice—your lapis workshop is here!
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|naeae8c78",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":14239,"modelTerminalMs":"12523","toolWallMs":"36","persistMs":"8"}.
+
+Question: `I moved my lapis workshop`
+
+Request `a30aced9-be3b-43c9-8423-2b0e3798eb49`; conversation `19bfc08d-90e2-4d91-85af-1579fbd60ed5`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/n2-move.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "lapis workshop",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "update_note",
+    "arguments": {
+      "text": "I moved my lapis workshop here.",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "lapis",
+        "workshop"
+      ],
+      "id": "naeae8c78",
+      "clearPlace": false
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Got it—you moved your lapis workshop.
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|naeae8c78",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":16464,"modelTerminalMs":"15222","toolWallMs":"5","persistMs":"8"}.
+
+Question: `where is my lapis workshop?`
+
+Request `b1418405-78ab-48e5-a042-5fa2a9a8f9ba`; conversation `b3b7c31a-8b40-4d36-b1db-941888bb9ed7`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/n2-recall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "lapis workshop",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You said you moved your lapis workshop **here, at (1740, 55, 1700)** in the Overworld—your current position. [Your workshop note](journal:note:naeae8c78)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|naeae8c78",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":16496,"modelTerminalMs":"15168","toolWallMs":"2","persistMs":"8"}.
+
+Question: `what is a beacon?`
+
+Request `bd57069c-9530-4a79-ae82-5f7871e973b4`; conversation `a5032249-3460-47bc-b2f1-0c8d026c3f7d`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/n2-plain.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "block",
+      "filter": {
+        "text": "beacon",
+        "ids": null,
+        "tags": null,
+        "provider": null
+      },
+      "limit": 10,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+A **beacon** is a Minecraft block that marks a location with a tall beam of light and, when powered, gives nearby players useful effects. Your pack has the standard Beacon block. [native:block:minecraft:beacon] ([minecraft.net](https://www.minecraft.net/sv-se/article/ten-rare-recipes?utm_source=openai))
+
+To power one, place it on a pyramid of mineral blocks. A larger pyramid unlocks more effect choices; you select an effect in the beacon’s menu. Crafting the beacon requires a **Nether star**, which you get by defeating the Wither. ([minecraft.net](https://www.minecraft.net/sv-se/article/ten-rare-recipes?utm_source=openai))
+```
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":24288,"modelTerminalMs":"22430","toolWallMs":"12","persistMs":"10"}.
+
+
+#### W18r - PASS
+
+Resource pack rescans/enables successfully; Speed description is returned exactly, then disabling restores descriptionStatus=not_provided.
+
+The reused packsage-round3-speed pack returns descriptionSource language:effect.minecraft.speed.description and its exact fixture text. Both enable and disable report reloaded=true. The no-pack read retains numeric attribute modifiers while explicitly marking its language description not_provided.
+
+Evidence: [w18r-enabled.json](../../build/native-readiness-live/round4/w18r-enabled.json).
+
+Evidence: [w18r-disabled.json](../../build/native-readiness-live/round4/w18r-disabled.json).
+
+Question: `what does Speed do?`
+
+Request `52d28202-4947-4ff1-b681-4e4d1bd931de`; conversation `4be62902-9af1-47c3-b4bb-81b65a4c94df`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/w18r-pack.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "mob_effect",
+      "filter": {
+        "text": "speed",
+        "ids": null,
+        "tags": null,
+        "provider": null
+      },
+      "limit": 64,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Speed makes you move faster: **20% per level**. Speed I gives +20% movement speed, Speed II +40%, and Speed III +60%. [native:mob_effect:minecraft:speed]
+```
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":12230,"modelTerminalMs":"10839","toolWallMs":"4","persistMs":"8"}.
+
+Question: `what does Speed do?`
+
+Request `63a150d0-9d98-4aa2-a875-c9c407431582`; conversation `be782adc-8c19-4f3f-979d-e439ad24a367`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/w18r-baseline.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "mob_effect",
+      "filter": {
+        "text": "speed",
+        "ids": null,
+        "tags": null,
+        "provider": null
+      },
+      "limit": 64,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+**Speed makes you move faster.** Each level adds 20% to your movement-speed attribute: Speed I adds 20%, Speed II adds 40%, and Speed III adds 60%. [native:mob_effect:minecraft:speed]
+```
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":14846,"modelTerminalMs":"13543","toolWallMs":"4","persistMs":"8"}.
 
 
 ### Failures

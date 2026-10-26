@@ -1027,7 +1027,7 @@ public final class AssistantRuntime implements ChatActions {
                 try {
                     prepared = new ChatContracts.Submission(new ChatContracts.RequestId(UUID.randomUUID().toString()),
                             holder.world, nextScope, question, includeScreenshot, historyLimits, selectedModel, searchMode,
-                            budget, currentSettings.reasoningEffort(), replacing);
+                            budget, currentSettings.reasoningEffort(), replacing, currentSettings.verbosity());
                 } catch (RuntimeException failure) {
                     rejection = "Request settings are invalid: " + failureMessage(failure);
                     prepared = null;
@@ -1076,7 +1076,7 @@ public final class AssistantRuntime implements ChatActions {
                 holder.failedStarts.put(submission.requestId(), new ChatContracts.Turn(submission.requestId(), submission.question(),
                         "", List.of(), new ChatContracts.Context("", null, submission.scope()), List.of(), List.of(),
                         new ChatContracts.Outcome(requestActivation.get() ? ChatContracts.OutcomeStatus.FAILED : ChatContracts.OutcomeStatus.CANCELLED,
-                                failureMessage(failure)), 0, Instant.now()));
+                                failureMessage(failure)), 0, Instant.now(), List.of(), List.of(), null, null, submission.verbosity()));
             }
         };
         try {
@@ -1848,12 +1848,10 @@ public final class AssistantRuntime implements ChatActions {
                     request -> executeTool(holder, request), historyCounter, prepared -> {
                         ModelBackend.Request request = requestBuilder.apply(prepared);
                         String developerPrompt;
-                        PackSageSettings.Verbosity verbosity;
                         synchronized (stateLock) {
                             developerPrompt = settings.developerPrompt();
-                            verbosity = settings.verbosity();
                         }
-                        return new ModelBackend.Request(request.modelId(), verbosity.apply(developerPrompt == null
+                        return new ModelBackend.Request(request.modelId(), prepared.submission().verbosity().apply(developerPrompt == null
                                 ? request.instructions() : developerPrompt), request.input(),
                                 PackSageTools.definitions(initializedKnowledge.metadata()), request.searchMode(), request.requestId(),
                                 request.outputBudget(), request.reasoningEffort());

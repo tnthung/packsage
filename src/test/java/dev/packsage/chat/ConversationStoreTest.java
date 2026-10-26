@@ -23,6 +23,55 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class ConversationStoreTest {
+    @Test
+    void verbosityRoundTrips() throws Exception {
+        var store = new ConversationStore(temporaryDirectory, DIRECT);
+        var world = new ChatContracts.WorldIdentity("world-a", "World");
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        var turn = new ChatContracts.Turn(new ChatContracts.RequestId("verbose"), "question", "answer", List.of(),
+                new ChatContracts.Context("", null, SCOPE), List.of(), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0, null, List.of(), List.of(),
+                null, null, PackSageSettings.Verbosity.CONCISE);
+        store.appendTurn(world, SCOPE, conversation.id(), turn).toCompletableFuture().join();
+        var saved = com.google.gson.JsonParser.parseString(Files.readAllLines(store.conversationPath(world, conversation.id()))
+                .getLast()).getAsJsonObject();
+        assertEquals("CONCISE", saved.get("verbosity").getAsString());
+        assertEquals(PackSageSettings.Verbosity.CONCISE, store.openConversation(world, conversation.id())
+                .toCompletableFuture().join().turns().getFirst().verbosity());
+    }
+
+    @Test
+    void legacyTurnHasNoVerbosity() throws Exception {
+        var store = new ConversationStore(temporaryDirectory, DIRECT);
+        var world = new ChatContracts.WorldIdentity("world-a", "World");
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), simpleTurn("legacy")).toCompletableFuture().join();
+        var file = store.conversationPath(world, conversation.id());
+        var lines = Files.readAllLines(file);
+        var value = com.google.gson.JsonParser.parseString(lines.getLast()).getAsJsonObject();
+        value.remove("verbosity");
+        lines.set(lines.size() - 1, value.toString());
+        Files.write(file, lines);
+        assertNull(store.openConversation(world, conversation.id()).toCompletableFuture().join().turns().getFirst().verbosity());
+    }
+
+    @Test
+    void unknownVerbosityLoadsTurnAsLegacy() throws Exception {
+        var store = new ConversationStore(temporaryDirectory, DIRECT);
+        var world = new ChatContracts.WorldIdentity("world-a", "World");
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), simpleTurn("future")).toCompletableFuture().join();
+        var file = store.conversationPath(world, conversation.id());
+        var lines = Files.readAllLines(file);
+        var value = com.google.gson.JsonParser.parseString(lines.getLast()).getAsJsonObject();
+        value.addProperty("verbosity", "BOGUS");
+        lines.set(lines.size() - 1, value.toString());
+        Files.write(file, lines);
+        var turns = store.openConversation(world, conversation.id()).toCompletableFuture().join().turns();
+        assertEquals(1, turns.size());
+        assertNull(turns.getFirst().verbosity());
+    }
+
     private static final Executor DIRECT = Runnable::run;
     private static final Evidence.Scope SCOPE = new Evidence.Scope("world-a", "en_us", "team-a", "provider-1", 4);
 

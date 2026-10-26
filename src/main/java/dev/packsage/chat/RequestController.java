@@ -1007,19 +1007,19 @@ public final class RequestController {
                 request.answer.toString(), replay, captured.context(), request.evidence.sources(),
                 request.evidence.navigationTargets(),
                 new ChatContracts.Outcome(status, detail), 0, request.sentAt, List.copyOf(request.activities.values()),
-                List.copyOf(request.steeringMessages), (terminalAtNanos - request.acceptedAtNanos) / 1_000_000, Instant.now());
+                List.copyOf(request.steeringMessages), (terminalAtNanos - request.acceptedAtNanos) / 1_000_000, Instant.now(), request.submission.verbosity());
         ChatContracts.Turn turn;
         try {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
                     untokened.context(), untokened.sources(), untokened.navigationTargets(), untokened.outcome(),
                     tokenCounter.apply(untokened), untokened.sentAt(), untokened.activities(), untokened.steeringMessages(),
-                    untokened.durationMillis(), untokened.assistantSentAt());
+                    untokened.durationMillis(), untokened.assistantSentAt(), untokened.verbosity());
         } catch (RuntimeException exception) {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
                     untokened.context(), untokened.sources(),
                     untokened.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, failureMessage(exception)), 0,
-                    untokened.sentAt(), untokened.activities(), untokened.steeringMessages(), untokened.durationMillis(), untokened.assistantSentAt());
+                    untokened.sentAt(), untokened.activities(), untokened.steeringMessages(), untokened.durationMillis(), untokened.assistantSentAt(), untokened.verbosity());
         }
         if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
         else publish();
@@ -1078,7 +1078,7 @@ public final class RequestController {
                     evidence.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.CANCELLED, detail), 0, request.sentAt,
                     List.copyOf(request.activities.values()), List.copyOf(request.steeringMessages), null,
-                    request.answer.isEmpty() ? null : Instant.now());
+                    request.answer.isEmpty() ? null : Instant.now(), request.submission.verbosity());
             if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
             persist(request, target, turn, persisted.screenshotBytes());
         }, executor);
@@ -1137,7 +1137,7 @@ public final class RequestController {
                         new ChatContracts.Context(turn.context().serializedGameplayContext(), null, turn.context().scope()),
                         turn.sources(), turn.navigationTargets(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED,
                         "media persistence failed: " + failureMessage(mediaFailure)), turn.tokenCount(), turn.sentAt(), turn.activities(),
-                        turn.steeringMessages(), turn.durationMillis(), turn.assistantSentAt());
+                        turn.steeringMessages(), turn.durationMillis(), turn.assistantSentAt(), turn.verbosity());
                 if (request.submission.replacing() == null) updateVisibleTurn(request, target, persistedTurn);
                 publishPersistenceFailure(request, target, mediaFailure);
             }

@@ -16,7 +16,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.phys.Vec3;
 
 import java.lang.ref.WeakReference;
 import java.math.BigDecimal;
@@ -49,60 +48,6 @@ public final class WorldTools implements KnowledgeProvider {
     static final String VERSION = "1";
     static final int DEFAULT_RADIUS = 16;
     static final int MAX_RADIUS = 256;
-    /**
-     * Remaining roots of a find_items walk; ordinal resumes inside the first one. Gather is null once every chunk in
-     * range was gathered, or the chunks still to gather holders from after these roots.
-     */
-    record FindState(List<PathRoot> roots, int ordinal, Gather gather) {
-    }
-
-    /** The find_items sphere and the index of the next chunk in range to gather holders from. */
-    record Gather(String dimension, Vec3 center, int nextChunk) {
-    }
-
-    /**
-     * Entries not shown yet, then the search continuation (null when the search is done or for list_items). Coverage
-     * and note are sticky: a later page of the same listing or search is never more complete than an earlier one. Span
-     * is the game-time span of the read the pending entries came from, or null when unknown.
-     */
-    record EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note, WorldPaging.ReadSpan span,
-                        HolderSummary summary, Map<String, Evidence.JsonObject> slotFacts) {
-        EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note, WorldPaging.ReadSpan span) {
-            this(pending, search, coverage, note, span, null, Map.of());
-        }
-
-        EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note) {
-            this(pending, search, coverage, note, null);
-        }
-    }
-
-    /**
-     * The listed holder and its inventories, shown as the first record of a listing's first page. Facts are the
-     * holder's own, such as the player's selected hotbar slot.
-     */
-    record HolderSummary(PathRoot root, List<InventorySummary> inventories, Evidence.JsonObject facts) {
-    }
-
-    /** EmptySlots is null for keyed sections, which have no fixed slots, and for sections that could not be read. */
-    record InventorySummary(InventoryInfo info, Integer emptySlots) {
-    }
-
-    /** The game times a sliced read started and ended at; the world can change between its slices. */
-    /**
-     * Note is sticky for later pages; bound says why only this page was cut. Summary is null for searches and nested
-     * holders; slot facts are keyed by location path text.
-     */
-    record ItemsRead(List<ItemEntry> entries, FindState search, Evidence.Coverage coverage, String note, String bound,
-                     HolderSummary summary, Map<String, Evidence.JsonObject> slotFacts) {
-        ItemsRead(List<ItemEntry> entries, FindState search, Evidence.Coverage coverage, String note, String bound) {
-            this(entries, search, coverage, note, bound, null, Map.of());
-        }
-    }
-
-    /** A read behind a holder word, or why the word did not resolve. */
-    record Worded<T>(T value, String unresolved) {
-    }
-
     private final Supplier<MinecraftServer> server;
     final WorldRegistry registry;
     private final Supplier<Evidence.Scope> scope;

@@ -113,6 +113,35 @@ class ServerWorkTest {
         var work = new ServerWork(clock::get);
         CompletableFuture<Integer> future = work.run(new Costly("a", 1, 1, new ArrayList<>()), () -> false).toCompletableFuture();
         assertUnavailable(future);
+        assertFalse(work.hasWork());
+    }
+
+    @Test
+    void closeDuringSubmissionStillTakesTheQueuedRead() {
+        var work = new ServerWork(clock::get);
+        CompletableFuture<Integer> future = work.run(new Costly("a", 1, 1, new ArrayList<>()), () -> {
+            work.closeAll();
+            return true;
+        }).toCompletableFuture();
+
+        assertUnavailable(future);
+        assertFalse(work.hasWork());
+    }
+
+    @Test
+    void closeOwningARejectedSubmissionDoesNotDecrementTheNextJob() {
+        var work = new ServerWork(clock::get);
+        CompletableFuture<Integer> rejected = work.run(new Costly("a", 1, 1, new ArrayList<>()), () -> {
+            work.closeAll();
+            return false;
+        }).toCompletableFuture();
+        assertUnavailable(rejected);
+
+        CompletableFuture<Integer> next = work.run(new Costly("b", 1, 1, new ArrayList<>()), () -> true).toCompletableFuture();
+        assertTrue(work.hasWork());
+        work.tick();
+        assertEquals(1, next.join());
+        assertFalse(work.hasWork());
     }
 
     @Test

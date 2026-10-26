@@ -615,10 +615,11 @@ public final class RequestController {
                 request.submission.requestId().value(), historyReadyAtNanos,
                 (historyReadyAtNanos - preparationStartedAtNanos) / 1_000_000,
                 history.turns().size(), history.tokenCount(), history.errors().size());
-        PackSageLog.LOGGER.info("PackSage timing request={} phase=request_built event_ns={} buildMs={} inputItems={} tools={} model={} effort={}",
+        PackSageLog.LOGGER.info("PackSage timing request={} phase=request_built event_ns={} buildMs={} inputItems={} tools={} toolNames={} model={} effort={}",
                 request.submission.requestId().value(), requestBuiltAtNanos,
                 (requestBuiltAtNanos - historyReadyAtNanos) / 1_000_000,
-                modelRequest.input().size(), modelRequest.tools().size(), modelRequest.modelId(), modelRequest.reasoningEffort());
+                modelRequest.input().size(), modelRequest.tools().size(),
+                modelRequest.tools().stream().map(ModelBackend.ToolDefinition::name).toList(), modelRequest.modelId(), modelRequest.reasoningEffort());
         synchronized (stateLock) {
             if (!isCurrent(request)) {
                 request.started.completeExceptionally(new IllegalStateException("request was invalidated"));

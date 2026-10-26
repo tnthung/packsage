@@ -1,6 +1,7 @@
 package dev.packsage.knowledge.nativegame;
 
 import dev.packsage.knowledge.Evidence;
+import dev.packsage.knowledge.RecipePlanner;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.NonNullList;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -42,6 +44,167 @@ class NativeRecipeReaderTest {
     static void bootstrapMinecraft() {
         Bootstrap.bootStrap();
         registries = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
+    }
+
+    @Test
+    void planReachesLateOutputWithoutCopyingUnrelatedRecipes() {
+        var recipes = new ArrayList<RecipeHolder<?>>();
+        for (int index = 0; index < 600; index++) {
+            recipes.add(recipe("test:unrelated_" + index, new AtomicReference<>(Items.STONE),
+                    new AtomicInteger(), true));
+        }
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:late_beacon"),
+                new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                        new ItemStack(Items.BEACON), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.NETHER_STAR)))));
+
+        var result = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes,
+                new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build(),
+                registries, ITEMS, null, SCOPE), "minecraft:beacon", 2, SCOPE, 4);
+
+        assertEquals(1, result.records().size());
+        assertEquals("plan|minecraft:beacon|2|4|0|test:late_beacon", result.records().getFirst().source().sourceHandle());
+        assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(2)), result.records().getFirst().payload().values().get("batches"));
+        assertEquals(null, result.detail());
+    }
+
+    @Test
+    void planVisitsLateIntermediateRecipesAndRebuildsTheSameRouteHandles() {
+        var recipes = new ArrayList<RecipeHolder<?>>();
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:table"),
+                new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                        new ItemStack(Items.CRAFTING_TABLE), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.OAK_PLANKS)))));
+        for (int index = 0; index < 600; index++) {
+            recipes.add(recipe("test:unrelated_" + index, new AtomicReference<>(Items.STONE), new AtomicInteger(), true));
+        }
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:planks"),
+                new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                        new ItemStack(Items.OAK_PLANKS, 4), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.OAK_LOG)))));
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:log"),
+                new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                        new ItemStack(Items.OAK_LOG), NonNullList.create())));
+        var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build();
+
+        var source = NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE);
+        // Supply known consumption for this fixture; native extraction deliberately leaves it unknown.
+        var knownInputs = new RecipePlanner.Source() {
+            @Override public boolean available(Evidence.Scope scope) { return source.available(scope); }
+            @Override public List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components, Evidence.Scope scope) {
+                return source.recipeOutputs(identity, components, scope).stream().map(record -> {
+                    var payload = record.recipePayload();
+                    return new Evidence.Record(record.source(), record.kind(), record.title(), record.payload(), record.targets(),
+                            new Evidence.RecipePayload(payload.canonicalRecipeId(), payload.inputs().stream().map(slot -> new Evidence.RecipeSlot(slot.groupId(),
+                                    slot.alternatives().stream().map(input -> new Evidence.RecipeAlternative(input.type(), input.comparisonIdentity(),
+                                            input.components(), input.quantity(), Evidence.Consumption.CONSUMED)).toList())).toList(),
+                                    payload.outputs(), payload.remainders(), payload.catalysts(), payload.constraints(), payload.decodingStatus()));
+                }).toList();
+            }
+        };
+        var result = new RecipePlanner(knownInputs).plan("minecraft:crafting_table", 5, SCOPE, 4);
+        assertEquals(List.of("test:table", "test:planks", "test:log"),
+                result.records().stream().map(record -> record.source().sourceHandle()).toList());
+        var planned = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE),
+                "minecraft:crafting_table", 5, SCOPE, 4);
+        var reread = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE),
+                "minecraft:crafting_table", 5, SCOPE, 4);
+
+        assertEquals("plan|minecraft:crafting_table|5|4|0|test:table", planned.records().getFirst().source().sourceHandle());
+        for (int route = 0; route < planned.records().size(); route++) {
+            assertEquals(planned.records().get(route).source().sourceHandle(), reread.records().get(route).source().sourceHandle());
+            assertEquals(planned.records().get(route).payload(), reread.records().get(route).payload());
+        }
+    }
+
+    @Test
+    void planIncludesLateBrewingOutputsAndTheirStableRecipeIdentity() {
+        var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS);
+        for (int index = 0; index < 600; index++) {
+            brewing.addRecipe(new net.neoforged.neoforge.common.brewing.BrewingRecipe(Ingredient.of(Items.POTION),
+                    Ingredient.of(Items.REDSTONE), new ItemStack(Items.STONE)));
+        }
+        brewing.addRecipe(new net.neoforged.neoforge.common.brewing.BrewingRecipe(Ingredient.of(Items.POTION),
+                Ingredient.of(Items.EMERALD), new ItemStack(Items.DIAMOND, 3)));
+        var built = brewing.build();
+
+        var result = NativeProvider.planRecipe(NativeRecipeReader.planSource(List.of(), built, registries, ITEMS, null, SCOPE),
+                "minecraft:diamond", 3, SCOPE, 4);
+
+        assertEquals(1, result.records().size());
+        var handle = result.records().getFirst().source().sourceHandle();
+        assertTrue(handle.startsWith("plan|minecraft:diamond|3|4|0|brewing:custom:600:0:"));
+        var recipe = NativeBrewingReader.readCandidate(built, handle.split("\\|", 6)[5], registries, ITEMS, SCOPE);
+        assertEquals(result.records().getFirst().recipePayload(), recipe.recipePayload());
+    }
+
+    @Test
+    void planCachesCopiedRecipesAcrossComponentLookups() {
+        var reads = new AtomicInteger();
+        var source = NativeRecipeReader.planSource(List.of(recipe("test:cached", new AtomicReference<>(Items.DIAMOND), reads, false)),
+                new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build(),
+                registries, ITEMS, null, SCOPE);
+        assertEquals(1, reads.get());
+        assertEquals(1, source.recipeOutputs("minecraft:diamond", new Evidence.JsonObject(Map.of()), SCOPE).size());
+        assertTrue(source.recipeOutputs("minecraft:diamond", new Evidence.JsonObject(Map.of("different", new Evidence.JsonString("component"))), SCOPE).isEmpty());
+        assertEquals(1, source.recipeOutputs("minecraft:diamond", new Evidence.JsonObject(Map.of()), SCOPE).size());
+        assertEquals(2, reads.get());
+    }
+
+    @Test
+    void copiedRecipeCapReportsPartialOnlyWhenAnotherCopyIsNeeded() {
+        var recipes = new ArrayList<RecipeHolder<?>>();
+        for (int index = 0; index < 512; index++) {
+            recipes.add(recipe("test:target_" + index, new AtomicReference<>(Items.DIAMOND), new AtomicInteger(), false));
+        }
+        var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build();
+        var exact = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE),
+                "minecraft:diamond", 1, SCOPE, 0);
+        assertEquals(null, exact.detail());
+        recipes.add(recipe("test:over_copy_cap", new AtomicReference<>(Items.DIAMOND), new AtomicInteger(), true));
+
+        var capped = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE),
+                "minecraft:diamond", 1, SCOPE, 0);
+
+        assertEquals(Evidence.Coverage.PARTIAL, capped.coverage());
+        assertTrue(capped.detail().contains("native-recipe-copy-cap=512"));
+        assertEquals(64, capped.records().size());
+    }
+
+    @Test
+    void specialRecipesWithComputedOutputsQualifyOnlyARequestedItemWithoutIndexedRecipes() {
+        var recipes = new ArrayList<RecipeHolder<?>>();
+        recipes.add(recipe("test:special", new AtomicReference<>(Items.AIR), new AtomicInteger(), true));
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:beacon"),
+                new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                        new ItemStack(Items.BEACON), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.NETHER_STAR)))));
+        var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build();
+
+        var beacon = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE),
+                "minecraft:beacon", 1, SCOPE, 4);
+        var rocket = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE),
+                "minecraft:firework_rocket", 1, SCOPE, 4);
+
+        assertEquals(1, beacon.records().size());
+        assertEquals(null, beacon.detail());
+        assertTrue(rocket.records().isEmpty());
+        assertTrue(rocket.detail().contains("native-recipe-dynamic-outputs-unindexed=1"));
+    }
+
+    @Test
+    void recipeIndexCapReportsTheOmittedLateTarget() {
+        var recipes = new java.util.AbstractList<RecipeHolder<?>>() {
+            @Override public RecipeHolder<?> get(int index) {
+                return recipe("test:entry_" + index, new AtomicReference<>(index == 65536 ? Items.DIAMOND : Items.STONE),
+                        new AtomicInteger(), true);
+            }
+            @Override public int size() { return 65537; }
+        };
+
+        var result = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes,
+                new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build(),
+                registries, ITEMS, null, SCOPE), "minecraft:diamond", 1, SCOPE, 0);
+
+        assertTrue(result.records().isEmpty());
+        assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+        assertTrue(result.detail().contains("native-recipe-index-cap=65536"));
     }
 
     @Test

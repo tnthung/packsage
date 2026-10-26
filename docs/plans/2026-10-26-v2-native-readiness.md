@@ -27,7 +27,7 @@ Readers that stop at their source-work budget return a prefix with a repeat note
 - Astra Minor 3: a failed output replay discards the tail it created.
 - Astra Minor 4: a submission rejected because the world closed is removed from, or never enters, the ServerWork queue, without reopening the close/submission race.
 - P11 auditability: the `request_built` timing line also logs the offered tool names.
-- Resource warning for `packsage:font/OFL.txt`: move or rename the license so it is not loaded as a font resource, keeping it in the JAR.
+- Move the bundled Open Font License out of the font resource directory so it remains in the JAR without being loaded as a font.
 
 ### D. Trade offer payload
 

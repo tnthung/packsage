@@ -60,10 +60,10 @@ class WorldToolsTest {
         });
         var tools = new WorldTools(() -> null, registry, () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
                 () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
-        var type = Class.forName("dev.packsage.world.WorldTools$FindSlice");
+        var type = Class.forName("dev.packsage.world.WorldItemTools$FindSlice");
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
-        var slice = constructor.newInstance(tools, null, new Anchor.Player(), 32, KindFilter.ANY, false, null);
+        var slice = constructor.newInstance(tools.itemTools, null, new Anchor.Player(), 32, KindFilter.ANY, false, null);
         for (var entry : Map.<String, Object>of("level", world, "center", new Vec3(8, 64, 8),
                 "chunks", List.of(new ChunkPos(0, 0)), "startChunk", -1).entrySet()) {
             var field = type.getDeclaredField(entry.getKey());
@@ -106,7 +106,7 @@ class WorldToolsTest {
     @Test
     void entityTitlesUseTheBlockTheEntityStandsIn() {
         var entity = new EntityHandle("minecraft:mule", java.util.UUID.fromString(ENTITY), "minecraft:overworld", 1003.5, 250, -0.5, "Mule");
-        assertEquals("Mule (minecraft:mule) at minecraft:overworld|1003,250,-1", WorldTools.entityTitle(entity));
+        assertEquals("Mule (minecraft:mule) at minecraft:overworld|1003,250,-1", WorldAreaTools.entityTitle(entity));
     }
 
     @ParameterizedTest
@@ -119,10 +119,10 @@ class WorldToolsTest {
         var registry = new WorldRegistry();
         var tools = new WorldTools(() -> null, registry, () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
                 () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
-        var type = Class.forName("dev.packsage.world.WorldTools$FindSlice");
+        var type = Class.forName("dev.packsage.world.WorldItemTools$FindSlice");
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
-        var slice = (ServerWork.Slice<?>) constructor.newInstance(tools, null, new Anchor.Player(), 4, KindFilter.ANY, false, null);
+        var slice = (ServerWork.Slice<?>) constructor.newInstance(tools.itemTools, null, new Anchor.Player(), 4, KindFilter.ANY, false, null);
         for (var entry : Map.<String, Object>of("level", world, "center", new Vec3(8, 64, 8),
                 "chunks", List.of(new ChunkPos(0, 0))).entrySet()) {
             var field = type.getDeclaredField(entry.getKey());
@@ -192,10 +192,10 @@ class WorldToolsTest {
         });
         var tools = new WorldTools(() -> null, registry, () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
                 () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
-        var type = Class.forName("dev.packsage.world.WorldTools$FindSlice");
+        var type = Class.forName("dev.packsage.world.WorldItemTools$FindSlice");
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
-        var slice = (ServerWork.Slice<?>) constructor.newInstance(tools, null, new Anchor.Player(), 4, KindFilter.ANY, false, null);
+        var slice = (ServerWork.Slice<?>) constructor.newInstance(tools.itemTools, null, new Anchor.Player(), 4, KindFilter.ANY, false, null);
         for (var entry : Map.<String, Object>of("level", world, "center", new Vec3(8, 64, 8),
                 "chunks", List.of(new ChunkPos(0, 0))).entrySet()) {
             var field = type.getDeclaredField(entry.getKey());
@@ -238,10 +238,10 @@ class WorldToolsTest {
         });
         var tools = new WorldTools(() -> null, registry, () -> SCOPE, Runnable::run, new ServerWork(System::nanoTime),
                 () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
-        var type = Class.forName("dev.packsage.world.WorldTools$FindSlice");
+        var type = Class.forName("dev.packsage.world.WorldItemTools$FindSlice");
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
-        var slice = constructor.newInstance(tools, null, new Anchor.Player(), 16, KindFilter.ANY, false, null);
+        var slice = constructor.newInstance(tools.itemTools, null, new Anchor.Player(), 16, KindFilter.ANY, false, null);
         for (var entry : Map.<String, Object>of("level", world, "center", new Vec3(8, 64, 8)).entrySet()) {
             var field = type.getDeclaredField(entry.getKey());
             field.setAccessible(true);
@@ -303,11 +303,12 @@ class WorldToolsTest {
         var levels = net.minecraft.server.MinecraftServer.class.getDeclaredField("levels");
         levels.setAccessible(true);
         levels.set(server, Map.of(net.minecraft.world.level.Level.OVERWORLD, level));
-        var inspect = WorldTools.class.getDeclaredMethod("inspectBlock", net.minecraft.server.MinecraftServer.class, BlockPlace.class, Evidence.Scope.class);
+        var inspect = WorldInspectionTools.class.getDeclaredMethod("inspectBlock", net.minecraft.server.MinecraftServer.class, BlockPlace.class, Evidence.Scope.class);
         inspect.setAccessible(true);
-        var record = (Evidence.Record) inspect.invoke(new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE,
+        var world = new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE,
                 Runnable::run, new ServerWork(System::nanoTime), () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE),
-                place -> false, id -> null, null), server, new BlockPlace("minecraft:overworld", 1, 64, 2), SCOPE);
+                place -> false, id -> null, null);
+        var record = (Evidence.Record) inspect.invoke(world.inspectionTools, server, new BlockPlace("minecraft:overworld", 1, 64, 2), SCOPE);
         assertEquals(new Evidence.JsonString("minecraft:" + kind), record.payload().values().get("block"));
         if (kind.equals("stone")) {
             assertEquals(1, record.targets().size());
@@ -456,7 +457,7 @@ class WorldToolsTest {
     void cursorsBindToTheirToolAndArguments() {
         var tools = tools();
         var stone = Evidence.deserializeObject("{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"radius\":24}");
-        var token = tools.remember("find_items", stone, SCOPE, "state");
+        var token = tools.paging.remember("find_items", stone, SCOPE, "state");
         assertEquals(Toolbox.Code.INVALID_CURSOR, failure(tools, "find_items",
                 "{\"filter\":{\"ids\":[\"minecraft:dirt\"]},\"radius\":24,\"cursor\":\"" + token + "\"}"));
         assertEquals(Toolbox.Code.INVALID_CURSOR, failure(tools, "find_items",
@@ -468,12 +469,12 @@ class WorldToolsTest {
         assertEquals(Toolbox.Code.UNAVAILABLE, failure(tools, "find_items",
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"radius\":24,\"center\":null,\"cursor\":\"" + token + "\"}"));
         var later = new Evidence.Scope("world", "resources", "team", "runtime", 2);
-        var stale = tools.remember("find_items", stone, later, "state");
+        var stale = tools.paging.remember("find_items", stone, later, "state");
         assertEquals(Toolbox.Code.STALE_SCOPE, failure(tools, "find_items",
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"radius\":24,\"cursor\":\"" + stale + "\"}"));
         String first = null;
         for (var i = 0; i < 257; i++) {
-            var minted = tools.remember("find_items", stone, SCOPE, "state");
+            var minted = tools.paging.remember("find_items", stone, SCOPE, "state");
             if (first == null) first = minted;
         }
         assertEquals(Toolbox.Code.INVALID_CURSOR, failure(tools, "find_items",
@@ -487,7 +488,7 @@ class WorldToolsTest {
         field.setAccessible(true);
         var work = (ServerWork) field.get(tools);
         for (var failure : new RuntimeException[] { new IllegalArgumentException("bad"), new IllegalStateException("x") }) {
-            var result = tools.run(() -> true, WorldTools.once(() -> { throw failure; })).toCompletableFuture();
+            var result = tools.run(() -> true, WorldPaging.once(() -> { throw failure; })).toCompletableFuture();
             while (work.hasWork()) work.tick();
             var mapped = (Toolbox.Failure) assertThrows(ExecutionException.class, result::get).getCause();
             assertEquals(failure instanceof IllegalArgumentException ? Toolbox.Code.INVALID_ARGUMENTS : Toolbox.Code.EXTRACTION_FAILED,
@@ -557,35 +558,35 @@ class WorldToolsTest {
     void earlyStopsReachTheSlicesInsideCombinators() {
         var first = new Steps("a", 10, true);
         var second = new Steps("b", 10, true);
-        var pair = WorldTools.both(first, second);
+        var pair = WorldPaging.both(first, second);
         pair.step();
         assertTrue(pair.stopEarly());
         assertEquals(java.util.Map.entry("a1 stopped", "b0 stopped"), pair.result());
 
-        var started = WorldTools.then(() -> "x", value -> WorldTools.mapped(new Steps(value, 10, true), text -> text + "!"));
+        var started = WorldPaging.then(() -> "x", value -> WorldPaging.mapped(new Steps(value, 10, true), text -> text + "!"));
         assertFalse(started.stopEarly(), "the first step must run before the slice it starts can stop");
         started.step();
         started.step();
         assertTrue(started.stopEarly());
         assertEquals("x1 stopped!", started.result());
 
-        var stubborn = WorldTools.mapped(new Steps("c", 10, false), text -> text);
+        var stubborn = WorldPaging.mapped(new Steps("c", 10, false), text -> text);
         stubborn.step();
         assertFalse(stubborn.stopEarly());
     }
 
     @Test
     void gatheringStopsOnlyAfterAtLeastOneNewChunk() {
-        assertFalse(WorldTools.gatherCanStop(10, 4, 4));
-        assertTrue(WorldTools.gatherCanStop(10, 5, 4));
-        assertFalse(WorldTools.gatherCanStop(10, 10, 0));
+        assertFalse(WorldItemTools.gatherCanStop(10, 4, 4));
+        assertTrue(WorldItemTools.gatherCanStop(10, 5, 4));
+        assertFalse(WorldItemTools.gatherCanStop(10, 10, 0));
     }
 
     @Test
     void slicedReadsReportTheGameTimeSpanTheyCovered() {
         var time = new long[] {100};
         var inner = new Steps("a", 3, true);
-        var read = WorldTools.spanned(() -> time[0], inner);
+        var read = WorldPaging.spanned(() -> time[0], inner);
         read.step();
         time[0] = 101;
         read.step();
@@ -594,11 +595,11 @@ class WorldToolsTest {
         time[0] = 200;
         var result = read.result();
         assertEquals("a3", result.value());
-        assertEquals(new WorldTools.ReadSpan(100, 105), result.span());
+        assertEquals(new WorldPaging.ReadSpan(100, 105), result.span());
         assertTrue(read.stopEarly());
         assertTrue(inner.stopped);
 
-        var area = WorldTools.spanPayload(new WorldTools.ReadSpan(100, 105));
+        var area = WorldTools.spanPayload(new WorldPaging.ReadSpan(100, 105));
         assertEquals(Evidence.deserializeObject("{\"fromGameTime\":100,\"toGameTime\":105}"), area);
     }
 
@@ -617,7 +618,7 @@ class WorldToolsTest {
         var dirt = new ItemEntry("minecraft:dirt", "Dirt", 3, 1, java.util.List.of(
                 ItemPath.parse(chestA + ">minecraft/container#4@minecraft:dirt")), false);
 
-        var page = tools.entries(request, new WorldTools.EntriesState(java.util.List.of(stone, dirt), null, Evidence.Coverage.COMPLETE, null, new WorldTools.ReadSpan(100, 105)),
+        var page = tools.itemTools.entries(request, new WorldItemTools.EntriesState(java.util.List.of(stone, dirt), null, Evidence.Coverage.COMPLETE, null, new WorldPaging.ReadSpan(100, 105)),
                 Evidence.Coverage.COMPLETE, null);
 
         assertEquals(Evidence.Coverage.COMPLETE, page.coverage());
@@ -647,7 +648,7 @@ class WorldToolsTest {
             entries.add(new ItemEntry("minecraft:item_" + i, "Item " + i, 1, 1, java.util.List.of(location), false));
         }
         var seen = new java.util.HashSet<String>();
-        var page = tools.entries(request, new WorldTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null),
+        var page = tools.itemTools.entries(request, new WorldItemTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null),
                 Evidence.Coverage.COMPLETE, null);
         var pages = 0;
         while (true) {
@@ -663,7 +664,7 @@ class WorldToolsTest {
             if (page.nextCursor() == null) break;
             var continued = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
                     "{\"filter\":{\"text\":\"\"},\"cursor\":\"" + page.nextCursor() + "\"}"), SCOPE);
-            page = tools.entries(continued, (WorldTools.EntriesState) tools.cursor(continued), Evidence.Coverage.COMPLETE, null);
+            page = tools.itemTools.entries(continued, (WorldItemTools.EntriesState) tools.paging.cursor(continued), Evidence.Coverage.COMPLETE, null);
         }
         assertEquals(72, seen.size(), "every entry appears on some page");
         assertEquals(Evidence.Coverage.COMPLETE, page.coverage());
@@ -679,9 +680,9 @@ class WorldToolsTest {
                     List.of(ItemPath.parse("block:minecraft:overworld|" + i % 3 + ",64,0>minecraft/container#" + i + "@minecraft:item_" + i)), false));
         }
         var arguments = tool.equals("list_items") ? "{\"holder\":\"player\"}" : "{\"filter\":{}}";
-        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(provider.entries(request,
-                request.arguments().values().containsKey("cursor") ? (WorldTools.EntriesState) provider.cursor(request)
-                        : new WorldTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null), Evidence.Coverage.COMPLETE, null)));
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(provider.itemTools.entries(request,
+                request.arguments().values().containsKey("cursor") ? (WorldItemTools.EntriesState) provider.paging.cursor(request)
+                        : new WorldItemTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null), Evidence.Coverage.COMPLETE, null)));
         var seen = new HashSet<String>();
         int pages = 0;
         do {
@@ -715,12 +716,12 @@ class WorldToolsTest {
         var blocks = new java.util.ArrayList<BlockHandle>();
         for (var i = 0; i < 64; i++) blocks.add(new BlockHandle("test:" + "long_path/".repeat(300), new BlockPlace("minecraft:overworld", i, 64, 0)));
         var page = new Page<>(blocks, null, Evidence.Coverage.COMPLETE, null);
-        var method = WorldTools.class.getDeclaredMethod("blocks", PackSageTools.ReadRequest.class, WorldTools.Center.class, Page.class, WorldTools.ReadSpan.class);
+        var method = WorldAreaTools.class.getDeclaredMethod("blocks", PackSageTools.ReadRequest.class, WorldAreaTools.Center.class, Page.class, WorldPaging.ReadSpan.class);
         method.setAccessible(true);
         var tools = new PackSageTools(request -> {
             try {
-                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider, request,
-                        new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), page, null));
+                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider.areaTools, request,
+                        new WorldAreaTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), page, null));
             } catch (ReflectiveOperationException failure) {
                 throw new RuntimeException(failure);
             }
@@ -750,17 +751,17 @@ class WorldToolsTest {
             entities.add(new EntityHandle("minecraft:cow", new java.util.UUID(0, i + 1), "minecraft:overworld", 8, 64, 8,
                     count == 1 ? "x".repeat(1023) + "\uD83D\uDE00" + "x".repeat(300_000) : "\u0001\u4e16".repeat(2100)));
         }
-        var type = Class.forName("dev.packsage.world.WorldTools$AreaRead");
+        var type = Class.forName("dev.packsage.world.WorldAreaTools$AreaRead");
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
-        var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
+        var read = constructor.newInstance(new WorldAreaTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
                 new Page<>(List.of(new BlockSummary(Map.of("minecraft:stone", 15), List.of(), 0)), null, Evidence.Coverage.COMPLETE, null),
                 new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
-        var method = WorldTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
+        var method = WorldAreaTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldPaging.ReadSpan.class);
         method.setAccessible(true);
         var tools = new PackSageTools(request -> {
             try {
-                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider, SCOPE, new Anchor.Player(), 16, read, null));
+                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider.areaTools, SCOPE, new Anchor.Player(), 16, read, null));
             } catch (ReflectiveOperationException failure) {
                 throw new RuntimeException(failure);
             }
@@ -809,17 +810,17 @@ class WorldToolsTest {
         for (var i = 0; i < 64; i++) {
             entities.add(new EntityHandle("minecraft:cow", new java.util.UUID(0, i + 1), "minecraft:overworld", 8, 64, 8, "Cow " + i));
         }
-        var type = Class.forName("dev.packsage.world.WorldTools$AreaRead");
+        var type = Class.forName("dev.packsage.world.WorldAreaTools$AreaRead");
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
-        var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
+        var read = constructor.newInstance(new WorldAreaTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
                 new Page<>(List.of(new BlockSummary(counts, notable, 0)), null, Evidence.Coverage.COMPLETE, null),
                 new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
-        var method = WorldTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
+        var method = WorldAreaTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldPaging.ReadSpan.class);
         method.setAccessible(true);
         var tools = new PackSageTools(request -> {
             try {
-                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider, SCOPE, new Anchor.Player(), 256, read, null));
+                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider.areaTools, SCOPE, new Anchor.Player(), 256, read, null));
             } catch (ReflectiveOperationException failure) {
                 throw new RuntimeException(failure);
             }
@@ -851,13 +852,13 @@ class WorldToolsTest {
                 () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
         var arguments = Evidence.deserializeObject("{\"filter\":{}}");
         var block = new BlockHandle("minecraft:stone", new BlockPlace("minecraft:overworld", 5, 64, 8));
-        var type = Class.forName("dev.packsage.world.WorldTools$ListState");
-        var constructor = type.getDeclaredConstructor(WorldTools.Center.class, String.class, Page.class, WorldTools.ReadSpan.class);
+        var type = Class.forName("dev.packsage.world.WorldAreaTools$ListState");
+        var constructor = type.getDeclaredConstructor(WorldAreaTools.Center.class, String.class, Page.class, WorldPaging.ReadSpan.class);
         constructor.setAccessible(true);
-        var token = provider.remember("list_blocks", arguments, SCOPE, constructor.newInstance(
-                new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), "scan-after-pending",
+        var token = provider.paging.remember("list_blocks", arguments, SCOPE, constructor.newInstance(
+                new WorldAreaTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), "scan-after-pending",
                 new Page<>(List.of(block), "scan-after-pending", Evidence.Coverage.PARTIAL, "2 unloaded chunks were not searched"),
-                new WorldTools.ReadSpan(10, 20)));
+                new WorldPaging.ReadSpan(10, 20)));
 
         var pending = provider.handle(new PackSageTools.ReadRequest("list_blocks", Evidence.deserializeObject(
                 "{\"filter\":{},\"cursor\":\"" + token + "\"}"), SCOPE),
@@ -869,8 +870,8 @@ class WorldToolsTest {
         assertEquals("2 unloaded chunks were not searched", result.detail());
         assertEquals(1, result.records().size());
         assertEquals(new Evidence.JsonString(block.place().text()), result.records().getFirst().payload().values().get("place"));
-        assertEquals(WorldTools.spanPayload(new WorldTools.ReadSpan(10, 20)), result.records().getFirst().payload().values().get("readSpan"));
-        var continued = provider.cursor(new PackSageTools.ReadRequest("list_blocks", Evidence.deserializeObject(
+        assertEquals(WorldTools.spanPayload(new WorldPaging.ReadSpan(10, 20)), result.records().getFirst().payload().values().get("readSpan"));
+        var continued = provider.paging.cursor(new PackSageTools.ReadRequest("list_blocks", Evidence.deserializeObject(
                 "{\"filter\":{},\"cursor\":\"" + result.nextCursor() + "\"}"), SCOPE));
         var scan = type.getDeclaredMethod("scan");
         scan.setAccessible(true);
@@ -887,7 +888,7 @@ class WorldToolsTest {
         var dirt = new ItemEntry("minecraft:dirt", "Dirt", 1, 1, java.util.List.of(
                 ItemPath.parse("block:minecraft:overworld|0,64,0>minecraft/container#1@minecraft:dirt")), false);
 
-        var page = tools.entries(request, new WorldTools.EntriesState(java.util.List.of(stone, dirt), null, Evidence.Coverage.COMPLETE, null),
+        var page = tools.itemTools.entries(request, new WorldItemTools.EntriesState(java.util.List.of(stone, dirt), null, Evidence.Coverage.COMPLETE, null),
                 Evidence.Coverage.COMPLETE, null);
 
         assertEquals(64, page.records().size());
@@ -907,27 +908,27 @@ class WorldToolsTest {
             entries.add(new ItemEntry("minecraft:item_" + i, "Item " + i, 1, 1, java.util.List.of(location), false));
         }
         var note = "3 chunks in range were not loaded and were not searched";
-        var first = tools.entries(request, new WorldTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null),
+        var first = tools.itemTools.entries(request, new WorldItemTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null),
                 Evidence.Coverage.PARTIAL, note);
         assertEquals(64, first.records().size());
         assertTrue(first.detail().contains("64 entries, the page limit"), first.detail());
         assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
         var continued = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"cursor\":\"" + first.nextCursor() + "\"}"), SCOPE);
-        var state = (WorldTools.EntriesState) tools.cursor(continued);
-        var last = tools.entries(continued, state, Evidence.Coverage.COMPLETE, null);
+        var state = (WorldItemTools.EntriesState) tools.paging.cursor(continued);
+        var last = tools.itemTools.entries(continued, state, Evidence.Coverage.COMPLETE, null);
         assertEquals(6, last.records().size());
         assertEquals(null, last.nextCursor());
         assertEquals(Evidence.Coverage.PARTIAL, last.coverage());
         assertEquals(Evidence.Outcome.PARTIAL, last.outcome());
         assertEquals(note, last.detail());
 
-        var search = new WorldTools.FindState(java.util.List.of(), 0, null);
-        var merged = tools.entries(request, new WorldTools.EntriesState(java.util.List.of(), search, Evidence.Coverage.PARTIAL, note),
+        var search = new WorldItemTools.FindState(java.util.List.of(), 0, null);
+        var merged = tools.itemTools.entries(request, new WorldItemTools.EntriesState(java.util.List.of(), search, Evidence.Coverage.PARTIAL, note),
                 Evidence.Coverage.COMPLETE, "Inventory minecraft/container could not be opened");
         assertEquals(Evidence.Coverage.PARTIAL, merged.coverage());
         assertEquals(note + "; Inventory minecraft/container could not be opened", merged.detail());
-        var carried = (WorldTools.EntriesState) tools.cursor(new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
+        var carried = (WorldItemTools.EntriesState) tools.paging.cursor(new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"cursor\":\"" + merged.nextCursor() + "\"}"), SCOPE));
         assertEquals(Evidence.Coverage.PARTIAL, carried.coverage());
         assertEquals(merged.detail(), carried.note());
@@ -935,7 +936,7 @@ class WorldToolsTest {
 
     @Test
     void unresolvedWordsAnswerWithACompleteResultAndADetail() {
-        var result = WorldTools.unresolved("Your main hand is empty");
+        var result = WorldItemTools.unresolved("Your main hand is empty");
         assertTrue(result.records().isEmpty());
         assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
         assertEquals(Evidence.Outcome.COMPLETE, result.outcome());
@@ -965,10 +966,10 @@ class WorldToolsTest {
         var root = new PathRoot.Player(java.util.UUID.fromString(ENTITY));
         var main = new InventoryInfo(new InventoryId("minecraft", "main"), "Main inventory", 36, SlotRole.STORAGE);
         var bundle = new InventoryInfo(new InventoryId("minecraft", "bundle"), "Bundle", -1, SlotRole.STORAGE);
-        var summary = new WorldTools.HolderSummary(root, java.util.List.of(new WorldTools.InventorySummary(main, 0),
-                new WorldTools.InventorySummary(bundle, null)), Evidence.deserializeObject("{\"selectedSlot\":3}"));
+        var summary = new WorldItemTools.HolderSummary(root, java.util.List.of(new WorldItemTools.InventorySummary(main, 0),
+                new WorldItemTools.InventorySummary(bundle, null)), Evidence.deserializeObject("{\"selectedSlot\":3}"));
 
-        var first = tools.entries(request, new WorldTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null, null, summary, slotFacts),
+        var first = tools.itemTools.entries(request, new WorldItemTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null, null, summary, slotFacts),
                 Evidence.Coverage.COMPLETE, null);
 
         assertEquals(64, first.records().size());
@@ -989,16 +990,16 @@ class WorldToolsTest {
 
         var continued = new PackSageTools.ReadRequest("list_items", Evidence.deserializeObject(
                 "{\"holder\":\"player\",\"cursor\":\"" + first.nextCursor() + "\"}"), SCOPE);
-        var second = tools.entries(continued, (WorldTools.EntriesState) tools.cursor(continued), Evidence.Coverage.COMPLETE, null);
+        var second = tools.itemTools.entries(continued, (WorldItemTools.EntriesState) tools.paging.cursor(continued), Evidence.Coverage.COMPLETE, null);
         assertEquals(7, second.records().size());
         assertTrue(second.records().stream().noneMatch(record -> record.source().sourceHandle().startsWith("holder|")));
         assertTrue(second.records().getFirst().payload().values().containsKey("slots"), "slot facts carry over to later pages");
 
         var place = "minecraft:overworld|1,64,2";
         var chest = ItemPath.parse("block:" + place + ">minecraft/container#0@minecraft:stone");
-        var blockSummary = new WorldTools.HolderSummary(chest.root(), java.util.List.of(), new Evidence.JsonObject(Map.of()));
-        var block = tools.entries(new PackSageTools.ReadRequest("list_items", Evidence.deserializeObject("{\"holder\":\"block:" + place + "\"}"), SCOPE),
-                new WorldTools.EntriesState(java.util.List.of(new ItemEntry("minecraft:stone", "Stone", 1, 1, java.util.List.of(chest), false)),
+        var blockSummary = new WorldItemTools.HolderSummary(chest.root(), java.util.List.of(), new Evidence.JsonObject(Map.of()));
+        var block = tools.itemTools.entries(new PackSageTools.ReadRequest("list_items", Evidence.deserializeObject("{\"holder\":\"block:" + place + "\"}"), SCOPE),
+                new WorldItemTools.EntriesState(java.util.List.of(new ItemEntry("minecraft:stone", "Stone", 1, 1, java.util.List.of(chest), false)),
                         null, Evidence.Coverage.COMPLETE, null, null, blockSummary, Map.of()), Evidence.Coverage.COMPLETE, null);
         assertEquals(java.util.List.of("block|" + place, "item|" + chest.text()),
                 block.records().stream().map(record -> record.source().sourceHandle()).toList(), "the summary's root is not repeated as a holder");
@@ -1008,16 +1009,16 @@ class WorldToolsTest {
     @Test
     void aSectionWhoseLootIsNotGeneratedClaimsNoEmptySlotsAndSaysWhy() {
         var notes = new java.util.LinkedHashSet<String>();
-        var pending = new InventoryInfo(new InventoryId("minecraft", "container"), "Container", 27, SlotRole.STORAGE, "minecraft:chests/simple_dungeon");
-        assertEquals(new WorldTools.InventorySummary(pending, null), WorldTools.inventorySummary(pending, 0, notes));
-        assertEquals(java.util.List.of("minecraft/container's loot has not been generated yet (table minecraft:chests/simple_dungeon); "
-                + "its contents are decided when it is first opened"), java.util.List.copyOf(notes));
+        var pending = new InventoryInfo(new InventoryId("minecraft", "container"), "Container", 27, SlotRole.STORAGE, "table minecraft:chests/simple_dungeon, seed 12345");
+        assertEquals(new WorldItemTools.InventorySummary(pending, null), WorldItemTools.inventorySummary(pending, 0, notes));
+        assertEquals(java.util.List.of("minecraft/container's loot has not been generated yet (table minecraft:chests/simple_dungeon, seed 12345); "
+                + "its contents are decided when it is first opened; read_loot with the container's place reads the table without opening it"), java.util.List.copyOf(notes));
 
         notes.clear();
         var main = new InventoryInfo(new InventoryId("minecraft", "main"), "Main inventory", 36, SlotRole.STORAGE);
-        assertEquals(new WorldTools.InventorySummary(main, 30), WorldTools.inventorySummary(main, 6, notes));
+        assertEquals(new WorldItemTools.InventorySummary(main, 30), WorldItemTools.inventorySummary(main, 6, notes));
         var bundle = new InventoryInfo(new InventoryId("minecraft", "bundle"), "Bundle", -1, SlotRole.STORAGE);
-        assertEquals(new WorldTools.InventorySummary(bundle, null), WorldTools.inventorySummary(bundle, 2, notes));
+        assertEquals(new WorldItemTools.InventorySummary(bundle, null), WorldItemTools.inventorySummary(bundle, 2, notes));
         assertTrue(notes.isEmpty(), notes.toString());
     }
 
@@ -1104,9 +1105,9 @@ class WorldToolsTest {
         var large = tools.readEvidence(new PackSageTools.ReadRequest("read_evidence", Evidence.deserializeObject("{\"handles\":[\"saved\"]}"), SCOPE), context);
         for (int tick = 0; !large.toCompletableFuture().isDone() && tick < 100; tick++) work.tick();
         assertEquals(1, large.toCompletableFuture().join().records().size());
-        var cursors = WorldTools.class.getDeclaredField("cursors");
+        var cursors = WorldPaging.class.getDeclaredField("cursors");
         cursors.setAccessible(true);
-        assertTrue(((Map<?, ?>) cursors.get(tools)).isEmpty(), "a holder reread must not retain an unused item page");
+        assertTrue(((Map<?, ?>) cursors.get(tools.paging)).isEmpty(), "a holder reread must not retain an unused item page");
         registry.register(new InventoryReader() {
             @Override public String adapterId() { return "broken"; }
             @Override public java.util.List<InventoryInfo> inventories(LiveHolder holder) { throw new IllegalStateException("inventory unavailable"); }
@@ -1124,7 +1125,7 @@ class WorldToolsTest {
         var entities = AreaScan.page(java.util.List.<EntityHandle>of(), "5:0", 0, 2, java.util.List.of(AreaScan.PAGE_LIMIT_NOTE));
         assertTrue(entities.note().contains("continue with the cursor"), entities.note());
 
-        var notes = WorldTools.areaNotes(blocks, entities);
+        var notes = WorldAreaTools.areaNotes(blocks, entities);
 
         assertEquals(2, notes.size(), notes.toString());
         assertTrue(notes.getFirst().contains("list_entities"), notes.getFirst());
@@ -1141,7 +1142,7 @@ class WorldToolsTest {
         for (var cut : List.of(false, true)) {
             var entities = new Page<EntityHandle>(List.of(), cut ? "5:0" : null, Evidence.Coverage.PARTIAL,
                     gap + (cut ? "; " + AreaScan.PAGE_LIMIT_NOTE : "") + "; " + AreaScan.SNAPSHOT_NOTE.formatted(1, 2));
-            var notes = WorldTools.areaNotes(blocks, entities);
+        var notes = WorldAreaTools.areaNotes(blocks, entities);
             assertTrue(String.join("; ", notes).contains(gap), notes.toString());
             assertTrue(notes.stream().noneMatch(note -> note.contains("cursor") || note.contains("game-time span")), notes.toString());
         }
@@ -1154,7 +1155,7 @@ class WorldToolsTest {
                 null, Evidence.Coverage.PARTIAL, "3 chunks in range were not loaded and were not fully read");
         var entities = new Page<EntityHandle>(java.util.List.of(), null, Evidence.Coverage.COMPLETE, null);
 
-        var notes = WorldTools.areaNotes(blocks, entities);
+            var notes = WorldAreaTools.areaNotes(blocks, entities);
 
         assertEquals(2, notes.size(), notes.toString());
         assertEquals("3 chunks in range were not loaded and were not fully read", notes.getFirst());
@@ -1215,9 +1216,9 @@ class WorldToolsTest {
         });
         var failed = tools(() -> java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("no screen")));
         for (var tools : java.util.List.of(rejected, failed)) {
-            assertSame(ClientFocus.NONE, tools.focus(null, true).toCompletableFuture().join());
-            assertSame(ClientFocus.NONE, tools.focus(HolderWords.parse("opened"), true).toCompletableFuture().join());
-            var targeted = tools.focus(HolderWords.parse("targeted"), false).toCompletableFuture();
+            assertSame(ClientFocus.NONE, tools.itemTools.focus(null, true).toCompletableFuture().join());
+            assertSame(ClientFocus.NONE, tools.itemTools.focus(HolderWords.parse("opened"), true).toCompletableFuture().join());
+            var targeted = tools.itemTools.focus(HolderWords.parse("targeted"), false).toCompletableFuture();
             var failure = org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.CompletionException.class, targeted::join);
             assertEquals(Toolbox.Code.UNAVAILABLE, ((Toolbox.Failure) failure.getCause()).code());
         }
@@ -1234,14 +1235,14 @@ class WorldToolsTest {
         var holder = new LiveHolder.OfMenu(menu, new net.minecraft.world.SimpleContainer(36));
         var notes = new java.util.LinkedHashSet<String>();
 
-        var facts = WorldTools.menuFacts(holder, new ClientFocus(null, 7, "Storage"), notes).values();
+        var facts = WorldItemTools.menuFacts(holder, new ClientFocus(null, 7, "Storage"), notes).values();
 
         assertEquals(new Evidence.JsonString("unknown"), facts.get("menuType"));
         assertEquals(new Evidence.JsonString("Storage"), facts.get("title"));
         assertEquals(new Evidence.JsonArray(java.util.List.of(new Evidence.JsonObject(Map.of(
                 "slot", new Evidence.JsonNumber(java.math.BigDecimal.ONE), "kind", new Evidence.JsonString("recipe_preview"))))), facts.get("excludedSlots"));
         assertEquals(java.util.Set.of("unknown is not a vanilla menu; some listed slots may be previews"), notes);
-        assertFalse(WorldTools.menuFacts(holder, new ClientFocus(null, 8, "Other"), notes).values().containsKey("title"),
+        assertFalse(WorldItemTools.menuFacts(holder, new ClientFocus(null, 8, "Other"), notes).values().containsKey("title"),
                 "the client shows a different menu");
 
         var broken = new TestMenu(7);
@@ -1252,7 +1253,7 @@ class WorldToolsTest {
             }
         });
         var brokenNotes = new java.util.LinkedHashSet<String>();
-        var brokenFacts = WorldTools.menuFacts(new LiveHolder.OfMenu(broken, new net.minecraft.world.SimpleContainer(36)), ClientFocus.NONE, brokenNotes).values();
+        var brokenFacts = WorldItemTools.menuFacts(new LiveHolder.OfMenu(broken, new net.minecraft.world.SimpleContainer(36)), ClientFocus.NONE, brokenNotes).values();
         assertEquals(new Evidence.JsonNull(), brokenFacts.get("excludedSlots"));
         assertEquals(java.util.Set.of("The preview slots of unknown could not be read: slot broke"), brokenNotes);
     }

@@ -56,6 +56,6 @@ Minecraft was saved, closed and restarted with the updated instance JAR. At GUI 
 
 ## Open observation
 
-The user reported intermittent black flashes in the Minecraft window during desktop testing. The observed log has an ignored invalid resource path for the bundled `font/OFL.txt` license, but no observed OpenGL/framebuffer failure or crash explains the flashes. The cause was not reproduced or established. Computer interaction stopped to avoid further focus changes while the user works. Do not classify this observation as fixed or attribute it to automation without further evidence.
+The user reported intermittent black flashes in the Minecraft window during desktop testing. The observed log has an ignored invalid resource path for the bundled Open Font License, but no observed OpenGL/framebuffer failure or crash explains the flashes. The cause was not reproduced or established. Computer interaction stopped to avoid further focus changes while the user works. Do not classify this observation as fixed or attribute it to automation without further evidence.
 
 No black frame was observed in the AFK pass's gameplay/chat captures. These sampled captures do not rule out an intermittent flash; the cause remains unresolved.

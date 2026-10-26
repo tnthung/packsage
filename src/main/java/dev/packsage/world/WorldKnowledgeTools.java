@@ -95,11 +95,11 @@ final class WorldKnowledgeTools {
     }
 
     /** Continuations keep the original center even if the player moves between calls. */
-    record BiomeState(WorldTools.Center center, String query, int radius, int nextIndex) {
+    record BiomeState(WorldAreaTools.Center center, String query, int radius, int nextIndex) {
     }
 
     /** Server-owned inputs captured together; registry matching and spiral preparation run on the worker. */
-    private record BiomeRead(WorldTools.Center center, Registry<Biome> registry, BiomeSource source, LocateBiome.Sampler sampler,
+    private record BiomeRead(WorldAreaTools.Center center, Registry<Biome> registry, BiomeSource source, LocateBiome.Sampler sampler,
                              int minY, int maxY) {
     }
 
@@ -146,7 +146,7 @@ final class WorldKnowledgeTools {
         } catch (IllegalArgumentException exception) {
             throw WorldTools.invalid(exception.getMessage());
         }
-        return calls.run(server, WorldTools.once(() -> lootFetch(server, key, "table", null, null))).thenApply(fetched -> {
+        return calls.run(server, WorldPaging.once(() -> lootFetch(server, key, "table", null, null))).thenApply(fetched -> {
             var read = encoded(fetched);
             return lootRecord(scope, read, read.table().map(table -> MinecraftLoot.page(table, 0)).orElse(null), 0);
         });
@@ -161,42 +161,42 @@ final class WorldKnowledgeTools {
     private CompletionStage<Evidence.Result> readLoot(PackSageTools.ReadRequest request) {
         exactlyOne(request, List.of("table", "block", "entity", "place"));
         var server = calls.server();
-        var cursor = calls.cursor(request);
+        var cursor = calls.paging.cursor(request);
         if (cursor != null) {
-            var state = WorldTools.state(cursor, LootState.class);
+            var state = WorldPaging.state(cursor, LootState.class);
             return CompletableFuture.supplyAsync(() -> lootResult(request, state.read(), state.nextPool()), calls.worker());
         }
         ServerWork.Slice<Loot> read;
         if (WorldTools.argument(request, "table") != null) {
             var id = WorldTools.requiredText(request, "table");
-            read = WorldTools.once(() -> lootFetch(server, MinecraftLoot.table(id), "table", null, null));
+            read = WorldPaging.once(() -> lootFetch(server, MinecraftLoot.table(id), "table", null, null));
         } else if (WorldTools.argument(request, "block") != null) {
             var id = WorldTools.requiredText(request, "block");
-            read = WorldTools.once(() -> lootFetch(server, MinecraftLoot.blockTable(id), "block:" + id, null, null));
+            read = WorldPaging.once(() -> lootFetch(server, MinecraftLoot.blockTable(id), "block:" + id, null, null));
         } else if (WorldTools.argument(request, "entity") != null) {
             var text = WorldTools.requiredText(request, "entity");
             var id = uuidOrNull(text);
-            read = WorldTools.once(() -> id == null ? lootFetch(server, MinecraftLoot.entityTypeTable(text), "entity:" + text, null, null)
+            read = WorldPaging.once(() -> id == null ? lootFetch(server, MinecraftLoot.entityTypeTable(text), "entity:" + text, null, null)
                     : entityLoot(server, id));
         } else {
             var place = WorldTools.place(WorldTools.requiredText(request, "place"));
-            read = WorldTools.once(() -> containerLoot(server, place));
+            read = WorldPaging.once(() -> containerLoot(server, place));
         }
         return calls.run(server, read).thenApply(loot -> switch (loot) {
             case LootFetch fetched -> lootResult(request, encoded(fetched), 0);
-            case NoPendingLoot none -> WorldTools.result(List.of(noPendingRecord(request.scope(), none)), Evidence.Coverage.COMPLETE,
+            case NoPendingLoot none -> WorldPaging.result(List.of(noPendingRecord(request.scope(), none)), Evidence.Coverage.COMPLETE,
                     null, NO_PENDING_LOOT);
-            case NotLiving entity -> WorldTools.result(List.of(), Evidence.Coverage.COMPLETE, null,
+            case NotLiving entity -> WorldPaging.result(List.of(), Evidence.Coverage.COMPLETE, null,
                     entity.entity() + " is not a living entity, so it has no death loot table");
         });
     }
 
     Evidence.Result lootResult(PackSageTools.ReadRequest request, LootRead read, int fromPool) {
         var page = read.table().map(table -> MinecraftLoot.page(table, fromPool)).orElse(null);
-        var next = page == null || page.nextPool() == -1 ? null : calls.remember(request, new LootState(read, page.nextPool()));
+        var next = page == null || page.nextPool() == -1 ? null : calls.paging.remember(request, new LootState(read, page.nextPool()));
         var record = lootRecord(request.scope(), read, page, fromPool);
         var notes = lootNotes(read, page, fromPool);
-        return WorldTools.result(List.of(record), record.source().coverage(), next, notes.isEmpty() ? null : String.join("; ", notes));
+        return WorldPaging.result(List.of(record), record.source().coverage(), next, notes.isEmpty() ? null : String.join("; ", notes));
     }
 
     /** Server thread only. A loaded entity's own table, such as a sheep's colour table. */
@@ -343,12 +343,12 @@ final class WorldKnowledgeTools {
                 throw WorldTools.invalid("radius must be an integer from 1 to 512");
             }
         }
-        var cursor = calls.cursor(request);
+        var cursor = calls.paging.cursor(request);
         if (WorldTools.argument(request, "structure") != null) return locateStructure(request, server, anchor, radius, cursor);
-        var state = cursor == null ? null : WorldTools.state(cursor, BiomeState.class);
+        var state = cursor == null ? null : WorldPaging.state(cursor, BiomeState.class);
         var searchRadius = state == null ? radius : state.radius();
         var searchQuery = state == null ? WorldTools.requiredText(request, "biome") : state.query();
-        return calls.run(server, WorldTools.then(() -> state == null ? calls.center(server, anchor) : state.center(), center -> WorldTools.once(() -> {
+        return calls.run(server, WorldPaging.then(() -> state == null ? calls.areaTools.center(server, anchor) : state.center(), center -> WorldPaging.once(() -> {
             var level = WorldTools.level(server, center.dimension());
             var source = level.getChunkSource().getGenerator().getBiomeSource();
             var climate = level.getChunkSource().randomState().sampler();
@@ -358,7 +358,7 @@ final class WorldKnowledgeTools {
         }))).thenCompose(read -> {
             var targets = biomeTargets(read.registry(), read.source().possibleBiomes(), searchQuery);
             if (targets.isEmpty()) {
-                return CompletableFuture.completedFuture(WorldTools.result(List.of(), Evidence.Coverage.COMPLETE, null,
+                return CompletableFuture.completedFuture(WorldPaging.result(List.of(), Evidence.Coverage.COMPLETE, null,
                         "this dimension's biome source never produces it"));
             }
             var origin = BlockPos.containing(read.center().position());
@@ -368,19 +368,19 @@ final class WorldKnowledgeTools {
         });
     }
 
-    record StructureState(WorldTools.Center center, String query, int radius, int ring, int entry, int candidate) {
+    record StructureState(WorldAreaTools.Center center, String query, int radius, int ring, int entry, int candidate) {
     }
 
-    private record StructureRead(WorldTools.Center center, LocateStructure.World world, List<LocateStructure.Target> targets,
+    private record StructureRead(WorldAreaTools.Center center, LocateStructure.World world, List<LocateStructure.Target> targets,
                                  long seed, Map<ConcentricRingsStructurePlacement, List<ChunkPos>> rings, Path folder) {
     }
 
     private CompletionStage<Evidence.Result> locateStructure(PackSageTools.ReadRequest request, MinecraftServer server,
                                                            Anchor anchor, int radius, Object cursor) {
-        var state = cursor == null ? null : WorldTools.state(cursor, StructureState.class);
+        var state = cursor == null ? null : WorldPaging.state(cursor, StructureState.class);
         var query = state == null ? WorldTools.requiredText(request, "structure") : state.query();
         var searchRadius = state == null ? radius : state.radius();
-        return calls.run(server, WorldTools.then(() -> state == null ? calls.center(server, anchor) : state.center(), center -> WorldTools.once(() -> {
+        return calls.run(server, WorldPaging.then(() -> state == null ? calls.areaTools.center(server, anchor) : state.center(), center -> WorldPaging.once(() -> {
             var level = WorldTools.level(server, center.dimension());
             var chunks = level.getChunkSource();
             var generator = chunks.getGenerator();
@@ -478,7 +478,7 @@ final class WorldKnowledgeTools {
         return List.copyOf(confirmed);
     }
 
-    Evidence.Result structureResult(PackSageTools.ReadRequest request, WorldTools.Center center, String query, int radius,
+    Evidence.Result structureResult(PackSageTools.ReadRequest request, WorldAreaTools.Center center, String query, int radius,
                                     LocateStructure.Result result, boolean timeout) {
         var partial = result.nextRing() != -1 || !result.unsupported().isEmpty() || timeout;
         var coverage = partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
@@ -513,8 +513,8 @@ final class WorldKnowledgeTools {
                 + " after " + (result.budget() ? "the 500 ms server budget" : "a result page") + "; continue with the cursor");
         if (records.isEmpty()) notes.add(result.nextRing() == -1 ? "no matching starts found in loaded or saved data and no remaining predictions"
                 : "candidates in range were ruled out by saved chunks or the search was bounded; continue to search further");
-        return WorldTools.result(records, coverage, result.nextRing() == -1 ? null
-                : calls.remember(request, new StructureState(center, query, radius, result.nextRing(), result.nextEntry(), result.nextCandidate())), String.join("; ", notes));
+        return WorldPaging.result(records, coverage, result.nextRing() == -1 ? null
+                : calls.paging.remember(request, new StructureState(center, query, radius, result.nextRing(), result.nextEntry(), result.nextCandidate())), String.join("; ", notes));
     }
 
     /** Worker only: resolve an id or tag, then restrict it to biomes this source can produce. */
@@ -544,16 +544,16 @@ final class WorldKnowledgeTools {
     }
 
     /** Builds the page on the worker after the sampling slice has finished or spent its call budget. */
-    Evidence.Result biomeResult(PackSageTools.ReadRequest request, WorldTools.Center center, String query, int radius, LocateBiome.Result result) {
+    Evidence.Result biomeResult(PackSageTools.ReadRequest request, WorldAreaTools.Center center, String query, int radius, LocateBiome.Result result) {
         if (result.hit() == null) {
             if (result.nextIndex() != -1) {
-                return WorldTools.result(List.of(), Evidence.Coverage.PARTIAL,
-                        calls.remember(request, new BiomeState(center, query, radius, result.nextIndex())),
+                return WorldPaging.result(List.of(), Evidence.Coverage.PARTIAL,
+                        calls.paging.remember(request, new BiomeState(center, query, radius, result.nextIndex())),
                         "biome sampling reached the 500 ms server work budget after " + result.columns() + " columns; sampled out to approximately "
                                 + (int) Math.ceil((Math.sqrt(result.nextIndex()) - 1) / 2) * LocateBiome.HORIZONTAL_STEP
                                 + " blocks from the center along each horizontal axis (outer ring may be incomplete); continue with the cursor");
             }
-            return WorldTools.result(List.of(), Evidence.Coverage.COMPLETE, null, "no matching biome within " + radius
+            return WorldPaging.result(List.of(), Evidence.Coverage.COMPLETE, null, "no matching biome within " + radius
                     + " chunks; sampled through ring " + radius * 16 / LocateBiome.HORIZONTAL_STEP + " at "
                     + radius * 16 / LocateBiome.HORIZONTAL_STEP * LocateBiome.HORIZONTAL_STEP
                     + " blocks from the center along each horizontal axis (radius rounded down to 32-block rings)");
@@ -569,17 +569,17 @@ final class WorldKnowledgeTools {
         payload.put("distanceBlocks", WorldTools.number(Math.round(Math.hypot(hit.x() - center.position().x, hit.z() - center.position().z))));
         payload.put("resolution", new Evidence.JsonObject(Map.of("horizontalBlocks", WorldTools.number(LocateBiome.HORIZONTAL_STEP),
                 "verticalBlocks", WorldTools.number(LocateBiome.VERTICAL_STEP))));
-        return WorldTools.single(WorldTools.evidence(request.scope(), "locate|" + center.dimension() + "|" + hit.biome() + "|" + hit.x() + "," + hit.z(),
+        return WorldPaging.single(WorldTools.evidence(request.scope(), "locate|" + center.dimension() + "|" + hit.biome() + "|" + hit.x() + "," + hit.z(),
                 Evidence.RecordKind.OTHER, hit.biome() + " at " + hit.x() + ", " + hit.y() + ", " + hit.z(), payload, Evidence.Coverage.COMPLETE,
                 WorldNavigation.placeId(place)));
     }
 
     private CompletionStage<Evidence.Result> searchCommands(PackSageTools.ReadRequest request) {
         var server = calls.server();
-        var cursor = calls.cursor(request);
+        var cursor = calls.paging.cursor(request);
         if (cursor instanceof CommandCapture capture) return captureCommands(request, server, capture);
         if (cursor != null) {
-            var state = WorldTools.state(cursor, CommandSearchState.class);
+            var state = WorldPaging.state(cursor, CommandSearchState.class);
             return CompletableFuture.supplyAsync(() -> commandSearchResult(request, state.summaries(), state.permission(), state.offset()), calls.worker());
         }
         return commandCapture(server).thenCompose(capture -> captureCommands(request, server, capture));
@@ -589,10 +589,10 @@ final class WorldKnowledgeTools {
         var name = WorldTools.requiredText(request, "name");
         if (name.isBlank()) throw WorldTools.invalid("name must not be blank");
         var server = calls.server();
-        var cursor = calls.cursor(request);
+        var cursor = calls.paging.cursor(request);
         if (cursor instanceof CommandCapture capture) return captureCommands(request, server, capture);
         if (cursor != null) {
-            var state = WorldTools.state(cursor, CommandReadState.class);
+            var state = WorldPaging.state(cursor, CommandReadState.class);
             return CompletableFuture.supplyAsync(() -> commandResult(request, state.reader(), state.permission(), name,
                     state.usageOffset(), state.argumentOffset()), calls.worker());
         }
@@ -601,7 +601,7 @@ final class WorldKnowledgeTools {
 
     /** Captures the player's own source, never the server's privileged command source. */
     private CompletionStage<CommandCapture> commandCapture(MinecraftServer server) {
-        return calls.run(server, WorldTools.once(() -> {
+        return calls.run(server, WorldPaging.once(() -> {
             var source = WorldTools.host(server).createCommandSourceStack();
             int permission = 4;
             while (permission > 0 && !source.hasPermission(permission)) permission--;
@@ -613,7 +613,7 @@ final class WorldKnowledgeTools {
     /** No live tree, argument metadata or permission predicate is read by the subsequent worker stages. */
     private CompletionStage<Evidence.Result> captureCommands(PackSageTools.ReadRequest request, MinecraftServer server, CommandCapture capture) {
         return calls.run(server, capture.snapshot()).thenApply(reader -> {
-            if (reader == null) return WorldTools.result(List.of(), Evidence.Coverage.PARTIAL, calls.remember(request, capture),
+            if (reader == null) return WorldPaging.result(List.of(), Evidence.Coverage.PARTIAL, calls.paging.remember(request, capture),
                     "command tree copy reached the 500 ms server work budget; continue with the cursor; playerPermissionLevel: " + capture.permission());
             if (request.tool().equals("read_command")) return commandResult(request, reader, capture.permission(), WorldTools.requiredText(request, "name"), 0, 0);
             return commandSearchResult(request, reader.search(WorldTools.argument(request, "text") == null ? null
@@ -636,14 +636,14 @@ final class WorldKnowledgeTools {
                     payload, Evidence.Coverage.COMPLETE, null));
         }
         boolean more = end < summaries.size();
-        return WorldTools.result(records, more ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
-                more ? calls.remember(request, new CommandSearchState(summaries, permission, end)) : null,
+        return WorldPaging.result(records, more ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE,
+                more ? calls.paging.remember(request, new CommandSearchState(summaries, permission, end)) : null,
                 "playerPermissionLevel: " + permission + (more ? "; command page reached " + CommandReader.PAGE + " records; continue with the cursor" : ""));
     }
 
     Evidence.Result commandResult(PackSageTools.ReadRequest request, CommandReader<?> reader, int permission, String name, int usageOffset, int argumentOffset) {
         var detail = reader.read(name, argumentOffset);
-        if (detail == null) return WorldTools.result(List.of(), Evidence.Coverage.COMPLETE, null,
+        if (detail == null) return WorldPaging.result(List.of(), Evidence.Coverage.COMPLETE, null,
                 "no command " + name + "; search_commands lists them");
         int usageEnd = Math.min(usageOffset + CommandReader.MAX_USAGE, detail.usage().size());
         int playerEnd = Math.min(usageOffset + CommandReader.MAX_USAGE, detail.playerUsage().size());
@@ -662,9 +662,9 @@ final class WorldKnowledgeTools {
         payload.put("playerPermissionLevel", WorldTools.number(permission));
         payload.put("note", WorldTools.text("PackSage does not run commands"));
         var coverage = more ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
-        return WorldTools.result(List.of(WorldTools.evidence(request.scope(), "command|" + detail.path(), Evidence.RecordKind.OTHER,
+        return WorldPaging.result(List.of(WorldTools.evidence(request.scope(), "command|" + detail.path(), Evidence.RecordKind.OTHER,
                 "/" + detail.path(), payload, coverage, null)), coverage,
-                more ? calls.remember(request, new CommandReadState(reader, permission, usageOffset + CommandReader.MAX_USAGE,
+                more ? calls.paging.remember(request, new CommandReadState(reader, permission, usageOffset + CommandReader.MAX_USAGE,
                         argumentOffset + detail.arguments().size())) : null,
                 more ? "command usage or arguments reached the page bound; continue with the cursor" : null);
     }

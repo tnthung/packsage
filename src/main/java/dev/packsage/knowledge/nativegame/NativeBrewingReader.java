@@ -31,6 +31,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 final class NativeBrewingReader {
     static final int MAX_CANDIDATES = 512;
@@ -145,16 +146,60 @@ final class NativeBrewingReader {
         return null;
     }
 
-    static Page planCandidates(PotionBrewing brewing, RegistryAccess registries, Registry<Item> itemRegistry,
-                               Evidence.Scope scope) {
-        return searchCandidates(brewing, registries, itemRegistry, null, null, null, 0, MAX_CANDIDATES, scope);
+    static void indexPlanCandidates(PotionBrewing brewing, RegistryAccess registries, Registry<Item> itemRegistry,
+                                    Evidence.Scope scope, NativeRecipeReader.PlanSource target) {
+        var source = source(brewing, registries);
+        target.reasons.addAll(source.reasons());
+        int containerVariants = Math.max(1, source.potions().size());
+        int containerCandidates = source.containerMixCount() * containerVariants;
+        if (source.count() > NativeRecipeReader.MAX_PLAN_INDEX) {
+            target.reasons.add("native-brewing-index-cap=" + NativeRecipeReader.MAX_PLAN_INDEX);
+        }
+        for (int index = 0; index < Math.min(source.count(), NativeRecipeReader.MAX_PLAN_INDEX); index++) {
+            String identity;
+            try {
+                if (index < source.customCount()) {
+                    var recipe = source.customRecipes().get(index);
+                    if (recipe == null || recipe.getClass() != BrewingRecipe.class) {
+                        target.reasons.add("native-brewing-output-opaque");
+                        continue;
+                    }
+                    var output = ((BrewingRecipe) recipe).getOutput();
+                    if (output == null || output.isEmpty()) {
+                        target.reasons.add("native-brewing-output-unreadable");
+                        continue;
+                    }
+                    identity = NativeSnapshot.itemIdentity(output, itemRegistry);
+                } else if (index - source.customCount() < containerCandidates) {
+                    var to = mixValue(source.containerMixes().get((index - source.customCount()) / containerVariants), "to");
+                    if (!(to instanceof Holder<?> holder) || !(holder.value() instanceof Item item)) {
+                        target.reasons.add("native-brewing-output-unreadable");
+                        continue;
+                    }
+                    identity = NativeSnapshot.itemIdentity(item, itemRegistry);
+                } else {
+                    identity = NativeSnapshot.itemIdentity(source.bottles().get(
+                            (index - source.customCount() - containerCandidates) % source.bottles().size()), itemRegistry);
+                }
+            } catch (ReflectiveOperationException | RuntimeException unreadableOutput) {
+                target.reasons.add("native-brewing-output-unreadable");
+                continue;
+            }
+            int candidate = index;
+            target.outputs.computeIfAbsent(identity, ignored -> new ArrayList<>()).add(() -> {
+                var projected = candidateAt(source, candidate, registries, itemRegistry, scope);
+                return projected == null ? null : projected.record();
+            });
+        }
     }
 
     private static Source source(PotionBrewing brewing, RegistryAccess registries) {
+        var reasons = new LinkedHashSet<String>();
         boolean partial = true;
         if (brewing == null || brewing.getClass() != PotionBrewing.class) {
+            reasons.add("native-brewing-source-unreadable");
             return new Source(List.of(), 0, List.of(), 0, List.of(), 0, List.of(), 0,
-                    List.of(), List.of(), true, 0);
+                    List.of(), List.of(), true, 0, Set.copyOf(reasons));
         }
 
         List<?> customRecipes = List.of();
@@ -165,21 +210,25 @@ final class NativeBrewingReader {
             customRecipes = brewing.getRecipes();
         } catch (RuntimeException unreadableRecipes) {
             partial = true;
+            reasons.add("native-brewing-custom-rules-unreadable");
         }
         try {
             containers = exactList(brewing, "containers");
         } catch (ReflectiveOperationException unreadableContainers) {
             partial = true;
+            reasons.add("native-brewing-containers-unreadable");
         }
         try {
             containerMixes = exactList(brewing, "containerMixes");
         } catch (ReflectiveOperationException unreadableContainerMixes) {
             partial = true;
+            reasons.add("native-brewing-container-rules-unreadable");
         }
         try {
             potionMixes = exactList(brewing, "potionMixes");
         } catch (ReflectiveOperationException unreadablePotionMixes) {
             partial = true;
+            reasons.add("native-brewing-potion-rules-unreadable");
         }
 
         int customCount = Math.min(customRecipes.size(), MAX_RULES);
@@ -188,12 +237,17 @@ final class NativeBrewingReader {
         int potionMixCount = Math.min(potionMixes.size(), MAX_RULES);
         if (customRecipes.size() > MAX_RULES || containers.size() > MAX_CONTAINERS
                 || containerMixes.size() > MAX_RULES || potionMixes.size() > MAX_RULES) partial = true;
+        if (customRecipes.size() > MAX_RULES || containerMixes.size() > MAX_RULES || potionMixes.size() > MAX_RULES) {
+            reasons.add("native-brewing-rule-cap=" + MAX_RULES);
+        }
+        if (containers.size() > MAX_CONTAINERS) reasons.add("native-brewing-container-cap=" + MAX_CONTAINERS);
 
         var bottles = new ArrayList<Item>();
         for (int index = 0; index < containerCount; index++) {
             if (!(containers.get(index) instanceof Ingredient ingredient) || ingredient.getClass() != Ingredient.class
                     || ingredient.isCustom()) {
                 partial = true;
+                reasons.add("native-brewing-container-opaque");
                 continue;
             }
             Ingredient.Value[] values;
@@ -201,10 +255,12 @@ final class NativeBrewingReader {
                 values = ingredient.getValues();
             } catch (RuntimeException unreadableValues) {
                 partial = true;
+                reasons.add("native-brewing-container-unreadable");
                 continue;
             }
             if (values.length > MAX_ALTERNATIVES) {
                 partial = true;
+                reasons.add("native-brewing-container-alternative-cap=" + MAX_ALTERNATIVES);
                 continue;
             }
             for (Ingredient.Value value : values) {
@@ -213,10 +269,14 @@ final class NativeBrewingReader {
                     if (item instanceof PotionItem && !bottles.contains(item)) bottles.add(item);
                 } else {
                     partial = true;
+                    reasons.add("native-brewing-container-opaque");
                 }
             }
         }
-        if (registries == null) partial = true;
+        if (registries == null) {
+            partial = true;
+            reasons.add("native-brewing-potions-unreadable");
+        }
         var potions = new ArrayList<PotionEntry>();
         if (registries != null) {
             try {
@@ -228,17 +288,25 @@ final class NativeBrewingReader {
                     if (key == null || key.getNamespace().length() + key.getPath().length() + 1
                             > MAX_FACT_ID_LENGTH) {
                         partial = true;
+                        reasons.add("native-brewing-potion-identity-unreadable-or-too-long=" + MAX_FACT_ID_LENGTH);
                         continue;
                     }
                     String identity = key.toString();
                     if ("minecraft:empty".equals(identity)) continue;
                     var holder = potionRegistry.getHolder(entry.getKey()).orElse(null);
-                    if (holder == null) partial = true;
+                    if (holder == null) {
+                        partial = true;
+                        reasons.add("native-brewing-potion-holder-unreadable");
+                    }
                     else potions.add(new PotionEntry(holder, identity));
                 }
-                if (entries.hasNext()) partial = true;
+                if (entries.hasNext()) {
+                    partial = true;
+                    reasons.add("native-brewing-potion-cap=" + MAX_POTIONS);
+                }
             } catch (RuntimeException unreadablePotions) {
                 partial = true;
+                reasons.add("native-brewing-potions-unreadable");
             }
         }
 
@@ -246,7 +314,7 @@ final class NativeBrewingReader {
                 potionMixes, potionMixCount, List.copyOf(bottles), List.copyOf(potions), partial,
                 (int) Math.min(Integer.MAX_VALUE, (long) customCount
                         + (long) containerMixCount * Math.max(1, potions.size())
-                        + (long) potionMixCount * bottles.size()));
+                        + (long) potionMixCount * bottles.size()), Set.copyOf(reasons));
     }
 
     private static Projection projectCustom(Object recipe, int ruleIndex, RegistryAccess registries,
@@ -592,7 +660,7 @@ final class NativeBrewingReader {
     private record PotionEntry(Holder<Potion> holder, String identity) { }
     private record Source(List<?> customRecipes, int customCount, List<?> containers, int containerCount,
                          List<?> containerMixes, int containerMixCount, List<?> potionMixes, int potionMixCount,
-                         List<Item> bottles, List<PotionEntry> potions, boolean partial, int count) { }
+                         List<Item> bottles, List<PotionEntry> potions, boolean partial, int count, Set<String> reasons) { }
     private record Projection(String identity, Evidence.Record record, boolean outputKnown, String outputItem, boolean partial) { }
 
     record Page(List<Evidence.Record> records, int nextOffset, boolean exhausted, int scanned, boolean partial) {

@@ -90,27 +90,28 @@ public final class NativeProvider implements KnowledgeProvider {
                     || !client.level.registryAccess().registryOrThrow(Registries.ITEM).containsKey(key)) {
                 throw new Toolbox.Failure(Toolbox.Code.INVALID_ARGUMENTS, "recipe output item is unknown");
             }
-            var candidates = NativeRecipeReader.planCandidates(client, scope);
-            var index = new KnowledgeIndex();
-            index.replace(new NativeSnapshot(scope, candidates.records()));
-            var result = new RecipePlanner(index).plan(itemIdentity, quantity, scope, maxDepth);
-            var planRecords = new ArrayList<Evidence.Record>();
-            for (int route = 0; route < result.records().size(); route++) {
-                var record = result.records().get(route);
-                var sourceHandle = "plan|" + itemIdentity + "|" + quantity + "|" + maxDepth + "|" + route + "|"
-                        + record.source().sourceHandle();
-                var source = record.source();
-                var targets = record.targets().stream().map(target -> new Evidence.NavigationTarget(target.scope(), target.providerId(),
-                        sourceHandle, target.targetId())).toList();
-                planRecords.add(new Evidence.Record(new Evidence.Source(source.scope(), source.providerId(), source.providerVersion(),
-                        sourceHandle, source.observedGeneration(), source.observedAt(), source.activity(), source.coverage(),
-                        source.authority(), source.provenance()), record.kind(), record.title(), record.payload(), targets,
-                        record.recipePayload()));
-            }
-            result = new Evidence.Result(planRecords, result.coverage(), result.outcome(), result.nextCursor(), result.detail());
-            if (candidates.partial()) return partial(result, "bounded-live-recipe-scan");
-            return result;
+            return planRecipe(NativeRecipeReader.planSource(client, scope), itemIdentity, quantity, scope, maxDepth);
         }).thenApply(result -> publish(result, scope));
+    }
+
+    static Evidence.Result planRecipe(NativeRecipeReader.PlanSource candidates, String itemIdentity, long quantity,
+                                      Evidence.Scope scope, int maxDepth) {
+        var result = new RecipePlanner(candidates).plan(itemIdentity, quantity, scope, maxDepth);
+        var planRecords = new ArrayList<Evidence.Record>();
+        for (int route = 0; route < result.records().size(); route++) {
+            var record = result.records().get(route);
+            var sourceHandle = "plan|" + itemIdentity + "|" + quantity + "|" + maxDepth + "|" + route + "|"
+                    + record.source().sourceHandle();
+            var source = record.source();
+            var targets = record.targets().stream().map(target -> new Evidence.NavigationTarget(target.scope(), target.providerId(),
+                    sourceHandle, target.targetId())).toList();
+            planRecords.add(new Evidence.Record(new Evidence.Source(source.scope(), source.providerId(), source.providerVersion(),
+                    sourceHandle, source.observedGeneration(), source.observedAt(), source.activity(), source.coverage(),
+                    source.authority(), source.provenance()), record.kind(), record.title(), record.payload(), targets,
+                    record.recipePayload()));
+        }
+        result = new Evidence.Result(planRecords, result.coverage(), result.outcome(), result.nextCursor(), result.detail());
+        return candidates.reasons.isEmpty() ? result : partial(result, String.join("; ", candidates.reasons));
     }
 
     @Override

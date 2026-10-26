@@ -258,7 +258,7 @@ public final class PackSageTools {
                 case "list_blocks" -> "List blocks matching filter (ids, tags or name text) within radius of center, 64 per page, each with its place and a highlight link. Inspect what matters with inspect_block.";
                 case "list_entities" -> "List entities such as mobs, villagers, item frames and minecarts matching filter within radius of center, 64 per page, each with its id, position and a highlight link. Inspect what matters with inspect_entity.";
                 case "inspect_block" -> "Read one block by place (dimension|x,y,z): its state, facts from every adapter and the inventories it has. List an inventory's items with list_items, passing the returned holder.";
-                case "inspect_entity" -> "Read one loaded entity by id: facts from every adapter, such as health, villager profession, bed and job site, and the inventories it has. Villager lastSlept, lastWorkedAtPoi and golemDetectedUntil are game ticks to compare with the record's gameTime. Villagers and wandering traders carry their stored offers with offerCount and this player's prices, or offers not generated yet; offersStatus bounded means only the first 64 offers are listed. List its items with list_items, passing the returned holder.";
+                case "inspect_entity" -> "Read one loaded entity by id: facts from every adapter, such as health, villager profession, bed and job site, and the inventories it has. Villager lastSlept, lastWorkedAtPoi and golemDetectedUntil are game ticks to compare with the record's gameTime. Villagers and wandering traders carry stored offers in offers.entries, in offer order; each costA, costB or result itemFactsIndex refers to the shared offers.itemFacts table. Entry counts and prices stay with each offer, offerCount gives the total, and this player's prices are included when available. Offers may be not generated yet; offersStatus bounded means only the first 64 offers are listed. List its items with list_items, passing the returned holder.";
                 case "list_items" -> "List the items in one holder (player, a returned holder, an item path whose item holdsItems, or a word: held, offhand, targeted for the block or entity under the crosshair, ridden, opened for the open menu, optionally followed by >steps) grouped by item with counts, variants, up to 8 location paths and slot facts (selected hotbar slot, equipmentSlot, menuSlot); the first record summarizes the holder's inventories with emptySlots and the player's selectedSlot, or an open menu's menuType, title and excludedSlots, the output previews such as a crafting result that are never listed as contents; opened:<id> paths last only while that menu stays open; a word that cannot resolve, such as held with an empty hand, returns no records and says why; inventory limits it to one section; filter.tooltip matches the tooltip lines shown to the player, for example [\"Luck\"]. Inspect a location with inspect_item, or list_items it again to step inside. To locate an item across holders, use find_items first.";
                 case "inspect_item" -> "Read one item by its location path or by held or offhand (optionally followed by >steps, as can targeted and ridden): its tooltip lines as the player sees them (tooltipStatus bounded or unknown when cut or unreadable), enchantments, durability, full potion contents, custom name, attribute modifiers, enchantmentEligibility lists each enchantment that can still apply, with its conflicts (compatibleWithCurrent, exclusiveWith; always present, with a none note when nothing applies), raw components, a component fingerprint that tells same-id variants apart, and the inventories it has.";
                 case "find_items" -> "Search every inventory in range at once: the player's own, containers and entities, including items nested in shulker boxes and bundles, grouped by item with location paths; filter.tooltip matches the tooltip lines shown to the player, for example [\"Luck\"]. Each container or entity holding a match comes back as its own record with a highlight link; inspect a returned path with inspect_item. For a question about everything stored, follow nextCall until it ends or the answer cannot change, and say what remains unread.";
@@ -269,9 +269,9 @@ public final class PackSageTools {
                 case "remember" -> "Save the player's report of something they did, built, achieved or found as a note. Pass their statement as text, at for the place they mean (the player for 'here'), and a few lowercase tags such as build, achievement or resource. If possibleDuplicates shows the same thing, update_note it instead.";
                 case "update_note" -> "Correct a saved note by id when the player changes, moves or renames what they reported: replace its text, move it with at, clear its place or replace its tags. Find its id with search_journal notesOnly.";
                 case "forget_note" -> "Delete a saved note by id when the player says it no longer applies or asks you to forget it.";
-                case "list_progress" -> "List progress entries: Minecraft advancements now, quest books later. The first page starts with one record per tree (an advancement tab) with done and total counts, then entries in tree order with status done, in_progress, available, locked or hidden, 64 records per page. Filter by tree id, statuses, or text in the title or description. Hidden entries have no title until earned; do not guess what they are. Read criteria, requirements and rewards with inspect_progress.";
+                case "list_progress" -> "List progress entries: Minecraft advancements now, quest books later. After acquisition, pages start with one record per tree (an advancement tab) with done and total counts, then entries in tree order with status done, in_progress, available, locked or hidden, 64 records per page. Filter by tree id, statuses, or text in the title or description. Hidden entries have no title until earned; do not guess what they are. Read criteria, requirements and rewards with inspect_progress. A work-budget page can be empty with nextCursor; pass it with the same filters to resume. Cursors are single-use and bound to this world session.";
                 case "inspect_progress" -> "Read one progress entry by its returned id: description, each criterion with its done state and when it was met (for example the biomes still missing for Adventuring Time), what it requires and unlocks, and rewards. A hidden entry that is not earned returns only its status.";
-                case "list_statistics" -> "Read the player's own counters since the world began: blocks mined; items crafted, used, broken, picked up and dropped; mobs killed and killed by; and custom counters such as deaths, jumps, play time and distance walked. categories narrows to mined, crafted, used, broken, picked_up, dropped, killed, killed_by or custom. subjects filters block, item, entity or counter ids, tags or name text. Distances are in blocks, times in seconds and damage in health points. Counters never incremented are zero and are listed only when named in subjects.ids. Pass categories together with subjects, or a named id gets a zero row in every category that can count it. 64 per page.";
+                case "list_statistics" -> "Read the player's own counters since the world began: blocks mined; items crafted, used, broken, picked up and dropped; mobs killed and killed by; and custom counters such as deaths, jumps, play time and distance walked. categories narrows to mined, crafted, used, broken, picked_up, dropped, killed, killed_by or custom. subjects filters block, item, entity or counter ids, tags or name text. Distances are in blocks, times in seconds and damage in health points. Counters never incremented are zero and are listed only when named in subjects.ids. Pass categories together with subjects, or a named id gets a zero row in every category that can count it. 64 per page. A work-budget page can be empty with nextCursor; pass it with the same filters to resume. Cursors are single-use and bound to this world session.";
                 case "read_loot" -> "Read a loot table as the game defines it, from a table id, a block id (its drops), an entity type id or loaded entity id (its death drops) or a container place (its pending loot and seed, before it is opened). Returns pools, rolls, entries, conditions and functions with item and tag ids, plus the item ids it can produce. It never rolls the table.";
                 case "locate" -> "Find the nearest biome or structure (ids or tags such as #minecraft:village) around center within radius chunks (default 100), without loading or generating chunks. Biomes come back as sampled (read from the biome source at sampled columns); structures come back as found (present in a generated chunk) or predicted (placement and biome checks pass for an ungenerated chunk). Up to 5 nearest first, each with its kind and a link that marks the place.";
                 case "search_commands" -> "List the server's commands matching text in their name or usage, with whether the player can run them and short usage. Read one with read_command.";
@@ -418,9 +418,12 @@ public final class PackSageTools {
                 int outputBytes = json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
                 int ordinaryRecords = 0;
                 boolean trimmed = false;
-                for (var record : result.records()) {
+                int skipped = 0;
+                int index = 0;
+                for (; index < result.records().size(); index++) {
+                    var record = result.records().get(index);
                     if (!record.source().sourceHandle().startsWith("status:") && ordinaryRecords == 64) break;
-                    var encoded = pendingRecords == null ? encodeRecord(record) : pendingRecords.get(accepted.size()).deepCopy();
+                    var encoded = pendingRecords == null ? encodeRecord(record) : pendingRecords.get(index).deepCopy();
                     int recordBytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + (records.isEmpty() ? 0 : 1);
                     boolean crossesBudget = outputBytes + recordBytes > 131_072 - 12_800;
                     if (crossesBudget) {
@@ -428,7 +431,11 @@ public final class PackSageTools {
                         // Keep complete leading routes; only the crossing record can use the remaining space.
                         trimRecord(encoded, 131_072 - outputBytes - 12_800 - (records.isEmpty() ? 0 : 1));
                         recordBytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + (records.isEmpty() ? 0 : 1);
-                        if (outputBytes + recordBytes > 131_072 - 12_800) break;
+                        if (outputBytes + recordBytes > 131_072 - 12_800) {
+                            if (overflowCursor == null) break;
+                            skipped++;
+                            continue;
+                        }
                     }
                     records.add(encoded);
                     if (encoded.has("truncationNote")) {
@@ -441,10 +448,13 @@ public final class PackSageTools {
                     accepted.add(record);
                     if (!record.source().sourceHandle().startsWith("status:")) ordinaryRecords++;
                     outputBytes += recordBytes;
-                    if (crossesBudget) break;
+                    if (crossesBudget) {
+                        index++;
+                        break;
+                    }
                 }
-                if (accepted.size() < result.records().size()) {
-                    if (overflowCursor != null && !accepted.isEmpty()) {
+                if (index < result.records().size() || skipped > 0) {
+                    if (index < result.records().size() && overflowCursor != null && !accepted.isEmpty()) {
                         var signature = new java.util.LinkedHashMap<>(arguments.values());
                         signature.remove("cursor");
                         var tail = new ArrayList<Evidence.Record>();
@@ -452,7 +462,7 @@ public final class PackSageTools {
                         int tailBytes = Evidence.serialize(new Evidence.JsonObject(signature)).getBytes(java.nio.charset.StandardCharsets.UTF_8).length
                                 + JSON.toJsonTree(scope).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 12_800
                                 + (result.nextCursor() == null ? 0 : result.nextCursor().getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
-                        for (int i = accepted.size(); i < result.records().size(); i++) {
+                        for (int i = index; i < result.records().size(); i++) {
                             var record = result.records().get(i);
                             var encoded = pendingRecords == null ? encodeRecord(record) : pendingRecords.get(i);
                             int bytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
@@ -471,13 +481,17 @@ public final class PackSageTools {
                             encodedTail.add(encoded);
                             tailBytes += bytes;
                         }
-                        int omitted = result.records().size() - accepted.size() - tail.size();
-                        var tailDetail = boundedString((omitted == 0 ? "" : omitted + " records omitted at the retained-output byte limit; narrow the requested selection; ")
-                                + (result.detail() == null ? "" : result.detail()));
+                        int omitted = result.records().size() - index - tail.size();
+                        var skippedDetail = skipped == 0 ? "" : skipped == 1
+                                ? "1 record omitted because its canonical identity exceeded the output budget; refine the request to reduce output size"
+                                : skipped + " records omitted because their canonical identities exceeded the output budget; refine the request to reduce output size";
+                        var tailDetail = boundedString((omitted == 0 ? "" : omitted + " records omitted at the retained-output byte limit; refine the request to reduce output size")
+                                + (skippedDetail.isEmpty() ? "" : (omitted == 0 ? "" : "; ") + skippedDetail)
+                                + (result.detail() == null ? "" : ((omitted == 0 && skippedDetail.isEmpty() ? "" : "; ") + result.detail())));
                         synchronized (outputPages) {
                             outputPages.pending.put(overflowCursor, new OutputPages.Pending(new ReadRequest(call.name(), new Evidence.JsonObject(signature), scope),
-                                    new Evidence.Result(tail, omitted == 0 ? result.coverage() : Evidence.Coverage.PARTIAL,
-                                            omitted == 0 ? result.outcome() : Evidence.Outcome.PARTIAL, result.nextCursor(), tailDetail), encodedTail, tailBytes));
+                                    new Evidence.Result(tail, omitted == 0 && skipped == 0 ? result.coverage() : Evidence.Coverage.PARTIAL,
+                                            omitted == 0 && skipped == 0 ? result.outcome() : Evidence.Outcome.PARTIAL, result.nextCursor(), tailDetail), encodedTail, tailBytes));
                             outputPages.retainedBytes += tailBytes;
                             while (outputPages.pending.size() > 256 || outputPages.retainedBytes > 8 * 1024 * 1024) {
                                 outputPages.retainedBytes -= outputPages.pending.remove(outputPages.pending.keySet().iterator().next()).bytes();
@@ -485,13 +499,21 @@ public final class PackSageTools {
                         }
                         continuation.accept(overflowCursor);
                     } else {
-                        continuation.accept(null);
+                        continuation.accept(index == result.records().size() ? result.nextCursor() : null);
                     }
                     json.addProperty("coverage", "PARTIAL");
                     json.addProperty("outcome", "PARTIAL");
-                    json.addProperty("detail", boundedString((overflowCursor != null && !accepted.isEmpty() ? "encoded page byte or record budget reached; continue with nextCursor"
-                            : (result.records().size() - accepted.size()) + " records omitted at the output byte or record limit; narrow depth/quantity or the requested selection")
-                            + (result.detail() == null ? "" : "; " + result.detail())));
+                    var skippedDetail = skipped == 0 ? "" : skipped == 1
+                            ? "1 record omitted because its canonical identity exceeded the output budget; refine the request to reduce output size"
+                            : skipped + " records omitted because their canonical identities exceeded the output budget; refine the request to reduce output size";
+                    var outputDetail = index < result.records().size() && overflowCursor != null && !accepted.isEmpty()
+                            ? "encoded page byte or record budget reached; continue with nextCursor"
+                            : index < result.records().size()
+                                    ? (result.records().size() - index) + " records omitted at the output byte or record limit; refine the request to reduce output size"
+                                    : "";
+                    json.addProperty("detail", boundedString((skippedDetail.isEmpty() ? outputDetail
+                            : skippedDetail + (outputDetail.isEmpty() ? "" : "; " + outputDetail))
+                            + (result.detail() == null ? "" : ((skippedDetail.isEmpty() && outputDetail.isEmpty() ? "" : "; ") + result.detail()))));
                 } else continuation.accept(result.nextCursor());
                 if (trimmed) {
                     json.addProperty("coverage", "PARTIAL");
@@ -509,7 +531,15 @@ public final class PackSageTools {
                             "{\"coverage\":\"PARTIAL\",\"outcome\":\"PARTIAL\",\"records\":[],\"detail\":\""
                                     + result.records().size() + " records omitted because the response envelope exceeds the byte limit; narrow the requested selection\"}", false), List.of());
                 }
-                outputPages.delivered.accept(scope, accepted);
+                try {
+                    outputPages.delivered.accept(scope, accepted);
+                } catch (RuntimeException | Error failure) {
+                    synchronized (outputPages) {
+                        var discarded = outputPages.pending.remove(overflowCursor);
+                        if (discarded != null) outputPages.retainedBytes -= discarded.bytes();
+                    }
+                    throw failure;
+                }
                 return new ToolResponse(new ModelBackend.ToolResult(call.callId(), serialized, result.outcome() == Evidence.Outcome.ERROR), accepted);
             }).exceptionally(failure -> {
                 while (failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null) failure = failure.getCause();

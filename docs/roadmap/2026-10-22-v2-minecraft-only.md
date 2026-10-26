@@ -128,17 +128,17 @@ The [cross-stage follow-ups](../../.superpowers/sdd/final-followups.md) include 
 
 - [x] Fix E6 coordinates in located-entity answers and revalidate the changed prompt rule (candidate 8; installed R2 passed).
 - [x] Fix/retest M1 move semantics and deduplication with a clean, unambiguous fixture (candidate 7; installed R1 passed).
-- [ ] Capture M5 shutdown hook/overflow counters; run P9/J7 on a NeoForge dedicated server; make offered tool names auditable for P11.
+- [ ] Capture M5 shutdown hook/overflow counters; run P9/J7 on a NeoForge dedicated server. Offered tool names now appear in the request_built log for P11; installed C1 pending.
 - [ ] Investigate Part B's unscored unsupported fortress link and locate cursor reuse with changed radius. Rendering acceptance does not resolve either prompt observation.
 - [x] Return Section from EntityInspector so bounded trades/attributes can report PARTIAL (installed W4 passed).
-- [ ] Reduce duplicated offer components/enchantment/potion data and the approximately 192 KB worst case. offerCount was added; payload duplication remains deferred.
+- [ ] Reduce duplicated offer components/enchantment/potion data: offers share one item-facts table (worst case about 220 KB to 25 KB); installed D1 pending.
 - [ ] Split WorldTools after the merges; run delegation is already complete.
-- [ ] Add continuation for progress/statistics composites that currently stop at the call budget with a repeat note.
+- [ ] Add continuation for progress/statistics composites: single-use acquisition cursors replace the repeat note; installed B1 pending.
 - [ ] Task 2c: quiet routine test timing logs; deferred because ModDev forces its own Log4j configuration (about 153 timing lines after the summary follow-ups).
 - [ ] Consider caching detached command snapshots/usage if live timing warrants it; canUse/canRun duplication remains a review follow-up.
-- [ ] Resolve the resource warning for packsage:font/OFL.txt by moving/renaming the license resource.
-- [ ] Final-review Minors from the [READY verdict](../../.superpowers/sdd/2026-10-25-v2-prompt-acceptance/astra-final-rereview-4.md): an unshrinkable first cursor record discards the page and its provider continuation; a failed output replay can leave its new tail cached until eviction; a submission racing world close can stay queued until the next drain.
-- [ ] plan_recipe returns no routes for some items under the bounded live recipe scan (beacon, enchanting table and oak planks in the final-review recheck); the model falls back to search_recipe. The planner is unchanged on this branch.
+- [x] Resolve the resource warning for packsage:font/OFL.txt: the license moved to assets/packsage/licenses/OFL.txt.
+- [x] Final-review Minors from the [READY verdict](../../.superpowers/sdd/2026-10-25-v2-prompt-acceptance/astra-final-rereview-4.md): an oversized first record keeps later records and the continuation, a failed output replay discards its new tail, and a rejected server submission leaves the queue (automated regressions).
+- [ ] plan_recipe routes: the output-keyed lookup reaches every loaded recipe, fixing the zero routes for beacon, enchanting table and oak planks; installed A1/A2 pending.
 - [ ] Exercise the uncached-POI fallback, holder and progress-tree evidence rereads, saved v1 citations and the wandering trader live; they pass automated regressions only.
 - [ ] Complete the broader unchecked item/menu, world-knowledge, journal and progress clauses above before claiming their full acceptance.
 - The paused JEI recipe-planning tasks J3–J7 belong to feat/packsage-v1 and do not apply until a JEI adapter returns.

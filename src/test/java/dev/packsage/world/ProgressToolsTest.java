@@ -86,6 +86,7 @@ class ProgressToolsTest {
         final ServerWork work;
         final WorldRegistry registry = new WorldRegistry();
         final MinecraftServer server;
+        MinecraftServer currentServer;
         final ServerPlayer player;
         final ProgressTools tools;
 
@@ -104,7 +105,8 @@ class ProgressToolsTest {
             var running = MinecraftServer.class.getDeclaredField("running");
             running.setAccessible(true);
             running.setBoolean(server, true);
-            tools = new ProgressTools(() -> server, ignored -> player, registry, () -> SCOPE, Runnable::run, work, new ProgressNavigation(null));
+            currentServer = server;
+            tools = new ProgressTools(() -> currentServer, ignored -> player, registry, () -> SCOPE, Runnable::run, work, new ProgressNavigation(null));
         }
 
         Evidence.Result finish(CompletionStage<Evidence.Result> read) {
@@ -244,7 +246,7 @@ class ProgressToolsTest {
         var first = fixture.call("list_progress", "{}");
         assertEquals(64, first.records().size());
         assertEquals(Evidence.Outcome.PARTIAL, first.outcome());
-        assertTrue(first.nextCursor().startsWith("64."));
+        assertTrue(first.nextCursor() != null);
         var second = fixture.call("list_progress", "{\"cursor\":\"" + first.nextCursor() + "\",\"text\":null}");
         assertEquals(7, second.records().size());
         assertNull(second.nextCursor());
@@ -464,109 +466,135 @@ class ProgressToolsTest {
     }
 
     @Test
-    void compositeSlicesKeepPartialRowsWhenTheirInnerSliceStopsEarly() throws Exception {
+    void compositeBudgetCursorsResumeEveryReaderAndRecordExactlyOnce() throws Exception {
         for (var tool : List.of("list_progress", "list_statistics")) {
             var clock = new java.util.concurrent.atomic.AtomicLong();
             var fixture = new Fixture(new ServerWork(clock::get));
+            var started = new ArrayList<String>();
             class BoundedReader implements ProgressReader, StatisticReader {
-                @Override
-                public String adapterId() { return "minecraft"; }
-                @Override
-                public List<String> categories() { return List.of("mined"); }
-                @Override
-                public Progress inspect(ServerPlayer player, String local) { return null; }
-                @Override
-                public ServerWork.Slice<ProgressSnapshot> snapshot(ServerPlayer player) {
+                final String adapter;
+                BoundedReader(String adapter) { this.adapter = adapter; }
+                @Override public String adapterId() { return adapter; }
+                @Override public List<String> categories() { return List.of("mined"); }
+                @Override public Progress inspect(ServerPlayer player, String local) { return null; }
+                @Override public ServerWork.Slice<ProgressSnapshot> snapshot(ServerPlayer player) {
+                    started.add(adapter);
                     return new ServerWork.Slice<>() {
-                        boolean stepped;
-                        boolean stopped;
-                        @Override
-                        public boolean step() {
-                            if (stepped) throw new IllegalStateException("slice was stepped after its budget");
-                            stepped = true;
+                        final List<ProgressEntry> entries = new ArrayList<>();
+                        @Override public boolean step() {
+                            var index = entries.size();
+                            entries.add(new ProgressEntry(new ProgressHandle(new ProgressId(adapter, "fixture:entry_" + index),
+                                    ROOT, adapter + " entry " + index, ProgressStatus.AVAILABLE, true), "Read"));
                             clock.addAndGet(ServerWork.CALL_BUDGET_NANOS);
-                            return true;
+                            return entries.size() < 3;
                         }
-                        @Override
-                        public boolean stopEarly() { stopped = true; return true; }
-                        @Override
-                        public ProgressSnapshot result() {
-                            assertTrue(stopped);
-                            return new ProgressSnapshot(List.of(), List.of(new ProgressEntry(STONE, "Mine stone")), "snapshot work budget reached");
-                        }
+                        @Override public boolean stopEarly() { throw new AssertionError("do not terminate a resumable reader"); }
+                        @Override public ProgressSnapshot result() { return new ProgressSnapshot(List.of(), entries, null); }
                     };
                 }
-                @Override
-                public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+                @Override public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+                    started.add(adapter);
                     return new ServerWork.Slice<>() {
-                        boolean stepped;
-                        boolean stopped;
-                        @Override
-                        public boolean step() {
-                            if (stepped) throw new IllegalStateException("slice was stepped after its budget");
-                            stepped = true;
+                        final List<Statistic> rows = new ArrayList<>();
+                        @Override public boolean step() {
+                            rows.add(new Statistic(adapter, "mined", "fixture:entry_" + rows.size(), "Counter", 1, StatisticUnit.COUNT, 1));
                             clock.addAndGet(ServerWork.CALL_BUDGET_NANOS);
-                            return true;
+                            return rows.size() < 3;
                         }
-                        @Override
-                        public boolean stopEarly() { stopped = true; return true; }
-                        @Override
-                        public List<Statistic> result() {
-                            assertTrue(stopped);
-                            return List.of(new Statistic("minecraft", "mined", "minecraft:diamond_ore", "Times Mined: Diamond Ore", 12, StatisticUnit.COUNT, 12));
-                        }
+                        @Override public boolean stopEarly() { throw new AssertionError("do not terminate a resumable reader"); }
+                        @Override public List<Statistic> result() { return rows; }
                     };
                 }
             }
-            fixture.registry.register(new BoundedReader());
-            var result = fixture.call(tool, "{}");
-            assertEquals(1, result.records().size());
-            assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
-            assertTrue(result.detail().contains("budget"));
+            for (var adapter : List.of("first", "second", "third")) fixture.registry.register(new BoundedReader(adapter));
+            var seen = new java.util.HashSet<String>();
+            String cursor = null;
+            int calls = 0;
+            do {
+                var result = fixture.call(tool, cursor == null ? "{}" : "{\"cursor\":\"" + cursor + "\"}");
+                for (var record : result.records()) assertTrue(seen.add(record.source().sourceHandle()), record.source().sourceHandle());
+                cursor = result.nextCursor();
+                if (calls == 0) {
+                    assertTrue(cursor != null, "budget stop must return a continuation");
+                    assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
+                    assertTrue(result.detail().contains("budget"));
+                    assertFalse(result.detail().contains("repeat"));
+                }
+                if (cursor == null) assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
+                assertTrue(++calls <= 12, "continuation made no progress");
+            } while (cursor != null);
+            assertEquals(9, seen.size());
+            assertEquals(List.of("first", "second", "third"), started);
+            assertTrue(calls > 3);
         }
     }
 
     @Test
-    void statisticsKeepOtherAdaptersWhenAnInnerSliceFailsToStopEarly() throws Exception {
-        for (var failing : List.of("stopEarly", "result")) {
-            var clock = new java.util.concurrent.atomic.AtomicLong();
-            var fixture = new Fixture(new ServerWork(clock::get));
+    void compositeCursorRejectsAWorldChange() throws Exception {
+        for (var tool : List.of("list_progress", "list_statistics")) {
+            var fixture = new Fixture();
+            fixture.registry.register(new Reader("minecraft", new ProgressSnapshot(List.of(),
+                    java.util.stream.IntStream.range(0, 70).mapToObj(i -> new ProgressEntry(new ProgressHandle(
+                            new ProgressId("minecraft", "fixture:entry_" + i), ROOT, "Entry " + i, ProgressStatus.AVAILABLE, true), "Read")).toList(), null), null));
             fixture.registry.register(new StatisticReader() {
-                @Override
-                public String adapterId() { return "broken"; }
-                @Override
-                public List<String> categories() { return List.of("mined"); }
-                @Override
-                public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+                @Override public String adapterId() { return "minecraft"; }
+                @Override public List<String> categories() { return List.of("mined"); }
+                @Override public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+                    return ServerReads.once(() -> java.util.stream.IntStream.range(0, 70).mapToObj(i ->
+                            new Statistic("minecraft", "mined", "fixture:entry_" + i, "Counter", 1, StatisticUnit.COUNT, 1)).toList());
+                }
+            });
+            var first = fixture.call(tool, "{}");
+            assertTrue(first.nextCursor() != null);
+            fixture.currentServer = null;
+            var failure = assertThrows(CompletionException.class, () -> fixture.call(tool, "{\"cursor\":\"" + first.nextCursor() + "\"}"));
+            assertEquals(Toolbox.Code.INVALID_CURSOR, ((Toolbox.Failure) failure.getCause()).code());
+            assertTrue(failure.getCause().getMessage().contains("world changed"));
+        }
+    }
+
+    @Test
+    void progressPagingKeepsTheAcquiredSnapshotWhenTheReaderChanges() throws Exception {
+        var fixture = new Fixture();
+        var reader = new Reader("minecraft", new ProgressSnapshot(List.of(),
+                java.util.stream.IntStream.range(0, 70).mapToObj(i -> new ProgressEntry(new ProgressHandle(
+                        new ProgressId("minecraft", "fixture:entry_" + i), ROOT, "Entry " + i, ProgressStatus.AVAILABLE, true), "Read")).toList(), null), null);
+        fixture.registry.register(reader);
+        var first = fixture.call("list_progress", "{}");
+        reader.snapshot = new ProgressSnapshot(List.of(), List.of(), null);
+        var second = fixture.call("list_progress", "{\"cursor\":\"" + first.nextCursor() + "\"}");
+        assertEquals(6, second.records().size());
+        assertEquals("Entry 64", second.records().getFirst().title());
+        assertNull(second.nextCursor());
+    }
+
+    @Test
+    void statisticsKeepOtherAdaptersWhenAnInnerSliceFails() throws Exception {
+        for (var failing : List.of("step", "result")) {
+            var fixture = new Fixture();
+            fixture.registry.register(new StatisticReader() {
+                @Override public String adapterId() { return "broken"; }
+                @Override public List<String> categories() { return List.of("mined"); }
+                @Override public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
                     return new ServerWork.Slice<>() {
-                        @Override
-                        public boolean step() {
-                            clock.addAndGet(ServerWork.CALL_BUDGET_NANOS);
-                            return true;
+                        @Override public boolean step() {
+                            if (failing.equals("step")) throw new IllegalStateException("cannot read " + failing);
+                            return false;
                         }
-                        @Override
-                        public boolean stopEarly() {
-                            if (failing.equals("stopEarly")) throw new IllegalStateException("cannot stop " + failing);
-                            return true;
-                        }
-                        @Override
-                        public List<Statistic> result() { throw new IllegalStateException("cannot stop " + failing); }
+                        @Override public List<Statistic> result() { throw new IllegalStateException("cannot read " + failing); }
                     };
                 }
             });
             fixture.registry.register(new StatisticReader() {
-                @Override
-                public String adapterId() { return "minecraft"; }
-                @Override
-                public List<String> categories() { return List.of("mined"); }
-                @Override
-                public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
+                @Override public String adapterId() { return "minecraft"; }
+                @Override public List<String> categories() { return List.of("mined"); }
+                @Override public ServerWork.Slice<List<Statistic>> statistics(ServerPlayer player, List<String> categories, KindFilter subjects) {
                     return ServerReads.once(() -> List.of(new Statistic("minecraft", "mined", "minecraft:diamond_ore", "Times Mined: Diamond Ore", 12, StatisticUnit.COUNT, 12)));
                 }
             });
             var result = fixture.call("list_statistics", "{}");
             assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
-            assertTrue(result.detail().contains("broken: cannot stop " + failing), result.detail());
+            assertTrue(result.detail().contains("broken: cannot read " + failing), result.detail());
             assertEquals(List.of("stat|minecraft|mined|minecraft:diamond_ore"), result.records().stream().map(record -> record.source().sourceHandle()).toList());
         }
     }

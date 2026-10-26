@@ -56,6 +56,7 @@ import net.minecraft.world.level.block.entity.JukeboxBlockEntity;
 import net.minecraft.world.level.block.entity.LecternBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.storage.loot.LootTable;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -73,9 +74,10 @@ public final class MinecraftInventories implements InventoryReader {
     private static final EquipmentSlot[] HANDS = {EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND};
 
     /**
-     * slots is the reported size (-1 = keyed); size bounds the entries actually readable. pendingLoot is the loot table
-     * of a section whose loot is not generated yet, or null. keys are the entry names of positions 0 to size - 1, such
-     * as menu slot indexes, or null when each position is its own entry.
+     * slots is the reported size (-1 = keyed); size bounds the entries actually readable. pendingLoot describes the loot
+     * table of a section whose loot is not generated yet (its id, seed and whether it is undefined or empty), or null.
+     * keys are the entry names of positions 0 to size - 1, such as menu slot indexes, or null when each position is its
+     * own entry.
      */
     record Part(String section, String label, SlotRole role, int slots, int size, IntFunction<ItemStack> slot, String pendingLoot,
                 List<Integer> keys) {
@@ -163,11 +165,21 @@ public final class MinecraftInventories implements InventoryReader {
             if (half.getLootTable() != null) {
                 // Reading the slots would generate the loot, so report the pending table and no items.
                 var table = half.getLootTable().location().toString();
+                var level = half instanceof BlockEntity entity ? entity.getLevel() : null;
                 return new Part("container", label + ", loot not generated (" + table + ")",
-                        SlotRole.STORAGE, slots, 0, index -> ItemStack.EMPTY, table);
+                        SlotRole.STORAGE, slots, 0, index -> ItemStack.EMPTY, pendingLoot(table, half.getLootTableSeed(),
+                                level == null ? null : MinecraftLoot.lookup(level.registryAccess(), half.getLootTable())));
             }
         }
         return null;
+    }
+
+    /** The pending table's id and seed, and whether it is undefined or empty when the loaded tables are known. */
+    static String pendingLoot(String table, long seed, java.util.Optional<LootTable> defined) {
+        var pending = "table " + table + ", " + (seed == 0 ? "random seed" : "seed " + seed);
+        if (defined == null) return pending;
+        if (defined.isEmpty()) return pending + ", a table the loaded data packs do not define";
+        return defined.get() == LootTable.EMPTY ? pending + ", the empty table, which generates nothing" : pending;
     }
 
     private static List<Part> block(ServerLevel level, BlockPos pos) {

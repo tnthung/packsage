@@ -6,7 +6,6 @@ import dev.packsage.world.Statistic;
 import dev.packsage.world.StatisticReader;
 import dev.packsage.world.StatisticUnit;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
-import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -164,10 +163,11 @@ public final class MinecraftStatistics implements StatisticReader {
         private final Supplier<Object2IntMap<Stat<?>>> source;
         private final List<StatType<?>> types;
         private final KindFilter subjects;
-        private final List<Statistic> rows = new ArrayList<>();
-        private final Set<List<Object>> present = new HashSet<>();
+        private List<Statistic> rows = new ArrayList<>();
+        private Set<List<Object>> present = new HashSet<>();
         private Object2IntMap<Stat<?>> counted;
-        private ObjectIterator<Object2IntMap.Entry<Stat<?>>> entries;
+        private Object[] keys;
+        private int nextEntry;
         private int size;
         private int zeroType;
         private int zeroSubject;
@@ -184,38 +184,38 @@ public final class MinecraftStatistics implements StatisticReader {
         @Override
         public boolean step() {
             if (done) return false;
-            if (counted == null) {
-                counted = source.get();
-                synchronized (counted) {
-                    size = counted.size();
-                    entries = counted.object2IntEntrySet().iterator();
-                }
-            }
+            if (counted == null) counted = source.get();
             var read = 0;
             synchronized (counted) {
-                // The engine only adds counter keys or updates values. Growth invalidates fastutil's iterator.
+                // Native StatsCounter only adds keys or updates values, and its synchronized wrapper locks on itself.
+                // The owned key copy is the first step's work, so no engine iterator survives a step; growth restarts.
+                if (keys == null) {
+                    keys = counted.keySet().toArray();
+                    size = counted.size();
+                    return true;
+                }
                 if (counted.size() != size) {
                     if (restarts++ >= 3) {
                         note = "Statistics kept changing while reading; partial counters only, repeat list_statistics";
                         done = true;
                         return false;
                     }
-                    rows.clear();
-                    present.clear();
+                    // Dropping accumulated collections is constant work; clearing them would scan their backing stores.
+                    rows = new ArrayList<>();
+                    present = new HashSet<>();
                     zeroType = 0;
                     zeroSubject = 0;
+                    nextEntry = 0;
+                    keys = counted.keySet().toArray();
                     size = counted.size();
-                    entries = counted.object2IntEntrySet().iterator();
                     return true;
                 }
-                if (entries != null) {
-                    for (; read < STEP_ENTRIES && entries.hasNext(); read++) {
-                        var entry = entries.next();
-                        if (types.contains(entry.getKey().getType())) read(entry.getKey(), entry.getIntValue());
+                for (; read < STEP_ENTRIES && nextEntry < keys.length; read++) {
+                    if (keys[nextEntry++] instanceof Stat<?> stat) {
+                        if (types.contains(stat.getType())) read(stat, counted.getInt(stat));
                     }
-                    if (entries.hasNext()) return true;
-                    entries = null;
                 }
+                if (nextEntry < keys.length) return true;
             }
             for (; read < STEP_ENTRIES && zeroType < types.size(); read++) {
                 if (zeroSubject < subjects.ids().size()) {

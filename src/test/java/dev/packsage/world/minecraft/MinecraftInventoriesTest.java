@@ -249,9 +249,24 @@ class MinecraftInventoriesTest {
         assertNull(MinecraftInventories.unopenedLoot("Container", 27, chest));
         chest.setLootTable(net.minecraft.world.level.storage.loot.BuiltInLootTables.SIMPLE_DUNGEON);
         var info = MinecraftInventories.unopenedLoot("Container", 27, chest).info();
-        assertEquals("minecraft:chests/simple_dungeon", info.pendingLoot());
+        assertEquals("table minecraft:chests/simple_dungeon, random seed", info.pendingLoot());
         assertEquals(27, info.slots());
         assertNull(only(inventories.inventories(new LiveHolder.OfItem(new ItemStack(Items.SHULKER_BOX)))).pendingLoot());
+        chest.setLootTable(net.minecraft.world.level.storage.loot.BuiltInLootTables.SIMPLE_DUNGEON, 12345L);
+        assertEquals("table minecraft:chests/simple_dungeon, seed 12345",
+                MinecraftInventories.unopenedLoot("Container", 27, chest).info().pendingLoot());
+    }
+
+    @Test
+    void pendingLootSaysWhenItsTableIsUndefinedOrEmpty() {
+        var known = net.minecraft.world.level.storage.loot.LootTable.lootTable().build();
+        assertEquals("table minecraft:chests/simple_dungeon, seed 1",
+                MinecraftInventories.pendingLoot("minecraft:chests/simple_dungeon", 1, java.util.Optional.of(known)));
+        assertEquals("table packsage:missing, seed 2, a table the loaded data packs do not define",
+                MinecraftInventories.pendingLoot("packsage:missing", 2, java.util.Optional.empty()));
+        assertEquals("table minecraft:empty, random seed, the empty table, which generates nothing",
+                MinecraftInventories.pendingLoot("minecraft:empty", 0,
+                        java.util.Optional.of(net.minecraft.world.level.storage.loot.LootTable.EMPTY)));
     }
 
     private static InventoryInfo only(List<InventoryInfo> infos) {

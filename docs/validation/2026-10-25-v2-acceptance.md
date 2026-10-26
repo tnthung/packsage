@@ -38910,3 +38910,325 @@ Minecraft remains running and unpaused in PackSage Adapter Filter Live Test, wit
 - **A3r4: the plan detail PASSes, the reply still fails compliance.** In this modded pack, the plan correctly gives the computed-result caveat instead of claiming that obsidian is obtained. The reply-compliance failure stays recorded under the round 5 ruling.
 - **M5r4: decided in round 8.** 2 of 1,375 ticks reached 1 ms. The slowest was the tick hook at gameplay hook 45 of 3,376, during the first seconds after joining. The summary now counts slow ticks after the first 200 separately (22273ec). M5 passes when that count is 0, with no overflow and no failed events. Ticks in the first ten seconds after joining include one-time first-use costs and are recorded but not judged.
 - **Astra rereview 10 Minors: fixed in 4fbbfa1.** Map extension is indexed by its filled-map result. Trims are checked against their own base ingredient. Repairs count only for requested variants that can carry durability. Unchecked materials past 16 are counted.
+
+## Native readiness round 8
+
+Date: 2026-10-26 (Asia/Taipei). Main checkout `D:/Project/packsage`, branch `feat/packsage-v2`; installed source HEAD `fa0d545f4da99be7f4f20e603e43d4820883b027`; installed JAR SHA-256 `D1843708786A0A789BF4A8A9138F33DC501496655367681FBCDC9CFCE1A4E221`. [Install metadata](../../build/native-readiness-live/round8/install-metadata.json), [build/install log](../../build/native-readiness-live/round8/build-install.log).
+
+The bridge completed /world/leave then /game/quit. No javaw or PackSage Java process remained before `powershell -ExecutionPolicy Bypass -File D:/Project/packsage/scripts/build.ps1`. Gradle reported BUILD SUCCESSFUL in 10s, with all 11 test/build tasks up to date; the dist and installed hashes matched. The installer process exited, but its owned outer PowerShell wrapper remained open with only conhost as a child. Only that outer shell was stopped after installation/hash verification. No installer exit code is claimed, and the build was not rerun. [Preinstall](../../build/native-readiness-live/round8/preinstall.json), [leave](../../build/native-readiness-live/round8/install-world-leave.json), [quit](../../build/native-readiness-live/round8/install-game-quit.json), [wrapper observation](../../build/native-readiness-live/round8/build-wrapper-observation.json).
+
+One click on the existing CurseForge Packsage Play button relaunched Minecraft, then /world/open entered PackSage Adapter Filter Live Test. Computer use was confined to relaunching the game. No desktop input interruption or launch retry occurred. No source edits, worktrees, branch switches, prompt overrides or model-setting changes were made. [World open](../../build/native-readiness-live/round8/installed-world-open.json), [harness observations](../../build/native-readiness-live/round8/harness-observations.json).
+
+Round 1-7 controller rulings apply. Each question was submitted once in a fresh chat, with no transport/provider failure or question retry. After the M5 close/reopen, the two independent recipe questions ran concurrently. All token-free HTTP request/response bodies and timings are in the [ledger](../../build/native-readiness-live/round8/http.jsonl). Exact calls, provider-round groups, coverage/detail, continuations, verbatim replies and every navigation result follow.
+
+| Check | Status | Observation |
+|---|---|---|
+| M5r5 | PASS | 2,000 sand and TNT/9 stone recorded; overflowed 0, failed 0; both summaries show 0 slow ticks after the first 200. |
+| A1r4 | PASS | Three plan records; COMPLETE leading beacon inputs and a concrete PARTIAL detail naming the limits. |
+| W21 | PASS | Empty map uses eight paper and one compass; no filled-map input or map-extension route among all 16 records. |
+
+### Default prompt - PASS
+
+Before and after the round, GET /prompt has text=null and effectiveText equal to build/prompt-candidates/candidate-11.txt byte for byte. Prompt SHA-256: 0960af8d90bdad1450d1a18c0866aa87799f4dbc257f52ad5326f23c3e0ae7c8. No POST /prompt was made. [Initial prompt](../../build/native-readiness-live/round8/prompt-default-before.json), [initial check](../../build/native-readiness-live/round8/prompt-default-check.json), [final prompt](../../build/native-readiness-live/round8/final-prompt.json), [final check](../../build/native-readiness-live/round8/final-prompt-check.json).
+
+### M5r5 - PASS
+
+Reused the four-worker sand/TNT fixture at (2500..2519,250,2500..2599). World opening completed at 2026-10-26T04:50:13.772Z; fixture work started 15016 ms later, meeting the at-least-15-second delay. Exactly 2,000 unique /player/break operations succeeded in 8694 ms without errors; the longest break HTTP request took 54 ms. Journal event 156 merges all 2,000 sand breaks, event 157 records one TNT explosion destroying nine blocks, and event 158 records the nine exploded stone. The single reply gives the correct counts, and all three returned journal-place links open.
+
+After /world/leave, both full summary lines report offered=written=2002, overflowed 0, failed 0 and hook failures 0. There are 2 slow ticks among 1,131 total, but 0 after the first 200, so the round-8 criterion passes. The slowest tick and Post hook are 9,679 us, at gameplay hook 9 of 3,134; this early outlier is retained and excluded only under the round-7 controller ruling. World start and stop is 3 ms on the server summary and 9 ms on the writer summary. Both lines are quoted below. The save reopened successfully. Bridge latency and a still screenshot do not establish a continuous visual no-stall trace; the round-8 summary criterion is the basis for this PASS. No workload or question was rerun.
+
+Evidence: [world-open-timing.json](../../build/native-readiness-live/round8/world-open-timing.json), [m5-start-timing.json](../../build/native-readiness-live/round8/m5-start-timing.json), [m5-fixture.json](../../build/native-readiness-live/round8/m5-fixture.json), [m5-break-all.json](../../build/native-readiness-live/round8/m5-break-all.json), [m5-break-timing.json](../../build/native-readiness-live/round8/m5-break-timing.json), [m5-explosion.json](../../build/native-readiness-live/round8/m5-explosion.json), [journal-event-audit.json](../../build/native-readiness-live/round8/journal-event-audit.json), [m5r5-world-leave.json](../../build/native-readiness-live/round8/m5r5-world-leave.json), [m5r5-logging-check.json](../../build/native-readiness-live/round8/m5r5-logging-check.json), [m5r5-latest.log](../../build/native-readiness-live/round8/m5r5-latest.log), [m5r5-world-reopen.json](../../build/native-readiness-live/round8/m5r5-world-reopen.json).
+
+Both full `PackSage journal:` summary lines after /world/leave:
+
+```text
+[26Oct2026 12:51:09.461] [Server thread/INFO] [PackSage/]: PackSage journal: offered 2002, written 2002 (overflowed 0), failed 0, hook failures 0, dropped explosion positions 0, unread explosion positions 0, tracker evictions 0, oversized snapshots 0, slowest batch 1 ms, hooks 113 ms total, slowest tick 9679 us, ticks at or over 1 ms 2 of 1131 (0 after the first 200), slowest hook Post 9679 us (gameplay hook 9 of 3134), world start and stop 3 ms
+[26Oct2026 12:51:09.464] [packsage-journal/INFO] [PackSage/]: PackSage journal: offered 2002, written 2002 (overflowed 0), failed 0, hook failures 0, dropped explosion positions 0, unread explosion positions 0, tracker evictions 0, oversized snapshots 0, slowest batch 1 ms, hooks 119 ms total, slowest tick 9679 us, ticks at or over 1 ms 2 of 1131 (0 after the first 200), slowest hook Post 9679 us (gameplay hook 9 of 3134), world start and stop 9 ms
+```
+
+Question: `what did I just dig up and blow up?`
+
+Request `6935139f-014d-497b-9dde-f38469af8d07`; conversation `40eebb54-0b87-404b-930d-e08f60cc459a`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round8/m5r5-journal.json), [submission](../../build/native-readiness-live/round8/m5r5-journal-input.json), [wall timing](../../build/native-readiness-live/round8/m5r5-journal-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_gHpVdtoNkYLFSkXJml84633r",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 15
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break",
+          "explosion"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 3,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You just dug up **2,000 sand blocks** in the Overworld, across (2500–2519, 250, 2500–2599). [journal:event:156]
+
+Then **TNT exploded** at (2534, 254, 2506), breaking **9 stone blocks** nearby. [journal:event:157] [journal:event:158]
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round8/m5r5-journal-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|2532,253,2505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2534,254,2506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2500,250,2500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":14213,"modelTerminalMs":"12191","toolWallMs":"31","persistMs":"11"}.
+
+
+### A1r4 - PASS
+
+plan_recipe(identity=minecraft:beacon, quantity=1, depth=3) returns three records. The leading minecraft:beacon record is COMPLETE and requires five glass, one Nether star and three obsidian for one beacon. The glass expansion uses five batches. Aggregate PARTIAL explicitly names the Nature's Aura altar/sand source coverage, unknown catalysts/remainders, UNKNOWN decoding, and materials with no recipe found subject to the capped/unreadable/computed-result caveat. This meets the requested route/detail clause.
+
+In the next dependent provider round, read_loot(entity=minecraft:wither) returns COMPLETE with an empty table. The reply supplies the beacon quantities, grid and glass-smelting option. This question is the original A1 wording, not the from-scratch A3 wording; the earlier A3 reply-compliance failure is not rerun or reclassified here. No native recipe navigation targets are returned, as expected under the round-2 controller ruling that v2 has no recipe viewer.
+
+Evidence: [a1r4-beacon-recipe-audit.json](../../build/native-readiness-live/round8/a1r4-beacon-recipe-audit.json).
+
+Leading recipe input/output totals:
+
+```json
+[
+  {
+    "reference": "native:plan|minecraft:beacon|1|3|0|minecraft:beacon",
+    "coverage": "COMPLETE",
+    "canonicalRecipeId": "minecraft:beacon",
+    "requiredInputTotals": [
+      {
+        "type": "item",
+        "comparisonIdentity": "minecraft:glass",
+        "components": {},
+        "quantity": 5
+      },
+      {
+        "type": "item",
+        "comparisonIdentity": "minecraft:nether_star",
+        "components": {},
+        "quantity": 1
+      },
+      {
+        "type": "item",
+        "comparisonIdentity": "minecraft:obsidian",
+        "components": {},
+        "quantity": 3
+      }
+    ],
+    "outputs": [
+      {
+        "type": "item",
+        "comparisonIdentity": "minecraft:beacon",
+        "components": {},
+        "quantity": 1
+      }
+    ],
+    "batches": 1,
+    "producedQuantity": 1
+  }
+]
+```
+
+Question: `how do I make a beacon?`
+
+Request `0b0849ae-a450-47c7-bf19-f43c0373e8b6`; conversation `b6f8ad01-0a4a-4271-b8a5-90e5d9120cfa`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round8/a1r4-beacon.json), [submission](../../build/native-readiness-live/round8/a1r4-beacon-input.json), [wall timing](../../build/native-readiness-live/round8/a1r4-beacon-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_SiYnAXFCl9nry8AxeBzuRvPa",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:beacon",
+      "quantity": 1,
+      "depth": 3
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "source-coverage=PARTIAL:naturesaura:altar/sand; constraint=catalysts=unknown:naturesaura:altar/sand; constraint=remainders=unknown:naturesaura:altar/sand; decoding-status=UNKNOWN:naturesaura:altar/sand; materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:red_sand, minecraft:nether_star, minecraft:obsidian]",
+    "recordCount": 3,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_sHK0UKuNasJEjqNmjyueoTlg",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": "minecraft:wither",
+      "place": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "this table drops nothing",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+````text
+To craft **one beacon**, use a crafting table with **5 glass, 1 Nether Star, and 3 obsidian** in this pattern: [native:plan|minecraft:beacon|1|3|0|minecraft:beacon]
+
+```text
+Glass       Glass        Glass
+Glass       Nether Star  Glass
+Obsidian    Obsidian     Obsidian
+```
+
+If you need the glass, smelt **5 sand or red sand**. [native:plan|minecraft:beacon|1|3|1|minecraft:glass]
+````
+
+`/navigate` results ([raw](../../build/native-readiness-live/round8/a1r4-beacon-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":21486,"modelTerminalMs":"20153","toolWallMs":"67","persistMs":"2"}.
+
+
+### W21 - PASS
+
+plan_recipe(identity=minecraft:map, quantity=1, depth=2) returns 16 records. Exactly one route outputs minecraft:map: minecraft:map, with eight paper surrounding one compass, producing one empty map. Across all 16 records, no input is minecraft:filled_map and no canonical recipe is a map-extension recipe. The reply gives the same paper/compass grid and the correct compass and paper ingredient recipes.
+
+The aggregate plan is PARTIAL because iron_ingot and redstone hit the depth bound and sugar_cane has no recipe found subject to the computed-result caveat. That concrete limit does not change the complete leading empty-map inputs. No recipe navigation targets are returned, consistently with the existing native-viewer ruling.
+
+Evidence: [w21-map-route-check.json](../../build/native-readiness-live/round8/w21-map-route-check.json), [w21-map-recipe-audit.json](../../build/native-readiness-live/round8/w21-map-recipe-audit.json).
+
+Leading recipe input/output totals:
+
+```json
+[
+  {
+    "reference": "native:plan|minecraft:map|1|2|0|minecraft:map",
+    "coverage": "COMPLETE",
+    "canonicalRecipeId": "minecraft:map",
+    "requiredInputTotals": [
+      {
+        "type": "item",
+        "comparisonIdentity": "minecraft:paper",
+        "components": {},
+        "quantity": 8
+      },
+      {
+        "type": "item",
+        "comparisonIdentity": "minecraft:compass",
+        "components": {},
+        "quantity": 1
+      }
+    ],
+    "outputs": [
+      {
+        "type": "item",
+        "comparisonIdentity": "minecraft:map",
+        "components": {},
+        "quantity": 1
+      }
+    ],
+    "batches": 1,
+    "producedQuantity": 1
+  }
+]
+```
+
+Question: `how do I make a map?`
+
+Request `3be828fc-dc84-42d3-9ba9-f8539ae7068f`; conversation `799e7bca-f239-4c96-a09f-aa25eca8b6e0`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round8/w21-map.json), [submission](../../build/native-readiness-live/round8/w21-map-input.json), [wall timing](../../build/native-readiness-live/round8/w21-map-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_dkRbqQhiwSKeXTUX4x6wjz1b",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:map",
+      "quantity": 1,
+      "depth": 2
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "bounded-depth:minecraft:iron_ingot; bounded-depth:minecraft:redstone; materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:sugar_cane]",
+    "recordCount": 16,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Use a **crafting table**: put a **compass in the center** of the 3×3 grid and **paper in all eight surrounding slots**. That makes one map. [native:plan|minecraft:map|1|2|0|minecraft:map]
+
+To make the ingredients, craft a compass from **4 iron ingots and 1 redstone**, and craft paper from sugar cane—**3 sugar cane make 3 paper**. [native:plan|minecraft:map|1|2|2|minecraft:compass] [native:plan|minecraft:map|1|2|1|minecraft:paper]
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round8/w21-map-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":14508,"modelTerminalMs":"12453","toolWallMs":"9","persistMs":"15"}.
+
+### Final state
+
+Round 8: **3 PASS, 0 FAIL, 0 NOT RUN**, plus default-prompt PASS. All 3 requests completed and saved in 3 fresh conversations, with 4 tool calls and no retries. All 3 navigation attempts returned OPENED. Earlier failures remain recorded under their existing rulings; no older check is reclassified by this round. [Evidence completeness](../../build/native-readiness-live/round8/evidence-completeness.json).
+
+Minecraft remains running and unpaused in PackSage Adapter Filter Live Test, with the debug bridge enabled, menu closed and player not riding. Final GET /prompt has text=null and exact candidate 11. The installed JAR hash is unchanged; the checkout remained at the installed source HEAD until this validation-only change. The player was returned to (1191.5,250,1057.5) and the original look direction, and all 21 temporary M5 force-loaded chunks were released. Daylight settings were not changed. [Cleanup](../../build/native-readiness-live/round8/cleanup.json), [final state](../../build/native-readiness-live/round8/final-state.json), [final verification](../../build/native-readiness-live/round8/final-verification.json), [screenshot](../../build/native-readiness-live/round8/final-state.png). Only this validation file is committed; raw evidence remains ignored under build/native-readiness-live/round8/.

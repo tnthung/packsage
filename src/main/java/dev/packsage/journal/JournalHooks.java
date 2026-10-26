@@ -70,6 +70,7 @@ public final class JournalHooks {
         boolean polling = true;
         boolean raidPolling = true;
         int ticks;
+        long openingNanos;
         long reportedEvictions;
         long reportedOversized;
         long lastOverflowLogNanos = System.nanoTime();
@@ -104,12 +105,14 @@ public final class JournalHooks {
         newSession();
         session.server = server;
         var overworld = server.overworld();
+        long opening = System.nanoTime();
         journal.open(server.getWorldPath(LevelResource.ROOT).resolve("packsage").resolve("journal.db"),
                 overworld::getGameTime);
+        session.openingNanos += System.nanoTime() - opening;
     }
 
     /** The whole handler, including server lookup and data extraction, is inside this failure boundary. */
-    private void hook(Consumer<MinecraftServer> action) {
+    private void hook(Object source, Consumer<MinecraftServer> action) {
         long started = 0;
         boolean serverThread = false;
         try {
@@ -125,17 +128,27 @@ public final class JournalHooks {
         } finally {
             if (serverThread) {
                 session.updateStats(journal.stats());
-                journal.stats().hookNanos(System.nanoTime() - started);
+                long elapsed = System.nanoTime() - started;
+                long opening = Math.min(session.openingNanos, elapsed);
+                session.openingNanos = 0;
+                // Opening and closing with the world are not gameplay work, so they stay out of the per-tick figure.
+                if (source instanceof ServerStartedEvent || source instanceof ServerStoppingEvent || source instanceof ServerStoppedEvent
+                        || "world start".equals(source)) {
+                    journal.stats().worldStartStopNanos(elapsed);
+                } else {
+                    if (opening > 0) journal.stats().worldStartStopNanos(opening);
+                    journal.stats().hookNanos(source instanceof String text ? text : source.getClass().getSimpleName(), elapsed - opening);
+                }
             }
         }
     }
 
     public void register(IEventBus bus) {
-        bus.addListener(EventPriority.NORMAL, false, ServerStartedEvent.class, event -> hook(server -> {
+        bus.addListener(EventPriority.NORMAL, false, ServerStartedEvent.class, event -> hook(event, server -> {
             if (server == null || event.getServer() != server) return;
             start(server);
         }));
-        bus.addListener(EventPriority.NORMAL, false, ServerStoppingEvent.class, event -> hook(server -> {
+        bus.addListener(EventPriority.NORMAL, false, ServerStoppingEvent.class, event -> hook(event, server -> {
             if (server == null || event.getServer() != server) return;
             session.polling = false;
             for (var player : server.getPlayerList().getPlayers()) {
@@ -147,14 +160,14 @@ public final class JournalHooks {
                 }
             }
         }));
-        bus.addListener(EventPriority.NORMAL, false, ServerStoppedEvent.class, event -> hook(server -> {
+        bus.addListener(EventPriority.NORMAL, false, ServerStoppedEvent.class, event -> hook(event, server -> {
             if (server == null || event.getServer() != server) return;
             session.polling = false;
             PackSageLog.LOGGER.info("PackSage {}", journal.stats().summary());
             journal.close();
             session.server = null;
         }));
-        bus.addListener(EventPriority.LOWEST, false, BlockEvent.BreakEvent.class, event -> hook(server -> {
+        bus.addListener(EventPriority.LOWEST, false, BlockEvent.BreakEvent.class, event -> hook(event, server -> {
             if (server == null || !(event.getLevel() instanceof ServerLevel level) || level.isClientSide()
                     || level.getServer() != server || !(event.getPlayer() instanceof ServerPlayer player)) return;
             var pos = event.getPos();
@@ -162,7 +175,7 @@ public final class JournalHooks {
                     level.dimension().location().toString()), "player:" + player.getUUID(), player.getScoreboardName(),
                     BuiltInRegistries.BLOCK.getKey(event.getState().getBlock()).toString(), pos.getX(), pos.getY(), pos.getZ()));
         }));
-        bus.addListener(EventPriority.LOWEST, false, BlockEvent.EntityPlaceEvent.class, event -> hook(server -> {
+        bus.addListener(EventPriority.LOWEST, false, BlockEvent.EntityPlaceEvent.class, event -> hook(event, server -> {
             if (server == null || !(event.getLevel() instanceof ServerLevel level) || level.isClientSide()
                     || level.getServer() != server || !(event.getEntity() instanceof ServerPlayer player)) return;
             var pos = event.getPos();
@@ -170,7 +183,7 @@ public final class JournalHooks {
                     level.dimension().location().toString()), "player:" + player.getUUID(), player.getScoreboardName(),
                     BuiltInRegistries.BLOCK.getKey(event.getPlacedBlock().getBlock()).toString(), pos.getX(), pos.getY(), pos.getZ()));
         }));
-        bus.addListener(EventPriority.LOWEST, false, ExplosionEvent.Detonate.class, event -> hook(server -> {
+        bus.addListener(EventPriority.LOWEST, false, ExplosionEvent.Detonate.class, event -> hook(event, server -> {
             if (server == null || !(event.getLevel() instanceof ServerLevel level) || level.isClientSide() || level.getServer() != server) return;
             var explosion = event.getExplosion();
             var source = explosion.getIndirectSourceEntity();
@@ -185,7 +198,7 @@ public final class JournalHooks {
                         return state.isAir() ? null : BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
                     }, journal.stats())).forEach(journal::record);
         }));
-        bus.addListener(EventPriority.LOWEST, false, PlayerInteractEvent.RightClickBlock.class, event -> hook(server -> {
+        bus.addListener(EventPriority.LOWEST, false, PlayerInteractEvent.RightClickBlock.class, event -> hook(event, server -> {
             if (server == null || !(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide()
                     || player.getServer() != server) return;
             var pos = event.getPos();
@@ -193,7 +206,7 @@ public final class JournalHooks {
                     BuiltInRegistries.BLOCK.getKey(player.level().getBlockState(pos).getBlock()).toString(),
                     player.level().dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ(), null), server.overworld().getGameTime());
         }));
-        bus.addListener(EventPriority.LOWEST, false, PlayerInteractEvent.EntityInteract.class, event -> hook(server -> {
+        bus.addListener(EventPriority.LOWEST, false, PlayerInteractEvent.EntityInteract.class, event -> hook(event, server -> {
             if (server == null || !(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide()
                     || player.getServer() != server) return;
             var entity = event.getTarget();
@@ -202,17 +215,17 @@ public final class JournalHooks {
                     entity.level().dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ(), entity.getStringUUID()),
                     server.overworld().getGameTime());
         }));
-        bus.addListener(EventPriority.NORMAL, false, PlayerContainerEvent.Open.class, event -> hook(server -> {
+        bus.addListener(EventPriority.NORMAL, false, PlayerContainerEvent.Open.class, event -> hook(event, server -> {
             if (server == null || !(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide()
                     || player.getServer() != server || !session.polling) return;
             openContainer(player, event.getContainer(), server.overworld().getGameTime());
         }));
-        bus.addListener(EventPriority.NORMAL, false, PlayerContainerEvent.Close.class, event -> hook(server -> {
+        bus.addListener(EventPriority.NORMAL, false, PlayerContainerEvent.Close.class, event -> hook(event, server -> {
             if (server == null || !(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide()
                     || player.getServer() != server) return;
             closeContainer(player, event.getContainer());
         }));
-        bus.addListener(EventPriority.LOWEST, false, LivingDeathEvent.class, event -> hook(server -> {
+        bus.addListener(EventPriority.LOWEST, false, LivingDeathEvent.class, event -> hook(event, server -> {
             var victim = event.getEntity();
             if (server == null || !(victim.level() instanceof ServerLevel level) || level.isClientSide() || level.getServer() != server) return;
             var cause = event.getSource();
@@ -237,7 +250,7 @@ public final class JournalHooks {
             JournalEvents.death(stamp, facts).ifPresent(journal::record);
             JournalEvents.kill(stamp, facts).ifPresent(journal::record);
         }));
-        bus.addListener(EventPriority.LOWEST, false, EntityTravelToDimensionEvent.class, event -> hook(server -> {
+        bus.addListener(EventPriority.LOWEST, false, EntityTravelToDimensionEvent.class, event -> hook(event, server -> {
             if (server == null || !(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide()
                     || player.getServer() != server) return;
             var pos = player.blockPosition();
@@ -256,7 +269,7 @@ public final class JournalHooks {
                 }
             }
         }));
-        bus.addListener(EventPriority.NORMAL, false, PlayerEvent.PlayerChangedDimensionEvent.class, event -> hook(server -> {
+        bus.addListener(EventPriority.NORMAL, false, PlayerEvent.PlayerChangedDimensionEvent.class, event -> hook(event, server -> {
             if (server == null || !(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide()
                     || player.getServer() != server) return;
             var time = server.overworld().getGameTime();
@@ -273,7 +286,7 @@ public final class JournalHooks {
                     "player:" + player.getUUID(), destination, portal.orElse(null),
                     new BlockPlace(destination, pos.getX(), pos.getY(), pos.getZ()), last.get()));
         }));
-        bus.addListener(EventPriority.NORMAL, false, AdvancementEvent.AdvancementEarnEvent.class, event -> hook(server -> {
+        bus.addListener(EventPriority.NORMAL, false, AdvancementEvent.AdvancementEarnEvent.class, event -> hook(event, server -> {
             if (server == null || !(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide()
                     || player.getServer() != server) return;
             var display = event.getAdvancement().value().display();
@@ -283,7 +296,7 @@ public final class JournalHooks {
                     player.level().dimension().location().toString()), "player:" + player.getUUID(), event.getAdvancement().id().toString(),
                     display.get().getTitle().getString(), pos.getX(), pos.getY(), pos.getZ()));
         }));
-        bus.addListener(EventPriority.NORMAL, false, LivingConversionEvent.Post.class, event -> hook(server -> {
+        bus.addListener(EventPriority.NORMAL, false, LivingConversionEvent.Post.class, event -> hook(event, server -> {
             var before = event.getEntity();
             if (server == null || !(before.level() instanceof ServerLevel level) || level.isClientSide() || level.getServer() != server) return;
             var after = event.getOutcome();
@@ -295,7 +308,7 @@ public final class JournalHooks {
                 journal.record(JournalEvents.converted(stamp, before.getStringUUID(), pos.getX(), pos.getY(), pos.getZ()));
             }
         }));
-        bus.addListener(EventPriority.NORMAL, false, TradeWithVillagerEvent.class, event -> hook(server -> {
+        bus.addListener(EventPriority.NORMAL, false, TradeWithVillagerEvent.class, event -> hook(event, server -> {
             if (server == null || !(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide()
                     || player.getServer() != server) return;
             var villager = event.getAbstractVillager();
@@ -310,7 +323,7 @@ public final class JournalHooks {
                     pos.getX(), pos.getY(), pos.getZ()));
         }));
         bus.addListener(EventPriority.NORMAL, false, ServerTickEvent.Post.class, event -> {
-            hook(server -> {
+            hook(event, server -> {
                 if (server == null || event.getServer() != server) return;
                 // Registration can miss ServerStartedEvent before Minecraft publishes isReady.
                 start(server);
@@ -329,7 +342,7 @@ public final class JournalHooks {
         });
         try {
             var server = integrated.get();
-            if (server != null) server.execute(() -> hook(current -> {
+            if (server != null) server.execute(() -> hook("world start", current -> {
                 // Queued tasks also run while paused; no further server tick is required for a ready world.
                 if (current == server && server.isReady()) start(server);
             }));

@@ -160,6 +160,21 @@ class JournalHooksTest {
     }
 
     @Test
+    void worldStartAndStopStayOutOfTheGameplayTickFigureAndTheSlowestHookIsNamed() {
+        var stats = new JournalStats();
+        stats.worldStartStopNanos(5_000_000);
+        stats.hookNanos("BreakEvent", 200_000);
+        stats.hookNanos("Detonate", 400_000);
+        stats.endTick();
+        assertEquals(600_000, stats.maxHookNanosPerTick.get());
+        var summary = stats.summary();
+        assertTrue(summary.contains("slowest tick 600 us"), summary);
+        assertTrue(summary.contains("slowest hook Detonate 400 us"), summary);
+        assertTrue(summary.contains("world start and stop 5 ms"), summary);
+        assertTrue(summary.contains("hooks 5 ms total"), summary);
+    }
+
+    @Test
     void summariesLogAtStopAndAtMostOnceAMinuteWhileOverflowGrows(@TempDir Path dir) throws Exception {
         var field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
         field.setAccessible(true);

@@ -36258,3 +36258,1468 @@ Minecraft remains running and unpaused in PackSage Adapter Filter Live Test at t
 - **A3r: prompt compliance, still FAIL on candidate 10.** Candidate 11, promoted in 71b7ff5, keeps candidate 10's rule and adds Astra's exception for capped searches. The plan detail now says outright that these materials are "materials with no recipe here, obtained rather than crafted" (01fbe92). Round 5 checks A3 against the installed default.
 - **M5r: threshold not met, investigation instrumented.** The run is otherwise complete: 2,005 events offered and written, none overflowed or failed. The per-tick figure included world start and stop, for example the journal opening on the first tick. That work is now counted separately, and the summary names the slowest single hook and its event (1fa5ebc). Round 5 reruns M5 to show whether a gameplay tick exceeds 1 ms.
 - **J8r, W11r, N2, W18r, P9/J7r: PASS.** The mount-inventory lookup is now one bounded match within the screen's 8-block reach (5322be0), so J8 is rechecked once in round 5.
+
+## Native readiness round 5
+
+Date: 2026-10-26 (Asia/Taipei). Main checkout `D:/Project/packsage`, branch `feat/packsage-v2`; installed HEAD `91750c26cd10f75b2b8b4a3ca6d0bd7ef0873bd4`; installed JAR SHA-256 `357E850CBD172D3D9E98424E8E147A574A01213E95ABA187FF511F4AF418609D`. [Install metadata](../../build/native-readiness-live/round5/install-metadata.json), [build/install log](../../build/native-readiness-live/round5/build-install.log), [wrapper exit](../../build/native-readiness-live/round5/build-exit.json).
+
+The bridge completed /world/leave then /game/quit. No PackSage javaw remained before scripts/build.ps1; Gradle test/build were up to date and successful, wrapper exit 0, and built/installed hashes match. CurseForge relaunched the instance without desktop interruption, and /world/open entered PackSage Adapter Filter Live Test. Computer use was confined to relaunch. No source edits, branch changes, worktrees or model-setting changes were made by this tester. [Preinstall observation](../../build/native-readiness-live/round5/preinstall.json), [leave](../../build/native-readiness-live/round5/install-world-leave.json), [quit](../../build/native-readiness-live/round5/install-game-quit.json), [world open](../../build/native-readiness-live/round5/installed-world-open.json).
+
+The checkout advanced during testing with external commits d378ba6 (final-rereview documentation), 33aa9f9 (mount menu owner) and 5508b3d (incomplete recipe lookup). Concurrent source edits were left untouched. The final game-state capture predates the last two commits, and the installed JAR hash stayed unchanged. This evidence applies to installed HEAD 91750c2, without claiming installed acceptance for those later source changes.
+
+No developer prompt override was set at any point in this round. GET /prompt before the first question and at the end returned text=null and effectiveText equal to candidate-11.txt byte for byte (SHA-256 0960af8d90bdad1450d1a18c0866aa87799f4dbc257f52ad5326f23c3e0ae7c8). Every question starts a fresh chat. Each was submitted once; no transport/provider failure or model retry occurred. A local inspection command quoting error happened before any HTTP submission and did not create a request. Fixture exceptions are recorded under J8r2. All token-free request/response bodies are in the [HTTP ledger](../../build/native-readiness-live/round5/http.jsonl). Calls below retain exact arguments, provider-round call groups, coverage/detail, continuations, verbatim replies, navigation and timing. Controller rulings apply, including no native recipe viewer and the explicit J8r withdrawal-coordinate requirement.
+
+| Check | Status | Observation |
+|---|---|---|
+| D3 | PASS | No override; installed effectiveText equals candidate 11 byte for byte before and after the round. |
+| A3r2 | FAIL | The from-scratch beacon answer still omits obsidian acquisition or the returned no-recipe limit. |
+| M5r2 | FAIL | All 2,000 sand breaks and TNT/9 stone are recorded, with zero overflow, but the slowest gameplay tick is 3,091 us and the named slowest hook is Post. |
+| J8r2 | FAIL | Ridden donkey deposit/withdrawal and local-day filtering work, but the withdrawal reply omits the donkey amounts and coordinates required by J8r. |
+| N3 | PASS | One new build note follows its move and opens at the new place; plain/today questions create no note, and today uses local midnight with a complete continuation. |
+| A1r3 | PASS | The oak-planks plan returns complete leading inputs, correct 1-log-to-4-planks yield and a concrete PARTIAL raw-material detail. |
+
+### Passing checks and checks not run
+
+#### D3 - PASS
+
+No override; installed effectiveText equals candidate 11 byte for byte before and after the round.
+
+
+
+Evidence: [prompt-default-check.json](../../build/native-readiness-live/round5/prompt-default-check.json).
+
+Evidence: [final-prompt-check.json](../../build/native-readiness-live/round5/final-prompt-check.json).
+
+
+#### N3 - PASS
+
+One new build note follows its move and opens at the new place; plain/today questions create no note, and today uses local midnight with a complete continuation.
+
+remember creates ne6b5cba5 at (2320,250,2320). update_note updates that same ID with at=player and clearPlace=null to (2350,250,2320); recall gives those coordinates and its note target opens. The search also returns a pre-existing unanchored amber observatory archive note n17c90a15 from an earlier round; it is distinct and was not modified or duplicated. No report/move/recall reply mentions saving. The plain beacon question calls only search_registry, and the today question calls only search_journal. Today is after=2026-10-26T00:00:00+08:00; the second page uses the exact returned cursor and unchanged filter, returning 64 then 27 records and COMPLETE. The reply calls the build reports player reports, gives the correct local date/time, and describes recorded highlights. No question is saved as a note. Historical note-search PARTIAL detail explicitly identifies the old recording gap, rather than silently claiming complete history. All returned navigation targets are tested, including those not visibly cited in the final reply.
+
+Evidence: [n3-fixture.json](../../build/native-readiness-live/round5/n3-fixture.json).
+
+Evidence: [n3-report-state.json](../../build/native-readiness-live/round5/n3-report-state.json).
+
+Evidence: [n3-move-position.json](../../build/native-readiness-live/round5/n3-move-position.json).
+
+Evidence: [n3-move-state.json](../../build/native-readiness-live/round5/n3-move-state.json).
+
+Question: `I built an amber observatory here`
+
+Request `a09c755c-4ab9-40d7-9ae1-1df3d942b83f`; conversation `2a781114-2c4e-494f-8a1e-e61cfc055a44`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round5/n3-report.json), [submission](../../build/native-readiness-live/round5/n3-report-input.json), [wall timing](../../build/native-readiness-live/round5/n3-report-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "remember",
+    "arguments": {
+      "text": "I built an amber observatory here.",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "observatory"
+      ]
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+An amber observatory—nice!
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round5/n3-report-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-note|ne6b5cba5",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":12683,"modelTerminalMs":"11377","toolWallMs":"30","persistMs":"8"}.
+
+Question: `I moved my amber observatory`
+
+Request `40cbf292-f2f2-44e9-9c7c-2068b8474e73`; conversation `3d62798a-136b-44e7-bea3-236166ab5853`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round5/n3-move.json), [submission](../../build/native-readiness-live/round5/n3-move-input.json), [wall timing](../../build/native-readiness-live/round5/n3-move-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "amber observatory",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 2,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "update_note",
+    "arguments": {
+      "text": "I moved my amber observatory here.",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "observatory"
+      ],
+      "id": "ne6b5cba5",
+      "clearPlace": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Got it—your amber observatory is at its new spot.
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round5/n3-move-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-note|ne6b5cba5",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":16326,"modelTerminalMs":"15001","toolWallMs":"38","persistMs":"9"}.
+
+Question: `where is my amber observatory?`
+
+Request `a14f5105-6ab6-423b-8c63-bc65d0e8da0e`; conversation `2c3edb5c-7ead-4431-8f3c-83f439eb06c3`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round5/n3-recall.json), [submission](../../build/native-readiness-live/round5/n3-recall-input.json), [wall timing](../../build/native-readiness-live/round5/n3-recall-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "amber observatory",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 2,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You told me you moved your **amber observatory** to **(2350, 250, 2320) in the Overworld**—the same coordinates as your current position. [Go to your observatory](journal:note:ne6b5cba5)
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round5/n3-recall-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-note|ne6b5cba5",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":12169,"modelTerminalMs":"10321","toolWallMs":"2","persistMs":"9"}.
+
+Question: `what is a beacon?`
+
+Request `5c18423b-de0c-4c1e-aea3-14e2b30a64ec`; conversation `02ce3367-c6fa-4e7d-9bde-b2eba8cfa2ca`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round5/n3-plain.json), [submission](../../build/native-readiness-live/round5/n3-plain-input.json), [wall timing](../../build/native-readiness-live/round5/n3-plain-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "block",
+      "filter": {
+        "text": "beacon",
+        "ids": null,
+        "tags": null,
+        "provider": null
+      },
+      "limit": 10,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+A **beacon** is a Minecraft block that marks a location with a beam of light and gives nearby players helpful effects when it sits on a pyramid of mineral blocks. A larger pyramid unlocks more effect choices. In your installed game, it’s the standard Minecraft beacon block. [native:block:minecraft:beacon] ([minecraft.net](https://www.minecraft.net/sv-se/article/ten-rare-recipes))
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round5/n3-plain-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":20269,"modelTerminalMs":"18824","toolWallMs":"14","persistMs":"9"}.
+
+Question: `what did I do today?`
+
+Request `e3f9ba05-1553-40fc-a24c-c74b6ab99fe3`; conversation `dd9c6e45-a915-477e-8c1a-aeea37952ece`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round5/n3-today.json), [submission](../../build/native-readiness-live/round5/n3-today-input.json), [wall timing](../../build/native-readiness-live/round5/n3-today-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": "2026-10-26T00:00:00+08:00",
+          "before": null,
+          "lastMinutes": null
+        },
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; more journal entries are available; continue with the cursor",
+    "recordCount": 64,
+    "nextCursor": "3693b896-5ed2-429a-9749-2eb579ed3a9d",
+    "nextCall": {
+      "name": "search_journal",
+      "arguments": {
+        "filter": {
+          "time": {
+            "after": "2026-10-26T00:00:00+08:00",
+            "before": null,
+            "lastMinutes": null
+          },
+          "area": null,
+          "dimension": null,
+          "types": null,
+          "subjects": null,
+          "text": null,
+          "notesOnly": false
+        },
+        "cursor": "3693b896-5ed2-429a-9749-2eb579ed3a9d"
+      }
+    }
+  },
+  {
+    "group": "2",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": "2026-10-26T00:00:00+08:00",
+          "before": null,
+          "lastMinutes": null
+        },
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": "3693b896-5ed2-429a-9749-2eb579ed3a9d"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 27,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+**Today—October 26, through about 11:58 a.m. your local time—you:**
+
+- **Reported building and moving** your indigo orchard to (2350, 250, 2320) [journal:note:n1899bc0b], lapis workshop to (1740, 55, 1700) [journal:note:naeae8c78], and amber observatory to (2350, 250, 2320) [journal:note:ne6b5cba5]. These are your reports, not builds the journal independently verified.
+- **Broke about 12,000 sand blocks** across several areas, including the area beginning at (2501, 250, 2500) [journal:event:126]. Several TNT explosions were also recorded; one at (2534, 254, 2506) destroyed nine blocks [journal:event:127].
+- **Visited the Nether and returned**, including a later trip from (1603, 250, 1603) [journal:event:79] [journal:event:80]. You traded for eight bread with a farmer at (1605, 250, 1604) [journal:event:91] and earned *What a Deal!* at (1603, 250, 1603) [journal:event:90].
+- **Entered a plains village** at (1872, 70, 864) [journal:event:92]. A raid at (1867, 66, 877) ended in a loss [journal:event:97] [journal:event:107], with villager deaths recorded nearby [journal:event:99] [journal:event:98].
+- **Were slain by Readiness Zed** at (1603, 250, 1603) [journal:event:88]. The journal also records a wolf killed by that zombie at (1604, 250, 1606) [journal:event:84].
+
+That’s a summary of the recorded highlights, not every block and inventory change.
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round5/n3-today-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-note|ne6b5cba5",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2532,253,2505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2534,254,2506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2501,250,2500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2532,253,2505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2534,254,2506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2500,250,2500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-note|naeae8c78",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2700,250,2702",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2700,250,2700",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2532,253,2505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2534,254,2506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2501,250,2500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2322,250,2320",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1533,253,1506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1534,254,1506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1500,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1604",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-note|n1899bc0b",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2322,250,2320",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1867,66,877",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1898,68,871",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1898,69,872",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1874,64,898",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1861,65,891",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1832,67,849",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1832,67,850",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1833,67,849",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1867,64,904",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1874,67,879",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1867,66,877",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1863,64,906",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1871,62,907",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1844,65,821",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1877,68,875",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1872,70,864",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1604",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1603,250,1603",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1605",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1603,250,1603",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1607,250,1607",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1607,250,1607",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1606,250,1606",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1604,250,1606",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1603,250,1603",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1604,250,1605",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1601,250,1601",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:the_nether|1603,122,1603",
+    "result": {
+      "status": "OPENED",
+      "detail": "1603, 122, 1603 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1603,250,1603",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1602,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1501,250,1550",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1511,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1501,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1531,253,1505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1533,254,1505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1500,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1533,247,1505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1097,250,1021",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1097,250,1021",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1097,250,1021",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1100,250,1025",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1121,100,1121",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1121,100,1121",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1003,250,1005",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1101,100,1100",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1121,100,1121",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1121,100,1121",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1032,250,1020",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1032,250,1020",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1032,250,1020",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1032,250,1020",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:the_nether|130,70,116",
+    "result": {
+      "status": "OPENED",
+      "detail": "130, 70, 116 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1003,250,1002",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:the_nether|130,70,116",
+    "result": {
+      "status": "OPENED",
+      "detail": "130, 70, 116 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1051,251,1000",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:the_nether|122,98,116",
+    "result": {
+      "status": "OPENED",
+      "detail": "122, 98, 116 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1148,140,1170",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1156,139,1173",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1153,140,1168",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1156,141,1171",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1150,140,1150",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1032,250,1020",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1032,250,1020",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":26882,"modelTerminalMs":"25461","toolWallMs":"28","persistMs":"9"}.
+
+
+#### A1r3 - PASS
+
+The oak-planks plan returns complete leading inputs, correct 1-log-to-4-planks yield and a concrete PARTIAL raw-material detail.
+
+Selected one A1 question as requested: how do I make oak planks? plan_recipe(oak_planks, quantity=4, depth=2) returns the routes and names oak_log/stripped_oak_log as obtained materials without recipes. The reply gives one log to four planks and compatible oak alternatives. No recipe navigation target exists in v2, so the absence of /navigate attempts is correct under the controller ruling.
+
+Question: `how do I make oak planks?`
+
+Request `83417d16-32aa-4110-8d14-6eefab71a9c4`; conversation `298a76b4-647d-431d-ba1f-1d4727ffcf45`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round5/a1r3-planks.json), [submission](../../build/native-readiness-live/round5/a1r3-planks-input.json), [wall timing](../../build/native-readiness-live/round5/a1r3-planks-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:oak_planks",
+      "quantity": 4,
+      "depth": 2
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "materials with no recipe here, obtained rather than crafted=[minecraft:oak_log, minecraft:stripped_oak_log]",
+    "recordCount": 3,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Put **one oak log** in any crafting slot and take the **four oak planks** from the result. Oak wood, stripped oak logs, and stripped oak wood work too. You can use the crafting grid in your inventory. [native:plan|minecraft:oak_planks|4|2|0|minecraft:oak_planks]
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round5/a1r3-planks-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":11062,"modelTerminalMs":"9655","toolWallMs":"10","persistMs":"9"}.
+
+
+### Failures
+
+#### A3r2 - FAIL
+
+Classification: **prompt compliance**. The from-scratch beacon answer still omits obsidian acquisition or the returned no-recipe limit.
+
+plan_recipe explicitly identifies red sand, Nether star and obsidian as materials with no recipe here, obtained rather than crafted. The leading 5 glass + 1 Nether star + 3 obsidian and five glass batches are correct. The reply explains smelting and ordinary Nether star acquisition, but only lists obsidian in the leading ingredients and grid. It never says to obtain it or names its raw-material limit. Candidate 11 therefore does not satisfy the explicit A3 wording criterion. No retry. The loaded Wither table is empty and the reply qualifies that result; native recipe records correctly have no navigation targets under the round-2/3 controller ruling.
+
+Question: `what do I need to make a beacon from scratch?`
+
+Request `e0c24762-386c-4bf4-a81b-86356d7819b3`; conversation `e402d1b6-a7ed-405c-9f0f-bfe158bdd466`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round5/a3r2-beacon.json), [submission](../../build/native-readiness-live/round5/a3r2-beacon-input.json), [wall timing](../../build/native-readiness-live/round5/a3r2-beacon-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:beacon",
+      "quantity": 1,
+      "depth": 5
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "source-coverage=PARTIAL:naturesaura:altar/sand; constraint=catalysts=unknown:naturesaura:altar/sand; constraint=remainders=unknown:naturesaura:altar/sand; decoding-status=UNKNOWN:naturesaura:altar/sand; materials with no recipe here, obtained rather than crafted=[minecraft:red_sand, minecraft:nether_star, minecraft:obsidian]",
+    "recordCount": 3,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": "minecraft:wither",
+      "place": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "this table drops nothing",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_recipe",
+    "arguments": {
+      "filter": {
+        "text": null,
+        "outputItem": "minecraft:beacon",
+        "provider": "native"
+      },
+      "limit": 16,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "scanned=0-1820 of 1820 (ordinary recipes 1539, brewing candidates 281); phase=brewing; matches=1",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+````text
+To **craft one beacon** in your installed pack, you need **5 glass, 3 obsidian, and 1 Nether star**. Smelt 5 sand or red sand for the glass. [native:plan|minecraft:beacon|1|5|0|minecraft:beacon] [native:plan|minecraft:beacon|1|5|1|minecraft:glass]
+
+Arrange them in a crafting table like this: [native:minecraft:beacon]
+
+```text
+Glass     Glass        Glass
+Glass     Nether star  Glass
+Obsidian  Obsidian     Obsidian
+```
+
+**Starting from scratch:** In ordinary Minecraft, you get the Nether star by defeating a Wither. To summon it, gather **4 soul sand and 3 wither skeleton skulls** and build the soul sand in a T shape with the skulls across the top. ([minecraft.net](https://www.minecraft.net/zh-hans/article/taking-inventory--nether-star?utm_source=openai)) Your pack’s loaded Wither loot table reads as empty, though, so that read alone does **not** confirm how its Nether star is awarded. [world:loot|minecraft:entities/wither]
+
+To **use** the crafted beacon for effects, the usual minimum is to put it on a **3×3 base of 9 mineral blocks**—iron, gold, emerald, diamond, or netherite blocks are standard choices. That base is *in addition to* the crafting ingredients. ([minecraft.net](https://www.minecraft.net/sv-se/article/ten-rare-recipes?utm_source=openai))
+````
+
+`/navigate` results ([raw](../../build/native-readiness-live/round5/a3r2-beacon-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":39658,"modelTerminalMs":"38044","toolWallMs":"103","persistMs":"13"}.
+
+
+#### M5r2 - FAIL
+
+Classification: **performance acceptance threshold**. All 2,000 sand breaks and TNT/9 stone are recorded, with zero overflow, but the slowest gameplay tick is 3,091 us and the named slowest hook is Post.
+
+Reused the round-4 platform and TNT fixture. All 2,000 distinct /player/break operations succeeded at concurrency four in 8,630 ms, maximum request 45 ms, with no transport errors. The sole journal question returns exactly 2,000 sand and TNT breaking nine stone, with all three targets opening. /world/leave produced both full journal summaries below: offered=written=2002, overflowed=0, failed=0, hook failures=0. World start/stop is separate (2 ms then 4 ms), while slowest tick and slowest hook Post are both 3091 us. This exceeds the under-1000-us gameplay threshold. No continuous desktop stall observation was made because computer use was restricted to relaunch; bridge responsiveness is the measured proxy. The world was reopened through the bridge, without a game relaunch or test retry.
+
+Evidence: [m5-fixture.json](../../build/native-readiness-live/round5/m5-fixture.json).
+
+Evidence: [m5-break-all.json](../../build/native-readiness-live/round5/m5-break-all.json).
+
+Evidence: [m5-break-timing.json](../../build/native-readiness-live/round5/m5-break-timing.json).
+
+Evidence: [m5-explosion.json](../../build/native-readiness-live/round5/m5-explosion.json).
+
+Evidence: [m5r2-world-leave.json](../../build/native-readiness-live/round5/m5r2-world-leave.json).
+
+Evidence: [m5r2-logging-check.json](../../build/native-readiness-live/round5/m5r2-logging-check.json).
+
+Evidence: [m5r2-latest.log](../../build/native-readiness-live/round5/m5r2-latest.log).
+
+Evidence: [m5r2-world-reopen.json](../../build/native-readiness-live/round5/m5r2-world-reopen.json).
+
+Full `PackSage journal:` summary lines after /world/leave:
+
+```text
+[26Oct2026 11:54:29.300] [Server thread/INFO] [PackSage/]: PackSage journal: offered 2002, written 2002 (overflowed 0), failed 0, hook failures 0, dropped explosion positions 0, unread explosion positions 0, tracker evictions 0, oversized snapshots 0, slowest batch 1 ms, hooks 77 ms total, slowest tick 3091 us, slowest hook Post 3091 us, world start and stop 2 ms
+[26Oct2026 11:54:29.304] [packsage-journal/INFO] [PackSage/]: PackSage journal: offered 2002, written 2002 (overflowed 0), failed 0, hook failures 0, dropped explosion positions 0, unread explosion positions 0, tracker evictions 0, oversized snapshots 0, slowest batch 1 ms, hooks 79 ms total, slowest tick 3091 us, slowest hook Post 3091 us, world start and stop 4 ms
+```
+
+Question: `what did I just dig up and blow up?`
+
+Request `5f9380de-f71e-4b50-ba2c-78e14388c3d1`; conversation `9a1b04d0-ec8a-4342-a6ae-2e6436bdaba1`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round5/m5r2-journal.json), [submission](../../build/native-readiness-live/round5/m5r2-journal-input.json), [wall timing](../../build/native-readiness-live/round5/m5r2-journal-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 15
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break",
+          "explosion"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 3,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You just dug up **2,000 sand blocks** in the Overworld, across the area from (2500, 250, 2500) to (2519, 250, 2599). [Dig site](journal:event:126)
+
+Then **TNT exploded at (2534, 254, 2506)** and broke **9 stone blocks** nearby. [Explosion](journal:event:127) [Broken stone](journal:event:128)
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round5/m5r2-journal-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|2532,253,2505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2534,254,2506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2501,250,2500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":14386,"modelTerminalMs":"12928","toolWallMs":"15","persistMs":"8"}.
+
+
+#### J8r2 - FAIL
+
+Classification: **prompt compliance; journal payload passes**. Ridden donkey deposit/withdrawal and local-day filtering work, but the withdrawal reply omits the donkey amounts and coordinates required by J8r.
+
+Reused donkey 11111111-1111-1111-1111-111111111111 at (1605,250,1602). The first two data commands ran before its chunk loaded and returned No entity was found; their original results are retained. The later ride succeeded, and /state confirms riddenEntity. Because the old 13 emeralds remained in slot 0, depositing hotbar menu slot 44 put 17 gold into donkey slot 1; the first withdrawal from menu slot 2 took the 13 emeralds. A further ridden open and slot-3 withdrawal took the 17 gold, leaving Items empty. These setup actions all preceded the two questions; neither question was retried. Journal event 129 is the new 17-gold deposit, event 130 the 13-emerald withdrawal, and event 131 the 17-gold withdrawal. The deposit reply correctly totals today's two 17-gold deposits plus the prior 13-emerald deposit and gives coordinates. The chest question correctly names the historical 31-iron chest withdrawal and links all three donkey withdrawals, but says only that they were from a donkey, without the donkey amounts or coordinates. That fails the explicit carried-forward J8r reply clause even though the raw journal payload and every link are correct. Both questions use after=2026-10-26T00:00:00+08:00, matching player local day. The payload success is kept distinct from the reply failure.
+
+Evidence: [j8r2-fixture.json](../../build/native-readiness-live/round5/j8r2-fixture.json).
+
+Evidence: [j8r2-riding.json](../../build/native-readiness-live/round5/j8r2-riding.json).
+
+Evidence: [j8r2-donkey-deposit.json](../../build/native-readiness-live/round5/j8r2-donkey-deposit.json).
+
+Evidence: [j8r2-donkey-withdrawal.json](../../build/native-readiness-live/round5/j8r2-donkey-withdrawal.json).
+
+Evidence: [j8r2-gold-withdrawal.json](../../build/native-readiness-live/round5/j8r2-gold-withdrawal.json).
+
+Question: `what did I put in my donkey today?`
+
+Request `76659bac-f3d5-4dd5-85b2-c23a79508ad8`; conversation `85e687e8-7086-43e5-b1d6-61a27e721140`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round5/j8r2-deposits.json), [submission](../../build/native-readiness-live/round5/j8r2-deposits-input.json), [wall timing](../../build/native-readiness-live/round5/j8r2-deposits-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": "2026-10-26T00:00:00+08:00",
+          "before": null,
+          "lastMinutes": null
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "deposit"
+        ],
+        "subjects": null,
+        "text": "donkey",
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 3,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Today, you put **34 gold ingots** into your donkey in two deposits of 17, plus **13 emeralds**. The recorded deposits were at (1605, 250, 1602) in the Overworld. [journal:event:120] [journal:event:122] [journal:event:129]
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round5/j8r2-deposits-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":16232,"modelTerminalMs":"14408","toolWallMs":"4","persistMs":"10"}.
+
+Question: `what did I take out of chests today?`
+
+Request `2801b5ba-422f-4604-91bb-28eabc53c114`; conversation `c2f058a1-cd6e-496f-9ecd-8307cae33f32`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round5/j8r2-withdrawals.json), [submission](../../build/native-readiness-live/round5/j8r2-withdrawals-input.json), [wall timing](../../build/native-readiness-live/round5/j8r2-withdrawals-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": "2026-10-26T00:00:00+08:00",
+          "before": "2026-10-26T11:55:33+08:00",
+          "lastMinutes": null
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "withdraw"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 4,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Today, October 26, you took **31 iron ingots** from the chest at (1602, 250, 1600), at 8:42 a.m. your local time. [journal:event:78]
+
+The other withdrawals recorded today were from a donkey, not a chest. [journal:event:121] [journal:event:130] [journal:event:131]
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round5/j8r2-withdrawals-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1602,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":14962,"modelTerminalMs":"13599","toolWallMs":"3","persistMs":"11"}.
+
+
+### Final state
+
+```json
+{
+  "world": "PackSage Adapter Filter Live Test",
+  "save": "PackSage Adapter Filter Live Test",
+  "paused": false,
+  "running": true,
+  "screen": null,
+  "dimension": "minecraft:overworld",
+  "position": [
+    1191.5,
+    250,
+    1057.5
+  ],
+  "yaw": -161.56505,
+  "pitch": 21.41126,
+  "health": 20,
+  "gamemode": "creative",
+  "gameTime": 1542701,
+  "dayTime": 194993,
+  "selectedHotbarSlot": 0,
+  "crosshairTarget": null,
+  "riddenEntity": null,
+  "menuId": 0
+}
+```
+
+Final verification: {"time":"2026-10-26T03:59:31.671Z","prompt":{"textNull":true,"candidate11Exact":true},"runningInSave":true,"unpaused":true,"menuClosed":true,"bridgeEnabled":true,"bridgePid":54676,"head":"d378ba606b20e1cb2324ae43fa1683c843fb85c2","branch":"feat/packsage-v2","installedSha256":"357E850CBD172D3D9E98424E8E147A574A01213E95ABA187FF511F4AF418609D"}. [Final state](../../build/native-readiness-live/round5/final-state.json), [final prompt](../../build/native-readiness-live/round5/final-prompt-check.json), [evidence completeness](../../build/native-readiness-live/round5/evidence-completeness.json), [screenshot](../../build/native-readiness-live/round5/final-state.png).
+
+Round result: **3 PASS, 3 FAIL, 0 NOT RUN** across six requested checks including D3. All 10 requests completed and saved in 10 fresh conversations, without retries. All 103 navigation attempts opened; these include every returned target, including targets not visibly cited in the final reply. The source/overflow aspects of M5 and the journal-payload aspect of J8 are not misreported as failed, but their stated aggregate criteria remain unmet.
+
+Minecraft remains running and unpaused in PackSage Adapter Filter Live Test at the original position, with menu closed and bridge enabled. Final GET /prompt is text=null with exact candidate 11. The 21 M5 and two note-fixture force-loaded chunks were released. [M5 cleanup](../../build/native-readiness-live/round5/cleanup-m5-forceload.json), [note fixture cleanup](../../build/native-readiness-live/round5/cleanup-notes-forceload.json). No source change or failed-answer rerun was performed. Only this validation file is committed; raw artifacts stay ignored.

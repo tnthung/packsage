@@ -85,12 +85,38 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void messageMetadataUsesEachMessagesLocalSentTimeAndOmitsMissingResponseTime() {
+        var previousZone = java.util.TimeZone.getDefault();
+        var previousLocale = java.util.Locale.getDefault();
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Taipei"));
+        java.util.Locale.setDefault(java.util.Locale.US);
+        try {
+            var actions = new FakeActions();
+            var screen = new AssistantScreen(actions);
+            var original = actions.view.conversation().turns().getFirst();
+            var turn = new ChatContracts.Turn(original.requestId(), "Question", "Answer", List.of(), original.context(),
+                    List.of(), List.of(), original.outcome(), 7, Instant.parse("2026-10-26T04:01:00Z"), List.of(),
+                    List.of(), 125_000L, Instant.parse("2026-10-26T04:03:05Z"));
+            assertEquals("Oct 26, 12:01 · ~3 tokens", screen.messageMetadata(turn, true, 3));
+            assertEquals("Oct 26, 12:03 · ~4 tokens", screen.messageMetadata(turn, false, 4));
+            var legacy = new ChatContracts.Turn(original.requestId(), "Question", "Answer", List.of(), original.context(),
+                    List.of(), List.of(), original.outcome(), 7, Instant.parse("2026-10-26T04:01:00Z"));
+            assertEquals("~4 tokens", screen.messageMetadata(legacy, false, 4));
+            assertEquals("~3 tokens", screen.messageMetadata(original, true, 3));
+        } finally {
+            java.util.TimeZone.setDefault(previousZone);
+            java.util.Locale.setDefault(previousLocale);
+        }
+    }
+
+    @Test
     void expandedToolShowsSavedResultAndLegacyToolsOmitIt() {
         var screen = new AssistantScreen(new FakeActions());
         var step = new ChatContracts.ActivityStep("tool:result", "Reading", "Completed",
                 ChatContracts.ActivityStatus.COMPLETED, "{}", "read_evidence", "Coverage: COMPLETE; records: 1",
                 600L, "Loaded fixture\nLantern\nitem: minecraft:lantern");
-        assertTrue(screen.activityBody(step, List.of()).contains("Result:\nLoaded fixture\nLantern\nitem: minecraft:lantern"));
+        assertEquals("Tool: read_evidence\nParameter: {}\nResult: Loaded fixture\nLantern\nitem: minecraft:lantern\nElapsed: 600 ms",
+                screen.activityBody(step, List.of()));
         assertFalse(screen.activityBody(new ChatContracts.ActivityStep("tool:old", "Reading", "Completed",
                 ChatContracts.ActivityStatus.COMPLETED), List.of()).contains("Result:"));
     }
@@ -690,7 +716,7 @@ class AssistantScreenStateTest {
         assertFalse(captured.contains("legacy"));
 
         assertTrue(screen.activityBody(new ChatContracts.ActivityStep("tool:empty", "Lookup", "Completed",
-                ChatContracts.ActivityStatus.COMPLETED, "{}"), List.of()).endsWith("Parameters:\n{}"));
+                ChatContracts.ActivityStatus.COMPLETED, "{}"), List.of()).contains("Parameter: {}"));
 
         String malformed = screen.activityBody(new ChatContracts.ActivityStep("tool:broken", "Lookup", "Completed",
                 ChatContracts.ActivityStatus.FAILED, "{broken SECRET"), List.of());
@@ -1249,22 +1275,40 @@ class AssistantScreenStateTest {
     }
 
     @Test
-    void expandedToolBodyIncludesSavedToolSummaryAndDuration() {
+    void expandedToolBodyUsesOnlyTheRequestedLinesAndCompactJson() {
         var screen = new AssistantScreen(new FakeActions());
         String body = screen.activityBody(new ChatContracts.ActivityStep("tool:one", "Reading", "Completed",
-                ChatContracts.ActivityStatus.COMPLETED, "{\"identity\":\"minecraft:torch\"}", "plan_recipe",
-                "Coverage: PARTIAL; records: 2\nRoute limit reached", 125L), List.of());
+                ChatContracts.ActivityStatus.COMPLETED, "{\n  \"identity\": \"minecraft:torch\", \"filter\": null\n}", "plan_recipe",
+                "Coverage: PARTIAL; records: 2\nRoute limit reached", 125L,
+                "Route limit reached\nTorch\nitem: minecraft:torch\nand 3 more"), List.of());
 
-        assertTrue(body.contains("plan_recipe"));
-        assertTrue(body.contains("minecraft:torch"));
-        assertTrue(body.contains("PARTIAL"));
-        assertTrue(body.contains("records: 2"));
-        assertTrue(body.contains("Route limit reached"));
-        assertTrue(body.contains("0.1 s"));
+        assertEquals("Tool: plan_recipe\nParameter: {\"identity\":\"minecraft:torch\",\"filter\":null}\n"
+                + "Result: Route limit reached\nTorch\nitem: minecraft:torch\nand 3 more\nElapsed: 125 ms", body);
         assertTrue(screen.activityBody(new ChatContracts.ActivityStep("tool:two", "Reading", "Completed",
-                ChatContracts.ActivityStatus.COMPLETED, null, "search", null, 4_200L), List.of()).contains("Duration: 4.2 s"));
+                ChatContracts.ActivityStatus.COMPLETED, null, "search", null, 4_200L), List.of()).endsWith("Elapsed: 4.2 s"));
         assertTrue(screen.activityBody(new ChatContracts.ActivityStep("tool:three", "Reading", "Completed",
-                ChatContracts.ActivityStatus.COMPLETED, null, "search", null, 99L), List.of()).contains("Duration: <0.1 s"));
+                ChatContracts.ActivityStatus.COMPLETED, null, "search", null, 99L), List.of()).endsWith("Elapsed: 99 ms"));
+    }
+
+    @Test
+    void expandedFailedToolShowsErrorInsteadOfResult() {
+        var screen = new AssistantScreen(new FakeActions());
+        assertEquals("Tool: lookup\nParameter: {}\nError: Not available (missing)\nElapsed: 6 ms",
+                screen.activityBody(new ChatContracts.ActivityStep("tool:failed", "Lookup", "Not available (missing)",
+                        ChatContracts.ActivityStatus.FAILED, "{}", "lookup", "Coverage: NONE", 6L, "Not available"), List.of()));
+    }
+
+    @Test
+    void toolElapsedKeepsSubMillisecondPrecisionAndChangesUnitsAtTheBoundary() {
+        var screen = new AssistantScreen(new FakeActions());
+        for (var example : java.util.Map.of(0L, "0 µs", 480_000L, "480 µs", 999_999L, "999 µs",
+                1_000_000L, "1 ms", 6_000_000L, "6 ms", 999_999_999L, "999 ms",
+                1_000_000_000L, "1.0 s", 1_400_000_000L, "1.4 s").entrySet()) {
+            var step = new com.google.gson.Gson().fromJson("{\"id\":\"tool:fast\",\"title\":\"Lookup\","
+                    + "\"status\":\"COMPLETED\",\"toolName\":\"lookup\",\"serializedArguments\":\"{}\","
+                    + "\"durationMillis\":0,\"durationNanos\":" + example.getKey() + "}", ChatContracts.ActivityStep.class);
+            assertTrue(screen.activityBody(step, List.of()).endsWith("Elapsed: " + example.getValue()), example.toString());
+        }
     }
 
     @Test

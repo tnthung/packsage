@@ -54,7 +54,7 @@ class ConversationStoreTest {
                 "Reading evidence", "Completed", ChatContracts.ActivityStatus.COMPLETED,
                 "{\"filters\":[null,{\"item\":\"packsage:fixture_lantern\"}] }", "lookup",
                 "Coverage: COMPLETE; records: 1\nLoaded fixture", 125L, "Loaded fixture\nLantern\nitem: minecraft:lantern")),
-                List.of(new ChatContracts.SteeringMessage("Actually, here.", 5)), 1_250L);
+                List.of(new ChatContracts.SteeringMessage("Actually, here.", 5)), 1_250L, Instant.parse("2026-10-13T01:02:05Z"));
 
         store.appendMedia(world, conversation.id(), screenshot, new byte[]{1, 2, 3}).toCompletableFuture().join();
         store.appendTurn(world, SCOPE, conversation.id(), turn).toCompletableFuture().join();
@@ -63,6 +63,7 @@ class ConversationStoreTest {
         assertTrue(reopened.turns().contains(turn));
         assertEquals(List.of(target), reopened.turns().getFirst().navigationTargets());
         assertEquals(turn.sentAt(), reopened.turns().getFirst().sentAt());
+        assertEquals(Instant.parse("2026-10-13T01:02:05Z"), reopened.turns().getFirst().assistantSentAt());
         assertEquals(turn.activities(), reopened.turns().getFirst().activities());
         assertEquals("{\"filters\":[null,{\"item\":\"packsage:fixture_lantern\"}] }",
                 reopened.turns().getFirst().activities().getFirst().serializedArguments());
@@ -77,6 +78,31 @@ class ConversationStoreTest {
     }
 
     @Test
+    void preciseToolTimingSurvivesLoadingAndSavingAlongsideLegacyMilliseconds() throws Exception {
+        var store = new ConversationStore(temporaryDirectory, DIRECT);
+        var world = new ChatContracts.WorldIdentity("world-a", "World");
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), simpleTurn("precise")).toCompletableFuture().join();
+        Path file = store.conversationPath(world, conversation.id());
+        var lines = Files.readAllLines(file);
+        var value = com.google.gson.JsonParser.parseString(lines.getLast()).getAsJsonObject();
+        value.add("activities", com.google.gson.JsonParser.parseString("[{\"id\":\"tool:fast\",\"title\":\"Lookup\","
+                + "\"status\":\"COMPLETED\",\"durationMillis\":0,\"durationNanos\":480123},"
+                + "{\"id\":\"tool:old\",\"title\":\"Lookup\",\"status\":\"COMPLETED\",\"durationMillis\":6}]"));
+        lines.set(lines.size() - 1, value.toString());
+        Files.write(file, lines);
+        var loaded = store.openConversation(world, conversation.id()).toCompletableFuture().join().turns().getFirst();
+        store.replaceLatestTurn(world, SCOPE, conversation.id(), loaded.requestId(), loaded).toCompletableFuture().join();
+        var saved = com.google.gson.JsonParser.parseString(Files.readAllLines(file).getLast()).getAsJsonObject()
+                .getAsJsonArray("activities");
+        assertTrue(saved.get(0).getAsJsonObject().has("durationNanos"));
+        assertEquals(480123L, saved.get(0).getAsJsonObject().get("durationNanos").getAsLong());
+        assertEquals(6L, saved.get(1).getAsJsonObject().get("durationMillis").getAsLong());
+        assertEquals(loaded.activities(), store.openConversation(world, conversation.id()).toCompletableFuture().join()
+                .turns().getFirst().activities());
+    }
+
+    @Test
     void legacyTurnsWithoutTimingStillLoadWithoutInventedDurations() throws Exception {
         ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
         ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World");
@@ -87,6 +113,7 @@ class ConversationStoreTest {
         ChatContracts.Turn loaded = store.openConversation(world, conversation.id()).toCompletableFuture().join().turns().getFirst();
 
         assertNull(loaded.durationMillis());
+        assertNull(loaded.assistantSentAt());
         assertEquals("Answer", loaded.answer());
     }
 

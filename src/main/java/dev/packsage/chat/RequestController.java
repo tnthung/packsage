@@ -721,7 +721,7 @@ public final class RequestController {
                 }
                 request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
                         : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED,
-                        step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail()));
+                        step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail(), step.durationNanos()));
                 request.activity = providerRetry ? "Retrying provider request…" : ActivityLabels.RETRYING_WITHOUT_WEB_SEARCH;
             } else if (event.kind() == ModelBackend.EventKind.REASONING) {
                 request.activity = ActivityLabels.THINKING;
@@ -820,13 +820,14 @@ public final class RequestController {
                 request.partialReplay.add(response.result());
                 String activityId = "tool:" + call.callId();
                 ChatContracts.ActivityStep toolActivity = request.activities.get(activityId);
+                long durationNanos = System.nanoTime() - request.toolReceivedAtNanos.get(call.callId());
                 if (toolActivity != null) request.activities.put(activityId, new ChatContracts.ActivityStep(activityId,
                         toolActivity.title(), response.result().error()
                         ? ActivityLabels.toolError(response.result().serializedResult()) : "Completed",
                         response.result().error() ? ChatContracts.ActivityStatus.FAILED : ChatContracts.ActivityStatus.COMPLETED,
                         toolActivity.serializedArguments(), call.name(), ActivityLabels.toolSummary(response.result().serializedResult()),
-                        (System.nanoTime() - request.toolReceivedAtNanos.get(call.callId())) / 1_000_000,
-                        toolResultDetail(response.result().serializedResult(), response.result().error())));
+                        durationNanos / 1_000_000,
+                        toolResultDetail(response.result().serializedResult(), response.result().error()), durationNanos));
                 List<Evidence.Source> mergedSources = new ArrayList<>(request.evidence.sources());
                 response.evidence().sources().forEach(source -> {
                     if (!mergedSources.contains(source)) mergedSources.add(source);
@@ -985,7 +986,7 @@ public final class RequestController {
                     : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(),
                     terminalActivity == ChatContracts.ActivityStatus.COMPLETED && id.startsWith("tool:")
                             ? ChatContracts.ActivityStatus.CANCELLED : terminalActivity, step.serializedArguments(),
-                    step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail()));
+                    step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail(), step.durationNanos()));
             markPersistencePending(request);
             active = null;
             if (request.submission.replacing() != null) pendingReplacement = request;
@@ -1006,19 +1007,19 @@ public final class RequestController {
                 request.answer.toString(), replay, captured.context(), request.evidence.sources(),
                 request.evidence.navigationTargets(),
                 new ChatContracts.Outcome(status, detail), 0, request.sentAt, List.copyOf(request.activities.values()),
-                List.copyOf(request.steeringMessages), (terminalAtNanos - request.acceptedAtNanos) / 1_000_000);
+                List.copyOf(request.steeringMessages), (terminalAtNanos - request.acceptedAtNanos) / 1_000_000, Instant.now());
         ChatContracts.Turn turn;
         try {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
                     untokened.context(), untokened.sources(), untokened.navigationTargets(), untokened.outcome(),
                     tokenCounter.apply(untokened), untokened.sentAt(), untokened.activities(), untokened.steeringMessages(),
-                    untokened.durationMillis());
+                    untokened.durationMillis(), untokened.assistantSentAt());
         } catch (RuntimeException exception) {
             turn = new ChatContracts.Turn(untokened.requestId(), untokened.question(), untokened.answer(), untokened.replayItems(),
                     untokened.context(), untokened.sources(),
                     untokened.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED, failureMessage(exception)), 0,
-                    untokened.sentAt(), untokened.activities(), untokened.steeringMessages(), untokened.durationMillis());
+                    untokened.sentAt(), untokened.activities(), untokened.steeringMessages(), untokened.durationMillis(), untokened.assistantSentAt());
         }
         if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
         else publish();
@@ -1049,7 +1050,7 @@ public final class RequestController {
             }
             request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
                     : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED,
-                    step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail()));
+                    step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail(), step.durationNanos()));
             toolCalls = request.toolCalls.size();
             toolWallMs = ToolTiming.unionMillis(request.toolIntervals);
         }
@@ -1076,7 +1077,8 @@ public final class RequestController {
                     request.answer.toString(), List.copyOf(request.partialReplay), persisted.context(), evidence.sources(),
                     evidence.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.CANCELLED, detail), 0, request.sentAt,
-                    List.copyOf(request.activities.values()), List.copyOf(request.steeringMessages));
+                    List.copyOf(request.activities.values()), List.copyOf(request.steeringMessages), null,
+                    request.answer.isEmpty() ? null : Instant.now());
             if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
             persist(request, target, turn, persisted.screenshotBytes());
         }, executor);
@@ -1135,7 +1137,7 @@ public final class RequestController {
                         new ChatContracts.Context(turn.context().serializedGameplayContext(), null, turn.context().scope()),
                         turn.sources(), turn.navigationTargets(), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.FAILED,
                         "media persistence failed: " + failureMessage(mediaFailure)), turn.tokenCount(), turn.sentAt(), turn.activities(),
-                        turn.steeringMessages(), turn.durationMillis());
+                        turn.steeringMessages(), turn.durationMillis(), turn.assistantSentAt());
                 if (request.submission.replacing() == null) updateVisibleTurn(request, target, persistedTurn);
                 publishPersistenceFailure(request, target, mediaFailure);
             }

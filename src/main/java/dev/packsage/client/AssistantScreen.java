@@ -38,7 +38,7 @@ public final class AssistantScreen extends Screen {
     public static final int QUESTION_MAX_LENGTH = 1000;
     private static final int ACTIVITY_ARGUMENTS_INPUT_LIMIT = 16_384;
     private static final int ACTIVITY_ARGUMENTS_DISPLAY_LIMIT = 2_048;
-    private static final Gson ACTIVITY_ARGUMENTS_JSON = new GsonBuilder().serializeNulls().setPrettyPrinting().create();
+    private static final Gson ACTIVITY_ARGUMENTS_JSON = new GsonBuilder().serializeNulls().disableHtmlEscaping().create();
     private final ChatActions actions;
     private final CommandConfirmationPanel commandConfirmation;
     private final PackSageSettings settings;
@@ -485,12 +485,6 @@ public final class AssistantScreen extends Screen {
             }, y);
             y = drawAnswerSequence(graphics, turn.answer(), turn.steeringMessages(), turn, y, included);
             y = drawMessageActions(graphics, turn, false, tokens.assistant(), y, mouseX, mouseY);
-            if (turn.outcome().status() == ChatContracts.OutcomeStatus.COMPLETED && turn.durationMillis() != null) {
-                graphics.drawString(font, Component.literal("Completed in " + (turn.durationMillis() < 100 ? "<0.1 s"
-                                : String.format(Locale.ROOT, "%.1f s", turn.durationMillis() / 1000.0)))
-                        .withStyle(style -> style.withFont(ModernUi.FONT)), readableLeft + 26, y, ModernUi.MUTED, false);
-                y += ModernUi.MESSAGE_LINE_HEIGHT;
-            }
             String outcome = ScreenText.outcomeLine(turn.outcome());
             if (outcome != null) {
                 for (var line : font.split(Component.literal(outcome).withStyle(style ->
@@ -583,9 +577,6 @@ public final class AssistantScreen extends Screen {
             case CANCELLED -> "Step cancelled.";
         } : step.detail();
         if (!step.id().startsWith("tool:")) return detail;
-        if (step.resultSummary() != null) detail += "\n" + step.resultSummary();
-        if (step.durationMillis() != null) detail += "\nDuration: " + (step.durationMillis() < 100 ? "<0.1 s"
-                : String.format(Locale.ROOT, "%.1f s", step.durationMillis() / 1000.0));
         String toolName = step.toolName();
         String arguments = step.serializedArguments();
         if (arguments == null || toolName == null) {
@@ -628,14 +619,24 @@ public final class AssistantScreen extends Screen {
                 }
             }
         }
-        String body = (toolName == null ? "" : "Tool: " + toolName + "\n") + detail + "\nParameters:\n" + parameters;
+        String body = "Tool: " + (toolName == null ? "Unknown" : toolName) + "\nParameter: " + parameters;
         if (body.length() > ACTIVITY_ARGUMENTS_DISPLAY_LIMIT) {
             String marker = "… [truncated]";
             int end = ACTIVITY_ARGUMENTS_DISPLAY_LIMIT - marker.length();
             if (Character.isHighSurrogate(body.charAt(end - 1)) && Character.isLowSurrogate(body.charAt(end))) end--;
             body = body.substring(0, end) + marker;
         }
-        return body + (step.resultDetail() == null || step.resultDetail().isBlank() ? "" : "\nResult:\n" + step.resultDetail());
+        if (step.status() == ChatContracts.ActivityStatus.FAILED) body += "\nError: " + detail;
+        else if (step.resultDetail() != null && !step.resultDetail().isBlank()) body += "\nResult: " + step.resultDetail();
+        if (step.durationNanos() != null) {
+            body += "\nElapsed: " + (step.durationNanos() < 1_000_000 ? step.durationNanos() / 1_000 + " µs"
+                    : step.durationNanos() < 1_000_000_000 ? step.durationNanos() / 1_000_000 + " ms"
+                    : String.format(Locale.ROOT, "%.1f s", step.durationNanos() / 1_000_000_000.0));
+        } else if (step.durationMillis() != null) {
+            body += "\nElapsed: " + (step.durationMillis() < 1_000 ? step.durationMillis() + " ms"
+                    : String.format(Locale.ROOT, "%.1f s", step.durationMillis() / 1000.0));
+        }
+        return body;
     }
 
     void toggleActivity(String key) {
@@ -726,12 +727,7 @@ public final class AssistantScreen extends Screen {
                                    ChatContracts.Turn turn, int y, boolean included) {
         for (MessageSegment segment : answerSegments(answer, steeringMessages)) {
             if (segment.player()) y = drawUserMessage(graphics, segment.text(), y, false);
-            else {
-                drawAssistantAvatar(graphics, y);
-                graphics.fill(readableLeft + 15, y + 15, readableLeft + 18, y + 18,
-                        included ? 0xff74bf8c : ModernUi.DANGER);
-                y = drawAssistantSegment(graphics, answer, segment, turn, y);
-            }
+            else y = drawAssistantSegment(graphics, answer, segment, turn, y, included);
         }
         return y;
     }
@@ -753,7 +749,7 @@ public final class AssistantScreen extends Screen {
     }
 
     private int drawAssistantSegment(GuiGraphics graphics, String answer, MessageSegment segment,
-                                     ChatContracts.Turn turn, int y) {
+                                     ChatContracts.Turn turn, int y, boolean included) {
         List<Evidence.NavigationTarget> targets = turnTargets(turn);
         List<ModelBackend.UrlCitation> citations = new ArrayList<>();
         int searchFrom = 0;
@@ -778,9 +774,15 @@ public final class AssistantScreen extends Screen {
                 }
             }
         }
-        return Math.max(y + 18, drawInlineLines(graphics,
-                ScreenText.inlineLines(segment.text(), targets, citations, turn.sources(), sourceLabels(turn)), y,
-                readableLeft + 26, readableWidth - 26, turn));
+        List<ScreenText.InlineLine> lines = ScreenText.inlineLines(segment.text(), targets, citations, turn.sources(), sourceLabels(turn));
+        int bubbleWidth = Math.max(1, Math.min(360, readableWidth - 26));
+        int bubbleHeight = Math.max(20, messageLayout(lines, Math.max(1, bubbleWidth - 20)).height() + 8);
+        ModernUi.surface(graphics, readableLeft + 24, y, readableLeft + 24 + bubbleWidth, y + bubbleHeight, ModernUi.SURFACE_HOVER);
+        drawInlineLines(graphics, lines, y + 4, readableLeft + 34, Math.max(1, bubbleWidth - 20), turn);
+        drawAssistantAvatar(graphics, y + Math.max(0, bubbleHeight - 18));
+        graphics.fill(readableLeft + 15, y + bubbleHeight - 3, readableLeft + 18, y + bubbleHeight,
+                included ? 0xff74bf8c : ModernUi.DANGER);
+        return y + bubbleHeight;
     }
 
     private Map<Evidence.Source, String> sourceLabels(ChatContracts.Turn turn) {
@@ -791,15 +793,20 @@ public final class AssistantScreen extends Screen {
         return labels;
     }
 
+    String messageMetadata(ChatContracts.Turn turn, boolean user, int tokens) {
+        Instant sentAt = user ? turn.sentAt() : turn.assistantSentAt();
+        return (sentAt != null ? DateTimeFormatter.ofPattern("MMM d, HH:mm", java.util.Locale.getDefault())
+                .withZone(ZoneId.systemDefault()).format(sentAt) + " · " : "")
+                + "~" + tokens + " tokens";
+    }
+
     private int drawMessageActions(GuiGraphics graphics, ChatContracts.Turn turn, boolean user, int tokens, int y, int mouseX, int mouseY) {
-        Component count = Component.literal((user && turn.sentAt() != null ? DateTimeFormatter.ofPattern("MMM d, HH:mm", java.util.Locale.getDefault())
-                .withZone(ZoneId.systemDefault()).format(turn.sentAt()) + " · " : "")
-                + "~" + tokens + " tokens").withStyle(style -> style.withFont(ModernUi.FONT));
+        Component count = Component.literal(messageMetadata(turn, user, tokens)).withStyle(style -> style.withFont(ModernUi.FONT));
         boolean editable = user && !view.active() && !awaitingRequestView && !view.readOnly()
                 && turn == view.conversation().turns().getLast();
-        boolean stacked = user && font.width(count) + 42 + (editable ? 38 : 0) > readableWidth;
+        boolean stacked = font.width(count) + 42 + (editable ? 38 : 0) > readableWidth - (user ? 0 : 26);
         int left = user ? Math.max(readableLeft, readableLeft + readableWidth - font.width(count) - 42 - (editable ? 38 : 0)) : readableLeft + 26;
-        List<net.minecraft.util.FormattedCharSequence> lines = font.split(count, Math.max(1, stacked ? readableWidth : font.width(count)));
+        List<net.minecraft.util.FormattedCharSequence> lines = font.split(count, Math.max(1, stacked ? readableWidth - (user ? 0 : 26) : font.width(count)));
         for (int index = 0; index < lines.size(); index++) graphics.drawString(font, lines.get(index), left,
                 y + 6 + index * ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.MUTED, false);
         int actionLeft = stacked ? readableLeft + readableWidth - 34 - (editable ? 38 : 0) : left + font.width(count) + 8;

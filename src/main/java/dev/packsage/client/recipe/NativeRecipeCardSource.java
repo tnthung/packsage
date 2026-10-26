@@ -5,7 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -21,35 +21,38 @@ public final class NativeRecipeCardSource implements RecipeCardSource {
     public Optional<RecipeCard> card(RecipeCardModel model) {
         var level = Minecraft.getInstance().level;
         if (level == null) return Optional.empty();
-        var slots = new ArrayList<List<DisplayedStack>>();
-        for (var slot : model.slots()) {
-            var stacks = new ArrayList<DisplayedStack>();
-            for (var alternative : slot.stacks()) {
-                if (alternative.kind() == RecipeCardModel.Stack.Kind.CUSTOM || alternative.kind() == RecipeCardModel.Stack.Kind.UNKNOWN) {
-                    var marker = new ItemStack(Items.BARRIER);
-                    marker.set(DataComponents.CUSTOM_NAME, Component.literal(alternative.description().isBlank() ? "Unknown ingredient" : alternative.description()));
-                    stacks.add(new DisplayedStack(marker, true));
-                } else {
-                    for (var stack : SlotStacks.resolve(alternative, level.registryAccess())) stacks.add(new DisplayedStack(stack, false));
-                }
-            }
-            slots.add(List.copyOf(stacks));
-        }
-        return Optional.of(new NativeCard(model, List.copyOf(slots)));
+        return Optional.of(new NativeCard(model, level.registryAccess()));
     }
 
-    private record DisplayedStack(ItemStack stack, boolean question) { }
+    private record DisplayedStack(ItemStack icon, RecipeCard.Hover hover) { }
 
-    private static final class NativeCard implements RecipeCard {
+    static final class NativeCard implements RecipeCard {
         private final RecipeCardModel model;
         private final List<List<DisplayedStack>> slots;
         private final long animationStart = System.currentTimeMillis();
         private long lastTime = animationStart;
         private long cycleTime = ThreadLocalRandom.current().nextInt(100000) * (long) SlotStacks.CYCLE_MS;
 
-        private NativeCard(RecipeCardModel model, List<List<DisplayedStack>> slots) {
+        NativeCard(RecipeCardModel model, HolderLookup.Provider registries) {
             this.model = model;
-            this.slots = slots;
+            var slots = new ArrayList<List<DisplayedStack>>();
+            for (var slot : model.slots()) {
+                var stacks = new ArrayList<DisplayedStack>();
+                for (var alternative : slot.stacks()) {
+                    var resolved = SlotStacks.resolve(alternative, registries);
+                    if (resolved.missing()) {
+                        var identity = alternative.identity();
+                        if (alternative.kind() == RecipeCardModel.Stack.Kind.TAG && !identity.startsWith("#")) identity = "#" + identity;
+                        stacks.add(new DisplayedStack(new ItemStack(Items.BARRIER), new Hover.Text(List.of(Component.literal("Missing: " + identity)))));
+                    } else if (resolved.stacks().isEmpty()) {
+                        stacks.add(new DisplayedStack(null, new Hover.Text(List.of(Component.literal(alternative.description())))));
+                    } else {
+                        for (var stack : resolved.stacks()) stacks.add(new DisplayedStack(stack, new Hover.Item(stack)));
+                    }
+                }
+                slots.add(List.copyOf(stacks));
+            }
+            this.slots = List.copyOf(slots);
         }
 
         @Override public int width() { return model.width() + 8; }
@@ -132,10 +135,10 @@ public final class NativeRecipeCardSource implements RecipeCardSource {
                 var alternatives = slots.get(i);
                 if (alternatives.isEmpty()) continue;
                 var displayed = alternatives.get(SlotStacks.cycleIndex(cycleTime, alternatives.size()));
-                if (displayed.question()) graphics.drawString(font, "?", rx + slot.x() + 5, ry + slot.y() + 4, 0xff404040, false);
+                if (displayed.icon() == null) graphics.drawString(font, "?", rx + slot.x() + 5, ry + slot.y() + 4, 0xff404040, false);
                 else {
-                    graphics.renderItem(displayed.stack(), rx + slot.x(), ry + slot.y());
-                    graphics.renderItemDecorations(font, displayed.stack(), rx + slot.x(), ry + slot.y());
+                    graphics.renderItem(displayed.icon(), rx + slot.x(), ry + slot.y());
+                    graphics.renderItemDecorations(font, displayed.icon(), rx + slot.x(), ry + slot.y());
                 }
             }
             for (var text : model.texts()) graphics.drawString(font, text.text(), rx + text.x() - (text.rightAligned() ? font.width(text.text()) : 0), ry + text.y(), 0xff808080, false);
@@ -147,13 +150,13 @@ public final class NativeRecipeCardSource implements RecipeCardSource {
         }
 
         @Override
-        public Optional<ItemStack> stackAt(int x, int y, double mouseX, double mouseY) {
+        public Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) {
             for (int i = 0; i < model.slots().size(); i++) {
                 var slot = model.slots().get(i);
                 var alternatives = slots.get(i);
                 if (!alternatives.isEmpty() && mouseX >= x + 4 + slot.x() && mouseX < x + 20 + slot.x()
                         && mouseY >= y + 4 + slot.y() && mouseY < y + 20 + slot.y())
-                    return Optional.of(alternatives.get(SlotStacks.cycleIndex(cycleTime, alternatives.size())).stack());
+                    return Optional.of(alternatives.get(SlotStacks.cycleIndex(cycleTime, alternatives.size())).hover());
             }
             return Optional.empty();
         }

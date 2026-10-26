@@ -907,9 +907,9 @@ public final class AssistantScreen extends Screen {
     }
 
     private List<Evidence.NavigationTarget> turnTargets(ChatContracts.Turn turn) {
-        List<Evidence.Source> sources = new ArrayList<>(turn.sources());
+        Set<Evidence.Source> sources = new HashSet<>(turn.sources());
         view.sources().forEach(source -> {
-            if (source.scope().equals(turn.context().scope()) && !sources.contains(source)) sources.add(source);
+            if (source.scope().equals(turn.context().scope())) sources.add(source);
         });
         List<Evidence.NavigationTarget> targets = new ArrayList<>();
         turn.navigationTargets().forEach(target -> {

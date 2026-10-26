@@ -291,6 +291,11 @@ final class ScreenText {
     }
 
     static Map<Evidence.Source, String> sourceLabels(ChatContracts.Turn turn) {
+        Map<String, List<Evidence.Source>> candidates = turn.sources().stream().filter(source -> source.providerId().equals("native")
+                && (source.sourceHandle().startsWith("brewing:") || source.sourceHandle().startsWith("potion:")))
+                .collect(java.util.stream.Collectors.groupingBy(Evidence.Source::sourceHandle));
+        if (candidates.isEmpty()) return Map.of();
+        Gson gson = new Gson();
         Map<Evidence.Source, String> labels = new java.util.HashMap<>();
         for (ModelBackend.InputItem item : turn.replayItems()) {
             if (!(item instanceof ModelBackend.ToolResult result) || result.error()) continue;
@@ -300,13 +305,11 @@ final class ScreenText {
                 for (JsonElement value : records) {
                     JsonObject record = value.getAsJsonObject();
                     JsonObject observed = record.getAsJsonObject("source");
-                    if (observed == null) continue;
-                    for (Evidence.Source source : turn.sources()) {
-                        if (!source.providerId().equals(string(observed, "providerId"))
-                                || !source.sourceHandle().equals(string(observed, "sourceHandle"))
-                                || !source.observedAt().toString().equals(string(observed, "observedAt"))
+                    if (observed == null || !"native".equals(string(observed, "providerId"))) continue;
+                    for (Evidence.Source source : candidates.getOrDefault(string(observed, "sourceHandle"), List.of())) {
+                        if (!source.observedAt().toString().equals(string(observed, "observedAt"))
                                 || source.observedGeneration() != observed.get("observedGeneration").getAsLong()
-                                || !new Gson().toJsonTree(source.scope()).equals(observed.get("scope"))) continue;
+                                || !gson.toJsonTree(source.scope()).equals(observed.get("scope"))) continue;
                         String label = sourceLabel(source, record);
                         if (label != null) labels.put(source, label);
                     }

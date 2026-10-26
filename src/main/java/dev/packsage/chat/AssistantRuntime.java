@@ -1692,8 +1692,8 @@ public final class AssistantRuntime implements ChatActions {
         ChatContracts.Conversation conversation = holder == null ? view.conversation() : holder.loaded
                 ? view.conversation() : new ChatContracts.Conversation(holder.id, holder.world, List.of(),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.ACTIVE, null));
-        List<Evidence.Source> sources = new ArrayList<>();
-        List<Evidence.NavigationTarget> targets = new ArrayList<>();
+        Set<Evidence.Source> sources = new LinkedHashSet<>();
+        Set<Evidence.NavigationTarget> targets = new LinkedHashSet<>();
         if (!loading && !readOnly) {
             view.sources().forEach(source -> {
                 if (source.scope().equals(currentScope) && sources.stream().noneMatch(existing ->
@@ -1709,8 +1709,8 @@ public final class AssistantRuntime implements ChatActions {
         }
         if (!loading && currentWorld != null && (readOnly || currentWorld.worldOrServer().equals(conversation.world().worldOrServer()))) {
             conversation.turns().forEach(turn -> {
-                turn.sources().forEach(source -> { if (!sources.contains(source)) sources.add(source); });
-                turn.navigationTargets().forEach(target -> { if (!targets.contains(target)) targets.add(target); });
+                sources.addAll(turn.sources());
+                targets.addAll(turn.navigationTargets());
             });
         }
         if (!loading && currentWorld != null && (readOnly || currentWorld.worldOrServer().equals(conversation.world().worldOrServer()))) {
@@ -1758,12 +1758,12 @@ public final class AssistantRuntime implements ChatActions {
         }
         if (readOnly) {
             return new ChatContracts.View(false, currentSignIn, paused, conversation,
-                    new ChatContracts.Context("", null, currentScope), sources, targets, errors, "",
+                    new ChatContracts.Context("", null, currentScope), List.copyOf(sources), List.copyOf(targets), errors, "",
                     loading ? "Loading session..." : "", activeWorld, true);
         }
         return new ChatContracts.View(view.active(), currentSignIn, paused, conversation,
                 holder == null || holder.loaded ? view.context() : new ChatContracts.Context("", null, currentScope),
-                sources, targets, errors, view.streamingAnswer(), view.activity(), activeWorld, false, view.activeQuestion(),
+                List.copyOf(sources), List.copyOf(targets), errors, view.streamingAnswer(), view.activity(), activeWorld, false, view.activeQuestion(),
                 view.activeSentAt(), view.activities(), view.activeRequestId(), view.activeSteeringMessages());
     }
 

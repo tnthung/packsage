@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### 2026-10-27
+
+- Button labels are centered. The command confirmation Run and Cancel buttons and the Developer settings buttons now center their labels, and all text buttons draw through one shared button helper.
+
 ### 2026-10-26
 
 - The chat opens in about 11–50 ms from the open key to the first frame, with the selected chat already shown (live check). The debug bridge looks up a chat in the current world only, instead of scanning every saved chat. The New chat button no longer has a gap below it, and tool-row labels use an accent color. Each stage of opening the chat is logged with its timing.

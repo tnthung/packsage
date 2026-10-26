@@ -21,7 +21,6 @@ final class RecipeCardLayouts {
     static final int BREWING_BUBBLES_X = 9, BREWING_BUBBLES_Y = 1, BREWING_BUBBLES_WIDTH = 11, BREWING_BUBBLES_HEIGHT = 28;
     static final int BREWING_ARROW_X = 43, BREWING_ARROW_Y = 3, BREWING_ARROW_WIDTH = 7, BREWING_ARROW_HEIGHT = 27;
     static final int COOKING_TEXT_X = 82, EXPERIENCE_Y = 0, COOKING_TIME_Y = 46, CAMPFIRE_TIME_Y = 36;
-    static final int BREWING_STEPS_X = 70, BREWING_STEPS_Y = 28;
 
     record Position(String role, int x, int y, boolean output) { }
     record Layout(int width, int height, String caption, List<Position> slots) { }

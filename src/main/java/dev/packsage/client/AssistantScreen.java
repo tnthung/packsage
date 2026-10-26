@@ -83,6 +83,8 @@ public final class AssistantScreen extends Screen {
     private final Map<ConversationKey, ConversationUiState> conversationStates = new HashMap<>();
     private final Set<ConversationKey> deletedConversationKeys = new HashSet<>();
     private final Map<ChatContracts.RequestId, CachedSourceLabels> sourceLabelCache = new HashMap<>();
+    private final Map<ChatContracts.RequestId, PreparedTurn> preparedTurns = new HashMap<>();
+    private final Map<String, UserLines> preparedUserLines = new LinkedHashMap<>();
     private int sidebarScroll;
     private int sidebarContentHeight;
     private long catalogGeneration;
@@ -112,6 +114,10 @@ public final class AssistantScreen extends Screen {
     private ChatContracts.SessionSummary pendingDelete;
     private boolean deletingSession;
     private ChatContracts.HistoryPreview history;
+    private int historyTurns;
+    private int historicalTokens;
+    private String historyModel;
+    private String historyProviderModel;
     private int visibleTurnCount = 4;
     private boolean historyPrepended;
     private final List<MessageAction> messageActions = new ArrayList<>();
@@ -128,6 +134,8 @@ public final class AssistantScreen extends Screen {
 
     @Override
     protected void init() {
+        preparedTurns.clear();
+        preparedUserLines.clear();
         if (inputEditor != null) input = inputEditor.value();
         if (sessionSearchEditor != null) sessionSearch = sessionSearchEditor.value();
         sessionSearchEditor = new MultilineEditor(font, 12, 32, Math.max(1, ModernUi.SIDEBAR_WIDTH - 24), 20,
@@ -223,7 +231,7 @@ public final class AssistantScreen extends Screen {
         graphics.flush();
         renderBlurredBackground(partialTick);
         layout();
-        history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
+        prepareConversation();
         graphics.fill(0, 0, width, height, ModernUi.BACKGROUND);
         graphics.fill(0, 0, sidebarWidth, height, ModernUi.SIDEBAR);
         drawSidebar(graphics, mouseX, mouseY);
@@ -457,13 +465,13 @@ public final class AssistantScreen extends Screen {
         webLinkHits.clear();
         activityHits.clear();
         messageActions.clear();
-        if (history == null) history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
+        if (history == null) prepareConversation();
         for (ChatContracts.Turn turn : view.conversation().turns().subList(
                 Math.max(0, view.conversation().turns().size() - visibleTurnCount), view.conversation().turns().size())) {
             if (view.active() && turn.requestId().equals(resendingRequest)) continue;
             boolean included = !view.readOnly() && history.selection().turns().stream()
                     .anyMatch(selected -> selected.requestId().equals(turn.requestId()));
-            ChatContracts.TokenCounts tokens = GroundingInstructions.historyTokenCounts(turn);
+            ChatContracts.TokenCounts tokens = prepareTurn(turn).tokens();
             y = drawUserMessage(graphics, turn.question(), y, included);
             y = drawMessageActions(graphics, turn, true, tokens.user(), y, mouseX, mouseY);
             y += 7;
@@ -687,8 +695,7 @@ public final class AssistantScreen extends Screen {
 
     private int drawUserMessage(GuiGraphics graphics, String text, int y, boolean included) {
         int bubbleWidth = Math.max(1, Math.min(360, readableWidth - 26));
-        Component content = Component.literal(text).withStyle(style -> style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT));
-        List<net.minecraft.util.FormattedCharSequence> lines = font.split(content, Math.max(1, bubbleWidth - 20));
+        List<net.minecraft.util.FormattedCharSequence> lines = userLines(text, Math.max(1, bubbleWidth - 20));
         int bubbleHeight = Math.max(20, lines.size() * ModernUi.MESSAGE_LINE_HEIGHT + 8);
         int bubbleX = readableLeft + readableWidth - bubbleWidth - 24;
         ModernUi.surface(graphics, bubbleX, y, bubbleX + bubbleWidth, y + bubbleHeight, ModernUi.SURFACE_HOVER);
@@ -740,7 +747,19 @@ public final class AssistantScreen extends Screen {
 
     private int drawAssistantSegment(GuiGraphics graphics, String answer, MessageSegment segment,
                                      ChatContracts.Turn turn, int y, boolean included) {
-        List<Evidence.NavigationTarget> targets = turnTargets(turn);
+        MessageLayout prepared = prepareTurn(turn).answers().get(segment);
+        int bubbleWidth = Math.max(1, Math.min(360, readableWidth - 26));
+        int bubbleHeight = Math.max(20, prepared.height() + 8);
+        ModernUi.surface(graphics, readableLeft + 24, y, readableLeft + 24 + bubbleWidth, y + bubbleHeight, ModernUi.SURFACE_HOVER);
+        drawInlineLines(graphics, prepared, y + 4, readableLeft + 34, turn);
+        drawAssistantAvatar(graphics, y + Math.max(0, bubbleHeight - 18));
+        graphics.fill(readableLeft + 15, y + bubbleHeight - 3, readableLeft + 18, y + bubbleHeight,
+                included ? 0xff74bf8c : ModernUi.DANGER);
+        return y + bubbleHeight;
+    }
+
+    private MessageLayout assistantLayout(String answer, MessageSegment segment, ChatContracts.Turn turn,
+                                          List<Evidence.NavigationTarget> targets, int width) {
         List<ModelBackend.UrlCitation> citations = new ArrayList<>();
         int searchFrom = 0;
         int segmentEnd = segment.answerOffset() + segment.text().length();
@@ -765,15 +784,55 @@ public final class AssistantScreen extends Screen {
             }
         }
         List<ScreenText.InlineLine> lines = ScreenText.inlineLines(segment.text(), targets, citations, turn.sources(), sourceLabels(turn));
-        int bubbleWidth = Math.max(1, Math.min(360, readableWidth - 26));
-        int bubbleHeight = Math.max(20, messageLayout(lines, Math.max(1, bubbleWidth - 20)).height() + 8);
-        ModernUi.surface(graphics, readableLeft + 24, y, readableLeft + 24 + bubbleWidth, y + bubbleHeight, ModernUi.SURFACE_HOVER);
-        drawInlineLines(graphics, lines, y + 4, readableLeft + 34, Math.max(1, bubbleWidth - 20), turn);
-        drawAssistantAvatar(graphics, y + Math.max(0, bubbleHeight - 18));
-        graphics.fill(readableLeft + 15, y + bubbleHeight - 3, readableLeft + 18, y + bubbleHeight,
-                included ? 0xff74bf8c : ModernUi.DANGER);
-        return y + bubbleHeight;
+        return messageLayout(lines, width);
     }
+
+    /** Shared by rendering and the headless profile; visits only the requested history window, newest first. */
+    void prepareConversation() {
+        String providerModel = actions.providerSelectedModelId();
+        if (history == null || historyTurns != settings.historyTurns() || historicalTokens != settings.historicalTokens()
+                || !Objects.equals(historyModel, settings.modelId()) || !Objects.equals(historyProviderModel, providerModel)) {
+            history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
+            historyTurns = settings.historyTurns();
+            historicalTokens = settings.historicalTokens();
+            historyModel = settings.modelId();
+            historyProviderModel = providerModel;
+        }
+        List<ChatContracts.Turn> turns = view.conversation().turns();
+        for (int index = turns.size() - 1; index >= Math.max(0, turns.size() - visibleTurnCount); index--) {
+            prepareTurn(turns.get(index));
+        }
+    }
+
+    private PreparedTurn prepareTurn(ChatContracts.Turn turn) {
+        int width = Math.max(1, Math.max(1, Math.min(360, readableWidth - 26)) - 20);
+        PreparedTurn cached = preparedTurns.get(turn.requestId());
+        if (cached != null && cached.turn() == turn && cached.width() == width) return cached;
+        userLines(turn.question(), width);
+        List<Evidence.NavigationTarget> targets = turnTargets(turn);
+        Map<MessageSegment, MessageLayout> answers = new HashMap<>();
+        for (MessageSegment segment : answerSegments(turn.answer(), turn.steeringMessages())) {
+            if (segment.player()) userLines(segment.text(), width);
+            else answers.put(segment, assistantLayout(turn.answer(), segment, turn, targets, width));
+        }
+        PreparedTurn prepared = new PreparedTurn(turn, width, GroundingInstructions.historyTokenCounts(turn), Map.copyOf(answers));
+        preparedTurns.put(turn.requestId(), prepared);
+        return prepared;
+    }
+
+    private List<net.minecraft.util.FormattedCharSequence> userLines(String text, int width) {
+        UserLines cached = preparedUserLines.get(text);
+        if (cached != null && cached.width() == width) return cached.lines();
+        List<net.minecraft.util.FormattedCharSequence> lines = font.split(Component.literal(text).withStyle(style ->
+                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), width);
+        if (preparedUserLines.size() >= 128) preparedUserLines.remove(preparedUserLines.keySet().iterator().next());
+        preparedUserLines.put(text, new UserLines(width, lines));
+        return lines;
+    }
+
+    private record PreparedTurn(ChatContracts.Turn turn, int width, ChatContracts.TokenCounts tokens,
+                                Map<MessageSegment, MessageLayout> answers) { }
+    private record UserLines(int width, List<net.minecraft.util.FormattedCharSequence> lines) { }
 
     private Map<Evidence.Source, String> sourceLabels(ChatContracts.Turn turn) {
         CachedSourceLabels cached = sourceLabelCache.get(turn.requestId());
@@ -826,13 +885,12 @@ public final class AssistantScreen extends Screen {
         graphics.fill(readableLeft + 15, y + 15, readableLeft + 18, y + 18, ModernUi.DANGER);
     }
 
-    private int drawInlineLines(GuiGraphics graphics, List<ScreenText.InlineLine> lines, int y, int left,
-                                int maxWidth, ChatContracts.Turn turn) {
-        MessageLayout layout = messageLayout(lines, maxWidth);
+    private int drawInlineLines(GuiGraphics graphics, MessageLayout layout, int y, int left, ChatContracts.Turn turn) {
         int quoteY = -1;
         for (MessageRun run : layout.runs()) {
             int x = left + run.x();
             int top = y + run.y();
+            if (top + ModernUi.MESSAGE_LINE_HEIGHT <= 40 || top >= toggleY - 8) continue;
             if (run.quoted() && quoteY != run.y()) {
                 graphics.fill(left, top, left + 2, top + ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.MUTED);
                 quoteY = run.y();
@@ -1613,6 +1671,7 @@ public final class AssistantScreen extends Screen {
         boolean historyLoaded = selectionChanged
                 || view.activity().equals("Loading session...") && !next.activity().equals("Loading session...");
         if (selectionChanged) sourceLabelCache.clear();
+        if (selectionChanged || view.sources() != next.sources() || view.navigationTargets() != next.navigationTargets()) preparedTurns.clear();
         view = next;
         history = null;
         boolean loadingSession = next.activity().equals("Loading session...");

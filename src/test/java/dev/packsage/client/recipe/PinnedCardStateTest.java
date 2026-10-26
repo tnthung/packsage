@@ -48,6 +48,13 @@ class PinnedCardStateTest {
     }
 
     @Test
+    void returningToChipRestoresOrdinaryHover() {
+        state.update(15, 15, true, chip, null);
+        state.update(50, 50, false, chip, panel);
+        assertEquals(PinnedCardState.Visibility.HOVER, state.update(15, 15, false, chip, panel));
+        assertEquals(PinnedCardState.Visibility.HIDDEN, state.update(50, 50, false, chip, panel));
+    }
+    @Test
     void shiftAloneWithoutHoverDoesNothing() {
         assertEquals(PinnedCardState.Visibility.HIDDEN, state.update(200, 200, true, chip, null));
         assertNull(state.anchor());

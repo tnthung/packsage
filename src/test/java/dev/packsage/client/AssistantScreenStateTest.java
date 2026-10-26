@@ -32,6 +32,29 @@ class AssistantScreenStateTest {
         assertFalse(screen.children().isEmpty());
         assertEquals(actions.view, screen.view());
     }
+
+    @Test
+    void fillingOlderHistoryKeepsTheScrolledMessageInPlace() {
+        FakeActions actions = new FakeActions();
+        var original = actions.view;
+        actions.view = new ChatContracts.View(false, original.signIn(), false,
+                new ChatContracts.Conversation(original.conversation().id(), original.conversation().world(),
+                        java.util.Collections.nCopies(20, original.conversation().turns().getFirst()), original.conversation().outcome()),
+                original.context(), original.sources(), original.navigationTargets(), List.of());
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        screen.updateContentMetrics(1_000, 100);
+        screen.mouseScrolled(400, 200, 0, 5);
+        assertEquals(800, screen.scrollOffset());
+
+        screen.tick();
+        screen.updateContentMetrics(2_000, 100);
+
+        assertEquals(1_800, screen.scrollOffset());
+        assertFalse(screen.followingBottom());
+    }
     @Test
     void journalFooterRequiresAVisibleUnavailableRowAndRelevantWorldOrEvidence() {
         FakeActions actions = new FakeActions();

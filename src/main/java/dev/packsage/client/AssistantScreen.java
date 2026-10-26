@@ -106,6 +106,7 @@ public final class AssistantScreen extends Screen {
     private boolean deletingSession;
     private ChatContracts.HistoryPreview history;
     private int visibleTurnCount = 4;
+    private boolean historyPrepended;
     private final List<MessageAction> messageActions = new ArrayList<>();
 
     public AssistantScreen(ChatActions actions) { this(actions, Component.literal("PackSage Assistant")); }
@@ -144,6 +145,7 @@ public final class AssistantScreen extends Screen {
         super.tick();
         if (visibleTurnCount < view.conversation().turns().size()) {
             visibleTurnCount = Math.min(view.conversation().turns().size(), visibleTurnCount + 4);
+            historyPrepended = true;
             followOnCompletion = followBottom;
         }
     }
@@ -1257,6 +1259,8 @@ public final class AssistantScreen extends Screen {
     }
 
     void updateContentMetrics(int contentHeight, int viewportHeight) {
+        if (historyPrepended && !followBottom) scrollOffset += Math.max(0, contentHeight - this.contentHeight);
+        historyPrepended = false;
         this.contentHeight = Math.max(0, contentHeight);
         this.viewportHeight = Math.max(1, viewportHeight);
         if (followBottom && (view.active() || followOnCompletion)) scrollOffset = maxScroll();
@@ -1565,7 +1569,10 @@ public final class AssistantScreen extends Screen {
         boolean sessionsChanged = selectionChanged || completed;
         boolean historyLoaded = selectionChanged
                 || view.activity().equals("Loading session...") && !next.activity().equals("Loading session...");
-        if (historyLoaded) visibleTurnCount = 4;
+        if (historyLoaded) {
+            visibleTurnCount = 4;
+            historyPrepended = false;
+        }
         if (selectionChanged) sourceLabelCache.clear();
         view = next;
         history = null;

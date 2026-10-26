@@ -32460,11 +32460,11 @@ The round-1/2 controller rulings apply: v2 has no recipe viewer, seeds need not 
 | J8 | FAIL | Actual 17-gold donkey deposit and withdrawal occur, but neither appears in the journal after world reopen. |
 | J9 | PASS | After disconnect with the chest open, the reply marks the association unverifiable and does not invent the 19-item session. |
 | J13 | NOT RUN | Pending execution. |
-| P9/J7 | NOT RUN | Pending execution. |
+| P9/J7 | NOT RUN | No-mod server starts, but required Nature?s Aura/Patchouli channels reject the client before login; no questions submitted. |
 | W11 | FAIL | Horse screens open but /player/open errors on menu type; both answers use targeted rather than the required opened path. |
-| W17 | NOT RUN | Pending execution. |
-| W18 | NOT RUN | Pending execution. |
-| U1 | NOT RUN | Pending execution. |
+| W17 | PASS | Saved v1 JEI citation chips render; all 14 legacy navigation targets report UNAVAILABLE without substitution. |
+| W18 | NOT RUN | No-pack status is not_provided; newly created pack was absent from the startup pack catalog and never enabled. |
+| U1 | NOT RUN | The available six-row popup fits at width 106 with no scrollbar; no long adapter list exists in this v2 runtime. |
 | U2 | NOT RUN | Pending execution. |
 
 ### Passing checks and checks not run
@@ -33381,6 +33381,164 @@ I can’t verify that it was the chest you had open when you disconnected—the 
 ```
 
 Timing: {"wallMs":29619,"modelTerminalMs":"24496","toolWallMs":"22","persistMs":"1116"}.
+
+
+#### P9/J7 - NOT RUN
+
+Classification: **fixture**. No-mod server starts, but required Nature?s Aura/Patchouli channels reject the client before login; no questions submitted.
+
+Reused NeoForge 21.1.202 server, online-mode=false, 127.0.0.1:25565, empty mods folder. /server/connect returns Server connection timeout; state shows ModMismatchDisconnectedScreen. Client logs list missing naturesaura and patchouli channels and Incompatible client! Please use NeoForge 21.1.202. No availability result is claimed. /world/leave returned to title; stop was sent to server stdin, all dimensions saved, no server Java or listener remained. Its run.bat waited at pause after Java exit; only those completed launcher/controller helpers were stopped.
+
+Evidence: [p9-server-setup.json](../../build/native-readiness-live/round3/p9-server-setup.json).
+
+Evidence: [p9-connected.json](../../build/native-readiness-live/round3/p9-connected.json).
+
+Evidence: [p9-after-connect.json](../../build/native-readiness-live/round3/p9-after-connect.json).
+
+Evidence: [p9-client.log](../../build/native-readiness-live/round3/p9-client.log).
+
+Evidence: [p9-server-console.log](../../build/native-readiness-live/round3/p9-server-console.log).
+
+Evidence: [p9-stop-verification.json](../../build/native-readiness-live/round3/p9-stop-verification.json).
+
+
+#### W17 - PASS
+
+Saved v1 JEI citation chips render; all 14 legacy navigation targets report UNAVAILABLE without substitution.
+
+Opened the original October 21 JEI conversation in its New World save with no new model request and no history-file edits. The screenshot visibly renders the green brewing chips. Every original target returns Navigation target is no longer available; none opens a substitute provider. Returned to PackSage Adapter Filter Live Test afterward.
+
+Evidence: [w17-legacy-original.json](../../build/native-readiness-live/round3/w17-legacy-original.json).
+
+Evidence: [w17-selected.json](../../build/native-readiness-live/round3/w17-selected.json).
+
+Evidence: [w17-chat.json](../../build/native-readiness-live/round3/w17-chat.json).
+
+Evidence: [w17-legacy.png](../../build/native-readiness-live/round3/w17-legacy.png).
+
+Evidence: [w17-nav.json](../../build/native-readiness-live/round3/w17-nav.json).
+
+Evidence: [w17-world-leave.json](../../build/native-readiness-live/round3/w17-world-leave.json).
+
+Evidence: [w17-main-world-open.json](../../build/native-readiness-live/round3/w17-main-world-open.json).
+
+
+#### W18 - NOT RUN
+
+Classification: **fixture**. No-pack status is not_provided; newly created pack was absent from the startup pack catalog and never enabled.
+
+The round-3 pack was created after launch. /resourcepacks returned Resource pack not found: file/packsage-round3-speed. The artifact script failed to guard that setup response and submitted the planned second question with no pack active. Both reads correctly have descriptionStatus=not_provided and 20% increments. No enabled-pack description result is claimed and no question is resubmitted to get a pass. The folder is retained inactive; the pre-existing round-2 pack is unchanged.
+
+Evidence: [w18-resource-pack-fixture.json](../../build/native-readiness-live/round3/w18-resource-pack-fixture.json).
+
+Evidence: [w18-enabled.json](../../build/native-readiness-live/round3/w18-enabled.json).
+
+Evidence: [w18-disabled.json](../../build/native-readiness-live/round3/w18-disabled.json).
+
+Question: `what does Speed do?`
+
+Request `55e1476f-5650-4347-a22a-788fb578f0e4`; conversation `29d8c33d-d784-42dc-acf6-4e6dba7844f1`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/w18-baseline.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "mob_effect",
+      "filter": {
+        "text": null,
+        "ids": [
+          "minecraft:speed"
+        ],
+        "tags": null,
+        "provider": null
+      },
+      "limit": 64,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+**Speed makes you move faster.** In this pack, Speed I increases your movement-speed attribute by 20%, and Speed II by 40%. [native:mob_effect:minecraft:speed]
+```
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":18149,"modelTerminalMs":"14061","toolWallMs":"12","persistMs":"2693"}.
+
+Question: `what does Speed do?`
+
+Request `2534e26f-e97f-4561-aa5d-378ad5be2d88`; conversation `a682b171-f970-4e3a-9836-80ad23aff68d`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/w18-pack.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "mob_effect",
+      "filter": {
+        "text": "speed",
+        "ids": null,
+        "tags": null,
+        "provider": null
+      },
+      "limit": 64,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+**Speed makes you move faster.** In this pack, Speed I adds 20% to movement speed, Speed II adds 40%, and each additional level adds another 20%. [native:mob_effect:minecraft:speed]
+```
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":21497,"modelTerminalMs":"14253","toolWallMs":"3","persistMs":"1139"}.
+
+
+#### U1 - NOT RUN
+
+Classification: **fixture**. The available six-row popup fits at width 106 with no scrollbar; no long adapter list exists in this v2 runtime.
+
+The screenshot shows all six entries (Minecraft, NeoForge configs, World, Progress, Journal, Chat history), readable and inside the viewport. The bridge reports scrollbar=false, so the long-list scrollbar branch cannot be accepted. The screenshot copy first received EBUSY before the file closed; one later file-copy recovery succeeded, without resubmitting any model question.
+
+Evidence: [u1-popup.json](../../build/native-readiness-live/round3/u1-popup.json).
+
+Evidence: [u1-state.json](../../build/native-readiness-live/round3/u1-state.json).
+
+Evidence: [u1-popup.png](../../build/native-readiness-live/round3/u1-popup.png).
 
 
 ### Failures

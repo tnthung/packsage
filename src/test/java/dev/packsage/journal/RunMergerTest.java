@@ -107,6 +107,7 @@ class RunMergerTest {
         }
         var runs = merger.takeChanged();
         assertEquals(3, runs.size());
+        assertEquals(List.of("break", "drop", "pickup"), runs.stream().map(run -> run.key().type().id()).sorted().toList());
         for (var run : runs) {
             switch (run.key().type().id()) {
                 case "break" -> {

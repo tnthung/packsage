@@ -4,6 +4,8 @@ package dev.packsage.journal;
 public enum EventType {
     PLACE("place", true),
     BREAK("break", true),
+    PICKUP("pickup", true),
+    DROP("drop", true),
     DEPOSIT("deposit", true),
     WITHDRAW("withdraw", true),
     DEATH("death", false),

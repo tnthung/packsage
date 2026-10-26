@@ -37,6 +37,8 @@ public final class RunSummary {
         var text = switch (entry.type()) {
             case PLACE -> actor + " placed " + count + " " + subject;
             case BREAK -> actor + " broke " + count + " " + subject;
+            case PICKUP -> actor + " picked up " + amount + " " + subject;
+            case DROP -> actor + " dropped " + amount + " " + subject;
             case DEPOSIT -> actor + " put " + amount + " " + subject + " into " + container;
             case WITHDRAW -> actor + " took " + amount + " " + subject + " from " + container;
             case DEATH -> subject + name + " died";

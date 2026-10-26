@@ -151,7 +151,7 @@ class JournalHooksTest {
             assertFalse(listener.receiveCanceled());
             assertDoesNotThrow(() -> listener.action().accept(null));
         }
-        assertEquals(18, journal.stats().hookFailures());
+        assertEquals(20, journal.stats().hookFailures());
         journal.stats().endTick();
         assertEquals(0, journal.stats().maxHookNanosPerTick.get());
         for (var type : List.of(BlockEvent.BreakEvent.class, BlockEvent.EntityPlaceEvent.class,
@@ -240,6 +240,7 @@ class JournalHooksTest {
             new JournalHooks(journal, () -> server).register(bus);
             journal.open(dir.resolve("journal.db"), () -> 400L);
             try {
+                var realStart = System.currentTimeMillis();
                 bus.post(new net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent.Post(player, partial,
                         new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.DIAMOND, 8)));
                 bus.post(new net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent.Post(player, full,
@@ -267,8 +268,11 @@ class JournalHooksTest {
                 assertEquals(12, ((JournalEntry.EventEntry) pickup.getFirst()).amount());
                 assertEquals("player:00000000-0000-0000-0000-000000000001", ((JournalEntry.EventEntry) pickup.getFirst()).actor());
                 assertEquals(400, ((JournalEntry.EventEntry) pickup.getFirst()).firstGameTime());
+                assertTrue(((JournalEntry.EventEntry) pickup.getFirst()).firstWall() >= realStart);
                 assertEquals(new dev.packsage.world.BlockPlace("minecraft:overworld", 10, 64, -3),
                         ((JournalEntry.EventEntry) pickup.getFirst()).at());
+                assertTrue(RunSummary.describe((JournalEntry.EventEntry) pickup.getFirst(), "Alex")
+                        .contains("Alex picked up 12 minecraft:diamond"));
                 var drop = new JournalSearch(store).search(new JournalFilter(null, null, null, "minecraft:overworld",
                         java.util.Set.of("drop"), List.of("minecraft:diamond"), null, false), null, System.currentTimeMillis()).items();
                 assertEquals(1, drop.size());

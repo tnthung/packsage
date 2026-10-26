@@ -60,6 +60,15 @@ public final class JournalEvents {
                 block, null, 1, new long[]{Positions.pack(x, y, z)}, playerName == null ? null : detail.toString());
     }
 
+    public static JournalEvent item(Stamp stamp, EventType type, String playerRef, String playerName, String item,
+                                    long amount, int x, int y, int z) {
+        if ((type != EventType.PICKUP && type != EventType.DROP) || amount <= 0) throw new IllegalArgumentException("item event needs a positive amount and pickup or drop type");
+        var detail = new JsonObject();
+        if (playerName != null) detail.addProperty("actorName", playerName);
+        return new JournalEvent(type, stamp.gameTime(), stamp.wallMillis(), stamp.dimension(), playerRef, item, null,
+                amount, new long[]{Positions.pack(x, y, z)}, playerName == null ? null : detail.toString());
+    }
+
     /** The hook must cap the whole explosion at 4,096 positions before grouping by block id. */
     public static List<JournalEvent> explosion(Stamp stamp, String actorRef, String sourceType, double cx, double cy, double cz,
                                                 Map<String, long[]> brokenByBlock) {

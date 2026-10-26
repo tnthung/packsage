@@ -26,9 +26,11 @@ import net.minecraft.world.level.storage.LevelResource;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
+import net.neoforged.neoforge.event.entity.item.ItemTossEvent;
 import net.neoforged.neoforge.event.entity.living.LivingConversionEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.AdvancementEvent;
+import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerContainerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
@@ -184,6 +186,28 @@ public final class JournalHooks {
             journal.record(JournalEvents.place(new JournalEvents.Stamp(server.overworld().getGameTime(), System.currentTimeMillis(),
                     level.dimension().location().toString()), "player:" + player.getUUID(), player.getScoreboardName(),
                     BuiltInRegistries.BLOCK.getKey(event.getPlacedBlock().getBlock()).toString(), pos.getX(), pos.getY(), pos.getZ()));
+        }));
+        bus.addListener(EventPriority.LOWEST, false, ItemEntityPickupEvent.Post.class, event -> hook(event, server -> {
+            if (server == null || !(event.getPlayer() instanceof ServerPlayer player)
+                    || !(player.level() instanceof ServerLevel level) || level.isClientSide() || level.getServer() != server) return;
+            var original = event.getOriginalStack();
+            var amount = original.getCount() - event.getCurrentStack().getCount();
+            if (amount <= 0) return;
+            var pos = event.getItemEntity().blockPosition();
+            journal.record(JournalEvents.item(new JournalEvents.Stamp(server.overworld().getGameTime(), System.currentTimeMillis(),
+                            level.dimension().location().toString()), EventType.PICKUP, "player:" + player.getUUID(), player.getScoreboardName(),
+                    BuiltInRegistries.ITEM.getKey(original.getItem()).toString(), amount, pos.getX(), pos.getY(), pos.getZ()));
+        }));
+        bus.addListener(EventPriority.LOWEST, false, ItemTossEvent.class, event -> hook(event, server -> {
+            if (server == null || !(event.getPlayer() instanceof ServerPlayer player)
+                    || !(player.level() instanceof ServerLevel level) || level.isClientSide() || level.getServer() != server) return;
+            var item = event.getEntity();
+            var stack = item.getItem();
+            if (stack.isEmpty()) return;
+            var pos = item.blockPosition();
+            journal.record(JournalEvents.item(new JournalEvents.Stamp(server.overworld().getGameTime(), System.currentTimeMillis(),
+                            level.dimension().location().toString()), EventType.DROP, "player:" + player.getUUID(), player.getScoreboardName(),
+                    BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount(), pos.getX(), pos.getY(), pos.getZ()));
         }));
         bus.addListener(EventPriority.LOWEST, false, ExplosionEvent.Detonate.class, event -> hook(event, server -> {
             if (server == null || !(event.getLevel() instanceof ServerLevel level) || level.isClientSide() || level.getServer() != server) return;

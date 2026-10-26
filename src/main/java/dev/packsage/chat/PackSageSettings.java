@@ -24,6 +24,7 @@ public final class PackSageSettings {
     private boolean openPaused;
     private boolean automaticWebSearch;
     private boolean hideInactiveAdapters = true;
+    private boolean showChatsFromOtherSessions;
     private Boolean debugBridge;
     private Integer debugBridgePort;
     private int historyTurns;
@@ -72,6 +73,7 @@ public final class PackSageSettings {
             settings.openPaused = Boolean.parseBoolean(properties.getProperty("openPaused", Boolean.toString(settings.openPaused)));
             settings.automaticWebSearch = Boolean.parseBoolean(properties.getProperty("automaticWebSearch", Boolean.toString(settings.automaticWebSearch)));
             settings.hideInactiveAdapters = Boolean.parseBoolean(properties.getProperty("hideInactiveAdapters", Boolean.toString(settings.hideInactiveAdapters)));
+            settings.showChatsFromOtherSessions = Boolean.parseBoolean(properties.getProperty("showChatsFromOtherSessions", Boolean.toString(settings.showChatsFromOtherSessions)));
             try {
                 settings.sendShortcut = SendShortcut.valueOf(properties.getProperty("sendShortcut", "enter").toUpperCase(java.util.Locale.ROOT));
             } catch (IllegalArgumentException ignored) { }
@@ -123,6 +125,7 @@ public final class PackSageSettings {
         properties.put("openPaused", Boolean.toString(openPaused));
         properties.put("automaticWebSearch", Boolean.toString(automaticWebSearch));
         properties.put("hideInactiveAdapters", Boolean.toString(hideInactiveAdapters));
+        properties.put("showChatsFromOtherSessions", Boolean.toString(showChatsFromOtherSessions));
         properties.put("sendShortcut", sendShortcut.name().toLowerCase(java.util.Locale.ROOT));
         properties.put("historyTurns", Integer.toString(historyTurns));
         properties.put("historicalTokens", Integer.toString(historicalTokens));
@@ -138,6 +141,7 @@ public final class PackSageSettings {
     public int debugBridgePort() { return debugBridgePort == null ? 25599 : debugBridgePort; }
     public boolean automaticWebSearch() { return automaticWebSearch; }
     public boolean hideInactiveAdapters() { return hideInactiveAdapters; }
+    public boolean showChatsFromOtherSessions() { return showChatsFromOtherSessions; }
     public int historyTurns() { return historyTurns; }
     public int historicalTokens() { return historicalTokens; }
     public SendShortcut sendShortcut() { return sendShortcut; }
@@ -149,6 +153,7 @@ public final class PackSageSettings {
     public void setOpenPaused(boolean value) { openPaused = value; }
     public void setAutomaticWebSearch(boolean value) { automaticWebSearch = value; }
     public void setHideInactiveAdapters(boolean value) { hideInactiveAdapters = value; }
+    public void setShowChatsFromOtherSessions(boolean value) { showChatsFromOtherSessions = value; }
     public void setSendShortcut(SendShortcut value) { sendShortcut = value == null ? SendShortcut.ENTER : value; }
     public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; }
     public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; }

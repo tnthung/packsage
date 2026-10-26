@@ -52,8 +52,9 @@ class ConversationStoreTest {
                 List.of(target), new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, "ok"), 9,
                 Instant.parse("2026-10-13T01:02:03Z"), List.of(new ChatContracts.ActivityStep("tool:call-1",
                 "Reading evidence", "Completed", ChatContracts.ActivityStatus.COMPLETED,
-                "{\"filters\":[null,{\"item\":\"packsage:fixture_lantern\"}] }")),
-                List.of(new ChatContracts.SteeringMessage("Actually, here.", 5)));
+                "{\"filters\":[null,{\"item\":\"packsage:fixture_lantern\"}] }", "lookup",
+                "Coverage: COMPLETE; records: 1\nLoaded fixture", 125L)),
+                List.of(new ChatContracts.SteeringMessage("Actually, here.", 5)), 1_250L);
 
         store.appendMedia(world, conversation.id(), screenshot, new byte[]{1, 2, 3}).toCompletableFuture().join();
         store.appendTurn(world, SCOPE, conversation.id(), turn).toCompletableFuture().join();
@@ -66,12 +67,78 @@ class ConversationStoreTest {
         assertEquals("{\"filters\":[null,{\"item\":\"packsage:fixture_lantern\"}] }",
                 reopened.turns().getFirst().activities().getFirst().serializedArguments());
         assertEquals(turn.steeringMessages(), reopened.turns().getFirst().steeringMessages());
+        assertEquals(1_250L, reopened.turns().getFirst().durationMillis());
         assertArrayEquals(new byte[]{1, 2, 3}, store.readMedia(world, conversation.id(), screenshot)
                 .toCompletableFuture().join());
         assertTrue(Files.exists(store.conversationPath(world, conversation.id())));
         try (var paths = Files.walk(temporaryDirectory)) {
             assertTrue(paths.anyMatch(path -> path.toString().endsWith(".png")));
         }
+    }
+
+    @Test
+    void legacyTurnsWithoutTimingStillLoadWithoutInventedDurations() throws Exception {
+        ConversationStore store = new ConversationStore(temporaryDirectory, DIRECT);
+        ChatContracts.WorldIdentity world = new ChatContracts.WorldIdentity("world-a", "World");
+        ChatContracts.Conversation conversation = store.newConversation(world).toCompletableFuture().join();
+        store.appendTurn(world, SCOPE, conversation.id(), historyTurn("legacy", "Question", "Answer",
+                ChatContracts.OutcomeStatus.COMPLETED)).toCompletableFuture().join();
+
+        ChatContracts.Turn loaded = store.openConversation(world, conversation.id()).toCompletableFuture().join().turns().getFirst();
+
+        assertNull(loaded.durationMillis());
+        assertEquals("Answer", loaded.answer());
+    }
+
+    @Test
+    void summaryCacheWriteFailureDoesNotFailSavedTurnsOrHideChats() throws Exception {
+        var world = new ChatContracts.WorldIdentity("world-a", "World");
+        var store = new ConversationStore(temporaryDirectory, DIRECT);
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        Path file = store.conversationPath(world, conversation.id());
+        Path summary = file.resolveSibling(file.getFileName().toString().replace(".jsonl", ".summary.json"));
+        Files.delete(summary);
+        Files.createDirectory(summary);
+
+        store.appendTurn(world, SCOPE, conversation.id(), simpleTurn("first")).toCompletableFuture().join();
+        assertEquals("first", store.openConversation(world, conversation.id()).toCompletableFuture().join()
+                .turns().getLast().question());
+        assertEquals(1, store.sessions().toCompletableFuture().join().size());
+        assertEquals("first", store.summary(world, conversation.id()).toCompletableFuture().join().title());
+        store.replaceLatestTurn(world, SCOPE, conversation.id(), new ChatContracts.RequestId("first"), simpleTurn("replacement"))
+                .toCompletableFuture().join();
+        assertEquals("replacement", store.openConversation(world, conversation.id()).toCompletableFuture().join()
+                .turns().getLast().question());
+        assertFalse(store.errors().isEmpty());
+    }
+
+    @Test
+    void legacySummaryBackfillYieldsToSelectedConversationReads() throws Exception {
+        var world = new ChatContracts.WorldIdentity("world-a", "World");
+        var setup = new ConversationStore(temporaryDirectory, DIRECT);
+        var selected = setup.newConversation(world).toCompletableFuture().join();
+        for (int index = 0; index < 3; index++) {
+            var conversation = setup.newConversation(world).toCompletableFuture().join();
+            setup.appendTurn(world, SCOPE, conversation.id(), simpleTurn("question " + index)).toCompletableFuture().join();
+        }
+        try (var files = Files.walk(temporaryDirectory)) {
+            for (Path summary : files.filter(path -> path.toString().endsWith(".summary.json")).toList()) Files.delete(summary);
+        }
+        List<Runnable> pending = new java.util.ArrayList<>();
+        var store = new ConversationStore(temporaryDirectory, pending::add);
+        var listed = store.sessions().toCompletableFuture();
+        pending.removeFirst().run();
+        assertEquals(4, listed.join().size());
+        assertTrue(listed.join().stream().allMatch(summary -> summary.title().equals("Saved chat")));
+
+        var backfill = store.loadSummaries(listed.join()).toCompletableFuture();
+        var opened = store.openConversation(world, selected.id()).toCompletableFuture();
+        pending.removeFirst().run();
+        pending.removeFirst().run();
+        assertTrue(opened.isDone());
+        assertFalse(backfill.isDone());
+        while (!pending.isEmpty()) pending.removeFirst().run();
+        assertTrue(backfill.join().stream().anyMatch(summary -> summary.title().equals("question 2")));
     }
 
     @Test

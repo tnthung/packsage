@@ -18,6 +18,10 @@ public interface ChatActions {
         return java.util.concurrent.CompletableFuture.completedFuture(List.of());
     }
 
+    default CompletionStage<Void> loadSessions(java.util.function.Consumer<List<ChatContracts.SessionSummary>> refresh) {
+        return sessions().thenAccept(refresh);
+    }
+
     default void openSession(ChatContracts.SessionSummary session) { }
 
     default void markRead(ChatContracts.SessionSummary session, ChatContracts.RequestId expectedCompletion) { }

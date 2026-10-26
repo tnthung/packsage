@@ -21,6 +21,41 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void initializationShowsTheScreenBeforeSelectingHistoryForRendering() {
+        FakeActions actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+
+        assertEquals(0, actions.historyPreviews);
+        assertFalse(screen.children().isEmpty());
+        assertEquals(actions.view, screen.view());
+    }
+
+    @Test
+    void fillingOlderHistoryKeepsTheScrolledMessageInPlace() {
+        FakeActions actions = new FakeActions();
+        var original = actions.view;
+        actions.view = new ChatContracts.View(false, original.signIn(), false,
+                new ChatContracts.Conversation(original.conversation().id(), original.conversation().world(),
+                        java.util.Collections.nCopies(20, original.conversation().turns().getFirst()), original.conversation().outcome()),
+                original.context(), original.sources(), original.navigationTargets(), List.of());
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        screen.updateContentMetrics(1_000, 100);
+        screen.mouseScrolled(400, 200, 0, 5);
+        assertEquals(800, screen.scrollOffset());
+
+        screen.tick();
+        screen.updateContentMetrics(2_000, 100);
+
+        assertEquals(1_800, screen.scrollOffset());
+        assertFalse(screen.followingBottom());
+    }
+    @Test
     void journalFooterRequiresAVisibleUnavailableRowAndRelevantWorldOrEvidence() {
         FakeActions actions = new FakeActions();
         actions.adapterDetails = java.util.Map.of("journal", "database refused");
@@ -884,6 +919,36 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void conversationSwitchRestoresBackfilledHistoryWindowAndScrollPosition() {
+        FakeActions actions = new FakeActions();
+        ChatContracts.View original = actions.view;
+        actions.view = new ChatContracts.View(false, original.signIn(), false,
+                new ChatContracts.Conversation(original.conversation().id(), original.conversation().world(),
+                        java.util.Collections.nCopies(12, original.conversation().turns().getFirst()), original.conversation().outcome()),
+                original.context(), original.sources(), original.navigationTargets(), List.of());
+        AssistantScreen screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        screen.tick();
+        screen.tick();
+        screen.updateContentMetrics(2_000, 200);
+        screen.mouseScrolled(400, 200, 0, 5);
+        int offset = screen.scrollOffset();
+
+        ChatContracts.View other = new ChatContracts.View(false, ChatContracts.SignInState.SIGNED_OUT, false,
+                new ChatContracts.Conversation("other", original.conversation().world(), List.of(),
+                        new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
+                original.context(), List.of(), List.of(), List.of(), "", "");
+        screen.refresh(other);
+        screen.refresh(actions.view);
+        screen.tick();
+        screen.updateContentMetrics(2_400, 200);
+
+        assertEquals(offset, screen.scrollOffset());
+    }
+
+    @Test
     void loadingReopenPreservesEditTargetUntilTheLoadedViewCanResend() {
         FakeActions actions = new FakeActions();
         AssistantScreen screen = new AssistantScreen(actions);
@@ -1059,6 +1124,7 @@ class AssistantScreenStateTest {
     @Test
     void sidebarGroupsCurrentWorldFirstExpandsAndScrollsToEverySession() {
         FakeActions actions = new FakeActions();
+        actions.settings.setShowChatsFromOtherSessions(true);
         var activeWorld = actions.view.activeWorld();
         var other = new ChatContracts.WorldIdentity("other", "Other");
         List<ChatContracts.SessionSummary> sessions = new ArrayList<>();
@@ -1085,6 +1151,46 @@ class AssistantScreenStateTest {
         assertEquals("open:other-chat", actions.calls.getLast());
         ((MultilineEditor) screen.children().getFirst()).setValue("Question 7");
         assertEquals(List.of("chat-7"), screen.sessionRows().stream().filter(value -> value.session() != null).map(value -> value.session().id()).toList());
+    }
+
+    @Test
+    void sidebarOtherSessionsToggleFiltersAndSavesFromTheSidebar() {
+        FakeActions actions = new FakeActions();
+        actions.sessions = CompletableFuture.completedFuture(List.of(
+                new ChatContracts.SessionSummary(actions.view.activeWorld(), "here", "Here", "", Instant.EPOCH),
+                new ChatContracts.SessionSummary(new ChatContracts.WorldIdentity("elsewhere", "Elsewhere"),
+                        "there", "There", "", Instant.EPOCH)));
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        int[] saves = {0};
+        screen.setSettingsSaver(() -> saves[0]++);
+        ScreenTestHost.initialize(screen);
+
+        assertEquals(List.of("here"), screen.sessionRows().stream().filter(row -> row.session() != null)
+                .map(row -> row.session().id()).toList());
+        assertTrue(screen.mouseClicked(24, 90, 0));
+        assertTrue(actions.settings.showChatsFromOtherSessions());
+        assertEquals(2, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+        assertEquals(1, saves[0]);
+        assertTrue(screen.mouseClicked(24, 90, 0));
+        assertFalse(actions.settings.showChatsFromOtherSessions());
+        assertEquals(1, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+    }
+
+    @Test
+    void expandedToolBodyIncludesSavedToolSummaryAndDuration() {
+        var screen = new AssistantScreen(new FakeActions());
+        String body = screen.activityBody(new ChatContracts.ActivityStep("tool:one", "Reading", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED, "{\"identity\":\"minecraft:torch\"}", "plan_recipe",
+                "Coverage: PARTIAL; records: 2\nRoute limit reached", 125L), List.of());
+
+        assertTrue(body.contains("plan_recipe"));
+        assertTrue(body.contains("minecraft:torch"));
+        assertTrue(body.contains("PARTIAL"));
+        assertTrue(body.contains("records: 2"));
+        assertTrue(body.contains("Route limit reached"));
+        assertTrue(body.contains("125 ms"));
     }
 
     @Test
@@ -1385,6 +1491,11 @@ class AssistantScreenStateTest {
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null)),
                 new ChatContracts.Context("{}", null, SCOPE), List.of(SOURCE), List.of(TARGET), List.of());
 
+        int historyPreviews;
+        @Override public ChatContracts.HistoryPreview historyPreview() {
+            historyPreviews++;
+            return ChatActions.super.historyPreview();
+        }
         @Override public ChatContracts.View view() { return view; }
         @Override public PackSageSettings settings() { return settings; }
         @Override public java.util.Map<String, Boolean> adapterAvailability() { return availableAdapters; }

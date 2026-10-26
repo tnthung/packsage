@@ -27,6 +27,19 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class MinecraftDebugAdapterTest {
     @Test
+    void menusWithoutARegisteredTypeAreNamedByClass() {
+        class Untyped extends net.minecraft.world.inventory.AbstractContainerMenu {
+            Untyped(net.minecraft.world.inventory.MenuType<?> type) { super(type, 1); }
+            @Override public net.minecraft.world.item.ItemStack quickMoveStack(net.minecraft.world.entity.player.Player player, int index) {
+                return net.minecraft.world.item.ItemStack.EMPTY;
+            }
+            @Override public boolean stillValid(net.minecraft.world.entity.player.Player player) { return true; }
+        }
+        assertEquals("Untyped", MinecraftDebugAdapter.menuType(new Untyped(null)));
+        assertEquals("minecraft:generic_9x3", MinecraftDebugAdapter.menuType(new Untyped(net.minecraft.world.inventory.MenuType.GENERIC_9x3)));
+    }
+
+    @Test
     void promptPublishesOnClientBeforeTheSettingsWriterCompletes(@TempDir Path directory) throws Exception {
         class Client extends Minecraft {
             java.util.concurrent.Executor executor;

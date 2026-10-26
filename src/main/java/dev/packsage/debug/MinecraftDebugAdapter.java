@@ -177,7 +177,7 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                             }
                             json.addProperty("menuId", player.containerMenu.containerId);
                             json.addProperty("opened", player.containerMenu != player.inventoryMenu);
-                            json.addProperty("menuType", BuiltInRegistries.MENU.getKey(player.containerMenu.getType()).toString());
+                            json.addProperty("menuType", menuType(player.containerMenu));
                         }
                         case MENU_MOVE -> {
                             var menu = player.containerMenu;
@@ -511,6 +511,15 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
     @Override
     public void afterResponse(DebugRouter.Operation operation) {
         if (operation == DebugRouter.Operation.GAME_QUIT && quitQueued.compareAndSet(false, true)) client.execute(client::stop);
+    }
+
+    /** The registered menu type, or the class name for menus such as the player and horse inventories that have none. */
+    static String menuType(net.minecraft.world.inventory.AbstractContainerMenu menu) {
+        try {
+            return BuiltInRegistries.MENU.getKey(menu.getType()).toString();
+        } catch (UnsupportedOperationException untyped) {
+            return menu.getClass().getSimpleName();
+        }
     }
 
     /** Runs after rendering a whole frame, including when hideGui is true. Client thread only. */

@@ -54,7 +54,9 @@ final class NativeRecipeReader {
             Map.entry(net.minecraft.world.item.crafting.BookCloningRecipe.class, (recipe, item, components) -> false),
             Map.entry(net.minecraft.world.item.crafting.ShieldDecorationRecipe.class, (recipe, item, components) -> false),
             Map.entry(net.minecraft.world.item.crafting.BannerDuplicateRecipe.class, (recipe, item, components) -> false),
-            Map.entry(net.minecraft.world.item.crafting.ShulkerBoxColoring.class, (recipe, item, components) -> false),
+            // Recolouring makes a differently coloured box, a different item from its input.
+            Map.entry(net.minecraft.world.item.crafting.ShulkerBoxColoring.class, (recipe, item, components) -> item instanceof net.minecraft.world.item.BlockItem block
+                    && block.getBlock() instanceof net.minecraft.world.level.block.ShulkerBoxBlock),
             Map.entry(net.minecraft.world.item.crafting.ArmorDyeRecipe.class, (recipe, item, components) -> false),
             Map.entry(net.minecraft.world.item.crafting.SmithingTrimRecipe.class, (recipe, item, components) -> false),
             Map.entry(net.minecraft.world.item.crafting.RepairItemRecipe.class, (recipe, item, components) -> false));

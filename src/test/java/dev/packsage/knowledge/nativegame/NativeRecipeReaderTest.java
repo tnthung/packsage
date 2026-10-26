@@ -342,6 +342,8 @@ class NativeRecipeReaderTest {
                 new net.minecraft.world.item.crafting.RepairItemRecipe(net.minecraft.world.item.crafting.CraftingBookCategory.MISC)));
         recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("minecraft:suspicious_stew"),
                 new net.minecraft.world.item.crafting.SuspiciousStewRecipe(net.minecraft.world.item.crafting.CraftingBookCategory.MISC)));
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("minecraft:shulker_box_coloring"),
+                new net.minecraft.world.item.crafting.ShulkerBoxColoring(net.minecraft.world.item.crafting.CraftingBookCategory.MISC)));
         recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:beacon"),
                 new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
                         new ItemStack(Items.BEACON), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.NETHER_STAR)))));
@@ -351,6 +353,7 @@ class NativeRecipeReaderTest {
         var none = new Evidence.JsonObject(Map.of());
         assertTrue(source.recipesComplete("minecraft:nether_star", none));
         assertFalse(source.recipesComplete("minecraft:suspicious_stew", none));
+        assertFalse(source.recipesComplete("minecraft:red_shulker_box", none));
         // Repair turns two of an item into one, so it never supplies an item the player lacks.
         assertTrue(source.recipesComplete("minecraft:elytra", none));
         assertTrue(source.recipesComplete("minecraft:saddle", new Evidence.JsonObject(Map.of("minecraft:max_damage", new Evidence.JsonNumber(java.math.BigDecimal.TEN)))));

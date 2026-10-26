@@ -32424,3 +32424,17 @@ Timing: {"wallMs":19294,"modelTerminalMs":"13374","toolWallMs":"0","persistMs":"
 Final GET /prompt: {"text":null,"matchesCandidate8":true}.
 
 [Final installed/configuration verification](../../build/native-readiness-live/round2/final-verification.json), [final screenshot](../../build/native-readiness-live/round2/final-state.png), [evidence completeness](../../build/native-readiness-live/round2/evidence-completeness.json). All 23 submitted questions have completed saved responses, exact inputs, navigation results and wall timings. The temporary Speed effect and 21 force-loaded fixture chunks were cleared; the W18 resource-pack folder remains available but inactive.
+
+### Round 2 controller rulings
+
+- **J12r, N1: PASS on candidate 9.** It is promoted to the code default in 6b15419. The installed default is verified in round 3.
+- **B1, prompt: PASS.** "what advancements am I missing?" is answered from the complete per-tree counts, with links. The earlier P1 ruling applies: listing all 2,137 entries would not change the answer. The acquisition-budget continuation did not trigger live, so that branch stays covered by automated regressions only.
+- **A1: links and detail.**
+  - v2 has no recipe viewer, so native recipe records have no navigation targets. Omitting a link is therefore correct.
+  - A PARTIAL plan with no detail is a code defect. Track F gives every PARTIAL plan a concrete reason.
+- **A2: code, track F.** Native extraction marks ingredient consumption UNKNOWN and keeps tag ingredients as tags, so plans never expand intermediates. The 30-plank answer was correct for the question as asked.
+- **C1: code, fixed in 73375a3.** The tool-name list contained spaces, which split the log field. It is now one comma-joined field. Round 3 rechecks it.
+- **W12r: code, fixed in 6a2604c.** The lookup used the level's registry access, which lacks the reloadable loot tables, so a valid table read as undefined. Astra also found this. Round 3 rechecks it. Naming the seed in the reply is optional; naming the table and its undefined or empty status is required.
+- **W15: PASS; the check was misdesigned.** A villager's jobSite is a brain memory and is correctly COMPLETE, and the reply kept memory apart from block verification. The uncached-POI branch belongs to inspect_block on a loaded chunk whose POI section is not cached. That cannot be set up through gameplay, so it stays covered by automated regressions only.
+- **W19: PASS as an honest limit.** No PackSage tool reads a biome's tag membership, and the reply said so. Biome tags are accepted only as locate queries, for example `#minecraft:is_forest`, which round 3 checks.
+- **Desktop-dependent checks: still NOT RUN.** Track G adds bridge operations so they no longer need desktop control: leaving and opening worlds, joining a server, opening a mount's inventory, opening screens, selecting resource packs and quitting the game.

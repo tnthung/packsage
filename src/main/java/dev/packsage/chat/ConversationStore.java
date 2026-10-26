@@ -633,6 +633,15 @@ public final class ConversationStore {
         return value;
     }
 
+    private void refreshSummary(Path file, ChatContracts.WorldIdentity world) {
+        try {
+            ChatContracts.Conversation conversation = readConversation(file, world);
+            if (conversation != null) writeSummary(file, conversation);
+        } catch (IOException | RuntimeException exception) {
+            report(exception);
+        }
+    }
+
     public CompletionStage<Void> deleteConversation(ChatContracts.WorldIdentity world, String conversationId) {
         return enqueue(() -> {
             Path file = findConversation(world, conversationId);
@@ -733,7 +742,7 @@ public final class ConversationStore {
                     if (existing[existing.length - 1] != '\n') appendBytes(file, new byte[]{'\n'});
                 }
                 appendBytes(file, (turnJson(world, turn) + "\n").getBytes(StandardCharsets.UTF_8));
-                writeSummary(file, Objects.requireNonNull(readConversation(file, world)));
+                refreshSummary(file, world);
             } catch (IOException exception) {
                 report(exception);
                 throw new RuntimeException(exception);
@@ -770,7 +779,7 @@ public final class ConversationStore {
                 } finally {
                     Files.deleteIfExists(temporary);
                 }
-                writeSummary(file, Objects.requireNonNull(readConversation(file, world)));
+                refreshSummary(file, world);
             } catch (IOException exception) {
                 report(exception);
                 throw new RuntimeException(exception);

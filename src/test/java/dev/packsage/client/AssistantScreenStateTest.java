@@ -21,6 +21,44 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void repeatedScreenPreparationReusesLayoutAndRefreshInvalidatesIt() throws Exception {
+        var actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
+        screen.width = 960;
+        screen.height = 600;
+        ScreenTestHost.initialize(screen);
+        var font = new ScreenPreparationFont();
+        var field = net.minecraft.client.gui.screens.Screen.class.getDeclaredField("font");
+        field.setAccessible(true);
+        field.set(screen, font);
+        var prepare = AssistantScreen.class.getDeclaredMethod("prepareConversation");
+        prepare.setAccessible(true);
+        prepare.invoke(screen);
+        long measured = font.measuredGlyphs;
+        assertTrue(measured > 0);
+        prepare.invoke(screen);
+        assertEquals(measured, font.measuredGlyphs);
+        int previews = actions.historyPreviews;
+        prepare.invoke(screen);
+        assertEquals(previews, actions.historyPreviews);
+        screen.width = 480;
+        screen.layout();
+        prepare.invoke(screen);
+        assertTrue(font.measuredGlyphs > measured, "resize must rebuild layout");
+        measured = font.measuredGlyphs;
+        var original = actions.view;
+        var turn = original.conversation().turns().getFirst();
+        actions.view = new ChatContracts.View(false, original.signIn(), false,
+                new ChatContracts.Conversation(original.conversation().id(), original.conversation().world(),
+                        List.of(new ChatContracts.Turn(turn.requestId(), turn.question(), "Updated answer", List.of(),
+                                turn.context(), turn.sources(), turn.outcome(), 1)), original.conversation().outcome()),
+                original.context(), original.sources(), original.navigationTargets(), List.of());
+        screen.refresh(actions.view);
+        prepare.invoke(screen);
+        assertTrue(font.measuredGlyphs > measured, "edited/reloaded turns must rebuild layout");
+    }
+
+    @Test
     void idleTicksDoNotPrepareOlderHistoryAndScrollingAtTheTopRequestsIt() throws Exception {
         var actions = new FakeActions();
         var original = actions.view;

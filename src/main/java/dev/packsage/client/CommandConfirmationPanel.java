@@ -41,7 +41,7 @@ final class CommandConfirmationPanel {
             ModernUi.surface(graphics, row.left(), row.top(), row.left() + row.width(), row.buttonsY() + 26, ModernUi.SURFACE);
             graphics.drawString(font, Component.literal("Run this command? (expires in 60 seconds)")
                     .withStyle(style -> style.withFont(ModernUi.BOLD_FONT)), row.left() + 8, row.top() + 7, ModernUi.ACCENT, false);
-            graphics.drawString(font, Component.literal("Unpause the world before Run.").withStyle(style -> style.withFont(ModernUi.FONT)),
+            graphics.drawString(font, Component.literal("Runs as you, with your permission level.").withStyle(style -> style.withFont(ModernUi.FONT)),
                     row.left() + 8, row.top() + 21, ModernUi.MUTED, false);
             for (int i = 0; i < row.lines().size(); i++) graphics.drawString(font, row.lines().get(i), row.left() + 8,
                     row.top() + 36 + i * ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.TEXT, false);

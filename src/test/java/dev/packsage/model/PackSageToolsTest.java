@@ -468,6 +468,30 @@ class PackSageToolsTest {
     }
 
     @Test
+    void anUnshrinkableRecordAfterADeliveredPrefixKeepsTheRecordsAfterIt() throws Exception {
+        java.util.function.BiFunction<String, String, Evidence.Record> record = (handle, title) -> new Evidence.Record(new Evidence.Source(
+                SCOPE, "native", "fixture", handle, 1, Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE,
+                Evidence.Authority.LOADED, List.of()), Evidence.RecordKind.ITEM, title, new Evidence.JsonObject(Map.of()), List.of());
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(record.apply("first", "First"),
+                record.apply("x".repeat(70_000), "Oversized"), record.apply("later", "Later")),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, "provider-next")));
+
+        var first = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("page", "search_recipe",
+                "{\"filter\":{\"text\":\"fixture\"}}"), SCOPE).toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        assertEquals(List.of("native:first"), first.getAsJsonArray("records").asList().stream()
+                .map(value -> value.getAsJsonObject().get("reference").getAsString()).toList());
+        var cursor = first.get("nextCursor").getAsString();
+        assertTrue(cursor.startsWith("output:"));
+
+        var replay = JsonParser.parseString(tools.execute(new ModelBackend.ToolCall("next", "search_recipe",
+                "{\"filter\":{\"text\":\"fixture\"},\"cursor\":\"" + cursor + "\"}"), SCOPE).toCompletableFuture().get().result().serializedResult()).getAsJsonObject();
+        assertEquals(List.of("native:later"), replay.getAsJsonArray("records").asList().stream()
+                .map(value -> value.getAsJsonObject().get("reference").getAsString()).toList());
+        assertEquals("provider-next", replay.get("nextCursor").getAsString());
+        assertTrue(replay.get("detail").getAsString().contains("1 record omitted because its canonical identity exceeded the output budget"));
+    }
+
+    @Test
     void largeExactRecipePlansKeepLeadingRoutesAndCountTheOmittedTail() throws Exception {
         for (int count : List.of(128, 256)) {
             var inputs = java.util.stream.IntStream.range(0, 9).mapToObj(i -> new Evidence.RecipeSlot("slot:" + i,

@@ -462,11 +462,22 @@ public final class PackSageTools {
                         int tailBytes = Evidence.serialize(new Evidence.JsonObject(signature)).getBytes(java.nio.charset.StandardCharsets.UTF_8).length
                                 + JSON.toJsonTree(scope).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 12_800
                                 + (result.nextCursor() == null ? 0 : result.nextCursor().getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+                        int skippedBeforeTail = skipped;
                         for (int i = index; i < result.records().size(); i++) {
                             var record = result.records().get(i);
                             var encoded = pendingRecords == null ? encodeRecord(record) : pendingRecords.get(i);
                             int bytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
-                            if (bytes > MAX_RECORD_BYTES || tailBytes + bytes > 4 * 1024 * 1024) break;
+                            if (bytes > MAX_RECORD_BYTES) {
+                                if (pendingRecords != null) encoded = encoded.deepCopy();
+                                trimRecord(encoded, MAX_RECORD_BYTES);
+                                bytes = encoded.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+                                // Skip only a record whose protected identity alone cannot fit, and keep the rows after it.
+                                if (bytes > MAX_RECORD_BYTES) {
+                                    skipped++;
+                                    continue;
+                                }
+                            }
+                            if (tailBytes + bytes > 4 * 1024 * 1024) break;
                             var source = record.source();
                             // Keep the bounded wire content and delivery metadata, never the provider's raw payload/recipe.
                             var retained = new Evidence.Record(new Evidence.Source(source.scope(), source.providerId(), boundedString(source.providerVersion()),
@@ -481,7 +492,7 @@ public final class PackSageTools {
                             encodedTail.add(encoded);
                             tailBytes += bytes;
                         }
-                        int omitted = result.records().size() - index - tail.size();
+                        int omitted = result.records().size() - index - tail.size() - (skipped - skippedBeforeTail);
                         var skippedDetail = skipped == 0 ? "" : skipped == 1
                                 ? "1 record omitted because its canonical identity exceeded the output budget; refine the request to reduce output size"
                                 : skipped + " records omitted because their canonical identities exceeded the output budget; refine the request to reduce output size";

@@ -445,7 +445,7 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
                 synchronized (conversationLock) {
                     var world = call(client, () -> {
                         var currentWorld = runtime.view().activeWorld();
-                        if (currentWorld == null) throw new IllegalStateException("World history is not ready");
+                        if (client.level == null) throw new IllegalStateException("World history is not ready");
                         return currentWorld;
                     });
                     ChatContracts.SessionSummary selected = null;

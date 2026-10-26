@@ -36,6 +36,8 @@ class MinecraftDebugAdapterTest {
         field.setAccessible(true);
         var unsafe = field.get(null);
         var client = (Client) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Client.class);
+        client.level = (net.minecraft.client.multiplayer.ClientLevel) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, net.minecraft.client.multiplayer.ClientLevel.class);
         var catalogReads = new java.util.concurrent.atomic.AtomicInteger();
         var foregroundReads = new java.util.concurrent.atomic.AtomicInteger();
         var store = new ConversationStore(directory, task -> { foregroundReads.incrementAndGet(); task.run(); }, task -> {
@@ -92,6 +94,8 @@ class MinecraftDebugAdapterTest {
         field.setAccessible(true);
         var unsafe = field.get(null);
         var client = (Client) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Client.class);
+        client.level = (net.minecraft.client.multiplayer.ClientLevel) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, net.minecraft.client.multiplayer.ClientLevel.class);
         var world = new ChatContracts.WorldIdentity("world", "World");
         var ioTasks = new java.util.concurrent.atomic.AtomicInteger();
         var holdTask = new java.util.concurrent.atomic.AtomicInteger(-1);

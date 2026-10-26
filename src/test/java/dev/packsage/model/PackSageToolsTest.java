@@ -444,6 +444,29 @@ class PackSageToolsTest {
     }
 
     @Test
+    void skipsAnUnshrinkableCursorRecordWithoutLosingLaterRecordsOrProviderCursor() throws Exception {
+        var oversized = new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "x".repeat(70_000), 1,
+                Instant.EPOCH, Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Oversized", new Evidence.JsonObject(Map.of()), List.of());
+        var later = new Evidence.Record(new Evidence.Source(SCOPE, "native", "fixture", "later", 1, Instant.EPOCH,
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of()),
+                Evidence.RecordKind.ITEM, "Later", new Evidence.JsonObject(Map.of()), List.of());
+        var tools = new PackSageTools(request -> CompletableFuture.completedFuture(new Evidence.Result(List.of(oversized, later),
+                Evidence.Coverage.COMPLETE, Evidence.Outcome.COMPLETE, "provider-next")));
+
+        var response = tools.execute(new ModelBackend.ToolCall("page", "search_recipe", "{\"filter\":{\"text\":\"fixture\"}}"), SCOPE)
+                .toCompletableFuture().get();
+        var json = JsonParser.parseString(response.result().serializedResult()).getAsJsonObject();
+
+        assertFalse(response.result().error());
+        assertEquals(1, json.getAsJsonArray("records").size());
+        assertEquals("native:later", json.getAsJsonArray("records").get(0).getAsJsonObject().get("reference").getAsString());
+        assertEquals("provider-next", json.get("nextCursor").getAsString());
+        assertTrue(json.get("detail").getAsString().contains("1 record omitted"));
+        assertFalse(json.get("detail").getAsString().contains("depth/quantity"));
+    }
+
+    @Test
     void largeExactRecipePlansKeepLeadingRoutesAndCountTheOmittedTail() throws Exception {
         for (int count : List.of(128, 256)) {
             var inputs = java.util.stream.IntStream.range(0, 9).mapToObj(i -> new Evidence.RecipeSlot("slot:" + i,

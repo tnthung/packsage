@@ -40779,3 +40779,354 @@ Classification: **transient debug-bridge request discoverability**; no source-le
 The 15 requested checks give **14 PASS, 1 FAIL, 0 NOT RUN**. The from-scratch beacon failure is prompt compliance; its native plan detail passes. The additional transient bridge lookup failure is retained separately. All 13 questions completed and saved in 13 distinct conversations; 23 native tool calls returned no errors. All 84 returned navigation entries OPENED, and the three additional W1 outline-capture calls also OPENED, for **87 successful navigation calls**. Earlier round failures retain their controller rulings.
 
 Minecraft is running, unpaused, in PackSage Adapter Filter Live Test with the bridge enabled, screen/menu closed and player not riding. The player was returned to (1191.5,250,1057.5), yaw -161.56505 and pitch 21.41126. The selected main-hand stack was restored to its observed 16 eggs, and the temporary viewing support was removed. No force-loaded chunks or daylight changes were introduced; the test-tower note remains as requested. Final GET /prompt has text=null and exact candidate 11. Installed JAR hash is unchanged. The checkout remained at installed source HEAD 5a434d11a378f05798468d5087fb6a7b30f9ef27 until this validation-only commit. [cleanup.json](../../build/native-readiness-live/final/cleanup.json), [final-state.json](../../build/native-readiness-live/final/final-state.json), [final-state.png](../../build/native-readiness-live/final/final-state.png), [final-verification.json](../../build/native-readiness-live/final/final-verification.json). Only this validation file is committed; raw evidence remains ignored under build/native-readiness-live/final/.
+
+
+## Pickup and drop live check
+
+Date: 2026-10-26 (Asia/Taipei). Main checkout `D:/Project/packsage`, branch `feat/packsage-v2`; installed source HEAD `7f930969e73c026b50a51dc3b3ae3034985c370f`; installed JAR SHA-256 `93C996B29591AEC5DBEC010F41973D553A813A41E7FDE0D8F22948618F854328`. The hash was read from the installed JAR before and after the checks. [install-metadata.json](../../build/native-readiness-live/pickup/install-metadata.json), [initial-state.json](../../build/native-readiness-live/pickup/initial-state.json), [final-verification.json](../../build/native-readiness-live/pickup/final-verification.json).
+
+The already-running client was in PackSage Adapter Filter Live Test. All game actions used the authenticated localhost debug bridge. No computer use, desktop input, world leave/open, quit/relaunch, worktree, branch switch, source edit, build or reinstall occurred. Current model/settings were retained: the accepted request timings identify `gpt-6-sol`, `MEDIUM`, screenshot=true and search=AUTOMATIC. Each exact question was submitted once in a fresh chat, with candidate 12 verified before every submission; no question was repeated to replace a result.
+
+Raw token-free request/response bodies and wall timings are in [http.jsonl](../../build/native-readiness-live/pickup/http.jsonl); all four saved JSONL answers equal the bridge replies, all four conversations are distinct, all five native tool calls completed without errors, and all six returned navigation entries OPENED. [evidence-completeness.json](../../build/native-readiness-live/pickup/evidence-completeness.json). The sole HTTP error was the K2 fixture's menu move (409). Failed fixture setup commands remain in the ledger.
+
+| Check | Status | Observation |
+|---|---|---|
+| K0 | PASS | Candidate 11 default, exact candidate 12 override for all questions, then candidate 11 restored. |
+| K1 | FAIL - fixture; grouping/count reply PASS | One 200-stone break run and one 166-cobblestone pickup run; the fixture did not collect approximately all 200 drops before the question. |
+| K2 | NOT RUN - fixture | Out-of-range chest closed before the cursor move; no toss was produced. Routing was observed, but drop recording was not exercised. |
+| K3 | FAIL - prompt; routing/count PASS | Journal returns 5 picked up + 3 withdrawn, and reply sums 8; explicit journal-coverage wording is missing. |
+| K4 | PASS | Lifetime `list_statistics` `picked_up` returns 6 diamonds, correctly distinguished from withdrawals. |
+
+### K0 - PASS
+
+Initial GET /prompt has text=null and effectiveText exactly equal to `build/prompt-candidates/candidate-11.txt`. POST /prompt used the JSON file body [K0-candidate12-body.json](../../build/native-readiness-live/pickup/K0-candidate12-body.json), whose text is the exact contents of `build/prompt-candidates/candidate-12.txt`. The following GET confirmed both text and effectiveText equal candidate 12, SHA-256 `b8db7cb2837a134ba392cad8d9cc4345a25f396fb9151e024be8b44ba485a565`. [K0-before.json](../../build/native-readiness-live/pickup/K0-before.json), [K0-before-check.json](../../build/native-readiness-live/pickup/K0-before-check.json), [K0-apply.json](../../build/native-readiness-live/pickup/K0-apply.json), [K0-applied.json](../../build/native-readiness-live/pickup/K0-applied.json), [K0-applied-check.json](../../build/native-readiness-live/pickup/K0-applied-check.json).
+
+Each K1-K4 prompt snapshot is retained as `K*-prompt.json`. Finally POST /prompt {"text":null} cleared the override; GET /prompt again has text=null and exact candidate 11, SHA-256 `0960af8d90bdad1450d1a18c0866aa87799f4dbc257f52ad5326f23c3e0ae7c8`. [K0-clear.json](../../build/native-readiness-live/pickup/K0-clear.json), [K0-after.json](../../build/native-readiness-live/pickup/K0-after.json), [final-verification.json](../../build/native-readiness-live/pickup/final-verification.json). No question, native call, reply or navigation applies to K0.
+
+### Passing checks
+
+#### K4 - PASS
+
+The exact lifetime question uses only list_statistics with categories=["picked_up"] and subjects.ids=["minecraft:diamond"]. The single COMPLETE record has raw=value=6 and unit=count. The reply identifies this as the lifetime pickup statistic. This includes the five K3 pickups and an existing pickup, and excludes the three chest withdrawals. The statistic supplies no navigation target.
+
+Question: `how many diamonds have I picked up in total?`
+
+Request `b52caaa7-dc7d-4bf7-a04c-470536ca421d`; conversation `bb381ef1-efa6-41ff-97ee-13b25d249d23`; status `completed`; saved=true. [K4.json](../../build/native-readiness-live/pickup/K4.json), [K4-input.json](../../build/native-readiness-live/pickup/K4-input.json), [K4-submission.json](../../build/native-readiness-live/pickup/K4-submission.json), [K4-saved.jsonl](../../build/native-readiness-live/pickup/K4-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_24BwLFvi4ddolUrxbhxAZR2I",
+    "name": "list_statistics",
+    "arguments": {
+      "categories": [
+        "picked_up"
+      ],
+      "subjects": {
+        "ids": [
+          "minecraft:diamond"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You’ve picked up **6 diamonds** in total, according to your lifetime pickup statistic. [progress:stat|minecraft|picked_up|minecraft:diamond]
+```
+
+`/navigate` results ([K4-nav.json](../../build/native-readiness-live/pickup/K4-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":18549,"modelTerminalMs":"16981","toolWallMs":"32","persistMs":"20"}. Full returned records: [K4-records.json](../../build/native-readiness-live/pickup/K4-records.json).
+
+### Failures and checks not run
+
+#### K1 - FAIL - fixture; run aggregation and reply PASS
+
+Classification: **fixture**. The requested approximately-200 pickup workload was not achieved before the question: all 200 actual stone breaks succeeded, but only 166 cobblestone reached inventory. The journal's pickup amount agrees with that inventory snapshot. This is not evidence that 34 pickups were lost by the journal. No code defect is inferred, and the workload/question was not repeated.
+
+At the scratch site, initial /fill commands failed with "That position is not loaded"; these errors are retained. After /forceload add 3198 3198 3221 3211 loaded six previously unforced chunks, /fill placed a 336-barrier support layer at y=249 and exactly 200 stone at (3200..3219,250,3200..3209). The player used a netherite pickaxe in survival. Fifty serpentine 2x2 batches teleported the player above each batch, issued its four /player/break calls together, and waited 850 ms for automatic collection. The complete workload took 45,848 ms, including waits and the final inventory snapshot. All 200 unique break requests succeeded. The player moved on before every dropped item was picked up; one additional cobblestone was collected during later setup, after K1 was already complete.
+
+Exact /fill, /gamemode, held-item, /tp, /player/break and inventory requests/responses: [http.jsonl](../../build/native-readiness-live/pickup/http.jsonl), [K1-setup.json](../../build/native-readiness-live/pickup/K1-setup.json), [K1-forceload.json](../../build/native-readiness-live/pickup/K1-forceload.json), [K1-platform-loaded.json](../../build/native-readiness-live/pickup/K1-platform-loaded.json), [K1-stone-loaded.json](../../build/native-readiness-live/pickup/K1-stone-loaded.json), [K1-break-audit.json](../../build/native-readiness-live/pickup/K1-break-audit.json), [K1-inventory-after.json](../../build/native-readiness-live/pickup/K1-inventory-after.json).
+
+The functional interleave/amount checks pass: event 198 is one break run with count=amount=200; event 199 is one pickup run with count=137 pickup events and amount=166 items. Both span the same roughly-44-second mining interval, so interleaving did not alternate or fragment these runs. The reply correctly uses amount=166 rather than count=137 and gives both mining and pickup quantities. The COMPLETE result contains these two runs plus two unrelated egg-pickup records from the original area; those eggs are not added to the mining answer. All four returned journal-place destinations OPENED, including the two unrelated records. The strict overall K1 fixture criterion remains FAIL.
+
+Question: `what did I just mine and pick up?`
+
+Request `2cbcbdfb-2d55-4519-9252-4ded632d42ad`; conversation `2a2e333a-071d-4ae4-9af0-885fb5acaa1b`; status `completed`; saved=true. [K1.json](../../build/native-readiness-live/pickup/K1.json), [K1-input.json](../../build/native-readiness-live/pickup/K1-input.json), [K1-submission.json](../../build/native-readiness-live/pickup/K1-submission.json), [K1-saved.jsonl](../../build/native-readiness-live/pickup/K1-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_gbSUMOQkAkhqJs7dIjiQ56M3",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 10
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break",
+          "pickup"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 4,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You most recently mined **200 stone blocks** and picked up **166 cobblestone** in the same area, around (3200–3220, 250, 3200–3209). [Mining record](journal:event:198) [Pickup record](journal:event:199)
+```
+
+`/navigate` results ([K1-nav.json](../../build/native-readiness-live/pickup/K1-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|3201,250,3200",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|3200,250,3200",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1190,250,1059",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1191,250,1058",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":22753,"modelTerminalMs":"20718","toolWallMs":"51","persistMs":"19"}. Full returned records: [K1-records.json](../../build/native-readiness-live/pickup/K1-records.json).
+
+#### K2 - NOT RUN - fixture
+
+Classification: **fixture**. This attempt did not produce a toss. Seven amethyst shards were put in a chest at (3201,250,3210). Twenty-one empty inventory slots were filled with 64 barriers each; the hand was cleared to open the chest and then filled with 64 more barriers, for 1,408 temporary barrier items. The intended operation was to pick up chest slot 0 onto the cursor and close the full-inventory menu, forcing the carried shards to drop.
+
+The tester opened the chest while the player was still approximately at (3219,250,3209), outside its valid interaction distance. /player/open briefly returned opened=true and menuId=1; the subsequent /player/menu/move {"slot":0,"shift":false} returned HTTP 409 with {"error":"No open container menu"}. /player/menu/close succeeded, but no carried stack existed and the amethyst-item entity query found nothing. The exact question was nevertheless submitted once; no second fixture attempt or question was used to obtain a pass. This avoidable tester setup error leaves the drop-recording criterion NOT RUN and does not establish that a bridge-only toss is impossible.
+
+Evidence: [K2-open.json](../../build/native-readiness-live/pickup/K2-open.json), [K2-full-hand.json](../../build/native-readiness-live/pickup/K2-full-hand.json), [K2-cursor.json](../../build/native-readiness-live/pickup/K2-cursor.json), [K2-close.json](../../build/native-readiness-live/pickup/K2-close.json), [K2-entity-item.json](../../build/native-readiness-live/pickup/K2-entity-item.json), [fixture-limitations.json](../../build/native-readiness-live/pickup/fixture-limitations.json), [http.jsonl](../../build/native-readiness-live/pickup/http.jsonl).
+
+The observed prompt routing uses search_journal(types=["drop"]) for 60 minutes, then a dependent 1,440-minute search. The first result is COMPLETE and empty; the second is PARTIAL and empty, explicitly naming the journal start and a prior world-running-without-recording gap. The reply reports those limits accurately. This routing observation does not substitute for a real toss/drop record. No navigation targets were returned.
+
+Question: `what did I drop recently?`
+
+Request `b659ea26-454b-4be1-b24c-fac30cc65455`; conversation `defa5542-bf44-4043-b284-5e49d0783615`; status `completed`; saved=true. [K2.json](../../build/native-readiness-live/pickup/K2.json), [K2-input.json](../../build/native-readiness-live/pickup/K2-input.json), [K2-submission.json](../../build/native-readiness-live/pickup/K2-submission.json), [K2-saved.jsonl](../../build/native-readiness-live/pickup/K2-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_7rO6pddWnm4XuPwwUqLcBwrj",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 60
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "drop"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_0FzgXsaHDzBuLf52uNiZ3dSs",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 1440
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "drop"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 0,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I don’t see any recorded item drops in the past hour. The journal also shows no drops in the past 24 hours, but it **wasn’t recording** between October 25, 11:09 a.m. and 1:37 p.m. UTC, so I can’t rule out drops during that gap.
+```
+
+`/navigate` results ([K2-nav.json](../../build/native-readiness-live/pickup/K2-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":28315,"modelTerminalMs":"26318","toolWallMs":"4","persistMs":"13"}. Full returned records: [K2-records.json](../../build/native-readiness-live/pickup/K2-records.json).
+
+#### K3 - FAIL - prompt; routing and acquisition sum PASS
+
+Classification: **prompt**. The requested explicit statement of what the journal covers is absent from the verbatim reply. The answer names the past-hour window and correctly distinguishes pickups from storage withdrawals, but presents "you got 8 diamonds" without stating that this is the journal's recorded acquisition coverage. It also omits the returned recording-since boundary. The routing and numeric clauses pass; the full check is conservatively FAIL for the requested coverage-disclosure clause. No tool/code error occurred, and the question was not resubmitted.
+
+After all temporary barriers were cleared, the player was moved next to the chest at (3201.5,250,3208.5). /summon created one item entity with Item={id:"minecraft:diamond",count:5}, PickupDelay=0s and zero motion; after 1,500 ms the original one-diamond inventory stack was six. The chest's first slot was set to three diamonds. /player/open returned menuId=2, GET /state verified the live container menu, /player/menu/move {"slot":0,"shift":true} withdrew the three diamonds, then /player/menu/close closed it. The inventory stack was now nine. The exact summon and menu requests are retained in [http.jsonl](../../build/native-readiness-live/pickup/http.jsonl); [K3-pickup-five.json](../../build/native-readiness-live/pickup/K3-pickup-five.json), [K3-after-pickup.json](../../build/native-readiness-live/pickup/K3-after-pickup.json), [K3-menu-state.json](../../build/native-readiness-live/pickup/K3-menu-state.json), [K3-withdraw-three.json](../../build/native-readiness-live/pickup/K3-withdraw-three.json), [K3-after-withdrawal.json](../../build/native-readiness-live/pickup/K3-after-withdrawal.json).
+
+One COMPLETE search_journal call filters the last 60 minutes, minecraft:diamond, and types pickup/withdraw/trade. Its two COMPLETE records are event 202 (pickup, amount=5, count=1) and event 203 (withdraw, amount=3, count=1); nextCursor=null. The five-item single pickup verifies that item amount, rather than the number of pickup events, is recorded. The reply sums 5+3=8 and separately gives 5 for pickups alone. It makes no list_statistics call. Both returned journal-place targets OPENED.
+
+Question: `how many diamonds did I get in the past hour?`
+
+Request `5d7cca04-e76a-4b50-a3d9-59c3bfa1b901`; conversation `a0be77ae-70b8-462f-9568-db0d69cc0bf0`; status `completed`; saved=true. [K3.json](../../build/native-readiness-live/pickup/K3.json), [K3-input.json](../../build/native-readiness-live/pickup/K3-input.json), [K3-submission.json](../../build/native-readiness-live/pickup/K3-submission.json), [K3-saved.jsonl](../../build/native-readiness-live/pickup/K3-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_RZ5fz2UCT9zPwlIF7VkyH4MC",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 60
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "pickup",
+          "withdraw",
+          "trade"
+        ],
+        "subjects": [
+          "minecraft:diamond"
+        ],
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 2,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+In the past hour, you **got 8 diamonds into your inventory**: you picked up 5 at (3201, 250, 3208) [pickup](journal:event:202) and took 3 from a chest at (3201, 250, 3210) [chest withdrawal](journal:event:203). If you mean diamonds newly picked up rather than taken from storage, the count is **5**.
+```
+
+`/navigate` results ([K3-nav.json](../../build/native-readiness-live/pickup/K3-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|3201,250,3210",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|3201,250,3208",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":26306,"modelTerminalMs":"24328","toolWallMs":"3","persistMs":"13"}. Full returned records: [K3-records.json](../../build/native-readiness-live/pickup/K3-records.json).
+
+### Final state
+
+Strict overall result: **2 PASS (K0, K4), 2 FAIL (K1 fixture, K3 prompt), 1 NOT RUN (K2 fixture)**. K1 run aggregation/item amounts and K3 journal routing/arithmetic passed their functional subchecks. No code defect was established. Four exact questions were submitted once each in four fresh conversations, all completed/saved; five native tool calls returned no errors, and all six navigation attempts OPENED. Older acceptance results are unchanged.
+
+Minecraft remains running and unpaused in PackSage Adapter Filter Live Test, in creative mode, with screen=null, menuId=0, no ridden entity, and health=20. The player returned to (1191.5,250,1057.5), yaw 147.88493 and pitch 14.661261. The initial inventory was restored, including the 16 held eggs, one loose diamond, three eggs in inventory slot 2, original nested contents/custom item components, and armor damage/enchantments. Temporary barriers, test diamonds/cobblestone, scratch chest and 336 support blocks were removed. The loose-cobblestone cleanup found no remaining entity. All six temporary force-loaded chunks were released; no force-loaded chunks remain. No daylight setting was changed. Actual test activity remains in the journal and lifetime statistics.
+
+Final GET /prompt has text=null and exact candidate 11. Installed JAR SHA-256 remains `93C996B29591AEC5DBEC010F41973D553A813A41E7FDE0D8F22948618F854328`; the bridge pid is unchanged. [cleanup.json](../../build/native-readiness-live/pickup/cleanup.json), [cleanup-inventory-after.json](../../build/native-readiness-live/pickup/cleanup-inventory-after.json), [cleanup-chunks-after.json](../../build/native-readiness-live/pickup/cleanup-chunks-after.json), [final-state.json](../../build/native-readiness-live/pickup/final-state.json), [final-verification.json](../../build/native-readiness-live/pickup/final-verification.json). Only this validation file is committed; raw evidence remains ignored under `build/native-readiness-live/pickup/`.

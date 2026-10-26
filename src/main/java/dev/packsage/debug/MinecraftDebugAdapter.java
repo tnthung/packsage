@@ -75,9 +75,10 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
 
     @Override
     public JsonObject execute(DebugRouter.Operation operation, JsonObject body) throws Exception {
-        String bridgeRequest = UUID.randomUUID().toString();
+        boolean traceOpening = operation == DebugRouter.Operation.CHAT_SCREEN || operation == DebugRouter.Operation.SCREEN_OPEN;
+        String bridgeRequest = traceOpening ? UUID.randomUUID().toString() : null;
         long bridgeStartNs = System.nanoTime();
-        PackSageLog.LOGGER.info("PackSage timing request={} phase=bridge_request operation={} start_ns={} event_ns={} elapsed_ms=0",
+        if (traceOpening) PackSageLog.LOGGER.info("PackSage timing request={} phase=bridge_request operation={} start_ns={} event_ns={} elapsed_ms=0",
                 bridgeRequest, operation.name().toLowerCase(java.util.Locale.ROOT), bridgeStartNs, bridgeStartNs);
         try {
             JsonObject response = switch (operation) {
@@ -559,13 +560,13 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
             }
             };
             long responseEventNs = System.nanoTime();
-            PackSageLog.LOGGER.info("PackSage timing request={} phase=bridge_response operation={} start_ns={} event_ns={} elapsed_ms={} success=true",
+            if (traceOpening) PackSageLog.LOGGER.info("PackSage timing request={} phase=bridge_response operation={} start_ns={} event_ns={} elapsed_ms={} success=true",
                     bridgeRequest, operation.name().toLowerCase(java.util.Locale.ROOT), bridgeStartNs, responseEventNs,
                     TimeUnit.NANOSECONDS.toMillis(responseEventNs - bridgeStartNs));
             return response;
         } catch (Exception | Error failure) {
             long responseEventNs = System.nanoTime();
-            PackSageLog.LOGGER.info("PackSage timing request={} phase=bridge_response operation={} start_ns={} event_ns={} elapsed_ms={} failureType={}",
+            if (traceOpening) PackSageLog.LOGGER.info("PackSage timing request={} phase=bridge_response operation={} start_ns={} event_ns={} elapsed_ms={} failureType={}",
                     bridgeRequest, operation.name().toLowerCase(java.util.Locale.ROOT), bridgeStartNs, responseEventNs,
                     TimeUnit.NANOSECONDS.toMillis(responseEventNs - bridgeStartNs), failure.getClass().getSimpleName());
             throw failure;

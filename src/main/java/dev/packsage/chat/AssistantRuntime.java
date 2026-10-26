@@ -211,7 +211,11 @@ public final class AssistantRuntime implements ChatActions {
                             loadingHolder.scope = attachmentScope;
                         }
                         try {
+                            long attachStartNs = System.nanoTime();
                             loadingHolder.controller.showConversation(conversation, attachmentScope);
+                            long eventNs = System.nanoTime();
+                            PackSageLog.LOGGER.info("PackSage timing phase=conversation_attached conversation={} start_ns={} event_ns={} elapsed_ms={} turns={}",
+                                    conversation.id(), attachStartNs, eventNs, (eventNs - attachStartNs) / 1_000_000.0, conversation.turns().size());
                         } catch (RuntimeException attachFailure) {
                             setupFailure = attachFailure;
                         }
@@ -674,7 +678,11 @@ public final class AssistantRuntime implements ChatActions {
                 }
                 if (loadFailure == null) {
                     try {
+                        long attachStartNs = System.nanoTime();
                         loadingHolder.controller.showConversation(conversation, attachmentScope);
+                        long eventNs = System.nanoTime();
+                        PackSageLog.LOGGER.info("PackSage timing phase=conversation_attached conversation={} start_ns={} event_ns={} elapsed_ms={} turns={}",
+                                conversation.id(), attachStartNs, eventNs, (eventNs - attachStartNs) / 1_000_000.0, conversation.turns().size());
                     } catch (RuntimeException attachFailure) {
                         loadFailure = attachFailure;
                     }
@@ -1800,6 +1808,7 @@ public final class AssistantRuntime implements ChatActions {
         if (ready) return CompletableFuture.completedFuture(null);
         if (!initialize) return initialization;
 
+        long setupStartNs = System.nanoTime();
         try {
             GameplayContextCapture capture = Objects.requireNonNull(captureFactory.apply(() -> holder.scope));
             KnowledgeService knowledge;
@@ -1858,6 +1867,9 @@ public final class AssistantRuntime implements ChatActions {
                 holder.controller = controller;
             }
             initialization.complete(null);
+            long eventNs = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing phase=holder_setup_done conversation={} start_ns={} event_ns={} elapsed_ms={} knowledge_unavailable={}",
+                    holder.id, setupStartNs, eventNs, (eventNs - setupStartNs) / 1_000_000.0, knowledgeUnavailable);
         } catch (RuntimeException failure) {
             initialization.completeExceptionally(failure);
         }

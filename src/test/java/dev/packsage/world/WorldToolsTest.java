@@ -106,7 +106,7 @@ class WorldToolsTest {
     @Test
     void entityTitlesUseTheBlockTheEntityStandsIn() {
         var entity = new EntityHandle("minecraft:mule", java.util.UUID.fromString(ENTITY), "minecraft:overworld", 1003.5, 250, -0.5, "Mule");
-        assertEquals("Mule (minecraft:mule) at minecraft:overworld|1003,250,-1", WorldTools.entityTitle(entity));
+        assertEquals("Mule (minecraft:mule) at minecraft:overworld|1003,250,-1", WorldAreaTools.entityTitle(entity));
     }
 
     @ParameterizedTest
@@ -715,11 +715,11 @@ class WorldToolsTest {
         var blocks = new java.util.ArrayList<BlockHandle>();
         for (var i = 0; i < 64; i++) blocks.add(new BlockHandle("test:" + "long_path/".repeat(300), new BlockPlace("minecraft:overworld", i, 64, 0)));
         var page = new Page<>(blocks, null, Evidence.Coverage.COMPLETE, null);
-        var method = WorldTools.class.getDeclaredMethod("blocks", PackSageTools.ReadRequest.class, WorldTools.Center.class, Page.class, WorldTools.ReadSpan.class);
+        var method = WorldAreaTools.class.getDeclaredMethod("blocks", PackSageTools.ReadRequest.class, WorldTools.Center.class, Page.class, WorldTools.ReadSpan.class);
         method.setAccessible(true);
         var tools = new PackSageTools(request -> {
             try {
-                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider, request,
+                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider.areaTools, request,
                         new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), page, null));
             } catch (ReflectiveOperationException failure) {
                 throw new RuntimeException(failure);
@@ -750,17 +750,17 @@ class WorldToolsTest {
             entities.add(new EntityHandle("minecraft:cow", new java.util.UUID(0, i + 1), "minecraft:overworld", 8, 64, 8,
                     count == 1 ? "x".repeat(1023) + "\uD83D\uDE00" + "x".repeat(300_000) : "\u0001\u4e16".repeat(2100)));
         }
-        var type = Class.forName("dev.packsage.world.WorldTools$AreaRead");
+        var type = Class.forName("dev.packsage.world.WorldAreaTools$AreaRead");
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
         var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
                 new Page<>(List.of(new BlockSummary(Map.of("minecraft:stone", 15), List.of(), 0)), null, Evidence.Coverage.COMPLETE, null),
                 new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
-        var method = WorldTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
+        var method = WorldAreaTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
         method.setAccessible(true);
         var tools = new PackSageTools(request -> {
             try {
-                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider, SCOPE, new Anchor.Player(), 16, read, null));
+                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider.areaTools, SCOPE, new Anchor.Player(), 16, read, null));
             } catch (ReflectiveOperationException failure) {
                 throw new RuntimeException(failure);
             }
@@ -809,17 +809,17 @@ class WorldToolsTest {
         for (var i = 0; i < 64; i++) {
             entities.add(new EntityHandle("minecraft:cow", new java.util.UUID(0, i + 1), "minecraft:overworld", 8, 64, 8, "Cow " + i));
         }
-        var type = Class.forName("dev.packsage.world.WorldTools$AreaRead");
+        var type = Class.forName("dev.packsage.world.WorldAreaTools$AreaRead");
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
         var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
                 new Page<>(List.of(new BlockSummary(counts, notable, 0)), null, Evidence.Coverage.COMPLETE, null),
                 new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
-        var method = WorldTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
+        var method = WorldAreaTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
         method.setAccessible(true);
         var tools = new PackSageTools(request -> {
             try {
-                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider, SCOPE, new Anchor.Player(), 256, read, null));
+                return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider.areaTools, SCOPE, new Anchor.Player(), 256, read, null));
             } catch (ReflectiveOperationException failure) {
                 throw new RuntimeException(failure);
             }
@@ -1124,7 +1124,7 @@ class WorldToolsTest {
         var entities = AreaScan.page(java.util.List.<EntityHandle>of(), "5:0", 0, 2, java.util.List.of(AreaScan.PAGE_LIMIT_NOTE));
         assertTrue(entities.note().contains("continue with the cursor"), entities.note());
 
-        var notes = WorldTools.areaNotes(blocks, entities);
+        var notes = WorldAreaTools.areaNotes(blocks, entities);
 
         assertEquals(2, notes.size(), notes.toString());
         assertTrue(notes.getFirst().contains("list_entities"), notes.getFirst());
@@ -1141,7 +1141,7 @@ class WorldToolsTest {
         for (var cut : List.of(false, true)) {
             var entities = new Page<EntityHandle>(List.of(), cut ? "5:0" : null, Evidence.Coverage.PARTIAL,
                     gap + (cut ? "; " + AreaScan.PAGE_LIMIT_NOTE : "") + "; " + AreaScan.SNAPSHOT_NOTE.formatted(1, 2));
-            var notes = WorldTools.areaNotes(blocks, entities);
+        var notes = WorldAreaTools.areaNotes(blocks, entities);
             assertTrue(String.join("; ", notes).contains(gap), notes.toString());
             assertTrue(notes.stream().noneMatch(note -> note.contains("cursor") || note.contains("game-time span")), notes.toString());
         }
@@ -1154,7 +1154,7 @@ class WorldToolsTest {
                 null, Evidence.Coverage.PARTIAL, "3 chunks in range were not loaded and were not fully read");
         var entities = new Page<EntityHandle>(java.util.List.of(), null, Evidence.Coverage.COMPLETE, null);
 
-        var notes = WorldTools.areaNotes(blocks, entities);
+            var notes = WorldAreaTools.areaNotes(blocks, entities);
 
         assertEquals(2, notes.size(), notes.toString());
         assertEquals("3 chunks in range were not loaded and were not fully read", notes.getFirst());

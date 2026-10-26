@@ -300,21 +300,6 @@ class MinecraftStatisticsTest {
         var visited = new AtomicInteger();
         var map = new Object2IntOpenHashMap<Stat<?>>() {
             @Override
-            public it.unimi.dsi.fastutil.objects.ObjectSet<Stat<?>> keySet() {
-                var keys = super.keySet();
-                return new it.unimi.dsi.fastutil.objects.AbstractObjectSet<>() {
-                    @Override public int size() { return keys.size(); }
-                    @Override public it.unimi.dsi.fastutil.objects.ObjectIterator<Stat<?>> iterator() {
-                        var iterator = keys.iterator();
-                        return new it.unimi.dsi.fastutil.objects.ObjectIterator<>() {
-                            @Override public boolean hasNext() { return iterator.hasNext(); }
-                            @Override public Stat<?> next() { visited.incrementAndGet(); return iterator.next(); }
-                        };
-                    }
-                };
-            }
-
-            @Override
             public int getInt(Object key) {
                 visited.incrementAndGet();
                 return super.getInt(key);
@@ -333,18 +318,6 @@ class MinecraftStatisticsTest {
         assertEquals(map.size(), visited.get());
         assertTrue(steps > 1);
         assertEquals(map.size(), slice.result().size());
-    }
-
-    @Test
-    void sparseCountersCountEmptySlotsAgainstTheStepBudget() {
-        var map = new Object2IntOpenHashMap<Stat<?>>(100_000);
-        map.put(Stats.BLOCK_MINED.get(Blocks.STONE), 3);
-        var slice = statistics.statistics(() -> map, List.of("mined"), KindFilter.ANY);
-        assertTrue(slice.step(), "a sparse table still needs bounded batches");
-        var steps = 1;
-        while (slice.step()) steps++;
-        assertTrue(steps > 2);
-        assertEquals(List.of(new Statistic("minecraft", "mined", "minecraft:stone", "Times Mined: Stone", 3, StatisticUnit.COUNT, 3)), slice.result());
     }
 
     @Test

@@ -128,7 +128,8 @@ final class NativeRecipeReader {
             try {
                 var output = holder.value().getResultItem(registries);
                 if (output.isEmpty()) {
-                    result.reasons.add("native-recipe-output-unreadable");
+                    // Special recipes compute their result from the grid; they matter only for an item with no indexed recipe.
+                    result.dynamicOutputs++;
                     continue;
                 }
                 var identity = NativeSnapshot.itemIdentity(output, itemRegistry);
@@ -163,6 +164,7 @@ final class NativeRecipeReader {
         final Set<String> reasons = new LinkedHashSet<>();
         private final Map<String, List<Evidence.Record>> copied = new LinkedHashMap<>();
         private int copies;
+        private int dynamicOutputs;
 
         private PlanSource(Evidence.Scope scope) {
             this.scope = scope;
@@ -175,7 +177,12 @@ final class NativeRecipeReader {
             if (!available(requestedScope)) return List.of();
             return copied.computeIfAbsent(identity, key -> {
                 var records = new ArrayList<Evidence.Record>();
-                for (var candidate : outputs.getOrDefault(key, List.of())) {
+                var indexed = outputs.getOrDefault(key, List.of());
+                // Only the requested item: ingredients without a recipe are ordinary raw materials.
+                if (copied.isEmpty() && indexed.isEmpty() && dynamicOutputs > 0) {
+                    reasons.add("native-recipe-dynamic-outputs-unindexed=" + dynamicOutputs);
+                }
+                for (var candidate : indexed) {
                     if (copies == MAX_PLAN_COPIES) {
                         reasons.add("native-recipe-copy-cap=" + MAX_PLAN_COPIES);
                         break;

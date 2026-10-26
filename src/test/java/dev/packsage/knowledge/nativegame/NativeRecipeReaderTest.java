@@ -169,6 +169,26 @@ class NativeRecipeReaderTest {
     }
 
     @Test
+    void specialRecipesWithComputedOutputsQualifyOnlyARequestedItemWithoutIndexedRecipes() {
+        var recipes = new ArrayList<RecipeHolder<?>>();
+        recipes.add(recipe("test:special", new AtomicReference<>(Items.AIR), new AtomicInteger(), true));
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:beacon"),
+                new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                        new ItemStack(Items.BEACON), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.NETHER_STAR)))));
+        var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build();
+
+        var beacon = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE),
+                "minecraft:beacon", 1, SCOPE, 4);
+        var rocket = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE),
+                "minecraft:firework_rocket", 1, SCOPE, 4);
+
+        assertEquals(1, beacon.records().size());
+        assertEquals(null, beacon.detail());
+        assertTrue(rocket.records().isEmpty());
+        assertTrue(rocket.detail().contains("native-recipe-dynamic-outputs-unindexed=1"));
+    }
+
+    @Test
     void recipeIndexCapReportsTheOmittedLateTarget() {
         var recipes = new java.util.AbstractList<RecipeHolder<?>>() {
             @Override public RecipeHolder<?> get(int index) {

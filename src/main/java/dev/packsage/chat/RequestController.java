@@ -619,7 +619,7 @@ public final class RequestController {
                 request.submission.requestId().value(), requestBuiltAtNanos,
                 (requestBuiltAtNanos - historyReadyAtNanos) / 1_000_000,
                 modelRequest.input().size(), modelRequest.tools().size(),
-                modelRequest.tools().stream().map(ModelBackend.ToolDefinition::name).toList(), modelRequest.modelId(), modelRequest.reasoningEffort());
+                String.join(",", modelRequest.tools().stream().map(ModelBackend.ToolDefinition::name).toList()), modelRequest.modelId(), modelRequest.reasoningEffort());
         synchronized (stateLock) {
             if (!isCurrent(request)) {
                 request.started.completeExceptionally(new IllegalStateException("request was invalidated"));

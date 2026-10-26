@@ -32443,9 +32443,11 @@ Final GET /prompt: {"text":null,"matchesCandidate8":true}.
 
 Date: 2026-10-26 (Asia/Taipei). Main checkout `D:/Project/packsage`, branch `feat/packsage-v2`; installed HEAD `ed08bd0f3b4eb99abb85d7568074f65d88e60cd0`; installed JAR SHA-256 `DEF1F081DC352EBD6ECC4F29D671DA0B538CE7018DB8BDE70D87FF71865C6528`. [Install metadata](../../build/native-readiness-live/round3/install-metadata.json), [build/install log](../../build/native-readiness-live/round3/build-install.log).
 
-The older running build returned HTTP 404 for both /world/leave and /game/quit. The authorized desktop fallback used Save and Quit to Title, then Quit Game. No PackSage javaw remained before scripts/build.ps1; Gradle test/build were up to date and succeeded, wrapper exit 0, built and installed hashes identical. The completed build daemon retained the output pipe; stopping that build daemon released the wrapper. CurseForge relaunched the instance, and /world/open entered the save. No source edits, branch changes, worktrees, or model-setting changes were made. Only this validation file is committed. [Preinstall evidence](../../build/native-readiness-live/round3/preinstall.json).
+The older running build returned HTTP 404 for both /world/leave and /game/quit. The authorized desktop fallback used Save and Quit to Title, then Quit Game. No PackSage javaw remained before scripts/build.ps1; Gradle test/build were up to date and succeeded, wrapper exit 0, built and installed hashes identical. The completed build daemon retained the output pipe; stopping that build daemon released the wrapper. CurseForge relaunched the instance, and /world/open entered the save. No source edits, branch changes, worktrees, or model-setting changes were made by this tester. Only this validation file is committed by this tester. [Preinstall evidence](../../build/native-readiness-live/round3/preinstall.json).
 
-The round-1/2 controller rulings apply: v2 has no recipe viewer, seeds need not be named in loot replies, and biome tags are locate inputs. D2 confirms text=null and candidate 9 byte for byte. Each question starts a fresh chat; no failed answer is resubmitted for a pass. The first beacon submission received World history is not ready before a request id existed; its input is retained and a single startup retry is identified below. Raw request/response bodies and timings are in the token-free [HTTP ledger](../../build/native-readiness-live/round3/http.jsonl). Calls are grouped by provider round.
+Main advanced during the round with other work, including menu naming commit `32ce42e` and smithing merge `f11efc8`. The installed JAR hash stayed unchanged, including through the J13 relaunch. These results apply to installed `ed08bd0`, not those later source changes; no failed check was rerun on them.
+
+The round-1/2 controller rulings apply: v2 has no recipe viewer, seeds need not be named in loot replies, and biome tags are locate inputs. D2 confirms text=null and candidate 9 byte for byte. Each question starts a fresh chat; no failed answer is resubmitted for a pass. The first beacon submission and first post-restart J13 recall each received World history is not ready before a request id existed; both rejected inputs are retained, with one startup retry each after readiness. Raw request/response bodies and timings are in the token-free [HTTP ledger](../../build/native-readiness-live/round3/http.jsonl). Calls are grouped by provider round.
 
 | Check | Status | Observation |
 |---|---|---|
@@ -32459,13 +32461,13 @@ The round-1/2 controller rulings apply: v2 has no recipe viewer, seeds need not 
 | M5 | FAIL | 2,000 sand plus TNT/9 stone recorded; world-close journal summary is absent, so overflow/tick thresholds cannot be verified. |
 | J8 | FAIL | Actual 17-gold donkey deposit and withdrawal occur, but neither appears in the journal after world reopen. |
 | J9 | PASS | After disconnect with the chest open, the reply marks the association unverifiable and does not invent the 19-item session. |
-| J13 | NOT RUN | Pending execution. |
-| P9/J7 | NOT RUN | No-mod server starts, but required Nature?s Aura/Patchouli channels reject the client before login; no questions submitted. |
+| J13 | PASS | 23 blue-concrete breaks survive immediate game quit/relaunch; 11 red-concrete breaks survive rapid Save-and-Quit/rejoin. |
+| P9/J7 | NOT RUN | No-mod server starts, but required Nature's Aura/Patchouli channels reject the client before login; no questions submitted. |
 | W11 | FAIL | Horse screens open but /player/open errors on menu type; both answers use targeted rather than the required opened path. |
 | W17 | PASS | Saved v1 JEI citation chips render; all 14 legacy navigation targets report UNAVAILABLE without substitution. |
 | W18 | NOT RUN | No-pack status is not_provided; newly created pack was absent from the startup pack catalog and never enabled. |
 | U1 | NOT RUN | The available six-row popup fits at width 106 with no scrollbar; no long adapter list exists in this v2 runtime. |
-| U2 | NOT RUN | Pending execution. |
+| U2 | PASS | Screen save retains the concurrent prompt; shutdown retains the newest clear, confirmed after relaunch. |
 
 ### Passing checks and checks not run
 
@@ -33383,9 +33385,411 @@ I can’t verify that it was the chest you had open when you disconnected—the 
 Timing: {"wallMs":29619,"modelTerminalMs":"24496","toolWallMs":"22","persistMs":"1116"}.
 
 
+#### J13 - PASS
+
+23 blue-concrete breaks survive immediate game quit/relaunch; 11 red-concrete breaks survive rapid Save-and-Quit/rejoin.
+
+Game quit was requested 2 ms after the final blue break; no world/leave preceded it. No javaw or bridge file remained at shutdown; CurseForge relaunched and /world/open reopened the save. One startup submission was rejected with World history is not ready before any request id existed; after readiness confirmation it received one recorded retry. Event 118 contains all 23 blocks. For the separate red run, leave began 1 ms after the final break, took 1,250 ms, and open was requested 1 ms after title (1,761 ms to enter). Event 119 contains all 11 blocks. Both replies state exact counts and places; every returned navigation target opens. No model answer was resubmitted.
+
+Evidence: [j13-quit-fixture.json](../../build/native-readiness-live/round3/j13-quit-fixture.json).
+
+Evidence: [j13-quit-breaks.json](../../build/native-readiness-live/round3/j13-quit-breaks.json).
+
+Evidence: [j13-quit-order.json](../../build/native-readiness-live/round3/j13-quit-order.json).
+
+Evidence: [j13-shutdown-verification.json](../../build/native-readiness-live/round3/j13-shutdown-verification.json).
+
+Evidence: [j13-quit.log](../../build/native-readiness-live/round3/j13-quit.log).
+
+Evidence: [j13-quit-recall-input.json](../../build/native-readiness-live/round3/j13-quit-recall-input.json).
+
+Evidence: [j13-restart-ready.json](../../build/native-readiness-live/round3/j13-restart-ready.json).
+
+Evidence: [j13-fast-fixture.json](../../build/native-readiness-live/round3/j13-fast-fixture.json).
+
+Evidence: [j13-fast-breaks.json](../../build/native-readiness-live/round3/j13-fast-breaks.json).
+
+Evidence: [j13-fast-order.json](../../build/native-readiness-live/round3/j13-fast-order.json).
+
+Question: `what did I just break before quitting the game?`
+
+Request `915362e4-952b-40c7-9206-d866c52ce458`; conversation `c6161f14-6926-4bd6-b6f8-4126a124014f`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/j13-quit-recall-retry.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 35,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The last break recorded in the journal was **23 blue concrete blocks** in the Overworld, along (2700–2722, 250, 2700), ending at **03:08:07 UTC on October 26**. The journal groups them together, so it doesn’t identify which of the 23 you broke last. [journal:event:118]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|2700,250,2700",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2532,253,2505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2501,250,2500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1533,253,1506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1500,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1501,250,1550",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1511,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1501,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1531,253,1505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1500,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1097,250,1021",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1097,250,1021",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1156,139,1173",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1153,140,1168",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1150,140,1150",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1005,250,1004",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1004,250,1004",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1004,250,1010",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1004,250,1003",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1003,250,1006",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1004,250,1010",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1004,250,1010",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1004,250,1010",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1004,250,1010",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1005,250,1009",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1004,250,1010",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1021,251,1022",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1021,251,1020",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1020,7,1019",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1020,13,1019",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1020,14,1019",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1020,41,1019",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1020,44,1019",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1020,45,1019",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1020,251,1020",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":15774,"modelTerminalMs":"10633","toolWallMs":"63","persistMs":"2562"}.
+
+Question: `what did I just break before saving and rejoining?`
+
+Request `1a930a3a-bf72-4d6f-a259-044ea07c0d09`; conversation `2600623c-aa89-415b-9b50-946bd545d6a7`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/j13-fast-recall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 30
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 4,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The last recorded blocks you broke were **11 red concrete**, along a row from (2700, 250, 2702) to (2710, 250, 2702) in the Overworld, at about 03:10:08 UTC on October 26. [journal:event:119]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|2700,250,2702",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2700,250,2700",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2532,253,2505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2501,250,2500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":21610,"modelTerminalMs":"12221","toolWallMs":"3","persistMs":"1252"}.
+
+
 #### P9/J7 - NOT RUN
 
-Classification: **fixture**. No-mod server starts, but required Nature?s Aura/Patchouli channels reject the client before login; no questions submitted.
+Classification: **fixture**. No-mod server starts, but required Nature's Aura/Patchouli channels reject the client before login; no questions submitted.
 
 Reused NeoForge 21.1.202 server, online-mode=false, 127.0.0.1:25565, empty mods folder. /server/connect returns Server connection timeout; state shows ModMismatchDisconnectedScreen. Client logs list missing naturesaura and patchouli channels and Incompatible client! Please use NeoForge 21.1.202. No availability result is claimed. /world/leave returned to title; stop was sent to server stdin, all dimensions saved, no server Java or listener remained. Its run.bat waited at pause after Java exit; only those completed launcher/controller helpers were stopped.
 
@@ -33539,6 +33943,29 @@ Evidence: [u1-popup.json](../../build/native-readiness-live/round3/u1-popup.json
 Evidence: [u1-state.json](../../build/native-readiness-live/round3/u1-state.json).
 
 Evidence: [u1-popup.png](../../build/native-readiness-live/round3/u1-popup.png).
+
+
+#### U2 - PASS
+
+Screen save retains the concurrent prompt; shutdown retains the newest clear, confirmed after relaunch.
+
+The bridge has no screen-save endpoint, so authorized desktop input clicked Settings Back (which saves) while POST /prompt for temporary marker A was pending. The UI remained responsive, the request returned 200, and a later GET retained A. During J13, a newer clear was issued concurrently with /game/quit; its HTTP response was still pending at quit and the connection closed with fetch failed. This is retained as shutdown transport evidence and was not retried. The settings file had no developerPrompt key after shutdown, and a fresh post-launch GET has text=null/effectiveText exactly candidate 9. Existing automaticWebSearch, debugBridge, hideInactiveAdapters, history limits, openPaused and session-count fields were preserved. Pending response overlap is observed; physical disk timing was not instrumented.
+
+Evidence: [u2-settings-open.json](../../build/native-readiness-live/round3/u2-settings-open.json).
+
+Evidence: [u2-screen-save.json](../../build/native-readiness-live/round3/u2-screen-save.json).
+
+Evidence: [u2-after-screen-save.json](../../build/native-readiness-live/round3/u2-after-screen-save.json).
+
+Evidence: [j13-quit-order.json](../../build/native-readiness-live/round3/j13-quit-order.json).
+
+Evidence: [u2-shutdown-prompt-error.json](../../build/native-readiness-live/round3/u2-shutdown-prompt-error.json).
+
+Evidence: [u2-shutdown-settings.json](../../build/native-readiness-live/round3/u2-shutdown-settings.json).
+
+Evidence: [u2-restarted-check.json](../../build/native-readiness-live/round3/u2-restarted-check.json).
+
+Evidence: [u2-restarted-prompt.json](../../build/native-readiness-live/round3/u2-restarted-prompt.json).
 
 
 ### Failures
@@ -34379,3 +34806,36 @@ The mule at **(1607, 250, 1602)** has an **empty chest (15 slots)** and **no sad
 ```
 
 Timing: {"wallMs":16478,"modelTerminalMs":"10023","toolWallMs":"39","persistMs":"1254"}.
+
+
+### Final state
+
+```json
+{
+  "world": "PackSage Adapter Filter Live Test",
+  "save": "PackSage Adapter Filter Live Test",
+  "paused": false,
+  "running": true,
+  "screen": null,
+  "dimension": "minecraft:overworld",
+  "position": [
+    1191.5,
+    250,
+    1057.5
+  ],
+  "yaw": -161.56505,
+  "pitch": 21.41126,
+  "health": 20,
+  "gamemode": "creative",
+  "gameTime": 1496132,
+  "dayTime": 148424,
+  "selectedHotbarSlot": 0,
+  "crosshairTarget": null,
+  "riddenEntity": null,
+  "menuId": 0
+}
+```
+
+Final GET /prompt: {"textNull":true,"candidate9Exact":true}. [Final verification](../../build/native-readiness-live/round3/final-verification.json), [evidence completeness](../../build/native-readiness-live/round3/evidence-completeness.json), [final screenshot](../../build/native-readiness-live/round3/final-state.png).
+
+Round result: **8 PASS, 5 FAIL, 4 NOT RUN** across 17 rows (P9/J7 combined). All 21 model requests completed and saved in 21 fresh conversations, with inputs, exact calls, navigation responses and wall timings retained. The two pre-request startup rejections are separate from those 21. No evidence links are missing and the private token scan found no token in the evidence. The 21 temporary force-loaded M5 chunks were released; Minecraft remains running, unpaused, at the original position in PackSage Adapter Filter Live Test, with menu closed and bridge enabled. The Speed fixture folder remains inactive and the dedicated server is stopped.

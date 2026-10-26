@@ -1733,6 +1733,23 @@ class RequestControllerTest {
     }
 
     @Test
+    void cancellingAPartialResponseKeepsItsSentTimeThroughPersistence() {
+        var backend = new FakeBackend();
+        var controller = activityController(backend, new ArrayList<>(), "partial-time");
+        backend.emit("partial-time", new ModelBackend.Event(ModelBackend.EventKind.TEXT_DELTA, "Partial answer", null, List.of(), null));
+        Instant beforeCancellation = Instant.now();
+        controller.stop();
+        var visible = controller.view().conversation().turns().getLast();
+        assertEquals("Partial answer", visible.answer());
+        assertEquals(ChatContracts.OutcomeStatus.CANCELLED, visible.outcome().status());
+        assertTrue(visible.assistantSentAt() != null);
+        assertFalse(visible.assistantSentAt().isBefore(beforeCancellation));
+        assertFalse(visible.assistantSentAt().isAfter(Instant.now()));
+        assertEquals(visible.assistantSentAt(), new ConversationStore(temporaryDirectory, DIRECT).openLatest(WORLD_A)
+                .toCompletableFuture().join().turns().getLast().assistantSentAt());
+    }
+
+    @Test
     void toolArgumentsStayBoundToTheirActivityFromRunningThroughCompletion() {
         FakeBackend backend = new FakeBackend();
         CompletableFuture<ChatContracts.ToolResponse> response = new CompletableFuture<>();

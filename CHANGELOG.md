@@ -4,6 +4,10 @@
 
 ### 2026-10-26
 
+- plan_recipe finds recipes anywhere in the loaded recipe list through an output-keyed lookup, instead of only the first 512 recipes, so beacon, enchanting table and oak planks plans return routes; special recipes with computed outputs qualify only a requested item that has no other recipe. Automated checks pass; installed check pending.
+- Progress and statistics reads that reach their work budget return a single-use cursor that resumes acquisition, instead of asking to repeat; statistics walk an owned key copy. Automated checks pass; installed check pending.
+- Trade offers share one item-facts table per result, cutting the worst-case trader payload from about 220 KB to 25 KB with every offer kept.
+- An oversized first record no longer drops a page's continuation, failed output replays discard their new tail, rejected server work leaves the queue, request logs name the offered tools, and the Open Font License moved out of the font assets.
 - Entity list pages no longer report a coverage gap when the entity their cursor anchored on has since gone; pages resume after its UUID in sorted order, so nothing is skipped.
 - Large recipe plans keep complete leading routes and report omitted counts; output tails have byte bounds, stale-world cursors return errors safely, record trimming scales with content, and settings shutdown waits at most three seconds. Automated checks pass; installed checks pending.
 - Shared tool output now caps text safely, retains byte-overflow tails and compact exact records, and preserves canonical links through wire aliasing. Settings save through one asynchronous writer, with runtime-first prompt publication and shutdown flushing; automated regressions pass, installed checks pending.

@@ -95,11 +95,11 @@ final class WorldKnowledgeTools {
     }
 
     /** Continuations keep the original center even if the player moves between calls. */
-    record BiomeState(WorldTools.Center center, String query, int radius, int nextIndex) {
+    record BiomeState(WorldAreaTools.Center center, String query, int radius, int nextIndex) {
     }
 
     /** Server-owned inputs captured together; registry matching and spiral preparation run on the worker. */
-    private record BiomeRead(WorldTools.Center center, Registry<Biome> registry, BiomeSource source, LocateBiome.Sampler sampler,
+    private record BiomeRead(WorldAreaTools.Center center, Registry<Biome> registry, BiomeSource source, LocateBiome.Sampler sampler,
                              int minY, int maxY) {
     }
 
@@ -348,7 +348,7 @@ final class WorldKnowledgeTools {
         var state = cursor == null ? null : WorldPaging.state(cursor, BiomeState.class);
         var searchRadius = state == null ? radius : state.radius();
         var searchQuery = state == null ? WorldTools.requiredText(request, "biome") : state.query();
-        return calls.run(server, WorldPaging.then(() -> state == null ? calls.center(server, anchor) : state.center(), center -> WorldPaging.once(() -> {
+        return calls.run(server, WorldPaging.then(() -> state == null ? calls.areaTools.center(server, anchor) : state.center(), center -> WorldPaging.once(() -> {
             var level = WorldTools.level(server, center.dimension());
             var source = level.getChunkSource().getGenerator().getBiomeSource();
             var climate = level.getChunkSource().randomState().sampler();
@@ -368,10 +368,10 @@ final class WorldKnowledgeTools {
         });
     }
 
-    record StructureState(WorldTools.Center center, String query, int radius, int ring, int entry, int candidate) {
+    record StructureState(WorldAreaTools.Center center, String query, int radius, int ring, int entry, int candidate) {
     }
 
-    private record StructureRead(WorldTools.Center center, LocateStructure.World world, List<LocateStructure.Target> targets,
+    private record StructureRead(WorldAreaTools.Center center, LocateStructure.World world, List<LocateStructure.Target> targets,
                                  long seed, Map<ConcentricRingsStructurePlacement, List<ChunkPos>> rings, Path folder) {
     }
 
@@ -380,7 +380,7 @@ final class WorldKnowledgeTools {
         var state = cursor == null ? null : WorldPaging.state(cursor, StructureState.class);
         var query = state == null ? WorldTools.requiredText(request, "structure") : state.query();
         var searchRadius = state == null ? radius : state.radius();
-        return calls.run(server, WorldPaging.then(() -> state == null ? calls.center(server, anchor) : state.center(), center -> WorldPaging.once(() -> {
+        return calls.run(server, WorldPaging.then(() -> state == null ? calls.areaTools.center(server, anchor) : state.center(), center -> WorldPaging.once(() -> {
             var level = WorldTools.level(server, center.dimension());
             var chunks = level.getChunkSource();
             var generator = chunks.getGenerator();
@@ -478,7 +478,7 @@ final class WorldKnowledgeTools {
         return List.copyOf(confirmed);
     }
 
-    Evidence.Result structureResult(PackSageTools.ReadRequest request, WorldTools.Center center, String query, int radius,
+    Evidence.Result structureResult(PackSageTools.ReadRequest request, WorldAreaTools.Center center, String query, int radius,
                                     LocateStructure.Result result, boolean timeout) {
         var partial = result.nextRing() != -1 || !result.unsupported().isEmpty() || timeout;
         var coverage = partial ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
@@ -544,7 +544,7 @@ final class WorldKnowledgeTools {
     }
 
     /** Builds the page on the worker after the sampling slice has finished or spent its call budget. */
-    Evidence.Result biomeResult(PackSageTools.ReadRequest request, WorldTools.Center center, String query, int radius, LocateBiome.Result result) {
+    Evidence.Result biomeResult(PackSageTools.ReadRequest request, WorldAreaTools.Center center, String query, int radius, LocateBiome.Result result) {
         if (result.hit() == null) {
             if (result.nextIndex() != -1) {
                 return WorldPaging.result(List.of(), Evidence.Coverage.PARTIAL,

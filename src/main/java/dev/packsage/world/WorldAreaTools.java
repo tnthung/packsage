@@ -2,7 +2,10 @@ package dev.packsage.world;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.PackSageTools;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.phys.Vec3;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -19,6 +22,18 @@ import static dev.packsage.world.WorldPaging.*;
 import static dev.packsage.world.WorldTools.*;
 
 final class WorldAreaTools {
+    static final int AREA_NOTABLE_BYTES = 32 * 1024;
+    static final int AREA_COUNT_BYTES = 16 * 1024;
+
+    record Center(String dimension, Vec3 position) {
+    }
+
+    record ListState(Center center, String scan, Page<BlockHandle> pending, WorldPaging.ReadSpan span) {
+        ListState(Center center, String scan) {
+            this(center, scan, null, null);
+        }
+    }
+
     private record EntityRead(Center center, Page<EntityHandle> page, List<String> cursors) {
     }
 
@@ -31,11 +46,35 @@ final class WorldAreaTools {
         this.world = world;
     }
 
+    Center center(MinecraftServer server, Anchor anchor) {
+        return switch (anchor) {
+            case Anchor.Player player -> {
+                var host = host(server);
+                yield new Center(host.serverLevel().dimension().location().toString(), host.position());
+            }
+            case Anchor.OfEntity of -> {
+                var entity = entity(server, of.id());
+                if (entity == null) throw new Failure(Code.UNAVAILABLE, "no loaded entity has id " + of.id());
+                yield new Center(entity.level().dimension().location().toString(), entity.position());
+            }
+            case Anchor.OfBlock of -> {
+                level(server, of.place().dimension());
+                yield new Center(of.place().dimension(), Vec3.atCenterOf(new BlockPos(of.place().x(), of.place().y(), of.place().z())));
+            }
+            case Anchor.OfNote of -> {
+                var place = world.notePlaces.apply(of.id());
+                if (place == null) throw new Failure(Code.UNAVAILABLE, "note " + of.id() + " has no saved place");
+                level(server, place.dimension());
+                yield new Center(place.dimension(), Vec3.atCenterOf(new BlockPos(place.x(), place.y(), place.z())));
+            }
+        };
+    }
+
     CompletionStage<Evidence.Result> inspectArea(PackSageTools.ReadRequest request) {
         var anchor = anchor(argument(request, "center"));
         var radius = radius(argument(request, "radius"));
         var server = world.server();
-        return world.run(server, spanned(gameTime(server), then(() -> world.center(server, anchor), center -> {
+        return world.run(server, spanned(gameTime(server), then(() -> center(server, anchor), center -> {
             var level = level(server, center.dimension());
             return mapped(both(world.scan.summary(level, center.position(), radius),
                             world.scan.listEntities(level, center.position(), radius, KindFilter.ANY, null)),
@@ -101,7 +140,7 @@ final class WorldAreaTools {
         var cursor = world.paging.cursor(request);
         var server = world.server();
         var state = cursor == null ? null : state(cursor, ListState.class);
-        return world.run(server, spanned(gameTime(server), then(() -> state == null ? world.center(server, anchor) : state.center(), center ->
+        return world.run(server, spanned(gameTime(server), then(() -> state == null ? center(server, anchor) : state.center(), center ->
                 listing.scan(level(server, center.dimension()), center, radius, filter, state == null ? null : state.scan()))));
     }
 

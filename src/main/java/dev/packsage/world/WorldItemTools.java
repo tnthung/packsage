@@ -416,7 +416,7 @@ final class WorldItemTools {
                 resolveRoots();
             } else if (chunks == null) {
                 host = host(server);
-                var start = world.center(server, anchor);
+                var start = world.areaTools.center(server, anchor);
                 level = level(server, start.dimension());
                 center = start.position();
                 holders.add(Map.entry(new PathRoot.Player(host.getUUID()), new LiveHolder.OfPlayer(host)));

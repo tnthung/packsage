@@ -180,7 +180,7 @@ class WorldKnowledgeToolsTest {
         var hits = List.of(new LocateStructure.Hit("minecraft:test", 6, 8, 96, 72, 128,
                 LocateStructure.Kind.PREDICTED, "placement and biome checks"));
         var result = new WorldKnowledgeTools(tools()).structureResult(request,
-                new WorldTools.Center("minecraft:overworld", new Vec3(0, 999, 0)), "minecraft:test", 100,
+                new WorldAreaTools.Center("minecraft:overworld", new Vec3(0, 999, 0)), "minecraft:test", 100,
                 new LocateStructure.Result(hits, 2, 0, 0, List.of("packsage:unsupported"), List.of(), false), false);
         assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
         assertNotNull(result.nextCursor());
@@ -199,7 +199,7 @@ class WorldKnowledgeToolsTest {
                 "minecraft:test", x, 0, x * 16, 72, 0, LocateStructure.Kind.PREDICTED,
                 "placement and biome checks")).toList();
         var result = new WorldKnowledgeTools(tools()).structureResult(request,
-                new WorldTools.Center("minecraft:overworld", new Vec3(0, 64, 0)), "minecraft:test", 100,
+                new WorldAreaTools.Center("minecraft:overworld", new Vec3(0, 64, 0)), "minecraft:test", 100,
                 new LocateStructure.Result(hits, -1, 0, 0, List.of(), List.of(), false), false);
         assertEquals(5, result.records().size());
         assertTrue(result.detail().contains("4 more"), result.detail());
@@ -228,7 +228,7 @@ class WorldKnowledgeToolsTest {
     void structurePauseNamesTheBoundAndPreservesTheExactPosition() {
         var tools = tools();
         var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"structure\":\"minecraft:test\"}"), SCOPE);
-        var center = new WorldTools.Center("minecraft:overworld", new Vec3(0, 64, 0));
+        var center = new WorldAreaTools.Center("minecraft:overworld", new Vec3(0, 64, 0));
         for (boolean budget : List.of(false, true)) {
             var result = new WorldKnowledgeTools(tools).structureResult(request, center, "minecraft:test", 100,
                     new LocateStructure.Result(List.of(), 2, 3, 4, List.of(), List.of(), budget), false);
@@ -250,7 +250,7 @@ class WorldKnowledgeToolsTest {
         var rejected = new LocateStructure.Result(List.of(), -1, 0, 0, List.of(),
                 List.of("biome checks rejected candidate columns for minecraft:test; sampled columns do not prove structure absence"), false);
         var result = new WorldKnowledgeTools(tools()).structureResult(request,
-                new WorldTools.Center("minecraft:overworld", new Vec3(0, 64, 0)), "minecraft:test", 100, rejected, false);
+                new WorldAreaTools.Center("minecraft:overworld", new Vec3(0, 64, 0)), "minecraft:test", 100, rejected, false);
         assertTrue(result.detail().contains("biome checks rejected"), result.detail());
         assertTrue(result.detail().contains("minecraft:test"), result.detail());
     }
@@ -451,7 +451,7 @@ class WorldKnowledgeToolsTest {
     @Test
     void biomeHitCarriesSamplingFactsAndAPersistentPlaceLink() {
         var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"biome\":\"#packsage:dry\"}"), SCOPE);
-        var result = new WorldKnowledgeTools(tools()).biomeResult(request, new WorldTools.Center("minecraft:overworld", new Vec3(0, 64, 0)),
+        var result = new WorldKnowledgeTools(tools()).biomeResult(request, new WorldAreaTools.Center("minecraft:overworld", new Vec3(0, 64, 0)),
                 "#packsage:dry", 100, new LocateBiome.Result(new LocateBiome.Hit("minecraft:desert", 96, 128, 128), -1, 10));
         assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
         assertNull(result.nextCursor());
@@ -471,7 +471,7 @@ class WorldKnowledgeToolsTest {
     void biomeEarlyStopKeepsTheCenterAndQueryInABoundCursor() {
         var tools = tools();
         var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"biome\":\"minecraft:desert\",\"radius\":4}"), SCOPE);
-        var center = new WorldTools.Center("minecraft:overworld", new Vec3(-12.5, 70, 19.5));
+        var center = new WorldAreaTools.Center("minecraft:overworld", new Vec3(-12.5, 70, 19.5));
         var knowledge = new WorldKnowledgeTools(tools);
         var partial = knowledge.biomeResult(request, center, "minecraft:desert", 4, new LocateBiome.Result(null, 10, 10));
         assertEquals(Evidence.Coverage.PARTIAL, partial.coverage());
@@ -495,7 +495,7 @@ class WorldKnowledgeToolsTest {
     @Test
     void oddBiomeRadiiReportTheRoundedDownSamplingDistance() {
         var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"biome\":\"minecraft:desert\",\"radius\":3}"), SCOPE);
-        var result = new WorldKnowledgeTools(tools()).biomeResult(request, new WorldTools.Center("minecraft:overworld", new Vec3(0, 64, 0)),
+        var result = new WorldKnowledgeTools(tools()).biomeResult(request, new WorldAreaTools.Center("minecraft:overworld", new Vec3(0, 64, 0)),
                 "minecraft:desert", 3, new LocateBiome.Result(null, -1, 9));
         assertEquals(Evidence.Coverage.COMPLETE, result.coverage());
         assertTrue(result.detail().contains("radius rounded down to 32-block rings"), result.detail());
@@ -594,7 +594,7 @@ class WorldKnowledgeToolsTest {
         }
         var request = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"biome\":\"minecraft:desert\",\"radius\":4}"), SCOPE);
         var partial = new WorldKnowledgeTools(world.tools()).biomeResult(request,
-                new WorldTools.Center("minecraft:overworld", new Vec3(0, 64, 0)), "minecraft:desert", 4, new LocateBiome.Result(null, 10, 10));
+                new WorldAreaTools.Center("minecraft:overworld", new Vec3(0, 64, 0)), "minecraft:desert", 4, new LocateBiome.Result(null, 10, 10));
         assertEquals(Toolbox.Code.INVALID_CURSOR, failure(world.tools(), "locate",
                 "{\"biome\":\"minecraft:plains\",\"radius\":4,\"cursor\":\"" + partial.nextCursor() + "\"}"));
     }

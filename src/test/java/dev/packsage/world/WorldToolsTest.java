@@ -716,12 +716,12 @@ class WorldToolsTest {
         var blocks = new java.util.ArrayList<BlockHandle>();
         for (var i = 0; i < 64; i++) blocks.add(new BlockHandle("test:" + "long_path/".repeat(300), new BlockPlace("minecraft:overworld", i, 64, 0)));
         var page = new Page<>(blocks, null, Evidence.Coverage.COMPLETE, null);
-        var method = WorldAreaTools.class.getDeclaredMethod("blocks", PackSageTools.ReadRequest.class, WorldTools.Center.class, Page.class, WorldPaging.ReadSpan.class);
+        var method = WorldAreaTools.class.getDeclaredMethod("blocks", PackSageTools.ReadRequest.class, WorldAreaTools.Center.class, Page.class, WorldPaging.ReadSpan.class);
         method.setAccessible(true);
         var tools = new PackSageTools(request -> {
             try {
                 return CompletableFuture.completedFuture((Evidence.Result) method.invoke(provider.areaTools, request,
-                        new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), page, null));
+                        new WorldAreaTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), page, null));
             } catch (ReflectiveOperationException failure) {
                 throw new RuntimeException(failure);
             }
@@ -754,7 +754,7 @@ class WorldToolsTest {
         var type = Class.forName("dev.packsage.world.WorldAreaTools$AreaRead");
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
-        var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
+        var read = constructor.newInstance(new WorldAreaTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
                 new Page<>(List.of(new BlockSummary(Map.of("minecraft:stone", 15), List.of(), 0)), null, Evidence.Coverage.COMPLETE, null),
                 new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
         var method = WorldAreaTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldPaging.ReadSpan.class);
@@ -813,7 +813,7 @@ class WorldToolsTest {
         var type = Class.forName("dev.packsage.world.WorldAreaTools$AreaRead");
         var constructor = type.getDeclaredConstructors()[0];
         constructor.setAccessible(true);
-        var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
+        var read = constructor.newInstance(new WorldAreaTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
                 new Page<>(List.of(new BlockSummary(counts, notable, 0)), null, Evidence.Coverage.COMPLETE, null),
                 new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
         var method = WorldAreaTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldPaging.ReadSpan.class);
@@ -852,11 +852,11 @@ class WorldToolsTest {
                 () -> CompletableFuture.completedFuture(ClientFocus.NONE), place -> false, id -> null, null);
         var arguments = Evidence.deserializeObject("{\"filter\":{}}");
         var block = new BlockHandle("minecraft:stone", new BlockPlace("minecraft:overworld", 5, 64, 8));
-        var type = Class.forName("dev.packsage.world.WorldTools$ListState");
-        var constructor = type.getDeclaredConstructor(WorldTools.Center.class, String.class, Page.class, WorldPaging.ReadSpan.class);
+        var type = Class.forName("dev.packsage.world.WorldAreaTools$ListState");
+        var constructor = type.getDeclaredConstructor(WorldAreaTools.Center.class, String.class, Page.class, WorldPaging.ReadSpan.class);
         constructor.setAccessible(true);
         var token = provider.paging.remember("list_blocks", arguments, SCOPE, constructor.newInstance(
-                new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), "scan-after-pending",
+                new WorldAreaTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), "scan-after-pending",
                 new Page<>(List.of(block), "scan-after-pending", Evidence.Coverage.PARTIAL, "2 unloaded chunks were not searched"),
                 new WorldPaging.ReadSpan(10, 20)));
 

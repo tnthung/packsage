@@ -49,20 +49,6 @@ public final class WorldTools implements KnowledgeProvider {
     static final String VERSION = "1";
     static final int DEFAULT_RADIUS = 16;
     static final int MAX_RADIUS = 256;
-    /** Encoded-size budgets inside one inspect_area record, well under the 128 KiB tool output limit. */
-    static final int AREA_NOTABLE_BYTES = 32 * 1024;
-    static final int AREA_COUNT_BYTES = 16 * 1024;
-
-    /** A resolved scan center, kept in list cursors so later pages scan the same sphere. */
-    record Center(String dimension, Vec3 position) {
-    }
-
-    record ListState(Center center, String scan, Page<BlockHandle> pending, WorldPaging.ReadSpan span) {
-        ListState(Center center, String scan) {
-            this(center, scan, null, null);
-        }
-    }
-
     /**
      * Remaining roots of a find_items walk; ordinal resumes inside the first one. Gather is null once every chunk in
      * range was gathered, or the chunks still to gather holders from after these roots.
@@ -124,7 +110,7 @@ public final class WorldTools implements KnowledgeProvider {
     private final Executor worker;
     private final ServerWork work;
     private final WorldNavigation navigation;
-    private final Function<String, BlockPlace> notePlaces;
+    final Function<String, BlockPlace> notePlaces;
     final Supplier<CompletionStage<ClientFocus>> focus;
     private final WorldKnowledgeTools knowledge;
     final WorldAreaTools areaTools;
@@ -344,37 +330,13 @@ public final class WorldTools implements KnowledgeProvider {
         try {
             var server = server();
             return run(server, WorldPaging.once(() -> {
-                var center = center(server, anchor);
+                var center = areaTools.center(server, anchor);
                 var pos = BlockPos.containing(center.position());
                 return new BlockPlace(center.dimension(), pos.getX(), pos.getY(), pos.getZ());
             }));
         } catch (Failure failure) {
             return CompletableFuture.failedFuture(failure);
         }
-    }
-
-    Center center(MinecraftServer server, Anchor anchor) {
-        return switch (anchor) {
-            case Anchor.Player player -> {
-                var host = host(server);
-                yield new Center(host.serverLevel().dimension().location().toString(), host.position());
-            }
-            case Anchor.OfEntity of -> {
-                var entity = entity(server, of.id());
-                if (entity == null) throw new Failure(Code.UNAVAILABLE, "no loaded entity has id " + of.id());
-                yield new Center(entity.level().dimension().location().toString(), entity.position());
-            }
-            case Anchor.OfBlock of -> {
-                level(server, of.place().dimension());
-                yield new Center(of.place().dimension(), Vec3.atCenterOf(new BlockPos(of.place().x(), of.place().y(), of.place().z())));
-            }
-            case Anchor.OfNote of -> {
-                var place = notePlaces.apply(of.id());
-                if (place == null) throw new Failure(Code.UNAVAILABLE, "note " + of.id() + " has no saved place");
-                level(server, place.dimension());
-                yield new Center(place.dimension(), Vec3.atCenterOf(new BlockPos(place.x(), place.y(), place.z())));
-            }
-        };
     }
 
     static ServerPlayer host(MinecraftServer server) {

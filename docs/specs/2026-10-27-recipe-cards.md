@@ -121,7 +121,7 @@ Each vanilla category copies JEI 19's layout, using JEI's slots, output slots, a
 | Campfire | The same as smelting, with JEI's campfire layout. |
 | Stonecutting | The input slot, an arrow and the output slot. |
 | Smithing transform and trim | Template, base and addition slots, then an arrow and the output slot. |
-| Brewing | JEI's brewing stand layout: the reagent, three potion bottle slots, the output, JEI's full blaze-heat bar (there is no fuel slot), the bubbles and JEI's "Steps" text. |
+| Brewing | JEI's brewing stand layout: the reagent, three potion bottle slots, the output, JEI's full blaze-heat bar (there is no fuel slot), and the bubbles. JEI's "Steps" text is left out because the step count isn't recorded. |
 
 JEI shows the station in its category header, not in the recipe layout. Every card, native or from JEI, gets the same one-line caption under it, outside the drawn recipe: the station name, for example "Furnace", "Blast furnace" or "Crafting table · shapeless". That keeps smelting, blasting and smoking distinguishable. Brewing fuel is not recorded per recipe; JEI also shows only a full blaze-heat bar, not a fuel slot, so the card does the same.
 

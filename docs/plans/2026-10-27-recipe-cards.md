@@ -131,7 +131,7 @@ Tasks in the same wave touch disjoint files and can run at the same time, each i
   - `smeltingShowsCookTimeAndExperience`: a `cookingTime` of 200 produces the research document's cook time text (for example `10s`) and experience text, at the documented positions.
   - `blastingAndSmokingDifferOnlyByCaption`
   - `smithingTransformHasThreeInputs` and `smithingTrimUnknownOutputIsUnknownStack`
-  - `brewingUsesJeiLayout`: three potion slots, the ingredient slot and the output slot are at the research positions; the result has no fuel slot and includes the "Steps" text.
+  - `brewingUsesJeiLayout`: three potion slots, the ingredient slot and the output slot are at the research positions; the result has no fuel slot and no "Steps" text.
   - `tagAlternativeBecomesTagStack` and `customAlternativeBecomesCustomStack`
   - `unknownDecodingHasNoCard`, `unrecognizedRecipeTypeHasNoCard`, and `truncatedPayloadHasNoCard` (the payload replaced by a string, or `inputs` missing), all returning an empty result
 - [ ] **Step 2: Run the tests.** They should fail.

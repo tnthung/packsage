@@ -145,12 +145,12 @@ class JournalHooksTest {
         new JournalHooks(journal, () -> {
             throw new IllegalStateException("a failed integration lookup");
         }).register(bus);
-        assertEquals(19, listeners.size());
+        assertEquals(17, listeners.size());
         for (var listener : listeners.values()) {
             assertFalse(listener.receiveCanceled());
             assertDoesNotThrow(() -> listener.action().accept(null));
         }
-        assertEquals(20, journal.stats().hookFailures());
+        assertEquals(18, journal.stats().hookFailures());
         journal.stats().endTick();
         assertEquals(0, journal.stats().maxHookNanosPerTick.get());
         for (var type : List.of(BlockEvent.BreakEvent.class, BlockEvent.EntityPlaceEvent.class,

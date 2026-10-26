@@ -25,8 +25,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.storage.LevelResource;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
-import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityTravelToDimensionEvent;
 import net.neoforged.neoforge.event.entity.living.LivingConversionEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
@@ -65,14 +63,10 @@ public final class JournalHooks {
         final PortalTracker portals = new PortalTracker();
         final PortalTracker sources = new PortalTracker();
         final VillagerWatch villagers = new VillagerWatch();
+        final VillagerPoll villagerPoll = new VillagerPoll();
         final RaidWatch raids = new RaidWatch();
         final StructureWatch structures = new StructureWatch();
         final LinkedHashMap<UUID, Interaction> interactions = new LinkedHashMap<>(16, 0.75f, true);
-        /** Villagers in loaded server levels, kept from join and leave events so polling never scans every entity. */
-        final LinkedHashMap<UUID, Villager> tracked = new LinkedHashMap<>();
-        Villager[] trackedSnapshot = new Villager[0];
-        boolean trackedChanged;
-        int nextVillager;
         boolean polling = true;
         boolean raidPolling = true;
         int ticks;
@@ -91,8 +85,6 @@ public final class JournalHooks {
             reportedOversized = containers.oversizedSnapshots();
         }
     }
-
-    static final int VILLAGERS_PER_TICK = 16;
 
     private final Journal journal;
     private final Supplier<MinecraftServer> integrated;
@@ -114,13 +106,6 @@ public final class JournalHooks {
         session.server = server;
         var overworld = server.overworld();
         long opening = System.nanoTime();
-        // Entities that joined before this session began; later ones arrive through join events.
-        for (var level : server.getAllLevels()) {
-            for (var entity : level.getAllEntities()) {
-                if (entity instanceof Villager villager) session.tracked.put(villager.getUUID(), villager);
-            }
-        }
-        session.trackedChanged = true;
         journal.open(server.getWorldPath(LevelResource.ROOT).resolve("packsage").resolve("journal.db"),
                 overworld::getGameTime);
         session.openingNanos += System.nanoTime() - opening;
@@ -229,18 +214,6 @@ public final class JournalHooks {
             rememberInteraction(player.getUUID(), new ContainerSessions.Holder(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString(),
                     entity.level().dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ(), entity.getStringUUID()),
                     server.overworld().getGameTime());
-        }));
-        bus.addListener(EventPriority.NORMAL, false, EntityJoinLevelEvent.class, event -> hook(event, server -> {
-            if (server == null || !(event.getLevel() instanceof ServerLevel level) || level.getServer() != server) return;
-            if (event.getEntity() instanceof Villager villager && session.tracked.put(villager.getUUID(), villager) != villager) {
-                session.trackedChanged = true;
-            }
-        }));
-        bus.addListener(EventPriority.NORMAL, false, EntityLeaveLevelEvent.class, event -> hook(event, server -> {
-            if (server == null || !(event.getLevel() instanceof ServerLevel level) || level.getServer() != server) return;
-            if (event.getEntity() instanceof Villager villager && session.tracked.remove(villager.getUUID(), villager)) {
-                session.trackedChanged = true;
-            }
         }));
         bus.addListener(EventPriority.NORMAL, false, PlayerContainerEvent.Open.class, event -> hook(event, server -> {
             if (server == null || !(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide()
@@ -505,25 +478,11 @@ public final class JournalHooks {
                     }
                 }
             }
-        }
-        pollVillagers(server);
-    }
-
-    /** Observes a bounded round-robin slice of the tracked villagers each tick. */
-    private void pollVillagers(MinecraftServer server) {
-        if (session.trackedChanged) {
-            session.trackedSnapshot = session.tracked.values().toArray(new Villager[0]);
-            session.trackedChanged = false;
-        }
-        var villagers = session.trackedSnapshot;
-        for (int i = 0; i < Math.min(VILLAGERS_PER_TICK, villagers.length); i++) {
-            var villager = villagers[Math.floorMod(session.nextVillager++, villagers.length)];
-            if (villager.isRemoved()) continue;
-            var pos = villager.blockPosition();
-            var stamp = new JournalEvents.Stamp(server.overworld().getGameTime(), System.currentTimeMillis(),
-                    villager.level().dimension().location().toString());
-            session.villagers.observe(villager.getStringUUID(), BuiltInRegistries.VILLAGER_PROFESSION.getKey(villager.getVillagerData().getProfession()).toString(),
-                    pos.getX(), pos.getY(), pos.getZ(), stamp).forEach(journal::record);
+            session.villagerPoll.step(level, villager -> {
+                var pos = villager.blockPosition();
+                session.villagers.observe(villager.getStringUUID(), BuiltInRegistries.VILLAGER_PROFESSION.getKey(villager.getVillagerData().getProfession()).toString(),
+                        pos.getX(), pos.getY(), pos.getZ(), stamp).forEach(journal::record);
+            });
         }
     }
 }

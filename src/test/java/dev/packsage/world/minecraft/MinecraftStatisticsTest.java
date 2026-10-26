@@ -300,6 +300,21 @@ class MinecraftStatisticsTest {
         var visited = new AtomicInteger();
         var map = new Object2IntOpenHashMap<Stat<?>>() {
             @Override
+            public it.unimi.dsi.fastutil.objects.ObjectSet<Stat<?>> keySet() {
+                var keys = super.keySet();
+                return new it.unimi.dsi.fastutil.objects.AbstractObjectSet<>() {
+                    @Override public int size() { return keys.size(); }
+                    @Override public it.unimi.dsi.fastutil.objects.ObjectIterator<Stat<?>> iterator() {
+                        var iterator = keys.iterator();
+                        return new it.unimi.dsi.fastutil.objects.ObjectIterator<>() {
+                            @Override public boolean hasNext() { return iterator.hasNext(); }
+                            @Override public Stat<?> next() { visited.incrementAndGet(); return iterator.next(); }
+                        };
+                    }
+                };
+            }
+
+            @Override
             public int getInt(Object key) {
                 visited.incrementAndGet();
                 return super.getInt(key);

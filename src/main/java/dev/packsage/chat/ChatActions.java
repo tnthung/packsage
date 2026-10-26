@@ -27,7 +27,7 @@ public interface ChatActions {
             var visible = values.stream().filter(session -> settings().showChatsFromOtherSessions()
                     || session.world().worldOrServer().equals(view().activeWorld().worldOrServer())).toList();
             int end = (int) Math.min(visible.size(), (long) offset + limit);
-            return new ConversationStore.SessionPage(visible.subList(Math.min(offset, visible.size()), end), end < visible.size());
+            return new ConversationStore.SessionPage(visible.subList(Math.min(offset, visible.size()), end), end < visible.size(), end);
         });
     }
 

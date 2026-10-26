@@ -547,7 +547,11 @@ public final class ConversationStore {
         });
     }
 
-    public record SessionPage(List<ChatContracts.SessionSummary> sessions, boolean hasMore) {
+    public record SessionPage(List<ChatContracts.SessionSummary> sessions, boolean hasMore, int nextOffset) {
+        public SessionPage(List<ChatContracts.SessionSummary> sessions, boolean hasMore) {
+            this(sessions, hasMore, sessions.size());
+        }
+
         public SessionPage {
             sessions = List.copyOf(sessions);
         }
@@ -597,7 +601,7 @@ public final class ConversationStore {
                     ChatContracts.SessionSummary summary = readSummary(file, world, false);
                     if (summary != null) summaries.add(summary);
                 }
-                return new SessionPage(summaries, end < files.size());
+                return new SessionPage(summaries, end < files.size(), end);
             } catch (IOException | RuntimeException failure) {
                 report(failure);
                 throw new RuntimeException(failure);

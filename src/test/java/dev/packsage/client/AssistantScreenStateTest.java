@@ -21,6 +21,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void changingOtherSessionsSettingDiscardsAnOlderPendingPage() {
+        var actions = new FakeActions();
+        var oldPage = new CompletableFuture<List<ChatContracts.SessionSummary>>();
+        actions.sessions = oldPage;
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        actions.settings.setShowChatsFromOtherSessions(true);
+        actions.sessions = CompletableFuture.completedFuture(List.of(new ChatContracts.SessionSummary(
+                new ChatContracts.WorldIdentity("other", "Other"), "new", "Other world", "", Instant.EPOCH)));
+        screen.loadSessions();
+        oldPage.complete(List.of(new ChatContracts.SessionSummary(actions.view.activeWorld(), "old", "Old", "", Instant.EPOCH)));
+        assertEquals(List.of("new"), screen.sessionRows().stream().filter(row -> row.session() != null)
+                .map(row -> row.session().id()).toList());
+    }
+
+    @Test
     void sidebarLoadsConfiguredCountThenTenMorePerClick() {
         var actions = new FakeActions();
         actions.settings.setSessionsBeforeCollapse(3);

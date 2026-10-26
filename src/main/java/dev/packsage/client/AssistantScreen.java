@@ -68,6 +68,9 @@ public final class AssistantScreen extends Screen {
     private List<ChatContracts.SessionSummary> sessions = List.of();
     private boolean moreSessions;
     private boolean sessionsLoading;
+    private int sessionOffset;
+    private ChatContracts.WorldIdentity catalogWorld;
+    private boolean catalogOtherWorlds;
     private final List<ChipHit> chipHits = new ArrayList<>();
     private final List<SourceHit> sourceHits = new ArrayList<>();
     private final List<WebLinkHit> webLinkHits = new ArrayList<>();
@@ -159,11 +162,20 @@ public final class AssistantScreen extends Screen {
     }
 
     private void loadSessionPage(boolean more) {
+        if (!Objects.equals(catalogWorld, view.activeWorld()) || catalogOtherWorlds != settings.showChatsFromOtherSessions()) {
+            catalogGeneration++;
+            catalogWorld = view.activeWorld();
+            catalogOtherWorlds = settings.showChatsFromOtherSessions();
+            sessionsLoading = false;
+            sessions = List.of();
+            sessionOffset = 0;
+            moreSessions = false;
+        }
         if (sessionsLoading) return;
         sessionsLoading = true;
         long generation = ++catalogGeneration;
         try {
-            actions.sessionPage(more ? sessions.size() : 0, more ? 10 : Math.max(settings.sessionsBeforeCollapse(), sessions.size()))
+            actions.sessionPage(more ? sessionOffset : 0, more ? 10 : Math.max(settings.sessionsBeforeCollapse(), sessionOffset))
                     .toCompletableFuture().orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).whenComplete((page, failure) -> {
                 Runnable update = () -> {
                     if (generation != catalogGeneration) return;
@@ -180,6 +192,7 @@ public final class AssistantScreen extends Screen {
                         next.add(session);
                     }
                     sessions = List.copyOf(next);
+                    sessionOffset = page.nextOffset();
                     moreSessions = page.hasMore();
                 };
                 if (minecraft == null) update.run();
@@ -197,6 +210,7 @@ public final class AssistantScreen extends Screen {
         catalogGeneration++;
         sessionsLoading = false;
         sessions = List.copyOf(next);
+        sessionOffset = sessions.size();
     }
 
     @Override
@@ -1593,7 +1607,7 @@ public final class AssistantScreen extends Screen {
             historyPrepended = false;
         }
         boolean completed = !selectionChanged && view.active() && !next.active();
-        boolean sessionsChanged = selectionChanged || completed;
+        boolean sessionsChanged = !view.activeWorld().equals(next.activeWorld()) || completed;
         boolean historyLoaded = selectionChanged
                 || view.activity().equals("Loading session...") && !next.activity().equals("Loading session...");
         if (selectionChanged) sourceLabelCache.clear();

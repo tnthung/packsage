@@ -1529,6 +1529,45 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void recipeAndItemRowsUseTheirRequiredHeights() {
+        var model = new dev.packsage.client.recipe.RecipeCardModel(
+                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(), "Furnace", List.of());
+        var plain = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("plain", null, ModernUi.TEXT, false, false)));
+        var item = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false,
+                null, null, null, "minecraft:glass")));
+        var result = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false,
+                SOURCE, null, model, null)));
+        assertEquals(12, AssistantScreen.lineHeight(plain));
+        assertEquals(18, AssistantScreen.lineHeight(item));
+        assertEquals(18, AssistantScreen.lineHeight(result));
+        assertEquals(79, AssistantScreen.lineHeight(new ScreenText.InlineLine(result.spans(), false, model)));
+    }
+
+    @Test
+    void cardWiderThanBubbleFallsBackToSourceChip() {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var model = new dev.packsage.client.recipe.RecipeCardModel(
+                dev.packsage.client.recipe.RecipeCardModel.Category.SMELTING, 80, 50, List.of(), "Furnace", List.of());
+        var card = new dev.packsage.client.recipe.RecipeCard() {
+            @Override public int width() { return 88; }
+            @Override public int height() { return 71; }
+            @Override public void draw(net.minecraft.client.gui.GuiGraphics graphics, int x, int y, int mouseX, int mouseY) { }
+            @Override public java.util.Optional<Hover> hoverAt(int x, int y, double mouseX, double mouseY) { return java.util.Optional.empty(); }
+        };
+        var line = new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan("Glass", null, ModernUi.TEXT, false, false, SOURCE)), false, model);
+        var narrow = screen.messageLayout(List.of(line), 87, java.util.Map.of(model, card), java.util.Map.of());
+        assertEquals("Source: Glass", narrow.runs().getFirst().span().text());
+        assertNull(narrow.runs().getFirst().card());
+        assertEquals(12, narrow.height());
+        var wide = screen.messageLayout(List.of(line), 88, java.util.Map.of(model, card), java.util.Map.of());
+        assertSame(card, wide.runs().getFirst().card());
+        assertEquals(79, wide.height());
+    }
+
+    @Test
     void messageWrappingKeepsWordsWholeAndChipsWithinTheirRows() {
         var screen = new AssistantScreen(new FakeActions());
         screen.width = 640;

@@ -52,7 +52,7 @@ The facts below come from the code as of `a72eb9bd`.
 
 ### What the model writes
 
-- **Recipe cards.** The model cites the recipe record where the card should appear, on a line of its own: `[native:<handle>]` or its alias. A citation that stands alone on a line and resolves to a decodable recipe record becomes a card. A recipe citation inside a sentence stays a source chip. Plan citations resolve to the plan's step recipe through the `plan|…|<recipeHandle>` suffix.
+- **Recipe cards.** The model cites the recipe record where the card should appear, on a line of its own: `[native:<handle>]` or its alias. In a Normal or Detailed answer, a citation that stands alone on a line and resolves to a recipe record with a recognized layout (see below) becomes a card. A recipe citation inside a sentence stays a source chip. Plan citations resolve to the plan's step recipe through the `plan|…|<recipeHandle>` suffix.
 - **Item chips.** The model writes `[Label](item:<registry id>)`, using item IDs it saw in tool results. The client resolves the ID against the current item registry and shows it as an item chip.
   - **Unknown IDs:** an ID that does not resolve renders as the plain label, with no icon.
   - **Components:** item chips carry no component data. When an item's components matter, for example a potion, the model cites the record instead.
@@ -62,9 +62,22 @@ The facts below come from the code as of `a72eb9bd`.
   - **Concise:** mark item names as item chips and cite the result recipe inline.
   - Follow the assistant prompt rules in `AGENTS.md`: iterate live in the in-game editor and promote the tested whole prompt.
 
+### Which citations become cards and chips
+
+These rules were the designer's call:
+
+- **Recognized layouts.** A record gets a card or a result chip when its `recipeType=` constraint names a category from the layout table and its `decodingStatus` is not `UNKNOWN`. That includes `OPAQUE` records with custom ingredients, which show "?" slots, and `PARTIAL` smithing records. A smithing trim output that is unknown shows a "?" output slot.
+  - **Subclassed recipes.** Mod recipes that subclass vanilla classes are decoded as `UNKNOWN`. They keep the source chip, so the card never misrepresents a mod recipe; the later JEI implementation covers them.
+- **Concise answers.** These never show block cards. Every recipe citation becomes a result chip, whether it stands on its own line or sits inside a sentence.
+- **Plan citations.** A plan citation draws the plan record's own `recipePayload`, which is the route's top-level recipe. Tag slots in plan payloads are already expanded, up to 16 members, and cycle through that list. Deeper steps get cards only when the model cites their recipe records directly.
+
 ### Stored verbosity
 
-Each assistant turn records the verbosity it was generated with, as a new `Turn` field. Old turns without it render as Normal. Rendering follows the stored value, so changing the setting later does not reshape old answers.
+Each assistant turn records the verbosity it was generated with, as a new `Turn` field. Old turns without it render the way they do today: no cards, no item chips and no result chips. Old answers often also spell out a text grid, so a card added next to it would break the anti-goal. Rendering follows the stored value, so changing the setting later does not reshape old answers.
+
+### Cooking data
+
+The native snapshot also records cooking time and experience for smelting, blasting, smoking and campfire recipes, as additive `cookingTime` and `experience` fields in the payload. The card can then show the same text JEI shows. The fields are additive, so existing evidence contracts stay valid; evidence tests are updated to match.
 
 ### The card renderer seam
 
@@ -80,11 +93,13 @@ Each vanilla category copies JEI 19's layout, using JEI's 18×18 slots and 26×2
 |---|---|
 | Crafting (shaped) | A 3×3 grid placed by `slot-<index>` and `shape=WxH`, then an arrow and the output slot. |
 | Crafting (shapeless) | Inputs fill the 3×3 grid in order, plus JEI's shapeless marker. |
-| Smelting, blasting, smoking | The input slot, a flame, an arrow and the output slot. The station icon tells them apart. |
-| Campfire | The input slot, the campfire icon, an arrow and the output slot. |
+| Smelting, blasting, smoking | The input slot, a flame, an arrow, the output slot, and JEI's cook time and experience text. |
+| Campfire | The same as smelting, with JEI's campfire layout. |
 | Stonecutting | The input slot, an arrow and the output slot. |
 | Smithing transform and trim | Template, base and addition slots, then an arrow and the output slot. |
 | Brewing | JEI's brewing stand layout: the reagent, the potion input bottle, blaze powder fuel and the output bottle. |
+
+JEI shows the station in its category header, not in the recipe layout. Every card, native or from JEI, gets the same one-line caption under it, outside the drawn recipe: the station name, for example "Furnace", "Blast furnace" or "Crafting table · shapeless". That keeps smelting, blasting and smoking distinguishable. Brewing fuel is not recorded per recipe, so the brewing card always shows blaze powder in the fuel slot, as JEI does.
 
 ### Slot contents
 
@@ -109,7 +124,7 @@ Each vanilla category copies JEI 19's layout, using JEI's 18×18 slots and 26×2
 
 ## Left to the builder
 
-- **JEI art.** Whether to bundle copies of JEI's MIT-licensed GUI sprites, with the license notice, or redraw matching sprites from vanilla parts. Either way, the result must match JEI's look within a pixel at GUI scale 2.
+- **JEI art.** Whether to bundle copies of JEI's MIT-licensed GUI sprites, with the license notice, or redraw matching sprites from vanilla parts. Either way, slot coordinates, card sizes and sprites must match JEI 19 for the same category. The live comparison passes when only these differences remain: the caption, which sits outside the recipe area, and the absence of JEI's own buttons (transfer and bookmark).
 - **Code structure.** Class names and file layout, and how the layout engine represents block rows.
 - **Panel placement.** Exact tooltip panel positions near screen edges.
 - **Test split.** The split between unit tests (citation resolution, layout sizing, slot placement, tag cycling, verbosity storage) and live checks.
@@ -120,7 +135,7 @@ Each vanilla category copies JEI 19's layout, using JEI's 18×18 slots and 26×2
   - turning a citation into a card or a chip, for each verbosity;
   - each category's slot placement against JEI's coordinates;
   - missing-item placeholders;
-  - old turns rendering as Normal.
+  - old turns rendering without cards or chips.
 - **Live checks** use computer use against the running game:
   - for each category, a native card next to JEI's own screen for the same recipe, with JEI temporarily installed for the comparison only;
   - slot tooltips;

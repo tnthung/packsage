@@ -115,6 +115,103 @@ class NativeRecipeReaderTest {
     }
 
     @Test
+    void nativePistonTagPlanAggregatesThreeSlotsBeforeExpandingOakPlanks() {
+        var planks = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM,
+                net.minecraft.resources.ResourceLocation.parse("minecraft:planks"));
+        var oakLogs = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM,
+                net.minecraft.resources.ResourceLocation.parse("minecraft:oak_logs"));
+        var itemRegistry = (net.minecraft.core.MappedRegistry<Item>) ITEMS;
+        itemRegistry.bindTags(Map.of(planks, List.<net.minecraft.core.Holder<Item>>of(Items.OAK_PLANKS.builtInRegistryHolder(),
+                        Items.SPRUCE_PLANKS.builtInRegistryHolder()),
+                oakLogs, List.<net.minecraft.core.Holder<Item>>of(Items.OAK_LOG.builtInRegistryHolder(), Items.BIRCH_LOG.builtInRegistryHolder())));
+        assertEquals(2, ITEMS.getTag(planks).orElseThrow().size());
+        assertEquals(2, ITEMS.getTag(oakLogs).orElseThrow().size());
+        var pattern = net.minecraft.world.item.crafting.ShapedRecipePattern.of(Map.of(
+                'P', Ingredient.of(planks), 'I', Ingredient.of(Items.IRON_INGOT), 'R', Ingredient.of(Items.REDSTONE)), "PPP", " I ", " R ");
+        var piston = new net.minecraft.world.item.crafting.ShapedRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.REDSTONE,
+                pattern, new ItemStack(Items.PISTON));
+        var oakPlanks = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.BUILDING,
+                new ItemStack(Items.OAK_PLANKS, 4), NonNullList.of(Ingredient.EMPTY, Ingredient.of(oakLogs)));
+        var recipes = List.<RecipeHolder<?>>of(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:piston"), piston),
+                new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:oak_planks"), oakPlanks),
+                new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:oak_log"), new net.minecraft.world.item.crafting.ShapelessRecipe("",
+                        net.minecraft.world.item.crafting.CraftingBookCategory.BUILDING, new ItemStack(Items.OAK_LOG), NonNullList.create())));
+        var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build();
+
+        try {
+            var result = NativeProvider.planRecipe(NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE),
+                    "minecraft:piston", 10, SCOPE, 2);
+
+            var planksRoute = result.records().stream().filter(record -> record.source().sourceHandle().endsWith("test:oak_planks"))
+                    .findFirst().orElseThrow();
+            assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(30)), planksRoute.payload().values().get("requestedQuantity"));
+            assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(8)), planksRoute.payload().values().get("batches"));
+            assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(32)), planksRoute.payload().values().get("producedQuantity"));
+            assertEquals(1, result.records().stream().filter(record -> record.source().sourceHandle().endsWith("test:oak_planks")).count());
+            var logsRoute = result.records().stream().filter(record -> record.source().sourceHandle().endsWith("test:oak_log"))
+                    .findFirst().orElseThrow();
+            assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(8)), logsRoute.payload().values().get("requestedQuantity"));
+        } finally {
+            itemRegistry.resetTags();
+        }
+    }
+
+    @Test
+    void planReportsTagMemberCapForLargeNativeIngredientTag() {
+        var largeTag = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM,
+                net.minecraft.resources.ResourceLocation.parse("minecraft:flowers"));
+        var recipe = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                new ItemStack(Items.DIAMOND), NonNullList.of(Ingredient.EMPTY, Ingredient.of(largeTag)));
+        var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build();
+
+        var itemRegistry = (net.minecraft.core.MappedRegistry<Item>) ITEMS;
+        itemRegistry.bindTags(Map.of(largeTag, List.of(Items.DANDELION, Items.POPPY, Items.BLUE_ORCHID, Items.ALLIUM,
+                Items.AZURE_BLUET, Items.RED_TULIP, Items.ORANGE_TULIP, Items.WHITE_TULIP, Items.PINK_TULIP,
+                Items.OXEYE_DAISY, Items.CORNFLOWER, Items.LILY_OF_THE_VALLEY, Items.WITHER_ROSE, Items.TORCHFLOWER,
+                Items.SUNFLOWER, Items.LILAC, Items.ROSE_BUSH, Items.PEONY).stream()
+                .map(item -> (net.minecraft.core.Holder<Item>) item.builtInRegistryHolder()).toList()));
+        assertTrue(ITEMS.getTag(largeTag).orElseThrow().size() > 16);
+        try {
+            var result = NativeProvider.planRecipe(NativeRecipeReader.planSource(List.of(
+                    new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:tagged_diamond"), recipe)), brewing,
+                    registries, ITEMS, null, SCOPE), "minecraft:diamond", 1, SCOPE, 1);
+
+            assertTrue(result.detail().contains("native-recipe-tag-member-cap=#minecraft:flowers:16"));
+            var alternatives = result.records().getFirst().recipePayload().inputs().getFirst().alternatives();
+            assertEquals(16, alternatives.size());
+            assertEquals(alternatives.stream().map(Evidence.RecipeAlternative::comparisonIdentity).toList(),
+                    alternatives.stream().map(Evidence.RecipeAlternative::comparisonIdentity)
+                            .sorted(java.util.Comparator.comparingInt(identity -> ITEMS.getId(ITEMS.get(
+                                    net.minecraft.resources.ResourceLocation.parse(identity))))).toList());
+        } finally {
+            itemRegistry.resetTags();
+        }
+    }
+
+    @Test
+    void moddedRecipeTagExpansionPreservesUnknownConsumption() {
+        var planks = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM,
+                net.minecraft.resources.ResourceLocation.parse("minecraft:planks"));
+        var itemRegistry = (net.minecraft.core.MappedRegistry<Item>) ITEMS;
+        itemRegistry.bindTags(Map.of(planks, List.<net.minecraft.core.Holder<Item>>of(Items.OAK_PLANKS.builtInRegistryHolder(),
+                Items.SPRUCE_PLANKS.builtInRegistryHolder())));
+        var modded = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                new ItemStack(Items.DIAMOND), NonNullList.of(Ingredient.EMPTY, Ingredient.of(planks))) {
+        };
+        var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build();
+        try {
+            var result = NativeProvider.planRecipe(NativeRecipeReader.planSource(List.of(
+                    new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:modded_tagged"), modded)), brewing,
+                    registries, ITEMS, null, SCOPE), "minecraft:diamond", 1, SCOPE, 1);
+            var alternatives = result.records().getFirst().recipePayload().inputs().getFirst().alternatives();
+            assertEquals(2, alternatives.size());
+            assertTrue(alternatives.stream().allMatch(alternative -> alternative.consumption() == Evidence.Consumption.UNKNOWN));
+        } finally {
+            itemRegistry.resetTags();
+        }
+    }
+
+    @Test
     void planIncludesLateBrewingOutputsAndTheirStableRecipeIdentity() {
         var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS);
         for (int index = 0; index < 600; index++) {

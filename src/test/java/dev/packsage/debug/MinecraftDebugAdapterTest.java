@@ -37,7 +37,8 @@ class MinecraftDebugAdapterTest {
         var unsafe = field.get(null);
         var client = (Client) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Client.class);
         var catalogReads = new java.util.concurrent.atomic.AtomicInteger();
-        var store = new ConversationStore(directory, Runnable::run, task -> {
+        var foregroundReads = new java.util.concurrent.atomic.AtomicInteger();
+        var store = new ConversationStore(directory, task -> { foregroundReads.incrementAndGet(); task.run(); }, task -> {
             catalogReads.incrementAndGet();
             throw new AssertionError("opening a selected conversation must not read the catalog");
         });
@@ -68,8 +69,10 @@ class MinecraftDebugAdapterTest {
         assertEquals(1, opens.get());
         assertEquals(conversation.id(), response.get("conversationId").getAsString());
         int initializedHolders = captures.get();
+        int reads = foregroundReads.get();
         adapter.execute(DebugRouter.Operation.SCREEN_OPEN, body);
         assertEquals(initializedHolders, captures.get(), "reopening a loaded holder must not initialize it again");
+        assertEquals(reads + 1, foregroundReads.get(), "reopening reads only the selected summary, not its body");
 
         body.addProperty("conversationId", "missing");
         assertThrows(IllegalArgumentException.class, () -> adapter.execute(DebugRouter.Operation.SCREEN_OPEN, body));
@@ -106,6 +109,7 @@ class MinecraftDebugAdapterTest {
             throw new AssertionError("opening a selected conversation must not read the catalog");
         });
         var conversation = store.newConversation(world).toCompletableFuture().join();
+        store.newConversation(world).toCompletableFuture().join();
         var backend = (ModelBackend) Proxy.newProxyInstance(ModelBackend.class.getClassLoader(), new Class<?>[]{ModelBackend.class},
                 (proxy, method, args) -> { throw new AssertionError("opening chat must not call the model"); });
         var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(

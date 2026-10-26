@@ -27520,43 +27520,47 @@ A1, A2, B1, D1 and C1 were excluded by request. No failed model check was rerun 
 
 | Check | Status | Observation |
 |---|---|---|
-| M5 | NOT RUN | 2,000 sand and TNT recorded; world-close metric and stall observation pending. |
-| J8 | NOT RUN | Chest withdrawal recorded; donkey interaction pending. |
-| J9 | NOT RUN | Pending open-container disconnect check. |
+| M5 | NOT RUN | 2,000 sand and TNT recorded; Save and Quit, close metrics and continuous visual stall check NOT RUN. |
+| J8 | NOT RUN | Chest withdrawal recorded and linked; donkey deposit/withdrawal NOT RUN. |
+| J9 | NOT RUN | NOT RUN: the stopped desktop helper prevented Save and Quit with a chest open. |
 | J10 | PASS | All requested event families recorded with actor, subject and place; repeat visit did not duplicate first entry. |
 | J11 | PASS | Raid start and a loss outcome were recorded; all navigation targets opened. |
 | J12 | FAIL | Deleting the Nether note makes its link unavailable, but a later answer resurrects its coordinates from chat history. |
-| J13 | NOT RUN | Pending immediate quit and quick rejoin checks. |
+| J13 | NOT RUN | NOT RUN: immediate game quit and quick Save-and-Quit/rejoin require the stopped desktop helper. |
 | J14 | FAIL | The first tool-using conversation has neither conversation nor message origin fields. |
-| P9/J7 | NOT RUN | NeoForge 21.1.202 no-mod server ready; client join pending. |
+| P9/J7 | NOT RUN | No-mod NeoForge 21.1.202 server installed, started and stopped cleanly; client join/questions NOT RUN. |
 | W9 | PASS | Potion, arrow, dye, custom name and book facts correct; stale item reference refused and moved item rediscovered. |
 | W10 | PASS | Closed chest contents are not reused as current context. |
-| W11 | NOT RUN | Donkey /player/open mounted it (opened=false); desktop inventory path pending. |
+| W11 | NOT RUN | NOT RUN: donkey bridge interaction mounts it; donkey/mule inventory-screen fallback blocked. |
 | W12 | FAIL | Sealed loot stays sealed, but seed and known/unknown/empty table status are not exposed. |
 | W13 | FAIL | Cherry-grove continuation resumes correctly; the current-biome question returns no biome tags. |
-| W14 | NOT RUN | Pending command discovery and follow-up page. |
+| W14 | PASS | Weather command discovery and a 64+11 command continuation work. |
 | W15 | NOT RUN | Uncached job-site memory set, but the donkey blocked the intended villager target. |
 | W16 | PASS | Fresh reads reflect 31→7 ingots and 0/3→1/3 advancements; removed tree and saved links are refused. |
-| W17 | NOT RUN | Legacy provider-citation conversations found; saved-chat UI check pending. |
-| W18 | NOT RUN | Pending effect-description resource pack. |
-| E8 | NOT RUN | Pending Nether-fortress question from Overworld. |
-| E9 | NOT RUN | Pending village search and look-further follow-up. |
-| U1 | NOT RUN | Pending adapter-popup layout observation. |
-| U2 | NOT RUN | Pending concurrent settings save and shutdown flush. |
+| W17 | NOT RUN | Legacy provider-citation chats exist; opening/rendering/click checks NOT RUN. |
+| W18 | NOT RUN | No-pack descriptionStatus=not_provided verified; resource-pack description branch NOT RUN. |
+| E8 | PASS | Overworld answer identifies a Nether fortress using returned predicted Nether links. |
+| E9 | PASS | Wider village search starts with cursor null, then resumes with unchanged arguments and the returned cursor. |
+| U1 | NOT RUN | NOT RUN: adapter popup could not be opened while desktop control remained stopped. |
+| U2 | NOT RUN | Overlapping bridge prompt saves and final clear succeed; screen-save/shutdown overlap NOT RUN. |
 
 ### Passing checks and checks not run
 
 #### M5 — NOT RUN
 
-2,000 sand and TNT recorded; world-close metric and stall observation pending.
+2,000 sand and TNT recorded; Save and Quit, close metrics and continuous visual stall check NOT RUN.
 
-All 2,000 low-concurrency break calls succeeded. One initial 20-request batch hit fetch failed; its original result is preserved and the bounded continuation visited every coordinate once. Journal sums are 1000+990+10=2000 sand and 9 exploded stone. A previous fixture TNT exploded before chunk loading and broke zero blocks. No question retry. Navigation opened all seven targets.
+All 2,000 low-concurrency break calls succeeded. One initial 20-request batch hit fetch failed; its original result is preserved and the bounded continuation visited every coordinate once. Journal sums are 1000+990+10=2000 sand and 9 exploded stone. A previous fixture TNT exploded before chunk loading and broke zero blocks. No question retry. Navigation opened all seven targets. Desktop helper remained stopped after explicit resumption authorization, preventing Save and Quit. No world-close journal summary was produced in this launch; overflowed=0 and slowestTick<1000us are unverified. Throughput is not substituted for the requested visual/close metrics.
 
 Evidence: [m5-break-all.json](../../build/native-readiness-live/m5-break-all.json).
 
 Evidence: [m5-loaded-fixture.json](../../build/native-readiness-live/m5-loaded-fixture.json).
 
 Evidence: [m5-transport.json](../../build/native-readiness-live/m5-transport.json).
+
+Evidence: [computer-use-blocker.json](../../build/native-readiness-live/computer-use-blocker.json).
+
+Evidence: [final-log-observation.json](../../build/native-readiness-live/final-log-observation.json).
 
 Question: `what did I just dig up and blow up?`
 
@@ -27666,11 +27670,13 @@ Timing: {"wallMs":15447,"modelTerminalMs":"13546","toolWallMs":"73","persistMs":
 
 #### J8 — NOT RUN
 
-Chest withdrawal recorded; donkey interaction pending.
+Chest withdrawal recorded and linked; donkey deposit/withdrawal NOT RUN.
 
-
+Chest fixture withdrew 31 iron via /player/menu/move and closed the session. Reply includes this withdrawal at (1602,250,1600) and an older five-ingot withdrawal, labeling the day October25 US time. Donkey /player/open returned CONSUME, opened=false and mounted it. Desktop inventory opening was blocked, so no donkey items were moved or donkey question submitted. Planned question: what did I put in my donkey? Calls/navigation/timing for that subcheck: none.
 
 Evidence: [chest-mount-fixture.json](../../build/native-readiness-live/chest-mount-fixture.json).
+
+Evidence: [computer-use-blocker.json](../../build/native-readiness-live/computer-use-blocker.json).
 
 Question: `what did I take out of chests today?`
 
@@ -27770,9 +27776,11 @@ Timing: {"wallMs":24803,"modelTerminalMs":"22330","toolWallMs":"15","persistMs":
 
 #### J9 — NOT RUN
 
-Pending open-container disconnect check.
+NOT RUN: the stopped desktop helper prevented Save and Quit with a chest open.
 
+Planned action: open a chest, disconnect with it open, rejoin, and ask about that session. No question, model/tool call, navigation or timing exists; no disconnect or incomplete-session behavior is claimed.
 
+Evidence: [computer-use-blocker.json](../../build/native-readiness-live/computer-use-blocker.json).
 
 
 #### J10 — PASS
@@ -28131,18 +28139,28 @@ Timing: {"wallMs":30372,"modelTerminalMs":"28552","toolWallMs":"49","persistMs":
 
 #### J13 — NOT RUN
 
-Pending immediate quit and quick rejoin checks.
+NOT RUN: immediate game quit and quick Save-and-Quit/rejoin require the stopped desktop helper.
 
+Planned questions after the two distinct lifecycle actions concern the final broken blocks/open runs. Neither lifecycle action was performed; no model call, navigation or timing exists.
 
+Evidence: [computer-use-blocker.json](../../build/native-readiness-live/computer-use-blocker.json).
 
 
 #### P9/J7 — NOT RUN
 
-NeoForge 21.1.202 no-mod server ready; client join pending.
+No-mod NeoForge 21.1.202 server installed, started and stopped cleanly; client join/questions NOT RUN.
 
-
+Exact installer SHA256 and URL, Java21, EULA, server-ip127.0.0.1, online-mode=false, no mod JARs and listener evidence are in server-prep.json. The client could not join because desktop control remained stopped. Planned new-chat questions: what advancements am I missing?; how many blocks have I mined?; what did I do today? None submitted: calls, replies, navigation and timing are N/A. Server stop was sent through run.bat stdin; its log confirms all dimensions saved. Java process and listener were gone before removing the paused launcher/controller.
 
 Evidence: [server-prep.json](../../build/native-readiness-live/server-prep.json).
+
+Evidence: [computer-use-blocker.json](../../build/native-readiness-live/computer-use-blocker.json).
+
+Evidence: [server-console.log](../../build/native-readiness-live/server-console.log).
+
+Evidence: [server-stopped.json](../../build/native-readiness-live/server-stopped.json).
+
+Evidence: [server-stop-verified.json](../../build/native-readiness-live/server-stop-verified.json).
 
 
 #### W9 — PASS
@@ -28494,16 +28512,151 @@ Timing: {"wallMs":null,"modelTerminalMs":"9007","toolWallMs":"49","persistMs":"1
 
 #### W11 — NOT RUN
 
-Donkey /player/open mounted it (opened=false); desktop inventory path pending.
+NOT RUN: donkey bridge interaction mounts it; donkey/mule inventory-screen fallback blocked.
+
+The actual donkey bridge interaction returned opened=false, menuId0, CONSUME. Donkey and mule were both summoned tamed/chested at the scratch fixture. The required opened-menu questions were not submitted because neither screen could be opened through the available bridge; no model/navigation/timing for those questions.
+
+Evidence: [computer-use-blocker.json](../../build/native-readiness-live/computer-use-blocker.json).
+
+Evidence: [chest-mount-fixture.json](../../build/native-readiness-live/chest-mount-fixture.json).
 
 
+#### W14 — PASS
 
+Weather command discovery and a 64+11 command continuation work.
 
-#### W14 — NOT RUN
+Weather discovery returns all four matching records with permission4; read_command returns usage. The follow-up broadens to all commands, reads64 then resumes with the exact returned cursor to the final11. No continuation arguments changed. Command records return no navigation targets.
 
-Pending command discovery and follow-up page.
+Question: `what commands can I use to change the weather?`
 
+Request `3f72ca1e-7567-478a-9d48-eea66645cfdf`; conversation `b628f3c5-acb9-471b-836a-8c94727e91cc`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w14-weather.json).
 
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_commands",
+    "arguments": {
+      "text": "weather",
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "playerPermissionLevel: 4",
+    "recordCount": 4,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "read_command",
+    "arguments": {
+      "name": "weather",
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You can use all three weather commands in this world:
+
+- `/weather clear` — clear skies
+- `/weather rain` — rain
+- `/weather thunder` — a thunderstorm
+
+You can add an optional duration, such as `/weather clear 1d`. Your current permissions allow these commands. [world:command|weather]
+```
+
+`/navigate` results (no targets returned or navigation not exercised; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":12482,"modelTerminalMs":"11326","toolWallMs":"217","persistMs":"8"}.
+
+Question: `Show me the next page of available commands.`
+
+Request `c2898566-193f-4a81-beee-3084cc936db5`; conversation `b628f3c5-acb9-471b-836a-8c94727e91cc`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w14-next.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_commands",
+    "arguments": {
+      "text": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "playerPermissionLevel: 4; command page reached 64 records; continue with the cursor",
+    "recordCount": 64,
+    "nextCursor": "055fa3c5-568d-4bea-b9f5-a2b02ddaca95",
+    "nextCall": {
+      "name": "search_commands",
+      "arguments": {
+        "text": null,
+        "cursor": "055fa3c5-568d-4bea-b9f5-a2b02ddaca95"
+      }
+    }
+  },
+  {
+    "group": "2",
+    "name": "search_commands",
+    "arguments": {
+      "text": null,
+      "cursor": "055fa3c5-568d-4bea-b9f5-a2b02ddaca95"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "playerPermissionLevel: 4",
+    "recordCount": 11,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Here’s the **next page of available commands**. Your current permissions allow all of these. [world:command|tellraw] [world:command|xp]
+
+| Command | What it’s for |
+|---|---|
+| `/tellraw` | Send a formatted message. [world:command|tellraw] |
+| `/tick` | Query or control game ticks. [world:command|tick] |
+| `/time` | Set the time of day. [world:command|time] |
+| `/title` | Show or clear on-screen titles. [world:command|title] |
+| `/tm` | Alias for `/teammsg`. [world:command|tm] |
+| `/tp` | Alias for `/teleport`. [world:command|tp] |
+| `/trigger` | Set or add to an enabled trigger objective. [world:command|trigger] |
+| `/w` | Alias for `/msg`. [world:command|w] |
+| `/weather` | Change the weather. [world:command|weather] |
+| `/worldborder` | Change the world border. [world:command|worldborder] |
+| `/xp` | Alias for `/experience`. [world:command|xp] |
+
+That’s the last page of the command list.
+```
+
+`/navigate` results (no targets returned or navigation not exercised; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":24364,"modelTerminalMs":"22138","toolWallMs":"86","persistMs":"2"}.
 
 
 #### W15 — NOT RUN
@@ -28854,46 +29007,509 @@ Timing: {"wallMs":24610,"modelTerminalMs":"22097","toolWallMs":"120","persistMs"
 
 #### W17 — NOT RUN
 
-Legacy provider-citation conversations found; saved-chat UI check pending.
+Legacy provider-citation chats exist; opening/rendering/click checks NOT RUN.
 
-
+The scan found294 conversation files,13 provider-citation chats and7 pre-v2 candidates datedOct20–21. Strongest candidate d6b3f0e7-7b66-4626-8f89-0635ae16b0a7 has43 Modonomicon+8 GuideME source rows in the New_World store; JEI92570335-afc6-4503-a410-a39e10f44f16 has14. No explicit quest citations found. Current-world /chat cannot select conversations belonging to that other world, and switching saves/inspecting chips needs the stopped desktop helper. No old conversation was modified, no question submitted, and no render/navigation/timing result is claimed.
 
 Evidence: [legacy-search.json](../../build/native-readiness-live/legacy-search.json).
+
+Evidence: [computer-use-blocker.json](../../build/native-readiness-live/computer-use-blocker.json).
 
 
 #### W18 — NOT RUN
 
-Pending effect-description resource pack.
+No-pack descriptionStatus=not_provided verified; resource-pack description branch NOT RUN.
+
+Speed was active for the baseline. search_registry(mob_effect,Speed) returns descriptionStatus not_provided, the descriptionKey and real movement-speed modifiers. The effect.minecraft.speed.description resource pack was not activated because client resource-pack selection/reload needs desktop input and the helper remained stopped. No with-pack question or result exists; the full check is not accepted.
+
+Evidence: [computer-use-blocker.json](../../build/native-readiness-live/computer-use-blocker.json).
+
+Question: `what does Speed do?`
+
+Request `7930c094-d28e-41c5-ac9e-d6ea747ab97a`; conversation `f685ff88-4b52-441c-986e-8f640e08ad5c`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w18-baseline.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "mob_effect",
+      "filter": {
+        "text": "Speed",
+        "ids": null,
+        "tags": null,
+        "provider": null
+      },
+      "limit": 64,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+**Speed makes you move faster.** In this pack, Speed I increases your movement-speed attribute by 20%, Speed II by 40%, and Speed III by 60%. [native:mob_effect:minecraft:speed]
+```
+
+`/navigate` results (no targets returned or navigation not exercised; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":11213,"modelTerminalMs":"9764","toolWallMs":"11","persistMs":"10"}.
 
 
+#### E8 — PASS
+
+Overworld answer identifies a Nether fortress using returned predicted Nether links.
+
+First locate returns no fortress placements in Overworld. The assistant explicitly searches the Nether around the scaled player x/z, follows a returned cursor with unchanged arguments, labels its result a prediction and opens the supported cross-dimension link. No invented destination.
+
+Question: `where is the nearest nether fortress?`
+
+Request `70a683a9-acff-4880-9425-1292210f4a5e`; conversation `83efa674-5626-43bc-b06e-f4955a009504`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/e8.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "locate",
+    "arguments": {
+      "biome": null,
+      "structure": "minecraft:fortress",
+      "center": null,
+      "radius": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; minecraft:fortress has no placements in this dimension; no matching starts found in loaded or saved data and no remaining predictions",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "locate",
+    "arguments": {
+      "biome": null,
+      "structure": "minecraft:fortress",
+      "center": {
+        "type": "block",
+        "id": null,
+        "place": "minecraft:the_nether|200,64,200"
+      },
+      "radius": 100,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; search paused at ring 2, entry 0, candidate 0 after a result page; continue with the cursor",
+    "recordCount": 4,
+    "nextCursor": "a7887125-8d92-475d-81b1-75f2358bc708",
+    "nextCall": {
+      "name": "locate",
+      "arguments": {
+        "biome": null,
+        "structure": "minecraft:fortress",
+        "center": {
+          "type": "block",
+          "id": null,
+          "place": "minecraft:the_nether|200,64,200"
+        },
+        "radius": 100,
+        "cursor": "a7887125-8d92-475d-81b1-75f2358bc708"
+      }
+    }
+  },
+  {
+    "group": "3",
+    "name": "locate",
+    "arguments": {
+      "biome": null,
+      "structure": "minecraft:fortress",
+      "center": {
+        "type": "block",
+        "id": null,
+        "place": "minecraft:the_nether|200,64,200"
+      },
+      "radius": 100,
+      "cursor": "a7887125-8d92-475d-81b1-75f2358bc708"
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; 11 more hits found on this page; showing the nearest 5; search paused at ring 3, entry 0, candidate 0 after a result page; continue with the cursor",
+    "recordCount": 5,
+    "nextCursor": "33f4ae79-1708-4100-8fb3-15ab309de675",
+    "nextCall": {
+      "name": "locate",
+      "arguments": {
+        "biome": null,
+        "structure": "minecraft:fortress",
+        "center": {
+          "type": "block",
+          "id": null,
+          "place": "minecraft:the_nether|200,64,200"
+        },
+        "radius": 100,
+        "cursor": "33f4ae79-1708-4100-8fb3-15ab309de675"
+      }
+    }
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The nearest **predicted** Nether fortress I found is near **(144, ~128, 656)** in the Nether [mark location](world:locate|minecraft:the_nether|minecraft:fortress|144,656). From the Nether coordinates corresponding to your current Overworld position—about (200, 200)—head mostly **south**, then a little **west**. It’s roughly 460 blocks away horizontally.
+
+That location is a world-generation prediction, **not a confirmed fortress**; the terrain could prevent it from generating. The Y coordinate is only an estimate.
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-place|minecraft:the_nether|144,128,656",
+    "result": {
+      "status": "OPENED",
+      "detail": "144, 128, 656 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:the_nether|544,128,-112",
+    "result": {
+      "status": "OPENED",
+      "detail": "544, 128, -112 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:the_nether|704,128,304",
+    "result": {
+      "status": "OPENED",
+      "detail": "704, 128, 304 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:the_nether|784,128,688",
+    "result": {
+      "status": "OPENED",
+      "detail": "784, 128, 688 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:the_nether|912,128,96",
+    "result": {
+      "status": "OPENED",
+      "detail": "912, 128, 96 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:the_nether|976,128,448",
+    "result": {
+      "status": "OPENED",
+      "detail": "976, 128, 448 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:the_nether|80,128,-640",
+    "result": {
+      "status": "OPENED",
+      "detail": "80, 128, -640 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:the_nether|880,128,-320",
+    "result": {
+      "status": "OPENED",
+      "detail": "880, 128, -320 in minecraft:the_nether"
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:the_nether|480,128,1088",
+    "result": {
+      "status": "OPENED",
+      "detail": "480, 128, 1088 in minecraft:the_nether"
+    }
+  }
+]
+```
+
+Timing: {"wallMs":28668,"modelTerminalMs":"27476","toolWallMs":"304","persistMs":"8"}.
 
 
-#### E8 — NOT RUN
+#### E9 — PASS
 
-Pending Nether-fortress question from Overworld.
+Wider village search starts with cursor null, then resumes with unchanged arguments and the returned cursor.
 
+Initial radiusnull(default100chunks) completes. look further out starts radius512 with cursor null; its next locate keeps biome,structure,center,radius unchanged and uses exactly the returned next cursor. Coverage remains PARTIAL with a concrete continuation detail. Returned destination links all open.
 
+Question: `where is the nearest village?`
 
+Request `15b5c286-9724-4c73-9338-a226b2078266`; conversation `a0a36b96-9d59-4894-9ae2-adc0f60652cc`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/e9-village.json).
 
-#### E9 — NOT RUN
+Calls (exact arguments, groups, coverage/detail and continuation):
 
-Pending village search and look-further follow-up.
+```json
+[
+  {
+    "group": "1",
+    "name": "locate",
+    "arguments": {
+      "biome": null,
+      "structure": "#minecraft:village",
+      "center": null,
+      "radius": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "searched within 100 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; biome checks rejected candidate columns for minecraft:village_desert, minecraft:village_savanna, minecraft:village_snowy, minecraft:village_taiga; sampled columns do not prove structure absence",
+    "recordCount": 5,
+    "nextCursor": null
+  }
+]
+```
 
+Verbatim reply:
 
+```text
+The nearest **found village** is a plains village at **(1872, 70, 864)**, about **785 blocks northwest** of your position. [Mark the village](world:locate|minecraft:overworld|minecraft:village_plains|1872,864)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-place|minecraft:overworld|1872,70,864",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|336,69,1232",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|1712,72,240",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|3120,68,1184",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|1376,81,48",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":8866,"modelTerminalMs":"7344","toolWallMs":"227","persistMs":"8"}.
+
+Question: `look further out`
+
+Request `faf23cf7-6912-4c49-8488-89c9f25cc828`; conversation `a0a36b96-9d59-4894-9ae2-adc0f60652cc`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/e9-further.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "locate",
+    "arguments": {
+      "biome": null,
+      "structure": "#minecraft:village",
+      "center": null,
+      "radius": 512,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "searched within 512 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; biome checks rejected candidate columns for minecraft:village_desert, minecraft:village_savanna; sampled columns do not prove structure absence; 6 more hits found on this page; showing the nearest 5; search paused at ring 4, entry 0, candidate 0 after a result page; continue with the cursor",
+    "recordCount": 5,
+    "nextCursor": "ec484961-7eb8-4d5f-8de6-6d4df190fc36",
+    "nextCall": {
+      "name": "locate",
+      "arguments": {
+        "biome": null,
+        "structure": "#minecraft:village",
+        "center": null,
+        "radius": 512,
+        "cursor": "ec484961-7eb8-4d5f-8de6-6d4df190fc36"
+      }
+    }
+  },
+  {
+    "group": "2",
+    "name": "locate",
+    "arguments": {
+      "biome": null,
+      "structure": "#minecraft:village",
+      "center": null,
+      "radius": 512,
+      "cursor": "ec484961-7eb8-4d5f-8de6-6d4df190fc36"
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "searched within 512 chunks; unloaded candidates use placement and biome checks, not terrain validation; saved reads are limited to 8 candidates and may miss unsaved changes; absent means only not found in saved data; biome checks rejected candidate columns for minecraft:village_desert, minecraft:village_savanna; sampled columns do not prove structure absence; 4 more hits found on this page; showing the nearest 5; search paused at ring 5, entry 0, candidate 0 after a result page; continue with the cursor",
+    "recordCount": 5,
+    "nextCursor": "3d5b9126-2b28-4e8b-80f4-e4cfc21bf1c6",
+    "nextCall": {
+      "name": "locate",
+      "arguments": {
+        "biome": null,
+        "structure": "#minecraft:village",
+        "center": null,
+        "radius": 512,
+        "cursor": "3d5b9126-2b28-4e8b-80f4-e4cfc21bf1c6"
+      }
+    }
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Looking farther out, I found several **predicted** village sites beyond the plains village at (1872, 70, 864). The closest new options are:
+
+- Plains village at **(336, 69, 1232)**, about **1,322 blocks** away. [Mark it](world:locate|minecraft:overworld|minecraft:village_plains|336,1232)
+- Plains village at **(1712, 72, 240)**, about **1,367 blocks** away. [Mark it](world:locate|minecraft:overworld|minecraft:village_plains|1712,240)
+- Snowy village at **(3328, 109, 928)**, about **1,850 blocks** away. [Mark it](world:locate|minecraft:overworld|minecraft:village_snowy|3328,928)
+
+These are **seed-based predictions**, not confirmed villages; terrain may prevent them from generating. The village at **(1872, 70, 864)** remains the nearest *found* one. [Mark the found village](world:locate|minecraft:overworld|minecraft:village_plains|1872,864)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-place|minecraft:overworld|1872,70,864",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|336,69,1232",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|1712,72,240",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|3120,68,1184",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|1376,81,48",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|3328,109,928",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|3536,53,1920",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|208,104,3456",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|3648,77,256",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-place|minecraft:overworld|2544,64,-736",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":24517,"modelTerminalMs":"22103","toolWallMs":"720","persistMs":"2"}.
 
 
 #### U1 — NOT RUN
 
-Pending adapter-popup layout observation.
+NOT RUN: adapter popup could not be opened while desktop control remained stopped.
 
+No popup screenshot or width/scrollbar observation exists. No question/tool/navigation/timing applies. No source or configuration change was made to simulate a long adapter list.
 
+Evidence: [computer-use-blocker.json](../../build/native-readiness-live/computer-use-blocker.json).
 
 
 #### U2 — NOT RUN
 
-Pending concurrent settings save and shutdown flush.
+Overlapping bridge prompt saves and final clear succeed; screen-save/shutdown overlap NOT RUN.
 
+Two concurrent POST /prompt saves both complete and observe the newer B text. A subsequent POST with textnull completes, GET reflects default candidate8 and the properties file has no developerPrompt field. These bridge-only observations do not establish overlap with screen settings saves or shutdown flush, which require the stopped desktop helper. No model question or navigation applies; exact HTTP durations are in the ledger.
 
+Evidence: [computer-use-blocker.json](../../build/native-readiness-live/computer-use-blocker.json).
+
+Evidence: [u2-prompt-saves.json](../../build/native-readiness-live/u2-prompt-saves.json).
+
+Evidence: [u2-settings-fields.json](../../build/native-readiness-live/u2-settings-fields.json).
 
 
 ### Failures
@@ -29821,3 +30437,33 @@ The nearest **sampled cherry grove** is at **(3077, 250, 2530)** in the Overworl
 
 Timing: {"wallMs":18259,"modelTerminalMs":"16976","toolWallMs":"5277","persistMs":"9"}.
 
+
+### Final state
+
+```json
+{
+  "world": "PackSage Adapter Filter Live Test",
+  "save": "PackSage Adapter Filter Live Test",
+  "paused": false,
+  "running": true,
+  "screen": null,
+  "dimension": "minecraft:overworld",
+  "position": [
+    1191.5,
+    250,
+    1057.5
+  ],
+  "yaw": 11.309933,
+  "pitch": 13.668103,
+  "health": 20,
+  "gamemode": "creative",
+  "gameTime": 1358402,
+  "dayTime": 10694,
+  "selectedHotbarSlot": 0,
+  "crosshairTarget": null,
+  "riddenEntity": null,
+  "menuId": 0
+}
+```
+
+Final GET /prompt: {"text":null,"matchesCandidate8":true}.

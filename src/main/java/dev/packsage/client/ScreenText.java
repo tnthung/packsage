@@ -334,8 +334,10 @@ final class ScreenText {
     }
 
     static Map<Evidence.Source, RecipeCardModel> recipeCards(ChatContracts.Turn turn) {
-        Map<String, List<Evidence.Source>> candidates = turn.sources().stream()
+        // Only native recipe and plan records can become cards; skip parsing tool results otherwise.
+        Map<String, List<Evidence.Source>> candidates = turn.sources().stream().filter(source -> source.providerId().equals("native"))
                 .collect(Collectors.groupingBy(source -> source.providerId() + ":" + source.sourceHandle()));
+        if (candidates.isEmpty()) return Map.of();
         Gson gson = new Gson();
         Map<Evidence.Source, RecipeCardModel> cards = new java.util.HashMap<>();
         for (ModelBackend.InputItem item : turn.replayItems()) {

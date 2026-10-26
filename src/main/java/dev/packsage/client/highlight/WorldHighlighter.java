@@ -3,13 +3,16 @@ package dev.packsage.client.highlight;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import dev.packsage.world.BlockPlace;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.blockentity.BeaconRenderer;
 import net.minecraft.world.entity.Entity;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
@@ -23,14 +26,25 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Draws world navigation highlights until they expire: a see-through line box around a block, a see-through column
- * through the whole build height at a place, or a glow on a loaded mob. Blocks and places are drawn only in the
+ * Draws world navigation highlights until they expire: a see-through line box around a block, a see-through beam
+ * rising from a place, or a glow on a loaded mob. Blocks and places are drawn only in the
  * player's current dimension; mobs glow only while the client has them loaded.
  */
 public final class WorldHighlighter {
     private static final double INSET = 0.002;
-    /** Horizontal blocks from the camera beyond which a place's column is drawn at this distance in its direction. */
+    /** Horizontal blocks from the camera beyond which a place's beam is drawn at this distance in its direction. */
     static final double MARKER_RANGE = 128;
+    private static final RenderStateShard.DepthTestStateShard THROUGH_TERRAIN = new RenderStateShard.DepthTestStateShard("always", GL11.GL_ALWAYS) {
+        @Override
+        public void setupRenderState() {
+            RenderSystem.disableDepthTest();
+        }
+
+        @Override
+        public void clearRenderState() {
+            RenderSystem.enableDepthTest();
+        }
+    };
     private static final RenderType LINES = RenderType.create("packsage_highlight_lines", DefaultVertexFormat.POSITION_COLOR_NORMAL,
             VertexFormat.Mode.LINES, 1536, false, false, RenderType.CompositeState.builder()
                     .setShaderState(RenderStateShard.RENDERTYPE_LINES_SHADER)
@@ -38,27 +52,44 @@ public final class WorldHighlighter {
                     .setLayeringState(RenderStateShard.VIEW_OFFSET_Z_LAYERING)
                     .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
                     .setWriteMaskState(RenderStateShard.COLOR_WRITE)
-                    // Vanilla NO_DEPTH_TEST is a no-op; the translucent layer still has depth testing enabled here.
-                    .setDepthTestState(new RenderStateShard.DepthTestStateShard("always", GL11.GL_ALWAYS) {
-                        @Override
-                        public void setupRenderState() {
-                            RenderSystem.disableDepthTest();
-                        }
-
-                        @Override
-                        public void clearRenderState() {
-                            RenderSystem.enableDepthTest();
-                        }
-                    })
+                    // Vanilla NO_DEPTH_TEST is a no-op; THROUGH_TERRAIN explicitly disables depth testing here.
+                    .setDepthTestState(THROUGH_TERRAIN)
                     .setCullState(RenderStateShard.NO_CULL)
+                    .createCompositeState(false));
+    private static final RenderType PLACE_BEAM_CORE = RenderType.create("packsage_place_beam_core", DefaultVertexFormat.BLOCK,
+            VertexFormat.Mode.QUADS, 1536, false, true, RenderType.CompositeState.builder()
+                    .setShaderState(RenderStateShard.RENDERTYPE_BEACON_BEAM_SHADER)
+                    .setTextureState(new RenderStateShard.TextureStateShard(BeaconRenderer.BEAM_LOCATION, false, false))
+                    .setDepthTestState(THROUGH_TERRAIN)
+                    .setWriteMaskState(RenderStateShard.COLOR_WRITE)
+                    .createCompositeState(false));
+    private static final RenderType PLACE_BEAM_GLOW = RenderType.create("packsage_place_beam_glow", DefaultVertexFormat.BLOCK,
+            VertexFormat.Mode.QUADS, 1536, false, true, RenderType.CompositeState.builder()
+                    .setShaderState(RenderStateShard.RENDERTYPE_BEACON_BEAM_SHADER)
+                    .setTextureState(new RenderStateShard.TextureStateShard(BeaconRenderer.BEAM_LOCATION, false, false))
+                    .setTransparencyState(RenderStateShard.TRANSLUCENT_TRANSPARENCY)
+                    .setDepthTestState(THROUGH_TERRAIN)
+                    .setWriteMaskState(RenderStateShard.COLOR_WRITE)
                     .createCompositeState(false));
     private static final Map<BlockPlace, Long> BLOCKS = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> ENTITIES = new ConcurrentHashMap<>();
     private static final Map<BlockPlace, Long> PLACES = new ConcurrentHashMap<>();
     /** Mobs glowing because of a highlight, with whether they glowed before it; render thread only. */
     private static final Map<UUID, Glow> GLOWING = new HashMap<>();
+    private static final PlaceBeamBuffers PLACE_BEAM_BUFFERS = new PlaceBeamBuffers();
 
     private record Glow(Entity entity, boolean original) {
+    }
+
+    private static final class PlaceBeamBuffers implements MultiBufferSource {
+        private MultiBufferSource.BufferSource delegate;
+
+        @Override
+        public VertexConsumer getBuffer(RenderType renderType) {
+            if (renderType == RenderType.beaconBeam(BeaconRenderer.BEAM_LOCATION, false)) return delegate.getBuffer(PLACE_BEAM_CORE);
+            if (renderType == RenderType.beaconBeam(BeaconRenderer.BEAM_LOCATION, true)) return delegate.getBuffer(PLACE_BEAM_GLOW);
+            return delegate.getBuffer(renderType);
+        }
     }
 
     private WorldHighlighter() {
@@ -82,7 +113,7 @@ public final class WorldHighlighter {
         ENTITIES.put(id, untilMillis);
     }
 
-    /** Marks x, z with a column from the level's minimum to its maximum build height; y is not used. */
+    /** Marks a block position with a beam rising from it to the level's maximum build height. */
     public static void highlightPlace(BlockPlace place, long untilMillis) {
         PLACES.put(place, untilMillis);
     }
@@ -92,9 +123,9 @@ public final class WorldHighlighter {
         var minecraft = Minecraft.getInstance();
         var level = minecraft.level;
         long now = System.currentTimeMillis();
-        BLOCKS.values().removeIf(until -> until <= now);
-        ENTITIES.values().removeIf(until -> until <= now);
-        PLACES.values().removeIf(until -> until <= now);
+        BLOCKS.values().removeIf(until -> isExpired(until, now));
+        ENTITIES.values().removeIf(until -> isExpired(until, now));
+        PLACES.values().removeIf(until -> isExpired(until, now));
         glow(level);
         if (level == null || BLOCKS.isEmpty() && PLACES.isEmpty()) return;
         var dimension = level.dimension().location().toString();
@@ -112,35 +143,52 @@ public final class WorldHighlighter {
         }
         buffers.endBatch(LINES);
         if (PLACES.isEmpty()) return;
-        lines = buffers.getBuffer(LINES);
-        double bottom = level.getMinBuildHeight() - camera.y;
-        double top = level.getMaxBuildHeight() - camera.y;
         double far = minecraft.gameRenderer.getDepthFar();
-        for (var place : PLACES.keySet()) {
-            if (!place.dimension().equals(dimension)) continue;
-            double x = place.x() + 0.5 - camera.x;
-            double z = place.z() + 0.5 - camera.z;
-            double distance = Math.sqrt(x * x + z * z);
-            double shown = markerDistance(distance, far);
-            if (shown < distance) {
-                x *= shown / distance;
-                z *= shown / distance;
+        PLACE_BEAM_BUFFERS.delegate = buffers;
+        try {
+            for (var place : PLACES.keySet()) {
+                if (!place.dimension().equals(dimension)) continue;
+                double x = place.x() + 0.5 - camera.x;
+                double z = place.z() + 0.5 - camera.z;
+                double scale = markerScale(Math.sqrt(x * x + z * z), far);
+                x *= scale;
+                z *= scale;
+                pose.pushPose();
+                pose.translate(x - 0.5, place.y() - camera.y, z - 0.5);
+                BeaconRenderer.renderBeaconBeam(pose, PLACE_BEAM_BUFFERS, BeaconRenderer.BEAM_LOCATION,
+                        event.getPartialTick().getGameTimeDeltaPartialTick(false), 1.0F, level.getGameTime(), 0,
+                        markerBeamHeight(place.y(), level.getMaxBuildHeight()), 0xFF4DD9FF, 0.14F, 0.5F);
+                pose.popPose();
             }
-            LevelRenderer.renderLineBox(pose, lines, x - 0.5, bottom, z - 0.5, x + 0.5, top, z + 0.5, 0.3F, 0.85F, 1.0F, 1.0F);
+        } finally {
+            PLACE_BEAM_BUFFERS.delegate = null;
         }
         // A marker far away would fade out in terrain fog, which ends at the render distance or nearer in thick-fog dimensions.
         float fogStart = RenderSystem.getShaderFogStart();
         RenderSystem.setShaderFogStart(Float.MAX_VALUE);
-        buffers.endBatch(LINES);
+        buffers.endBatch(PLACE_BEAM_CORE);
+        buffers.endBatch(PLACE_BEAM_GLOW);
         RenderSystem.setShaderFogStart(fogStart);
     }
 
     /**
-     * How far from the camera, horizontally, a place's column is drawn: its own distance, at most the marker range,
+     * How far from the camera, horizontally, a place's beam is drawn: its own distance, at most the marker range,
      * and at most half the projection's far plane so tiny render distances do not clip it away.
      */
     static double markerDistance(double distance, double farPlane) {
         return Math.min(distance, Math.min(MARKER_RANGE, farPlane / 2));
+    }
+
+    static double markerScale(double distance, double farPlane) {
+        return distance == 0 ? 1 : markerDistance(distance, farPlane) / distance;
+    }
+
+    static int markerBeamHeight(int placeY, int maxBuildHeight) {
+        return Math.max(0, maxBuildHeight - placeY);
+    }
+
+    static boolean isExpired(long untilMillis, long nowMillis) {
+        return untilMillis <= nowMillis;
     }
 
     /** Keeps highlighted mobs glowing, re-applying after server syncs, and restores them when the highlight ends. */

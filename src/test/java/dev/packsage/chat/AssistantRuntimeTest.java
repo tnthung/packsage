@@ -1394,6 +1394,7 @@ class AssistantRuntimeTest {
         var directory = Files.createTempDirectory("packsage-delete-runtime-test");
         ConversationStore store = new ConversationStore(directory, DIRECT);
         ChatContracts.Conversation selected = store.newConversation(WORLD).toCompletableFuture().join();
+        store.newConversation(WORLD).toCompletableFuture().join();
         java.util.ArrayDeque<Runnable> clientTasks = new java.util.ArrayDeque<>();
         FakeBackend backend = new FakeBackend();
         var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, clientTasks::addLast,

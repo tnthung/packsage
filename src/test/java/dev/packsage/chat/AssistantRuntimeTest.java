@@ -1340,12 +1340,12 @@ class AssistantRuntimeTest {
         runtime.send("first", false, false);
         ModelBackend.Request started = backend.requests.getFirst();
         settings.setDeveloperPrompt("prompt two");
-        assertEquals("prompt one", started.instructions());
+        assertEquals(PackSageSettings.Verbosity.NORMAL.apply("prompt one"), started.instructions());
         backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), null));
         runtime.send("second", false, false);
 
-        assertEquals("prompt one", started.instructions());
-        assertEquals("prompt two", backend.requests.getLast().instructions());
+        assertEquals(PackSageSettings.Verbosity.NORMAL.apply("prompt one"), started.instructions());
+        assertEquals(PackSageSettings.Verbosity.NORMAL.apply("prompt two"), backend.requests.getLast().instructions());
         runtime.stop();
     }
 

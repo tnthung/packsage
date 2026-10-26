@@ -39,10 +39,16 @@ class GroundingInstructionsTest {
             "not generated yet",
             "Minecraft does not record what applied an effect",
             "Do not state planner batches as operation counts.",
+            "Never describe a recipe as a crafting grid, slot layout or arrangement in text; state amounts, prerequisites and caveats in prose.",
+            "In answers that show recipe cards, cite each recipe being shown alone on its own line, one record per line, not grouped.",
+            "Place every other citation, including recipe citations not shown as cards, inside the sentence it supports.",
+            "Write [Label](item:<registry id>) to name an item in prose, using a registry ID that appears in tool results; never invent one.",
+            "Use it only for items, not tags, blocks as placed, entities, fluids or recipes.",
+            "Item links carry no components and are neither source citations nor navigation links; when components matter, such as for a potion or enchanted item, cite the record for that variant instead.",
             "square brackets on both sides",
             "as [reference] or [label](reference); never emit a partial or altered reference.",
             "an item, including one inside a shulker box, bundle or other nested holder, cites its own record or its outermost holder's own record, never a similar item's or another holder's record.",
-            "a local reference in square brackets exactly as returned, or a web link with its exact URL; no other citation format, label or marker, and no web citation when no web result was returned.",
+            "a local reference in square brackets exactly as returned, optionally with a label, or a web link with its exact URL; no other citation format, label or marker, and no web citation when no web result was returned.",
             "State a compass direction only as derived from the target's coordinates minus the player's: +x is east, -x west, +z south, -z north, naming the larger change first; otherwise give coordinates and distance without direction.",
             "multiplayer");
 
@@ -74,11 +80,11 @@ class GroundingInstructionsTest {
     }
 
     @Test
-    void defaultLengthMatchesLiveTestedCandidateWhenPresent() throws IOException {
+    void defaultMatchesCandidateWhenPresent() throws IOException {
         // NeoForge runs tests from build/minecraft-junit.
-        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(Path.of("../prompt-candidates/candidate-13.txt")));
-        assertEquals(Files.readString(Path.of("../prompt-candidates/candidate-13.txt")).length(),
-                GroundingInstructions.defaultInstructions().length());
+        org.junit.jupiter.api.Assumptions.assumeTrue(Files.exists(Path.of("../prompt-candidates/candidate-14.txt")));
+        assertEquals(Files.readString(Path.of("../prompt-candidates/candidate-14.txt")),
+                GroundingInstructions.defaultInstructions());
     }
 
     @Test

@@ -5,6 +5,7 @@
 ### 2026-10-27
 
 - Recipe citations and item links are classified for cards and chips using each answer's saved detail setting.
+- Drafted assistant instructions for recipe cards and item chips, tailored to the answer detail setting, with consistent citation placement and item link rules.
 - Native cooking recipe records include their cooking time and experience.
 - Each new answer records its answer detail setting so it remains associated with that turn.
 - Recorded native recipes can be converted into JEI-shaped recipe card models.

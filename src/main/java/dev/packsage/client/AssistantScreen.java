@@ -98,6 +98,7 @@ public final class AssistantScreen extends Screen {
     private int adapterPopupWidth;
     private int adapterPopupHeight;
     private boolean adapterPopupVisible;
+    private boolean adapterPopupRequested;
     private String adapterRowsKey = "";
     private String hoveredPickerChoice;
     private long pickerHoverStarted;
@@ -936,6 +937,7 @@ public final class AssistantScreen extends Screen {
     }
 
     record ToolbarItem(String kind, int x, int y, int width) { }
+    public record AdapterPopupLayout(int width, boolean scrollbar) { }
     record AdapterTooltipRows(List<Map.Entry<String, String>> rows, int offset, int visibleRows, int height,
                               int tooltipWidth, int labelWidth, int scrollTrackHeight, int scrollThumbHeight,
                               int scrollThumbOffset) { }
@@ -1065,8 +1067,8 @@ public final class AssistantScreen extends Screen {
         tooltipItems.add(new ToolbarItem("settings", 40, Math.max(0, height - 32), 20));
         boolean adapterDrawn = false;
         for (ToolbarItem item : tooltipItems) {
-            boolean adapterIconHovered = item.kind().equals("adapters") && mouseX >= item.x() && mouseX < item.x() + item.width()
-                    && mouseY >= item.y() && mouseY < item.y() + 20;
+            boolean adapterIconHovered = item.kind().equals("adapters") && (adapterPopupRequested
+                    || mouseX >= item.x() && mouseX < item.x() + item.width() && mouseY >= item.y() && mouseY < item.y() + 20);
             boolean adapterPopupHovered = item.kind().equals("adapters") && adapterPopupVisible
                     && mouseX >= adapterPopupLeft - 10 && mouseX < adapterPopupLeft + adapterPopupWidth + 10
                     && mouseY >= adapterPopupTop - 6 && mouseY < adapterPopupTop + adapterPopupHeight + 6;
@@ -1132,8 +1134,8 @@ public final class AssistantScreen extends Screen {
                     : 36 + wrapped.size() * 14
                     + values.stream().mapToInt(value -> Math.max(1, value.size()) * 14).sum()
                     + (footerLines.isEmpty() ? 0 : 6 + footerLines.size() * 14));
-            int left = item.kind().equals("adapters") && !adapterIconHovered
-                    ? adapterPopupLeft : Math.max(4, Math.min(mouseX + 10, width - tooltipWidth - 4));
+            int left = item.kind().equals("adapters") && !adapterIconHovered ? adapterPopupLeft
+                    : Math.max(4, Math.min(adapterPopupRequested ? 22 : mouseX + 10, width - tooltipWidth - 4));
             int top = Math.max(4, item.y() - tooltipHeight - 6);
             if (item.kind().equals("adapters")) {
                 adapterDrawn = true;
@@ -1575,6 +1577,12 @@ public final class AssistantScreen extends Screen {
     public void setRuntimeState(RuntimeState state) { runtimeState = Objects.requireNonNull(state); }
     public RuntimeState runtimeState() { return actualRuntimeState(); }
     public int scrollOffset() { return scrollOffset; }
+
+    public AdapterPopupLayout openAdapterPopup() {
+        adapterPopupRequested = true;
+        var layout = adapterTooltipRows(font, actions.adapterAvailability(), settings.hideInactiveAdapters(), adapterScroll, width, height);
+        return new AdapterPopupLayout(layout.tooltipWidth(), layout.scrollTrackHeight() > 0);
+    }
 
     public void showNavigationError(String error) {
         if (error != null) followOnCompletion = followBottom;

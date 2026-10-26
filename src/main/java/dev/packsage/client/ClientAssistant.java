@@ -1,5 +1,6 @@
 package dev.packsage.client;
 
+import com.google.gson.JsonObject;
 import dev.packsage.chat.AssistantRuntime;
 import dev.packsage.chat.ChatContracts;
 import dev.packsage.chat.ConversationStore;
@@ -175,7 +176,24 @@ public final class ClientAssistant {
         });
         if (DebugBridge.enabled(settings)) {
             debugTiming = new DebugRequestLog();
-            debugAdapter = new MinecraftDebugAdapter(client, runtime, settingsPath, () -> openAssistantScreen(null), debugTiming);
+            debugAdapter = new MinecraftDebugAdapter(client, runtime, settingsPath, screen -> {
+                switch (screen) {
+                    case "chat" -> openAssistantScreen(null);
+                    case "settings" -> { openAssistantScreen(null); openSettings(false); }
+                    case "adapters" -> openAssistantScreen(null);
+                    default -> throw new IllegalArgumentException("Unknown PackSage screen");
+                }
+                var json = new JsonObject();
+                json.addProperty("screen", screen);
+                json.addProperty("open", screen.equals("settings") ? client.screen instanceof AssistantSettingsScreen
+                        : client.screen instanceof AssistantScreen);
+                if (screen.equals("adapters")) {
+                    var layout = assistantScreen.openAdapterPopup();
+                    json.addProperty("width", layout.width());
+                    json.addProperty("scrollbar", layout.scrollbar());
+                }
+                return json;
+            }, debugTiming);
             debugBridge = new DebugBridge(client.gameDirectory.toPath(), settings.debugBridgePort(), debugAdapter,
                     message -> dev.packsage.PackSageLog.LOGGER.info(message));
             if (debugBridge.start()) {

@@ -15,12 +15,13 @@ import java.util.concurrent.TimeoutException;
 public final class DebugRouter {
     public enum Operation {
         STATE, COMMAND, LOOK, BREAK, OPEN, MENU_MOVE, MENU_CLOSE, CHAT, CHAT_STATUS, PROMPT_GET, PROMPT_SET,
-        NAVIGATE, SCREENSHOT, CHAT_SCREEN
+        NAVIGATE, SCREENSHOT, CHAT_SCREEN, WORLD_LEAVE, WORLD_OPEN, SERVER_CONNECT, SCREEN_OPEN, RESOURCEPACKS, GAME_QUIT
     }
 
     @FunctionalInterface
     public interface Game {
         JsonObject execute(Operation operation, JsonObject body) throws Exception;
+        default void afterResponse(Operation operation) { }
     }
 
     private final byte[] authorization;
@@ -52,6 +53,12 @@ public final class DebugRouter {
                 case "/navigate" -> Operation.NAVIGATE;
                 case "/screenshot" -> Operation.SCREENSHOT;
                 case "/chat-screen" -> Operation.CHAT_SCREEN;
+                case "/world/leave" -> Operation.WORLD_LEAVE;
+                case "/world/open" -> Operation.WORLD_OPEN;
+                case "/server/connect" -> Operation.SERVER_CONNECT;
+                case "/screen/open" -> Operation.SCREEN_OPEN;
+                case "/resourcepacks" -> Operation.RESOURCEPACKS;
+                case "/game/quit" -> Operation.GAME_QUIT;
                 default -> request.path().matches("/chat/[A-Za-z0-9_-]+") ? Operation.CHAT_STATUS : null;
             };
             if (operation == null) return DebugHttp.error(404, "Unknown endpoint");
@@ -78,7 +85,13 @@ public final class DebugRouter {
                     }
                 }
                 case BREAK, OPEN -> {
-                    if (operation == Operation.OPEN && body.has("entity")) require(body, "entity", "string");
+                    if (operation == Operation.OPEN && body.has("openInventory") && !body.has("entity")) {
+                        throw new IllegalArgumentException("openInventory requires an entity");
+                    }
+                    if (operation == Operation.OPEN && body.has("entity")) {
+                        require(body, "entity", "string");
+                        if (body.has("openInventory")) require(body, "openInventory", "boolean");
+                    }
                     else { require(body, "x", "integer"); require(body, "y", "integer"); require(body, "z", "integer"); }
                 }
                 case MENU_MOVE -> {
@@ -99,10 +112,55 @@ public final class DebugRouter {
                 }
                 case NAVIGATE -> { require(body, "requestId", "string"); require(body, "targetId", "string"); }
                 case SCREENSHOT -> { if (body.has("hideGui")) require(body, "hideGui", "boolean"); }
-                case CHAT_SCREEN -> require(body, "open", "boolean");
+                case CHAT_SCREEN -> {
+                    require(body, "open", "boolean");
+                    if (body.has("conversationId")) {
+                        require(body, "conversationId", "string");
+                        if (!body.get("open").getAsBoolean()) throw new IllegalArgumentException("conversationId requires open=true");
+                    }
+                }
+                case WORLD_OPEN -> {
+                    require(body, "save", "string");
+                    String save = body.get("save").getAsString();
+                    if (save.equals(".") || save.equals("..") || save.contains("/") || save.contains("\\")) {
+                        throw new IllegalArgumentException("save must be a save folder or level name");
+                    }
+                }
+                case SERVER_CONNECT -> require(body, "address", "string");
+                case SCREEN_OPEN -> {
+                    require(body, "screen", "string");
+                    String screen = body.get("screen").getAsString();
+                    if (!screen.equals("adapters") && !screen.equals("settings") && !screen.equals("chat")) {
+                        throw new IllegalArgumentException("screen must be adapters, settings, or chat");
+                    }
+                    if (body.has("conversationId")) {
+                        require(body, "conversationId", "string");
+                        if (!screen.equals("chat")) throw new IllegalArgumentException("conversationId is only valid for the chat screen");
+                    }
+                }
+                case RESOURCEPACKS -> {
+                    if (!body.has("enable") || !body.get("enable").isJsonArray()) throw new IllegalArgumentException("enable must be an array of file pack ids");
+                    if (!body.has("disable") || !body.get("disable").isJsonArray()) throw new IllegalArgumentException("disable must be an array of file pack ids");
+                    var enable = new java.util.HashSet<String>();
+                    var disable = new java.util.HashSet<String>();
+                    for (var id : body.getAsJsonArray("enable")) {
+                        if (!id.isJsonPrimitive() || !id.getAsJsonPrimitive().isString() || !id.getAsString().startsWith("file/")
+                                || id.getAsString().length() <= 5 || !enable.add(id.getAsString())) {
+                            throw new IllegalArgumentException("enable must contain unique file/<name> ids");
+                        }
+                    }
+                    for (var id : body.getAsJsonArray("disable")) {
+                        if (!id.isJsonPrimitive() || !id.getAsJsonPrimitive().isString() || !id.getAsString().startsWith("file/")
+                                || id.getAsString().length() <= 5 || !disable.add(id.getAsString())) {
+                            throw new IllegalArgumentException("disable must contain unique file/<name> ids");
+                        }
+                    }
+                    if (enable.stream().anyMatch(disable::contains)) throw new IllegalArgumentException("a pack cannot be enabled and disabled in one request");
+                }
                 default -> { }
             }
-            return new DebugHttp.Response(200, game.execute(operation, body));
+            return new DebugHttp.Response(operation == Operation.GAME_QUIT ? 202 : 200, game.execute(operation, body),
+                    operation == Operation.GAME_QUIT ? () -> game.afterResponse(operation) : () -> { });
         } catch (Exception exception) {
             Throwable failure = exception;
             while ((failure instanceof ExecutionException || failure instanceof java.util.concurrent.CompletionException) && failure.getCause() != null) failure = failure.getCause();

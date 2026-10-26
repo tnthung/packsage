@@ -57,7 +57,7 @@ class MinecraftDebugAdapterTest {
         try (var clientThread = java.util.concurrent.Executors.newSingleThreadExecutor();
              var worker = java.util.concurrent.Executors.newSingleThreadExecutor()) {
             client.executor = clientThread;
-            var adapter = new MinecraftDebugAdapter(client, runtime, path, () -> { }, new DebugRequestLog());
+            var adapter = new MinecraftDebugAdapter(client, runtime, path, screen -> new com.google.gson.JsonObject(), new DebugRequestLog());
             var body = new com.google.gson.JsonObject();
             body.addProperty("text", "bridge prompt");
             var response = worker.submit(() -> adapter.execute(DebugRouter.Operation.PROMPT_SET, body));
@@ -96,7 +96,7 @@ class MinecraftDebugAdapterTest {
                 current -> new KnowledgeService(List.of(), current), turn -> 0,
                 prepared -> { throw new AssertionError("prompt editing must not submit requests"); }, model -> 0, paused -> { }, url -> { });
         var settingsPath = directory.resolve("settings.properties");
-        var adapter = new MinecraftDebugAdapter(client, runtime, settingsPath, () -> { }, new DebugRequestLog(), 25);
+        var adapter = new MinecraftDebugAdapter(client, runtime, settingsPath, screen -> new com.google.gson.JsonObject(), new DebugRequestLog(), 25);
         var body = new com.google.gson.JsonObject();
         body.addProperty("text", "never published");
 
@@ -159,7 +159,7 @@ class MinecraftDebugAdapterTest {
                 model -> 0, paused -> { }, url -> { });
         runtime.enterWorld(world, scope);
         assertTrue(runtime.sessionReady());
-        var adapter = new MinecraftDebugAdapter(client, runtime, directory.resolve("settings"), () -> { }, new DebugRequestLog());
+        var adapter = new MinecraftDebugAdapter(client, runtime, directory.resolve("settings"), screen -> new com.google.gson.JsonObject(), new DebugRequestLog());
         var response = new DebugRouter("test-token", adapter).route(new DebugHttp.Request("POST", "/navigate",
                 Map.of("authorization", "Bearer test-token"), "{\"requestId\":\"reply\",\"targetId\":\""
                 + (scenario.equals("missing") ? "missing" : targetId) + "\"}"));

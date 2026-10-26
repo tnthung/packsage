@@ -18,7 +18,9 @@ public final class DebugHttp {
     private DebugHttp() { }
 
     public record Request(String method, String path, Map<String, String> headers, String body) { }
-    public record Response(int status, JsonObject body) { }
+    public record Response(int status, JsonObject body, Runnable afterSend) {
+        public Response(int status, JsonObject body) { this(status, body, () -> { }); }
+    }
 
     public static final class Failure extends IOException {
         final int status;

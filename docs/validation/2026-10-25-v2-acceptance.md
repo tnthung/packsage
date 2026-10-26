@@ -38397,3 +38397,509 @@ Minecraft remains running and unpaused in PackSage Adapter Filter Live Test, wit
 - **D4, J10r: PASS.** The profession change was recorded on the replaced join/leave tracker. The section walk that replaces it (55b79a7) is rechecked in round 7.
 - **M5r3: still over 1 ms, now a single outlier.** The hooks took 122 ms in total across 2,002 events, about 60 us each, but one BreakEvent hook took 6,914 us. That points to a one-time cost on first use, such as class loading, or a GC pause, rather than steady per-event work. The world-start warm-up and the new count of ticks at or over 1 ms (b52c4a4) separate the two. Round 7 judges M5 on that count and on where the slowest hook falls.
 - **J8r3, A3r3: journal and plan PASS, reply compliance remains recorded** under the round 5 ruling.
+
+## Native readiness round 7
+
+Date: 2026-10-26 (Asia/Taipei). Main checkout `D:/Project/packsage`, branch `feat/packsage-v2`; installed source HEAD `f0f0767f8ae1849f1a72d4b85022add994ca67e7`; installed JAR SHA-256 `710C0FECD0774F0605C2FC6132B291390D38792E89A75E10E7F2B66F62071B14`. [Install metadata](../../build/native-readiness-live/round7/install-metadata.json), [build/install log](../../build/native-readiness-live/round7/build-install.log).
+
+The bridge completed /world/leave then /game/quit. No javaw or PackSage Java process remained before `powershell -ExecutionPolicy Bypass -File D:/Project/packsage/scripts/build.ps1`. Gradle reported BUILD SUCCESSFUL in 10s, with all 11 test/build tasks up to date; the built, dist and installed hashes matched. The nested installer completed, but its owned outer PowerShell wrapper remained open after the installer process was gone. Only that outer shell was stopped after installation/hash verification; its resulting wrapper exit is -1, and no installer exit code is claimed. The build was not rerun. [Preinstall](../../build/native-readiness-live/round7/preinstall.json), [leave](../../build/native-readiness-live/round7/install-world-leave.json), [quit](../../build/native-readiness-live/round7/install-game-quit.json), [wrapper observation](../../build/native-readiness-live/round7/build-wrapper-observation.json).
+
+CurseForge relaunched the installed instance, then /world/open entered PackSage Adapter Filter Live Test. Computer use was confined to relaunching the game. The initial CurseForge launch returned "launched app did not expose a targetable window"; immediate window discovery found the newly launched CurseForge window, and its Play button launched Minecraft. There was no desktop input interruption and no launch retry. No source edits, worktrees, branch switches, prompt overrides or model-setting changes were made. [World open](../../build/native-readiness-live/round7/installed-world-open.json), [harness observations](../../build/native-readiness-live/round7/harness-observations.json).
+
+Round 1-6 controller rulings apply. Each of the four questions was submitted once in its own fresh chat; no transport/provider failure or question retry occurred. The profession observation and recipe questions overlapped while their operations were independent. All token-free HTTP request/response bodies are in the [ledger](../../build/native-readiness-live/round7/http.jsonl). Calls below retain exact arguments, provider-round groups, coverage/detail, continuations, verbatim replies and every navigation result. A3 keeps its plan-detail result separate from the inherited answer-compliance result.
+
+| Check | Status | Observation |
+|---|---|---|
+| M5r4 | FAIL | Overflowed 0, but 2 of 1,375 ticks reached 1 ms; slowest Post hook 2,952 us at gameplay hook 45 of 3,376. |
+| J10r2 | PASS | Natural librarian -> unemployed -> farmer transitions are journaled with actor, subject and place; all four returned links open. |
+| A3r4 | PASS plan detail; FAIL reply | Plan detail includes the computed-result caveat; the from-scratch reply still omits obsidian acquisition or its lookup limit. |
+| W20 | PASS | The smithing record and reply both name the upgrade template, diamond sword and netherite ingot. |
+
+### Default prompt - PASS
+
+Before and after the round, GET /prompt has text=null and effectiveText equal to build/prompt-candidates/candidate-11.txt byte for byte. Prompt SHA-256: 0960af8d90bdad1450d1a18c0866aa87799f4dbc257f52ad5326f23c3e0ae7c8. No POST /prompt was made. [Initial check](../../build/native-readiness-live/round7/prompt-default-check.json), [final check](../../build/native-readiness-live/round7/final-prompt-check.json), [final prompt](../../build/native-readiness-live/round7/final-prompt.json).
+
+### M5r4 - FAIL
+
+Reused the four-worker sand/TNT fixture at (2500..2519,250,2500..2599). Exactly 2,000 unique /player/break operations succeeded in 8,799 ms, without errors; the longest HTTP break request took 42 ms. Journal event 145 merges the 2,000 sand breaks, event 146 records one TNT explosion destroying 9 blocks, and event 147 records the 9 exploded stone. The single reply reports these counts and all three returned journal-place targets opened.
+
+After /world/leave, both complete summary lines show offered=written=2002, overflowed 0, failed 0 and hook failures 0. The round-7 timing criterion fails: ticks at or over 1 ms is 2 of 1375. The slowest tick is 2952 us; the named hook is Post 2952 us at gameplay hook 45 of 3376. This is the observed hook position, not an attribution to first-use cost, class loading or GC. The aggregate hook count includes gameplay Post hooks as well as the 2002 offered events. World start and stop is 4 ms on the server line and 9 ms on the writer line. The save was reopened after the capture. Bridge latency and a still screenshot do not prove a continuous visual no-stall trace. No workload or question rerun was made.
+
+Evidence: [m5-fixture.json](../../build/native-readiness-live/round7/m5-fixture.json), [m5-break-all.json](../../build/native-readiness-live/round7/m5-break-all.json), [m5-break-timing.json](../../build/native-readiness-live/round7/m5-break-timing.json), [m5-explosion.json](../../build/native-readiness-live/round7/m5-explosion.json), [m5r4-world-leave.json](../../build/native-readiness-live/round7/m5r4-world-leave.json), [m5r4-logging-check.json](../../build/native-readiness-live/round7/m5r4-logging-check.json), [m5r4-latest.log](../../build/native-readiness-live/round7/m5r4-latest.log), [m5r4-world-reopen.json](../../build/native-readiness-live/round7/m5r4-world-reopen.json), [journal-event-audit.json](../../build/native-readiness-live/round7/journal-event-audit.json).
+
+Both full `PackSage journal:` summary lines after /world/leave:
+
+```text
+[26Oct2026 12:34:18.410] [Server thread/INFO] [PackSage/]: PackSage journal: offered 2002, written 2002 (overflowed 0), failed 0, hook failures 0, dropped explosion positions 0, unread explosion positions 0, tracker evictions 0, oversized snapshots 0, slowest batch 1 ms, hooks 113 ms total, slowest tick 2952 us, ticks at or over 1 ms 2 of 1375, slowest hook Post 2952 us (gameplay hook 45 of 3376), world start and stop 4 ms
+[26Oct2026 12:34:18.414] [packsage-journal/INFO] [PackSage/]: PackSage journal: offered 2002, written 2002 (overflowed 0), failed 0, hook failures 0, dropped explosion positions 0, unread explosion positions 0, tracker evictions 0, oversized snapshots 0, slowest batch 1 ms, hooks 118 ms total, slowest tick 2952 us, ticks at or over 1 ms 2 of 1375, slowest hook Post 2952 us (gameplay hook 45 of 3376), world start and stop 9 ms
+```
+
+Question: `what did I just dig up and blow up?`
+
+Request `972e27f4-da94-4511-863b-73809c22f2bd`; conversation `5ade25f3-9812-4e32-84ed-925df30ff2e9`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round7/m5r4-journal.json), [submission](../../build/native-readiness-live/round7/m5r4-journal-input.json), [wall timing](../../build/native-readiness-live/round7/m5r4-journal-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_QtslDbzofOkFL35rDlwZXKes",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 10
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break",
+          "explosion"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 3,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You just dug up **2,000 sand blocks** in the area from (2500, 250, 2500) to (2519, 250, 2599). [journal:event:145]
+
+Then **TNT exploded** at (2534, 254, 2506), breaking **9 stone blocks** nearby. [journal:event:146] [journal:event:147]
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round7/m5r4-journal-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|2532,253,2505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2534,254,2506",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2501,250,2500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":16249,"modelTerminalMs":"14390","toolWallMs":"38","persistMs":"10"}.
+
+
+### J10r2 - PASS
+
+A fresh adult villager, Round 7 Worker (UUID 77777777-7777-7777-7777-777777777777), was enclosed on a completed glass platform at (2802,250,2802), away from earlier profession fixtures. The platform was built before teleporting the player, avoiding the previous falling-player confounder. At work time 4000 it naturally claimed the lectern at (2802,250,2801); /data confirmed librarian and its job_site memory. One /player/break removed the lectern and one setblock placed a composter. Twelve observations over about 60 seconds confirmed farmer after the swap; no profession was forced with /data.
+
+The journal returns event 148 none -> librarian at 12:34:32 local, event 150 librarian -> none at 12:34:37, and event 151 none -> farmer later that second. Each has actor environment, subject minecraft:villager and place minecraft:overworld|2802,250,2802. The first text query for the UUID returns no records; in the same request the model switches to an area centered on that entity and finds all three, alongside a current inspect_entity read. This dependent query refinement is not a question retry. The reply reports the correct sequence, location and current farmer. Three journal-place targets and the live entity target all open. Daylight settings were restored and the four new force-loaded chunks released afterwards.
+
+Evidence: [j10r-fixture.json](../../build/native-readiness-live/round7/j10r-fixture.json), [j10r-initial-profession.json](../../build/native-readiness-live/round7/j10r-initial-profession.json), [j10r-initial-villager.json](../../build/native-readiness-live/round7/j10r-initial-villager.json), [j10r-change-workstation.json](../../build/native-readiness-live/round7/j10r-change-workstation.json), [j10r-after-profession.json](../../build/native-readiness-live/round7/j10r-after-profession.json), [j10r-final-villager.json](../../build/native-readiness-live/round7/j10r-final-villager.json), [j10r-state.json](../../build/native-readiness-live/round7/j10r-state.json), [journal-event-audit.json](../../build/native-readiness-live/round7/journal-event-audit.json), [cleanup.json](../../build/native-readiness-live/round7/cleanup.json).
+
+Question: `what profession changes did the villager here just go through?`
+
+Request `f4421689-7a5c-4fc8-8877-e14d3801a07b`; conversation `19a63428-cbb3-485c-b29f-948f515caba1`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round7/j10r2-profession.json), [submission](../../build/native-readiness-live/round7/j10r2-profession-input.json), [wall timing](../../build/native-readiness-live/round7/j10r2-profession-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_XUT1CCO0C4RtETMmWHbx0aUk",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 30
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "profession"
+        ],
+        "subjects": null,
+        "text": "77777777-7777-7777-7777-777777777777",
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_zLRV9iT1dV36DRoRj5sNLQiK",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 30
+        },
+        "area": {
+          "radius": 16,
+          "center": {
+            "type": "entity",
+            "id": "77777777-7777-7777-7777-777777777777",
+            "place": null
+          }
+        },
+        "dimension": null,
+        "types": [
+          "profession"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 3,
+    "nextCursor": null
+  },
+  {
+    "group": "3",
+    "callId": "call_RbrpnBihYPMBqwRPVowZ8XtI",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "77777777-7777-7777-7777-777777777777"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The journal records three changes at the villager’s position, **(2802, 250, 2802)**: unemployed → **librarian** at 12:34:32, librarian → **unemployed** at 12:34:37, then unemployed → **farmer** later that same second. [First change](journal:event:148) [Second change](journal:event:150) [Third change](journal:event:151)
+
+The villager there, **Round 7 Worker**, is currently a farmer. [Round 7 Worker](world:entity|77777777-7777-7777-7777-777777777777)
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round7/j10r2-profession-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|2802,250,2802",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2802,250,2802",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|2802,250,2802",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-entity|77777777-7777-7777-7777-777777777777",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":26726,"modelTerminalMs":"25323","toolWallMs":"110","persistMs":"13"}.
+
+
+### A3r4 - PASS plan detail; FAIL reply
+
+The round-7 plan-detail clause passes. plan_recipe(identity=minecraft:beacon, quantity=1, depth=4) now says "materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:red_sand, minecraft:nether_star, minecraft:obsidian]". PARTIAL separately identifies the Nature's Aura altar/sand source coverage, unknown catalysts/remainders and decoding status. The leading beacon record requires 5 glass, 1 Nether star and 3 obsidian; the glass expansion has 5 smelting batches. The full detail and reply are retained below as requested.
+
+The inherited from-scratch reply-compliance failure remains: the answer gives leading materials and glass smelting, but no obsidian acquisition route or acknowledgement of the obsidian lookup limit. It reports the empty Wither loot table and says the Nether-star acquisition route cannot be confirmed from these reads. The Nether-star recipe search is itself PARTIAL with zero matches and no cursor; this observation does not establish that a star is unobtainable. No answer was rerun. The lack of native recipe navigation targets is correct under the round-2 controller ruling that v2 has no native recipe viewer.
+
+Question: `what do I need to make a beacon from scratch?`
+
+Request `48968033-a976-44fc-81ec-fde90e3e7934`; conversation `ef409533-4dbf-403e-8b52-d4996df2fc6f`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round7/a3r4-beacon.json), [submission](../../build/native-readiness-live/round7/a3r4-beacon-input.json), [wall timing](../../build/native-readiness-live/round7/a3r4-beacon-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_HOtqt8xqwR62rA47U1TxCQon",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:beacon",
+      "quantity": 1,
+      "depth": 4
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "source-coverage=PARTIAL:naturesaura:altar/sand; constraint=catalysts=unknown:naturesaura:altar/sand; constraint=remainders=unknown:naturesaura:altar/sand; decoding-status=UNKNOWN:naturesaura:altar/sand; materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:red_sand, minecraft:nether_star, minecraft:obsidian]",
+    "recordCount": 3,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_UeWY14vorezvGGJaX4jKaINg",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": "minecraft:wither",
+      "place": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "this table drops nothing",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_7yp7JdD0Jmh3qFN5v04uDQcS",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": "minecraft:wither_skeleton",
+      "place": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "3",
+    "callId": "call_aIl1IqhcgoluRKAynRm4krk5",
+    "name": "search_recipe",
+    "arguments": {
+      "filter": {
+        "text": null,
+        "outputItem": "minecraft:nether_star",
+        "provider": null
+      },
+      "limit": 20,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "native: scanned=0-1820 of 1820 (ordinary recipes 1539, brewing candidates 281); phase=brewing; matches=0",
+    "recordCount": 0,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+To craft **one beacon**, you need **5 glass, 3 obsidian, and 1 nether star**. In the 3×3 crafting grid, put glass across the top and on both sides of the middle row, the nether star in the center, and obsidian across the bottom. [native:plan|minecraft:beacon|1|4|0|minecraft:beacon]
+
+Starting without glass, smelt **5 sand or red sand** to make it. You’ll also need furnace fuel. [native:plan|minecraft:beacon|1|4|1|minecraft:glass]
+
+**The nether star is the uncertain part in this pack:** I found no loaded recipe for it, and the installed Wither loot table is empty. I therefore can’t confirm an obtainable route for the star from these reads; I wouldn’t assume defeating a Wither will drop one here. [world:loot|minecraft:entities/wither]
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round7/a3r4-beacon-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":30736,"modelTerminalMs":"29293","toolWallMs":"110","persistMs":"9"}.
+
+
+### W20 - PASS
+
+plan_recipe(identity=minecraft:netherite_sword, quantity=1, depth=3) returns minecraft:netherite_sword_smithing as its leading record. Its three ordered slots and requiredInputTotals explicitly contain one minecraft:netherite_upgrade_smithing_template, one minecraft:diamond_sword and one minecraft:netherite_ingot, all CONSUMED; the output is one minecraft:netherite_sword. The reply names all three and the smithing table, so both W20 clauses pass.
+
+The leading record remains PARTIAL because output components are unknown when the result preserves the base item's components. The aggregate plan is also PARTIAL with a concrete depth/output-limit detail: 41 records returned and 14 omitted. Those limits do not remove the complete leading input list. The reply also explains the sword, ingot and existing-template duplication route. Native recipe navigation targets are absent as expected under the prior controller ruling.
+
+Evidence: [w20-leading-smithing-record.json](../../build/native-readiness-live/round7/w20-leading-smithing-record.json).
+
+Leading smithing record (input contract and its explicit limit):
+
+```json
+{
+  "reference": "native:plan|minecraft:netherite_sword|1|3|0|minecraft:netherite_sword_smithing",
+  "coverage": "PARTIAL",
+  "navigable": false,
+  "canonicalRecipeId": "minecraft:netherite_sword_smithing",
+  "inputs": [
+    {
+      "groupId": "slot-0",
+      "alternatives": [
+        {
+          "type": "item",
+          "comparisonIdentity": "minecraft:netherite_upgrade_smithing_template",
+          "components": {},
+          "quantity": 1,
+          "consumption": "CONSUMED"
+        }
+      ]
+    },
+    {
+      "groupId": "slot-1",
+      "alternatives": [
+        {
+          "type": "item",
+          "comparisonIdentity": "minecraft:diamond_sword",
+          "components": {},
+          "quantity": 1,
+          "consumption": "CONSUMED"
+        }
+      ]
+    },
+    {
+      "groupId": "slot-2",
+      "alternatives": [
+        {
+          "type": "item",
+          "comparisonIdentity": "minecraft:netherite_ingot",
+          "components": {},
+          "quantity": 1,
+          "consumption": "CONSUMED"
+        }
+      ]
+    }
+  ],
+  "outputs": [
+    {
+      "type": "item",
+      "comparisonIdentity": "minecraft:netherite_sword",
+      "components": {},
+      "quantity": 1
+    }
+  ],
+  "remainders": [],
+  "catalysts": [],
+  "constraints": [
+    "output components=unknown: the result keeps the base item's components",
+    "recipeType=smithing",
+    "serializer=net.minecraft.world.item.crafting.SmithingTransformRecipe$Serializer@5be76bde"
+  ],
+  "decodingStatus": "PARTIAL",
+  "requiredInputTotals": [
+    {
+      "type": "item",
+      "comparisonIdentity": "minecraft:netherite_upgrade_smithing_template",
+      "components": {},
+      "quantity": 1
+    },
+    {
+      "type": "item",
+      "comparisonIdentity": "minecraft:diamond_sword",
+      "components": {},
+      "quantity": 1
+    },
+    {
+      "type": "item",
+      "comparisonIdentity": "minecraft:netherite_ingot",
+      "components": {},
+      "quantity": 1
+    }
+  ]
+}
+```
+
+Question: `how do I make a netherite sword?`
+
+Request `3e9cf212-029e-4201-af82-2518acfab2b5`; conversation `67ef2982-cb4a-4975-bfb2-81fda1d2d507`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round7/w20-netherite-sword.json), [submission](../../build/native-readiness-live/round7/w20-netherite-sword-input.json), [wall timing](../../build/native-readiness-live/round7/w20-netherite-sword-wall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_zXqxJdNUDo9daZYMiOLYqqns",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:netherite_sword",
+      "quantity": 1,
+      "depth": 3
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "14 records omitted at the output byte or record limit; refine the request to reduce output size; source-coverage=PARTIAL:minecraft:netherite_sword_smithing; constraint=output components=unknown: the result keeps the base item's components:minecraft:netherite_sword_smithing; decoding-status=PARTIAL:minecraft:netherite_sword_smithing; bounded-depth:minecraft:diamond_block; bounded-depth:minecraft:netherite_upgrade_smithing_template; bounded-depth:naturesaura:ancient_slab; bounded-depth:minecraft:oak_planks; bounded-depth:minecraft:spruce_planks; bounded-depth:minecraft:birch_planks; bounded-depth:minecraft:jungle_planks; bounded-depth:minecraft:acacia_planks; bounded-depth:minecraft:dark_oak_planks; bounded-depth:minecraft:crimson_planks; bounded-depth:minecraft:warped_planks; bounded-depth:minecraft:mangrove_planks; bounded-depth:minecraft:bamboo_planks; reason-cap=16; omitted=6; materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:deepslate_diamond_ore, minecraft:diamond_ore, minecraft:netherrack, minecraft:bamboo, minecraft:ancient_debris, minecraft:gold_ore, minecraft:nether_gold_ore, minecraft:deepslate_gold_ore]",
+    "recordCount": 41,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+To make a **netherite sword**, put a **Netherite Upgrade Smithing Template**, a **diamond sword**, and a **netherite ingot** into a smithing table, in that order. The upgrade uses all three inputs. [native:plan|minecraft:netherite_sword|1|3|0|minecraft:netherite_sword_smithing]
+
+If you need to make the ingredients:
+
+- Craft a diamond sword from **2 diamonds and 1 stick**. [native:plan|minecraft:netherite_sword|1|3|9|minecraft:diamond_sword]
+- Smelt or blast **4 ancient debris** into **4 netherite scrap**, then craft the scrap with **4 gold ingots** to make one netherite ingot. [native:plan|minecraft:netherite_sword|1|3|38|minecraft:netherite_scrap] [native:plan|minecraft:netherite_sword|1|3|37|minecraft:netherite_scrap_from_blasting] [native:plan|minecraft:netherite_sword|1|3|36|minecraft:netherite_ingot]
+
+You’ll also need to obtain a Netherite Upgrade Smithing Template; its crafting recipe **duplicates an existing template** rather than making a first one from scratch. [native:plan|minecraft:netherite_sword|1|3|1|minecraft:netherite_upgrade_smithing_template]
+```
+
+`/navigate` results ([raw](../../build/native-readiness-live/round7/w20-netherite-sword-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":18259,"modelTerminalMs":"16472","toolWallMs":"25","persistMs":"10"}.
+
+### Final state
+
+All 4 requests completed and saved in 4 fresh chats, without retries. All 7 navigation attempts returned OPENED. The round contains 9 tool calls. No check is NOT RUN. M5r4 fails its tick threshold; J10r2 and W20 pass; A3r4 passes plan detail with the inherited reply-compliance failure still recorded. [Evidence completeness](../../build/native-readiness-live/round7/evidence-completeness.json).
+
+Minecraft remains running and unpaused in PackSage Adapter Filter Live Test, with the bridge enabled, menu closed and player not riding. Final GET /prompt has text=null and exact candidate 11. The installed JAR hash remains unchanged; the checkout stayed at the installed source HEAD until this validation-only documentation change. The player was returned to (1191.5,250,1057.5) and the original look direction. The 21 M5 chunks and four profession-fixture chunks were released. The pre-profession daytime value 13236 and daylight cycling were restored; subsequent state observations show time advancing. Two optional confirmation commands failed local CLI JSON parsing before HTTP; no game operation or model question was repeated. An immediate screenshot copy encountered EBUSY while Minecraft was still writing the PNG; the copy completed after the writer finished. These local harness issues do not change probe classifications. [Cleanup](../../build/native-readiness-live/round7/cleanup.json), [final state](../../build/native-readiness-live/round7/final-state.json), [final verification](../../build/native-readiness-live/round7/final-verification.json), [screenshot](../../build/native-readiness-live/round7/final-state.png), [harness observations](../../build/native-readiness-live/round7/harness-observations.json). Only this validation file is committed; raw evidence remains ignored under build/native-readiness-live/round7/.

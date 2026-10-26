@@ -214,7 +214,7 @@ Tasks in the same wave touch disjoint files and can run at the same time, each i
 **Interfaces:**
 - Consumes: `RecipeCardModel` (Task 3).
 - Produces:
-  - `interface RecipeCard { int width(); int height(); void draw(GuiGraphics graphics, int x, int y, int mouseX, int mouseY); Optional<ItemStack> stackAt(int x, int y, double mouseX, double mouseY); }`. The `height()` value includes the caption line, and `draw` draws the caption.
+  - `interface RecipeCard { int width(); int height(); void draw(GuiGraphics graphics, int x, int y, int mouseX, int mouseY); Optional<RecipeCard.Hover> hoverAt(int x, int y, double mouseX, double mouseY); }`, where `Hover` is sealed: `Item(ItemStack stack)` for real items and `Text(List<Component> lines)` for missing items ("Missing: <identity>") and custom ingredients. The `height()` value includes the caption line, and `draw` draws the caption.
   - `interface RecipeCardSource { Optional<RecipeCard> card(RecipeCardModel model); }`
   - `NativeRecipeCardSource implements RecipeCardSource`. It is the only implementation in this plan.
   - `static int SlotStacks.cycleIndex(long millis, int size)` returns `(int) ((millis / CYCLE_MS) % size)`, with `CYCLE_MS = 1000` (JEI cycles every 20 client ticks). The card keeps its own cycle clock, starting at a random offset; all of a card's slots share it, and it stops advancing while Shift is held.
@@ -256,7 +256,7 @@ Tasks in the same wave touch disjoint files and can run at the same time, each i
 - Consumes: Tasks 3–6.
 - Produces:
   - `static int AssistantScreen.lineHeight(ScreenText.InlineLine line)`, which returns 18 when the line holds an item or result chip, the card height plus 8 for card lines, and `ModernUi.MESSAGE_LINE_HEIGHT` otherwise.
-  - Item hover draws `graphics.renderTooltip(font, stack, mouseX, mouseY)`.
+  - Slot hover draws `graphics.renderTooltip(font, stack, mouseX, mouseY)` for `Hover.Item` and `graphics.renderComponentTooltip(font, lines, mouseX, mouseY)` for `Hover.Text`. Item chips draw their stack's tooltip the same way.
   - The result chip panel is a `ModernUi.surface(... ModernUi.SURFACE)` with 8 px padding around the card, placed below the chip and flipped above it when it would leave the screen.
   - Cards wider than the bubble's text width render the line's fallback source chip instead.
 

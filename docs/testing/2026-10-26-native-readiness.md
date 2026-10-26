@@ -130,3 +130,14 @@ Install the current `feat/packsage-v2`, with no override.
 | J8r3 | J8r with the mount opened through `/player/open` and `openInventory` while not riding | deposit and withdrawal journaled with the donkey's link and coordinates |
 | A3r3 | "what do I need to make a beacon from scratch?" | recorded either way; the plan detail lists the recipe-less materials |
 | J10r | Change a villager's profession: break its job site, place another workstation and wait about a minute | the profession change is journaled |
+
+## Round 7
+
+Install the current `feat/packsage-v2`, with no override.
+
+| Id | Steps | Pass when |
+|---|---|---|
+| M5r4 | M5 again, then `/world/leave` and quote both `PackSage journal:` lines | overflowed 0; `ticks at or over 1 ms` is 0. If not, record the slowest hook and its position, for example "gameplay hook 1 of 2002" for a first-use cost |
+| J10r2 | J10r again | the profession change is journaled |
+| A3r4 | "what do I need to make a beacon from scratch?" | record the plan detail: either materials obtained rather than crafted, or "no recipe found, though …" when the pack has computed-result recipes; record the reply |
+| W20 | "how do I make a netherite sword?" | the smithing record lists template, diamond sword and netherite ingot, and the reply names all three |

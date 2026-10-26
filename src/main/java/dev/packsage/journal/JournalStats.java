@@ -46,6 +46,8 @@ public final class JournalStats {
     private long slowestHookIndex;
     private final LongAdder ticks = new LongAdder();
     private final LongAdder slowTicks = new LongAdder();
+    /** Slow ticks after the first 200, the ten seconds in which the world and these hooks warm up. */
+    private final LongAdder steadySlowTicks = new LongAdder();
 
     /** Adds one hook's running time to the current tick. */
     public void hookNanos(long nanos) {
@@ -77,7 +79,10 @@ public final class JournalStats {
         var nanos = tickHookNanos.sumThenReset();
         maxHookNanosPerTick.accumulateAndGet(nanos, Math::max);
         ticks.increment();
-        if (nanos >= 1_000_000) slowTicks.increment();
+        if (nanos >= 1_000_000) {
+            slowTicks.increment();
+            if (ticks.sum() > 200) steadySlowTicks.increment();
+        }
     }
 
     public long failedEvents() {
@@ -120,7 +125,8 @@ public final class JournalStats {
     }
 
     private synchronized String slowestHookText() {
-        return ", ticks at or over 1 ms " + slowTicks.sum() + " of " + ticks.sum() + ", slowest hook " + slowestHook + " " + slowestHookNanos / 1_000
+        return ", ticks at or over 1 ms " + slowTicks.sum() + " of " + ticks.sum() + " (" + steadySlowTicks.sum() + " after the first 200)"
+                + ", slowest hook " + slowestHook + " " + slowestHookNanos / 1_000
                 + " us (gameplay hook " + slowestHookIndex + " of " + gameplayHooks + ")";
     }
 }

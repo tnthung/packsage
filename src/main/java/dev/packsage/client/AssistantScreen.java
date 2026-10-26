@@ -798,10 +798,14 @@ public final class AssistantScreen extends Screen {
         return labels;
     }
 
-    private int drawMessageActions(GuiGraphics graphics, ChatContracts.Turn turn, boolean user, int tokens, int y, int mouseX, int mouseY) {
-        Component count = Component.literal((user && turn.sentAt() != null ? DateTimeFormatter.ofPattern("MMM d, HH:mm", java.util.Locale.getDefault())
+    String messageMetadata(ChatContracts.Turn turn, boolean user, int tokens) {
+        return (user && turn.sentAt() != null ? DateTimeFormatter.ofPattern("MMM d, HH:mm", java.util.Locale.getDefault())
                 .withZone(ZoneId.systemDefault()).format(turn.sentAt()) + " · " : "")
-                + "~" + tokens + " tokens").withStyle(style -> style.withFont(ModernUi.FONT));
+                + "~" + tokens + " tokens";
+    }
+
+    private int drawMessageActions(GuiGraphics graphics, ChatContracts.Turn turn, boolean user, int tokens, int y, int mouseX, int mouseY) {
+        Component count = Component.literal(messageMetadata(turn, user, tokens)).withStyle(style -> style.withFont(ModernUi.FONT));
         boolean editable = user && !view.active() && !awaitingRequestView && !view.readOnly()
                 && turn == view.conversation().turns().getLast();
         boolean stacked = user && font.width(count) + 42 + (editable ? 38 : 0) > readableWidth;

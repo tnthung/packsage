@@ -200,7 +200,15 @@ public final class ChatContracts {
     public record Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
                        Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
                        Outcome outcome, int tokenCount, Instant sentAt, List<ActivityStep> activities,
-                       List<SteeringMessage> steeringMessages, Long durationMillis) {
+                       List<SteeringMessage> steeringMessages, Long durationMillis, Instant assistantSentAt) {
+        public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    Outcome outcome, int tokenCount, Instant sentAt, List<ActivityStep> activities,
+                    List<SteeringMessage> steeringMessages, Long durationMillis) {
+            this(requestId, question, answer, replayItems, context, sources, navigationTargets, outcome, tokenCount,
+                    sentAt, activities, steeringMessages, durationMillis, null);
+        }
+
         public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
                     Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
                     Outcome outcome, int tokenCount, Instant sentAt, List<ActivityStep> activities,

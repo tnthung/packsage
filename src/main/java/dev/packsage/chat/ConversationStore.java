@@ -1111,6 +1111,7 @@ public final class ConversationStore {
         value.addProperty("question", turn.question());
         value.addProperty("answer", turn.answer());
         value.addProperty("tokenCount", turn.tokenCount());
+        if (turn.verbosity() != null) value.addProperty("verbosity", turn.verbosity().name());
         if (turn.sentAt() != null) value.addProperty("sentAt", turn.sentAt().toString());
         if (turn.assistantSentAt() != null) value.addProperty("assistantSentAt", turn.assistantSentAt().toString());
         if (turn.durationMillis() != null) value.addProperty("durationMillis", turn.durationMillis());
@@ -1361,7 +1362,9 @@ public final class ConversationStore {
                 ? Instant.parse(value.get("sentAt").getAsString()) : null, activities, steeringMessages,
                 value.has("durationMillis") ? value.get("durationMillis").getAsLong() : null,
                 value.has("assistantSentAt") && !value.get("assistantSentAt").isJsonNull()
-                        ? Instant.parse(value.get("assistantSentAt").getAsString()) : null);
+                        ? Instant.parse(value.get("assistantSentAt").getAsString()) : null,
+                value.has("verbosity") && !value.get("verbosity").isJsonNull()
+                        ? PackSageSettings.Verbosity.valueOf(value.get("verbosity").getAsString()) : null);
     }
 
     private static dev.packsage.model.ModelBackend.InputItem replayFromJson(JsonObject value) {

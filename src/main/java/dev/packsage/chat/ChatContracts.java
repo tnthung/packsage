@@ -94,7 +94,8 @@ public final class ChatContracts {
     public record Submission(RequestId requestId, WorldIdentity world, Evidence.Scope scope, String question,
                              boolean includeScreenshot, HistoryLimits historyLimits,
                              ModelBackend.ModelInfo selectedModel, ModelBackend.SearchMode searchMode,
-                             int outputBudget, ModelBackend.ReasoningEffort reasoningEffort, RequestId replacing) {
+                             int outputBudget, ModelBackend.ReasoningEffort reasoningEffort, RequestId replacing,
+                             PackSageSettings.Verbosity verbosity) {
         public Submission {
             Objects.requireNonNull(requestId);
             Objects.requireNonNull(world);
@@ -104,7 +105,16 @@ public final class ChatContracts {
             Objects.requireNonNull(selectedModel);
             Objects.requireNonNull(searchMode);
             Objects.requireNonNull(reasoningEffort);
+            verbosity = verbosity == null ? PackSageSettings.Verbosity.NORMAL : verbosity;
             if (outputBudget < 1) throw new IllegalArgumentException("outputBudget must be positive");
+        }
+
+        public Submission(RequestId requestId, WorldIdentity world, Evidence.Scope scope, String question,
+                          boolean includeScreenshot, HistoryLimits historyLimits,
+                          ModelBackend.ModelInfo selectedModel, ModelBackend.SearchMode searchMode,
+                          int outputBudget, ModelBackend.ReasoningEffort reasoningEffort, RequestId replacing) {
+            this(requestId, world, scope, question, includeScreenshot, historyLimits, selectedModel, searchMode,
+                    outputBudget, reasoningEffort, replacing, PackSageSettings.Verbosity.NORMAL);
         }
 
         public Submission(RequestId requestId, WorldIdentity world, Evidence.Scope scope, String question,
@@ -200,7 +210,16 @@ public final class ChatContracts {
     public record Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
                        Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
                        Outcome outcome, int tokenCount, Instant sentAt, List<ActivityStep> activities,
-                       List<SteeringMessage> steeringMessages, Long durationMillis, Instant assistantSentAt) {
+                       List<SteeringMessage> steeringMessages, Long durationMillis, Instant assistantSentAt,
+                       PackSageSettings.Verbosity verbosity) {
+        public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
+                    Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
+                    Outcome outcome, int tokenCount, Instant sentAt, List<ActivityStep> activities,
+                    List<SteeringMessage> steeringMessages, Long durationMillis, Instant assistantSentAt) {
+            this(requestId, question, answer, replayItems, context, sources, navigationTargets, outcome, tokenCount,
+                    sentAt, activities, steeringMessages, durationMillis, assistantSentAt, null);
+        }
+
         public Turn(RequestId requestId, String question, String answer, List<ModelBackend.InputItem> replayItems,
                     Context context, List<Evidence.Source> sources, List<Evidence.NavigationTarget> navigationTargets,
                     Outcome outcome, int tokenCount, Instant sentAt, List<ActivityStep> activities,

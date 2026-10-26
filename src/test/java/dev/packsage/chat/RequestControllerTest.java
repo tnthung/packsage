@@ -1785,8 +1785,8 @@ class RequestControllerTest {
             if (index > 0) records.append(',');
             records.append("{\"title\":\"Record ").append(index)
                     .append(" ").append("t".repeat(300)).append("\",\"payload\":{\"id\":\"packsage:item_").append(index).append("i".repeat(300))
-                    .append("\",\"count\":").append(index + 1).append(",\"description\":\"")
-                    .append("x".repeat(300)).append("\",\"other\":\"").append("y".repeat(300)).append("\"}} ");
+                    .append("\",\"count\":").append(index + 1).append(",\"description\":[{\"label\":\"Nested payload\",\"amount\":2}],\"other\":\"")
+                    .append("y".repeat(300)).append("\"}} ");
         }
         records.append(']');
         String result = "{\"coverage\":\"PARTIAL\",\"outcome\":\"PARTIAL\",\"detail\":\"More results available\",\"records\":"
@@ -1805,6 +1805,8 @@ class RequestControllerTest {
         String detail = controller.view().activities().getFirst().resultDetail();
         assertTrue(detail.contains("Record 0"), detail);
         assertTrue(detail.contains("packsage:item_0"), detail);
+        assertTrue(detail.contains("Nested payload"), detail);
+        assertTrue(detail.contains("amount: 2"), detail);
         assertTrue(detail.contains("Record 7"), detail);
         assertFalse(detail.contains("Record 8"), detail);
         assertTrue(detail.contains("and 2 more"), detail);

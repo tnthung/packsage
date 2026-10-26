@@ -891,6 +891,32 @@ public final class RequestController {
             }
             JsonElement recordsValue = result.get("records");
             if (recordsValue != null && recordsValue.isJsonArray()) {
+                class PayloadPreview {
+                    String text(JsonElement value, int depth) {
+                        if (value.isJsonNull()) return "none";
+                        if (value.isJsonPrimitive()) return value.getAsString().substring(0, Math.min(64, value.getAsString().length()));
+                        if (depth == 2) return "...";
+                        StringBuilder preview = new StringBuilder();
+                        if (value.isJsonArray()) {
+                            var values = value.getAsJsonArray();
+                            for (int index = 0; index < Math.min(3, values.size()); index++) {
+                                if (!preview.isEmpty()) preview.append(", ");
+                                preview.append(text(values.get(index), depth + 1));
+                            }
+                            if (values.size() > 3) preview.append(", ...");
+                        } else {
+                            int fields = 0;
+                            for (var entry : value.getAsJsonObject().entrySet()) {
+                                if (fields++ == 3) { preview.append(", ..."); break; }
+                                if (!preview.isEmpty()) preview.append("; ");
+                                preview.append(entry.getKey(), 0, Math.min(32, entry.getKey().length())).append(": ")
+                                        .append(text(entry.getValue(), depth + 1));
+                            }
+                        }
+                        return preview.substring(0, Math.min(64, preview.length()));
+                    }
+                }
+                var payloadPreview = new PayloadPreview();
                 var records = recordsValue.getAsJsonArray();
                 int shown = Math.min(8, records.size());
                 for (int index = 0; index < shown; index++) {
@@ -909,13 +935,7 @@ public final class RequestController {
                         int fields = 0;
                         for (var entry : payloadValue.getAsJsonObject().entrySet()) {
                             if (fields == 3) break;
-                            JsonElement fieldValue = entry.getValue();
-                            String value;
-                            if (fieldValue.isJsonPrimitive()) value = fieldValue.getAsString();
-                            else if (fieldValue.isJsonArray()) value = "list (" + fieldValue.getAsJsonArray().size() + ")";
-                            else if (fieldValue.isJsonObject()) value = "fields: " + String.join(", ",
-                                    fieldValue.getAsJsonObject().keySet().stream().limit(3).toList());
-                            else value = "none";
+                            String value = payloadPreview.text(entry.getValue(), 0);
                             value = value.replaceAll("\\p{Cntrl}", " ").replaceAll("\\s+", " ").trim();
                             if (value.length() > 64) value = value.substring(0, 64) + "...";
                             String key = entry.getKey().replaceAll("\\p{Cntrl}", " ").replaceAll("\\s+", " ").trim();

@@ -10,7 +10,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.ChestBlock;
 import net.minecraft.world.level.block.DoubleBlockCombiner;
@@ -26,12 +25,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.TimeUnit;
 
+import static dev.packsage.world.WorldPaging.*;
 import static dev.packsage.world.WorldTools.*;
 
 final class WorldItemTools {
@@ -51,7 +50,7 @@ final class WorldItemTools {
         if (holder != null) listable(holder);
         var inventory = argument(request, "inventory") == null ? null : inventoryId(requiredText(request, "inventory"));
         var filter = argument(request, "filter") == null ? KindFilter.ANY : filter(argument(request, "filter"), true);
-        var cursor = world.cursor(request);
+        var cursor = world.paging.cursor(request);
         var server = world.server();
         if (cursor != null) return CompletableFuture.completedFuture(entries(request, state(cursor, EntriesState.class), Evidence.Coverage.COMPLETE, null));
         var opened = phrase != null ? phrase.word() == HolderWords.Word.OPENED : holder != null && holder.root() instanceof PathRoot.Opened;
@@ -140,7 +139,7 @@ final class WorldItemTools {
         var anchor = anchor(argument(request, "center"));
         var radius = radius(argument(request, "radius"));
         var includeNested = !(argument(request, "includeNested") instanceof Evidence.JsonBoolean nested) || nested.value();
-        var cursor = world.cursor(request);
+        var cursor = world.paging.cursor(request);
         var server = world.server();
         var state = cursor == null ? null : state(cursor, EntriesState.class);
         if (state != null && !state.pending().isEmpty()) {
@@ -218,7 +217,7 @@ final class WorldItemTools {
         var rest = List.copyOf(state.pending().subList(shownCount, state.pending().size()));
         var merged = notes.isEmpty() ? null : String.join("; ", notes);
         var next = rest.isEmpty() && state.search() == null ? null
-                : world.remember(request, new EntriesState(rest, state.search(), sticky, merged, state.span(), null, state.slotFacts()));
+                : world.paging.remember(request, new EntriesState(rest, state.search(), sticky, merged, state.span(), null, state.slotFacts()));
         if (bound != null) notes.add(bound);
         if (!rest.isEmpty()) notes.add("This page shows " + shownCount + " entries, the page limit with their holders and encoded byte budget; continue with the cursor");
         // One record per block or entity holder on the page, so each holder has its own highlight link.

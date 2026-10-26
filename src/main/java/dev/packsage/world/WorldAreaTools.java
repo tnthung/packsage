@@ -2,7 +2,6 @@ package dev.packsage.world;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.PackSageTools;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 
 import java.math.BigDecimal;
@@ -16,6 +15,7 @@ import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
+import static dev.packsage.world.WorldPaging.*;
 import static dev.packsage.world.WorldTools.*;
 
 final class WorldAreaTools {
@@ -44,7 +44,7 @@ final class WorldAreaTools {
     }
 
     CompletionStage<Evidence.Result> listBlocks(PackSageTools.ReadRequest request) {
-        var token = world.cursor(request);
+        var token = world.paging.cursor(request);
         if (token != null && state(token, ListState.class).pending() != null) {
             world.server();
             return CompletableFuture.completedFuture(blocks(request, null, null, null));
@@ -84,7 +84,7 @@ final class WorldAreaTools {
                     notes.add("Entity names longer than 1,024 characters were truncated; nameTruncated marks the affected records");
                 }
             }
-            var next = nextScan == null ? null : world.remember(request, new ListState(read.value().center(), nextScan));
+            var next = nextScan == null ? null : world.paging.remember(request, new ListState(read.value().center(), nextScan));
             return result(records, coverage, next, notes.isEmpty() ? null : String.join("; ", notes));
         });
     }
@@ -98,7 +98,7 @@ final class WorldAreaTools {
         var anchor = anchor(argument(request, "center"));
         var radius = radius(argument(request, "radius"));
         var filter = filter(argument(request, "filter"), false);
-        var cursor = world.cursor(request);
+        var cursor = world.paging.cursor(request);
         var server = world.server();
         var state = cursor == null ? null : state(cursor, ListState.class);
         return world.run(server, spanned(gameTime(server), then(() -> state == null ? world.center(server, anchor) : state.center(), center ->
@@ -106,7 +106,7 @@ final class WorldAreaTools {
     }
 
     private Evidence.Result blocks(PackSageTools.ReadRequest request, Center center, Page<BlockHandle> page, ReadSpan span) {
-        var cursor = world.cursor(request);
+        var cursor = world.paging.cursor(request);
         if (cursor != null) {
             var state = state(cursor, ListState.class);
             if (state.pending() != null) {
@@ -128,9 +128,9 @@ final class WorldAreaTools {
             bytes += recordBytes;
         }
         var cut = records.size() < page.items().size();
-        var next = cut ? world.remember(request, new ListState(center, page.nextCursor(),
+        var next = cut ? world.paging.remember(request, new ListState(center, page.nextCursor(),
                 new Page<>(page.items().subList(records.size(), page.items().size()), page.nextCursor(), page.coverage(), page.note()), span))
-                : page.nextCursor() == null ? null : world.remember(request, new ListState(center, page.nextCursor()));
+                : page.nextCursor() == null ? null : world.paging.remember(request, new ListState(center, page.nextCursor()));
         var note = page.note();
         if (cut) note = (note == null ? "" : note + "; ") + "Block page byte budget reached; continue with the cursor";
         return result(records, page.coverage(), next, note);

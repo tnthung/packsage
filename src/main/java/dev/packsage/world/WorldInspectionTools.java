@@ -2,15 +2,14 @@ package dev.packsage.world;
 
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.PackSageTools;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.core.BlockPos;
 
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 
@@ -24,7 +23,7 @@ final class WorldInspectionTools {
     }
 
     CompletionStage<Evidence.Result> inspect(PackSageTools.ReadRequest request, String handle) {
-        return world.reread(handle, request.scope()).thenApply(WorldTools::single);
+        return world.reread(handle, request.scope()).thenApply(WorldPaging::single);
     }
 
     Evidence.Record inspectBlock(MinecraftServer server, BlockPlace place, Evidence.Scope scope) {

@@ -457,7 +457,7 @@ class WorldToolsTest {
     void cursorsBindToTheirToolAndArguments() {
         var tools = tools();
         var stone = Evidence.deserializeObject("{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"radius\":24}");
-        var token = tools.remember("find_items", stone, SCOPE, "state");
+        var token = tools.paging.remember("find_items", stone, SCOPE, "state");
         assertEquals(Toolbox.Code.INVALID_CURSOR, failure(tools, "find_items",
                 "{\"filter\":{\"ids\":[\"minecraft:dirt\"]},\"radius\":24,\"cursor\":\"" + token + "\"}"));
         assertEquals(Toolbox.Code.INVALID_CURSOR, failure(tools, "find_items",
@@ -469,12 +469,12 @@ class WorldToolsTest {
         assertEquals(Toolbox.Code.UNAVAILABLE, failure(tools, "find_items",
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"radius\":24,\"center\":null,\"cursor\":\"" + token + "\"}"));
         var later = new Evidence.Scope("world", "resources", "team", "runtime", 2);
-        var stale = tools.remember("find_items", stone, later, "state");
+        var stale = tools.paging.remember("find_items", stone, later, "state");
         assertEquals(Toolbox.Code.STALE_SCOPE, failure(tools, "find_items",
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"radius\":24,\"cursor\":\"" + stale + "\"}"));
         String first = null;
         for (var i = 0; i < 257; i++) {
-            var minted = tools.remember("find_items", stone, SCOPE, "state");
+            var minted = tools.paging.remember("find_items", stone, SCOPE, "state");
             if (first == null) first = minted;
         }
         assertEquals(Toolbox.Code.INVALID_CURSOR, failure(tools, "find_items",
@@ -488,7 +488,7 @@ class WorldToolsTest {
         field.setAccessible(true);
         var work = (ServerWork) field.get(tools);
         for (var failure : new RuntimeException[] { new IllegalArgumentException("bad"), new IllegalStateException("x") }) {
-            var result = tools.run(() -> true, WorldTools.once(() -> { throw failure; })).toCompletableFuture();
+            var result = tools.run(() -> true, WorldPaging.once(() -> { throw failure; })).toCompletableFuture();
             while (work.hasWork()) work.tick();
             var mapped = (Toolbox.Failure) assertThrows(ExecutionException.class, result::get).getCause();
             assertEquals(failure instanceof IllegalArgumentException ? Toolbox.Code.INVALID_ARGUMENTS : Toolbox.Code.EXTRACTION_FAILED,
@@ -558,19 +558,19 @@ class WorldToolsTest {
     void earlyStopsReachTheSlicesInsideCombinators() {
         var first = new Steps("a", 10, true);
         var second = new Steps("b", 10, true);
-        var pair = WorldTools.both(first, second);
+        var pair = WorldPaging.both(first, second);
         pair.step();
         assertTrue(pair.stopEarly());
         assertEquals(java.util.Map.entry("a1 stopped", "b0 stopped"), pair.result());
 
-        var started = WorldTools.then(() -> "x", value -> WorldTools.mapped(new Steps(value, 10, true), text -> text + "!"));
+        var started = WorldPaging.then(() -> "x", value -> WorldPaging.mapped(new Steps(value, 10, true), text -> text + "!"));
         assertFalse(started.stopEarly(), "the first step must run before the slice it starts can stop");
         started.step();
         started.step();
         assertTrue(started.stopEarly());
         assertEquals("x1 stopped!", started.result());
 
-        var stubborn = WorldTools.mapped(new Steps("c", 10, false), text -> text);
+        var stubborn = WorldPaging.mapped(new Steps("c", 10, false), text -> text);
         stubborn.step();
         assertFalse(stubborn.stopEarly());
     }
@@ -586,7 +586,7 @@ class WorldToolsTest {
     void slicedReadsReportTheGameTimeSpanTheyCovered() {
         var time = new long[] {100};
         var inner = new Steps("a", 3, true);
-        var read = WorldTools.spanned(() -> time[0], inner);
+        var read = WorldPaging.spanned(() -> time[0], inner);
         read.step();
         time[0] = 101;
         read.step();
@@ -595,11 +595,11 @@ class WorldToolsTest {
         time[0] = 200;
         var result = read.result();
         assertEquals("a3", result.value());
-        assertEquals(new WorldTools.ReadSpan(100, 105), result.span());
+        assertEquals(new WorldPaging.ReadSpan(100, 105), result.span());
         assertTrue(read.stopEarly());
         assertTrue(inner.stopped);
 
-        var area = WorldTools.spanPayload(new WorldTools.ReadSpan(100, 105));
+        var area = WorldTools.spanPayload(new WorldPaging.ReadSpan(100, 105));
         assertEquals(Evidence.deserializeObject("{\"fromGameTime\":100,\"toGameTime\":105}"), area);
     }
 
@@ -618,7 +618,7 @@ class WorldToolsTest {
         var dirt = new ItemEntry("minecraft:dirt", "Dirt", 3, 1, java.util.List.of(
                 ItemPath.parse(chestA + ">minecraft/container#4@minecraft:dirt")), false);
 
-        var page = tools.itemTools.entries(request, new WorldTools.EntriesState(java.util.List.of(stone, dirt), null, Evidence.Coverage.COMPLETE, null, new WorldTools.ReadSpan(100, 105)),
+        var page = tools.itemTools.entries(request, new WorldTools.EntriesState(java.util.List.of(stone, dirt), null, Evidence.Coverage.COMPLETE, null, new WorldPaging.ReadSpan(100, 105)),
                 Evidence.Coverage.COMPLETE, null);
 
         assertEquals(Evidence.Coverage.COMPLETE, page.coverage());
@@ -664,7 +664,7 @@ class WorldToolsTest {
             if (page.nextCursor() == null) break;
             var continued = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
                     "{\"filter\":{\"text\":\"\"},\"cursor\":\"" + page.nextCursor() + "\"}"), SCOPE);
-            page = tools.itemTools.entries(continued, (WorldTools.EntriesState) tools.cursor(continued), Evidence.Coverage.COMPLETE, null);
+            page = tools.itemTools.entries(continued, (WorldTools.EntriesState) tools.paging.cursor(continued), Evidence.Coverage.COMPLETE, null);
         }
         assertEquals(72, seen.size(), "every entry appears on some page");
         assertEquals(Evidence.Coverage.COMPLETE, page.coverage());
@@ -681,7 +681,7 @@ class WorldToolsTest {
         }
         var arguments = tool.equals("list_items") ? "{\"holder\":\"player\"}" : "{\"filter\":{}}";
         var tools = new PackSageTools(request -> CompletableFuture.completedFuture(provider.itemTools.entries(request,
-                request.arguments().values().containsKey("cursor") ? (WorldTools.EntriesState) provider.cursor(request)
+                request.arguments().values().containsKey("cursor") ? (WorldTools.EntriesState) provider.paging.cursor(request)
                         : new WorldTools.EntriesState(entries, null, Evidence.Coverage.COMPLETE, null), Evidence.Coverage.COMPLETE, null)));
         var seen = new HashSet<String>();
         int pages = 0;
@@ -716,7 +716,7 @@ class WorldToolsTest {
         var blocks = new java.util.ArrayList<BlockHandle>();
         for (var i = 0; i < 64; i++) blocks.add(new BlockHandle("test:" + "long_path/".repeat(300), new BlockPlace("minecraft:overworld", i, 64, 0)));
         var page = new Page<>(blocks, null, Evidence.Coverage.COMPLETE, null);
-        var method = WorldAreaTools.class.getDeclaredMethod("blocks", PackSageTools.ReadRequest.class, WorldTools.Center.class, Page.class, WorldTools.ReadSpan.class);
+        var method = WorldAreaTools.class.getDeclaredMethod("blocks", PackSageTools.ReadRequest.class, WorldTools.Center.class, Page.class, WorldPaging.ReadSpan.class);
         method.setAccessible(true);
         var tools = new PackSageTools(request -> {
             try {
@@ -757,7 +757,7 @@ class WorldToolsTest {
         var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
                 new Page<>(List.of(new BlockSummary(Map.of("minecraft:stone", 15), List.of(), 0)), null, Evidence.Coverage.COMPLETE, null),
                 new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
-        var method = WorldAreaTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
+        var method = WorldAreaTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldPaging.ReadSpan.class);
         method.setAccessible(true);
         var tools = new PackSageTools(request -> {
             try {
@@ -816,7 +816,7 @@ class WorldToolsTest {
         var read = constructor.newInstance(new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)),
                 new Page<>(List.of(new BlockSummary(counts, notable, 0)), null, Evidence.Coverage.COMPLETE, null),
                 new Page<>(entities, null, Evidence.Coverage.COMPLETE, null));
-        var method = WorldAreaTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldTools.ReadSpan.class);
+        var method = WorldAreaTools.class.getDeclaredMethod("area", Evidence.Scope.class, Anchor.class, int.class, type, WorldPaging.ReadSpan.class);
         method.setAccessible(true);
         var tools = new PackSageTools(request -> {
             try {
@@ -853,12 +853,12 @@ class WorldToolsTest {
         var arguments = Evidence.deserializeObject("{\"filter\":{}}");
         var block = new BlockHandle("minecraft:stone", new BlockPlace("minecraft:overworld", 5, 64, 8));
         var type = Class.forName("dev.packsage.world.WorldTools$ListState");
-        var constructor = type.getDeclaredConstructor(WorldTools.Center.class, String.class, Page.class, WorldTools.ReadSpan.class);
+        var constructor = type.getDeclaredConstructor(WorldTools.Center.class, String.class, Page.class, WorldPaging.ReadSpan.class);
         constructor.setAccessible(true);
-        var token = provider.remember("list_blocks", arguments, SCOPE, constructor.newInstance(
+        var token = provider.paging.remember("list_blocks", arguments, SCOPE, constructor.newInstance(
                 new WorldTools.Center("minecraft:overworld", new Vec3(8, 64, 8)), "scan-after-pending",
                 new Page<>(List.of(block), "scan-after-pending", Evidence.Coverage.PARTIAL, "2 unloaded chunks were not searched"),
-                new WorldTools.ReadSpan(10, 20)));
+                new WorldPaging.ReadSpan(10, 20)));
 
         var pending = provider.handle(new PackSageTools.ReadRequest("list_blocks", Evidence.deserializeObject(
                 "{\"filter\":{},\"cursor\":\"" + token + "\"}"), SCOPE),
@@ -870,8 +870,8 @@ class WorldToolsTest {
         assertEquals("2 unloaded chunks were not searched", result.detail());
         assertEquals(1, result.records().size());
         assertEquals(new Evidence.JsonString(block.place().text()), result.records().getFirst().payload().values().get("place"));
-        assertEquals(WorldTools.spanPayload(new WorldTools.ReadSpan(10, 20)), result.records().getFirst().payload().values().get("readSpan"));
-        var continued = provider.cursor(new PackSageTools.ReadRequest("list_blocks", Evidence.deserializeObject(
+        assertEquals(WorldTools.spanPayload(new WorldPaging.ReadSpan(10, 20)), result.records().getFirst().payload().values().get("readSpan"));
+        var continued = provider.paging.cursor(new PackSageTools.ReadRequest("list_blocks", Evidence.deserializeObject(
                 "{\"filter\":{},\"cursor\":\"" + result.nextCursor() + "\"}"), SCOPE));
         var scan = type.getDeclaredMethod("scan");
         scan.setAccessible(true);
@@ -915,7 +915,7 @@ class WorldToolsTest {
         assertEquals(Evidence.Coverage.PARTIAL, first.coverage());
         var continued = new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"cursor\":\"" + first.nextCursor() + "\"}"), SCOPE);
-        var state = (WorldTools.EntriesState) tools.cursor(continued);
+        var state = (WorldTools.EntriesState) tools.paging.cursor(continued);
         var last = tools.itemTools.entries(continued, state, Evidence.Coverage.COMPLETE, null);
         assertEquals(6, last.records().size());
         assertEquals(null, last.nextCursor());
@@ -928,7 +928,7 @@ class WorldToolsTest {
                 Evidence.Coverage.COMPLETE, "Inventory minecraft/container could not be opened");
         assertEquals(Evidence.Coverage.PARTIAL, merged.coverage());
         assertEquals(note + "; Inventory minecraft/container could not be opened", merged.detail());
-        var carried = (WorldTools.EntriesState) tools.cursor(new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
+        var carried = (WorldTools.EntriesState) tools.paging.cursor(new PackSageTools.ReadRequest("find_items", Evidence.deserializeObject(
                 "{\"filter\":{\"ids\":[\"minecraft:stone\"]},\"cursor\":\"" + merged.nextCursor() + "\"}"), SCOPE));
         assertEquals(Evidence.Coverage.PARTIAL, carried.coverage());
         assertEquals(merged.detail(), carried.note());
@@ -990,7 +990,7 @@ class WorldToolsTest {
 
         var continued = new PackSageTools.ReadRequest("list_items", Evidence.deserializeObject(
                 "{\"holder\":\"player\",\"cursor\":\"" + first.nextCursor() + "\"}"), SCOPE);
-        var second = tools.itemTools.entries(continued, (WorldTools.EntriesState) tools.cursor(continued), Evidence.Coverage.COMPLETE, null);
+        var second = tools.itemTools.entries(continued, (WorldTools.EntriesState) tools.paging.cursor(continued), Evidence.Coverage.COMPLETE, null);
         assertEquals(7, second.records().size());
         assertTrue(second.records().stream().noneMatch(record -> record.source().sourceHandle().startsWith("holder|")));
         assertTrue(second.records().getFirst().payload().values().containsKey("slots"), "slot facts carry over to later pages");
@@ -1105,9 +1105,9 @@ class WorldToolsTest {
         var large = tools.readEvidence(new PackSageTools.ReadRequest("read_evidence", Evidence.deserializeObject("{\"handles\":[\"saved\"]}"), SCOPE), context);
         for (int tick = 0; !large.toCompletableFuture().isDone() && tick < 100; tick++) work.tick();
         assertEquals(1, large.toCompletableFuture().join().records().size());
-        var cursors = WorldTools.class.getDeclaredField("cursors");
+        var cursors = WorldPaging.class.getDeclaredField("cursors");
         cursors.setAccessible(true);
-        assertTrue(((Map<?, ?>) cursors.get(tools)).isEmpty(), "a holder reread must not retain an unused item page");
+        assertTrue(((Map<?, ?>) cursors.get(tools.paging)).isEmpty(), "a holder reread must not retain an unused item page");
         registry.register(new InventoryReader() {
             @Override public String adapterId() { return "broken"; }
             @Override public java.util.List<InventoryInfo> inventories(LiveHolder holder) { throw new IllegalStateException("inventory unavailable"); }

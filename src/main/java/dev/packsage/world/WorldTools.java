@@ -37,7 +37,6 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -50,19 +49,15 @@ public final class WorldTools implements KnowledgeProvider {
     static final String VERSION = "1";
     static final int DEFAULT_RADIUS = 16;
     static final int MAX_RADIUS = 256;
-    static final int CURSORS = 256;
     /** Encoded-size budgets inside one inspect_area record, well under the 128 KiB tool output limit. */
     static final int AREA_NOTABLE_BYTES = 32 * 1024;
     static final int AREA_COUNT_BYTES = 16 * 1024;
-
-    private record Cursor(String tool, Evidence.JsonObject signature, Evidence.Scope scope, Object state) {
-    }
 
     /** A resolved scan center, kept in list cursors so later pages scan the same sphere. */
     record Center(String dimension, Vec3 position) {
     }
 
-    record ListState(Center center, String scan, Page<BlockHandle> pending, ReadSpan span) {
+    record ListState(Center center, String scan, Page<BlockHandle> pending, WorldPaging.ReadSpan span) {
         ListState(Center center, String scan) {
             this(center, scan, null, null);
         }
@@ -84,9 +79,9 @@ public final class WorldTools implements KnowledgeProvider {
      * and note are sticky: a later page of the same listing or search is never more complete than an earlier one. Span
      * is the game-time span of the read the pending entries came from, or null when unknown.
      */
-    record EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note, ReadSpan span,
+    record EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note, WorldPaging.ReadSpan span,
                         HolderSummary summary, Map<String, Evidence.JsonObject> slotFacts) {
-        EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note, ReadSpan span) {
+        EntriesState(List<ItemEntry> pending, FindState search, Evidence.Coverage coverage, String note, WorldPaging.ReadSpan span) {
             this(pending, search, coverage, note, span, null, Map.of());
         }
 
@@ -107,12 +102,6 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     /** The game times a sliced read started and ended at; the world can change between its slices. */
-    record ReadSpan(long fromGameTime, long toGameTime) {
-    }
-
-    record Spanned<T>(T value, ReadSpan span) {
-    }
-
     /**
      * Note is sticky for later pages; bound says why only this page was cut. Summary is null for searches and nested
      * holders; slot facts are keyed by location path text.
@@ -141,7 +130,7 @@ public final class WorldTools implements KnowledgeProvider {
     final WorldAreaTools areaTools;
     final WorldInspectionTools inspectionTools;
     final WorldItemTools itemTools;
-    private final Map<String, Cursor> cursors = new LinkedHashMap<>(16, 0.75f, true);
+    final WorldPaging paging = new WorldPaging();
     /**
      * The menu each opened id was issued for, on the server in openedOn. Ids restart for every new player and wrap after
      * 100, so an id alone can name a later menu.
@@ -242,7 +231,7 @@ public final class WorldTools implements KnowledgeProvider {
         }
         if (!reference.providerId().equals(ID)) return CompletableFuture.failedFuture(new Failure(Code.NOT_HANDLED, "different evidence owner"));
         try {
-            return reread(reference.sourceHandle(), request.scope()).thenApply(WorldTools::single);
+            return reread(reference.sourceHandle(), request.scope()).thenApply(WorldPaging::single);
         } catch (Failure failure) {
             return CompletableFuture.failedFuture(failure);
         }
@@ -259,7 +248,7 @@ public final class WorldTools implements KnowledgeProvider {
                     "observation scope changed"));
         }
         try {
-            return reread(handle.value(), scope).thenApply(WorldTools::single).exceptionally(failure -> failed(failure));
+            return reread(handle.value(), scope).thenApply(WorldPaging::single).exceptionally(failure -> failed(failure));
         } catch (Failure failure) {
             return CompletableFuture.completedFuture(failed(failure));
         }
@@ -279,23 +268,9 @@ public final class WorldTools implements KnowledgeProvider {
         return navigation.open(target);
     }
 
-    static Evidence.Result single(Evidence.Record record) {
-        var complete = record.source().coverage() == Evidence.Coverage.COMPLETE;
-        return new Evidence.Result(List.of(record), complete ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
-                complete ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, null);
-    }
-
     private static Evidence.Result failed(Throwable failure) {
         while (failure instanceof CompletionException && failure.getCause() != null) failure = failure.getCause();
         return new Evidence.Result(List.of(), Evidence.Coverage.ERROR, Evidence.Outcome.ERROR, null, failure.getMessage());
-    }
-
-    // Tools
-
-    static Evidence.Result result(List<Evidence.Record> records, Evidence.Coverage coverage, String next, String note) {
-        var complete = next == null && coverage == Evidence.Coverage.COMPLETE;
-        return new Evidence.Result(records, complete ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL,
-                complete ? Evidence.Outcome.COMPLETE : Evidence.Outcome.PARTIAL, next, note);
     }
 
     /** Reads one block, entity, item, holder, loot or command handle fresh. */
@@ -303,12 +278,12 @@ public final class WorldTools implements KnowledgeProvider {
         if (handle.startsWith("block|")) {
             var place = place(handle.substring(6));
             var server = server();
-            return run(server, once(() -> inspectionTools.inspectBlock(server, place, scope)));
+            return run(server, WorldPaging.once(() -> inspectionTools.inspectBlock(server, place, scope)));
         }
         if (handle.startsWith("entity|")) {
             var id = uuid(handle.substring(7));
             var server = server();
-            return run(server, once(() -> inspectionTools.inspectEntity(server, id, scope))).thenApply(record -> {
+            return run(server, WorldPaging.once(() -> inspectionTools.inspectEntity(server, id, scope))).thenApply(record -> {
                 // This continuation runs on the worker. Leave room for source/target metadata and the tool envelope.
                 if (Evidence.serialize(record.payload()).getBytes(java.nio.charset.StandardCharsets.UTF_8).length
                         + record.title().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 65_536) return record;
@@ -347,16 +322,14 @@ public final class WorldTools implements KnowledgeProvider {
             var path = itemPath(handle.substring(5));
             if (path.steps().isEmpty()) throw invalid(path.text() + " names a holder, not an item; list its items with list_items");
             var server = server();
-            return run(server, once(() -> itemTools.inspectItem(server, path, scope)));
+            return run(server, WorldPaging.once(() -> itemTools.inspectItem(server, path, scope)));
         }
         if (handle.startsWith("loot|") || handle.startsWith("command|")) return knowledge.reread(handle, scope);
         if (handle.startsWith("holder|")) {
             return itemTools.listItems(new PackSageTools.ReadRequest("list_items", new Evidence.JsonObject(Map.of(
                     "holder", text(handle.substring(7)))), scope)).thenApply(result -> {
                 if (result.nextCursor() != null) {
-                    synchronized (cursors) {
-                        cursors.remove(result.nextCursor());
-                    }
+                    paging.discard(result.nextCursor());
                 }
                 return result.records().stream().filter(record -> record.source().sourceHandle().equals(handle)).findFirst()
                         .orElseThrow(() -> new Failure(Code.INVALID_REFERENCE, "holder summary is no longer available; repeat list_items"));
@@ -370,7 +343,7 @@ public final class WorldTools implements KnowledgeProvider {
     public CompletionStage<BlockPlace> resolveAnchor(Anchor anchor) {
         try {
             var server = server();
-            return run(server, once(() -> {
+            return run(server, WorldPaging.once(() -> {
                 var center = center(server, anchor);
                 var pos = BlockPos.containing(center.position());
                 return new BlockPlace(center.dimension(), pos.getX(), pos.getY(), pos.getZ());
@@ -499,8 +472,6 @@ public final class WorldTools implements KnowledgeProvider {
         };
     }
 
-    // Running slices
-
     Executor worker() {
         return worker;
     }
@@ -518,183 +489,6 @@ public final class WorldTools implements KnowledgeProvider {
 
     <T> CompletionStage<T> run(BooleanSupplier worldOpen, ServerWork.Slice<T> slice) {
         return ServerReads.run(work, worker, worldOpen, slice);
-    }
-
-    static <T> ServerWork.Slice<T> once(Supplier<T> read) {
-        return then(read, value -> mapped(done(), ignored -> value));
-    }
-
-    private static ServerWork.Slice<Boolean> done() {
-        return new ServerWork.Slice<>() {
-            @Override
-            public boolean step() {
-                return false;
-            }
-
-            @Override
-            public Boolean result() {
-                return Boolean.TRUE;
-            }
-        };
-    }
-
-    /** Records the game time before the slice's first step and after its last one. */
-    static <T> ServerWork.Slice<Spanned<T>> spanned(LongSupplier gameTime, ServerWork.Slice<T> slice) {
-        return new ServerWork.Slice<>() {
-            private boolean started;
-            private long from;
-            private long to;
-
-            @Override
-            public boolean step() {
-                if (!started) {
-                    started = true;
-                    from = gameTime.getAsLong();
-                }
-                var more = slice.step();
-                to = gameTime.getAsLong();
-                return more;
-            }
-
-            @Override
-            public Spanned<T> result() {
-                return new Spanned<>(slice.result(), new ReadSpan(from, to));
-            }
-
-            @Override
-            public boolean stopEarly() {
-                return slice.stopEarly();
-            }
-        };
-    }
-
-    /** The overworld's game time, which every dimension shares; server thread only. */
-    static LongSupplier gameTime(MinecraftServer server) {
-        return () -> server.overworld().getGameTime();
-    }
-
-    /** Runs first as one step, then the slice it starts. */
-    static <A, T> ServerWork.Slice<T> then(Supplier<A> first, Function<A, ServerWork.Slice<T>> next) {
-        return new ServerWork.Slice<>() {
-            private ServerWork.Slice<T> inner;
-
-            @Override
-            public boolean step() {
-                if (inner == null) {
-                    inner = next.apply(first.get());
-                    return true;
-                }
-                return inner.step();
-            }
-
-            @Override
-            public T result() {
-                return inner.result();
-            }
-
-            @Override
-            public boolean stopEarly() {
-                return inner != null && inner.stopEarly();
-            }
-        };
-    }
-
-    static <A, T> ServerWork.Slice<T> mapped(ServerWork.Slice<A> slice, Function<A, T> map) {
-        return new ServerWork.Slice<>() {
-            @Override
-            public boolean step() {
-                return slice.step();
-            }
-
-            @Override
-            public T result() {
-                return map.apply(slice.result());
-            }
-
-            @Override
-            public boolean stopEarly() {
-                return slice.stopEarly();
-            }
-        };
-    }
-
-    static <A, B> ServerWork.Slice<Map.Entry<A, B>> both(ServerWork.Slice<A> first, ServerWork.Slice<B> second) {
-        return new ServerWork.Slice<>() {
-            private boolean firstDone;
-
-            @Override
-            public boolean step() {
-                if (!firstDone) {
-                    firstDone = !first.step();
-                    return true;
-                }
-                return second.step();
-            }
-
-            @Override
-            public Map.Entry<A, B> result() {
-                return Map.entry(first.result(), second.result());
-            }
-
-            /** Stopping inside the first slice stops the second before it starts, so both report what they missed. */
-            @Override
-            public boolean stopEarly() {
-                if (firstDone) return second.stopEarly();
-                return first.stopEarly() & second.stopEarly();
-            }
-        };
-    }
-
-    // Cursors
-
-    String remember(String tool, Evidence.JsonObject arguments, Evidence.Scope scope, Object state) {
-        var token = UUID.randomUUID().toString();
-        synchronized (cursors) {
-            cursors.put(token, new Cursor(tool, signature(arguments), scope, state));
-            while (cursors.size() > CURSORS) cursors.remove(cursors.keySet().iterator().next());
-        }
-        return token;
-    }
-
-    String remember(PackSageTools.ReadRequest request, Object state) {
-        return remember(request.tool(), request.arguments(), request.scope(), state);
-    }
-
-    /** The state behind the request's cursor, or null without one. */
-    Object cursor(PackSageTools.ReadRequest request) {
-        if (!(argument(request, "cursor") instanceof Evidence.JsonString token)) return null;
-        Cursor cursor;
-        synchronized (cursors) {
-            cursor = cursors.get(token.value());
-        }
-        if (cursor == null || !cursor.tool().equals(request.tool()) || !cursor.signature().equals(signature(request.arguments()))) {
-            throw new Failure(Code.INVALID_CURSOR, "cursor does not match this query; restart without a cursor");
-        }
-        if (!cursor.scope().equals(request.scope())) throw new Failure(Code.STALE_SCOPE, "world cursor scope changed");
-        return cursor.state();
-    }
-
-    static <T> T state(Object state, Class<T> type) {
-        if (!type.isInstance(state)) throw new Failure(Code.INVALID_CURSOR, "cursor does not match this query; restart without a cursor");
-        return type.cast(state);
-    }
-
-    /** The arguments a cursor is bound to: everything but cursor and limit, with null values dropped. */
-    private static Evidence.JsonObject signature(Evidence.JsonObject arguments) {
-        var values = new LinkedHashMap<String, Evidence.JsonValue>();
-        arguments.values().forEach((key, value) -> {
-            if (!key.equals("cursor") && !key.equals("limit") && !(value instanceof Evidence.JsonNull)) values.put(key, withoutNulls(value));
-        });
-        return new Evidence.JsonObject(values);
-    }
-
-    private static Evidence.JsonValue withoutNulls(Evidence.JsonValue value) {
-        if (!(value instanceof Evidence.JsonObject object)) return value;
-        var values = new LinkedHashMap<String, Evidence.JsonValue>();
-        object.values().forEach((key, nested) -> {
-            if (!(nested instanceof Evidence.JsonNull)) values.put(key, withoutNulls(nested));
-        });
-        return new Evidence.JsonObject(values);
     }
 
     // Arguments
@@ -837,7 +631,7 @@ public final class WorldTools implements KnowledgeProvider {
     // Records
 
     /** The listed holder's inventories with their empty slots, and the holder's own facts; only blocks and entities link. */
-    static Evidence.JsonObject spanPayload(ReadSpan span) {
+    static Evidence.JsonObject spanPayload(WorldPaging.ReadSpan span) {
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
         values.put("fromGameTime", number(span.fromGameTime()));
         values.put("toGameTime", number(span.toGameTime()));
@@ -853,7 +647,7 @@ public final class WorldTools implements KnowledgeProvider {
         payload.put("dayTime", number(level.getDayTime()));
     }
 
-    static void putSpan(Map<String, Evidence.JsonValue> payload, ReadSpan span) {
+    static void putSpan(Map<String, Evidence.JsonValue> payload, WorldPaging.ReadSpan span) {
         if (span != null) payload.put("readSpan", spanPayload(span));
     }
 

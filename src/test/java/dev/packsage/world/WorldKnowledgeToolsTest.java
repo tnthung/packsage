@@ -63,7 +63,7 @@ class WorldKnowledgeToolsTest {
 
     @Test
     void commandRereadsPreserveAStoppedSnapshotsContinuation() {
-        var partial = WorldTools.result(List.of(), Evidence.Coverage.PARTIAL, "command-cursor",
+        var partial = WorldPaging.result(List.of(), Evidence.Coverage.PARTIAL, "command-cursor",
                 "command tree copy reached the 500 ms server work budget; playerPermissionLevel: 0");
         var record = WorldKnowledgeTools.commandRereadRecord(SCOPE, "command|fill", partial);
         assertEquals(Evidence.Coverage.PARTIAL, record.source().coverage());
@@ -72,11 +72,11 @@ class WorldKnowledgeToolsTest {
         assertEquals(WorldTools.text("fill"), record.payload().values().get("path"));
         assertEquals(WorldTools.text("PackSage does not run commands"), record.payload().values().get("note"));
         assertTrue(record.targets().isEmpty());
-        assertSame(record, WorldKnowledgeTools.commandRereadRecord(SCOPE, "command|fill", WorldTools.single(record)));
-        var usagePage = WorldTools.result(List.of(record), Evidence.Coverage.PARTIAL, "usage-cursor", "more usage");
+        assertSame(record, WorldKnowledgeTools.commandRereadRecord(SCOPE, "command|fill", WorldPaging.single(record)));
+        var usagePage = WorldPaging.result(List.of(record), Evidence.Coverage.PARTIAL, "usage-cursor", "more usage");
         assertEquals(WorldTools.text("usage-cursor"),
                 WorldKnowledgeTools.commandRereadRecord(SCOPE, "command|fill", usagePage).payload().values().get("cursor"));
-        var missing = WorldTools.result(List.of(), Evidence.Coverage.COMPLETE, null, "no command missing; search_commands lists them");
+        var missing = WorldPaging.result(List.of(), Evidence.Coverage.COMPLETE, null, "no command missing; search_commands lists them");
         assertEquals(Toolbox.Code.UNAVAILABLE, assertThrows(Toolbox.Failure.class,
                 () -> WorldKnowledgeTools.commandRereadRecord(SCOPE, "command|missing", missing)).code());
     }
@@ -103,8 +103,8 @@ class WorldKnowledgeToolsTest {
         assertEquals(1, next.records().size());
         assertEquals(Evidence.Coverage.COMPLETE, next.coverage());
         assertNull(next.nextCursor());
-        assertNotNull(tools.cursor(cursorRequest));
-        assertThrows(Toolbox.Failure.class, () -> tools.cursor(new PackSageTools.ReadRequest("search_commands",
+        assertNotNull(tools.paging.cursor(cursorRequest));
+        assertThrows(Toolbox.Failure.class, () -> tools.paging.cursor(new PackSageTools.ReadRequest("search_commands",
                 Evidence.deserializeObject("{\"text\":\"other\",\"cursor\":\"" + page.nextCursor() + "\"}"), SCOPE)));
     }
 
@@ -154,7 +154,7 @@ class WorldKnowledgeToolsTest {
         var knowledge = new WorldKnowledgeTools(tools);
         var request = new PackSageTools.ReadRequest("read_command", Evidence.deserializeObject("{\"name\":\"chain\"}"), SCOPE);
         var first = knowledge.commandResult(request, new CommandReader<>(dispatcher, 0, type -> "integer"), 0, "chain", 0, 0);
-        var state = (WorldKnowledgeTools.CommandReadState) tools.cursor(new PackSageTools.ReadRequest("read_command",
+        var state = (WorldKnowledgeTools.CommandReadState) tools.paging.cursor(new PackSageTools.ReadRequest("read_command",
                 Evidence.deserializeObject("{\"name\":\"chain\",\"cursor\":\"" + first.nextCursor() + "\"}"), SCOPE));
         var rest = knowledge.commandResult(request, state.reader(), state.permission(), "chain", state.usageOffset(), state.argumentOffset());
         assertEquals(new Evidence.JsonArray(List.of()), rest.records().getFirst().payload().values().get("usage"));
@@ -235,7 +235,7 @@ class WorldKnowledgeToolsTest {
             assertEquals(Evidence.Coverage.PARTIAL, result.coverage());
             assertTrue(result.detail().contains(budget ? "500 ms server budget" : "result page"), result.detail());
             assertTrue(!result.detail().contains(budget ? "result page" : "500 ms server budget"), result.detail());
-            var state = (WorldKnowledgeTools.StructureState) tools.cursor(new PackSageTools.ReadRequest("locate",
+            var state = (WorldKnowledgeTools.StructureState) tools.paging.cursor(new PackSageTools.ReadRequest("locate",
                     Evidence.deserializeObject("{\"structure\":\"minecraft:test\",\"cursor\":\"" + result.nextCursor() + "\"}"), SCOPE));
             assertEquals(center, state.center());
             assertEquals(2, state.ring());
@@ -480,7 +480,7 @@ class WorldKnowledgeToolsTest {
         assertTrue(partial.detail().contains("approximately 64 blocks"), partial.detail());
         var resumed = new PackSageTools.ReadRequest("locate", Evidence.deserializeObject("{\"biome\":\"minecraft:desert\",\"radius\":4,\"cursor\":\""
                 + partial.nextCursor() + "\"}"), SCOPE);
-        var state = WorldTools.state(tools.cursor(resumed), WorldKnowledgeTools.BiomeState.class);
+        var state = WorldPaging.state(tools.paging.cursor(resumed), WorldKnowledgeTools.BiomeState.class);
         assertEquals(center, state.center());
         assertEquals("minecraft:desert", state.query());
         assertEquals(4, state.radius());

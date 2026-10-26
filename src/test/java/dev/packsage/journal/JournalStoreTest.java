@@ -58,6 +58,45 @@ class JournalStoreTest {
     }
 
     @Test
+    void pickupAndDropTypesRoundTripAsStringIdsAndRemainSearchable() throws Exception {
+        var file = dir.resolve("journal.db");
+        try (var store = JournalStore.open(file)) {
+            store.startSession(1_000, 20);
+            store.writeBatch(List.of(
+                    new Run(JournalEvents.broken(new JournalEvents.Stamp(399, 1_950, "minecraft:overworld"),
+                            "player:A", "Alex", "minecraft:stone", 1, 64, 2)),
+                    new Run(new JournalEvent(EventType.byId("pickup"), 400, 2_000, "minecraft:overworld", "player:A",
+                            "minecraft:diamond", null, 9, new long[]{Positions.pack(1, 64, 2)}, null)),
+                    new Run(new JournalEvent(EventType.byId("drop"), 401, 2_050, "minecraft:overworld", "player:A",
+                            "minecraft:diamond", null, 4, new long[]{Positions.pack(1, 64, 2)}, null))), List.of());
+            try (var rows = store.reader().createStatement().executeQuery("SELECT type FROM events ORDER BY type")) {
+                assertTrue(rows.next());
+                assertEquals("break", rows.getString(1));
+                assertTrue(rows.next());
+                assertEquals("drop", rows.getString(1));
+                assertTrue(rows.next());
+                assertEquals("pickup", rows.getString(1));
+                assertFalse(rows.next());
+            }
+        }
+        try (var store = JournalStore.open(file)) {
+            assertEquals(1, store.schemaVersion());
+            var pickup = new JournalSearch(store).search(new JournalFilter(null, null, null, "minecraft:overworld",
+                    Set.of("pickup"), List.of("minecraft:diamond"), null, false), null, 3_000).items().getFirst();
+            assertEquals(EventType.byId("pickup"), ((JournalEntry.EventEntry) pickup).type());
+            assertEquals(9, ((JournalEntry.EventEntry) pickup).amount());
+            assertTrue(RunSummary.describe((JournalEntry.EventEntry) pickup, "Alex").contains("picked up 9 minecraft:diamond"));
+            var drop = new JournalSearch(store).search(new JournalFilter(null, null, null, "minecraft:overworld",
+                    Set.of("drop"), List.of("minecraft:diamond"), null, false), null, 3_000).items().getFirst();
+            assertEquals(EventType.byId("drop"), ((JournalEntry.EventEntry) drop).type());
+            assertEquals(4, ((JournalEntry.EventEntry) drop).amount());
+            var broken = new JournalSearch(store).search(new JournalFilter(null, null, null, "minecraft:overworld",
+                    Set.of("break"), List.of("minecraft:stone"), null, false), null, 3_000).items().getFirst();
+            assertEquals(EventType.BREAK, ((JournalEntry.EventEntry) broken).type());
+        }
+    }
+
+    @Test
     void noteWritesRunOnTheWriterThread() throws Exception {
         var writer = new JournalWriter(() -> JournalStore.open(dir.resolve("journal.db")),
                 new EventQueue(EventQueue.CAPACITY, EventQueue.OVERFLOW_KEYS), new JournalStats(), () -> 0, () -> 0, 1_000);

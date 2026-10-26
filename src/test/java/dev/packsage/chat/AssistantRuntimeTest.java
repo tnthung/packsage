@@ -91,6 +91,27 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void completionDoesNotScanOtherWorlds() throws Exception {
+        var store = new ConversationStore(Files.createTempDirectory("packsage-completion-scope"), DIRECT);
+        var foreignWorld = new ChatContracts.WorldIdentity("foreign", "Foreign");
+        var foreign = store.newConversation(foreignWorld).toCompletableFuture().join();
+        Files.write(store.conversationPath(foreignWorld, foreign.id()), new byte[]{(byte) 0xff});
+        var backend = new FakeBackend();
+        var runtime = new AssistantRuntime(store, backend, captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        runtime.send("Question", false, false);
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.COMPLETED, null, null, List.of(), List.of(
+                new ModelBackend.AssistantOutput("answer", ModelBackend.OutputStatus.COMPLETED,
+                        ModelBackend.OutputPhase.FINAL_ANSWER, List.of(new ModelBackend.OutputText("Answer", List.of())))), null));
+        assertTrue(store.errors().isEmpty(), store.errors().toString());
+    }
+
+    @Test
     void firstCommandToolCallWaitsForConfirmationAndProducesCitableEvidence() throws Exception {
         var backend = new FakeBackend();
         var runtime = runtime(backend, captureFactory(), new AtomicReference<>(SCOPE), new AtomicReference<>(),

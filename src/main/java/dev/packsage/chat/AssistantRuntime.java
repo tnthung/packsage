@@ -1568,13 +1568,10 @@ public final class AssistantRuntime implements ChatActions {
                 if (publish) publishCurrentView(epoch);
                 return;
             }
-            store.sessions().whenCompleteAsync((summaries, summaryFailure) -> {
+            store.summary(holder.world, holder.id).whenCompleteAsync((summary, summaryFailure) -> {
                 boolean notify = false;
                 boolean publish;
                 long epoch;
-                ChatContracts.SessionSummary summary = summaryFailure == null ? summaries.stream()
-                        .filter(value -> value.world().worldOrServer().equals(holder.world.worldOrServer())
-                                && value.id().equals(holder.id)).findFirst().orElse(null) : null;
                 synchronized (stateLock) {
                     if (holder.deleting || holders.get(new HolderKey(holder.world.worldOrServer(), holder.id)) != holder) {
                         holder.requestAuthEpochs.remove(turn.requestId());

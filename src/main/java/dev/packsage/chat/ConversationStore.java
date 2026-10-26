@@ -31,9 +31,11 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
+import dev.packsage.PackSageLog;
 
 public final class ConversationStore {
     record HistoryEntry(String sessionId, ChatContracts.RequestId requestId, Instant sentAt, String question,
@@ -460,6 +462,7 @@ public final class ConversationStore {
     }
 
     public CompletionStage<ChatContracts.Conversation> openLatest(ChatContracts.WorldIdentity world) {
+        long startNs = System.nanoTime();
         return enqueueRead(() -> {
             Path directory = worldDirectory(world);
             try {
@@ -502,16 +505,27 @@ public final class ConversationStore {
                 report(exception);
                 throw new RuntimeException(exception);
             }
+        }).whenComplete((conversation, failure) -> {
+            long eventNs = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing phase=conversation_store_read read=open_latest world={} conversation={} start_ns={} event_ns={} elapsed_ms={} success={}",
+                    world.worldOrServer(), conversation == null ? "none" : conversation.id(), startNs, eventNs,
+                    TimeUnit.NANOSECONDS.toMillis(eventNs - startNs), failure == null);
         });
     }
 
     public CompletionStage<ChatContracts.Conversation> openConversation(ChatContracts.WorldIdentity world, String conversationId) {
+        long startNs = System.nanoTime();
         return enqueueRead(() -> {
             Path file = conversationPath(world, conversationId);
             if (!Files.isRegularFile(file) || !safePath(file)) throw new IllegalArgumentException("conversation does not exist: " + conversationId);
             ChatContracts.Conversation conversation = readConversation(file, world);
             if (conversation == null) throw new IllegalArgumentException("conversation does not belong to world: " + conversationId);
             return conversation;
+        }).whenComplete((conversation, failure) -> {
+            long eventNs = System.nanoTime();
+            PackSageLog.LOGGER.info("PackSage timing phase=conversation_store_read read=open_selected world={} conversation={} start_ns={} event_ns={} elapsed_ms={} success={}",
+                    world.worldOrServer(), conversationId, startNs, eventNs,
+                    TimeUnit.NANOSECONDS.toMillis(eventNs - startNs), failure == null);
         });
     }
 
@@ -610,6 +624,27 @@ public final class ConversationStore {
             try {
                 return readSummary(findConversation(world, conversationId), world, true);
             } catch (IOException exception) {
+                report(exception);
+                throw new RuntimeException(exception);
+            }
+        });
+    }
+
+    public CompletionStage<ChatContracts.SessionSummary> summaryInWorld(ChatContracts.WorldIdentity world, String conversationId) {
+        long startNs = System.nanoTime();
+        return enqueueRead(() -> {
+            try {
+                Path file = conversationPath(world, conversationId);
+                ChatContracts.SessionSummary summary = Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) && safePath(file)
+                        ? readSummary(file, world, false) : null;
+                long eventNs = System.nanoTime();
+                PackSageLog.LOGGER.info("PackSage timing phase=conversation_store_read conversation={} start_ns={} event_ns={} elapsed_ms={} found={}",
+                        conversationId, startNs, eventNs, TimeUnit.NANOSECONDS.toMillis(eventNs - startNs), summary != null);
+                return summary;
+            } catch (IOException exception) {
+                long eventNs = System.nanoTime();
+                PackSageLog.LOGGER.info("PackSage timing phase=conversation_store_read conversation={} start_ns={} event_ns={} elapsed_ms={} failureType={}",
+                        conversationId, startNs, eventNs, TimeUnit.NANOSECONDS.toMillis(eventNs - startNs), exception.getClass().getSimpleName());
                 report(exception);
                 throw new RuntimeException(exception);
             }

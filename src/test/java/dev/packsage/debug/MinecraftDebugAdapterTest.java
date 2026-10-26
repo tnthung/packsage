@@ -27,6 +27,124 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class MinecraftDebugAdapterTest {
     @Test
+    void opensKnownConversationWithoutReadingTheCatalog(@TempDir Path directory) throws Exception {
+        class Client extends Minecraft {
+            Client() { super(null); }
+            @Override public void execute(Runnable task) { task.run(); }
+        }
+        var field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        var unsafe = field.get(null);
+        var client = (Client) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Client.class);
+        client.level = (net.minecraft.client.multiplayer.ClientLevel) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, net.minecraft.client.multiplayer.ClientLevel.class);
+        var catalogReads = new java.util.concurrent.atomic.AtomicInteger();
+        var foregroundReads = new java.util.concurrent.atomic.AtomicInteger();
+        var store = new ConversationStore(directory, task -> { foregroundReads.incrementAndGet(); task.run(); }, task -> {
+            catalogReads.incrementAndGet();
+            throw new AssertionError("opening a selected conversation must not read the catalog");
+        });
+        var world = new ChatContracts.WorldIdentity("world", "World");
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        var backend = (ModelBackend) Proxy.newProxyInstance(ModelBackend.class.getClassLoader(), new Class<?>[]{ModelBackend.class},
+                (proxy, method, args) -> { throw new AssertionError("opening chat must not call the model"); });
+        var opens = new java.util.concurrent.atomic.AtomicInteger();
+        var captures = new java.util.concurrent.atomic.AtomicInteger();
+        var runtime = new AssistantRuntime(store, backend, current -> {
+            captures.incrementAndGet();
+            return new GameplayContextCapture(() -> { throw new AssertionError("opening chat must not capture context"); },
+                    request -> { throw new AssertionError("opening chat must not capture a frame"); }, Runnable::run, current);
+        }, Runnable::run, Runnable::run, current -> new KnowledgeService(List.of(), current), turn -> 0,
+                prepared -> { throw new AssertionError("opening chat must not submit requests"); }, model -> 0, paused -> { }, url -> { });
+        runtime.enterWorld(world, new Evidence.Scope("world", "resources", "player", "runtime", 0));
+        var adapter = new MinecraftDebugAdapter(client, runtime, directory.resolve("settings"), screen -> {
+            opens.incrementAndGet();
+            return new com.google.gson.JsonObject();
+        }, new DebugRequestLog());
+        var body = new com.google.gson.JsonObject();
+        body.addProperty("screen", "chat");
+        body.addProperty("conversationId", conversation.id());
+
+        var response = adapter.execute(DebugRouter.Operation.SCREEN_OPEN, body);
+
+        assertEquals(0, catalogReads.get());
+        assertEquals(1, opens.get());
+        assertEquals(conversation.id(), response.get("conversationId").getAsString());
+        int initializedHolders = captures.get();
+        int reads = foregroundReads.get();
+        adapter.execute(DebugRouter.Operation.SCREEN_OPEN, body);
+        assertEquals(initializedHolders, captures.get(), "reopening a loaded holder must not initialize it again");
+        assertEquals(reads + 1, foregroundReads.get(), "reopening reads only the selected summary, not its body");
+
+        body.addProperty("conversationId", "missing");
+        assertThrows(IllegalArgumentException.class, () -> adapter.execute(DebugRouter.Operation.SCREEN_OPEN, body));
+        var foreign = store.newConversation(new ChatContracts.WorldIdentity("other-world", "Other world")).toCompletableFuture().join();
+        body.addProperty("conversationId", foreign.id());
+        assertThrows(IllegalArgumentException.class, () -> adapter.execute(DebugRouter.Operation.SCREEN_OPEN, body));
+        assertEquals(0, catalogReads.get());
+    }
+
+    @Test
+    void showsChatScreenBeforeTheSelectedConversationReadCompletes(@TempDir Path directory) throws Exception {
+        class Client extends Minecraft {
+            Client() { super(null); }
+            @Override public void execute(Runnable task) { task.run(); }
+        }
+        var field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        var unsafe = field.get(null);
+        var client = (Client) unsafe.getClass().getMethod("allocateInstance", Class.class).invoke(unsafe, Client.class);
+        client.level = (net.minecraft.client.multiplayer.ClientLevel) unsafe.getClass().getMethod("allocateInstance", Class.class)
+                .invoke(unsafe, net.minecraft.client.multiplayer.ClientLevel.class);
+        var world = new ChatContracts.WorldIdentity("world", "World");
+        var ioTasks = new java.util.concurrent.atomic.AtomicInteger();
+        var holdTask = new java.util.concurrent.atomic.AtomicInteger(-1);
+        var heldRead = new java.util.concurrent.atomic.AtomicReference<Runnable>();
+        var readHeld = new java.util.concurrent.CountDownLatch(1);
+        var catalogReads = new java.util.concurrent.atomic.AtomicInteger();
+        var store = new ConversationStore(directory, task -> {
+            int taskNumber = ioTasks.incrementAndGet();
+            if (taskNumber == holdTask.get()) {
+                heldRead.set(task);
+                readHeld.countDown();
+            } else task.run();
+        }, task -> {
+            catalogReads.incrementAndGet();
+            throw new AssertionError("opening a selected conversation must not read the catalog");
+        });
+        var conversation = store.newConversation(world).toCompletableFuture().join();
+        store.newConversation(world).toCompletableFuture().join();
+        var backend = (ModelBackend) Proxy.newProxyInstance(ModelBackend.class.getClassLoader(), new Class<?>[]{ModelBackend.class},
+                (proxy, method, args) -> { throw new AssertionError("opening chat must not call the model"); });
+        var runtime = new AssistantRuntime(store, backend, current -> new GameplayContextCapture(
+                () -> { throw new AssertionError("opening chat must not capture context"); },
+                request -> { throw new AssertionError("opening chat must not capture a frame"); }, Runnable::run, current),
+                Runnable::run, Runnable::run, current -> new KnowledgeService(List.of(), current), turn -> 0,
+                prepared -> { throw new AssertionError("opening chat must not submit requests"); }, model -> 0, paused -> { }, url -> { });
+        runtime.enterWorld(world, new Evidence.Scope("world", "resources", "player", "runtime", 0));
+        assertTrue(runtime.sessionReady());
+        holdTask.set(ioTasks.get() + 2);
+        var opens = new java.util.concurrent.atomic.AtomicInteger();
+        var adapter = new MinecraftDebugAdapter(client, runtime, directory.resolve("settings"), screen -> {
+            opens.incrementAndGet();
+            return new com.google.gson.JsonObject();
+        }, new DebugRequestLog());
+        var body = new com.google.gson.JsonObject();
+        body.addProperty("screen", "chat");
+        body.addProperty("conversationId", conversation.id());
+        try (var worker = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+            var response = worker.submit(() -> adapter.execute(DebugRouter.Operation.SCREEN_OPEN, body));
+            assertTrue(readHeld.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            response.get(1, java.util.concurrent.TimeUnit.SECONDS);
+            assertEquals(1, opens.get());
+            assertFalse(runtime.sessionReady(), "selected conversation I/O remains pending after the screen opens");
+            heldRead.get().run();
+            assertTrue(runtime.sessionReady());
+        }
+        assertEquals(0, catalogReads.get());
+    }
+
+    @Test
     void menusWithoutARegisteredTypeAreNamedByClass() {
         class Untyped extends net.minecraft.world.inventory.AbstractContainerMenu {
             Untyped(net.minecraft.world.inventory.MenuType<?> type) { super(type, 1); }

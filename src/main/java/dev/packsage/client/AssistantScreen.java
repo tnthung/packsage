@@ -36,10 +36,14 @@ import java.util.Set;
 public final class AssistantScreen extends Screen {
     public record RuntimeState(boolean privateSingleplayer, boolean integratedServer, boolean published) { }
     public static final int QUESTION_MAX_LENGTH = 1000;
+    private static final int SESSION_LIST_TOP = 84;
     private static final int ACTIVITY_ARGUMENTS_INPUT_LIMIT = 16_384;
     private static final int ACTIVITY_ARGUMENTS_DISPLAY_LIMIT = 2_048;
     private static final Gson ACTIVITY_ARGUMENTS_JSON = new GsonBuilder().serializeNulls().disableHtmlEscaping().create();
     private final ChatActions actions;
+    private final long openingStartNs = System.nanoTime();
+    private boolean firstFrameRendered;
+    private String preparedConversationId;
     private final CommandConfirmationPanel commandConfirmation;
     private final PackSageSettings settings;
     private ChatContracts.View view;
@@ -83,6 +87,8 @@ public final class AssistantScreen extends Screen {
     private final Map<ConversationKey, ConversationUiState> conversationStates = new HashMap<>();
     private final Set<ConversationKey> deletedConversationKeys = new HashSet<>();
     private final Map<ChatContracts.RequestId, CachedSourceLabels> sourceLabelCache = new HashMap<>();
+    private final Map<ChatContracts.RequestId, PreparedTurn> preparedTurns = new HashMap<>();
+    private final Map<String, UserLines> preparedUserLines = new LinkedHashMap<>();
     private int sidebarScroll;
     private int sidebarContentHeight;
     private long catalogGeneration;
@@ -112,6 +118,10 @@ public final class AssistantScreen extends Screen {
     private ChatContracts.SessionSummary pendingDelete;
     private boolean deletingSession;
     private ChatContracts.HistoryPreview history;
+    private int historyTurns;
+    private int historicalTokens;
+    private String historyModel;
+    private String historyProviderModel;
     private int visibleTurnCount = 4;
     private boolean historyPrepended;
     private final List<MessageAction> messageActions = new ArrayList<>();
@@ -124,10 +134,15 @@ public final class AssistantScreen extends Screen {
         commandConfirmation = new CommandConfirmationPanel(actions);
         this.settings = actions.settings();
         this.view = actions.view();
+        long eventNs = System.nanoTime();
+        dev.packsage.PackSageLog.LOGGER.info("PackSage timing opening={} phase=screen_constructed conversation={} start_ns={} event_ns={} elapsed_ms={}",
+                openingStartNs, view.conversation().id(), openingStartNs, eventNs, (eventNs - openingStartNs) / 1_000_000.0);
     }
 
     @Override
     protected void init() {
+        preparedTurns.clear();
+        preparedUserLines.clear();
         if (inputEditor != null) input = inputEditor.value();
         if (sessionSearchEditor != null) sessionSearch = sessionSearchEditor.value();
         sessionSearchEditor = new MultilineEditor(font, 12, 32, Math.max(1, ModernUi.SIDEBAR_WIDTH - 24), 20,
@@ -146,16 +161,9 @@ public final class AssistantScreen extends Screen {
         followOnCompletion = true;
         layout();
         loadSessions();
-    }
-
-    @Override
-    public void tick() {
-        super.tick();
-        if (visibleTurnCount < view.conversation().turns().size()) {
-            visibleTurnCount = Math.min(view.conversation().turns().size(), visibleTurnCount + 4);
-            historyPrepended = true;
-            followOnCompletion = followBottom;
-        }
+        long eventNs = System.nanoTime();
+        dev.packsage.PackSageLog.LOGGER.info("PackSage timing opening={} phase=screen_init_done conversation={} start_ns={} event_ns={} elapsed_ms={}",
+                openingStartNs, view.conversation().id(), openingStartNs, eventNs, (eventNs - openingStartNs) / 1_000_000.0);
     }
 
     public void loadSessions() {
@@ -179,12 +187,16 @@ public final class AssistantScreen extends Screen {
         }
         sessionsLoading = true;
         long generation = ++catalogGeneration;
+        long pageStartNs = System.nanoTime();
         try {
             actions.sessionPage(more ? sessionOffset : 0, more ? 10 : Math.max(settings.sessionsBeforeCollapse(), sessionOffset))
                     .toCompletableFuture().orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).whenComplete((page, failure) -> {
                 Runnable update = () -> {
                     if (generation != catalogGeneration) return;
                     sessionsLoading = false;
+                    long eventNs = System.nanoTime();
+                    dev.packsage.PackSageLog.LOGGER.info("PackSage timing opening={} phase=sidebar_page_done start_ns={} event_ns={} elapsed_ms={} success={}",
+                            openingStartNs, pageStartNs, eventNs, (eventNs - pageStartNs) / 1_000_000.0, failure == null);
                     if (failure != null) {
                         showNavigationError("Chat history could not be loaded: " + (failure.getMessage() == null
                                 ? failure.getClass().getSimpleName() : failure.getMessage()));
@@ -233,7 +245,7 @@ public final class AssistantScreen extends Screen {
         graphics.flush();
         renderBlurredBackground(partialTick);
         layout();
-        history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
+        prepareConversation();
         graphics.fill(0, 0, width, height, ModernUi.BACKGROUND);
         graphics.fill(0, 0, sidebarWidth, height, ModernUi.SIDEBAR);
         drawSidebar(graphics, mouseX, mouseY);
@@ -256,13 +268,20 @@ public final class AssistantScreen extends Screen {
         drawToolbarTooltip(graphics, mouseX, mouseY);
         drawSourceTooltip(graphics, mouseX, mouseY);
         acknowledgeRenderedUnread(minecraft != null && minecraft.screen == this);
+        if (!firstFrameRendered) {
+            firstFrameRendered = true;
+            long eventNs = System.nanoTime();
+            dev.packsage.PackSageLog.LOGGER.info("PackSage timing opening={} phase=first_frame_rendered conversation={} start_ns={} event_ns={} elapsed_ms={} loading={}",
+                    openingStartNs, view.conversation().id(), openingStartNs, eventNs, (eventNs - openingStartNs) / 1_000_000.0,
+                    view.activity().equals("Loading session..."));
+        }
     }
 
     @Override
     public Component getNarrationMessage() {
         List<String> unread = sessionRows().stream().filter(row -> row.session() != null
-                        && row.session().unreadRequestId() != null && row.top() + row.height() > 104
-                        && row.top() < Math.max(105, height - 56))
+                        && row.session().unreadRequestId() != null && row.top() + row.height() > SESSION_LIST_TOP
+                        && row.top() < Math.max(SESSION_LIST_TOP + 1, height - 56))
                 .map(row -> "Unread completed response in " + row.label()).toList();
         if (unread.isEmpty()) return super.getNarrationMessage();
         return Component.literal(super.getNarrationMessage().getString() + ". " + String.join(". ", unread));
@@ -360,7 +379,7 @@ public final class AssistantScreen extends Screen {
         List<Map.Entry<String, List<ChatContracts.SessionSummary>>> ordered = new ArrayList<>(groups.entrySet());
         ordered.sort((first, second) -> Boolean.compare(!first.getKey().equals(view.activeWorld().worldOrServer()),
                 !second.getKey().equals(view.activeWorld().worldOrServer())));
-        int y = 108 - sidebarScroll;
+        int y = SESSION_LIST_TOP - sidebarScroll;
         List<SessionRow> rows = new ArrayList<>();
         for (Map.Entry<String, List<ChatContracts.SessionSummary>> group : ordered) {
             ChatContracts.WorldIdentity world = group.getKey().equals(view.activeWorld().worldOrServer())
@@ -378,21 +397,21 @@ public final class AssistantScreen extends Screen {
             rows.add(new SessionRow(view.activeWorld(), null, sessionsLoading ? "Loading chats..." : "Show more", y, 24, true));
             y += 24;
         }
-        sidebarContentHeight = y + sidebarScroll - 108;
+        sidebarContentHeight = y + sidebarScroll - SESSION_LIST_TOP;
         return rows;
     }
 
     private void drawSessionGroups(GuiGraphics graphics, int mouseX, int mouseY) {
         List<SessionRow> rows = sessionRows();
-        int bottom = Math.max(105, height - 56);
-        int maxScroll = Math.max(0, sidebarContentHeight - (bottom - 104));
+        int bottom = Math.max(SESSION_LIST_TOP + 1, height - 56);
+        int maxScroll = Math.max(0, sidebarContentHeight - (bottom - SESSION_LIST_TOP));
         if (sidebarScroll > maxScroll) {
             sidebarScroll = maxScroll;
             rows = sessionRows();
         }
-        graphics.enableScissor(0, 104, sidebarWidth, bottom);
+        graphics.enableScissor(0, SESSION_LIST_TOP, sidebarWidth, bottom);
         for (SessionRow row : rows) {
-            if (row.top() + row.height() <= 104 || row.top() >= bottom) continue;
+            if (row.top() + row.height() <= SESSION_LIST_TOP || row.top() >= bottom) continue;
             if (row.session() == null) {
                 if (!row.expand()) graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/globe.png"),
                         16, row.top() + (row.height() - 14) / 2, 14, 14, 0.0F, 0.0F, 64, 64, 64, 64);
@@ -446,9 +465,9 @@ public final class AssistantScreen extends Screen {
         }
         graphics.disableScissor();
         if (maxScroll > 0) {
-            int track = bottom - 104;
+            int track = bottom - SESSION_LIST_TOP;
             int thumb = Math.max(12, track * track / (track + maxScroll));
-            int y = 104 + sidebarScroll * (track - thumb) / maxScroll;
+            int y = SESSION_LIST_TOP + sidebarScroll * (track - thumb) / maxScroll;
             graphics.fill(sidebarWidth - 3, y, sidebarWidth - 1, y + thumb, ModernUi.BORDER);
         }
     }
@@ -467,13 +486,13 @@ public final class AssistantScreen extends Screen {
         webLinkHits.clear();
         activityHits.clear();
         messageActions.clear();
-        if (history == null) history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
+        if (history == null) prepareConversation();
         for (ChatContracts.Turn turn : view.conversation().turns().subList(
                 Math.max(0, view.conversation().turns().size() - visibleTurnCount), view.conversation().turns().size())) {
             if (view.active() && turn.requestId().equals(resendingRequest)) continue;
             boolean included = !view.readOnly() && history.selection().turns().stream()
                     .anyMatch(selected -> selected.requestId().equals(turn.requestId()));
-            ChatContracts.TokenCounts tokens = GroundingInstructions.historyTokenCounts(turn);
+            ChatContracts.TokenCounts tokens = prepareTurn(turn).tokens();
             y = drawUserMessage(graphics, turn.question(), y, included);
             y = drawMessageActions(graphics, turn, true, tokens.user(), y, mouseX, mouseY);
             y += 7;
@@ -557,14 +576,24 @@ public final class AssistantScreen extends Screen {
             }
             y += header.height();
             if (activityExpanded(key)) {
-                for (var line : font.split(Component.literal(activityBody(step, replayItems)).withStyle(style ->
-                        style.withFont(ModernUi.FONT).withColor(ModernUi.MUTED)), Math.max(1, readableWidth - 38))) {
-                    graphics.drawString(font, line, left + 10, y, ModernUi.MUTED, false);
-                    y += ModernUi.MESSAGE_LINE_HEIGHT;
-                }
+                y = drawInlineLines(graphics, messageLayout(activityBodyLines(step, replayItems),
+                        Math.max(1, readableWidth - 38)), y, left + 10, null);
             }
         }
         return y;
+    }
+
+    List<ScreenText.InlineLine> activityBodyLines(ChatContracts.ActivityStep step, List<ModelBackend.InputItem> replayItems) {
+        List<ScreenText.InlineLine> lines = new ArrayList<>();
+        for (String line : activityBody(step, replayItems).split("\n", -1)) {
+            int colon = line.indexOf(':');
+            if (colon >= 0 && List.of("Tool", "Parameter", "Result", "Error", "Elapsed").contains(line.substring(0, colon))) {
+                lines.add(new ScreenText.InlineLine(List.of(
+                        new ScreenText.InlineSpan(line.substring(0, colon + 1), null, ModernUi.MUTED, false, false),
+                        new ScreenText.InlineSpan(line.substring(colon + 1), null, ModernUi.TEXT, false, false))));
+            } else lines.add(new ScreenText.InlineLine(List.of(new ScreenText.InlineSpan(line, null, ModernUi.TEXT, false, false))));
+        }
+        return lines;
     }
 
     String activityBody(ChatContracts.ActivityStep step, List<ModelBackend.InputItem> replayItems) {
@@ -697,8 +726,7 @@ public final class AssistantScreen extends Screen {
 
     private int drawUserMessage(GuiGraphics graphics, String text, int y, boolean included) {
         int bubbleWidth = Math.max(1, Math.min(360, readableWidth - 26));
-        Component content = Component.literal(text).withStyle(style -> style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT));
-        List<net.minecraft.util.FormattedCharSequence> lines = font.split(content, Math.max(1, bubbleWidth - 20));
+        List<net.minecraft.util.FormattedCharSequence> lines = userLines(text, Math.max(1, bubbleWidth - 20));
         int bubbleHeight = Math.max(20, lines.size() * ModernUi.MESSAGE_LINE_HEIGHT + 8);
         int bubbleX = readableLeft + readableWidth - bubbleWidth - 24;
         ModernUi.surface(graphics, bubbleX, y, bubbleX + bubbleWidth, y + bubbleHeight, ModernUi.SURFACE_HOVER);
@@ -750,7 +778,19 @@ public final class AssistantScreen extends Screen {
 
     private int drawAssistantSegment(GuiGraphics graphics, String answer, MessageSegment segment,
                                      ChatContracts.Turn turn, int y, boolean included) {
-        List<Evidence.NavigationTarget> targets = turnTargets(turn);
+        MessageLayout prepared = prepareTurn(turn).answers().get(segment);
+        int bubbleWidth = Math.max(1, Math.min(360, readableWidth - 26));
+        int bubbleHeight = Math.max(20, prepared.height() + 8);
+        ModernUi.surface(graphics, readableLeft + 24, y, readableLeft + 24 + bubbleWidth, y + bubbleHeight, ModernUi.SURFACE_HOVER);
+        drawInlineLines(graphics, prepared, y + 4, readableLeft + 34, turn);
+        drawAssistantAvatar(graphics, y + Math.max(0, bubbleHeight - 18));
+        graphics.fill(readableLeft + 15, y + bubbleHeight - 3, readableLeft + 18, y + bubbleHeight,
+                included ? 0xff74bf8c : ModernUi.DANGER);
+        return y + bubbleHeight;
+    }
+
+    private MessageLayout assistantLayout(String answer, MessageSegment segment, ChatContracts.Turn turn,
+                                          List<Evidence.NavigationTarget> targets, int width) {
         List<ModelBackend.UrlCitation> citations = new ArrayList<>();
         int searchFrom = 0;
         int segmentEnd = segment.answerOffset() + segment.text().length();
@@ -775,15 +815,63 @@ public final class AssistantScreen extends Screen {
             }
         }
         List<ScreenText.InlineLine> lines = ScreenText.inlineLines(segment.text(), targets, citations, turn.sources(), sourceLabels(turn));
-        int bubbleWidth = Math.max(1, Math.min(360, readableWidth - 26));
-        int bubbleHeight = Math.max(20, messageLayout(lines, Math.max(1, bubbleWidth - 20)).height() + 8);
-        ModernUi.surface(graphics, readableLeft + 24, y, readableLeft + 24 + bubbleWidth, y + bubbleHeight, ModernUi.SURFACE_HOVER);
-        drawInlineLines(graphics, lines, y + 4, readableLeft + 34, Math.max(1, bubbleWidth - 20), turn);
-        drawAssistantAvatar(graphics, y + Math.max(0, bubbleHeight - 18));
-        graphics.fill(readableLeft + 15, y + bubbleHeight - 3, readableLeft + 18, y + bubbleHeight,
-                included ? 0xff74bf8c : ModernUi.DANGER);
-        return y + bubbleHeight;
+        return messageLayout(lines, width);
     }
+
+    /** Shared by rendering and the headless profile; visits only the requested history window, newest first. */
+    void prepareConversation() {
+        long prepareStartNs = System.nanoTime();
+        String providerModel = actions.providerSelectedModelId();
+        if (history == null || historyTurns != settings.historyTurns() || historicalTokens != settings.historicalTokens()
+                || !Objects.equals(historyModel, settings.modelId()) || !Objects.equals(historyProviderModel, providerModel)) {
+            history = actions.historyPreview(editingRequest == null ? resendingRequest : editingRequest);
+            historyTurns = settings.historyTurns();
+            historicalTokens = settings.historicalTokens();
+            historyModel = settings.modelId();
+            historyProviderModel = providerModel;
+        }
+        List<ChatContracts.Turn> turns = view.conversation().turns();
+        for (int index = turns.size() - 1; index >= Math.max(0, turns.size() - visibleTurnCount); index--) {
+            prepareTurn(turns.get(index));
+        }
+        if (!view.activity().equals("Loading session...") && !view.conversation().id().equals(preparedConversationId)) {
+            preparedConversationId = view.conversation().id();
+            long eventNs = System.nanoTime();
+            dev.packsage.PackSageLog.LOGGER.info("PackSage timing opening={} phase=screen_prepare_done conversation={} start_ns={} event_ns={} elapsed_ms={} opening_ms={} turns={}",
+                    openingStartNs, preparedConversationId, prepareStartNs, eventNs, (eventNs - prepareStartNs) / 1_000_000.0,
+                    (eventNs - openingStartNs) / 1_000_000.0, Math.min(visibleTurnCount, turns.size()));
+        }
+    }
+
+    private PreparedTurn prepareTurn(ChatContracts.Turn turn) {
+        int width = Math.max(1, Math.max(1, Math.min(360, readableWidth - 26)) - 20);
+        PreparedTurn cached = preparedTurns.get(turn.requestId());
+        if (cached != null && cached.turn() == turn && cached.width() == width) return cached;
+        userLines(turn.question(), width);
+        List<Evidence.NavigationTarget> targets = turnTargets(turn);
+        Map<MessageSegment, MessageLayout> answers = new HashMap<>();
+        for (MessageSegment segment : answerSegments(turn.answer(), turn.steeringMessages())) {
+            if (segment.player()) userLines(segment.text(), width);
+            else answers.put(segment, assistantLayout(turn.answer(), segment, turn, targets, width));
+        }
+        PreparedTurn prepared = new PreparedTurn(turn, width, GroundingInstructions.historyTokenCounts(turn), Map.copyOf(answers));
+        preparedTurns.put(turn.requestId(), prepared);
+        return prepared;
+    }
+
+    private List<net.minecraft.util.FormattedCharSequence> userLines(String text, int width) {
+        UserLines cached = preparedUserLines.get(text);
+        if (cached != null && cached.width() == width) return cached.lines();
+        List<net.minecraft.util.FormattedCharSequence> lines = font.split(Component.literal(text).withStyle(style ->
+                style.withFont(ModernUi.FONT).withColor(ModernUi.TEXT)), width);
+        if (preparedUserLines.size() >= 128) preparedUserLines.remove(preparedUserLines.keySet().iterator().next());
+        preparedUserLines.put(text, new UserLines(width, lines));
+        return lines;
+    }
+
+    private record PreparedTurn(ChatContracts.Turn turn, int width, ChatContracts.TokenCounts tokens,
+                                Map<MessageSegment, MessageLayout> answers) { }
+    private record UserLines(int width, List<net.minecraft.util.FormattedCharSequence> lines) { }
 
     private Map<Evidence.Source, String> sourceLabels(ChatContracts.Turn turn) {
         CachedSourceLabels cached = sourceLabelCache.get(turn.requestId());
@@ -836,13 +924,12 @@ public final class AssistantScreen extends Screen {
         graphics.fill(readableLeft + 15, y + 15, readableLeft + 18, y + 18, ModernUi.DANGER);
     }
 
-    private int drawInlineLines(GuiGraphics graphics, List<ScreenText.InlineLine> lines, int y, int left,
-                                int maxWidth, ChatContracts.Turn turn) {
-        MessageLayout layout = messageLayout(lines, maxWidth);
+    private int drawInlineLines(GuiGraphics graphics, MessageLayout layout, int y, int left, ChatContracts.Turn turn) {
         int quoteY = -1;
         for (MessageRun run : layout.runs()) {
             int x = left + run.x();
             int top = y + run.y();
+            if (top + ModernUi.MESSAGE_LINE_HEIGHT <= 40 || top >= toggleY - 8) continue;
             if (run.quoted() && quoteY != run.y()) {
                 graphics.fill(left, top, left + 2, top + ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.MUTED);
                 quoteY = run.y();
@@ -907,7 +994,9 @@ public final class AssistantScreen extends Screen {
                         if (space) continue;
                     }
                     while (!token.isEmpty()) {
-                        int take = prefixWidth(token, Math.max(1, width - x), span.bold());
+                        int take = font.substrByWidth(
+                                Component.literal(token).withStyle(style -> style.withFont(span.bold() ? ModernUi.BOLD_FONT : ModernUi.FONT)),
+                                Math.max(1, width - x)).getString().length();
                         if (take <= 0) take = Character.charCount(token.codePointAt(0));
                         String piece = token.substring(0, take);
                         int pieceWidth = font.width(Component.literal(piece).withStyle(style ->
@@ -923,18 +1012,6 @@ public final class AssistantScreen extends Screen {
             y += ModernUi.MESSAGE_LINE_HEIGHT;
         }
         return new MessageLayout(List.copyOf(runs), y);
-    }
-
-    private int prefixWidth(String value, int available, boolean bold) {
-        int end = 0;
-        while (end < value.length()) {
-            int next = end + Character.charCount(value.codePointAt(end));
-            Component candidate = Component.literal(value.substring(0, next)).withStyle(style ->
-                    style.withFont(bold ? ModernUi.BOLD_FONT : ModernUi.FONT));
-            if (font.width(candidate) > available) break;
-            end = next;
-        }
-        return end;
     }
 
     private List<Evidence.NavigationTarget> turnTargets(ChatContracts.Turn turn) {
@@ -1358,9 +1435,9 @@ public final class AssistantScreen extends Screen {
         if (inputEditor != null && inputEditor.isMouseOver(mouseX, mouseY)) return inputEditor.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (sessionSearchEditor != null && sessionSearchEditor.isMouseOver(mouseX, mouseY)) return sessionSearchEditor.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
         if (mouseX < sidebarWidth) {
-            if (mouseY >= 104 && mouseY < height - 56) {
+            if (mouseY >= SESSION_LIST_TOP && mouseY < height - 56) {
                 sessionRows();
-                sidebarScroll = Math.max(0, Math.min(Math.max(0, sidebarContentHeight - (height - 160)), sidebarScroll - (int) (scrollY * 28)));
+                sidebarScroll = Math.max(0, Math.min(Math.max(0, sidebarContentHeight - (height - 56 - SESSION_LIST_TOP)), sidebarScroll - (int) (scrollY * 28)));
                 return true;
             }
             return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
@@ -1368,6 +1445,11 @@ public final class AssistantScreen extends Screen {
         if (height > 0 && (mouseY < 40 || mouseY >= toggleY - 8)) return false;
         scrollOffset = Math.max(0, Math.min(maxScroll(), scrollOffset - (int) (scrollY * 20)));
         followBottom = scrollOffset >= maxScroll();
+        if (scrollY > 0 && scrollOffset == 0 && visibleTurnCount < view.conversation().turns().size()) {
+            visibleTurnCount = Math.min(view.conversation().turns().size(), visibleTurnCount + 4);
+            historyPrepended = true;
+            followBottom = false;
+        }
         return true;
     }
 
@@ -1407,7 +1489,7 @@ public final class AssistantScreen extends Screen {
         setFocused(null);
         if (mouseX < sidebarWidth) {
             if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 60 && mouseY < 80) { newChat(); return true; }
-            if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= 104 && mouseY < height - 56) {
+            if (mouseX >= 12 && mouseX < sidebarWidth - 12 && mouseY >= SESSION_LIST_TOP && mouseY < height - 56) {
                 for (SessionRow row : sessionRows()) {
                     if (mouseY < row.top() || mouseY >= row.top() + row.height()) continue;
                     if (row.expand()) {
@@ -1547,7 +1629,7 @@ public final class AssistantScreen extends Screen {
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE && (picker != null || editingRequest != null)) {
             picker = null;
-            if (editingRequest != null) { editingRequest = null; setInput(""); }
+            if (editingRequest != null) { editingRequest = null; history = null; setInput(""); }
             return true;
         }
         if (inputEditor != null && inputEditor.isFocused() && inputEditor.keyPressed(keyCode, scanCode, modifiers)) return true;
@@ -1628,6 +1710,7 @@ public final class AssistantScreen extends Screen {
         boolean historyLoaded = selectionChanged
                 || view.activity().equals("Loading session...") && !next.activity().equals("Loading session...");
         if (selectionChanged) sourceLabelCache.clear();
+        if (selectionChanged || view.sources() != next.sources() || view.navigationTargets() != next.navigationTargets()) preparedTurns.clear();
         view = next;
         history = null;
         boolean loadingSession = next.activity().equals("Loading session...");

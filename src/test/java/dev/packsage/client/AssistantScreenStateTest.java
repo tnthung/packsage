@@ -21,6 +21,134 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void cancelingEditRecomputesHistoryInclusion() throws Exception {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 960;
+        screen.height = 600;
+        ScreenTestHost.initialize(screen);
+        var font = net.minecraft.client.gui.screens.Screen.class.getDeclaredField("font");
+        font.setAccessible(true);
+        font.set(screen, new ScreenPreparationFont());
+        assertTrue(screen.editLatest(screen.view().conversation().turns().getLast().requestId()));
+        screen.prepareConversation();
+        var history = AssistantScreen.class.getDeclaredField("history");
+        history.setAccessible(true);
+        assertTrue(((ChatContracts.HistoryPreview) history.get(screen)).selection().turns().isEmpty());
+        assertTrue(screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE, 0, 0));
+        screen.prepareConversation();
+        assertEquals(screen.view().conversation().turns(), ((ChatContracts.HistoryPreview) history.get(screen)).selection().turns());
+    }
+
+    @Test
+    void expandedToolFieldsUseMutedLabelsAndNormalValues() throws Exception {
+        var screen = new AssistantScreen(new FakeActions());
+        var step = new ChatContracts.ActivityStep("tool:result", "Reading", "Failed",
+                ChatContracts.ActivityStatus.FAILED, "{}", "read_evidence", "Coverage: COMPLETE", 600L, "Result text");
+        var method = AssistantScreen.class.getDeclaredMethod("activityBodyLines", ChatContracts.ActivityStep.class, List.class);
+        method.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        var lines = (List<ScreenText.InlineLine>) method.invoke(screen, step, List.of());
+        assertEquals(List.of("Tool:", "Parameter:", "Error:", "Elapsed:"),
+                lines.stream().map(line -> line.spans().getFirst().text()).toList());
+        for (var line : lines) {
+            assertEquals(ModernUi.MUTED, line.spans().getFirst().color());
+            assertEquals(ModernUi.TEXT, line.spans().getLast().color());
+        }
+        var completed = new ChatContracts.ActivityStep("tool:result", "Reading", "Completed",
+                ChatContracts.ActivityStatus.COMPLETED, "{}", "read_evidence", "Coverage: COMPLETE", 600L, "Result text");
+        @SuppressWarnings("unchecked")
+        var result = (List<ScreenText.InlineLine>) method.invoke(screen, completed, List.of());
+        assertEquals("Result:", result.get(2).spans().getFirst().text());
+        assertEquals(ModernUi.TEXT, result.get(2).spans().getLast().color());
+    }
+
+    @Test
+    void sidebarListStartsFourPixelsAfterNewChat() {
+        var actions = new FakeActions();
+        actions.sessions = CompletableFuture.completedFuture(List.of(new ChatContracts.SessionSummary(
+                actions.view.activeWorld(), "chat", "Question", "", Instant.EPOCH)));
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        assertEquals(84, screen.sessionRows().getFirst().top());
+    }
+
+    @Test
+    void repeatedScreenPreparationReusesLayoutAndRefreshInvalidatesIt() throws Exception {
+        var actions = new FakeActions();
+        var screen = new AssistantScreen(actions);
+        screen.width = 960;
+        screen.height = 600;
+        ScreenTestHost.initialize(screen);
+        var font = new ScreenPreparationFont();
+        var field = net.minecraft.client.gui.screens.Screen.class.getDeclaredField("font");
+        field.setAccessible(true);
+        field.set(screen, font);
+        var prepare = AssistantScreen.class.getDeclaredMethod("prepareConversation");
+        prepare.setAccessible(true);
+        prepare.invoke(screen);
+        long measured = font.measuredGlyphs;
+        assertTrue(measured > 0);
+        prepare.invoke(screen);
+        assertEquals(measured, font.measuredGlyphs);
+        int previews = actions.historyPreviews;
+        prepare.invoke(screen);
+        assertEquals(previews, actions.historyPreviews);
+        screen.width = 480;
+        screen.layout();
+        prepare.invoke(screen);
+        assertTrue(font.measuredGlyphs > measured, "resize must rebuild layout");
+        measured = font.measuredGlyphs;
+        var original = actions.view;
+        var turn = original.conversation().turns().getFirst();
+        actions.view = new ChatContracts.View(false, original.signIn(), false,
+                new ChatContracts.Conversation(original.conversation().id(), original.conversation().world(),
+                        List.of(new ChatContracts.Turn(turn.requestId(), turn.question(), "Updated answer", List.of(),
+                                turn.context(), turn.sources(), turn.outcome(), 1)), original.conversation().outcome()),
+                original.context(), original.sources(), original.navigationTargets(), List.of());
+        screen.refresh(actions.view);
+        prepare.invoke(screen);
+        assertTrue(font.measuredGlyphs > measured, "edited/reloaded turns must rebuild layout");
+    }
+
+    @Test
+    void idleTicksDoNotPrepareOlderHistoryAndScrollingAtTheTopRequestsIt() throws Exception {
+        var actions = new FakeActions();
+        var original = actions.view;
+        actions.view = new ChatContracts.View(false, original.signIn(), false,
+                new ChatContracts.Conversation(original.conversation().id(), original.conversation().world(),
+                        java.util.Collections.nCopies(20, original.conversation().turns().getFirst()), original.conversation().outcome()),
+                original.context(), original.sources(), original.navigationTargets(), List.of());
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var count = AssistantScreen.class.getDeclaredField("visibleTurnCount");
+        count.setAccessible(true);
+        int initial = count.getInt(screen);
+        for (int index = 0; index < 30; index++) screen.tick();
+        assertEquals(initial, count.getInt(screen));
+        screen.updateContentMetrics(1_000, 100);
+        screen.mouseScrolled(400, 200, 0, 100);
+        assertEquals(initial + 4, count.getInt(screen));
+        screen.updateContentMetrics(2_000, 100);
+        assertEquals(1_000, screen.scrollOffset(), "prepending must keep the scrolled message anchored");
+    }
+
+    @Test
+    void fittingWordLayoutMeasuresGlyphsLinearly() throws Exception {
+        var screen = new AssistantScreen(new FakeActions());
+        var font = new ScreenPreparationFont();
+        var field = net.minecraft.client.gui.screens.Screen.class.getDeclaredField("font");
+        field.setAccessible(true);
+        field.set(screen, font);
+        String text = "abcdefghij ".repeat(100);
+        assertFalse(screen.messageLayout(ScreenText.inlineLines(text, List.of()), 340).runs().isEmpty());
+        assertTrue(font.measuredGlyphs < text.length() * 4L, "glyph visits=" + font.measuredGlyphs);
+    }
+
+    @Test
     void refreshRequestedDuringShowMoreRunsAfterThePageFinishes() {
         var actions = new FakeActions();
         actions.settings.setSessionsBeforeCollapse(3);
@@ -147,13 +275,13 @@ class AssistantScreenStateTest {
         screen.height = 480;
         ScreenTestHost.initialize(screen);
         screen.updateContentMetrics(1_000, 100);
-        screen.mouseScrolled(400, 200, 0, 5);
-        assertEquals(800, screen.scrollOffset());
+        screen.mouseScrolled(400, 200, 0, 100);
+        assertEquals(0, screen.scrollOffset());
 
         screen.tick();
         screen.updateContentMetrics(2_000, 100);
 
-        assertEquals(1_800, screen.scrollOffset());
+        assertEquals(1_000, screen.scrollOffset());
         assertFalse(screen.followingBottom());
     }
     @Test
@@ -1637,6 +1765,12 @@ class AssistantScreenStateTest {
         @Override public ChatContracts.HistoryPreview historyPreview() {
             historyPreviews++;
             return ChatActions.super.historyPreview();
+        }
+        @Override public ChatContracts.HistoryPreview historyPreview(ChatContracts.RequestId replacing) {
+            historyPreviews++;
+            return new ChatContracts.HistoryPreview(dev.packsage.chat.HistorySelector.select(view.conversation().turns(),
+                    new ChatContracts.HistoryLimits(settings.historyTurns(), settings.historicalTokens()), turn -> 1, replacing),
+                    settings.historicalTokens(), settings.historicalTokens(), null, settings.historyTurns());
         }
         @Override public ChatContracts.View view() { return view; }
         @Override public PackSageSettings settings() { return settings; }

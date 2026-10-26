@@ -238,11 +238,16 @@ public final class ClientAssistant {
     }
 
     private void openAssistantScreen(AbstractContainerScreen<?> containerScreen) {
+        long startNs = System.nanoTime();
+        dev.packsage.PackSageLog.LOGGER.info("PackSage timing phase=client_open_request start_ns={} event_ns={} elapsed_ms=0", startNs, startNs);
         assistantScreen = runtime.openScreen(() -> openSettings(false));
         assistantScreen.setContainerScreen(containerScreen);
         assistantScreen.setAdvancedSettingsOpener(() -> openSettings(true));
         assistantScreen.setSettingsSaver(() -> settings.save(settingsPath));
         client.setScreen(assistantScreen);
+        long eventNs = System.nanoTime();
+        dev.packsage.PackSageLog.LOGGER.info("PackSage timing phase=client_screen_set conversation={} start_ns={} event_ns={} elapsed_ms={}",
+                assistantScreen.view().conversation().id(), startNs, eventNs, (eventNs - startNs) / 1_000_000.0);
     }
 
     /** Lets a paused integrated server, which skips ServerTickEvent, keep stepping pending world reads. */

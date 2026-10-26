@@ -39240,3 +39240,1542 @@ Timing: {"wallMs":14508,"modelTerminalMs":"12453","toolWallMs":"9","persistMs":"
 Round 8: **3 PASS, 0 FAIL, 0 NOT RUN**, plus default-prompt PASS. All 3 requests completed and saved in 3 fresh conversations, with 4 tool calls and no retries. All 3 navigation attempts returned OPENED. Earlier failures remain recorded under their existing rulings; no older check is reclassified by this round. [Evidence completeness](../../build/native-readiness-live/round8/evidence-completeness.json).
 
 Minecraft remains running and unpaused in PackSage Adapter Filter Live Test, with the debug bridge enabled, menu closed and player not riding. Final GET /prompt has text=null and exact candidate 11. The installed JAR hash is unchanged; the checkout remained at the installed source HEAD until this validation-only change. The player was returned to (1191.5,250,1057.5) and the original look direction, and all 21 temporary M5 force-loaded chunks were released. Daylight settings were not changed. [Cleanup](../../build/native-readiness-live/round8/cleanup.json), [final state](../../build/native-readiness-live/round8/final-state.json), [final verification](../../build/native-readiness-live/round8/final-verification.json), [screenshot](../../build/native-readiness-live/round8/final-state.png). Only this validation file is committed; raw evidence remains ignored under build/native-readiness-live/round8/.
+
+## Final install smoke test
+
+Date: 2026-10-26 (Asia/Taipei). Main checkout `D:/Project/packsage`, branch `feat/packsage-v2`; installed source HEAD `5a434d11a378f05798468d5087fb6a7b30f9ef27`; installed JAR SHA-256 `B711F1F99EE342C07FAC9E34CD9D5B53EFE1173A3A6F548FB3C64E9AE8EE7105`. [install-metadata.json](../../build/native-readiness-live/final/install-metadata.json), [build-install.log](../../build/native-readiness-live/final/build-install.log).
+
+Followed all rounds of [native readiness](../testing/2026-10-26-native-readiness.md), their controller rulings above, [final-review setup](../testing/2026-10-26-final-review-fixes.md#setup) and the [debug bridge procedure](../testing/2026-10-25-debug-bridge.md). The bridge completed /world/leave, then /game/quit. No PackSage Java process remained before `powershell -ExecutionPolicy Bypass -File D:/Project/packsage/scripts/build.ps1`. The wrapper exited 0; Gradle reported BUILD SUCCESSFUL, with all 11 test/build tasks up to date. Built and installed hashes matched. Three unrelated java processes were left running; no javaw remained. [preinstall-state.json](../../build/native-readiness-live/final/preinstall-state.json), [install-world-leave.json](../../build/native-readiness-live/final/install-world-leave.json), [install-game-quit.json](../../build/native-readiness-live/final/install-game-quit.json), [preinstall-process.json](../../build/native-readiness-live/final/preinstall-process.json).
+
+One click on the existing CurseForge Packsage Play button relaunched the game. No desktop input interruption or delayed retry occurred; computer use was confined to relaunching. The first /world/open returned TimeoutException after the bridge's 10-second wait; a subsequent /state showed that the requested save had loaded successfully, without another open call. [relaunch-title-state.json](../../build/native-readiness-live/final/relaunch-title-state.json), [world-open.json](../../build/native-readiness-live/final/world-open.json), [world-ready-state.json](../../build/native-readiness-live/final/world-ready-state.json).
+
+No source edits, worktrees, branch switches, prompt overrides or model-setting changes were made. The request_built capture reports gpt-6-sol, MEDIUM and all 28 native tools. Each of the 13 questions was submitted exactly once in its own fresh conversation. Independent planner questions, and later the note report and two progress questions, overlapped. Requests used screenshot=false and webSearch=false; automatic provider search remained permitted by the existing settings, and the from-scratch beacon request records three provider web searches. The original note request's first lookup failed and was later read successfully; it was never resubmitted. All 13 completed replies match their saved JSONL answers. All 23 native calls completed without tool errors. [evidence-completeness.json](../../build/native-readiness-live/final/evidence-completeness.json).
+
+Raw input/output, saved JSONL, exact tool payloads, timings and screenshots are under `build/native-readiness-live/final/`; the token-free [http.jsonl](../../build/native-readiness-live/final/http.jsonl) includes both setup errors and all HTTP calls. No bridge token is printed or included in evidence. Native recipe records have no viewer/navigation targets under the prior ruling. Every PARTIAL plan gives concrete limits. In all five planner results, recipe-less materials are classified in the tool detail as **"no recipe found, though a capped, unreadable or computed-result recipe could still make them"**, rather than asserted to be obtained materials. [planner-detail-audit.json](../../build/native-readiness-live/final/planner-detail-audit.json), [planner-leading-recipes.json](../../build/native-readiness-live/final/planner-leading-recipes.json).
+
+| Check | Status | Observation |
+|---|---|---|
+| D5 | PASS | No override; effectiveText equals candidate 11 before and after. |
+| Planner - beacon | PASS | Three plan records, complete leading inputs and concrete PARTIAL detail. |
+| Planner - from scratch | FAIL | Plan detail PASS; reply still omits obsidian acquisition or its lookup limit. |
+| Planner - pistons | PASS | 30 planks expand to 8 logs, producing 32 planks with 2 spare. |
+| Planner - smithing | PASS | Both smithing reads and the reply name template, diamond sword and netherite ingot. |
+| Planner - map | PASS | Empty map uses 8 paper and 1 compass; no filled-map input or extension route. |
+| World - W1 stone | PASS | 81 stone across three holders, including the nested 7; all Show destinations open. |
+| World - sealed chest | PASS | Exact contents remain undecided; the table/seed remain sealed after the read. |
+| World - librarian | PASS | All 12 priced offers, Mending I, Swiftness and the entity link are correct. |
+| Journal - breaks | PASS | 50 actual sand breaks return as one complete event with coordinates and a link. |
+| Journal - note report | PASS | The original request saves one anchored player-reported note; no saving chatter. |
+| Journal - note recall | PASS | A fresh chat recalls the same note at (2500,250,2500), and its link opens. |
+| Progress - advancements | PASS | Complete tree totals give 2,137 missing of 2,147; returned links open. |
+| Progress - walking | PASS | COMPLETE walk_one_cm=4043 is correctly answered as 40.43 blocks. |
+| M5-lite | PASS | Both close summaries: 50 written, zero overflow/failures, zero slow ticks after 200. |
+
+### D5 - PASS
+
+GET /prompt before and after returns text=null and effectiveText exactly equal to build/prompt-candidates/candidate-11.txt. Effective prompt SHA-256: `0960af8d90bdad1450d1a18c0866aa87799f4dbc257f52ad5326f23c3e0ae7c8`. No POST /prompt was made. No question, model calls or navigation apply to this check. [prompt-before.json](../../build/native-readiness-live/final/prompt-before.json), [prompt-before-check.json](../../build/native-readiness-live/final/prompt-before-check.json), [prompt-after.json](../../build/native-readiness-live/final/prompt-after.json), [prompt-after-check.json](../../build/native-readiness-live/final/prompt-after-check.json).
+
+### Passing checks
+
+#### Planner - beacon - PASS
+
+plan_recipe returns the complete leading beacon recipe: 5 glass, 1 Nether star and 3 obsidian. Its three records include the glass and Nature's Aura sand expansions. The aggregate PARTIAL detail names the source coverage, unknown catalysts/remainders, UNKNOWN decoding and the sand depth bound. The reply gives the correct grid and glass-smelting option. This is the short A1 question; the stricter from-scratch answer requirement is scored separately. read_loot returns a complete empty Wither table. No native recipe navigation targets exist, as accepted by the round-2 controller ruling.
+
+Question: `how do I make a beacon?`
+
+Request `e42f7097-4720-4aee-81d0-ec4a58c08dfa`; conversation `5aaefcc6-46ac-4334-b468-8e7855b47ccf`; status `completed`; saved=true. [planner-beacon.json](../../build/native-readiness-live/final/planner-beacon.json), [planner-beacon-input.json](../../build/native-readiness-live/final/planner-beacon-input.json), [planner-beacon-saved.jsonl](../../build/native-readiness-live/final/planner-beacon-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_CrRjscAoLw098sGFf9GGbL1J",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:beacon",
+      "quantity": 1,
+      "depth": 2
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "source-coverage=PARTIAL:naturesaura:altar/sand; constraint=catalysts=unknown:naturesaura:altar/sand; constraint=remainders=unknown:naturesaura:altar/sand; decoding-status=UNKNOWN:naturesaura:altar/sand; bounded-depth:minecraft:sand; materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:red_sand, minecraft:nether_star, minecraft:obsidian]",
+    "recordCount": 3,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_0AaMMWO4wgxETLm8UyWsHvbE",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": "minecraft:wither",
+      "place": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "this table drops nothing",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+````text
+To craft a beacon, put these in a **3×3 crafting grid**: [beacon recipe](native:plan|minecraft:beacon|1|2|0|minecraft:beacon)
+
+```text
+Glass     Glass        Glass
+Glass     Nether Star  Glass
+Obsidian  Obsidian     Obsidian
+```
+
+That’s **5 glass, 1 Nether Star, and 3 obsidian**. You can make the glass by smelting sand or red sand. [glass recipe](native:plan|minecraft:beacon|1|2|1|minecraft:glass)
+````
+
+`/navigate` results ([planner-beacon-nav.json](../../build/native-readiness-live/final/planner-beacon-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":26720,"modelTerminalMs":"24950","toolWallMs":"22","persistMs":"11"}. Full recipe inputs, outputs and per-record coverage: [planner-beacon-recipe-audit.json](../../build/native-readiness-live/final/planner-beacon-recipe-audit.json).
+
+#### Planner - pistons - PASS
+
+The complete leading piston record has nine input groups, ten batches and ten produced pistons. Its oak-plank expansion requests 30 planks, uses 8 batches at 4 planks each and produces 32. The reply correctly answers 8 ordinary logs, with two planks left over. The aggregate 38-record plan is PARTIAL for concrete output/collection trimming, 42 omitted records, named depth bounds, ingredient-branch-cap=64 and recipe-less-material lookup limits. It explicitly counts 12 further materials beyond the 16 named. No recipe navigation target is available.
+
+Question: `how many logs do I need for 10 pistons?`
+
+Request `37e62ffc-bdef-4301-9fb3-7ba92395538b`; conversation `a32816b9-ee26-4536-83dc-ea6857703808`; status `completed`; saved=true. [planner-pistons.json](../../build/native-readiness-live/final/planner-pistons.json), [planner-pistons-input.json](../../build/native-readiness-live/final/planner-pistons-input.json), [planner-pistons-saved.jsonl](../../build/native-readiness-live/final/planner-pistons-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_VRTeWLpfx2AMAbYmzcuL8b6W",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:piston",
+      "quantity": 10,
+      "depth": 4
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed; 42 records omitted at the output byte or record limit; refine the request to reduce output size; bounded-depth:minecraft:iron_ingot; bounded-depth:naturesaura:ancient_stick; bounded-depth:minecraft:stick; ingredient-branch-cap=64; bounded-depth:minecraft:raw_iron; bounded-depth:minecraft:redstone; materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:oak_log, minecraft:stripped_oak_log, minecraft:spruce_log, minecraft:stripped_spruce_log, minecraft:birch_log, minecraft:stripped_birch_log, minecraft:jungle_log, minecraft:stripped_jungle_log, minecraft:acacia_log, minecraft:stripped_acacia_log, minecraft:dark_oak_log, minecraft:stripped_dark_oak_log, minecraft:crimson_stem, minecraft:stripped_crimson_stem, minecraft:warped_stem, minecraft:stripped_warped_stem]; more materials with no recipe found, 12 beyond the 16 listed",
+    "recordCount": 38,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You need **8 ordinary logs** for 10 pistons. Each piston takes 3 planks, so you need 30 planks; 8 logs make 32, leaving 2 planks. [native:plan|minecraft:piston|10|4|0|minecraft:piston] [native:plan|minecraft:piston|10|4|1|minecraft:oak_planks]
+```
+
+`/navigate` results ([planner-pistons-nav.json](../../build/native-readiness-live/final/planner-pistons-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":18253,"modelTerminalMs":"16183","toolWallMs":"20","persistMs":"8"}. Full recipe inputs, outputs and per-record coverage: [planner-pistons-recipe-audit.json](../../build/native-readiness-live/final/planner-pistons-recipe-audit.json).
+
+#### Planner - smithing - PASS
+
+plan_recipe returns 41 records; the leading smithing record lists exactly one Netherite Upgrade Smithing Template, one diamond sword and one netherite ingot. A later search_recipe returns the same three inputs. The leading record is honestly PARTIAL because the result keeps the base item's components; the aggregate plan additionally names 14 omitted records, depth bounds, decoding/source coverage and the computed-result lookup caveat. The reply names all three smithing inputs and explains ingot production and template duplication. No native recipe viewer/navigation target is available.
+
+Question: `how do I make a netherite sword?`
+
+Request `8593d4fd-b603-4715-b5d6-3409819a9543`; conversation `4f0844ee-918f-4a33-8009-ac0687b1a13f`; status `completed`; saved=true. [planner-sword.json](../../build/native-readiness-live/final/planner-sword.json), [planner-sword-input.json](../../build/native-readiness-live/final/planner-sword-input.json), [planner-sword-saved.jsonl](../../build/native-readiness-live/final/planner-sword-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_nJYbCsDIGfIwon4aCdO3pZxh",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:netherite_sword",
+      "quantity": 1,
+      "depth": 3
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "14 records omitted at the output byte or record limit; refine the request to reduce output size; source-coverage=PARTIAL:minecraft:netherite_sword_smithing; constraint=output components=unknown: the result keeps the base item's components:minecraft:netherite_sword_smithing; decoding-status=PARTIAL:minecraft:netherite_sword_smithing; bounded-depth:minecraft:diamond_block; bounded-depth:minecraft:netherite_upgrade_smithing_template; bounded-depth:naturesaura:ancient_slab; bounded-depth:minecraft:oak_planks; bounded-depth:minecraft:spruce_planks; bounded-depth:minecraft:birch_planks; bounded-depth:minecraft:jungle_planks; bounded-depth:minecraft:acacia_planks; bounded-depth:minecraft:dark_oak_planks; bounded-depth:minecraft:crimson_planks; bounded-depth:minecraft:warped_planks; bounded-depth:minecraft:mangrove_planks; bounded-depth:minecraft:bamboo_planks; reason-cap=16; omitted=6; materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:deepslate_diamond_ore, minecraft:diamond_ore, minecraft:netherrack, minecraft:bamboo, minecraft:ancient_debris, minecraft:gold_ore, minecraft:nether_gold_ore, minecraft:deepslate_gold_ore]",
+    "recordCount": 41,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_jNV6OOH9AURJsNklIqhIN4jA",
+    "name": "search_recipe",
+    "arguments": {
+      "filter": {
+        "text": null,
+        "outputItem": "minecraft:netherite_sword",
+        "provider": null
+      },
+      "limit": 8,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "native: scanned=0-1820 of 1820 (ordinary recipes 1539, brewing candidates 281); phase=brewing; matches=1",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+To make a **netherite sword**, put a **Netherite Upgrade Smithing Template**, a **diamond sword**, and a **netherite ingot** into a smithing table. The upgrade uses up all three inputs. [native:minecraft:netherite_sword_smithing]
+
+If you need to make the ingot, smelt or blast **4 ancient debris** into **4 netherite scraps**, then craft those with **4 gold ingots**. [native:plan|minecraft:netherite_sword|1|3|38|minecraft:netherite_scrap] [native:plan|minecraft:netherite_sword|1|3|36|minecraft:netherite_ingot]
+
+You’ll need to obtain an upgrade template first. Once you have one, this pack’s recipe lets you copy it into **two templates** using the original template, **7 diamonds**, and **1 netherrack**. [native:plan|minecraft:netherite_sword|1|3|1|minecraft:netherite_upgrade_smithing_template]
+```
+
+`/navigate` results ([planner-sword-nav.json](../../build/native-readiness-live/final/planner-sword-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":27458,"modelTerminalMs":"25596","toolWallMs":"82","persistMs":"384"}. Full recipe inputs, outputs and per-record coverage: [planner-sword-recipe-audit.json](../../build/native-readiness-live/final/planner-sword-recipe-audit.json).
+
+#### Planner - map - PASS
+
+All 16 returned plan records were inspected. Exactly one route outputs minecraft:map: canonical recipe minecraft:map, requiring eight paper and one compass. None of the 16 records has a minecraft:filled_map input or a map-extension canonical recipe. The leading map record is COMPLETE. Aggregate PARTIAL names the iron-ingot/redstone depth limits and sugar-cane lookup caveat. The reply gives the correct grid, paper yield and compass inputs. [planner-map-route-check.json](../../build/native-readiness-live/final/planner-map-route-check.json).
+
+Question: `how do I make a map?`
+
+Request `b2437f4d-d319-43d0-8ea6-bd1c68bdeb2f`; conversation `6c954499-d695-4b20-9996-d42c9164c1f6`; status `completed`; saved=true. [planner-map.json](../../build/native-readiness-live/final/planner-map.json), [planner-map-input.json](../../build/native-readiness-live/final/planner-map-input.json), [planner-map-saved.jsonl](../../build/native-readiness-live/final/planner-map-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_KhXyeT7qdGoyzB4a4MWCuI5B",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:map",
+      "quantity": 1,
+      "depth": 2
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "bounded-depth:minecraft:iron_ingot; bounded-depth:minecraft:redstone; materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:sugar_cane]",
+    "recordCount": 16,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+To make an **empty map**, use a crafting table: put **1 compass in the center** and **8 paper in every surrounding slot**. [native:plan|minecraft:map|1|2|0|minecraft:map]
+
+If you need to make those first, **3 sugar cane make 3 paper**, so three crafts give you enough paper with one left over. [native:plan|minecraft:map|1|2|1|minecraft:paper] A compass takes **4 iron ingots around 1 redstone dust**. [native:plan|minecraft:map|1|2|2|minecraft:compass]
+```
+
+`/navigate` results ([planner-map-nav.json](../../build/native-readiness-live/final/planner-map-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":14726,"modelTerminalMs":"13313","toolWallMs":"9","persistMs":"2"}. Full recipe inputs, outputs and per-record coverage: [planner-map-recipe-audit.json](../../build/native-readiness-live/final/planner-map-recipe-audit.json).
+
+#### World - W1 stone - PASS
+
+Reused the W1 room at (1003.5,250,1002.5). Fresh command reads confirm 64 stone at (1002,250,1006), 7 inside the shulker box at (1003,250,1006), and 10 at (1004,250,1003). find_items is COMPLETE; four subsequent list_items reads are COMPLETE, including the nested holder. The reply totals 81 and binds each coordinate to the correct returned holder/item reference. All six returned navigation entries OPENED. Three additional successful navigation calls captured the three distinct chest outlines; the first two are partly occluded by V2Mule but their yellow outlines are visible. The saved reply renders six Show chips. [w1-fixture-check.json](../../build/native-readiness-live/final/w1-fixture-check.json), [w1-third-chest-check.json](../../build/native-readiness-live/final/w1-third-chest-check.json), [w1-visual-navigation.json](../../build/native-readiness-live/final/w1-visual-navigation.json), [w1-outline-1002.png](../../build/native-readiness-live/final/w1-outline-1002.png), [w1-outline-1003.png](../../build/native-readiness-live/final/w1-outline-1003.png), [w1-outline-1004.png](../../build/native-readiness-live/final/w1-outline-1004.png), [w1-reply.png](../../build/native-readiness-live/final/w1-reply.png).
+
+Question: `where is my stone?`
+
+Request `b2d6837a-d5c1-4b28-afdc-738d6664a491`; conversation `47db913d-922f-4ecc-adf5-bae47b43906a`; status `completed`; saved=true. [world-stone.json](../../build/native-readiness-live/final/world-stone.json), [world-stone-input.json](../../build/native-readiness-live/final/world-stone-input.json), [world-stone-saved.jsonl](../../build/native-readiness-live/final/world-stone-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_IlilcINukuQ0sSNOufBJo6B9",
+    "name": "find_items",
+    "arguments": {
+      "filter": {
+        "ids": [
+          "minecraft:stone"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "center": null,
+      "radius": null,
+      "includeNested": true,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "The read spanned multiple server ticks; game-time span: 1766422..1766425",
+    "recordCount": 4,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_blfsISIlZbvpWDFJPwCPqWZn",
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1002,250,1006",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:stone"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_2pgbGqbTFQ1UJEwxy9OQf1Dy",
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1003,250,1006",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:stone"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_WqFqWh5rKIUd4LwJWkRbnjiB",
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1004,250,1003",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:stone"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null
+  },
+  {
+    "group": "3",
+    "callId": "call_JQE8dFxubsl2xlxGPIY4ydjv",
+    "name": "list_items",
+    "arguments": {
+      "holder": "block:minecraft:overworld|1003,250,1006>minecraft/container#0@minecraft:shulker_box",
+      "inventory": null,
+      "filter": {
+        "ids": [
+          "minecraft:stone"
+        ],
+        "tags": null,
+        "text": null,
+        "tooltip": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I found **81 stone** in three nearby containers:
+
+- **64** at (1002, 250, 1006) [open container](world:block|minecraft:overworld|1002,250,1006). [stone](world:item|block:minecraft:overworld|1002,250,1006>minecraft/container#0@minecraft:stone)
+- **7** inside a shulker box in the container at (1003, 250, 1006) [open container](world:block|minecraft:overworld|1003,250,1006). [stone](world:item|block:minecraft:overworld|1003,250,1006>minecraft/container#0@minecraft:shulker_box>minecraft/container#0@minecraft:stone)
+- **10** at (1004, 250, 1003) [open container](world:block|minecraft:overworld|1004,250,1003). [stone](world:item|block:minecraft:overworld|1004,250,1003>minecraft/container#0@minecraft:stone)
+```
+
+`/navigate` results ([world-stone-nav.json](../../build/native-readiness-live/final/world-stone-nav.json)):
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1002,250,1006",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-block|minecraft:overworld|1002,250,1006",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-block|minecraft:overworld|1003,250,1006",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-block|minecraft:overworld|1004,250,1003",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-block|minecraft:overworld|1004,250,1003",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-block|minecraft:overworld|1003,250,1006",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":40386,"modelTerminalMs":"38619","toolWallMs":"218","persistMs":"8"}.
+
+#### World - sealed chest - PASS
+
+Used the retained known-table chest at (1608,250,1600), with minecraft:chests/simple_dungeon and seed 12345. list_items(targeted) returns PARTIAL with that concrete pending-loot detail. The reply says the loot is not generated and exact contents are decided on first opening. The chest is never opened; before/after /data reads retain the identical LootTable and LootTableSeed with no generated Items. Its world link OPENED. Seeds and raw table ids need not be named in this answer under the round-4 ruling.
+
+Before submission, the original viewing teleport had no floor and fell to y=64. A single support block was added, the player returned to the intended viewing point, and /state verified the exact chest crosshair before the one question. The support block was removed during cleanup. This preparation issue did not create a model request. [sealed-chest-before.json](../../build/native-readiness-live/final/sealed-chest-before.json), [sealed-chest-ready-state.json](../../build/native-readiness-live/final/sealed-chest-ready-state.json), [sealed-chest-support-setup.json](../../build/native-readiness-live/final/sealed-chest-support-setup.json), [sealed-chest-supported-state.json](../../build/native-readiness-live/final/sealed-chest-supported-state.json), [sealed-chest-after.json](../../build/native-readiness-live/final/sealed-chest-after.json).
+
+Question: `what's in this chest?`
+
+Request `c36b2ad1-59e8-4598-a83a-f1979c8bc83f`; conversation `661f65ce-2299-46ee-bb7d-29d0dd1f229a`; status `completed`; saved=true. [world-sealed.json](../../build/native-readiness-live/final/world-sealed.json), [world-sealed-input.json](../../build/native-readiness-live/final/world-sealed-input.json), [world-sealed-saved.jsonl](../../build/native-readiness-live/final/world-sealed-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_gC1pAyTAPakxe28Q84ovgnfG",
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "minecraft/container's loot has not been generated yet (table minecraft:chests/simple_dungeon, seed 12345); its contents are decided when it is first opened; read_loot with the container's place reads the table without opening it",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The chest at (1608, 250, 1600) [world:block|minecraft:overworld|1608,250,1600] hasn’t generated its loot yet, so I can’t tell you its exact contents. Its loot will be decided when it’s first opened. [world:block|minecraft:overworld|1608,250,1600]
+```
+
+`/navigate` results ([world-sealed-nav.json](../../build/native-readiness-live/final/world-sealed-nav.json)):
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1608,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":14597,"modelTerminalMs":"13182","toolWallMs":"13","persistMs":"11"}.
+
+#### World - librarian - PASS
+
+Reused master librarian bf97330a-ac52-4d75-88d5-b12e792bc5a6 at (2402,250,2400). The initial selector read immediately after teleport ran before its chunk loaded; a later UUID read established level=5, profession=librarian and all 12 retained offers before submission. inspect_entity returns COMPLETE. The reply lists the ten paper offers and their exact emerald prices, 12 emeralds plus a book for Mending I, and 4 emeralds for Potion of Swiftness, without trimming; the entity link OPENED. [librarian-fixture-check.json](../../build/native-readiness-live/final/librarian-fixture-check.json), [librarian-loaded-ground-truth.json](../../build/native-readiness-live/final/librarian-loaded-ground-truth.json), [librarian-state.json](../../build/native-readiness-live/final/librarian-state.json).
+
+Question: `what does this villager sell?`
+
+Request `4a50cf80-2c7b-4522-ab44-b78b13efbbf8`; conversation `443163a5-49ad-437f-a21d-f0d6393b32b3`; status `completed`; saved=true. [world-librarian.json](../../build/native-readiness-live/final/world-librarian.json), [world-librarian-input.json](../../build/native-readiness-live/final/world-librarian-input.json), [world-librarian-saved.jsonl](../../build/native-readiness-live/final/world-librarian-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_hnLfokEHxDQrWDnwQUnNzdxB",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "bf97330a-ac52-4d75-88d5-b12e792bc5a6"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The librarian at **(2402, 250, 2400)** sells these 12 offers [Librarian](world:entity|bf97330a-ac52-4d75-88d5-b12e792bc5a6):
+
+- **Paper:** 1 for 5 emeralds; 2 for 7; 3 for 9; 4 for 11; 5 for 13; 6 for 15; 7 for 17; 8 for 19; 9 for 21; or 10 for 23.
+- **Mending I enchanted book:** 12 emeralds **and 1 book**.
+- **Potion of Swiftness:** 4 emeralds.
+
+All 12 offers are currently in stock. Those are the prices shown for you; the villager’s recorded reputation with you is **0**, so it currently shows no reputation discount. The game can also apply reputation or Hero of the Village discounts when trading starts, so the price in the trade screen may change. [Librarian](world:entity|bf97330a-ac52-4d75-88d5-b12e792bc5a6)
+```
+
+`/navigate` results ([world-librarian-nav.json](../../build/native-readiness-live/final/world-librarian-nav.json)):
+
+```json
+[
+  {
+    "targetId": "world-entity|bf97330a-ac52-4d75-88d5-b12e792bc5a6",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":18717,"modelTerminalMs":"17245","toolWallMs":"92","persistMs":"7"}.
+
+#### Journal - breaks - PASS
+
+Reused the M5 sand area, filling exactly 5 by 10 sand blocks at x=2500..2504,y=250,z=2500..2509. Exactly 50 distinct /player/break operations succeeded, in 492 ms total; the longest request was 19 ms. search_journal uses lastMinutes=5 and types=[break], returning one COMPLETE event, 179, for all 50 sand. The reply gives the amount and place; its link OPENED. This is M5-lite, without the older 2,000-block/TNT stress workload. [journal-break-fixture.json](../../build/native-readiness-live/final/journal-break-fixture.json), [journal-break-all.json](../../build/native-readiness-live/final/journal-break-all.json), [journal-break-timing.json](../../build/native-readiness-live/final/journal-break-timing.json), [journal-state-after-breaks.json](../../build/native-readiness-live/final/journal-state-after-breaks.json).
+
+Question: `what did I break in the last few minutes?`
+
+Request `be614e10-6fc3-4773-b9fc-fd5d76566505`; conversation `a4ebea3b-a084-4aae-b054-50fa4fcfa2e7`; status `completed`; saved=true. [journal-breaks.json](../../build/native-readiness-live/final/journal-breaks.json), [journal-breaks-input.json](../../build/native-readiness-live/final/journal-breaks-input.json), [journal-breaks-saved.jsonl](../../build/native-readiness-live/final/journal-breaks-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_E9VfA631tdiSXmK82SrRKfbt",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 5
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You broke **50 sand blocks** in the last five minutes, around (2500, 250, 2500). [View the area](journal:event:179)
+```
+
+`/navigate` results ([journal-breaks-nav.json](../../build/native-readiness-live/final/journal-breaks-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|2500,250,2500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":14705,"modelTerminalMs":"13289","toolWallMs":"11","persistMs":"9"}.
+
+#### Journal - note report - PASS
+
+The one POST /chat accepted request bf07ac91-ba6f-4032-aa79-a3e8084a9421. Its immediate first GET returned HTTP 400, "No saved request"; the helper ended polling on this response. A later GET of that same request returned completed, saved=true. No POST or question was repeated. The bridge lookup failure is recorded separately below.
+
+The original request calls remember with at.type=player and creates n2485e791 at minecraft:overworld|2500,250,2500, trust=player-said, with the matching conversation/request origin. The reply acknowledges the build without announcing note-saving. The returned note navigation target OPENED. [note-report.json](../../build/native-readiness-live/final/note-report.json), [note-report-first-poll-observation.json](../../build/native-readiness-live/final/note-report-first-poll-observation.json), [note-report-recovery-read.json](../../build/native-readiness-live/final/note-report-recovery-read.json).
+
+Question: `I built a test tower here`
+
+Request `bf07ac91-ba6f-4032-aa79-a3e8084a9421`; conversation `4c05385f-cbd2-4614-ac5c-b128c9b35e3e`; status `completed`; saved=true. [note-report-recovery-read.json](../../build/native-readiness-live/final/note-report-recovery-read.json), [note-report-input.json](../../build/native-readiness-live/final/note-report-input.json), [note-report-saved.jsonl](../../build/native-readiness-live/final/note-report-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_81zDyhutDZKcfbQ62az9ATtM",
+    "name": "remember",
+    "arguments": {
+      "text": "I built a test tower here.",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "tower"
+      ]
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Nice—you built a test tower here.
+```
+
+`/navigate` results ([note-report-recovery-nav.json](../../build/native-readiness-live/final/note-report-recovery-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-note|n2485e791",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":104,"modelTerminalMs":"16279","toolWallMs":"8","persistMs":"8"}. The helper's wall time ends at the first failed GET; model-terminal timing is from the recovered original request.
+
+#### Journal - note recall - PASS
+
+search_journal with notesOnly=true and text="test tower" returns n2485e791. Aggregate PARTIAL explicitly preserves the older recording-start and recording-gap limits; the current note is present. The reply correctly attributes the fact to the player, gives the Overworld coordinates and uses that exact note link. /navigate OPENED. This question uses a new conversation, so the result is not relying on the preceding chat's text.
+
+Question: `where is my test tower?`
+
+Request `1e44a502-a685-4522-8ade-9ef0ceb45a7e`; conversation `cbf56c31-d109-4de7-b198-da6199e5b765`; status `completed`; saved=true. [note-recall.json](../../build/native-readiness-live/final/note-recall.json), [note-recall-input.json](../../build/native-readiness-live/final/note-recall-input.json), [note-recall-saved.jsonl](../../build/native-readiness-live/final/note-recall-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_gUAvM21Ja4cugdLDaBUuECYy",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "test tower",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You told me you built your test tower at **(2500, 250, 2500) in the Overworld** [test tower](journal:note:n2485e791). That’s also your position in the latest gameplay observation.
+```
+
+`/navigate` results ([note-recall-nav.json](../../build/native-readiness-live/final/note-recall-nav.json)):
+
+```json
+[
+  {
+    "targetId": "journal-note|n2485e791",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":18255,"modelTerminalMs":"16631","toolWallMs":"3","persistMs":"7"}.
+
+#### Progress - advancements - PASS
+
+The first list_progress page contains all seven COMPLETE tree summaries; their totals sum to 2,147 with 10 done and 2,137 missing, including the retained 2,000-entry Acceptance fixture. The assistant follows one unchanged continuation, then independently inspects Adventuring Time and Hot Tourist Destinations in one provider round. Both detail reads are COMPLETE, with 9/53 and 2/5 criteria. The answer uses complete per-tree totals and clearly labels selected examples; enumerating all 2,137 missing records is not required under the round-2 controller ruling. It does not claim the two partial listing pages exhaust all entries. All 73 returned advancement navigation targets OPENED. All seven tree references are returned as evidence; three tree targets and the supported individual-entry targets are navigable. [advancement-total-audit.json](../../build/native-readiness-live/final/advancement-total-audit.json).
+
+Question: `what advancements am I missing?`
+
+Request `b71dad7f-b645-4c5c-9041-892f62730b29`; conversation `b74b16dd-2f13-4adb-8f3c-a118087c20ec`; status `completed`; saved=true. [progress-advancements.json](../../build/native-readiness-live/final/progress-advancements.json), [progress-advancements-input.json](../../build/native-readiness-live/final/progress-advancements-input.json), [progress-advancements-saved.jsonl](../../build/native-readiness-live/final/progress-advancements-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_frnkLQHY8URj2IO36AdSQzIJ",
+    "name": "list_progress",
+    "arguments": {
+      "tree": null,
+      "status": [
+        "in_progress",
+        "available",
+        "locked"
+      ],
+      "text": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "progress:5dc24d1c-5d31-4ad5-80b6-43e8cf2d41dd",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": null,
+        "status": [
+          "in_progress",
+          "available",
+          "locked"
+        ],
+        "text": null,
+        "cursor": "progress:5dc24d1c-5d31-4ad5-80b6-43e8cf2d41dd"
+      }
+    }
+  },
+  {
+    "group": "2",
+    "callId": "call_kk3Pl8D318F2qHCNSSw0ZdJC",
+    "name": "list_progress",
+    "arguments": {
+      "tree": null,
+      "status": [
+        "in_progress",
+        "available",
+        "locked"
+      ],
+      "text": null,
+      "cursor": "progress:5dc24d1c-5d31-4ad5-80b6-43e8cf2d41dd"
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "progress:db781bce-654f-40f7-92f7-27e390dd7f47",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": null,
+        "status": [
+          "in_progress",
+          "available",
+          "locked"
+        ],
+        "text": null,
+        "cursor": "progress:db781bce-654f-40f7-92f7-27e390dd7f47"
+      }
+    }
+  },
+  {
+    "group": "3",
+    "callId": "call_yjDzLPfSE9SLRGh2yycZoVmf",
+    "name": "inspect_progress",
+    "arguments": {
+      "id": "minecraft/minecraft:adventure/adventuring_time"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "3",
+    "callId": "call_gQxlJwj3LmLb7SuoYaGvAMoI",
+    "name": "inspect_progress",
+    "arguments": {
+      "id": "minecraft/minecraft:nether/explore_nether"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You’re missing **2,137 of the 2,147 advancements** shown across your pack’s seven trees. That includes **2,000 entries in a tree called “Acceptance 0”**, so a full name-by-name list would be unusually long. The tree totals give this breakdown: [progress:tree|minecraft/minecraft:adventure/root] [progress:tree|minecraft/minecraft:end/root] [progress:tree|minecraft/minecraft:husbandry/root] [progress:tree|minecraft/minecraft:nether/root] [progress:tree|minecraft/minecraft:story/root] [progress:tree|minecraft/naturesaura:root] [progress:tree|minecraft/packsage_acceptance:root]
+
+| Tree | Missing |
+|---|---:|
+| [Adventure](progress:tree|minecraft/minecraft:adventure/root) | 40 of 44 |
+| The End | 9 of 9 |
+| Husbandry | 29 of 29 |
+| [Nether](progress:tree|minecraft/minecraft:nether/root) | 22 of 24 |
+| [Minecraft](progress:tree|minecraft/minecraft:story/root) | 12 of 16 |
+| Nature’s Aura | 25 of 25 |
+| Acceptance 0 | 2,000 of 2,000 |
+
+Two challenges you’ve **started but haven’t finished** are [Adventuring Time](progress:progress|minecraft/minecraft:adventure/adventuring_time), with **9 of 53 biomes** visited, and [Hot Tourist Destinations](progress:progress|minecraft/minecraft:nether/explore_nether), with **2 of 5 Nether biomes** visited. For the latter, you still need **Crimson Forest, Warped Forest, and Basalt Deltas**. [progress:progress|minecraft/minecraft:adventure/adventuring_time] [progress:progress|minecraft/minecraft:nether/explore_nether]
+
+As a few other missing examples—not the full list—you can still do [Take Aim](progress:progress|minecraft/minecraft:adventure/shoot_arrow), [Minecraft: Trial(s) Edition](progress:progress|minecraft/minecraft:adventure/minecraft_trials_edition), [Into Fire](progress:progress|minecraft/minecraft:nether/obtain_blaze_rod), and [Enchanter](progress:progress|minecraft/minecraft:story/enchant_item). I’ve left out the other individual names because of the size of the list. [progress:progress|minecraft/minecraft:adventure/shoot_arrow] [progress:progress|minecraft/minecraft:adventure/minecraft_trials_edition] [progress:progress|minecraft/minecraft:nether/obtain_blaze_rod] [progress:progress|minecraft/minecraft:story/enchant_item]
+```
+
+`/navigate` results ([progress-advancements-nav.json](../../build/native-readiness-live/final/progress-advancements-nav.json)):
+
+```json
+[
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/root",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/root",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/root",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/avoid_vibration",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/brush_armadillo",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/crafters_crafting_crafters",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/fall_from_world_height",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/honey_block_slide",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/kill_all_mobs",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/kill_mob_near_sculk_catalyst",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/shoot_arrow",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/bullseye",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/sniper_duel",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/throw_trident",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/very_very_frightening",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/totem_of_undying",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/lightning_rod_with_villager_no_fire",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/minecraft_trials_edition",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/blowback",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/lighten_up",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/overoverkill",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/under_lock_and_key",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/revaulting",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/who_needs_rockets",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/ol_betsy",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/two_birds_one_arrow",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/whos_the_pillager_now",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/read_power_of_chiseled_bookshelf",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/salvage_sherd",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/craft_decorated_pot_using_only_sherds",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/adventuring_time",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/play_jukebox_in_meadows",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/walk_on_powder_snow_with_leather_boots",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/spyglass_at_parrot",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/spyglass_at_ghast",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/spyglass_at_dragon",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/summon_iron_golem",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/trade_at_world_height",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/trim_with_any_armor_pattern",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/trim_with_all_exclusive_armor_patterns",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/distract_piglin",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/fast_travel",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/find_bastion",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/loot_bastion",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/find_fortress",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/get_wither_skull",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/summon_wither",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/create_full_beacon",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/obtain_blaze_rod",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/brew_potion",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/all_potions",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/obtain_ancient_debris",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/netherite_armor",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/use_lodestone",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/obtain_crying_obsidian",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/charge_respawn_anchor",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/return_to_sender",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/uneasy_alliance",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/ride_strider",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/explore_nether",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/ride_strider_in_overworld_lava",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/root",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/mine_stone",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/upgrade_tools",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/iron_tools",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/enchant_item",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/lava_bucket",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/form_obsidian",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/cure_zombie_villager",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/follow_ender_eye",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/enter_the_end",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/obtain_armor",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/deflect_arrow",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":48568,"modelTerminalMs":"46664","toolWallMs":"136","persistMs":"6"}.
+
+#### Progress - walking - PASS
+
+list_statistics reads the custom minecraft:walk_one_cm counter with COMPLETE coverage. Its 4,043-centimetre value matches the world's saved statistic read after M5-lite close/reopen. The reply correctly converts to 40.43 blocks. Statistics evidence has no navigation target. [walk-ground-truth.json](../../build/native-readiness-live/final/walk-ground-truth.json).
+
+Question: `how far have I walked?`
+
+Request `08607177-81fb-4284-b2bc-11265ec7e7a9`; conversation `dc4a6bd4-4f80-4175-8067-7656cc93b710`; status `completed`; saved=true. [progress-walk.json](../../build/native-readiness-live/final/progress-walk.json), [progress-walk-input.json](../../build/native-readiness-live/final/progress-walk-input.json), [progress-walk-saved.jsonl](../../build/native-readiness-live/final/progress-walk-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_N3G6mQMawFsFv9iexBoGFOSk",
+    "name": "list_statistics",
+    "arguments": {
+      "categories": [
+        "custom"
+      ],
+      "subjects": {
+        "ids": [
+          "minecraft:walk_one_cm"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You’ve walked **40.43 blocks** since you started this world. [progress:stat|minecraft|custom|minecraft:walk_one_cm]
+```
+
+`/navigate` results ([progress-walk-nav.json](../../build/native-readiness-live/final/progress-walk-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":19117,"modelTerminalMs":"16815","toolWallMs":"50","persistMs":"894"}.
+
+### M5-lite - PASS
+
+Immediately after the 50-break journal question and its navigation, /world/leave saved and closed the world. Both complete summary lines below show offered=written=50, overflowed=0, failed=0 and hook failures=0. There was one tick at or over 1 ms among 6,447, with **0 after the first 200**; the slowest Post hook was 2,689 us at gameplay hook 45 of 6,497. World start and stop is 3 ms in the server line and 8 ms in the writer line. The early outlier is retained and excluded only under the round-7/8 controller criterion. This representative 50-break check does not claim the earlier stress workload or continuous visual stall tracing was rerun. The save reopened successfully through /world/open. [m5-lite-world-leave.json](../../build/native-readiness-live/final/m5-lite-world-leave.json), [m5-lite-summary.json](../../build/native-readiness-live/final/m5-lite-summary.json), [m5-lite-latest.log](../../build/native-readiness-live/final/m5-lite-latest.log), [m5-lite-world-open.json](../../build/native-readiness-live/final/m5-lite-world-open.json), [m5-lite-reopened-state.json](../../build/native-readiness-live/final/m5-lite-reopened-state.json).
+
+Both full `PackSage journal:` lines:
+
+```text
+[26Oct2026 15:16:53.055] [Server thread/INFO] [PackSage/]: PackSage journal: offered 50, written 50 (overflowed 0), failed 0, hook failures 0, dropped explosion positions 0, unread explosion positions 0, tracker evictions 0, oversized snapshots 0, slowest batch 1 ms, hooks 186 ms total, slowest tick 2689 us, ticks at or over 1 ms 1 of 6447 (0 after the first 200), slowest hook Post 2689 us (gameplay hook 45 of 6497), world start and stop 3 ms
+[26Oct2026 15:16:53.058] [packsage-journal/INFO] [PackSage/]: PackSage journal: offered 50, written 50 (overflowed 0), failed 0, hook failures 0, dropped explosion positions 0, unread explosion positions 0, tracker evictions 0, oversized snapshots 0, slowest batch 1 ms, hooks 190 ms total, slowest tick 2689 us, ticks at or over 1 ms 1 of 6447 (0 after the first 200), slowest hook Post 2689 us (gameplay hook 45 of 6497), world start and stop 8 ms
+```
+
+### Failures
+
+#### Planner - from scratch - FAIL
+
+Classification: **remaining prompt compliance**. The leading beacon recipe is COMPLETE and has the correct 5 glass, 1 Nether star and 3 obsidian. All three plan records return; aggregate PARTIAL names the Nature's Aura sand coverage, unknown catalysts/remainders and UNKNOWN decoding. The detail explicitly says "materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:red_sand, minecraft:nether_star, minecraft:obsidian]". That satisfies the round-7 plan-detail ruling.
+
+The reply gives the quantities, glass smelting and a web-sourced Wither route, qualified against the empty pack loot-table read. It never explains how to obtain obsidian or acknowledges its returned lookup limit. This retains the round-5/7 reply-compliance failure. It also adds beacon-use instructions beyond the from-scratch material question. The raw activities include three completed provider web-search activities; their search arguments are not exposed by this bridge and are not invented in this record. The answer was not resubmitted.
+
+Question: `what do I need to make a beacon from scratch?`
+
+Request `eae6a832-12d8-47d3-968f-a41af3887048`; conversation `50c29808-2f12-4b67-8063-cd8ffd0a2ac4`; status `completed`; saved=true. [planner-scratch.json](../../build/native-readiness-live/final/planner-scratch.json), [planner-scratch-input.json](../../build/native-readiness-live/final/planner-scratch-input.json), [planner-scratch-saved.jsonl](../../build/native-readiness-live/final/planner-scratch-saved.jsonl).
+
+Calls (exact arguments, provider-round groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_HnL3g4W60eAHj5aUkx6mb1Mj",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:beacon",
+      "quantity": 1,
+      "depth": 5
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "source-coverage=PARTIAL:naturesaura:altar/sand; constraint=catalysts=unknown:naturesaura:altar/sand; constraint=remainders=unknown:naturesaura:altar/sand; decoding-status=UNKNOWN:naturesaura:altar/sand; materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:red_sand, minecraft:nether_star, minecraft:obsidian]",
+    "recordCount": 3,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_d0BHXirM46NSO58PhdNM2p3K",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": "minecraft:wither",
+      "place": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "this table drops nothing",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+To make **one beacon**, you need **5 glass, 3 obsidian, and 1 nether star**. Put the glass across the top row and at both ends of the middle row, the star in the center, and the obsidian across the bottom. You can smelt **5 sand or red sand** for the glass. [native:plan|minecraft:beacon|1|5|0|minecraft:beacon] [native:plan|minecraft:beacon|1|5|1|minecraft:glass]
+
+The big “from scratch” step is the **nether star**: collect **3 wither skeleton skulls** and **4 soul sand**, summon the Wither, and defeat it. That route comes from Minecraft’s guide; this pack’s Wither loot-table read is empty, so it does **not** independently confirm how the star drops here. ([minecraft.net](https://www.minecraft.net/fr-fr/article/taking-inventory--nether-star?utm_source=openai)) [world:loot|minecraft:entities/wither]
+
+To **use** the crafted beacon, start with a **3×3 platform of 9 iron blocks** (81 iron ingots), place the beacon in the center on top, then select an effect and supply an ingot in its interface. Larger pyramids unlock more power; the 9-block platform is the smallest starting point. ([minecraft.net](https://www.minecraft.net/fi-fi/article/block-iron?utm_source=openai))
+```
+
+`/navigate` results ([planner-scratch-nav.json](../../build/native-readiness-live/final/planner-scratch-nav.json)):
+
+```json
+[]
+```
+
+Timing: {"wallMs":60609,"modelTerminalMs":"59151","toolWallMs":"82","persistMs":"4"}. Full recipe inputs, outputs and per-record coverage: [planner-scratch-recipe-audit.json](../../build/native-readiness-live/final/planner-scratch-recipe-audit.json).
+
+#### Debug bridge request lookup - observed failure; original note completed
+
+Classification: **transient debug-bridge request discoverability**; no source-level cause is inferred. POST /chat accepted the note at 2026-10-26T07:17:08.931Z with request bf07ac91-ba6f-4032-aa79-a3e8084a9421. The immediate GET completed at 07:17:08.953Z with HTTP 400 and `{ "error": "No saved request" }`. A GET of the identical id at 07:17:43.460Z returned HTTP 200, completed and saved. The first error remains in [note-report.json](../../build/native-readiness-live/final/note-report.json) and [note-report-first-poll-observation.json](../../build/native-readiness-live/final/note-report-first-poll-observation.json); the original completed turn is [note-report-recovery-read.json](../../build/native-readiness-live/final/note-report-recovery-read.json) and [note-report-saved.jsonl](../../build/native-readiness-live/final/note-report-saved.jsonl). This is an additional bridge observation, not a failed or repeated model answer; functional note report/recall pass above. No retry was used to replace a failed answer.
+
+### Final state
+
+The 15 requested checks give **14 PASS, 1 FAIL, 0 NOT RUN**. The from-scratch beacon failure is prompt compliance; its native plan detail passes. The additional transient bridge lookup failure is retained separately. All 13 questions completed and saved in 13 distinct conversations; 23 native tool calls returned no errors. All 84 returned navigation entries OPENED, and the three additional W1 outline-capture calls also OPENED, for **87 successful navigation calls**. Earlier round failures retain their controller rulings.
+
+Minecraft is running, unpaused, in PackSage Adapter Filter Live Test with the bridge enabled, screen/menu closed and player not riding. The player was returned to (1191.5,250,1057.5), yaw -161.56505 and pitch 21.41126. The selected main-hand stack was restored to its observed 16 eggs, and the temporary viewing support was removed. No force-loaded chunks or daylight changes were introduced; the test-tower note remains as requested. Final GET /prompt has text=null and exact candidate 11. Installed JAR hash is unchanged. The checkout remained at installed source HEAD 5a434d11a378f05798468d5087fb6a7b30f9ef27 until this validation-only commit. [cleanup.json](../../build/native-readiness-live/final/cleanup.json), [final-state.json](../../build/native-readiness-live/final/final-state.json), [final-state.png](../../build/native-readiness-live/final/final-state.png), [final-verification.json](../../build/native-readiness-live/final/final-verification.json). Only this validation file is committed; raw evidence remains ignored under build/native-readiness-live/final/.

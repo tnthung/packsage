@@ -141,4 +141,11 @@ class RecipeCardModelsTest {
         assertEquals(34, stonecutting.height());
         assertEquals(9, stonecutting.slots().getFirst().y());
     }
+    @Test void shapedOneByTwoKeepsBothIngredients() {
+        var card = RecipeCardModels.fromRecord(record("crafting", ",\"shape\":{\"width\":1,\"height\":2}",
+                "[" + slot("slot-0", "item", "minecraft:stone") + "," + slot("slot-1", "item", "minecraft:dirt") + "]",
+                output("item", "minecraft:stone", 1))).orElseThrow();
+        assertEquals("minecraft:stone", card.slots().get(1).stacks().getFirst().identity());
+        assertEquals("minecraft:dirt", card.slots().get(4).stacks().getFirst().identity());
+    }
 }

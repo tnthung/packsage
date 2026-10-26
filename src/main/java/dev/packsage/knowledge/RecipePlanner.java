@@ -146,9 +146,8 @@ public final class RecipePlanner {
                     if (!processedAlternativeSets.add(slot.alternatives())) continue;
                     boolean alternativeComplete = false;
                     boolean alternativeIncomplete = false;
-                    long equivalentSlots = candidate.recipePayload().inputs().stream()
-                            .filter(other -> other.alternatives().equals(slot.alternatives())).count();
-                    var groupedBatches = batches == null ? null : multiply(batches, equivalentSlots);
+                    var groupedBatches = batches == null ? null : multiply(batches, candidate.recipePayload().inputs().stream()
+                            .filter(other -> other.alternatives().equals(slot.alternatives())).count());
                     for (Evidence.RecipeAlternative alternative : slot.alternatives()) {
                         if (state.branches >= MAX_BRANCHES) {
                             alternativeIncomplete = true;

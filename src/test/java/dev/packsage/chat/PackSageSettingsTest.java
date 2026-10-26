@@ -129,6 +129,28 @@ class PackSageSettingsTest {
     }
 
     @Test
+    void verbosityPersistsDefaultsToNormalAndOnlyAddsARequestInstruction() throws Exception {
+        assertEquals(PackSageSettings.Verbosity.NORMAL, PackSageSettings.defaults().verbosity());
+        Path input = temporaryDirectory.resolve("verbosity.properties");
+        Files.writeString(input, "verbosity=concise\n");
+        var settings = PackSageSettings.load(input);
+        assertEquals(PackSageSettings.Verbosity.CONCISE, settings.verbosity());
+        Path output = temporaryDirectory.resolve("verbosity-saved.properties");
+        settings.save(output).join();
+        Properties properties = new Properties();
+        try (InputStream stream = Files.newInputStream(output)) {
+            properties.load(stream);
+        }
+        assertEquals("concise", properties.getProperty("verbosity"));
+        Files.writeString(input, "verbosity=loud\n");
+        assertEquals(PackSageSettings.Verbosity.NORMAL, PackSageSettings.load(input).verbosity());
+
+        assertEquals("base", PackSageSettings.Verbosity.NORMAL.apply("base"));
+        assertTrue(PackSageSettings.Verbosity.CONCISE.apply("base").startsWith("base\n\nAnswer detail: concise."));
+        assertTrue(PackSageSettings.Verbosity.DETAILED.apply("base").startsWith("base\n\nAnswer detail: detailed."));
+    }
+
+    @Test
     void malformedNewSettingsKeepDefaults() throws Exception {
         Path path = temporaryDirectory.resolve("malformed-new-settings.properties");
         Files.writeString(path, "sendShortcut=bogus\nsessionsBeforeCollapse=not-a-number\n");

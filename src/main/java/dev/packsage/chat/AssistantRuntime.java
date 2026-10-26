@@ -1817,11 +1817,13 @@ public final class AssistantRuntime implements ChatActions {
                     request -> executeTool(holder, request), historyCounter, prepared -> {
                         ModelBackend.Request request = requestBuilder.apply(prepared);
                         String developerPrompt;
+                        PackSageSettings.Verbosity verbosity;
                         synchronized (stateLock) {
                             developerPrompt = settings.developerPrompt();
+                            verbosity = settings.verbosity();
                         }
-                        return new ModelBackend.Request(request.modelId(), developerPrompt == null
-                                ? request.instructions() : developerPrompt, request.input(),
+                        return new ModelBackend.Request(request.modelId(), verbosity.apply(developerPrompt == null
+                                ? request.instructions() : developerPrompt), request.input(),
                                 PackSageTools.definitions(initializedKnowledge.metadata()), request.searchMode(), request.requestId(),
                                 request.outputBudget(), request.reasoningEffort());
                     }, view -> publishHolderView(holder, view), turn -> recordCompletion(holder, turn));

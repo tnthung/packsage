@@ -14,6 +14,24 @@ public final class PackSageSettings {
     public enum SendShortcut { ENTER, CTRL_ENTER }
     public enum CommandConfirmation { ALWAYS, RISKY, DIRECT }
 
+    /** How much explanation answers carry; one request instruction, never a change to the evidence or citation rules. */
+    public enum Verbosity {
+        CONCISE("Answer detail: concise. Give the conclusion and only the steps, amounts and links the player needs to act; leave out alternatives, background and intermediate breakdowns unless asked."),
+        NORMAL(null),
+        DETAILED("Answer detail: detailed. After the conclusion, include the relevant alternatives, intermediate steps with their amounts, and the reasons behind each recommendation.");
+
+        private final String instruction;
+
+        Verbosity(String instruction) {
+            this.instruction = instruction;
+        }
+
+        /** The instructions with this level's request instruction appended; normal leaves them unchanged. */
+        public String apply(String instructions) {
+            return instruction == null ? instructions : instructions + "\n\n" + instruction;
+        }
+    }
+
     public static final int DEFAULT_HISTORY_TURNS = 10;
     public static final int DEFAULT_HISTORICAL_TOKENS = 12_000;
     public static final int DEFAULT_SESSIONS_BEFORE_COLLAPSE = 2;
@@ -35,6 +53,7 @@ public final class PackSageSettings {
     private int sessionsBeforeCollapse;
     private String modelId;
     private ModelBackend.ReasoningEffort reasoningEffort;
+    private Verbosity verbosity = Verbosity.NORMAL;
     private volatile String developerPrompt;
     private final SettingsWriter writer;
 
@@ -94,6 +113,9 @@ public final class PackSageSettings {
                 settings.developerPrompt = configuredPrompt;
             }
             try {
+                settings.verbosity = Verbosity.valueOf(properties.getProperty("verbosity", "NORMAL").toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException ignored) { }
+            try {
                 settings.reasoningEffort = ModelBackend.ReasoningEffort.valueOf(properties.getProperty("reasoningEffort", "DEFAULT").toUpperCase(java.util.Locale.ROOT));
             } catch (IllegalArgumentException ignored) { }
             try {
@@ -140,6 +162,7 @@ public final class PackSageSettings {
         if (modelId != null) properties.put("modelId", modelId);
         if (developerPrompt != null) properties.put("developerPrompt", developerPrompt);
         properties.put("reasoningEffort", reasoningEffort.name().toLowerCase(java.util.Locale.ROOT));
+        properties.put("verbosity", verbosity.name().toLowerCase(java.util.Locale.ROOT));
         return properties;
     }
 
@@ -156,6 +179,7 @@ public final class PackSageSettings {
     public int sessionsBeforeCollapse() { return sessionsBeforeCollapse; }
     public String modelId() { return modelId; }
     public ModelBackend.ReasoningEffort reasoningEffort() { return reasoningEffort; }
+    public Verbosity verbosity() { return verbosity; }
     public String developerPrompt() { return developerPrompt; }
 
     public void setOpenPaused(boolean value) { openPaused = value; }
@@ -165,6 +189,7 @@ public final class PackSageSettings {
     public void setSendShortcut(SendShortcut value) { sendShortcut = value == null ? SendShortcut.ENTER : value; }
     public void setCommandConfirmation(CommandConfirmation value) { commandConfirmation = value == null ? CommandConfirmation.ALWAYS : value; }
     public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; }
+    public void setVerbosity(Verbosity value) { verbosity = value == null ? Verbosity.NORMAL : value; }
     public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; }
 
     public boolean setDeveloperPrompt(String value) {

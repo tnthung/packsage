@@ -18,6 +18,7 @@ import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -47,12 +48,40 @@ final class MinecraftTrades {
             var priced = reputation != null && !trading;
             var hero = priced ? player.getEffect(MobEffects.HERO_OF_THE_VILLAGE) : null;
             var heroAmplifier = hero == null ? -1 : hero.getAmplifier();
+            record ItemFactsKey(String item, Evidence.JsonObject facts) { }
+            var itemFacts = new ArrayList<Evidence.JsonValue>();
+            var itemFactsIndexes = new LinkedHashMap<ItemFactsKey, Integer>();
             var entries = new ArrayList<Evidence.JsonValue>();
             for (int index = 0; index < offers.size() && index < MAX_OFFERS; index++) {
                 var offer = offers.get(index);
-                entries.add(offer(offer, index, priced ? costForPlayer(offer, reputation, heroAmplifier) : null, registries));
+                var fields = new LinkedHashMap<>(offer(offer, index, priced ? costForPlayer(offer, reputation, heroAmplifier) : null, registries).values());
+                for (var part : List.of("costA", "costB", "result")) {
+                    if (!(fields.get(part) instanceof Evidence.JsonObject stack)) continue;
+                    var stackFacts = new LinkedHashMap<>(stack.values());
+                    var item = (Evidence.JsonString) stackFacts.remove("item");
+                    var count = stackFacts.remove("count");
+                    var baseCount = stackFacts.remove("baseCount");
+                    var key = new ItemFactsKey(item.value(), new Evidence.JsonObject(stackFacts));
+                    var itemFactsIndex = itemFactsIndexes.get(key);
+                    if (itemFactsIndex == null) {
+                        itemFactsIndex = itemFacts.size();
+                        itemFactsIndexes.put(key, itemFactsIndex);
+                        stackFacts.put("item", item);
+                        itemFacts.add(new Evidence.JsonObject(stackFacts));
+                    }
+                    var reference = new LinkedHashMap<String, Evidence.JsonValue>();
+                    reference.put("item", item);
+                    if (count != null) reference.put("count", count);
+                    if (baseCount != null) reference.put("baseCount", baseCount);
+                    reference.put("itemFactsIndex", number(itemFactsIndex));
+                    fields.put(part, new Evidence.JsonObject(reference));
+                }
+                entries.add(new Evidence.JsonObject(fields));
             }
-            values.put("offers", new Evidence.JsonArray(entries));
+            var trade = new LinkedHashMap<String, Evidence.JsonValue>();
+            trade.put("itemFacts", new Evidence.JsonArray(itemFacts));
+            trade.put("entries", new Evidence.JsonArray(entries));
+            values.put("offers", new Evidence.JsonObject(trade));
             values.put("offerCount", number(offers.size()));
             if (offers.size() > MAX_OFFERS) values.put("offersStatus", new Evidence.JsonString("bounded"));
         }

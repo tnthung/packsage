@@ -134,7 +134,8 @@ class PackSageToolsTest {
         var list = definitions.stream().filter(value -> value.name().equals("list_items")).findFirst().orElseThrow().description();
         assertTrue(list.contains("To locate an item across holders, use find_items first."));
         var entity = definitions.stream().filter(value -> value.name().equals("inspect_entity")).findFirst().orElseThrow().description();
-        for (var phrase : List.of("lastSlept", "lastWorkedAtPoi", "golemDetectedUntil", "gameTime", "offers", "offerCount")) {
+        for (var phrase : List.of("lastSlept", "lastWorkedAtPoi", "golemDetectedUntil", "gameTime", "offers", "offerCount",
+                "itemFacts", "entries", "itemFactsIndex")) {
             assertTrue(entity.contains(phrase), phrase);
         }
         var item = definitions.stream().filter(value -> value.name().equals("inspect_item")).findFirst().orElseThrow().description();

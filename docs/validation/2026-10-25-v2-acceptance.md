@@ -32438,3 +32438,356 @@ Final GET /prompt: {"text":null,"matchesCandidate8":true}.
 - **W15: PASS; the check was misdesigned.** A villager's jobSite is a brain memory and is correctly COMPLETE, and the reply kept memory apart from block verification. The uncached-POI branch belongs to inspect_block on a loaded chunk whose POI section is not cached. That cannot be set up through gameplay, so it stays covered by automated regressions only.
 - **W19: PASS as an honest limit.** No PackSage tool reads a biome's tag membership, and the reply said so. Biome tags are accepted only as locate queries, for example `#minecraft:is_forest`, which round 3 checks.
 - **Desktop-dependent checks: still NOT RUN.** Track G adds bridge operations so they no longer need desktop control: leaving and opening worlds, joining a server, opening a mount's inventory, opening screens, selecting resource packs and quitting the game.
+
+## Native readiness round 3
+
+Date: 2026-10-26 (Asia/Taipei). Main checkout `D:/Project/packsage`, branch `feat/packsage-v2`; installed HEAD `ed08bd0f3b4eb99abb85d7568074f65d88e60cd0`; installed JAR SHA-256 `DEF1F081DC352EBD6ECC4F29D671DA0B538CE7018DB8BDE70D87FF71865C6528`. [Install metadata](../../build/native-readiness-live/round3/install-metadata.json), [build/install log](../../build/native-readiness-live/round3/build-install.log).
+
+The older running build returned HTTP 404 for both /world/leave and /game/quit. The authorized desktop fallback used Save and Quit to Title, then Quit Game. No PackSage javaw remained before scripts/build.ps1; Gradle test/build were up to date and succeeded, wrapper exit 0, built and installed hashes identical. The completed build daemon retained the output pipe; stopping that build daemon released the wrapper. CurseForge relaunched the instance, and /world/open entered the save. No source edits, branch changes, worktrees, or model-setting changes were made. Only this validation file is committed. [Preinstall evidence](../../build/native-readiness-live/round3/preinstall.json).
+
+The round-1/2 controller rulings apply: v2 has no recipe viewer, seeds need not be named in loot replies, and biome tags are locate inputs. D2 confirms text=null and candidate 9 byte for byte. Each question starts a fresh chat; no failed answer is resubmitted for a pass. The first beacon submission received World history is not ready before a request id existed; its input is retained and a single startup retry is identified below. Raw request/response bodies and timings are in the token-free [HTTP ledger](../../build/native-readiness-live/round3/http.jsonl). Calls are grouped by provider round.
+
+| Check | Status | Observation |
+|---|---|---|
+| D2 | PASS | No override; installed effectiveText equals candidate 9 byte for byte. |
+| A1r | PASS | All three leading routes have complete inputs and concrete PARTIAL reasons; no recipe navigation targets. |
+| A3 | FAIL | Pistons expand to 30 planks from 8 logs; the from-scratch beacon reply omits the obsidian source or returned raw-material limit. |
+| C1r | NOT RUN | Pending execution. |
+| W12r2 | NOT RUN | Pending execution. |
+| W19r | NOT RUN | Pending execution. |
+| D1 | NOT RUN | Pending execution. |
+| M5 | NOT RUN | Pending execution. |
+| J8 | NOT RUN | Pending execution. |
+| J9 | NOT RUN | Pending execution. |
+| J13 | NOT RUN | Pending execution. |
+| P9/J7 | NOT RUN | Pending execution. |
+| W11 | NOT RUN | Pending execution. |
+| W17 | NOT RUN | Pending execution. |
+| W18 | NOT RUN | Pending execution. |
+| U1 | NOT RUN | Pending execution. |
+| U2 | NOT RUN | Pending execution. |
+
+### Passing checks and checks not run
+
+#### D2 - PASS
+
+No override; installed effectiveText equals candidate 9 byte for byte.
+
+
+
+Evidence: [prompt-before-check.json](../../build/native-readiness-live/round3/prompt-before-check.json).
+
+Evidence: [prompt-before.json](../../build/native-readiness-live/round3/prompt-before.json).
+
+
+#### A1r - PASS
+
+All three leading routes have complete inputs and concrete PARTIAL reasons; no recipe navigation targets.
+
+One pre-request startup rejection was followed by one retry. No failed model answer was resubmitted. Recipe records include verified shape/slot layout; output counts are 5 glass + 1 Nether star + 3 obsidian, 64 books + 128 diamonds + 256 obsidian, and 1 log to 4 planks.
+
+Evidence: [a1r-beacon-input.json](../../build/native-readiness-live/round3/a1r-beacon-input.json).
+
+Question: `how do I make a beacon?`
+
+Request `528624ba-7577-4f4e-ba78-b0702f7a276c`; conversation `cdd9c4d6-9543-48a2-baf8-ee8be3c1df07`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/a1r-beacon-retry.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:beacon",
+      "quantity": 1,
+      "depth": 2
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "source-coverage=PARTIAL:naturesaura:altar/sand; constraint=catalysts=unknown:naturesaura:altar/sand; constraint=remainders=unknown:naturesaura:altar/sand; decoding-status=UNKNOWN:naturesaura:altar/sand; bounded-depth:minecraft:sand; no-recipe-leaves=[minecraft:red_sand, minecraft:nether_star, minecraft:obsidian]",
+    "recordCount": 3,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+````text
+To craft a **beacon**, put **5 glass, 1 Nether Star, and 3 obsidian** in a crafting table like this: [beacon recipe](native:plan|minecraft:beacon|1|2|0|minecraft:beacon)
+
+```text
+Glass      Glass       Glass
+Glass      Nether Star Glass
+Obsidian   Obsidian    Obsidian
+```
+
+If you need the glass, smelt five sand or red sand. [glass recipe](native:plan|minecraft:beacon|1|2|1|minecraft:glass)
+````
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":16225,"modelTerminalMs":"14365","toolWallMs":"32","persistMs":"10"}.
+
+Question: `how do I make 64 enchanting tables?`
+
+Request `8fb9aab8-c143-409d-a528-983c7712d820`; conversation `ba230bcf-1286-45f8-9e85-dbcebcc44eae`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/a1r-enchanting.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:enchanting_table",
+      "quantity": 64,
+      "depth": 4
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "source-coverage=PARTIAL:naturesaura:altar/leather; constraint=catalysts=unknown:naturesaura:altar/leather; constraint=remainders=unknown:naturesaura:altar/leather; decoding-status=UNKNOWN:naturesaura:altar/leather; bounded-depth:minecraft:diamond; no-recipe-leaves=[minecraft:sugar_cane, minecraft:rabbit_hide, minecraft:deepslate_diamond_ore, minecraft:diamond_ore, minecraft:obsidian]",
+    "recordCount": 12,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+````text
+To craft **64 enchanting tables**, gather **64 books, 128 diamonds, and 256 obsidian**. The loaded recipe makes one table per craft. [native:plan|minecraft:enchanting_table|64|4|0|minecraft:enchanting_table]
+
+Arrange each craft in a 3×3 crafting grid:
+
+```text
+[empty]   [book]     [empty]
+[diamond] [obsidian] [diamond]
+[obsidian][obsidian] [obsidian]
+```
+
+If you’re making the books too, 64 books require **64 leather and 192 paper**. You can craft that paper from **192 sugar cane**. [native:plan|minecraft:enchanting_table|64|4|1|minecraft:book] [native:plan|minecraft:enchanting_table|64|4|2|minecraft:paper]
+````
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":20937,"modelTerminalMs":"16385","toolWallMs":"11","persistMs":"1199"}.
+
+Question: `how do I make oak planks?`
+
+Request `8a51deab-9514-484d-953f-6feccbbb5068`; conversation `0aa1e5ed-2269-4950-a3e1-0c56597d4009`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/a1r-planks.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:oak_planks",
+      "quantity": 4,
+      "depth": 1
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "bounded-depth:minecraft:oak_wood; bounded-depth:minecraft:stripped_oak_wood; no-recipe-leaves=[minecraft:oak_log, minecraft:stripped_oak_log]",
+    "recordCount": 3,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Put **one oak log** in any crafting slot and take the **four oak planks** from the result. Oak wood, stripped oak logs, and stripped oak wood work too. [native:plan|minecraft:oak_planks|4|1|0|minecraft:oak_planks]
+```
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":18248,"modelTerminalMs":"11013","toolWallMs":"10","persistMs":"1054"}.
+
+
+### Failures
+
+#### A3 - FAIL
+
+Classification: **prompt**. Pistons expand to 30 planks from 8 logs; the from-scratch beacon reply omits the obsidian source or returned raw-material limit.
+
+The beacon plan expands glass to sand/red sand and names obsidian in no-recipe-leaves. The reply gives 3 obsidian but never explains its source or that extraction stops there. No retry. The piston plan reports explicit depth, branch, record and source limits.
+
+Question: `how many logs do I need for 10 pistons?`
+
+Request `eb5abe74-e422-4551-ad64-f4564cff2d1f`; conversation `95d34ad4-9bc7-4115-8481-0c3ea05d8a7e`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/a3-pistons.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:piston",
+      "quantity": 10,
+      "depth": 5
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "record content truncated: string values are capped at 2048 UTF-16 units and oversized collections are trimmed; 38 records omitted at the output byte or record limit; refine the request to reduce output size; bounded-depth:minecraft:iron_ingot; bounded-depth:naturesaura:ancient_slab; bounded-depth:minecraft:oak_planks; bounded-depth:minecraft:spruce_planks; bounded-depth:minecraft:birch_planks; bounded-depth:minecraft:jungle_planks; bounded-depth:minecraft:acacia_planks; bounded-depth:minecraft:dark_oak_planks; bounded-depth:minecraft:crimson_planks; ingredient-branch-cap=64; bounded-depth:minecraft:raw_iron; bounded-depth:minecraft:redstone; no-recipe-leaves=[minecraft:oak_log, minecraft:stripped_oak_log, minecraft:spruce_log, minecraft:stripped_spruce_log, minecraft:birch_log, minecraft:stripped_birch_log, minecraft:jungle_log, minecraft:stripped_jungle_log, minecraft:acacia_log, minecraft:stripped_acacia_log, minecraft:dark_oak_log, minecraft:stripped_dark_oak_log, minecraft:crimson_stem, minecraft:stripped_crimson_stem, minecraft:warped_stem, minecraft:stripped_warped_stem]; no-recipe-leaf-cap=16; omitted-at-least=24",
+    "recordCount": 38,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You need **8 logs** for the wooden part of 10 pistons. Each piston takes 3 planks, so you need 30 planks total; 8 ordinary logs make 32 planks, leaving 2. [native:plan|minecraft:piston|10|5|0|minecraft:piston] [native:plan|minecraft:piston|10|5|1|minecraft:oak_planks]
+```
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":17612,"modelTerminalMs":"11594","toolWallMs":"24","persistMs":"1464"}.
+
+Question: `what do I need to make a beacon from scratch?`
+
+Request `910fb763-fbb5-4101-adb8-dac84dd2cac6`; conversation `192dc174-e3dd-4c02-a3b8-ad1446066647`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round3/a3-beacon.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:beacon",
+      "quantity": 1,
+      "depth": 4
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "source-coverage=PARTIAL:naturesaura:altar/sand; constraint=catalysts=unknown:naturesaura:altar/sand; constraint=remainders=unknown:naturesaura:altar/sand; decoding-status=UNKNOWN:naturesaura:altar/sand; no-recipe-leaves=[minecraft:red_sand, minecraft:nether_star, minecraft:obsidian]",
+    "recordCount": 3,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": "minecraft:wither",
+      "place": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "this table drops nothing",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": "minecraft:wither_skeleton",
+      "place": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "block",
+      "filter": {
+        "text": "beacon",
+        "ids": null,
+        "tags": null,
+        "provider": null
+      },
+      "limit": 32,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_recipe",
+    "arguments": {
+      "filter": {
+        "text": null,
+        "outputItem": "minecraft:beacon",
+        "provider": "native"
+      },
+      "limit": 16,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "scanned=0-1820 of 1820 (ordinary recipes 1539, brewing candidates 281); phase=brewing; matches=1",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+````text
+To **make one beacon**, you need **5 glass, 3 obsidian, and 1 Nether star**. Smelt five sand (or red sand) for the glass. [native:plan|minecraft:beacon|1|4|0|minecraft:beacon] [native:plan|minecraft:beacon|1|4|1|minecraft:glass]
+
+Starting without a Nether star, the main job is to collect **3 wither skeleton skulls** and **4 soul sand**, arrange them to summon the Wither, and defeat it for the star. Wither skeletons can drop skulls when killed by a player; the skull drop is chance-based, so you may need to fight quite a few. [world:loot|minecraft:entities/wither_skeleton] ([minecraft.net](https://www.minecraft.net/zh-hans/article/taking-inventory--nether-star?utm_source=openai))
+
+Then use a crafting table with this layout: [native:plan|minecraft:beacon|1|4|0|minecraft:beacon]
+
+```text
+Glass      Glass        Glass
+Glass      Nether Star  Glass
+Obsidian   Obsidian     Obsidian
+```
+
+**To use its effects**, you’ll also need a mineral-block pyramid beneath the beacon. A basic one is a **3×3 layer (9 blocks)**; a larger pyramid unlocks more effects. Iron, gold, emerald, diamond, and netherite blocks are options. ([minecraft.net](https://www.minecraft.net/sv-se/article/ten-rare-recipes?utm_source=openai))
+````
+
+`/navigate` results:
+
+```json
+[]
+```
+
+Timing: {"wallMs":39629,"modelTerminalMs":"33489","toolWallMs":"94","persistMs":"1188"}.

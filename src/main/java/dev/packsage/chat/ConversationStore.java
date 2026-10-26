@@ -1364,7 +1364,16 @@ public final class ConversationStore {
                 value.has("assistantSentAt") && !value.get("assistantSentAt").isJsonNull()
                         ? Instant.parse(value.get("assistantSentAt").getAsString()) : null,
                 value.has("verbosity") && !value.get("verbosity").isJsonNull()
-                        ? PackSageSettings.Verbosity.valueOf(value.get("verbosity").getAsString()) : null);
+                        ? verbosityOrNull(value.get("verbosity").getAsString()) : null);
+    }
+
+    private static PackSageSettings.Verbosity verbosityOrNull(String name) {
+        try {
+            return PackSageSettings.Verbosity.valueOf(name);
+        } catch (IllegalArgumentException unknown) {
+            // A newer build may write a verbosity this build does not know; keep the turn and render it as legacy.
+            return null;
+        }
     }
 
     private static dev.packsage.model.ModelBackend.InputItem replayFromJson(JsonObject value) {

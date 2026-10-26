@@ -141,3 +141,13 @@ Install the current `feat/packsage-v2`, with no override.
 | J10r2 | J10r again | the profession change is journaled |
 | A3r4 | "what do I need to make a beacon from scratch?" | record the plan detail: either materials obtained rather than crafted, or "no recipe found, though …" when the pack has computed-result recipes; record the reply |
 | W20 | "how do I make a netherite sword?" | the smithing record lists template, diamond sword and netherite ingot, and the reply names all three |
+
+## Round 8
+
+Install the current `feat/packsage-v2`, with no override.
+
+| Id | Steps | Pass when |
+|---|---|---|
+| M5r5 | M5 again, starting at least 15 seconds after the world opens; then `/world/leave` and quote both `PackSage journal:` lines | overflowed 0 and failed 0; the count in `(N after the first 200)` is 0 |
+| A1r4 | "how do I make a beacon?" | routes come back with a concrete PARTIAL detail, as before |
+| W21 | "how do I make a map?" | no route for an empty map uses map extension or a filled map as input |

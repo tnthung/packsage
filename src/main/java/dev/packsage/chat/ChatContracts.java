@@ -16,7 +16,12 @@ public final class ChatContracts {
     public enum ActivityStatus { RUNNING, COMPLETED, FAILED, CANCELLED }
 
     public record ActivityStep(String id, String title, String detail, ActivityStatus status, String serializedArguments,
-                               String toolName, String resultSummary, Long durationMillis, String resultDetail) {
+                               String toolName, String resultSummary, Long durationMillis, String resultDetail, Long durationNanos) {
+        public ActivityStep(String id, String title, String detail, ActivityStatus status, String serializedArguments,
+                            String toolName, String resultSummary, Long durationMillis, String resultDetail) {
+            this(id, title, detail, status, serializedArguments, toolName, resultSummary, durationMillis, resultDetail, null);
+        }
+
         public ActivityStep(String id, String title, String detail, ActivityStatus status, String serializedArguments,
                             String toolName, String resultSummary, Long durationMillis) {
             this(id, title, detail, status, serializedArguments, toolName, resultSummary, durationMillis, null);
@@ -37,6 +42,7 @@ public final class ChatContracts {
             Objects.requireNonNull(status);
             if (id.isBlank() || title.isBlank()) throw new IllegalArgumentException("activity identity and title are required");
             if (durationMillis != null && durationMillis < 0) throw new IllegalArgumentException("duration cannot be negative");
+            if (durationNanos != null && durationNanos < 0) throw new IllegalArgumentException("duration cannot be negative");
             if (resultDetail != null && resultDetail.length() > 4096) resultDetail = resultDetail.substring(0, 4096);
         }
     }

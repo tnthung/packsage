@@ -721,7 +721,7 @@ public final class RequestController {
                 }
                 request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
                         : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED,
-                        step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail()));
+                        step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail(), step.durationNanos()));
                 request.activity = providerRetry ? "Retrying provider request…" : ActivityLabels.RETRYING_WITHOUT_WEB_SEARCH;
             } else if (event.kind() == ModelBackend.EventKind.REASONING) {
                 request.activity = ActivityLabels.THINKING;
@@ -820,13 +820,14 @@ public final class RequestController {
                 request.partialReplay.add(response.result());
                 String activityId = "tool:" + call.callId();
                 ChatContracts.ActivityStep toolActivity = request.activities.get(activityId);
+                long durationNanos = System.nanoTime() - request.toolReceivedAtNanos.get(call.callId());
                 if (toolActivity != null) request.activities.put(activityId, new ChatContracts.ActivityStep(activityId,
                         toolActivity.title(), response.result().error()
                         ? ActivityLabels.toolError(response.result().serializedResult()) : "Completed",
                         response.result().error() ? ChatContracts.ActivityStatus.FAILED : ChatContracts.ActivityStatus.COMPLETED,
                         toolActivity.serializedArguments(), call.name(), ActivityLabels.toolSummary(response.result().serializedResult()),
-                        (System.nanoTime() - request.toolReceivedAtNanos.get(call.callId())) / 1_000_000,
-                        toolResultDetail(response.result().serializedResult(), response.result().error())));
+                        durationNanos / 1_000_000,
+                        toolResultDetail(response.result().serializedResult(), response.result().error()), durationNanos));
                 List<Evidence.Source> mergedSources = new ArrayList<>(request.evidence.sources());
                 response.evidence().sources().forEach(source -> {
                     if (!mergedSources.contains(source)) mergedSources.add(source);
@@ -985,7 +986,7 @@ public final class RequestController {
                     : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(),
                     terminalActivity == ChatContracts.ActivityStatus.COMPLETED && id.startsWith("tool:")
                             ? ChatContracts.ActivityStatus.CANCELLED : terminalActivity, step.serializedArguments(),
-                    step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail()));
+                    step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail(), step.durationNanos()));
             markPersistencePending(request);
             active = null;
             if (request.submission.replacing() != null) pendingReplacement = request;
@@ -1049,7 +1050,7 @@ public final class RequestController {
             }
             request.activities.replaceAll((id, step) -> step.status() != ChatContracts.ActivityStatus.RUNNING ? step
                     : new ChatContracts.ActivityStep(step.id(), step.title(), step.detail(), ChatContracts.ActivityStatus.CANCELLED,
-                    step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail()));
+                    step.serializedArguments(), step.toolName(), step.resultSummary(), step.durationMillis(), step.resultDetail(), step.durationNanos()));
             toolCalls = request.toolCalls.size();
             toolWallMs = ToolTiming.unionMillis(request.toolIntervals);
         }

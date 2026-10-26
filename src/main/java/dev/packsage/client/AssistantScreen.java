@@ -38,7 +38,7 @@ public final class AssistantScreen extends Screen {
     public static final int QUESTION_MAX_LENGTH = 1000;
     private static final int ACTIVITY_ARGUMENTS_INPUT_LIMIT = 16_384;
     private static final int ACTIVITY_ARGUMENTS_DISPLAY_LIMIT = 2_048;
-    private static final Gson ACTIVITY_ARGUMENTS_JSON = new GsonBuilder().serializeNulls().setPrettyPrinting().create();
+    private static final Gson ACTIVITY_ARGUMENTS_JSON = new GsonBuilder().serializeNulls().disableHtmlEscaping().create();
     private final ChatActions actions;
     private final CommandConfirmationPanel commandConfirmation;
     private final PackSageSettings settings;
@@ -583,9 +583,6 @@ public final class AssistantScreen extends Screen {
             case CANCELLED -> "Step cancelled.";
         } : step.detail();
         if (!step.id().startsWith("tool:")) return detail;
-        if (step.resultSummary() != null) detail += "\n" + step.resultSummary();
-        if (step.durationMillis() != null) detail += "\nDuration: " + (step.durationMillis() < 100 ? "<0.1 s"
-                : String.format(Locale.ROOT, "%.1f s", step.durationMillis() / 1000.0));
         String toolName = step.toolName();
         String arguments = step.serializedArguments();
         if (arguments == null || toolName == null) {
@@ -628,14 +625,24 @@ public final class AssistantScreen extends Screen {
                 }
             }
         }
-        String body = (toolName == null ? "" : "Tool: " + toolName + "\n") + detail + "\nParameters:\n" + parameters;
+        String body = "Tool: " + (toolName == null ? "Unknown" : toolName) + "\nParameter: " + parameters;
         if (body.length() > ACTIVITY_ARGUMENTS_DISPLAY_LIMIT) {
             String marker = "… [truncated]";
             int end = ACTIVITY_ARGUMENTS_DISPLAY_LIMIT - marker.length();
             if (Character.isHighSurrogate(body.charAt(end - 1)) && Character.isLowSurrogate(body.charAt(end))) end--;
             body = body.substring(0, end) + marker;
         }
-        return body + (step.resultDetail() == null || step.resultDetail().isBlank() ? "" : "\nResult:\n" + step.resultDetail());
+        if (step.status() == ChatContracts.ActivityStatus.FAILED) body += "\nError: " + detail;
+        else if (step.resultDetail() != null && !step.resultDetail().isBlank()) body += "\nResult: " + step.resultDetail();
+        if (step.durationNanos() != null) {
+            body += "\nElapsed: " + (step.durationNanos() < 1_000_000 ? step.durationNanos() / 1_000 + " µs"
+                    : step.durationNanos() < 1_000_000_000 ? step.durationNanos() / 1_000_000 + " ms"
+                    : String.format(Locale.ROOT, "%.1f s", step.durationNanos() / 1_000_000_000.0));
+        } else if (step.durationMillis() != null) {
+            body += "\nElapsed: " + (step.durationMillis() < 1_000 ? step.durationMillis() + " ms"
+                    : String.format(Locale.ROOT, "%.1f s", step.durationMillis() / 1000.0));
+        }
+        return body;
     }
 
     void toggleActivity(String key) {

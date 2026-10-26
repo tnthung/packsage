@@ -1101,6 +1101,7 @@ public final class ConversationStore {
             if (step.toolName() != null) item.addProperty("toolName", step.toolName());
             if (step.resultSummary() != null) item.addProperty("resultSummary", step.resultSummary());
             if (step.durationMillis() != null) item.addProperty("durationMillis", step.durationMillis());
+            if (step.durationNanos() != null) item.addProperty("durationNanos", step.durationNanos());
             if (step.resultDetail() != null) item.addProperty("resultDetail", step.resultDetail());
             activities.add(item);
         });
@@ -1290,7 +1291,8 @@ public final class ConversationStore {
                     item.has("toolName") ? item.get("toolName").getAsString() : null,
                     item.has("resultSummary") ? item.get("resultSummary").getAsString() : null,
                     item.has("durationMillis") ? item.get("durationMillis").getAsLong() : null,
-                    item.has("resultDetail") && !item.get("resultDetail").isJsonNull() ? item.get("resultDetail").getAsString() : null));
+                    item.has("resultDetail") && !item.get("resultDetail").isJsonNull() ? item.get("resultDetail").getAsString() : null,
+                    item.has("durationNanos") && !item.get("durationNanos").isJsonNull() ? item.get("durationNanos").getAsLong() : null));
         });
         List<ChatContracts.SteeringMessage> steeringMessages = new ArrayList<>();
         if (value.has("steeringMessages")) value.getAsJsonArray("steeringMessages").forEach(message -> {
@@ -1309,7 +1311,7 @@ public final class ConversationStore {
                         && result.error() && result.callId().equals(callId)) {
                     activities.set(i, new ChatContracts.ActivityStep(activity.id(), activity.title(),
                             ActivityLabels.toolError(result.serializedResult()), activity.status(), activity.serializedArguments(),
-                            activity.toolName(), activity.resultSummary(), activity.durationMillis(), activity.resultDetail()));
+                            activity.toolName(), activity.resultSummary(), activity.durationMillis(), activity.resultDetail(), activity.durationNanos()));
                     break;
                 }
             }

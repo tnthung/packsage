@@ -34867,6 +34867,9 @@ The earlier controller rulings apply: v2 has no recipe viewer, loot replies need
 | D2 / prompt setup | PASS | Installed default is exactly candidate 9 with text=null; candidate 10 JSON-file override exactly verified. |
 | A1r2 | PASS | Beacon, 64 enchanting tables and oak planks return complete leading recipe inputs and concrete PARTIAL limits; no recipe targets, as expected for v2. |
 | A3r | FAIL | Pistons correctly require 8 logs for 30 planks; from-scratch beacon reply still omits how obsidian is obtained or its raw-material limit. |
+| W12r3 | FAIL | Missing/empty loot status is correct and every chest stays sealed, but visible replies omit the required table IDs. |
+| J8r | PASS | Ridden donkey deposit and withdrawal both journal 17 gold ingots, with correct local-day filters, coordinates and working links. |
+| W11r | PASS | With the open donkey menu and crosshair away, list_items ridden returns the actual 13 emeralds and empty slots. |
 
 ### Passing checks and checks not run
 
@@ -35039,6 +35042,230 @@ Put **one oak log** in any crafting slot and take the **four oak planks** it mak
 Timing: {"wallMs":14208,"modelTerminalMs":"12545","toolWallMs":"5","persistMs":"7"}.
 
 
+#### J8r - PASS
+
+Ridden donkey deposit and withdrawal both journal 17 gold ingots, with correct local-day filters, coordinates and working links.
+
+The bridge confirms riddenEntity is the donkey, opens horse inventory menus without error, moves hotbar slot 44 into donkey slot 2, then withdraws slot 2. Ground truth changes from 17 gold to empty. Both answers filter after 2026-10-26T00:00:00+08:00 and return the new events; the withdrawal answer separates the donkey from actual chests.
+
+Evidence: [j8r-fixture.json](../../build/native-readiness-live/round4/j8r-fixture.json).
+
+Evidence: [j8r-riding.json](../../build/native-readiness-live/round4/j8r-riding.json).
+
+Evidence: [j8r-donkey-deposit.json](../../build/native-readiness-live/round4/j8r-donkey-deposit.json).
+
+Evidence: [j8r-donkey-withdrawal.json](../../build/native-readiness-live/round4/j8r-donkey-withdrawal.json).
+
+Question: `what did I put in my donkey today?`
+
+Request `028d4175-6384-4115-b549-86f7b9c9cc9e`; conversation `e48bf73a-a82d-4c1c-9781-de640afbd7ed`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/j8r-deposits.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": "2026-10-26T00:00:00+08:00",
+          "before": null,
+          "lastMinutes": null
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "deposit"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You put **17 gold ingots** in your donkey today, October 26, at (1605, 250, 1602). [journal:event:120]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":18495,"modelTerminalMs":"17116","toolWallMs":"12","persistMs":"10"}.
+
+Question: `what did I take out of chests today?`
+
+Request `9bde7b2a-4799-4838-af59-9c4c48cd34e4`; conversation `0bc58e1e-00f8-44c2-ba5e-f1c7b597b987`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/j8r-withdrawals.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": "2026-10-26T00:00:00+08:00",
+          "before": null,
+          "lastMinutes": null
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "withdraw"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 2,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Today, October 26, you took **31 iron ingots** out of a chest at (1602, 250, 1600). [journal:event:78]
+
+The journal also records **17 gold ingots** taken from a donkey at (1605, 250, 1602), but that wasn’t a chest. [journal:event:121]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1602",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1602,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":12190,"modelTerminalMs":"10488","toolWallMs":"2","persistMs":"9"}.
+
+
+#### W11r - PASS
+
+With the open donkey menu and crosshair away, list_items ridden returns the actual 13 emeralds and empty slots.
+
+The acceptance permits another read that returns the open screen contents. The ridden holder is the same donkey whose inventory is open; crosshairTarget is null. The response reports 13 emeralds and the donkey coordinates; both navigation results open.
+
+Evidence: [w11r-open.json](../../build/native-readiness-live/round4/w11r-open.json).
+
+Evidence: [w11r-state.json](../../build/native-readiness-live/round4/w11r-state.json).
+
+Evidence: [w11r-items.json](../../build/native-readiness-live/round4/w11r-items.json).
+
+Question: `what's in this?`
+
+Request `e45132ea-e183-443b-827d-1ba2c1b20ebf`; conversation `6d885d48-6006-4d33-afe2-35de5800a602`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/w11r-opened.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "ridden",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 2,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "11111111-1111-1111-1111-111111111111"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Your donkey at (1605, 250, 1602) [Donkey](world:entity|11111111-1111-1111-1111-111111111111) has **13 emeralds** in its chest [Emeralds](world:item|entity:11111111-1111-1111-1111-111111111111>minecraft/chest#0@minecraft:emerald). The other 14 chest slots and its saddle slot are empty. [Donkey inventories](world:entity|11111111-1111-1111-1111-111111111111)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-entity|11111111-1111-1111-1111-111111111111",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-entity|11111111-1111-1111-1111-111111111111",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":18221,"modelTerminalMs":"16297","toolWallMs":"84","persistMs":"8"}.
+
+
 ### Failures
 
 #### A3r - FAIL
@@ -35166,3 +35393,216 @@ You need **8 regular logs** for 10 pistons. Each piston uses 3 planks, so you ne
 ```
 
 Timing: {"wallMs":14368,"modelTerminalMs":"13054","toolWallMs":"26","persistMs":"9"}.
+
+
+#### W12r3 - FAIL
+
+Classification: **prompt compliance**. Missing/empty loot status is correct and every chest stays sealed, but visible replies omit the required table IDs.
+
+The known-table answer never names minecraft:chests/simple_dungeon. The missing table is described as absent and expected to generate nothing, and the empty table as generating no items; neither table ID is named in the visible explanation. Their raw citation destinations preserve the IDs, but labeled links do not state them to the player. The specific missing-table consequence is fixed; the combined stated table-naming criterion still fails. No retry.
+
+Evidence: [w12r3-before.json](../../build/native-readiness-live/round4/w12r3-before.json).
+
+Evidence: [w12r3-after.json](../../build/native-readiness-live/round4/w12r3-after.json).
+
+Question: `what's in this chest?`
+
+Request `d62f34a0-9f20-47e2-acd8-6025cbf92276`; conversation `09b32174-25d2-4b07-b046-f711ba0265f3`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/w12r3-known.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "minecraft/container's loot has not been generated yet (table minecraft:chests/simple_dungeon, seed 12345); its contents are decided when it is first opened; read_loot with the container's place reads the table without opening it",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The chest at (1608, 250, 1600) hasn’t generated its contents yet, so I can’t tell you exactly what’s inside. Its loot will be decided when you first open it. [world:block|minecraft:overworld|1608,250,1600]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1608,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":10280,"modelTerminalMs":"8829","toolWallMs":"83","persistMs":"8"}.
+
+Question: `what's in this chest?`
+
+Request `ff5bd16a-2093-493a-973a-b6571d58890d`; conversation `e5c1467b-0eeb-4dad-983e-125e424578e9`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/w12r3-unknown.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "minecraft/container's loot has not been generated yet (table packsage:missing_native_readiness, seed 67890, a table the loaded data packs do not define, so opening it generates nothing); its contents are decided when it is first opened; read_loot with the container's place reads the table without opening it",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": null,
+      "place": "minecraft:overworld|1610,250,1600",
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "no loot table has this id in the loaded data packs",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The chest at **(1610, 250, 1600)** hasn’t generated its contents yet. Its assigned loot table is missing from the loaded pack, so opening it is expected to leave it **empty**. [Chest](world:block|minecraft:overworld|1610,250,1600) [Loot-table check](world:loot|packsage:missing_native_readiness)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1610,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-block|minecraft:overworld|1610,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":16245,"modelTerminalMs":"14598","toolWallMs":"14","persistMs":"8"}.
+
+Question: `what's in this chest?`
+
+Request `26f732f7-426a-4e3f-bb91-1a964ea6bdd5`; conversation `4bcb23e8-c290-4be9-a3f4-5c48e0086bb0`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round4/w12r3-empty.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "minecraft/container's loot has not been generated yet (table minecraft:empty, seed 222, the empty table, which generates nothing); its contents are decided when it is first opened; read_loot with the container's place reads the table without opening it",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_block",
+    "arguments": {
+      "place": "minecraft:overworld|1612,250,1600"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": null,
+      "place": "minecraft:overworld|1612,250,1600",
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "this table drops nothing; the container generates this loot when it is first opened; seed 0 means a random seed",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The chest at **(1612, 250, 1600)** hasn’t generated its contents yet. It’s assigned an **empty loot table**, so opening it will generate no items. [Chest](world:block|minecraft:overworld|1612,250,1600) [Loot table](world:loot|minecraft:empty)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1612,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "world-block|minecraft:overworld|1612,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":17271,"modelTerminalMs":"15872","toolWallMs":"70","persistMs":"8"}.

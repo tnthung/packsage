@@ -145,9 +145,22 @@ class PackSageSettingsTest {
         Files.writeString(input, "verbosity=loud\n");
         assertEquals(PackSageSettings.Verbosity.NORMAL, PackSageSettings.load(input).verbosity());
 
-        assertEquals("base", PackSageSettings.Verbosity.NORMAL.apply("base"));
+        assertTrue(PackSageSettings.Verbosity.NORMAL.apply("base").startsWith("base\n\nAnswer detail: normal."));
         assertTrue(PackSageSettings.Verbosity.CONCISE.apply("base").startsWith("base\n\nAnswer detail: concise."));
         assertTrue(PackSageSettings.Verbosity.DETAILED.apply("base").startsWith("base\n\nAnswer detail: detailed."));
+    }
+
+    @Test
+    void verbosityInstructionsDescribeRecipeCardsAndItemLinks() {
+        for (var verbosity : java.util.List.of(PackSageSettings.Verbosity.NORMAL, PackSageSettings.Verbosity.DETAILED)) {
+            var text = verbosity.apply("base");
+            assertTrue(text.contains("cite its recipe record on a line of its own"));
+            assertTrue(text.contains("Never spell out a crafting grid, slot layout or furnace arrangement"));
+            assertTrue(text.contains("state amounts, prerequisites and caveats in prose"));
+        }
+        var concise = PackSageSettings.Verbosity.CONCISE.apply("base");
+        assertTrue(concise.contains("Cite the result recipe inline"));
+        assertTrue(concise.contains("mark ingredient names as item links when their item IDs appear in tool results"));
     }
 
     @Test

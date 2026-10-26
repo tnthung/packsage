@@ -93,7 +93,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 - [x] PackSage — saved v1/legacy provider citations render with unavailable destinations (native readiness round 3 W17; [acceptance record](../validation/2026-10-25-v2-acceptance.md)). Automated store/render/navigation regressions also pass.
 - [ ] PackSage — A3 reply compliance: the from-scratch beacon reply does not say obsidian is obtained, although the plan detail is correct. Recorded failure.
-- [x] PackSage — offered tool names (P11): request_built lists 28 tools and no read_progress (native readiness round 3 C1r). Final review is in progress (Astra rereview 12); readiness is not claimed.
+- [x] PackSage — offered tool names (P11): request_built lists 28 tools and no read_progress (native readiness round 3 C1r). Astra final review READY at 6b2e903 (rereview 13).
 - [x] PackSage — six live prompt rounds, C6 promoted byte-for-byte and effectively 14/14 under Q8a/Q8b note-action ruling; installed default verified with override cleared. Whole-set armor, continued storage, grounded farm diagnosis, silent notes and supported Minecraft recipe/plan answers pass (W2/W3/W5/J6/E2). Provider citation fixes pass installed E5 scans and sampled UI checks.
 - [x] PackSage — every located thing has text coordinates: E6 PASS with prompt candidate 8, including the targeted W8 mule (installed recheck R2).
 - [x] PackSage — Part B prompt observations: the Overworld fortress question has no invented link (E8) and locate continuation keeps its arguments (E9); installed default prompt is candidate 11 (D3/D4).

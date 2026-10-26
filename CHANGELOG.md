@@ -4,6 +4,11 @@
 
 ### 2026-10-26
 
+- Native adapter readiness:
+  - **Final review:** Astra returned READY at 6b2e903 with no findings.
+  - **Live acceptance:** eight installed rounds pass M5, P9/J7, P11 and the journal, world, item and planner checks.
+  - **Still recorded:** the A3 and J8 reply-compliance failures.
+  - **Planner changes since the last live round:** same-item special recipes, such as repair, trims and dyeing, no longer count as a source of their item; shulker box recolouring does. Unit tests cover these.
 - The journal's villager profession watch tracks villagers as they join and leave levels, and checks 16 per tick instead of scanning every entity every 5 seconds. The world-close summary keeps world start and stop out of the per-tick figure and names the slowest hook. Mount inventory sessions take their owner from the menu. Plans report an incomplete recipe lookup separately from materials that are obtained rather than crafted.
 - Prompt candidate 11 is the default. When an answer names a material the plan found no recipe for, it says the material is obtained rather than crafted, and day words such as "today" follow the player's local time.
 - The journal now records items put into or taken from a donkey, mule or other mount whose inventory was opened without right-clicking it, such as with the inventory key while riding. Requests carry the player's local time, so "today" follows their calendar. An undefined pending loot table is reported as generating nothing.

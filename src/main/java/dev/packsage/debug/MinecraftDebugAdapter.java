@@ -470,6 +470,8 @@ public final class MinecraftDebugAdapter implements DebugRouter.Game {
             case RESOURCEPACKS -> {
                 var reload = call(client, () -> {
                     var repository = client.getResourcePackRepository();
+                    // Rescan so packs added since startup can be selected; the current selection is kept.
+                    repository.reload();
                     var available = repository.getAvailableIds();
                     var enabled = new ArrayList<String>();
                     var disabled = new ArrayList<String>();

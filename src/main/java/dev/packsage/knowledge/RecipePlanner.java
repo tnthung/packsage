@@ -250,8 +250,8 @@ public final class RecipePlanner {
         private String detail() {
             var detail = new ArrayList<>(reasons.stream().limit(16).toList());
             if (reasons.size() > 16) detail.add("reason-cap=16; omitted=" + (reasons.size() - 16));
-            if (!noRecipeLeaves.isEmpty()) detail.add("no-recipe-leaves=" + noRecipeLeaves.stream().limit(16).toList());
-            if (omittedNoRecipeLeaves > 0) detail.add("no-recipe-leaf-cap=16; omitted-at-least=" + omittedNoRecipeLeaves);
+            if (!noRecipeLeaves.isEmpty()) detail.add("materials with no recipe here, obtained rather than crafted=" + noRecipeLeaves.stream().limit(16).toList());
+            if (omittedNoRecipeLeaves > 0) detail.add("more materials with no recipe, at least " + omittedNoRecipeLeaves + " beyond the 16 listed");
             if (detail.isEmpty()) detail.add("planning-stopped-before-route: node cap or unresolved recipe output");
             return String.join("; ", detail);
         }

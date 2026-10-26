@@ -4,6 +4,15 @@
 
 ### 2026-10-26
 
+- Player feedback features, with automated checks passing and installed checks pending:
+  - **Commands:** the assistant can run a command you ask for with run_command, at your own permission level. A Command confirmation setting chooses Always (default), Risky commands or Direct; confirmation shows the exact command with Run and Cancel in the chat.
+  - **Timing:** each answer shows its total time, and tool rows expand to each call's result summary and duration.
+  - **Opening speed:** the chat opens from conversation summaries, loads only the selected chat in the background and draws the newest turns first.
+  - **Sidebar:** chats from other sessions are behind a saved toggle that is off by default.
+  - **Location marker:** a cyan beacon-style beam replaces the tall pylon.
+  - **Game state:** a read_game_state tool reports what the F3 screen shows.
+  - **Answer detail:** a setting chooses Concise, Normal or Detailed.
+
 - Opening a singleplayer world to LAN no longer makes PackSage treat it as a different world. Its chats, journal and saved location links stay with the save. Automated checks pass; installed check pending.
 - The journal records items the player picks up and drops, with the item, count, time and place. Mining interleaves breaks and pickups, but they still merge into one break run and one pickup run. Search reports summed item amounts, such as "picked up 9 Diamond". The journal schema is unchanged. Live checks pass. Prompt candidate 12 is the default: picked-up and dropped items, and amounts over a recent period, come from the journal, while lifetime totals stay with statistics.
 - Native adapter readiness:

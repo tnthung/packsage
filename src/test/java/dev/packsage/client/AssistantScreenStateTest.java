@@ -33,10 +33,10 @@ class AssistantScreenStateTest {
         screen.prepareConversation();
         var history = AssistantScreen.class.getDeclaredField("history");
         history.setAccessible(true);
-        Object editing = history.get(screen);
+        assertTrue(((ChatContracts.HistoryPreview) history.get(screen)).selection().turns().isEmpty());
         assertTrue(screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE, 0, 0));
         screen.prepareConversation();
-        assertTrue(editing != history.get(screen), "Escape must invalidate the replacement history preview");
+        assertEquals(screen.view().conversation().turns(), ((ChatContracts.HistoryPreview) history.get(screen)).selection().turns());
     }
 
     @Test
@@ -1765,6 +1765,12 @@ class AssistantScreenStateTest {
         @Override public ChatContracts.HistoryPreview historyPreview() {
             historyPreviews++;
             return ChatActions.super.historyPreview();
+        }
+        @Override public ChatContracts.HistoryPreview historyPreview(ChatContracts.RequestId replacing) {
+            historyPreviews++;
+            return new ChatContracts.HistoryPreview(dev.packsage.chat.HistorySelector.select(view.conversation().turns(),
+                    new ChatContracts.HistoryLimits(settings.historyTurns(), settings.historicalTokens()), turn -> 1, replacing),
+                    settings.historicalTokens(), settings.historicalTokens(), null, settings.historyTurns());
         }
         @Override public ChatContracts.View view() { return view; }
         @Override public PackSageSettings settings() { return settings; }

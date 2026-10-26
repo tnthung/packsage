@@ -27523,9 +27523,9 @@ A1, A2, B1, D1 and C1 were excluded by request. No failed model check was rerun 
 | M5 | NOT RUN | 2,000 sand and TNT recorded; world-close metric and stall observation pending. |
 | J8 | NOT RUN | Chest withdrawal recorded; donkey interaction pending. |
 | J9 | NOT RUN | Pending open-container disconnect check. |
-| J10 | NOT RUN | Pending journal event-family fixture. |
+| J10 | PASS | All requested event families recorded with actor, subject and place; repeat visit did not duplicate first entry. |
 | J11 | NOT RUN | Pending raid start/outcome fixture. |
-| J12 | NOT RUN | Note lifecycle and cross-dimension checks in progress. |
+| J12 | FAIL | Deleting the Nether note makes its link unavailable, but a later answer resurrects its coordinates from chat history. |
 | J13 | NOT RUN | Pending immediate quit and quick rejoin checks. |
 | J14 | FAIL | The first tool-using conversation has neither conversation nor message origin fields. |
 | P9/J7 | NOT RUN | NeoForge 21.1.202 no-mod server ready; client join pending. |
@@ -27775,29 +27775,23 @@ Pending open-container disconnect check.
 
 
 
-#### J10 — NOT RUN
+#### J10 — PASS
 
-Pending journal event-family fixture.
+All requested event families recorded with actor, subject and place; repeat visit did not duplicate first entry.
 
+Twelve records include placement, pig kill, tamed wolf death, cured villager, villager death/conversion, named-zombie player death, profession change, trade and one first-entry structure record. The second visit did not add another structure entry. Cure/conversion/profession actors are reported as environment; the death messages name Readiness Zed. The wolf was deliberately tamed with the current player UUID; the tool does not expose ownership, so the reply correctly refrains from asserting it.
 
+Evidence: [j10-fixture-part1.json](../../build/native-readiness-live/j10-fixture-part1.json).
 
+Evidence: [j10-fixture-part2.json](../../build/native-readiness-live/j10-fixture-part2.json).
 
-#### J11 — NOT RUN
+Evidence: [j10-trade-fixture.json](../../build/native-readiness-live/j10-trade-fixture.json).
 
-Pending raid start/outcome fixture.
+Evidence: [j10-structure-fixture.json](../../build/native-readiness-live/j10-structure-fixture.json).
 
+Question: `In the last hour, list my block placements, kills, my death, pet deaths, villager profession changes, cures, zombie conversions, trades and first structure entries, with actors, subjects and places.`
 
-
-
-#### J12 — NOT RUN
-
-Note lifecycle and cross-dimension checks in progress.
-
-
-
-Question: `I built my copper farm here.`
-
-Request `78fbb796-46e2-42af-853d-2e8f68741241`; conversation `83d58ca3-0949-4a38-8a7c-b10c13802c05`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j12-copper.json).
+Request `7a654763-4bcb-4de0-b6f3-fa90f9c1b8ae`; conversation `b9f79ef8-8041-40b0-979d-df07e2b034b0`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j10.json).
 
 Calls (exact arguments, groups, coverage/detail and continuation):
 
@@ -27808,44 +27802,33 @@ Calls (exact arguments, groups, coverage/detail and continuation):
     "name": "search_journal",
     "arguments": {
       "filter": {
-        "time": null,
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 60
+        },
         "area": null,
         "dimension": null,
-        "types": null,
+        "types": [
+          "place",
+          "kill",
+          "death",
+          "profession",
+          "cured",
+          "converted",
+          "trade",
+          "structure"
+        ],
         "subjects": null,
-        "text": "copper farm",
-        "notesOnly": true
+        "text": null,
+        "notesOnly": false
       },
       "cursor": null
     },
     "error": false,
-    "coverage": "PARTIAL",
-    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
-    "recordCount": 1,
-    "nextCursor": null
-  },
-  {
-    "group": "2",
-    "name": "update_note",
-    "arguments": {
-      "text": "I built my copper farm here (at 1603, 250, 1603 in the Overworld).",
-      "at": {
-        "type": "player",
-        "id": null,
-        "place": null
-      },
-      "tags": [
-        "build",
-        "copper",
-        "farm"
-      ],
-      "id": "n849b2d93",
-      "clearPlace": null
-    },
-    "error": false,
     "coverage": "COMPLETE",
-    "detail": null,
-    "recordCount": 1,
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 12,
     "nextCursor": null
   }
 ]
@@ -27854,7 +27837,24 @@ Calls (exact arguments, groups, coverage/detail and continuation):
 Verbatim reply:
 
 ```text
-Nice—your copper farm is here at (1603, 250, 1603) in the Overworld.
+In the last hour, the journal records these events. **All places are in the Overworld.** Times are UTC on October 26, 2026.
+
+| Time | Actor → subject and event | Place |
+|---|---|---|
+| 00:49:38 | **You (TNThung)** placed 1 oak plank. [Event](journal:event:81) | (1601, 250, 1601) |
+| 00:49:38 | **You** killed a pig. [Event](journal:event:82) | (1604, 250, 1605) |
+| 00:49:38 | **Readiness Zed (zombie)** killed a wolf. The record identifies it as a wolf but does not establish whether it was your pet. [Event](journal:event:84) | (1604, 250, 1606) |
+| 00:49:38 | A **zombie villager was cured**; the recorded actor is the environment, not a named player. [Event](journal:event:85) | (1606, 250, 1606) |
+| 00:49:38 | **Readiness Zed (zombie)** killed a villager. [Event](journal:event:86) | (1607, 250, 1607) |
+| 00:49:38 | A **villager converted to a zombie villager** at the same place; the conversion record names the environment as actor. [Event](journal:event:87) | (1607, 250, 1607) |
+| 00:49:48 | **Readiness Zed (zombie)** killed **you**. [Event](journal:event:88) | (1603, 250, 1603) |
+| 00:49:49 | A villager changed profession from **none to librarian**; recorded actor: environment. [Event](journal:event:89) | (1605, 250, 1605) |
+| 00:50:16 | **You** traded with a farmer for **8 bread**, with an emerald recorded as the cost item. [Event](journal:event:91) | (1605, 250, 1604) |
+| 00:50:45 | **You** first entered a plains village. [Event](journal:event:92) | (1872, 70, 864) |
+| 00:50:59 | A villager changed profession from **none to cleric**; recorded actor: environment. [Event](journal:event:93) | (1877, 68, 875) |
+| 00:51:04 | A villager changed profession from **none to farmer**; recorded actor: environment. [Event](journal:event:94) | (1844, 65, 821) |
+
+The search was complete for these event types within the last hour; it does **not** identify the wolf as owned by you.
 ```
 
 `/navigate` results:
@@ -27862,7 +27862,84 @@ Nice—your copper farm is here at (1603, 250, 1603) in the Overworld.
 ```json
 [
   {
-    "targetId": "journal-note|n849b2d93",
+    "targetId": "journal-place|minecraft:overworld|1844,65,821",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1877,68,875",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1872,70,864",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1604",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1605,250,1605",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1603,250,1603",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1607,250,1607",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1607,250,1607",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1606,250,1606",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1604,250,1606",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1604,250,1605",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1601,250,1601",
     "result": {
       "status": "OPENED",
       "detail": null
@@ -27871,7 +27948,14 @@ Nice—your copper farm is here at (1603, 250, 1603) in the Overworld.
 ]
 ```
 
-Timing: {"wallMs":17763,"modelTerminalMs":"15254","toolWallMs":"17","persistMs":"18"}.
+Timing: {"wallMs":24301,"modelTerminalMs":"22738","toolWallMs":"4","persistMs":"8"}.
+
+
+#### J11 — NOT RUN
+
+Pending raid start/outcome fixture.
+
+
 
 
 #### J13 — NOT RUN
@@ -28324,6 +28408,640 @@ Pending concurrent settings save and shutdown flush.
 
 
 ### Failures
+
+#### J12 — FAIL
+
+Classification: **prompt**. Deleting the Nether note makes its link unavailable, but a later answer resurrects its coordinates from chat history.
+
+Anchored note links opened; the cross-dimension navigation reports minecraft:the_nether. Copper forget and relay delete both call forget_note and their links become UNAVAILABLE. After relay deletion, all journal note searches return zero matches, but search_history recovers the deleted location and the reply repeats (1603,122,1603). This violates the requirement that deleted notes stop being recalled. The plain beacon question invokes no remember/update_note. The initial Nether submission was rejected before request acceptance with World history is not ready during dimension transition; one recorded retry after readiness was accepted. No failed answer was retried.
+
+Evidence: [j12-nether-note-input.json](../../build/native-readiness-live/j12-nether-note-input.json).
+
+Evidence: [j12-nether-state.json](../../build/native-readiness-live/j12-nether-state.json).
+
+Question: `I built my copper farm here.`
+
+Request `78fbb796-46e2-42af-853d-2e8f68741241`; conversation `83d58ca3-0949-4a38-8a7c-b10c13802c05`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j12-copper.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "copper farm",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "update_note",
+    "arguments": {
+      "text": "I built my copper farm here (at 1603, 250, 1603 in the Overworld).",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "copper",
+        "farm"
+      ],
+      "id": "n849b2d93",
+      "clearPlace": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Nice—your copper farm is here at (1603, 250, 1603) in the Overworld.
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|n849b2d93",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":17763,"modelTerminalMs":"15254","toolWallMs":"17","persistMs":"18"}.
+
+Question: `I built my readiness Nether relay here.`
+
+Request `8ee04bb2-997e-4db4-b86c-53e4e3b62440`; conversation `84bd246f-7573-4db8-b03b-e4b971c854ac`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j12-nether-note-retry.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "remember",
+    "arguments": {
+      "text": "I built my readiness Nether relay here.",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "nether",
+        "relay"
+      ]
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Nice—the readiness Nether relay is built here.
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|n800b1650",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":11893,"modelTerminalMs":"9457","toolWallMs":"51","persistMs":"14"}.
+
+Question: `Where is my readiness Nether relay?`
+
+Request `c9177716-f9ad-4e51-ba87-1ce3ff642cf0`; conversation `aec7eb1a-2db8-413c-91fc-8723d8ebf730`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j12-nether-recall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "readiness Nether relay",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You reported building your **readiness Nether relay** at **(1603, 122, 1603) in the Nether**. [Go to your marked location](journal:note:n800b1650)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|n800b1650",
+    "result": {
+      "status": "OPENED",
+      "detail": "1603, 122, 1603 in minecraft:the_nether"
+    }
+  }
+]
+```
+
+Timing: {"wallMs":10550,"modelTerminalMs":"9285","toolWallMs":"1","persistMs":"9"}.
+
+Question: `forget my copper farm`
+
+Request `bf186e22-92b4-44a8-886d-da96f9007815`; conversation `4a86ec5e-93ec-4bfe-a5cd-377ee96a784a`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j12-forget.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "copper farm",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "forget_note",
+    "arguments": {
+      "id": "n849b2d93"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "note n849b2d93 forgotten",
+    "recordCount": 0,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Forgot your copper farm note.
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|n849b2d93",
+    "result": {
+      "status": "UNAVAILABLE",
+      "detail": "Navigation target is no longer available"
+    }
+  }
+]
+```
+
+Timing: {"wallMs":12483,"modelTerminalMs":"11118","toolWallMs":"3","persistMs":"13"}.
+
+Question: `what do you remember about my copper farm?`
+
+Request `d338f0dc-98ec-451a-866f-c73b35707476`; conversation `2d7a4b51-7e8e-4d7a-830e-cfee1c21594a`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j12-forgotten-recall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "copper farm",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "copper",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "3",
+    "name": "search_history",
+    "arguments": {
+      "text": "copper farm",
+      "limit": 16,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "Some conversation records were malformed, oversized, or unavailable.",
+    "recordCount": 6,
+    "nextCursor": "37fae321-06b2-40d4-abcc-e6f1c4ca8f7f",
+    "nextCall": {
+      "name": "search_history",
+      "arguments": {
+        "text": "copper farm",
+        "limit": 16,
+        "cursor": "37fae321-06b2-40d4-abcc-e6f1c4ca8f7f"
+      }
+    }
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I don’t have a saved note about your copper farm—you asked me to forget it. [history:8eab8189-5a84-4b2f-9658-8da6f4049cca]
+```
+
+`/navigate` results (no targets returned or navigation not exercised; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":28614,"modelTerminalMs":"27276","toolWallMs":"429","persistMs":"3"}.
+
+Question: `Delete my readiness Nether relay note.`
+
+Request `4506e653-a05c-4979-b556-e96556b5546f`; conversation `c63a80bd-ec24-48c6-a536-5e2c3ddb820e`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j12-delete.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "readiness Nether relay",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "forget_note",
+    "arguments": {
+      "id": "n800b1650"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "note n800b1650 forgotten",
+    "recordCount": 0,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Deleted your readiness Nether relay note.
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|n800b1650",
+    "result": {
+      "status": "UNAVAILABLE",
+      "detail": "Navigation target is no longer available"
+    }
+  }
+]
+```
+
+Timing: {"wallMs":16229,"modelTerminalMs":"14376","toolWallMs":"3","persistMs":"8"}.
+
+Question: `Where is my readiness Nether relay?`
+
+Request `ec67de86-4a2b-49d5-88ac-83fffb3729ff`; conversation `74c9ca45-286b-4da5-8617-4d66ef0c3d52`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j12-deleted-recall.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "readiness Nether relay",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "readiness Nether relay",
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "relay",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "relay",
+        "notesOnly": false
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "3",
+    "name": "search_history",
+    "arguments": {
+      "text": "readiness",
+      "limit": 16,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "Some conversation records were malformed, oversized, or unavailable.",
+    "recordCount": 6,
+    "nextCursor": "42c4679d-700a-47a5-9351-9df4cded0cbd",
+    "nextCall": {
+      "name": "search_history",
+      "arguments": {
+        "text": "readiness",
+        "limit": 16,
+        "cursor": "42c4679d-700a-47a5-9351-9df4cded0cbd"
+      }
+    }
+  },
+  {
+    "group": "3",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "Nether",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 0,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You previously reported building the readiness Nether relay at **(1603, 122, 1603) in the Nether**. That’s a historical location, not a current verification: you later deleted its location note, so I can’t confirm the relay is still there. [history:e880c472-6216-4639-afe4-d975bbd7e208] [history:21122ee2-e97c-41b4-9523-3d3033c49996]
+```
+
+`/navigate` results (no targets returned or navigation not exercised; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":29057,"modelTerminalMs":"27883","toolWallMs":"415","persistMs":"2"}.
+
+Question: `What is a beacon?`
+
+Request `5887fa89-9adb-44ca-96ab-97dbe3edc76d`; conversation `0d0ea0be-d8c8-481d-b984-e40b7228df2d`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j12-plain-question.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_registry",
+    "arguments": {
+      "registry": "block",
+      "filter": {
+        "text": null,
+        "ids": [
+          "minecraft:beacon"
+        ],
+        "tags": null,
+        "provider": null
+      },
+      "limit": 10,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "1",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:beacon",
+      "quantity": 1,
+      "depth": 1
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "bounded-live-recipe-scan",
+    "recordCount": 0,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+A **beacon** is a Minecraft block that marks a spot with a beam of light and, when placed on a pyramid of mineral blocks, gives nearby players selectable buffs. A larger pyramid unlocks more options. Your loaded pack includes the Beacon block. [native:block:minecraft:beacon] [Minecraft’s beacon guide](https://www.minecraft.net/nl-nl/article/ten-rare-recipes)
+
+To make one in standard Minecraft, you need **5 glass, 3 obsidian, and a Nether Star** dropped by the Wither. I couldn’t confirm that recipe from this pack’s loaded recipe scan, so treat it as the standard recipe rather than a verified pack recipe. [Minecraft’s recipe guide](https://www.minecraft.net/nl-nl/article/ten-rare-recipes)
+```
+
+`/navigate` results (no targets returned or navigation not exercised; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":21120,"modelTerminalMs":"20008","toolWallMs":"111","persistMs":"10"}.
+
 
 #### J14 — FAIL
 

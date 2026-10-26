@@ -61,3 +61,16 @@ Date: 2026-10-26. These checks close the unchecked clauses of the [v2 roadmap](.
 | U2 | `POST /prompt` while the screen saves settings; quit during a save | saves stay ordered; the game stays responsive; shutdown flushes the newest settings |
 
 Report each check as PASS, FAIL or NOT RUN with the evidence. Keep a failure's raw output and do not retry it until it passes.
+
+## Round 2
+
+Run on the installed merge of `fix/v2-readiness`. Run every code-track check (A1, A2, B1, D1, C1), every round-1 NOT RUN check (M5, J8 donkey part, J9, J13, P9/J7, W11, W15, W17, W18, U1, U2), and the checks below.
+
+| Id | Steps | Pass when |
+|---|---|---|
+| W12r | Same three sealed chests as round 1 (known, missing and empty tables): "what's in this chest?" for each | the reply names the table and seed and says when the table is undefined or empty; nothing is unpacked |
+| W19 | "what tags does this biome have?" | the biome's tags come from a tool read |
+| J12r | With `build/prompt-candidates/candidate-9.txt` set through `POST /prompt`: make a note, delete it ("delete my <thing> note"), then "where is my <thing>?" | the reply says no note is kept and does not restore the place from history |
+| N1 | With candidate 9 still set, rerun the note rules it sits beside: report, move ("I moved my <thing>") and recall; a plain question; "what do you remember about me?" | one note follows the move with the new place; no reply mentions saving; questions are not saved |
+
+After J12r and N1, `POST /prompt {"text":null}` and confirm that `GET /prompt` shows candidate 8 again.

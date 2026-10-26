@@ -21,6 +21,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void cancelingEditRecomputesHistoryInclusion() throws Exception {
+        var screen = new AssistantScreen(new FakeActions());
+        screen.width = 960;
+        screen.height = 600;
+        ScreenTestHost.initialize(screen);
+        var font = net.minecraft.client.gui.screens.Screen.class.getDeclaredField("font");
+        font.setAccessible(true);
+        font.set(screen, new ScreenPreparationFont());
+        assertTrue(screen.editLatest(screen.view().conversation().turns().getLast().requestId()));
+        screen.prepareConversation();
+        var history = AssistantScreen.class.getDeclaredField("history");
+        history.setAccessible(true);
+        Object editing = history.get(screen);
+        assertTrue(screen.keyPressed(org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE, 0, 0));
+        screen.prepareConversation();
+        assertTrue(editing != history.get(screen), "Escape must invalidate the replacement history preview");
+    }
+
+    @Test
     void expandedToolFieldsUseMutedLabelsAndNormalValues() throws Exception {
         var screen = new AssistantScreen(new FakeActions());
         var step = new ChatContracts.ActivityStep("tool:result", "Reading", "Failed",

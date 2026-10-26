@@ -6,6 +6,8 @@ import dev.packsage.world.Statistic;
 import dev.packsage.world.StatisticReader;
 import dev.packsage.world.StatisticUnit;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntMaps;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -38,6 +40,8 @@ public final class MinecraftStatistics implements StatisticReader {
     static final String UNREADABLE_NOTE = "the statistics counter could not be read";
     private static final int SAMPLE = 123456;
     private static final Field STATS;
+    private static final Field BACKING;
+    private static final Field KEYS;
     private static final String STATS_FAILURE;
     /**
      * The units of vanilla's custom counters that {@code Stats} registers with a non-count formatter. A formatter lives
@@ -63,15 +67,23 @@ public final class MinecraftStatistics implements StatisticReader {
 
     static {
         Field field = null;
+        Field backing = null;
+        Field keys = null;
         String failure = null;
         try {
             field = StatsCounter.class.getDeclaredField("stats");
             field.setAccessible(true);
+            backing = Object2IntMaps.SynchronizedMap.class.getDeclaredField("map");
+            backing.setAccessible(true);
+            keys = Object2IntOpenHashMap.class.getDeclaredField("key");
+            keys.setAccessible(true);
         } catch (ReflectiveOperationException | RuntimeException e) {
             field = null;
             failure = e.toString();
         }
         STATS = field;
+        BACKING = backing;
+        KEYS = keys;
         STATS_FAILURE = failure;
     }
 
@@ -163,10 +175,10 @@ public final class MinecraftStatistics implements StatisticReader {
         private final Supplier<Object2IntMap<Stat<?>>> source;
         private final List<StatType<?>> types;
         private final KindFilter subjects;
-        private final List<Statistic> rows = new ArrayList<>();
-        private final Set<List<Object>> present = new HashSet<>();
+        private List<Statistic> rows = new ArrayList<>();
+        private Set<List<Object>> present = new HashSet<>();
         private Object2IntMap<Stat<?>> counted;
-        private List<Stat<?>> entries;
+        private Object[] keys;
         private int nextEntry;
         private int size;
         private int zeroType;
@@ -184,40 +196,48 @@ public final class MinecraftStatistics implements StatisticReader {
         @Override
         public boolean step() {
             if (done) return false;
-            if (counted == null) {
-                counted = source.get();
-                synchronized (counted) {
-                    size = counted.size();
-                    // Copy references once; engine iterators must not survive a step or a continuation call.
-                    entries = new ArrayList<>(counted.keySet());
-                }
-            }
+            if (counted == null) counted = source.get();
             var read = 0;
             synchronized (counted) {
-                // The engine only adds counter keys or updates values. Growth invalidates fastutil's iterator.
-                if (counted.size() != size) {
+                Object[] currentKeys;
+                try {
+                    if (KEYS == null || BACKING == null) throw new IllegalStateException(UNREADABLE_NOTE + ": " + STATS_FAILURE);
+                    Object table = counted;
+                    if (table instanceof Object2IntMaps.SynchronizedMap<?>) table = BACKING.get(table);
+                    if (!(table instanceof Object2IntOpenHashMap<?>)) {
+                        throw new IllegalStateException(UNREADABLE_NOTE + ": unsupported counter storage " + table.getClass().getName());
+                    }
+                    currentKeys = (Object[]) KEYS.get(table);
+                } catch (IllegalAccessException failure) {
+                    throw new IllegalStateException(UNREADABLE_NOTE + ": " + failure, failure);
+                }
+                // Native StatsCounter only adds keys or updates values. Its synchronized wrapper locks on itself.
+                // Array identity also catches a same-size rehash; no engine iterator survives a step.
+                if (keys != null && (currentKeys != keys || counted.size() != size)) {
                     if (restarts++ >= 3) {
                         note = "Statistics kept changing while reading; partial counters only, repeat list_statistics";
                         done = true;
                         return false;
                     }
-                    rows.clear();
-                    present.clear();
+                    // Dropping accumulated collections is constant work; clearing them would scan their backing stores.
+                    rows = new ArrayList<>();
+                    present = new HashSet<>();
                     zeroType = 0;
                     zeroSubject = 0;
                     nextEntry = 0;
                     size = counted.size();
-                    entries = new ArrayList<>(counted.keySet());
+                    keys = currentKeys;
                     return true;
                 }
-                if (entries != null) {
-                    for (; read < STEP_ENTRIES && nextEntry < entries.size(); read++) {
-                        var stat = entries.get(nextEntry++);
+                keys = currentKeys;
+                size = counted.size();
+                // Count physical slots, including empty ones, so even a sparse counter has bounded steps.
+                for (; read < STEP_ENTRIES && nextEntry < keys.length; read++) {
+                    if (keys[nextEntry++] instanceof Stat<?> stat) {
                         if (types.contains(stat.getType())) read(stat, counted.getInt(stat));
                     }
-                    if (nextEntry < entries.size()) return true;
-                    entries = null;
                 }
+                if (nextEntry < keys.length) return true;
             }
             for (; read < STEP_ENTRIES && zeroType < types.size(); read++) {
                 if (zeroSubject < subjects.ids().size()) {

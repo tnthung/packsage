@@ -303,11 +303,12 @@ class WorldToolsTest {
         var levels = net.minecraft.server.MinecraftServer.class.getDeclaredField("levels");
         levels.setAccessible(true);
         levels.set(server, Map.of(net.minecraft.world.level.Level.OVERWORLD, level));
-        var inspect = WorldTools.class.getDeclaredMethod("inspectBlock", net.minecraft.server.MinecraftServer.class, BlockPlace.class, Evidence.Scope.class);
+        var inspect = WorldInspectionTools.class.getDeclaredMethod("inspectBlock", net.minecraft.server.MinecraftServer.class, BlockPlace.class, Evidence.Scope.class);
         inspect.setAccessible(true);
-        var record = (Evidence.Record) inspect.invoke(new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE,
+        var world = new WorldTools(() -> server, new WorldRegistry(), () -> SCOPE,
                 Runnable::run, new ServerWork(System::nanoTime), () -> java.util.concurrent.CompletableFuture.completedFuture(ClientFocus.NONE),
-                place -> false, id -> null, null), server, new BlockPlace("minecraft:overworld", 1, 64, 2), SCOPE);
+                place -> false, id -> null, null);
+        var record = (Evidence.Record) inspect.invoke(world.inspectionTools, server, new BlockPlace("minecraft:overworld", 1, 64, 2), SCOPE);
         assertEquals(new Evidence.JsonString("minecraft:" + kind), record.payload().values().get("block"));
         if (kind.equals("stone")) {
             assertEquals(1, record.targets().size());

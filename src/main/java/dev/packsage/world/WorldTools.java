@@ -142,7 +142,7 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     private final Supplier<MinecraftServer> server;
-    private final WorldRegistry registry;
+    final WorldRegistry registry;
     private final Supplier<Evidence.Scope> scope;
     final AreaScan scan;
     private final Executor worker;
@@ -152,6 +152,7 @@ public final class WorldTools implements KnowledgeProvider {
     private final Supplier<CompletionStage<ClientFocus>> focus;
     private final WorldKnowledgeTools knowledge;
     final WorldAreaTools areaTools;
+    final WorldInspectionTools inspectionTools;
     private final Map<String, Cursor> cursors = new LinkedHashMap<>(16, 0.75f, true);
     /**
      * The menu each opened id was issued for, on the server in openedOn. Ids restart for every new player and wrap after
@@ -200,6 +201,7 @@ public final class WorldTools implements KnowledgeProvider {
         this.notePlaces = notePlaces;
         this.knowledge = new WorldKnowledgeTools(this);
         this.areaTools = new WorldAreaTools(this);
+        this.inspectionTools = new WorldInspectionTools(this);
     }
 
     @Override
@@ -226,8 +228,8 @@ public final class WorldTools implements KnowledgeProvider {
                 case "inspect_area" -> areaTools.inspectArea(request);
                 case "list_blocks" -> areaTools.listBlocks(request);
                 case "list_entities" -> areaTools.listEntities(request);
-                case "inspect_block" -> inspect(request, "block|" + place(requiredText(request, "place")).text());
-                case "inspect_entity" -> inspect(request, "entity|" + uuid(requiredText(request, "id")));
+                case "inspect_block" -> inspectionTools.inspect(request, "block|" + place(requiredText(request, "place")).text());
+                case "inspect_entity" -> inspectionTools.inspect(request, "entity|" + uuid(requiredText(request, "id")));
                 case "list_items" -> listItems(request);
                 case "inspect_item" -> inspectItem(request);
                 case "find_items" -> findItems(request);
@@ -301,10 +303,6 @@ public final class WorldTools implements KnowledgeProvider {
 
     // Tools
 
-    private CompletionStage<Evidence.Result> inspect(PackSageTools.ReadRequest request, String handle) {
-        return reread(handle, request.scope()).thenApply(WorldTools::single);
-    }
-
     private CompletionStage<Evidence.Result> listItems(PackSageTools.ReadRequest request) {
         var holderText = requiredText(request, "holder");
         var phrase = holderText.equals("player") ? null : phrase(holderText);
@@ -344,7 +342,7 @@ public final class WorldTools implements KnowledgeProvider {
     private CompletionStage<Evidence.Result> inspectItem(PackSageTools.ReadRequest request) {
         var text = requiredText(request, "path");
         var phrase = phrase(text);
-        if (phrase == null) return inspect(request, "item|" + itemPath(text).text());
+        if (phrase == null) return inspectionTools.inspect(request, "item|" + itemPath(text).text());
         if (phrase.steps().isEmpty() && phrase.word() != HolderWords.Word.HELD && phrase.word() != HolderWords.Word.OFFHAND) {
             throw invalid(text + " names a holder, not an item; list its items with list_items");
         }
@@ -499,16 +497,16 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     /** Reads one block, entity, item, holder, loot or command handle fresh. */
-    private CompletionStage<Evidence.Record> reread(String handle, Evidence.Scope scope) {
+    CompletionStage<Evidence.Record> reread(String handle, Evidence.Scope scope) {
         if (handle.startsWith("block|")) {
             var place = place(handle.substring(6));
             var server = server();
-            return run(server, once(() -> inspectBlock(server, place, scope)));
+            return run(server, once(() -> inspectionTools.inspectBlock(server, place, scope)));
         }
         if (handle.startsWith("entity|")) {
             var id = uuid(handle.substring(7));
             var server = server();
-            return run(server, once(() -> inspectEntity(server, id, scope))).thenApply(record -> {
+            return run(server, once(() -> inspectionTools.inspectEntity(server, id, scope))).thenApply(record -> {
                 // This continuation runs on the worker. Leave room for source/target metadata and the tool envelope.
                 if (Evidence.serialize(record.payload()).getBytes(java.nio.charset.StandardCharsets.UTF_8).length
                         + record.title().getBytes(java.nio.charset.StandardCharsets.UTF_8).length <= 65_536) return record;
@@ -566,44 +564,6 @@ public final class WorldTools implements KnowledgeProvider {
     }
 
     // Server-thread reads
-
-    private Evidence.Record inspectBlock(MinecraftServer server, BlockPlace place, Evidence.Scope scope) {
-        var level = level(server, place.dimension());
-        var pos = new BlockPos(place.x(), place.y(), place.z());
-        if (!loaded(level, pos)) throw new Failure(Code.UNAVAILABLE, "the chunk at " + place.text() + " is not loaded");
-        var state = level.getBlockState(pos);
-        var inventories = registry.inventories(new LiveHolder.OfBlock(level, pos));
-        var sections = registry.inspectBlock(level, pos);
-        var payload = new LinkedHashMap<String, Evidence.JsonValue>();
-        var kind = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
-        payload.put("block", text(kind));
-        payload.put("name", text(state.getBlock().getName().getString()));
-        payload.put("place", text(place.text()));
-        payload.put("holder", text(new ItemPath(new PathRoot.Block(place), List.of()).text()));
-        payload.put("sections", sections(sections));
-        payload.put("inventories", inventories(inventories));
-        putTime(payload, level);
-        return evidence(scope, "block|" + place.text(), Evidence.RecordKind.BLOCK, kind + " at " + place.text(), payload,
-                coverage(sections, inventories), state.isAir() ? null : WorldNavigation.blockId(place));
-    }
-
-    private Evidence.Record inspectEntity(MinecraftServer server, UUID id, Evidence.Scope scope) {
-        var entity = entity(server, id);
-        if (entity == null) throw new Failure(Code.UNAVAILABLE, "no loaded entity has id " + id);
-        var holder = entity instanceof ServerPlayer player ? new LiveHolder.OfPlayer(player) : new LiveHolder.OfEntity(entity);
-        var root = entity instanceof ServerPlayer ? new PathRoot.Player(id) : new PathRoot.Entity(id);
-        var inventories = registry.inventories(holder);
-        var sections = registry.inspectEntity(entity);
-        var identity = areaTools.entityRecord(scope, handle(entity), null);
-        var payload = new LinkedHashMap<>(identity.payload().values());
-        payload.put("holder", text(new ItemPath(root, List.of()).text()));
-        payload.put("sections", sections(sections));
-        payload.put("inventories", inventories(inventories));
-        putTime(payload, entity.level());
-        return evidence(scope, "entity|" + id, Evidence.RecordKind.OTHER, identity.title(), payload,
-                identity.source().coverage() == Evidence.Coverage.PARTIAL ? Evidence.Coverage.PARTIAL : coverage(sections, inventories),
-                WorldNavigation.entityId(id));
-    }
 
     private Evidence.Record inspectItem(MinecraftServer server, ItemPath path, Evidence.Scope scope) {
         var resolution = resolver(server).resolve(path);
@@ -1149,11 +1109,6 @@ public final class WorldTools implements KnowledgeProvider {
         };
     }
 
-    private static EntityHandle handle(Entity entity) {
-        return new EntityHandle(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString(), entity.getUUID(),
-                entity.level().dimension().location().toString(), entity.getX(), entity.getY(), entity.getZ(), entity.getName().getString());
-    }
-
     // Running slices
 
     Executor worker() {
@@ -1581,7 +1536,7 @@ public final class WorldTools implements KnowledgeProvider {
      * The game time the record was read at, in ticks (20 per second), so game times in its facts can be aged, and the
      * day time (24000 ticks per day, 0 at sunrise).
      */
-    private static void putTime(Map<String, Evidence.JsonValue> payload, net.minecraft.world.level.Level level) {
+    static void putTime(Map<String, Evidence.JsonValue> payload, net.minecraft.world.level.Level level) {
         payload.put("gameTime", number(level.getGameTime()));
         payload.put("dayTime", number(level.getDayTime()));
     }
@@ -1608,7 +1563,7 @@ public final class WorldTools implements KnowledgeProvider {
         return new Evidence.Record(source, kind, title, new Evidence.JsonObject(payload), targets);
     }
 
-    private static Evidence.JsonObject sections(Map<String, Section> sections) {
+    static Evidence.JsonObject sections(Map<String, Section> sections) {
         var values = new LinkedHashMap<String, Evidence.JsonValue>();
         sections.forEach((adapter, section) -> {
             var value = new LinkedHashMap<String, Evidence.JsonValue>();
@@ -1620,7 +1575,7 @@ public final class WorldTools implements KnowledgeProvider {
         return new Evidence.JsonObject(values);
     }
 
-    private static Evidence.JsonArray inventories(Page<InventoryInfo> inventories) {
+    static Evidence.JsonArray inventories(Page<InventoryInfo> inventories) {
         return new Evidence.JsonArray(inventories.items().stream().map(info -> {
             var value = new LinkedHashMap<String, Evidence.JsonValue>();
             value.put("inventory", text(info.id().text()));
@@ -1631,7 +1586,7 @@ public final class WorldTools implements KnowledgeProvider {
         }).toList());
     }
 
-    private static Evidence.Coverage coverage(Map<String, Section> sections, Page<InventoryInfo> inventories) {
+    static Evidence.Coverage coverage(Map<String, Section> sections, Page<InventoryInfo> inventories) {
         return inventories.coverage() == Evidence.Coverage.COMPLETE
                 && sections.values().stream().allMatch(section -> section.coverage() == Evidence.Coverage.COMPLETE)
                 ? Evidence.Coverage.COMPLETE : Evidence.Coverage.PARTIAL;

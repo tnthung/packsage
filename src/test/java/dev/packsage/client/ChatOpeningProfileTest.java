@@ -101,6 +101,17 @@ class ChatOpeningProfileTest {
         }
         long prepared = System.nanoTime();
         while (!queue.isEmpty()) queue.remove().run();
+        long lookupStart = System.nanoTime();
+        var allSessions = runtime.sessions().toCompletableFuture();
+        while (!allSessions.isDone()) catalogQueue.remove().run();
+        var chosen = allSessions.join().stream().filter(session -> session.id().equals(selected)
+                && session.world().equals(world)).findFirst().orElseThrow();
+        long lookupEnd = System.nanoTime();
+        runtime.openSession(chosen);
+        while (!runtime.sessionReady()) queue.remove().run();
+        long reopenEnd = System.nanoTime();
+        System.out.printf("BRIDGE BASELINE all-session-lookup=%.1fms, reopen=%.1fms, sessions=%d%n",
+                (lookupEnd - lookupStart) / 1e6, (reopenEnd - lookupEnd) / 1e6, allSessions.join().size());
         long catalogStart = System.nanoTime();
         while (!catalog.isDone()) catalogQueue.remove().run();
         long catalogNanos = System.nanoTime() - catalogStart;

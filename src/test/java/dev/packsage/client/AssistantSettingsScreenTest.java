@@ -188,11 +188,11 @@ class AssistantSettingsScreenTest {
         var layout = screen.layout();
 
         assertEquals(PackSageSettings.CommandConfirmation.ALWAYS, settings.commandConfirmation());
-        assertTrue(screen.mouseClicked(layout.left() + 16, layout.shortcutTop() + 52 + 26, 0));
+        assertTrue(screen.mouseClicked(layout.left() + 16, layout.confirmationTop() + 26, 0));
         assertEquals(PackSageSettings.CommandConfirmation.RISKY, settings.commandConfirmation());
-        assertTrue(screen.mouseClicked(layout.left() + 16, layout.shortcutTop() + 52 + 52, 0));
+        assertTrue(screen.mouseClicked(layout.left() + 16, layout.confirmationTop() + 52, 0));
         assertEquals(PackSageSettings.CommandConfirmation.DIRECT, settings.commandConfirmation());
-        assertTrue(screen.mouseClicked(layout.left() + 16, layout.shortcutTop() + 52, 0));
+        assertTrue(screen.mouseClicked(layout.left() + 16, layout.confirmationTop(), 0));
         assertEquals(PackSageSettings.CommandConfirmation.ALWAYS, settings.commandConfirmation());
 
         settings.setCommandConfirmation(PackSageSettings.CommandConfirmation.DIRECT);

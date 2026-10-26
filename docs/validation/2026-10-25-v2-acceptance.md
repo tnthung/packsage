@@ -27509,3 +27509,827 @@ Remaining acceptance blockers: (1) W2 unexpectedly ends PARTIAL on the no-AI/no-
 
 - **W2 final page PARTIAL: code defect, fixed in 744a96d.** All 160 chickens came back exactly once. The last page still reported "Entity cursor anchor is gone or moved". When a page fills, its cursor anchors on the last entity seen in UUID order, which need not be a listed match. The no-AI fixture chickens still lay eggs, so a short-lived item entity can be that anchor. Pages resume after the anchor's UUID in the sorted snapshot, so a vanished anchor skips nothing, and the note was a false gap. It is removed; the regression now asserts exact UUID-order resumption after a removed anchor. A controller rerun at the same position before the fix (request in `build/m1-live/w2-repro.json`) returned 64 + 64 + 32 and COMPLETE.
 - **plan_recipe leading routes: NOT RUN, existing planner limitation.** The encoder's route-limit branch is covered by automated tests (64, 128 and 256 realistic routes). Live beacon and enchanting-table plans returned no route records because the bounded live recipe scan is partial, and a controller probe also got zero routes for oak planks. RecipePlanner and the native recipe reader are unchanged on this branch, so this is a pre-existing planner limitation, recorded as a follow-up. The model fell back to search_recipe and answered correctly.
+
+## Native readiness round 1
+
+Date: 2026-10-26. Branch `feat/packsage-v2`; installed HEAD `e584bb80171a838a41e1b2c00d1553ff76f9e10d`; installed JAR SHA-256 `F5A92CFFF3E44082C6A0D65240ED64D671EB99D724C9D96DCDBD73D17F6F0BC7`. [Install metadata](../../build/native-readiness-live/install-metadata.json), [build/install log](../../build/native-readiness-live/build-install.log).
+
+At the initial inspection Minecraft was already closed: no javaw or Minecraft window, and the latest log ended with a clean save/disconnect. The build/install wrapper completed with exit 0 (Gradle test/build were up to date). The player launched the game manually during installation verification and confirmed it open. Initial GET /prompt: text=null and effectiveText equals candidate 8. No source edits, prompt tuning, branch changes or worktree creation. Raw evidence is ignored under build/native-readiness-live; [HTTP ledger](../../build/native-readiness-live/http.jsonl) contains request/response bodies and timing without authorization headers. A physical Escape stopped desktop input; bridge work continued and the player explicitly authorized resuming the required desktop actions.
+
+A1, A2, B1, D1 and C1 were excluded by request. No failed model check was rerun to obtain a pass. Transport/setup exceptions are identified with their original evidence. Call groups below are the provider rounds that produced each tool batch, derived from the request timing stream.
+
+| Check | Status | Observation |
+|---|---|---|
+| M5 | NOT RUN | 2,000 sand and TNT recorded; world-close metric and stall observation pending. |
+| J8 | NOT RUN | Chest withdrawal recorded; donkey interaction pending. |
+| J9 | NOT RUN | Pending open-container disconnect check. |
+| J10 | NOT RUN | Pending journal event-family fixture. |
+| J11 | NOT RUN | Pending raid start/outcome fixture. |
+| J12 | NOT RUN | Note lifecycle and cross-dimension checks in progress. |
+| J13 | NOT RUN | Pending immediate quit and quick rejoin checks. |
+| J14 | FAIL | The first tool-using conversation has neither conversation nor message origin fields. |
+| P9/J7 | NOT RUN | NeoForge 21.1.202 no-mod server ready; client join pending. |
+| W9 | PASS | Potion, arrow, dye, custom name and book facts correct; stale item reference refused and moved item rediscovered. |
+| W10 | PASS | Closed chest contents are not reused as current context. |
+| W11 | NOT RUN | Donkey /player/open mounted it (opened=false); desktop inventory path pending. |
+| W12 | NOT RUN | Pending sealed loot-table chests. |
+| W13 | NOT RUN | Pending biome and cherry-grove discovery. |
+| W14 | NOT RUN | Pending command discovery and follow-up page. |
+| W15 | NOT RUN | Pending uncached villager POI fixture. |
+| W16 | NOT RUN | Pending holder and advancement-tree rereads. |
+| W17 | NOT RUN | Legacy provider-citation conversations found; saved-chat UI check pending. |
+| W18 | NOT RUN | Pending effect-description resource pack. |
+| E8 | NOT RUN | Pending Nether-fortress question from Overworld. |
+| E9 | NOT RUN | Pending village search and look-further follow-up. |
+| U1 | NOT RUN | Pending adapter-popup layout observation. |
+| U2 | NOT RUN | Pending concurrent settings save and shutdown flush. |
+
+### Passing checks and checks not run
+
+#### M5 — NOT RUN
+
+2,000 sand and TNT recorded; world-close metric and stall observation pending.
+
+All 2,000 low-concurrency break calls succeeded. One initial 20-request batch hit fetch failed; its original result is preserved and the bounded continuation visited every coordinate once. Journal sums are 1000+990+10=2000 sand and 9 exploded stone. A previous fixture TNT exploded before chunk loading and broke zero blocks. No question retry. Navigation opened all seven targets.
+
+Evidence: [m5-break-all.json](../../build/native-readiness-live/m5-break-all.json).
+
+Evidence: [m5-loaded-fixture.json](../../build/native-readiness-live/m5-loaded-fixture.json).
+
+Evidence: [m5-transport.json](../../build/native-readiness-live/m5-transport.json).
+
+Question: `what did I just dig up and blow up?`
+
+Request `1b726f91-b5a3-45e9-9291-aa7dc39d0386`; conversation `6c76374d-5a21-4237-ac56-17367d77c52e`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/m5.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": null,
+          "before": null,
+          "lastMinutes": 20
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "break",
+          "explosion"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 7,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You just dug up **sand**: the journal records 1,000 blocks around (1500–1519, 250, 1550–1599), 990 around (1500–1519, 250, 1500–1549), and an earlier 10 starting at (1500, 250, 1500). [journal:event:77] [journal:event:76] [journal:event:72]
+
+**TNT** exploded at (1533, 254, 1505), breaking **9 stone blocks** nearby. An earlier TNT explosion at (1533, 247, 1505) broke **no blocks**. [journal:event:73] [journal:event:74] [journal:event:71]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|1501,250,1550",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1511,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1501,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1531,253,1505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1533,254,1505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1500,250,1500",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1533,247,1505",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":15447,"modelTerminalMs":"13546","toolWallMs":"73","persistMs":"11"}.
+
+
+#### J8 — NOT RUN
+
+Chest withdrawal recorded; donkey interaction pending.
+
+
+
+Evidence: [chest-mount-fixture.json](../../build/native-readiness-live/chest-mount-fixture.json).
+
+Question: `what did I take out of chests today?`
+
+Request `349ee8bd-132f-403e-8475-a9bf72fc9b40`; conversation `51cbda0c-2fba-4600-ac54-9a8ef4440809`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j8-chest.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": {
+          "after": "2026-10-26T00:00:00Z",
+          "before": null,
+          "lastMinutes": null
+        },
+        "area": null,
+        "dimension": null,
+        "types": [
+          "withdraw"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "recording since 2026-10-25T10:23:33.174Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": [
+          "withdraw"
+        ],
+        "subjects": null,
+        "text": null,
+        "notesOnly": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 2,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You took **36 iron ingots** out of chests today (October 25 in U.S. time):
+
+- **5** from the chest at (1005, 250, 1003) at 15:47 UTC on October 25. [Chest](journal:event:38)
+- **31** from the chest at (1602, 250, 1600) at 00:42 UTC on October 26. [Chest](journal:event:78)
+
+That’s what the journal recorded, not necessarily a complete total: it wasn’t recording from 11:09 to 13:37 UTC on October 25. [journal:event:38]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-place|minecraft:overworld|1602,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "journal-place|minecraft:overworld|1005,250,1003",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":24803,"modelTerminalMs":"22330","toolWallMs":"15","persistMs":"17"}.
+
+
+#### J9 — NOT RUN
+
+Pending open-container disconnect check.
+
+
+
+
+#### J10 — NOT RUN
+
+Pending journal event-family fixture.
+
+
+
+
+#### J11 — NOT RUN
+
+Pending raid start/outcome fixture.
+
+
+
+
+#### J12 — NOT RUN
+
+Note lifecycle and cross-dimension checks in progress.
+
+
+
+Question: `I built my copper farm here.`
+
+Request `78fbb796-46e2-42af-853d-2e8f68741241`; conversation `83d58ca3-0949-4a38-8a7c-b10c13802c05`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/j12-copper.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "search_journal",
+    "arguments": {
+      "filter": {
+        "time": null,
+        "area": null,
+        "dimension": null,
+        "types": null,
+        "subjects": null,
+        "text": "copper farm",
+        "notesOnly": true
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "recording since 2026-10-25T10:23:33.174Z; the journal began recording at 2026-10-25T10:23:33.174Z; the world ran without recording between 2026-10-25T11:09:30.574Z and 2026-10-25T13:37:24.381Z",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "update_note",
+    "arguments": {
+      "text": "I built my copper farm here (at 1603, 250, 1603 in the Overworld).",
+      "at": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "tags": [
+        "build",
+        "copper",
+        "farm"
+      ],
+      "id": "n849b2d93",
+      "clearPlace": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Nice—your copper farm is here at (1603, 250, 1603) in the Overworld.
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "journal-note|n849b2d93",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":17763,"modelTerminalMs":"15254","toolWallMs":"17","persistMs":"18"}.
+
+
+#### J13 — NOT RUN
+
+Pending immediate quit and quick rejoin checks.
+
+
+
+
+#### P9/J7 — NOT RUN
+
+NeoForge 21.1.202 no-mod server ready; client join pending.
+
+
+
+Evidence: [server-prep.json](../../build/native-readiness-live/server-prep.json).
+
+
+#### W9 — PASS
+
+Potion, arrow, dye, custom name and book facts correct; stale item reference refused and moved item rediscovered.
+
+Potion strong_healing gives Instant Health II. Long-poison arrows show 1/8 scale and 11.25 seconds. Dye is #FF00FF. Sword name and written book title/author/page match fixture. After moving the potion from slot 0 to 5, read_evidence refused the old reference; list_items and inspect_item returned the current location. No navigation targets returned for opened-menu paths.
+
+Evidence: [w9-fixture.json](../../build/native-readiness-live/w9-fixture.json).
+
+Question: `Inspect each item in this chest: the potion, tipped arrows, dyed item, named item and written book. Tell me their component and potion facts.`
+
+Request `cc136e4e-a5fc-438e-be3b-b5d3a6326521`; conversation `a5207481-c74d-41e2-a76a-f050437ebbf1`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w9.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "opened",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 6,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_item",
+    "arguments": {
+      "path": "opened:2>minecraft/container#0@minecraft:potion"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_item",
+    "arguments": {
+      "path": "opened:2>minecraft/container#1@minecraft:tipped_arrow"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_item",
+    "arguments": {
+      "path": "opened:2>minecraft/container#2@minecraft:leather_chestplate"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_item",
+    "arguments": {
+      "path": "opened:2>minecraft/container#3@minecraft:iron_sword"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_item",
+    "arguments": {
+      "path": "opened:2>minecraft/container#4@minecraft:written_book"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The open chest contains five item types:
+
+- **Potion of Healing ×1:** Its potion-contents component is `minecraft:strong_healing`. It gives **Instant Health II** (amplifier 1), an instant effect rather than a timed one; there’s no custom potion color. [world:item|opened:2>minecraft/container#0@minecraft:potion]
+- **Arrow of Poison ×12:** These tipped arrows contain `minecraft:long_poison` with a duration scale of **⅛**. Their Poison I effect has a base duration of 1,800 ticks; scaled for the arrows, that’s **11.25 seconds** (shown as **00:11** in the tooltip). There’s no custom potion color. [world:item|opened:2>minecraft/container#1@minecraft:tipped_arrow]
+- **Leather Tunic ×1:** This leather chestplate has a dyed-color component of **RGB 16711935 (`#FF00FF`)**. It has **0 damage out of 80 durability**, no enchantments, and shows **+3 Armor** when worn on the body. [world:item|opened:2>minecraft/container#2@minecraft:leather_chestplate]
+- **Readiness Blade ×1:** An iron sword with the custom-name component **“Readiness Blade.”** It has **0 damage out of 250 durability** and no enchantments. Its main-hand tooltip shows **6 Attack Damage** and **1.6 Attack Speed**. [world:item|opened:2>minecraft/container#3@minecraft:iron_sword]
+- **Readiness Notes ×1:** A written book titled **“Readiness Notes,”** authored by **Live Tester**. Its single page says, “Copper farm is beside the river.” It also has an enchantment-glint override set to **true**; that does not mean it has an enchantment. [world:item|opened:2>minecraft/container#4@minecraft:written_book]
+```
+
+`/navigate` results (no targets returned or navigation not exercised; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":26751,"modelTerminalMs":"24375","toolWallMs":"313","persistMs":"18"}.
+
+Question: `Reread the earlier potion and chest inventory handles after that change. What do they contain now?`
+
+Request `d150810e-3689-4539-be7c-4a2de7e0773d`; conversation `a5207481-c74d-41e2-a76a-f050437ebbf1`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w9-reread.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "read_evidence",
+    "arguments": {
+      "handles": [
+        "world:item|opened:2>minecraft/container#0@minecraft:potion"
+      ]
+    },
+    "error": true,
+    "coverage": "ERROR",
+    "detail": "INVALID_REFERENCE: handle was not observed in this scope; repeat discovery",
+    "recordCount": 0
+  },
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "opened",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 6,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_item",
+    "arguments": {
+      "path": "opened:2>minecraft/container#5@minecraft:potion"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The **old potion reference no longer resolves**, so I rediscovered it in the open chest and inspected it at its current slot. It’s still **one Potion of Healing** with `minecraft:strong_healing` and **Instant Health II**; it has no custom potion color. It’s now in **slot 5**, rather than slot 0. [world:item|opened:2>minecraft/container#5@minecraft:potion]
+
+The open chest currently contains **Potion of Healing ×1, Arrow of Poison ×12, Leather Tunic ×1, Readiness Blade ×1, and Readiness Notes ×1**. Slot 0 is empty; the other four items are in slots 1–4. [world:holder|opened:2]
+```
+
+`/navigate` results (no targets returned or navigation not exercised; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":52604,"modelTerminalMs":"48836","toolWallMs":"58","persistMs":"5"}.
+
+
+#### W10 — PASS
+
+Closed chest contents are not reused as current context.
+
+The opened chest was read during W9. After /player/menu/close and looking at the sky, the plain question reports an empty hand and no crosshair target; it does not reuse the previous chest.
+
+Question: `Inspect each item in this chest: the potion, tipped arrows, dyed item, named item and written book. Tell me their component and potion facts.`
+
+Request `cc136e4e-a5fc-438e-be3b-b5d3a6326521`; conversation `a5207481-c74d-41e2-a76a-f050437ebbf1`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w9.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "opened",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 6,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_item",
+    "arguments": {
+      "path": "opened:2>minecraft/container#0@minecraft:potion"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_item",
+    "arguments": {
+      "path": "opened:2>minecraft/container#1@minecraft:tipped_arrow"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_item",
+    "arguments": {
+      "path": "opened:2>minecraft/container#2@minecraft:leather_chestplate"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_item",
+    "arguments": {
+      "path": "opened:2>minecraft/container#3@minecraft:iron_sword"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_item",
+    "arguments": {
+      "path": "opened:2>minecraft/container#4@minecraft:written_book"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The open chest contains five item types:
+
+- **Potion of Healing ×1:** Its potion-contents component is `minecraft:strong_healing`. It gives **Instant Health II** (amplifier 1), an instant effect rather than a timed one; there’s no custom potion color. [world:item|opened:2>minecraft/container#0@minecraft:potion]
+- **Arrow of Poison ×12:** These tipped arrows contain `minecraft:long_poison` with a duration scale of **⅛**. Their Poison I effect has a base duration of 1,800 ticks; scaled for the arrows, that’s **11.25 seconds** (shown as **00:11** in the tooltip). There’s no custom potion color. [world:item|opened:2>minecraft/container#1@minecraft:tipped_arrow]
+- **Leather Tunic ×1:** This leather chestplate has a dyed-color component of **RGB 16711935 (`#FF00FF`)**. It has **0 damage out of 80 durability**, no enchantments, and shows **+3 Armor** when worn on the body. [world:item|opened:2>minecraft/container#2@minecraft:leather_chestplate]
+- **Readiness Blade ×1:** An iron sword with the custom-name component **“Readiness Blade.”** It has **0 damage out of 250 durability** and no enchantments. Its main-hand tooltip shows **6 Attack Damage** and **1.6 Attack Speed**. [world:item|opened:2>minecraft/container#3@minecraft:iron_sword]
+- **Readiness Notes ×1:** A written book titled **“Readiness Notes,”** authored by **Live Tester**. Its single page says, “Copper farm is beside the river.” It also has an enchantment-glint override set to **true**; that does not mean it has an enchantment. [world:item|opened:2>minecraft/container#4@minecraft:written_book]
+```
+
+`/navigate` results (no targets returned or navigation not exercised; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":26751,"modelTerminalMs":"24375","toolWallMs":"313","persistMs":"18"}.
+
+Question: `what's in this?`
+
+Request `434079cf-c5b7-44e5-beac-c530b4b6eebb`; conversation `032b3f90-c962-4f27-bc38-4f89c0a85996`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/w10-closed.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "inspect_item",
+    "arguments": {
+      "path": "held"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "Your main hand is empty",
+    "recordCount": 0,
+    "nextCursor": null
+  },
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "Nothing is under the crosshair",
+    "recordCount": 0,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Your hand is empty, and nothing is under your crosshair, so I can’t tell what “this” refers to. Point at the container or hold the item you mean, then ask again.
+```
+
+`/navigate` results (no targets returned or navigation not exercised; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":null,"modelTerminalMs":"9007","toolWallMs":"49","persistMs":"18"}.
+
+
+#### W11 — NOT RUN
+
+Donkey /player/open mounted it (opened=false); desktop inventory path pending.
+
+
+
+
+#### W12 — NOT RUN
+
+Pending sealed loot-table chests.
+
+
+
+
+#### W13 — NOT RUN
+
+Pending biome and cherry-grove discovery.
+
+
+
+
+#### W14 — NOT RUN
+
+Pending command discovery and follow-up page.
+
+
+
+
+#### W15 — NOT RUN
+
+Pending uncached villager POI fixture.
+
+
+
+
+#### W16 — NOT RUN
+
+Pending holder and advancement-tree rereads.
+
+
+
+
+#### W17 — NOT RUN
+
+Legacy provider-citation conversations found; saved-chat UI check pending.
+
+
+
+Evidence: [legacy-search.json](../../build/native-readiness-live/legacy-search.json).
+
+
+#### W18 — NOT RUN
+
+Pending effect-description resource pack.
+
+
+
+
+#### E8 — NOT RUN
+
+Pending Nether-fortress question from Overworld.
+
+
+
+
+#### E9 — NOT RUN
+
+Pending village search and look-further follow-up.
+
+
+
+
+#### U1 — NOT RUN
+
+Pending adapter-popup layout observation.
+
+
+
+
+#### U2 — NOT RUN
+
+Pending concurrent settings save and shutdown flush.
+
+
+
+
+### Failures
+
+#### J14 — FAIL
+
+Classification: **code**. The first tool-using conversation has neither conversation nor message origin fields.
+
+Conversation header keys: type,id,world,label,updatedAt. The saved turn keys include requestId,question,answer,context,sources,activities and steeringMessages, but no origin fields. Source file is identified in the evidence. This is the first chat of this round, M5 request 1b726f91-b5a3-45e9-9291-aa7dc39d0386, conversation 6c76374d-5a21-4237-ac56-17367d77c52e. No separate question or navigation required for this file-inspection check; its chat evidence is under M5.
+
+Evidence: [j14-conversation.json](../../build/native-readiness-live/j14-conversation.json).
+

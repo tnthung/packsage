@@ -55,13 +55,14 @@ class AssistantRuntimeTest {
                 "Question", "Answer", List.of(), new ChatContracts.Context("context", null, SCOPE), List.of(),
                 new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1)).toCompletableFuture().join();
         List<Runnable> pending = new ArrayList<>();
-        var store = new ConversationStore(root, pending::add);
+        List<Runnable> catalogTasks = new ArrayList<>();
+        var store = new ConversationStore(root, pending::add, catalogTasks::add);
         var runtime = new AssistantRuntime(store, new FakeBackend(), captureFactory(), DIRECT, DIRECT,
                 current -> new KnowledgeService(List.of(), current), turn -> turn.tokenCount(),
                 ignored -> { throw new AssertionError("No request expected"); }, ignored -> 512, ignored -> { }, ignored -> { });
+        var catalog = runtime.sessions().toCompletableFuture();
         runtime.enterWorld(WORLD, SCOPE);
         var screen = runtime.openScreen();
-        var catalog = runtime.sessions().toCompletableFuture();
         assertTrue(screen.view().readOnly());
 
         pending.removeFirst().run();
@@ -71,6 +72,22 @@ class AssistantRuntimeTest {
         assertEquals(conversation.id(), screen.view().conversation().id());
         assertEquals("Answer", screen.view().conversation().turns().getLast().answer());
         while (!pending.isEmpty()) pending.removeFirst().run();
+        while (!catalogTasks.isEmpty()) catalogTasks.removeFirst().run();
+    }
+
+    @Test
+    void stalledSelectedReadLeavesLoadingWithAnError() throws Exception {
+        var store = new ConversationStore(Files.createTempDirectory("packsage-stalled-open"), ignored -> { });
+        var runtime = new AssistantRuntime(store, new FakeBackend(), captureFactory(), DIRECT, DIRECT,
+                current -> new KnowledgeService(List.of(), current), ChatContracts.Turn::tokenCount,
+                ignored -> { throw new AssertionError("No request expected"); }, ignored -> 512, ignored -> { }, ignored -> { });
+        runtime.enterWorld(WORLD, SCOPE);
+        var screen = runtime.openScreen();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(7);
+        while (screen.view().activity().equals("Loading session...") && System.nanoTime() < deadline) Thread.sleep(10);
+        assertFalse(screen.view().activity().equals("Loading session..."));
+        assertTrue(screen.view().errors().stream().anyMatch(error -> error.contains("could not be opened")),
+                screen.view().errors().toString());
     }
 
     @Test

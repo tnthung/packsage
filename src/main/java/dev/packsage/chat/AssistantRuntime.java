@@ -144,7 +144,8 @@ public final class AssistantRuntime implements ChatActions {
         previous.forEach(holder -> { if (holder.controller != null) holder.controller.worldChanged(); });
         if (sessionActivityChanged) refreshSessionList();
         try {
-            store.openLatest(world).whenCompleteAsync((conversation, failure) -> {
+            store.openLatest(world).toCompletableFuture().orTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                    .whenCompleteAsync((conversation, failure) -> {
                 if (failure != null) {
                     boolean publish;
                     synchronized (stateLock) {
@@ -196,7 +197,6 @@ public final class AssistantRuntime implements ChatActions {
                             if (summary != null) loadingHolder.unreadRequestId = summary.unreadRequestId();
                         }
                     }
-                    refreshSessionList();
                 }, clientExecutor);
                 initializeHolder(loadingHolder).whenCompleteAsync((ignored, initializationFailure) -> {
                     Throwable setupFailure = initializationFailure;
@@ -257,7 +257,6 @@ public final class AssistantRuntime implements ChatActions {
                         currentEpoch = worldEpoch;
                     }
                     if (publish) publishCurrentView(currentEpoch);
-                    refreshSessionList();
                 }, clientExecutor);
             }, clientExecutor);
         } catch (RuntimeException failure) {
@@ -437,10 +436,19 @@ public final class AssistantRuntime implements ChatActions {
 
     @Override
     public CompletionStage<Void> loadSessions(Consumer<List<ChatContracts.SessionSummary>> refresh) {
-        return store.sessions().thenCompose(stored -> {
-            refresh.accept(mergeSessions(stored));
-            return store.loadSummaries(stored).thenAccept(loaded -> refresh.accept(mergeSessions(loaded)));
-        });
+        return sessionPage(0, settings().sessionsBeforeCollapse()).thenAccept(page -> refresh.accept(page.sessions()));
+    }
+
+    @Override
+    public CompletionStage<ConversationStore.SessionPage> sessionPage(int offset, int limit) {
+        ChatContracts.WorldIdentity currentWorld;
+        boolean otherWorlds;
+        synchronized (stateLock) {
+            currentWorld = world;
+            otherWorlds = settings.showChatsFromOtherSessions();
+        }
+        if (currentWorld == null) return CompletableFuture.completedFuture(new ConversationStore.SessionPage(List.of(), false));
+        return store.sessionPage(currentWorld, otherWorlds, offset, limit);
     }
 
     @Override
@@ -635,7 +643,7 @@ public final class AssistantRuntime implements ChatActions {
             } catch (RuntimeException failure) {
                 opening = CompletableFuture.failedFuture(failure);
             }
-            opening.whenCompleteAsync((conversation, openFailure) -> {
+            opening.toCompletableFuture().orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).whenCompleteAsync((conversation, openFailure) -> {
                 Throwable loadFailure = openFailure;
                 Evidence.Scope attachmentScope = null;
                 synchronized (stateLock) {
@@ -1603,12 +1611,12 @@ public final class AssistantRuntime implements ChatActions {
             generation = ++sessionListGeneration;
         }
         if (screen == null) return;
-        loadSessions(values -> clientExecutor.execute(() -> {
+        clientExecutor.execute(() -> {
             synchronized (stateLock) {
                 if (generation != sessionListGeneration || screen != currentScreen) return;
             }
-            screen.refreshSessions(values);
-        }));
+            screen.loadSessions();
+        });
     }
 
     private List<ChatContracts.SessionSummary> mergeSessions(List<ChatContracts.SessionSummary> stored) {

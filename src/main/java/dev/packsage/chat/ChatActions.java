@@ -22,6 +22,15 @@ public interface ChatActions {
         return sessions().thenAccept(refresh);
     }
 
+    default CompletionStage<ConversationStore.SessionPage> sessionPage(int offset, int limit) {
+        return sessions().thenApply(values -> {
+            var visible = values.stream().filter(session -> settings().showChatsFromOtherSessions()
+                    || session.world().worldOrServer().equals(view().activeWorld().worldOrServer())).toList();
+            int end = (int) Math.min(visible.size(), (long) offset + limit);
+            return new ConversationStore.SessionPage(visible.subList(Math.min(offset, visible.size()), end), end < visible.size());
+        });
+    }
+
     default void openSession(ChatContracts.SessionSummary session) { }
 
     default void markRead(ChatContracts.SessionSummary session, ChatContracts.RequestId expectedCompletion) { }

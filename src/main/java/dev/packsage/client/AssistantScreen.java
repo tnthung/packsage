@@ -66,6 +66,8 @@ public final class AssistantScreen extends Screen {
     private boolean followBottom = true;
     private boolean followOnCompletion;
     private List<ChatContracts.SessionSummary> sessions = List.of();
+    private boolean moreSessions;
+    private boolean sessionsLoading;
     private final List<ChipHit> chipHits = new ArrayList<>();
     private final List<SourceHit> sourceHits = new ArrayList<>();
     private final List<WebLinkHit> webLinkHits = new ArrayList<>();
@@ -153,23 +155,48 @@ public final class AssistantScreen extends Screen {
         }
     }
 
-    private void loadSessions() {
+    public void loadSessions() {
+        loadSessionPage(false);
+    }
+
+    private void loadSessionPage(boolean more) {
+        if (sessionsLoading) return;
+        sessionsLoading = true;
         long generation = ++catalogGeneration;
         try {
-            actions.loadSessions(values -> {
+            actions.sessionPage(more ? sessions.size() : 0, more ? 10 : Math.max(settings.sessionsBeforeCollapse(), sessions.size()))
+                    .toCompletableFuture().orTimeout(5, java.util.concurrent.TimeUnit.SECONDS).whenComplete((page, failure) -> {
                 Runnable update = () -> {
-                    if (generation == catalogGeneration) sessions = List.copyOf(values);
+                    if (generation != catalogGeneration) return;
+                    sessionsLoading = false;
+                    if (failure != null) {
+                        showNavigationError("Chat history could not be loaded: " + (failure.getMessage() == null
+                                ? failure.getClass().getSimpleName() : failure.getMessage()));
+                        return;
+                    }
+                    List<ChatContracts.SessionSummary> next = new ArrayList<>(more ? sessions : List.of());
+                    for (var session : page.sessions()) {
+                        next.removeIf(existing -> existing.id().equals(session.id())
+                                && existing.world().worldOrServer().equals(session.world().worldOrServer()));
+                        next.add(session);
+                    }
+                    sessions = List.copyOf(next);
+                    moreSessions = page.hasMore();
                 };
                 if (minecraft == null) update.run();
                 else minecraft.execute(update);
             });
         } catch (RuntimeException failure) {
-            if (generation == catalogGeneration) sessions = List.of();
+            if (generation == catalogGeneration) {
+                sessionsLoading = false;
+                showNavigationError("Chat history could not be loaded: " + failure.getMessage());
+            }
         }
     }
 
     public void refreshSessions(List<ChatContracts.SessionSummary> next) {
         catalogGeneration++;
+        sessionsLoading = false;
         sessions = List.copyOf(next);
     }
 
@@ -317,18 +344,16 @@ public final class AssistantScreen extends Screen {
                     ? view.activeWorld() : group.getValue().getFirst().world();
             rows.add(new SessionRow(world, null, world.readableLabel(), y, 24, false));
             y += 24;
-            boolean expanded = expandedWorlds.contains(group.getKey()) || !query.isEmpty();
-            int count = expanded ? group.getValue().size() : Math.min(settings.sessionsBeforeCollapse(), group.getValue().size());
-            for (int index = 0; index < count; index++) {
+            for (int index = 0; index < group.getValue().size(); index++) {
                 ChatContracts.SessionSummary session = group.getValue().get(index);
                 rows.add(new SessionRow(world, session, session.title(), y, 38, false));
                 y += 38;
             }
-            if (group.getValue().size() > settings.sessionsBeforeCollapse() && query.isEmpty()) {
-                rows.add(new SessionRow(world, null, expanded ? "Show less" : "Show more", y, 24, true));
-                y += 24;
-            }
             y += 8;
+        }
+        if (moreSessions) {
+            rows.add(new SessionRow(view.activeWorld(), null, sessionsLoading ? "Loading chats..." : "Show more", y, 24, true));
+            y += 24;
         }
         sidebarContentHeight = y + sidebarScroll - 108;
         return rows;
@@ -1354,7 +1379,7 @@ public final class AssistantScreen extends Screen {
                 for (SessionRow row : sessionRows()) {
                     if (mouseY < row.top() || mouseY >= row.top() + row.height()) continue;
                     if (row.expand()) {
-                        if (!expandedWorlds.add(row.world().worldOrServer())) expandedWorlds.remove(row.world().worldOrServer());
+                        loadSessionPage(true);
                         return true;
                     }
                     if (row.session() != null) {

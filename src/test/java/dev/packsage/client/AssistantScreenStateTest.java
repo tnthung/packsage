@@ -21,6 +21,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AssistantScreenStateTest {
     @Test
+    void sidebarLoadsConfiguredCountThenTenMorePerClick() {
+        var actions = new FakeActions();
+        actions.settings.setSessionsBeforeCollapse(3);
+        var sessions = new ArrayList<ChatContracts.SessionSummary>();
+        for (int index = 0; index < 26; index++) sessions.add(new ChatContracts.SessionSummary(
+                actions.view.activeWorld(), "chat-" + index, "Question " + index, "preview", Instant.EPOCH));
+        actions.sessions = CompletableFuture.completedFuture(sessions);
+        var screen = new AssistantScreen(actions);
+        screen.width = 640;
+        screen.height = 900;
+        ScreenTestHost.initialize(screen);
+        assertEquals(3, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+        for (int expected : List.of(13, 23, 26)) {
+            var more = screen.sessionRows().stream().filter(AssistantScreen.SessionRow::expand).findFirst().orElseThrow();
+            screen.mouseScrolled(50, 200, 0, -100);
+            more = screen.sessionRows().stream().filter(AssistantScreen.SessionRow::expand).findFirst().orElseThrow();
+            screen.mouseClicked(24, more.top() + 5, 0);
+            assertEquals(expected, screen.sessionRows().stream().filter(row -> row.session() != null).count());
+        }
+        assertTrue(screen.sessionRows().stream().noneMatch(AssistantScreen.SessionRow::expand));
+    }
+
+    @Test
     void initializationShowsTheScreenBeforeSelectingHistoryForRendering() {
         FakeActions actions = new FakeActions();
         var screen = new AssistantScreen(actions);

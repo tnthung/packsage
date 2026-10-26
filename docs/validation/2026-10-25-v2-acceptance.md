@@ -2,7 +2,7 @@
 
 ## Acceptance summary
 
-Final assessment: 2026-10-26, applying the controller rulings in [the progress ledger](../../.superpowers/sdd/2026-10-25-v2-prompt-acceptance/progress.md). The chronological records below preserve the original scores and failures; this summary gives the final disposition after rulings, corrected fixtures and installed rechecks. After the final-review fixes, **E6 and M1 PASS** through prompt candidates 7 and 8 and their installed rechecks; **M5, P9, J7 and P11 remain NOT RUN**. The final-review installed rechecks are recorded at the end of this file. Aliases M2–M4 and J1–J3 inherit their covering checks below.
+Final assessment: 2026-10-26, applying the controller rulings in [the progress ledger](../../.superpowers/sdd/2026-10-25-v2-prompt-acceptance/progress.md). The chronological records below preserve the original scores and failures; this summary gives the final disposition after rulings, corrected fixtures and installed rechecks. After the final-review fixes, **E6 and M1 PASS** through prompt candidates 7 and 8 and their installed rechecks; **M5, P9, J7 and P11 were NOT RUN at that point and passed later in native readiness (see below)**. The final-review installed rechecks are recorded at the end of this file. Aliases M2–M4 and J1–J3 inherit their covering checks below.
 
 ### Builds and promoted prompt
 
@@ -12,6 +12,14 @@ Final assessment: 2026-10-26, applying the controller rulings in [the progress l
 - **Previously promoted prompt: Candidate 6**, commit `0c77af1`; 21,853 characters, SHA-256 `DD455D40627CE42E67FDB204B4FE91E42040403BFA1BE26BC3C1020D0733DA76`. Compiled default equality was verified. The policy covers every v2 tool, whole-set/per-piece answers, continued storage discovery, exact evidence/navigation binding, coordinates, clock interpretation, distinct event actors, silent note actions and bracket citations.
 - Installed-default verification and Part A used build HEAD `48e59e8`, SHA-256 `731C8442CFD230A24B33E4E2770C4C2675469366F74692F00D8535C6E7090242` (verification record commit `396bd3a`). Part B used `48e8d2c`, SHA-256 `FC8C27671A0C52DDDF4C878A2F0C82381E424028E96623F7349F6A1BF5E3237F`.
 - Final L1 recheck used renderer fix `edbf6c0` and tests `4937c69`, installed SHA-256 `7E0C517E7371E84901D14D9932E459597482AE7A02B1A3913BC632CCD603F311`. It passed in the Nether and Overworld at render distance 12; L2's 8-chunk evidence belongs to Part B's earlier build. Each installed-default run verified `developerPrompt` absent / bridge `text:null`. Other checks were not all rerun on the final renderer build.
+
+### Native readiness
+
+Status: final review in progress (Astra rereview 12); readiness is not claimed. The [native readiness checklist](../testing/2026-10-26-native-readiness.md) ran in eight live rounds (sections Native readiness round 1 to round 8 below, with their controller rulings; [plan](../plans/2026-10-26-v2-native-readiness.md)). The roadmaps ([v2 note](../roadmap/2026-10-22-v2-minecraft-only.md), [adapter feature checklist](../roadmap/2026-10-21-adapter-feature-todo.md), [tool roadmap](../roadmap/2026-10-13-todo.md)) carry the per-item results.
+
+- **Passed live or by controller ruling:** M5 bulk performance (round 8: overflowed 0, failed 0, 0 slow ticks after the first 200; the controller amended the criterion to steady state after a ten-second warm-up); P9/J7 multiplayer unavailability on a NeoForge 21.1.202 dedicated server (round 4); P11 offered tool names (round 3 C1r: 28 tools, no read_progress) and saved v1/legacy citations (W17); the journal event families, raids, withdrawal journaling, menu ownership, note anchors/forget/other-dimension links and exit/rapid-rejoin flush; item variants, menu-close staleness and the opened mount menu path; loot, biome/tag locate, command discovery, holder and progress-tree rereads, effect descriptions, full offers payloads and plan_recipe routes; settings saves and the Part B observations E8/E9. The installed default prompt is candidate 11 (D3/D4).
+- **Recorded failures, still open:** A3 reply compliance (the from-scratch beacon reply does not say obsidian is obtained; plan detail correct) and J8 withdrawal reply compliance (the reply omits donkey amounts and coordinates; the journal is correct).
+- **Automated only (cannot be set up live):** the uncached POI section branch of inspect_block and the progress acquisition-budget continuation branch. **Accepted limitation:** statistics one-step owned key copy (Astra accepted).
 
 ### Prompt candidate history
 

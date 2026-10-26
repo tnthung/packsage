@@ -154,13 +154,11 @@ class PackSageSettingsTest {
     void verbosityInstructionsDescribeRecipeCardsAndItemLinks() {
         for (var verbosity : java.util.List.of(PackSageSettings.Verbosity.NORMAL, PackSageSettings.Verbosity.DETAILED)) {
             var text = verbosity.apply("base");
-            assertTrue(text.contains("cite its recipe record on a line of its own"));
-            assertTrue(text.contains("Never spell out a crafting grid, slot layout or furnace arrangement"));
-            assertTrue(text.contains("state amounts, prerequisites and caveats in prose"));
+            assertTrue(text.contains("Show each recipe the answer explains as a card."));
         }
         var concise = PackSageSettings.Verbosity.CONCISE.apply("base");
-        assertTrue(concise.contains("Cite the result recipe inline"));
-        assertTrue(concise.contains("mark ingredient names as item links when their item IDs appear in tool results"));
+        assertTrue(concise.contains("Name the result and its ingredients once as item links when their IDs appear in tool results"));
+        assertTrue(concise.contains("cite the result recipe inline on the result; do not repeat them in another list or use standalone recipe lines"));
     }
 
     @Test

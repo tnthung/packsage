@@ -14,11 +14,11 @@ public final class PackSageSettings {
     public enum SendShortcut { ENTER, CTRL_ENTER }
     public enum CommandConfirmation { ALWAYS, RISKY, DIRECT }
 
-    /** How much explanation answers carry; one request instruction, never a change to the evidence or citation rules. */
+    /** Controls answer detail and recipe card placement through a request instruction. */
     public enum Verbosity {
-        CONCISE("Answer detail: concise. Keep the whole reply to about three short sentences or a short list: the conclusion, then only the amounts, steps and links needed to act. Leave out alternatives, side notes, background and intermediate breakdowns unless the player asks for them. Cite the result recipe inline and mark ingredient names as item links when their item IDs appear in tool results; otherwise use plain names."),
-        NORMAL("Answer detail: normal. For each recipe the answer explains, cite its recipe record on a line of its own to show the card. Never spell out a crafting grid, slot layout or furnace arrangement in text; state amounts, prerequisites and caveats in prose."),
-        DETAILED("Answer detail: detailed. After the conclusion, walk through the full picture the evidence supports: each intermediate step with its amounts, where each material comes from, the relevant alternatives with their tradeoffs, and the reason behind each recommendation. For each recipe the answer explains, cite its recipe record on a line of its own to show the card. Never spell out a crafting grid, slot layout or furnace arrangement in text; state amounts, prerequisites and caveats in prose.");
+        CONCISE("Answer detail: concise. Keep the whole reply to about three short sentences or a short list: the conclusion, then only the amounts, steps and links needed to act. Leave out alternatives, side notes, background and intermediate breakdowns unless the player asks for them. Name the result and its ingredients once as item links when their IDs appear in tool results, and cite the result recipe inline on the result; do not repeat them in another list or use standalone recipe lines."),
+        NORMAL("Answer detail: normal. Show each recipe the answer explains as a card."),
+        DETAILED("Answer detail: detailed. After the conclusion, walk through the full picture the evidence supports: each intermediate step with its amounts, where each material comes from, the relevant alternatives with their tradeoffs, and the reason behind each recommendation. Show each recipe the answer explains as a card.");
 
         private final String instruction;
 
@@ -28,7 +28,7 @@ public final class PackSageSettings {
 
         /** The instructions with this level's request instruction appended. */
         public String apply(String instructions) {
-            return instruction == null ? instructions : instructions + "\n\n" + instruction;
+            return instructions + "\n\n" + instruction;
         }
     }
 

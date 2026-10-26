@@ -4,7 +4,7 @@
 
 ### 2026-10-27
 
-- Drafted assistant instructions for recipe cards and item chips, tailored to the answer detail setting.
+- Drafted assistant instructions for recipe cards and item chips, tailored to the answer detail setting, with consistent citation placement and item link rules.
 - Native cooking recipe records include their cooking time and experience.
 - Each new answer records its answer detail setting so it remains associated with that turn.
 - Button labels are centered. The command confirmation Run and Cancel buttons and the Developer settings buttons now center their labels, and all text buttons draw through one shared button helper.

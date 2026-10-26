@@ -155,8 +155,10 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                 if (hasTagAlternative) ambiguousRemainders = true;
                 else if (itemAlternatives > 0 && ingredientRemainders.size() == itemAlternatives) {
                     var remainder = ingredientRemainders.getFirst();
-                    if (ingredientRemainders.stream().allMatch(stack -> ItemStack.isSameItemSameComponents(stack, remainder))) {
-                        remainders.add(new Evidence.RecipeOutput("item", itemIdentity(remainder, itemRegistry), componentPayload(remainder, registries), 1));
+                    if (ingredientRemainders.stream().allMatch(stack -> ItemStack.isSameItemSameComponents(stack, remainder)
+                            && stack.getCount() == remainder.getCount())) {
+                        remainders.add(new Evidence.RecipeOutput("item", itemIdentity(remainder, itemRegistry), componentPayload(remainder, registries),
+                                remainder.getCount()));
                     } else ambiguousRemainders = true;
                 } else if (!ingredientRemainders.isEmpty()) ambiguousRemainders = true;
             }

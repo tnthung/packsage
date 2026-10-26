@@ -17,7 +17,6 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.CraftingContainer;
 import net.minecraft.world.inventory.HorseInventoryMenu;
-import net.minecraft.world.level.entity.EntityTypeTest;
 import net.minecraft.world.inventory.MerchantContainer;
 import net.minecraft.world.inventory.ResultContainer;
 import net.minecraft.world.level.ChunkPos;
@@ -397,24 +396,13 @@ public final class JournalHooks {
                         entity.level().dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ(), entity.getStringUUID());
             }
         }
-        if (holder == null && menu instanceof HorseInventoryMenu) {
-            // A mount's screen shows its own container, not the mob; opening it with the inventory key while riding
-            // has no interaction to fall back on, so find the nearby mob whose inventory this is.
-            for (var slot : menu.slots) {
-                if (slot.container instanceof Inventory) continue;
-                var container = slot.container;
-                // The screen closes beyond 8 blocks, so the mount is within that box; stop at the first match.
-                var found = new ArrayList<AbstractHorse>(1);
-                player.level().getEntities(EntityTypeTest.forClass(AbstractHorse.class), player.getBoundingBox().inflate(8),
-                        horse -> !horse.hasInventoryChanged(container), found, 1);
-                if (!found.isEmpty()) {
-                    var horse = found.getFirst();
-                    var pos = horse.blockPosition();
-                    holder = new ContainerSessions.Holder(BuiltInRegistries.ENTITY_TYPE.getKey(horse.getType()).toString(),
-                            horse.level().dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ(), horse.getStringUUID());
-                }
-                break;
-            }
+        if (holder == null && menu instanceof HorseInventoryMenu mount) {
+            // A mount's screen shows its own container, not the mob, and opening it with the inventory key while riding
+            // has no interaction to fall back on; the menu names its mount.
+            var horse = mount.horse;
+            var pos = horse.blockPosition();
+            holder = new ContainerSessions.Holder(BuiltInRegistries.ENTITY_TYPE.getKey(horse.getType()).toString(),
+                    horse.level().dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ(), horse.getStringUUID());
         }
         if (holder == null) {
             var interaction = session.interactions.get(player.getUUID());

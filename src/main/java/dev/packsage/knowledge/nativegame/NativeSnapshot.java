@@ -243,6 +243,12 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
             withShape.put("shape", shape);
             payload = new Evidence.JsonObject(withShape);
         }
+        if (recipe instanceof net.minecraft.world.item.crafting.AbstractCookingRecipe cooking) {
+            var withCooking = new LinkedHashMap<>(payload.values());
+            withCooking.put("cookingTime", new Evidence.JsonNumber(BigDecimal.valueOf(cooking.getCookingTime())));
+            withCooking.put("experience", new Evidence.JsonNumber(BigDecimal.valueOf(cooking.getExperience())));
+            payload = new Evidence.JsonObject(withCooking);
+        }
         var typed = new Evidence.RecipePayload(holder.id().toString(), slots, outputs, remainders, List.of(), constraints, decoding);
         return new Evidence.Record(source, Evidence.RecordKind.RECIPE, holder.id().toString(), payload, List.of(), typed);
     }

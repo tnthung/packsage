@@ -336,6 +336,18 @@ class MinecraftStatisticsTest {
     }
 
     @Test
+    void sparseCountersCountEmptySlotsAgainstTheStepBudget() {
+        var map = new Object2IntOpenHashMap<Stat<?>>(100_000);
+        map.put(Stats.BLOCK_MINED.get(Blocks.STONE), 3);
+        var slice = statistics.statistics(() -> map, List.of("mined"), KindFilter.ANY);
+        assertTrue(slice.step(), "a sparse table still needs bounded batches");
+        var steps = 1;
+        while (slice.step()) steps++;
+        assertTrue(steps > 2);
+        assertEquals(List.of(new Statistic("minecraft", "mined", "minecraft:stone", "Times Mined: Stone", 3, StatisticUnit.COUNT, 3)), slice.result());
+    }
+
+    @Test
     void modStatTypeCategoryIsItsFullId() {
         assertEquals("examplemod:smelted", MinecraftStatistics.category(ResourceLocation.fromNamespaceAndPath("examplemod", "smelted")));
         assertEquals("mined", MinecraftStatistics.category(ResourceLocation.withDefaultNamespace("mined")));

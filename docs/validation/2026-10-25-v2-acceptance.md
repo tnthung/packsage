@@ -30467,3 +30467,11 @@ Timing: {"wallMs":18259,"modelTerminalMs":"16976","toolWallMs":"5277","persistMs
 ```
 
 Final GET /prompt: {"text":null,"matchesCandidate8":true}.
+
+### Controller rulings
+
+- **J14: PASS.** The checklist pointed at the wrong store. The specification keeps a note's origin on the note, not in the conversation file. In j12-copper.json, the update_note result for request 78fbb796-46e2-42af-853d-2e8f68741241 has `origin {conversation: 83d58ca3-0949-4a38-8a7c-b10c13802c05, request: 78fbb796-46e2-42af-853d-2e8f68741241}`, the same ids as that tool-using chat.
+- **W13: PASS for the current-biome question; the tag clause was overreach.** The gameplay context supplies the biome, so "what biome am I in?" needs no tool call. The cherry-grove continuation passes. Biome tags get their own question in round 2.
+- **J12: FAIL, prompt.** After an explicit delete, the model restated the note's place from search_history. Candidate 9 adds one rule to the note-keeping paragraph: a note the player had you forget or delete is withdrawn and is not restored from history. Round 2 tests it.
+- **W12: FAIL, code.** list_items and inspect_block name a pending table but not its seed or whether that table is known, unknown or empty, and they do not point to read_loot. A fix is queued.
+- **The 12 NOT RUN checks** go to round 2. Most stopped when desktop control did.

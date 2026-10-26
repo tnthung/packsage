@@ -16,6 +16,7 @@ import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.CraftingContainer;
+import net.minecraft.world.inventory.HorseInventoryMenu;
 import net.minecraft.world.inventory.MerchantContainer;
 import net.minecraft.world.inventory.ResultContainer;
 import net.minecraft.world.level.ChunkPos;
@@ -380,6 +381,22 @@ public final class JournalHooks {
                 var pos = entity.blockPosition();
                 holder = new ContainerSessions.Holder(BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString(),
                         entity.level().dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ(), entity.getStringUUID());
+            }
+        }
+        if (holder == null && menu instanceof HorseInventoryMenu) {
+            // A mount's screen shows its own container, not the mob; opening it with the inventory key while riding
+            // has no interaction to fall back on, so find the nearby mob whose inventory this is.
+            for (var slot : menu.slots) {
+                if (slot.container instanceof Inventory) continue;
+                for (var horse : player.level().getEntitiesOfClass(AbstractHorse.class, player.getBoundingBox().inflate(16))) {
+                    if (!horse.hasInventoryChanged(slot.container)) {
+                        var pos = horse.blockPosition();
+                        holder = new ContainerSessions.Holder(BuiltInRegistries.ENTITY_TYPE.getKey(horse.getType()).toString(),
+                                horse.level().dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ(), horse.getStringUUID());
+                        break;
+                    }
+                }
+                break;
             }
         }
         if (holder == null) {

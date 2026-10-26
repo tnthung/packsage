@@ -57,6 +57,12 @@ class ChatOpeningProfileTest {
                 Runnable::run, current), Runnable::run, Runnable::run,
                 current -> new KnowledgeService(List.of(), current), GroundingInstructions::historyTextBudget,
                 GroundingInstructions::build, ignored -> 512, ignored -> { }, ignored -> { });
+        // ClientAssistant now does this on its worker during startup, before the open key can be pressed.
+        long warmupStart = System.nanoTime();
+        GroundingInstructions.historyTokenCounts(new ChatContracts.Turn(new ChatContracts.RequestId("tokenizer-warmup"),
+                "", "", List.of(), new ChatContracts.Context("", null, scope), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0));
+        long warmupNanos = System.nanoTime() - warmupStart;
         long start = System.nanoTime();
         // Reproduce a sidebar refresh already queued when the world/selected chat begins loading.
         var catalog = store.sessionPage(world, false, 0, runtime.settings().sessionsBeforeCollapse()).toCompletableFuture();
@@ -108,11 +114,11 @@ class ChatOpeningProfileTest {
         long backfillEnd = System.nanoTime();
         System.out.printf("PLAYER OPEN widgets=%.1fms, selected=%.1fms, selected+render-preparation=%.1fms, "
                         + "catalog-task=%.1fms, history=%.1fms, turn-tokens=%.1fms, layout=%.1fms, sidebar=%.1fms/%d rows, "
-                        + "next-ten=%.1fms, initial-chats=%d, selected-bytes=%d, turns=%d%n",
+                        + "next-ten=%.1fms, initial-chats=%d, selected-bytes=%d, turns=%d, startup-tokenizer=%.1fms%n",
                 (widgets - start) / 1e6, (attached - start) / 1e6, (prepared - start) / 1e6,
                 catalogNanos / 1e6, (historyEnd - historyStart) / 1e6, tokenNanos / 1e6, layoutNanos / 1e6,
                 (sidebarEnd - sidebarStart) / 1e6, rows, (backfillEnd - backfillStart) / 1e6,
-                catalog.join().sessions().size(), Files.size(selectedFile), turns.size());
+                catalog.join().sessions().size(), Files.size(selectedFile), turns.size(), warmupNanos / 1e6);
         assertTrue(prepared - start < TimeUnit.MILLISECONDS.toNanos(500), "opening and CPU render preparation exceeded 500 ms");
     }
 }

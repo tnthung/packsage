@@ -127,6 +127,11 @@ public final class ClientAssistant {
             thread.setDaemon(true);
             return thread;
         });
+        // Initialize the text tokenizer during client startup instead of blocking the first chat frame.
+        workerExecutor.execute(() -> GroundingInstructions.historyTokenCounts(new ChatContracts.Turn(
+                new ChatContracts.RequestId("tokenizer-warmup"), "", "", List.of(),
+                new ChatContracts.Context("", null, new Evidence.Scope("none", "none", "none", "none", 0)), List.of(),
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 0)));
         journal = new Journal(workerExecutor);
         new JournalHooks(journal, client::getSingleplayerServer).register(NeoForge.EVENT_BUS);
         locale = client.getLanguageManager().getSelected();

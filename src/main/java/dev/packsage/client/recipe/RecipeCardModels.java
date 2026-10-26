@@ -79,9 +79,11 @@ public final class RecipeCardModels {
             for (var position : layout.slots()) slots.add(new RecipeCardModel.Slot(position.role(), position.x(), position.y(), position.output(),
                     groups.getOrDefault(position.role(), List.of())));
             var texts = new ArrayList<RecipeCardModel.Text>();
+            int cookingTime = 0;
             if (List.of(RecipeCardModel.Category.SMELTING, RecipeCardModel.Category.BLASTING, RecipeCardModel.Category.SMOKING, RecipeCardModel.Category.CAMPFIRE).contains(category)) {
                 try {
-                    if (payload.has("cookingTime") && payload.get("cookingTime").getAsInt() > 0)
+                    if (payload.has("cookingTime")) cookingTime = payload.get("cookingTime").getAsInt();
+                    if (cookingTime > 0)
                         texts.add(new RecipeCardModel.Text(payload.get("cookingTime").getAsInt() / 20 + "s", RecipeCardLayouts.COOKING_TEXT_X, category == RecipeCardModel.Category.CAMPFIRE ? RecipeCardLayouts.CAMPFIRE_TIME_Y : RecipeCardLayouts.COOKING_TIME_Y, true));
                 } catch (RuntimeException ignored) { }
                 try {
@@ -89,7 +91,7 @@ public final class RecipeCardModels {
                         texts.add(new RecipeCardModel.Text(payload.get("experience").getAsFloat() + " XP", RecipeCardLayouts.COOKING_TEXT_X, RecipeCardLayouts.EXPERIENCE_Y, true));
                 } catch (RuntimeException ignored) { }
             }
-            return Optional.of(new RecipeCardModel(category, layout.width(), layout.height(), List.copyOf(slots), layout.caption(), List.copyOf(texts)));
+            return Optional.of(new RecipeCardModel(category, layout.width(), layout.height(), List.copyOf(slots), layout.caption(), List.copyOf(texts), cookingTime));
         } catch (RuntimeException failure) {
             return Optional.empty();
         }

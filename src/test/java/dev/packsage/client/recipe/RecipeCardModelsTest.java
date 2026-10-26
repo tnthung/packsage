@@ -64,6 +64,11 @@ class RecipeCardModelsTest {
         assertTrue(card.texts().contains(new RecipeCardModel.Text("0.1 XP", 82, 0, true)));
     }
 
+    @Test void cookingAnimationKeepsExactRecipeTime() {
+        var record = record("smelting", "", "[" + slot("slot-0", "item", "minecraft:iron_ore") + "]", output("item", "minecraft:iron_ingot", 1));
+        record.getAsJsonObject("payload").addProperty("cookingTime", 205);
+        assertEquals(205, RecipeCardModels.fromRecord(record).orElseThrow().cookingTime());
+    }
     @Test void blastingAndSmokingDifferOnlyByCaption() {
         var input = "[" + slot("slot-0", "item", "minecraft:stone") + "]";
         var blast = RecipeCardModels.fromRecord(record("blasting", "", input, output("item", "minecraft:stone", 1))).orElseThrow();

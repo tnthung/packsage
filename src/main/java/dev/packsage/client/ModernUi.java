@@ -6,21 +6,21 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
-final class ModernUi {
+public final class ModernUi {
     static final int BACKGROUND = 0xa6121416;
     static final int SIDEBAR = 0x96181b1f;
     static final int SURFACE = 0xb220252a;
     static final int SURFACE_HOVER = 0xd0293039;
     static final int BORDER = 0xb0303840;
     static final int TEXT = 0xffedf1f3;
-    static final int MUTED = 0xff8e9aa4;
+    public static final int MUTED = 0xff8e9aa4;
     static final int ACCENT = 0xffb8d6c4;
     static final int ACCENT_DARK = 0xd0446251;
     static final int DANGER = 0xffe18b8b;
     static final int SIDEBAR_WIDTH = 180;
     static final int MAX_CONTENT_WIDTH = 624;
     static final int MESSAGE_LINE_HEIGHT = 12;
-    static final ResourceLocation FONT = ResourceLocation.fromNamespaceAndPath("packsage", "ui");
+    public static final ResourceLocation FONT = ResourceLocation.fromNamespaceAndPath("packsage", "ui");
     static final ResourceLocation BOLD_FONT = ResourceLocation.fromNamespaceAndPath("packsage", "ui_bold");
     private static final ResourceLocation SURFACE_FILL = ResourceLocation.fromNamespaceAndPath("packsage", "surface-fill");
     private static final ResourceLocation SURFACE_OUTLINE = ResourceLocation.fromNamespaceAndPath("packsage", "surface-outline");

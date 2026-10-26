@@ -1,4 +1,4 @@
-﻿package dev.packsage.client.recipe;
+package dev.packsage.client.recipe;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;

@@ -179,10 +179,35 @@ class AssistantSettingsScreenTest {
     }
 
     @Test
+    void commandConfirmationChoiceIsEditableAndPersists() {
+        PackSageSettings settings = PackSageSettings.defaults();
+        Path path = temporaryDirectory.resolve("settings.properties");
+        var screen = new AssistantSettingsScreen(settings, path, Component.literal("Settings"), List.of(), null, () -> { });
+        screen.width = 512;
+        screen.height = 1_000;
+        var layout = screen.layout();
+
+        assertEquals(PackSageSettings.CommandConfirmation.ALWAYS, settings.commandConfirmation());
+        assertTrue(screen.mouseClicked(layout.left() + 16, layout.confirmationTop() + 26, 0));
+        assertEquals(PackSageSettings.CommandConfirmation.RISKY, settings.commandConfirmation());
+        assertTrue(screen.mouseClicked(layout.left() + 16, layout.confirmationTop() + 52, 0));
+        assertEquals(PackSageSettings.CommandConfirmation.DIRECT, settings.commandConfirmation());
+        assertTrue(screen.mouseClicked(layout.left() + 16, layout.confirmationTop(), 0));
+        assertEquals(PackSageSettings.CommandConfirmation.ALWAYS, settings.commandConfirmation());
+
+        settings.setCommandConfirmation(PackSageSettings.CommandConfirmation.DIRECT);
+        screen.close();
+        settings.flushAndClose(path).join();
+        assertEquals(PackSageSettings.CommandConfirmation.DIRECT, PackSageSettings.load(path).commandConfirmation());
+    }
+
+    @Test
     void accountControlUsesTheCurrentAuthenticationStateAndBackHasBoundedHitArea() {
         FakeActions actions = new FakeActions();
         AtomicInteger returned = new AtomicInteger();
-        var screen = new AssistantSettingsScreen(PackSageSettings.defaults(), temporaryDirectory.resolve("settings.properties"),
+        var settings = PackSageSettings.defaults();
+        var path = temporaryDirectory.resolve("settings.properties");
+        var screen = new AssistantSettingsScreen(settings, path,
                 Component.literal("Settings"), actions, returned::incrementAndGet);
         screen.width = 512;
         screen.height = 240;
@@ -199,6 +224,7 @@ class AssistantSettingsScreenTest {
         assertEquals(0, returned.get());
         assertTrue(screen.mouseClicked(layout.left() + 10, 20, 0));
         assertEquals(1, returned.get());
+        settings.flushAndClose(path).join();
     }
 
     @Test

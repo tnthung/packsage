@@ -74,6 +74,44 @@ class AssistantRuntimeTest {
     }
 
     @Test
+    void firstCommandToolCallWaitsForConfirmationAndProducesCitableEvidence() throws Exception {
+        var backend = new FakeBackend();
+        var runtime = runtime(backend, captureFactory(), new AtomicReference<>(SCOPE), new AtomicReference<>(),
+                new AtomicReference<>(), PackSageSettings.defaults(), ignored -> 512);
+        var calls = new AtomicInteger();
+        var runner = new dev.packsage.world.CommandRunner(() -> PackSageSettings.CommandConfirmation.ALWAYS, (command, active) -> {
+            assertTrue(active.getAsBoolean());
+            calls.incrementAndGet();
+            return CompletableFuture.completedFuture(new dev.packsage.world.CommandRunner.Execution(true, "executed", 1, List.of("done"), false, false));
+        }, System::nanoTime);
+        runtime.setCommandRunner(runner);
+        runtime.enterWorld(WORLD, SCOPE);
+        runtime.signIn();
+        backend.signIn.complete(new ModelBackend.AuthState(ModelBackend.AuthStatus.SIGNED_IN, "account", null));
+        backend.catalog.complete(new ModelBackend.Capabilities(List.of(MODEL), MODEL.id(), true, true, 16_000, 2_048));
+        runtime.send("Give me one diamond", false, false);
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("run", "run_command", "{\"command\":\"give @s diamond\"}"), List.of(), null));
+        assertEquals(0, calls.get());
+        assertEquals(1, runtime.commandConfirmations().size());
+        runtime.confirmCommand(runtime.commandConfirmations().getFirst().id(), true);
+        assertEquals(1, calls.get());
+        assertEquals(1, backend.results.size());
+        assertFalse(backend.results.getFirst().error(), backend.results.getFirst().serializedResult());
+        assertTrue(backend.results.getFirst().serializedResult().contains("\"ran\":true"));
+        assertFalse(runtime.view().sources().isEmpty());
+
+        backend.emit(new ModelBackend.Event(ModelBackend.EventKind.CLIENT_TOOL_CALL, null,
+                new ModelBackend.ToolCall("late", "run_command", "{\"command\":\"give @s stone\"}"), List.of(), null));
+        var id = runtime.commandConfirmations().getFirst().id();
+        runtime.stop();
+        runner.tick();
+        runner.decide(id, true);
+        assertTrue(runtime.commandConfirmations().isEmpty());
+        assertEquals(1, calls.get());
+    }
+
+    @Test
     void trackedChatUsesTheScreensCurrentScreenshotAndSearchDefaults() throws Exception {
         for (boolean customized : List.of(false, true)) {
             var backend = new FakeBackend();

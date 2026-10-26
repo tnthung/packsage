@@ -31,6 +31,7 @@ class PackSageSettingsTest {
         assertEquals(10, settings.historyTurns());
         assertEquals(12_000, settings.historicalTokens());
         assertEquals(PackSageSettings.SendShortcut.ENTER, settings.sendShortcut());
+        assertEquals(PackSageSettings.CommandConfirmation.ALWAYS, settings.commandConfirmation());
         assertEquals(2, settings.sessionsBeforeCollapse());
     }
 
@@ -135,7 +136,26 @@ class PackSageSettingsTest {
         PackSageSettings loaded = PackSageSettings.load(path);
 
         assertEquals(PackSageSettings.SendShortcut.ENTER, loaded.sendShortcut());
+        assertEquals(PackSageSettings.CommandConfirmation.ALWAYS, loaded.commandConfirmation());
         assertEquals(PackSageSettings.DEFAULT_SESSIONS_BEFORE_COLLAPSE, loaded.sessionsBeforeCollapse());
+    }
+
+    @Test
+    void commandConfirmationValuesRoundTripAndMissingValueDefaultsToAlways() throws Exception {
+        Path path = temporaryDirectory.resolve("command-confirmation.properties");
+        PackSageSettings settings = PackSageSettings.defaults();
+
+        settings.setCommandConfirmation(PackSageSettings.CommandConfirmation.RISKY);
+        settings.save(path).join();
+        assertEquals(PackSageSettings.CommandConfirmation.RISKY, PackSageSettings.load(path).commandConfirmation());
+        settings.setCommandConfirmation(PackSageSettings.CommandConfirmation.DIRECT);
+        settings.save(path).join();
+        assertEquals(PackSageSettings.CommandConfirmation.DIRECT, PackSageSettings.load(path).commandConfirmation());
+
+        Files.writeString(path, "openPaused=true\n");
+        assertEquals(PackSageSettings.CommandConfirmation.ALWAYS, PackSageSettings.load(path).commandConfirmation());
+        Files.writeString(path, "commandConfirmation=unknown\n");
+        assertEquals(PackSageSettings.CommandConfirmation.ALWAYS, PackSageSettings.load(path).commandConfirmation());
     }
 
     @Test

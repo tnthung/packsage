@@ -55,8 +55,13 @@ class GroundingInstructionsTest {
     @Test
     void policyNamesEveryPromptRoutedToolAndOnlyDefinedTools() {
         var text = GroundingInstructions.defaultInstructions();
-        // Track G leaves its routing sentence to the combined prompt integration.
-        for (var definition : PackSageTools.definitions().stream().filter(value -> !value.name().equals("read_game_state")).toList()) {
+        for (var definition : PackSageTools.definitions()) {
+            // Track C carries command policy in its tool description until the combined prompt is integrated.
+            if (definition.name().equals("read_game_state")) continue;
+            if (definition.name().equals("run_command")) {
+                assertTrue(definition.description().contains("only when the player asks for an action"));
+                continue;
+            }
             assertTrue(java.util.regex.Pattern.compile("\\b" + definition.name() + "\\b").matcher(text).find(), definition.name());
         }
         assertEquals(List.of(), PackSageToolsTest.undefinedToolNames(text));
@@ -165,7 +170,7 @@ class GroundingInstructionsTest {
         assertEquals(ModelBackend.Role.USER, current.role());
         assertEquals(1, current.content().size());
         assertEquals("hi", ((ModelBackend.TextContent) current.content().getFirst()).text());
-        assertEquals(29, request.tools().size());
+        assertEquals(PackSageTools.definitions(), request.tools());
     }
 
     @Test

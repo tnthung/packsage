@@ -44,6 +44,10 @@ public interface ChatActions {
 
     default PackSageSettings settings() { return PackSageSettings.defaults(); }
 
+    default List<dev.packsage.world.CommandRunner.Confirmation> commandConfirmations() { return List.of(); }
+
+    default void confirmCommand(String id, boolean run) { }
+
     default ChatContracts.HistoryPreview historyPreview() {
         return new ChatContracts.HistoryPreview(new ChatContracts.HistorySelection(List.of(), 0),
                 PackSageSettings.DEFAULT_HISTORICAL_TOKENS, PackSageSettings.DEFAULT_HISTORICAL_TOKENS, null,

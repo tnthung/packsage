@@ -1422,6 +1422,29 @@ class AssistantScreenStateTest {
     }
 
     @Test
+    void pickerConsumesClicksBeforeTheCommandConfirmationUnderneath() throws Exception {
+        var actions = new FakeActions();
+        actions.confirmations = List.of(new dev.packsage.world.CommandRunner.Confirmation("command", "request", "give @s diamond"));
+        var screen = new AssistantScreen(actions);
+        screen.width = 900;
+        screen.height = 480;
+        ScreenTestHost.initialize(screen);
+        var model = screen.toolbarItems().stream().filter(item -> item.kind().equals("model")).findFirst().orElseThrow();
+        screen.mouseClicked(model.x() + 5, model.y() + 5, 0);
+        var option = screen.pickerRows().stream().filter(row -> row.choice().value().equals("model-two")).findFirst().orElseThrow();
+        var panelField = AssistantScreen.class.getDeclaredField("commandConfirmation");
+        panelField.setAccessible(true);
+        ((CommandConfirmationPanel) panelField.get(screen)).layout(new net.minecraft.client.gui.Font(ignored -> null, false) {
+            @Override public List<net.minecraft.util.FormattedCharSequence> split(net.minecraft.network.chat.FormattedText text, int width) {
+                return List.of(net.minecraft.util.FormattedCharSequence.forward(text.getString(), net.minecraft.network.chat.Style.EMPTY));
+            }
+        }, option.x(), option.y() - 48, 180, 40, 480);
+        screen.mouseClicked(option.x() + 20, option.y() + 5, 0);
+        assertEquals("model-two", actions.settings.modelId());
+        assertFalse(actions.calls.contains("command:command"));
+    }
+
+    @Test
     void modelAndEffortDropdownsSelectValuesAndOutsideClicksDismissThem() {
         FakeActions actions = new FakeActions();
         var screen = new AssistantScreen(actions);
@@ -1479,6 +1502,7 @@ class AssistantScreenStateTest {
         private java.util.Map<String, Boolean> availableAdapters = java.util.Map.of();
         private java.util.Map<String, String> adapterDetails = java.util.Map.of();
         private final List<String> calls = new ArrayList<>();
+        private List<dev.packsage.world.CommandRunner.Confirmation> confirmations = List.of();
         private final List<String> readCalls = new ArrayList<>();
         private String sentQuestion;
         private boolean steeringAccepted = true;
@@ -1498,6 +1522,8 @@ class AssistantScreenStateTest {
         }
         @Override public ChatContracts.View view() { return view; }
         @Override public PackSageSettings settings() { return settings; }
+        @Override public List<dev.packsage.world.CommandRunner.Confirmation> commandConfirmations() { return confirmations; }
+        @Override public void confirmCommand(String id, boolean run) { calls.add("command:" + id); }
         @Override public java.util.Map<String, Boolean> adapterAvailability() { return availableAdapters; }
         @Override public java.util.Map<String, String> adapterDetails() { return adapterDetails; }
         @Override public List<ModelBackend.ModelInfo> modelCatalog() { return List.of(

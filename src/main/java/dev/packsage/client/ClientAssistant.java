@@ -97,6 +97,7 @@ public final class ClientAssistant {
     private final Path settingsPath;
     private final PackSageSettings settings;
     private final AssistantRuntime runtime;
+    private final dev.packsage.world.CommandRunner commandRunner;
     private final ServerWork serverWork = new ServerWork(System::nanoTime);
     private final PausedWorkPump pausedWorkPump = new PausedWorkPump(serverWork);
     private AssistantScreen assistantScreen;
@@ -145,6 +146,8 @@ public final class ClientAssistant {
                                     + " to open chat."));
                 });
         runtime.setSettings(settings);
+        commandRunner = dev.packsage.world.CommandRunner.forMinecraft(client, settings);
+        runtime.setCommandRunner(commandRunner);
         runtime.restoreSession();
 
         WorldHighlighter.register();
@@ -264,6 +267,7 @@ public final class ClientAssistant {
 
     private void tick() {
         if (!client.isSameThread()) return;
+        commandRunner.tick();
         if (debugTiming != null && debugTiming.isStarted()) {
             client.options.pauseOnLostFocus = client.screen != null && !(client.screen instanceof AssistantScreen) && previousPauseOnLostFocus;
         }

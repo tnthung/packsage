@@ -52,6 +52,7 @@ public final class AssistantRuntime implements ChatActions {
     private ModelBackend.Capabilities capabilities = new ModelBackend.Capabilities(List.of(), null, null, null, null, null);
     private ChatContracts.SignInState signIn = ChatContracts.SignInState.SIGNED_OUT;
     private PackSageSettings settings = PackSageSettings.defaults();
+    private dev.packsage.world.CommandRunner commandRunner;
     private AssistantScreen currentScreen;
     private long worldEpoch;
     private long publicationEpoch;
@@ -1378,6 +1379,22 @@ public final class AssistantRuntime implements ChatActions {
         });
     }
 
+    public void setCommandRunner(dev.packsage.world.CommandRunner commandRunner) { this.commandRunner = commandRunner; }
+
+    @Override
+    public List<dev.packsage.world.CommandRunner.Confirmation> commandConfirmations() {
+        String requestId;
+        synchronized (stateLock) {
+            requestId = selected == null || selected.controller == null ? null : selected.controller.view().activeRequestId();
+        }
+        return commandRunner == null || requestId == null ? List.of() : commandRunner.pending(requestId);
+    }
+
+    @Override
+    public void confirmCommand(String id, boolean run) {
+        if (commandRunner != null && commandConfirmations().stream().anyMatch(value -> value.id().equals(id))) commandRunner.decide(id, run);
+    }
+
     private void finishSignIn(long epoch, ModelBackend.AuthState state, Throwable failure, boolean restore) {
         synchronized (stateLock) {
             if (authEpoch != epoch || signIn != ChatContracts.SignInState.SIGNING_IN) return;
@@ -1774,6 +1791,25 @@ public final class AssistantRuntime implements ChatActions {
                 knowledgeError = "Knowledge providers could not be refreshed: " + failureMessage(failure);
             }
             KnowledgeService initializedKnowledge = knowledge;
+            if (commandRunner != null) knowledge.register(new Toolbox() {
+                @Override public Metadata metadata() { return new Metadata("command", List.of(), false, List.of()); }
+                @Override public CompletionStage<Evidence.Result> handle(PackSageTools.ReadRequest request, Context context) {
+                    if (!request.tool().equals("run_command")) return Toolbox.super.handle(request, context);
+                    if (context.origin() == null) return CompletableFuture.failedFuture(new Failure(Code.UNAVAILABLE, "command needs an active player request"));
+                    var requestId = new ChatContracts.RequestId(context.origin().requestId());
+                    return commandRunner.run(((Evidence.JsonString) request.arguments().values().get("command")).value(),
+                            requestId.value(), request.scope(), () -> {
+                                synchronized (stateLock) {
+                                    return holder.active && signIn == ChatContracts.SignInState.SIGNED_IN
+                                            && Objects.equals(holder.requestAuthEpochs.get(requestId), authEpoch)
+                                            && request.scope().equals(holder.scope)
+                                            && world != null && world.worldOrServer().equals(holder.world.worldOrServer())
+                                            && holder.controller != null && holder.controller.view().active()
+                                            && requestId.value().equals(holder.controller.view().activeRequestId());
+                                }
+                            });
+                }
+            });
             HistoryAdapter historyAdapter = new HistoryAdapter(store, holder.world, () -> holder.scope);
             if (!knowledgeUnavailable) knowledge.register(historyAdapter);
             RequestController controller = new RequestController(store, backend, controllerExecutor,

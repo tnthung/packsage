@@ -19,7 +19,7 @@ class PackSageToolsTest {
     private static final List<String> NAMES = List.of("search_recipe", "search_registry", "read_evidence", "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
             "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
             "list_progress", "inspect_progress", "list_statistics",
-            "read_loot", "locate", "search_commands", "read_command", "read_game_state",
+            "read_loot", "locate", "search_commands", "read_command", "run_command", "read_game_state",
             "search_journal", "remember", "update_note", "forget_note");
 
     @Test
@@ -60,14 +60,14 @@ class PackSageToolsTest {
     }
 
     @Test
-    void exposesExactlyTwentyNineToolsAndKeepsOptionalArgumentsOptional() {
+    void exposesDefinedToolsAndKeepsOptionalArgumentsOptional() {
         var definitions = PackSageTools.definitions();
         assertEquals(NAMES, definitions.stream().map(ModelBackend.ToolDefinition::name).toList());
         for (var definition : definitions) {
             var schema = JsonParser.parseString(definition.serializedSchema()).getAsJsonObject();
             assertFalse(schema.get("additionalProperties").getAsBoolean());
             assertTrue(schema.getAsJsonArray("required").size() < schema.getAsJsonObject("properties").size()
-                    || List.of("read_evidence", "read_history", "inspect_block", "inspect_entity", "inspect_item", "inspect_progress", "forget_note").contains(definition.name()));
+                    || List.of("read_evidence", "read_history", "inspect_block", "inspect_entity", "inspect_item", "inspect_progress", "forget_note", "run_command").contains(definition.name()));
         }
         for (var name : List.of("search_recipe", "search_registry")) {
             var schema = definitions.stream().filter(value -> value.name().equals(name)).findFirst().orElseThrow();

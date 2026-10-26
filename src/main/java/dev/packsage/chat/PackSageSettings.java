@@ -12,6 +12,7 @@ import java.util.concurrent.CompletableFuture;
 
 public final class PackSageSettings {
     public enum SendShortcut { ENTER, CTRL_ENTER }
+    public enum CommandConfirmation { ALWAYS, RISKY, DIRECT }
 
     public static final int DEFAULT_HISTORY_TURNS = 10;
     public static final int DEFAULT_HISTORICAL_TOKENS = 12_000;
@@ -30,6 +31,7 @@ public final class PackSageSettings {
     private int historyTurns;
     private int historicalTokens;
     private SendShortcut sendShortcut;
+    private CommandConfirmation commandConfirmation;
     private int sessionsBeforeCollapse;
     private String modelId;
     private ModelBackend.ReasoningEffort reasoningEffort;
@@ -50,6 +52,7 @@ public final class PackSageSettings {
         this.historyTurns = historyTurns;
         this.historicalTokens = historicalTokens;
         sendShortcut = SendShortcut.ENTER;
+        commandConfirmation = CommandConfirmation.ALWAYS;
         sessionsBeforeCollapse = DEFAULT_SESSIONS_BEFORE_COLLAPSE;
         modelId = null;
         reasoningEffort = ModelBackend.ReasoningEffort.DEFAULT;
@@ -76,6 +79,9 @@ public final class PackSageSettings {
             settings.showChatsFromOtherSessions = Boolean.parseBoolean(properties.getProperty("showChatsFromOtherSessions", Boolean.toString(settings.showChatsFromOtherSessions)));
             try {
                 settings.sendShortcut = SendShortcut.valueOf(properties.getProperty("sendShortcut", "enter").toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException ignored) { }
+            try {
+                settings.commandConfirmation = CommandConfirmation.valueOf(properties.getProperty("commandConfirmation", "always").toUpperCase(java.util.Locale.ROOT));
             } catch (IllegalArgumentException ignored) { }
             try {
                 int turns = Integer.parseInt(properties.getProperty("historyTurns", Integer.toString(settings.historyTurns)));
@@ -127,6 +133,7 @@ public final class PackSageSettings {
         properties.put("hideInactiveAdapters", Boolean.toString(hideInactiveAdapters));
         properties.put("showChatsFromOtherSessions", Boolean.toString(showChatsFromOtherSessions));
         properties.put("sendShortcut", sendShortcut.name().toLowerCase(java.util.Locale.ROOT));
+        properties.put("commandConfirmation", commandConfirmation.name().toLowerCase(java.util.Locale.ROOT));
         properties.put("historyTurns", Integer.toString(historyTurns));
         properties.put("historicalTokens", Integer.toString(historicalTokens));
         properties.put("sessionsBeforeCollapse", Integer.toString(sessionsBeforeCollapse));
@@ -145,6 +152,7 @@ public final class PackSageSettings {
     public int historyTurns() { return historyTurns; }
     public int historicalTokens() { return historicalTokens; }
     public SendShortcut sendShortcut() { return sendShortcut; }
+    public CommandConfirmation commandConfirmation() { return commandConfirmation; }
     public int sessionsBeforeCollapse() { return sessionsBeforeCollapse; }
     public String modelId() { return modelId; }
     public ModelBackend.ReasoningEffort reasoningEffort() { return reasoningEffort; }
@@ -155,6 +163,7 @@ public final class PackSageSettings {
     public void setHideInactiveAdapters(boolean value) { hideInactiveAdapters = value; }
     public void setShowChatsFromOtherSessions(boolean value) { showChatsFromOtherSessions = value; }
     public void setSendShortcut(SendShortcut value) { sendShortcut = value == null ? SendShortcut.ENTER : value; }
+    public void setCommandConfirmation(CommandConfirmation value) { commandConfirmation = value == null ? CommandConfirmation.ALWAYS : value; }
     public void setModelId(String value) { modelId = value == null || value.isBlank() ? null : value; }
     public void setReasoningEffort(ModelBackend.ReasoningEffort value) { reasoningEffort = value == null ? ModelBackend.ReasoningEffort.DEFAULT : value; }
 

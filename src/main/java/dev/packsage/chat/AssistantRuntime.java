@@ -52,6 +52,7 @@ public final class AssistantRuntime implements ChatActions {
     private ModelBackend.Capabilities capabilities = new ModelBackend.Capabilities(List.of(), null, null, null, null, null);
     private ChatContracts.SignInState signIn = ChatContracts.SignInState.SIGNED_OUT;
     private PackSageSettings settings = PackSageSettings.defaults();
+    private dev.packsage.world.CommandRunner commandRunner;
     private AssistantScreen currentScreen;
     private long worldEpoch;
     private long publicationEpoch;
@@ -1357,7 +1358,19 @@ public final class AssistantRuntime implements ChatActions {
             }
             currentKnowledge = holder.knowledge;
         }
-        PackSageTools currentTools = new PackSageTools(read -> currentKnowledge.execute(read,
+        PackSageTools currentTools = new PackSageTools(read -> read.tool().equals("run_command") && commandRunner != null
+                ? commandRunner.run(((Evidence.JsonString) read.arguments().values().get("command")).value(),
+                        request.submission().requestId().value(), read.scope(), () -> {
+                            synchronized (stateLock) {
+                                return holder.active && signIn == ChatContracts.SignInState.SIGNED_IN
+                                        && holder.requestAuthEpochs.containsKey(request.submission().requestId())
+                                        && request.submission().scope().equals(holder.scope)
+                                        && world != null && world.worldOrServer().equals(holder.world.worldOrServer())
+                                        && holder.controller.view().active()
+                                        && request.submission().requestId().value().equals(holder.controller.view().activeRequestId());
+                            }
+                        })
+                : currentKnowledge.execute(read,
                 request.submission().replacing() == null ? null : request.submission().replacing().value(),
                 new Toolbox.Origin(holder.id, request.submission().requestId().value(), request.submission().question())), currentKnowledge.metadata(), currentKnowledge.outputPages());
         return currentTools.execute(request.call(), request.submission().scope()).thenApply(response -> {
@@ -1366,6 +1379,22 @@ public final class AssistantRuntime implements ChatActions {
                     .distinct().toList();
             return new ChatContracts.ToolResponse(response.result(), new ChatContracts.EvidenceSelection(sources, targets));
         });
+    }
+
+    public void setCommandRunner(dev.packsage.world.CommandRunner commandRunner) { this.commandRunner = commandRunner; }
+
+    @Override
+    public List<dev.packsage.world.CommandRunner.Confirmation> commandConfirmations() {
+        String requestId;
+        synchronized (stateLock) {
+            requestId = selected == null || selected.controller == null ? null : selected.controller.view().activeRequestId();
+        }
+        return commandRunner == null || requestId == null ? List.of() : commandRunner.pending(requestId);
+    }
+
+    @Override
+    public void confirmCommand(String id, boolean run) {
+        if (commandRunner != null && commandConfirmations().stream().anyMatch(value -> value.id().equals(id))) commandRunner.decide(id, run);
     }
 
     private void finishSignIn(long epoch, ModelBackend.AuthState state, Throwable failure, boolean restore) {

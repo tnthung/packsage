@@ -93,7 +93,7 @@ public final class PackSageTools {
                 "plan_recipe", "list_configs", "search_config", "read_config", "search_history", "read_history",
                 "inspect_area", "list_blocks", "list_entities", "inspect_block", "inspect_entity", "list_items", "inspect_item", "find_items",
                 "list_progress", "inspect_progress", "list_statistics",
-                "read_loot", "locate", "search_commands", "read_command",
+                "read_loot", "locate", "search_commands", "read_command", "run_command",
                 "search_journal", "remember", "update_note", "forget_note")) {
             var properties = new JsonObject();
             var required = new JsonArray();
@@ -191,6 +191,10 @@ public final class PackSageTools {
                     properties.add("text", JsonParser.parseString("{\"type\":[\"string\",\"null\"],\"maxLength\":256}"));
                     properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
                 }
+                case "run_command" -> {
+                    properties.add("command", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":2048}"));
+                    required.add("command");
+                }
                 case "read_command" -> {
                     properties.add("name", JsonParser.parseString("{\"type\":\"string\",\"maxLength\":512}"));
                     properties.add("cursor", JsonParser.parseString(WORLD_CURSOR));
@@ -276,6 +280,7 @@ public final class PackSageTools {
                 case "locate" -> "Find the nearest biome or structure (ids or tags such as #minecraft:village) around center within radius chunks (default 100), without loading or generating chunks. Biomes come back as sampled (read from the biome source at sampled columns); structures come back as found (present in a generated chunk) or predicted (placement and biome checks pass for an ungenerated chunk). Up to 5 nearest first, each with its kind and a link that marks the place.";
                 case "search_commands" -> "List the server's commands matching text in their name or usage, with whether the player can run them and short usage. Read one with read_command.";
                 case "read_command" -> "Read one command or subcommand path such as fill or execute if block: its usage forms for the player's permission level, every argument with its type and examples, redirects and whether the player can run it.";
+                case "run_command" -> "Run one exact command as the player, only when the player asks for an action. Never elevates permissions. The commandConfirmation setting controls whether the player must click Run or Cancel in chat; confirmation expires after 60 seconds. Integrated worlds must be unpaused. Returns command, ran, reason, success and bounded feedback as evidence. On remote servers it sends like chat: success is unknown and only the server's own chat feedback is available. Do not retry a command that ran merely because its success is unknown.";
                 default -> "Read current evidence for " + name + ". Preserve source authority, partial coverage and observed references.";
             }, schema.toString()));
         }

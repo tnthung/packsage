@@ -209,6 +209,18 @@ class ClientAssistantTest {
     }
 
     @Test
+    void openingASaveToLanKeepsItsWorldIdentity() {
+        var root = java.nio.file.Path.of("C:/instances/fixture/saves/Test World");
+        var closed = ClientAssistant.integratedWorld(root, false);
+        var published = ClientAssistant.integratedWorld(root, true);
+
+        assertEquals(closed.source(), published.source());
+        assertEquals(ClientAssistant.identityFor(closed), ClientAssistant.identityFor(published));
+        assertTrue(closed.privateSingleplayer());
+        assertFalse(published.privateSingleplayer());
+    }
+
+    @Test
     void privateWorldIdentityIsOpaqueAndStableWhileKeepingItsLabel() {
         ClientAssistant.CopiedWorld first = new ClientAssistant.CopiedWorld(
                 "private:C:/instances/fixture/saves/Test World", "Test World", true,

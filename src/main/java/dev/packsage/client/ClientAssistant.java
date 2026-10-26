@@ -286,6 +286,9 @@ public final class ClientAssistant {
         if (activeWorld == null || !activeWorld.source().equals(copied.source())
                 || !Objects.equals(activePlayerUuid, playerUuid)) {
             beginInitialization(copied, playerUuid);
+        } else if (pendingInitialization == null && !activeWorld.equals(copied)) {
+            // Same world, now open or closed to LAN: keep the session and its history.
+            activeWorld = copied;
         } else if (pendingInitialization != null
                 && (pendingInitialization.levelToken() != levelToken
                 || pendingInitialization.sessionEpoch() != sessionEpoch)) {
@@ -399,12 +402,10 @@ public final class ClientAssistant {
     private CopiedWorld copyWorld() {
         if (client.level == null) return null;
         IntegratedServer integrated = client.getSingleplayerServer();
-        if (client.isSingleplayer() && integrated != null && !integrated.isPublished()) {
+        // Opening to LAN publishes the same save, so its identity, conversations and saved links stay with the save.
+        if (integrated != null && client.hasSingleplayerServer()) {
             try {
-                Path root = integrated.getWorldPath(LevelResource.ROOT).toAbsolutePath().normalize();
-                Path name = root.getFileName();
-                return new CopiedWorld("private:" + root, name == null ? "Singleplayer" : name.toString(), true,
-                        root.resolve("serverconfig").toString());
+                return integratedWorld(integrated.getWorldPath(LevelResource.ROOT), integrated.isPublished());
             } catch (RuntimeException ignored) {
                 return null;
             }
@@ -420,6 +421,14 @@ public final class ClientAssistant {
         String type = server == null || server.type() == null ? "remote" : server.type().name().toLowerCase();
         String label = server == null || server.name == null || server.name.isBlank() ? "Remote " + type : server.name;
         return new CopiedWorld("remote:" + type + ":" + endpoint, label, false, null);
+    }
+
+    /** The local save's identity, the same whether or not it is open to LAN. */
+    static CopiedWorld integratedWorld(Path worldRoot, boolean published) {
+        Path root = worldRoot.toAbsolutePath().normalize();
+        Path name = root.getFileName();
+        return new CopiedWorld("private:" + root, name == null ? "Singleplayer" : name.toString(), !published,
+                root.resolve("serverconfig").toString());
     }
 
     private String copyPlayerUuid() {

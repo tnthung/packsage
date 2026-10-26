@@ -448,7 +448,13 @@ public final class AssistantRuntime implements ChatActions {
             otherWorlds = settings.showChatsFromOtherSessions();
         }
         if (currentWorld == null) return CompletableFuture.completedFuture(new ConversationStore.SessionPage(List.of(), false));
-        return store.sessionPage(currentWorld, otherWorlds, offset, limit);
+        return store.sessionPage(currentWorld, otherWorlds, offset, limit).thenApply(page -> {
+            Set<HolderKey> listed = page.sessions().stream().map(session -> new HolderKey(session.world().worldOrServer(), session.id()))
+                    .collect(java.util.stream.Collectors.toSet());
+            return new ConversationStore.SessionPage(mergeSessions(page.sessions()).stream()
+                    .filter(session -> listed.contains(new HolderKey(session.world().worldOrServer(), session.id()))).toList(),
+                    page.hasMore(), page.nextOffset());
+        });
     }
 
     @Override

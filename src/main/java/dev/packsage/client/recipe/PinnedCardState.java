@@ -22,7 +22,11 @@ public final class PinnedCardState {
             return visibility = Visibility.PINNED;
         }
         anchor = null;
-        if (onChip || (releasedInsidePanel && onPanel)) return visibility = Visibility.HOVER;
+        if (onChip) {
+            releasedInsidePanel = false;
+            return visibility = Visibility.HOVER;
+        }
+        if (releasedInsidePanel && onPanel) return visibility = Visibility.HOVER;
         releasedInsidePanel = false;
         return visibility = Visibility.HIDDEN;
     }

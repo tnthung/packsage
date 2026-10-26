@@ -51,7 +51,7 @@ public final class RecipeCardModels {
                 var object = input.getAsJsonObject();
                 var group = object.get("groupId").getAsString();
                 var alternatives = object.getAsJsonArray("alternatives");
-                if (alternatives == null || alternatives.isEmpty() || groups.containsKey(group)) return Optional.empty();
+                if (alternatives == null || alternatives.isEmpty()) return Optional.empty();
                 var stacks = new ArrayList<RecipeCardModel.Stack>();
                 for (var alternative : alternatives) {
                     var value = alternative.getAsJsonObject();

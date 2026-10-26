@@ -312,6 +312,25 @@ class NativeRecipeReaderTest {
         assertTrue(beacon.detail().contains("minecraft:nether_star"));
         assertTrue(rocket.records().isEmpty());
         assertTrue(rocket.detail().contains("native-recipe-dynamic-outputs-unindexed=1"));
+        assertTrue(beacon.detail().contains("could still make them=[minecraft:nether_star]"), beacon.detail());
+        assertFalse(beacon.detail().contains("obtained rather than crafted"), beacon.detail());
+    }
+
+    @Test
+    void aKnownVanillaSpecialRecipeOnlyQualifiesTheItemsItCanMake() {
+        var recipes = new ArrayList<RecipeHolder<?>>();
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("minecraft:repair_item"),
+                new net.minecraft.world.item.crafting.RepairItemRecipe(net.minecraft.world.item.crafting.CraftingBookCategory.MISC)));
+        recipes.add(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:beacon"),
+                new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                        new ItemStack(Items.BEACON), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.NETHER_STAR)))));
+        var brewing = new net.minecraft.world.item.alchemy.PotionBrewing.Builder(net.minecraft.world.flag.FeatureFlags.DEFAULT_FLAGS).build();
+        var source = NativeRecipeReader.planSource(recipes, brewing, registries, ITEMS, null, SCOPE);
+
+        assertTrue(source.recipesComplete("minecraft:nether_star"));
+        assertFalse(source.recipesComplete("minecraft:elytra"));
+        var beacon = NativeProvider.planRecipe(source, "minecraft:beacon", 1, SCOPE, 4);
+        assertTrue(beacon.detail().contains("obtained rather than crafted=[minecraft:nether_star]"), beacon.detail());
     }
 
     @Test

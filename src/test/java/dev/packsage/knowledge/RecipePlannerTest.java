@@ -124,7 +124,7 @@ class RecipePlannerTest {
 
         var result = new RecipePlanner(capped).plan("mod:output", 1, SCOPE, 2);
 
-        assertTrue(result.detail().contains("recipe-lookup-incomplete:mod:hidden"), result.detail());
+        assertTrue(result.detail().contains("could still make them=[mod:hidden]"), result.detail());
         assertFalse(result.detail().contains("obtained rather than crafted"), result.detail());
     }
 

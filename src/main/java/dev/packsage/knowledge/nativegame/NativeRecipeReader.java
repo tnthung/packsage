@@ -32,6 +32,24 @@ final class NativeRecipeReader {
     private static final int MAX_PLAN_COPIES = 512;
     private static final int MAX_PLAN_TAG_SCAN = 4096;
     private static final int MAX_PLAN_TAG_MEMBERS = 16;
+    /** What each vanilla special recipe, whose result is computed from the grid, can produce. Any other class could produce anything. */
+    private static final Map<Class<?>, java.util.function.Predicate<Item>> SPECIAL_OUTPUTS = Map.ofEntries(
+            Map.entry(net.minecraft.world.item.crafting.FireworkRocketRecipe.class, item -> item == net.minecraft.world.item.Items.FIREWORK_ROCKET),
+            Map.entry(net.minecraft.world.item.crafting.FireworkStarRecipe.class, item -> item == net.minecraft.world.item.Items.FIREWORK_STAR),
+            Map.entry(net.minecraft.world.item.crafting.FireworkStarFadeRecipe.class, item -> item == net.minecraft.world.item.Items.FIREWORK_STAR),
+            Map.entry(net.minecraft.world.item.crafting.TippedArrowRecipe.class, item -> item == net.minecraft.world.item.Items.TIPPED_ARROW),
+            Map.entry(net.minecraft.world.item.crafting.SuspiciousStewRecipe.class, item -> item == net.minecraft.world.item.Items.SUSPICIOUS_STEW),
+            Map.entry(net.minecraft.world.item.crafting.MapCloningRecipe.class, item -> item == net.minecraft.world.item.Items.FILLED_MAP),
+            Map.entry(net.minecraft.world.item.crafting.MapExtendingRecipe.class, item -> item == net.minecraft.world.item.Items.FILLED_MAP),
+            Map.entry(net.minecraft.world.item.crafting.BookCloningRecipe.class, item -> item == net.minecraft.world.item.Items.WRITTEN_BOOK),
+            Map.entry(net.minecraft.world.item.crafting.DecoratedPotRecipe.class, item -> item == net.minecraft.world.item.Items.DECORATED_POT),
+            Map.entry(net.minecraft.world.item.crafting.ShieldDecorationRecipe.class, item -> item == net.minecraft.world.item.Items.SHIELD),
+            Map.entry(net.minecraft.world.item.crafting.BannerDuplicateRecipe.class, item -> item instanceof net.minecraft.world.item.BannerItem),
+            Map.entry(net.minecraft.world.item.crafting.ShulkerBoxColoring.class, item -> item instanceof net.minecraft.world.item.BlockItem block
+                    && block.getBlock() instanceof net.minecraft.world.level.block.ShulkerBoxBlock),
+            Map.entry(net.minecraft.world.item.crafting.ArmorDyeRecipe.class, item -> new net.minecraft.world.item.ItemStack(item).is(net.minecraft.tags.ItemTags.DYEABLE)),
+            Map.entry(net.minecraft.world.item.crafting.SmithingTrimRecipe.class, item -> new net.minecraft.world.item.ItemStack(item).is(net.minecraft.tags.ItemTags.TRIMMABLE_ARMOR)),
+            Map.entry(net.minecraft.world.item.crafting.RepairItemRecipe.class, item -> item.components().has(net.minecraft.core.component.DataComponents.MAX_DAMAGE)));
 
     private NativeRecipeReader() { }
 
@@ -122,6 +140,7 @@ final class NativeRecipeReader {
     static PlanSource planSource(Collection<RecipeHolder<?>> recipes, PotionBrewing brewing, RegistryAccess registries,
                                  Registry<Item> itemRegistry, ResourceManager resourceManager, Evidence.Scope scope) {
         var result = new PlanSource(scope);
+        result.items = itemRegistry;
         var expandedTags = new LinkedHashMap<String, List<Evidence.RecipeAlternative>>();
         int scanned = 0;
         for (RecipeHolder<?> holder : recipes) {
@@ -131,10 +150,15 @@ final class NativeRecipeReader {
                 break;
             }
             try {
-                var output = holder.value().getResultItem(registries);
+                // A trim recipe's result is only an illustration; the real item is the base armor with its trim.
+                var output = holder.value() instanceof net.minecraft.world.item.crafting.SmithingTrimRecipe
+                        ? net.minecraft.world.item.ItemStack.EMPTY : holder.value().getResultItem(registries);
                 if (output.isEmpty()) {
                     // Special recipes compute their result from the grid; they matter only for an item with no indexed recipe.
                     result.dynamicOutputs++;
+                    var produces = SPECIAL_OUTPUTS.get(holder.value().getClass());
+                    if (produces == null) result.unknownDynamic = true;
+                    else result.dynamicProducers.add(produces);
                     continue;
                 }
                 var identity = NativeSnapshot.itemIdentity(output, itemRegistry);
@@ -146,7 +170,10 @@ final class NativeRecipeReader {
                 result.indexIncomplete = true;
             }
         }
+        int before = result.reasons.size();
         NativeBrewingReader.indexPlanCandidates(brewing, registries, itemRegistry, scope, result);
+        // An unreadable, opaque or capped brewing rule could produce any item.
+        result.brewingIncomplete = result.reasons.size() > before;
         return result;
     }
 
@@ -226,6 +253,10 @@ final class NativeRecipeReader {
         private int copies;
         private int dynamicOutputs;
         private boolean indexIncomplete;
+        private boolean unknownDynamic;
+        private boolean brewingIncomplete;
+        private final Set<java.util.function.Predicate<Item>> dynamicProducers = new LinkedHashSet<>();
+        private Registry<Item> items;
         private final Set<String> incomplete = new java.util.HashSet<>();
 
         private PlanSource(Evidence.Scope scope) {
@@ -234,7 +265,13 @@ final class NativeRecipeReader {
 
         @Override public boolean available(Evidence.Scope requestedScope) { return scope.equals(requestedScope); }
 
-        @Override public boolean recipesComplete(String identity) { return !indexIncomplete && !incomplete.contains(identity); }
+        @Override
+        public boolean recipesComplete(String identity) {
+            if (indexIncomplete || unknownDynamic || brewingIncomplete || incomplete.contains(identity)) return false;
+            var key = ResourceLocation.tryParse(identity);
+            var item = key == null || items == null ? null : items.getOptional(key).orElse(null);
+            return item == null || dynamicProducers.stream().noneMatch(produces -> produces.test(item));
+        }
 
         @Override
         public List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components, Evidence.Scope requestedScope) {

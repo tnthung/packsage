@@ -68,8 +68,9 @@ public final class RecipePlanner {
         if (candidates.isEmpty()) {
             visiting.remove(key);
             state.partial = true;
-            if (!index.recipesComplete(itemIdentity)) state.reasons.add("recipe-lookup-incomplete:" + itemIdentity);
-            else if (state.noRecipeLeaves.size() < 16) state.noRecipeLeaves.add(itemIdentity);
+            if (!index.recipesComplete(itemIdentity)) {
+                if (state.uncheckedLeaves.size() < 16) state.uncheckedLeaves.add(itemIdentity);
+            } else if (state.noRecipeLeaves.size() < 16) state.noRecipeLeaves.add(itemIdentity);
             else state.omittedNoRecipeLeaves++;
             return false;
         }
@@ -248,6 +249,7 @@ public final class RecipePlanner {
         private final List<Evidence.Record> routes = new ArrayList<>();
         private final Set<String> reasons = new LinkedHashSet<>();
         private final Set<String> noRecipeLeaves = new LinkedHashSet<>();
+        private final Set<String> uncheckedLeaves = new LinkedHashSet<>();
         private int nodes;
         private int branches;
         private int omittedNoRecipeLeaves;
@@ -257,6 +259,8 @@ public final class RecipePlanner {
             var detail = new ArrayList<>(reasons.stream().limit(16).toList());
             if (reasons.size() > 16) detail.add("reason-cap=16; omitted=" + (reasons.size() - 16));
             if (!noRecipeLeaves.isEmpty()) detail.add("materials with no recipe here, obtained rather than crafted=" + noRecipeLeaves.stream().limit(16).toList());
+            if (!uncheckedLeaves.isEmpty()) detail.add("materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them="
+                    + uncheckedLeaves);
             if (omittedNoRecipeLeaves > 0) detail.add("more materials with no recipe, at least " + omittedNoRecipeLeaves + " beyond the 16 listed");
             if (detail.isEmpty()) detail.add("planning-stopped-before-route: node cap or unresolved recipe output");
             return String.join("; ", detail);

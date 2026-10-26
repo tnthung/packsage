@@ -4,6 +4,9 @@
 
 ### 2026-10-26
 
+- The assistant no longer brings back a note the player asked it to forget or delete from earlier chats (prompt candidate 9, live J12r/N1 passed).
+- An unopened loot container now reports its table, its seed and whether that table is undefined or empty, checked against the server's loot tables, and points to read_loot. Inspected inventories carry the same pendingLoot fact.
+- The shared tool encoder now skips an oversized record in a retained tail, keeping the rows after it. Request logs list offered tool names as one comma-joined field.
 - plan_recipe finds recipes anywhere in the loaded recipe list through an output-keyed lookup, instead of only the first 512 recipes, so beacon, enchanting table and oak planks plans return routes; special recipes with computed outputs qualify only a requested item that has no other recipe. Automated checks pass; installed check pending.
 - Progress and statistics reads that reach their work budget return a single-use cursor that resumes acquisition, instead of asking to repeat; statistics walk an owned key copy. Automated checks pass; installed check pending.
 - Trade offers share one item-facts table per result, cutting the worst-case trader payload from about 220 KB to 25 KB with every offer kept.

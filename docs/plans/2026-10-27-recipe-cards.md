@@ -182,7 +182,7 @@ Tasks in the same wave touch disjoint files and can run at the same time, each i
 - **Rules**, applied only when `verbosity != null`:
   - **Normal and Detailed.** A line whose only non-whitespace content is one recipe citation with a card becomes an `InlineLine` with `card` set.
   - **Concise.** Every recipe citation with a card becomes a result-chip span, whether or not it stands alone.
-  - **Item links.** `[Label](item:<id>)` becomes an item span with `itemId = <id>`. With `verbosity == null`, it stays plain label text.
+  - **Item links.** `[Label](item:<id>)` becomes an item span with `itemId = <id>`. With `verbosity == null`, it renders exactly as today (raw Markdown text).
   - **Everything else.** Unchanged.
 
 - [ ] **Step 1: Write the failing tests.**

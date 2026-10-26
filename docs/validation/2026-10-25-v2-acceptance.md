@@ -30486,27 +30486,1135 @@ Round-1 controller rulings apply: J14 stores origin on notes; the plain current-
 
 | Check | Status | Observation |
 |---|---|---|
-| A1 | NOT RUN | Pending execution. |
-| A2 | NOT RUN | Pending execution. |
-| B1 | NOT RUN | Pending execution. |
-| D1 | NOT RUN | Pending execution. |
-| C1 | NOT RUN | Pending execution. |
+| A1 | FAIL | All three routes exist and leading inputs are complete, but PARTIAL has no concrete detail and no recipe links can open. |
+| A2 | FAIL | Correct direct total (30 planks, zero sticks), but no intermediate recipe expansion. |
+| B1 | FAIL | Advancement query stops at 64 records with a nextCall; statistics completes 36 records. |
+| D1 | NOT RUN | Master-librarian offers were not populated; trader offers had not been generated. |
+| C1 | FAIL | Bridge request_built captures tools=28 but toolNames is truncated to [search_recipe,. |
 | M5 | NOT RUN | Pending execution. |
-| J8 | NOT RUN | Pending execution. |
-| J9 | NOT RUN | Pending execution. |
-| J13 | NOT RUN | Pending execution. |
-| P9/J7 | NOT RUN | Pending execution. |
-| W11 | NOT RUN | Pending execution. |
-| W15 | NOT RUN | Pending execution. |
-| W17 | NOT RUN | Pending execution. |
-| W18 | NOT RUN | Pending execution. |
-| U1 | NOT RUN | Pending execution. |
-| U2 | NOT RUN | Pending execution. |
-| W12r | NOT RUN | Pending execution. |
-| W19 | NOT RUN | Pending execution. |
+| J8 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
+| J9 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
+| J13 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
+| P9/J7 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
+| W11 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
+| W15 | FAIL | Unloaded job-site memory returned with COMPLETE and no unavailable/PARTIAL section note. |
+| W17 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
+| W18 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
+| U1 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
+| U2 | NOT RUN | Required desktop action blocked after one delayed recovery attempt. |
+| W12r | FAIL | All three chests stay sealed; replies omit table IDs/seeds, and known table is reported undefined. |
+| W19 | FAIL | No tool read; reply incorrectly says biome tags cannot be read. |
 | J12r | NOT RUN | Pending execution. |
 | N1 | NOT RUN | Pending execution. |
 
 ### Passing checks and checks not run
 
+#### D1 - NOT RUN
+
+Classification: **fixture**. Master-librarian offers were not populated; trader offers had not been generated.
+
+An advancement navigation screen left the integrated server paused. The platform fill and librarian offer edits failed before submission; the librarian question therefore read no villagers. After unpausing, the trader was found and inspect_entity returned COMPLETE but offersGenerated=false. The response correctly reports that offers are not generated. Neither payload case is claimed accepted and no question was resubmitted.
+
+Evidence: [d1-fixture.json](../../build/native-readiness-live/round2/d1-fixture.json).
+
+Evidence: [d1-librarian-state.json](../../build/native-readiness-live/round2/d1-librarian-state.json).
+
+Evidence: [d1-trader-fixture.json](../../build/native-readiness-live/round2/d1-trader-fixture.json).
+
+Evidence: [d1-trader-ground-truth.json](../../build/native-readiness-live/round2/d1-trader-ground-truth.json).
+
+Question: `what does this villager sell?`
+
+Request `7cc3e128-ef4b-4193-b5bd-5c8fc8dfe239`; conversation `b7384c11-dc3a-4f13-9426-25c391a28d0e`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/d1-librarian.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_entities",
+    "arguments": {
+      "center": null,
+      "radius": 32,
+      "filter": {
+        "ids": [
+          "minecraft:villager"
+        ],
+        "tags": null,
+        "text": null
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "22 chunks in range did not have their entities loaded yet, so entities there were not read",
+    "recordCount": 0,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+I can’t identify the villager from the current view, and no villager appeared in the nearby loaded area I could check. Please move closer and look directly at the villager, then ask again—I can read its trades without you opening the trade screen.
+```
+
+`/navigate` results (none; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":16296,"modelTerminalMs":"14302","toolWallMs":"43","persistMs":"11"}.
+
+Question: `what does this trader sell?`
+
+Request `6c385347-ca88-4c02-917c-8e3e9d01243d`; conversation `df1932c9-e510-4089-bc94-82e9f4275986`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/d1-trader.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_entities",
+    "arguments": {
+      "center": {
+        "type": "player",
+        "id": null,
+        "place": null
+      },
+      "radius": 16,
+      "filter": {
+        "ids": null,
+        "tags": null,
+        "text": "trader"
+      },
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "2a2566f9-0a53-4348-97a5-5dc040f008cf"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The wandering trader at **(2305, 250, 2300)** hasn’t generated its trade offers yet, so I can’t see what it sells. [Wandering trader](world:entity|2a2566f9-0a53-4348-97a5-5dc040f008cf) Open a trade with it, then ask me again and I can check the offers.
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-entity|2a2566f9-0a53-4348-97a5-5dc040f008cf",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":19139,"modelTerminalMs":"15188","toolWallMs":"132","persistMs":"1186"}.
+
+
+#### J8 - NOT RUN
+
+Required desktop action blocked after one delayed recovery attempt.
+
+The round-1 chest withdrawal remains accepted; the remaining donkey menu cannot be opened by the bridge, whose interaction mounts the animal. No donkey question submitted.
+
+Evidence: [computer-interruption.json](../../build/native-readiness-live/round2/computer-interruption.json).
+
+Evidence: [computer-retry.json](../../build/native-readiness-live/round2/computer-retry.json).
+
+
+#### J9 - NOT RUN
+
+Required desktop action blocked after one delayed recovery attempt.
+
+Save and Quit while the chest remains open could not be performed. No disconnect/rejoin question submitted.
+
+Evidence: [computer-interruption.json](../../build/native-readiness-live/round2/computer-interruption.json).
+
+Evidence: [computer-retry.json](../../build/native-readiness-live/round2/computer-retry.json).
+
+
+#### J13 - NOT RUN
+
+Required desktop action blocked after one delayed recovery attempt.
+
+Immediate full game quit and quick Save-and-Quit/rejoin could not be performed. No lifecycle question submitted.
+
+Evidence: [computer-interruption.json](../../build/native-readiness-live/round2/computer-interruption.json).
+
+Evidence: [computer-retry.json](../../build/native-readiness-live/round2/computer-retry.json).
+
+
+#### P9/J7 - NOT RUN
+
+Required desktop action blocked after one delayed recovery attempt.
+
+The round-1 no-mod NeoForge 21.1.202 server installation is available in the temporary folder, but client joining/leaving requires desktop control. It was not restarted since no client join was possible. No three server questions submitted.
+
+Evidence: [computer-interruption.json](../../build/native-readiness-live/round2/computer-interruption.json).
+
+Evidence: [computer-retry.json](../../build/native-readiness-live/round2/computer-retry.json).
+
+
+#### W11 - NOT RUN
+
+Required desktop action blocked after one delayed recovery attempt.
+
+Donkey/mule inventory-screen opening requires desktop control after bridge interaction mounts them. No opened-menu question submitted.
+
+Evidence: [computer-interruption.json](../../build/native-readiness-live/round2/computer-interruption.json).
+
+Evidence: [computer-retry.json](../../build/native-readiness-live/round2/computer-retry.json).
+
+
+#### W17 - NOT RUN
+
+Required desktop action blocked after one delayed recovery attempt.
+
+Round-1 legacy conversations remain available, but saved-chat selection/rendering/clicking requires desktop control. No legacy chat modified or substituted.
+
+Evidence: [computer-interruption.json](../../build/native-readiness-live/round2/computer-interruption.json).
+
+Evidence: [computer-retry.json](../../build/native-readiness-live/round2/computer-retry.json).
+
+
+#### W18 - NOT RUN
+
+Required desktop action blocked after one delayed recovery attempt.
+
+The resource pack adding the exact Speed description key was created under the instance resourcepacks folder. Activation/reload through the game screen could not be performed; with-pack branch not run.
+
+Evidence: [computer-interruption.json](../../build/native-readiness-live/round2/computer-interruption.json).
+
+Evidence: [computer-retry.json](../../build/native-readiness-live/round2/computer-retry.json).
+
+
+#### U1 - NOT RUN
+
+Required desktop action blocked after one delayed recovery attempt.
+
+Adapter popup hover/scroll could not be performed. No width or scrollbar acceptance claimed.
+
+Evidence: [computer-interruption.json](../../build/native-readiness-live/round2/computer-interruption.json).
+
+Evidence: [computer-retry.json](../../build/native-readiness-live/round2/computer-retry.json).
+
+
+#### U2 - NOT RUN
+
+Required desktop action blocked after one delayed recovery attempt.
+
+Settings-screen save and shutdown overlap cannot be performed. No shutdown-order acceptance claimed.
+
+Evidence: [computer-interruption.json](../../build/native-readiness-live/round2/computer-interruption.json).
+
+Evidence: [computer-retry.json](../../build/native-readiness-live/round2/computer-retry.json).
+
+
 ### Failures
+
+#### A1 - FAIL
+
+Classification: **code**. All three routes exist and leading inputs are complete, but PARTIAL has no concrete detail and no recipe links can open.
+
+Each plan returns one leading route with every ingredient and correct yield. Native plan records have navigable=false, and all three replies return no navigationTargets. plan_recipe coverage is PARTIAL with detail null. The beacon status endpoint hit one persistence gap; one GET retry recovered the same request, without resubmitting.
+
+Evidence: [a1-beacon-status-transient.json](../../build/native-readiness-live/round2/a1-beacon-status-transient.json).
+
+Question: `how do I make a beacon?`
+
+Request `de26f5c7-8db3-4f64-a6f3-341978f356c9`; conversation `699df456-f0e9-4bdb-b843-41747d48424f`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/a1-beacon.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:beacon",
+      "quantity": 1,
+      "depth": 2
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": "minecraft:wither",
+      "place": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "this table drops nothing",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+To craft a beacon, put **5 glass, 1 Nether Star, and 3 obsidian** in a crafting table like this: [native:plan|minecraft:beacon|1|2|0|minecraft:beacon]
+
+```text
+Glass      Glass        Glass
+Glass      Nether Star  Glass
+Obsidian   Obsidian     Obsidian
+```
+
+That recipe produces **one beacon**. [native:plan|minecraft:beacon|1|2|0|minecraft:beacon]
+```
+
+`/navigate` results (none; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":22350,"modelTerminalMs":"21918","toolWallMs":"85","persistMs":"21"}.
+
+Question: `how do I make 64 enchanting tables?`
+
+Request `c16dd29c-2b15-4dab-bdd8-910b7be03356`; conversation `4c4b2fae-5313-4c1b-9bf0-c087a6cff27c`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/a1-enchanting.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:enchanting_table",
+      "quantity": 64,
+      "depth": 2
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "name": "search_recipe",
+    "arguments": {
+      "filter": {
+        "text": null,
+        "outputItem": "minecraft:enchanting_table",
+        "provider": null
+      },
+      "limit": 16,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "native: scanned=0-1820 of 1820 (ordinary recipes 1539, brewing candidates 281); phase=brewing; matches=1",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Craft **64 enchanting tables** in a crafting table. The loaded recipe makes one table from **1 book, 2 diamonds, and 4 obsidian**, so for 64 crafts, gather **64 books, 128 diamonds, and 256 obsidian** (assuming the ingredients are consumed normally). [native:minecraft:enchanting_table]
+
+```text
+[ empty ] [  book   ] [ empty ]
+[diamond] [obsidian] [diamond]
+[obsidian] [obsidian] [obsidian]
+```
+
+Repeat the recipe 64 times. [native:minecraft:enchanting_table]
+```
+
+`/navigate` results (none; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":23848,"modelTerminalMs":"21979","toolWallMs":"109","persistMs":"12"}.
+
+Question: `how do I make oak planks?`
+
+Request `04682d01-ba1f-4f20-a5b4-2ec2e09e81fa`; conversation `38e054ed-a39a-4d0b-8b29-3dc8b4a2358a`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/a1-planks.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:oak_planks",
+      "quantity": 4,
+      "depth": 1
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Put **one oak log** in any crafting slot to get **four oak planks**. Oak wood, stripped oak logs, and stripped oak wood also work. [native:plan|minecraft:oak_planks|4|1|0|minecraft:oak_planks]
+```
+
+`/navigate` results (none; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":12440,"modelTerminalMs":"10848","toolWallMs":"9","persistMs":"8"}.
+
+
+#### A2 - FAIL
+
+Classification: **code**. Correct direct total (30 planks, zero sticks), but no intermediate recipe expansion.
+
+plan_recipe(depth=2) returns only the piston route. Its plank alternatives have consumption UNKNOWN and the plan contains no log-to-plank intermediate routes; the requested intermediate-recipe reach is not established.
+
+Question: `how many sticks and planks do I need for 10 pistons?`
+
+Request `f7155572-f8d6-4ccc-9804-94ee3b5fe390`; conversation `c0f97c84-3ce3-45c5-9a32-845f8587720d`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/a2-pistons.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:piston",
+      "quantity": 10,
+      "depth": 2
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+For **10 regular pistons**, you need **30 planks and 0 sticks**. The loaded recipe uses three planks per piston and no sticks. [native:plan|minecraft:piston|10|2|0|minecraft:piston]
+```
+
+`/navigate` results (none; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":16632,"modelTerminalMs":"14768","toolWallMs":"8","persistMs":"17"}.
+
+
+#### B1 - FAIL
+
+Classification: **prompt**. Advancement query stops at 64 records with a nextCall; statistics completes 36 records.
+
+The 2,000-entry datapack is enabled and the tool tree summary counts 2,000 entries. list_progress returns PARTIAL, 64 records and a progress cursor with nextCall, but the model does not continue. Exactly-once coverage of all advancement records is not established. No acquisition-budget stop occurs in either observed query, so that specific code path remains unexercised. No question retry.
+
+Evidence: [b1-datapacks.json](../../build/native-readiness-live/round2/b1-datapacks.json).
+
+Evidence: [b1-continuation-observation.json](../../build/native-readiness-live/round2/b1-continuation-observation.json).
+
+Question: `what advancements am I missing?`
+
+Request `d49eab9e-6ce2-4432-9317-a5ba82b9dac2`; conversation `940972fa-8ac6-4d76-8ab4-afde5d78e8f8`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/b1-advancements.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_progress",
+    "arguments": {
+      "tree": null,
+      "status": [
+        "in_progress",
+        "available",
+        "locked",
+        "hidden"
+      ],
+      "text": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": null,
+    "recordCount": 64,
+    "nextCursor": "progress:c192dfd3-9440-42ac-a326-3b3f3bb3e4c0",
+    "nextCall": {
+      "name": "list_progress",
+      "arguments": {
+        "tree": null,
+        "status": [
+          "in_progress",
+          "available",
+          "locked",
+          "hidden"
+        ],
+        "text": null,
+        "cursor": "progress:c192dfd3-9440-42ac-a326-3b3f3bb3e4c0"
+      }
+    }
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+You’re missing **2,137 of the 2,147 advancements** shown in this world. That includes **2,000 entries in a “PackSage Acceptance” test tree**, so the total is much larger than the usual advancement list. [progress:tree|minecraft/minecraft:adventure/root] [progress:tree|minecraft/minecraft:end/root] [progress:tree|minecraft/minecraft:husbandry/root] [progress:tree|minecraft/minecraft:nether/root] [progress:tree|minecraft/minecraft:story/root] [progress:tree|minecraft/naturesaura:root] [progress:tree|minecraft/packsage_acceptance:root]
+
+| Tree | Missing |
+|---|---:|
+| [Adventure](progress:tree|minecraft/minecraft:adventure/root) | 40 of 44 |
+| The End | 9 of 9 [progress:tree|minecraft/minecraft:end/root] |
+| Husbandry | 29 of 29 [progress:tree|minecraft/minecraft:husbandry/root] |
+| [Nether](progress:tree|minecraft/minecraft:nether/root) | 22 of 24 |
+| [Minecraft](progress:tree|minecraft/minecraft:story/root) | 12 of 16 |
+| Nature’s Aura | 25 of 25 [progress:tree|minecraft/naturesaura:root] |
+| PackSage Acceptance | 2,000 of 2,000 [progress:tree|minecraft/packsage_acceptance:root] |
+
+A few **available** ones you could pursue are [Take Aim](progress:progress|minecraft/minecraft:adventure/shoot_arrow) (shoot something with an arrow), [Ol’ Betsy](progress:progress|minecraft/minecraft:adventure/ol_betsy) (shoot a crossbow), and [Isn’t It Scute?](progress:progress|minecraft/minecraft:adventure/brush_armadillo) (brush an armadillo for scutes). [Adventuring Time](progress:progress|minecraft/minecraft:adventure/adventuring_time) is already **in progress**. I’ve left out the other individual entries—including locked and hidden ones—rather than presenting this partial page as a complete checklist.
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/root",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:nether/root|minecraft:nether/root",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:story/root|minecraft:story/root",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/avoid_vibration",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/brush_armadillo",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/crafters_crafting_crafters",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/fall_from_world_height",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/honey_block_slide",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/kill_all_mobs",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/kill_mob_near_sculk_catalyst",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/shoot_arrow",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/bullseye",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/sniper_duel",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/throw_trident",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/very_very_frightening",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/totem_of_undying",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/lightning_rod_with_villager_no_fire",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/minecraft_trials_edition",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/blowback",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/lighten_up",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/overoverkill",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/under_lock_and_key",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/revaulting",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/who_needs_rockets",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/ol_betsy",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/two_birds_one_arrow",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/whos_the_pillager_now",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/read_power_of_chiseled_bookshelf",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/salvage_sherd",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/craft_decorated_pot_using_only_sherds",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/adventuring_time",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/play_jukebox_in_meadows",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/walk_on_powder_snow_with_leather_boots",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/spyglass_at_parrot",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/spyglass_at_ghast",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/spyglass_at_dragon",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/summon_iron_golem",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/trade_at_world_height",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/trim_with_any_armor_pattern",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  },
+  {
+    "targetId": "advancement|minecraft:adventure/root|minecraft:adventure/trim_with_all_exclusive_armor_patterns",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":25409,"modelTerminalMs":"23912","toolWallMs":"179","persistMs":"12"}.
+
+Question: `what are all my statistics?`
+
+Request `1fdddc13-5fcc-4ebc-b664-55056004936b`; conversation `f3a2b349-a330-4bb2-a448-c035113547ca`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/b1-statistics.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_statistics",
+    "arguments": {
+      "categories": null,
+      "subjects": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 36,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Here are **all 36 nonzero statistics returned for your player**, as of the read. Categories with no recorded entries aren’t listed.
+
+- **Blocks mined:** Deepslate diamond ore 1 [progress:stat|minecraft|mined|minecraft:deepslate_diamond_ore]; diamond ore 1 [progress:stat|minecraft|mined|minecraft:diamond_ore].
+- **Crafted:** Bread 8 [progress:stat|minecraft|crafted|minecraft:bread].
+- **Items used:** Block of diamond 1 [progress:stat|minecraft|used|minecraft:diamond_block]; diamond pickaxe 2 [progress:stat|minecraft|used|minecraft:diamond_pickaxe]; horse spawn egg 1 [progress:stat|minecraft|used|minecraft:horse_spawn_egg]; oak planks 1 [progress:stat|minecraft|used|minecraft:oak_planks]; skeleton horse spawn egg 1 [progress:stat|minecraft|used|minecraft:skeleton_horse_spawn_egg]; stripped oak wood 3 [progress:stat|minecraft|used|minecraft:stripped_oak_wood].
+- **Items picked up:** Diamond 1 [progress:stat|minecraft|picked_up|minecraft:diamond]; egg 6 [progress:stat|minecraft|picked_up|minecraft:egg]; raw porkchop 3 [progress:stat|minecraft|picked_up|minecraft:porkchop].
+- **Mobs:** Killed 1 pig [progress:stat|minecraft|killed|minecraft:pig]; killed by a zombie 1 time [progress:stat|minecraft|killed_by|minecraft:zombie].
+- **Movement:** Crouched 0.15 blocks [progress:stat|minecraft|custom|minecraft:crouch_one_cm]; flown 8.33 blocks [progress:stat|minecraft|custom|minecraft:fly_one_cm]; sprinted 4.43 blocks [progress:stat|minecraft|custom|minecraft:sprint_one_cm]; walked on water 18.14 blocks [progress:stat|minecraft|custom|minecraft:walk_on_water_one_cm]; walked 38.52 blocks [progress:stat|minecraft|custom|minecraft:walk_one_cm]; walked under water 33.02 blocks [progress:stat|minecraft|custom|minecraft:walk_under_water_one_cm]. Jumps: 8 [progress:stat|minecraft|custom|minecraft:jump]; sneak time: 0.65 seconds [progress:stat|minecraft|custom|minecraft:sneak_time].
+- **Combat and survival:** Damage taken 115.9 health points [progress:stat|minecraft|custom|minecraft:damage_taken]; deaths 1 [progress:stat|minecraft|custom|minecraft:deaths]; mob kills 1 [progress:stat|minecraft|custom|minecraft:mob_kills]; time since last death 3,019.75 seconds [progress:stat|minecraft|custom|minecraft:time_since_death]; time since last rest 3,019.8 seconds [progress:stat|minecraft|custom|minecraft:time_since_rest].
+- **Interactions:** Items dropped 1 [progress:stat|minecraft|custom|minecraft:drop]; crafting-table interactions 1 [progress:stat|minecraft|custom|minecraft:interact_with_crafting_table]; chests opened 6 [progress:stat|minecraft|custom|minecraft:open_chest]; raids triggered 1 [progress:stat|minecraft|custom|minecraft:raid_trigger]; talked to villagers 6 times [progress:stat|minecraft|custom|minecraft:talked_to_villager]; traded with villagers 8 times [progress:stat|minecraft|custom|minecraft:traded_with_villager].
+- **Time and sessions:** Time played 70,398 seconds (19 hours, 33 minutes, 18 seconds) [progress:stat|minecraft|custom|minecraft:play_time]; time with world open 192,880.45 seconds [progress:stat|minecraft|custom|minecraft:total_world_time]; games quit 81 [progress:stat|minecraft|custom|minecraft:leave_game].
+```
+
+`/navigate` results (none; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":26909,"modelTerminalMs":"25419","toolWallMs":"39","persistMs":"12"}.
+
+
+#### C1 - FAIL
+
+Classification: **code**. Bridge request_built captures tools=28 but toolNames is truncated to [search_recipe,.
+
+The timing capture contains only the first space-delimited piece of the list. No current request_built line appears in latest.log, debug.log or stdout-logs.txt, so the full offered-name list and absence of read_progress cannot be established from installed evidence.
+
+Evidence: [c1-request-built.json](../../build/native-readiness-live/round2/c1-request-built.json).
+
+
+#### W15 - FAIL
+
+Classification: **code**. Unloaded job-site memory returned with COMPLETE and no unavailable/PARTIAL section note.
+
+Fixture villager Brain memory points to minecraft:overworld|100000,70,100000. Its UUID is verified as the crosshair target before submission. inspect_entity returns source/result/minecraft-section coverage COMPLETE, jobSite equal to the far coordinate, and no POI availability warning. Reply distinguishes memory from block verification, but the required section status/note is absent. Initial fixture position/look corrections happened before the sole question.
+
+Evidence: [w15-fixture.json](../../build/native-readiness-live/round2/w15-fixture.json).
+
+Evidence: [w15-final-ready-state.json](../../build/native-readiness-live/round2/w15-final-ready-state.json).
+
+Evidence: [w15-entity-pos.json](../../build/native-readiness-live/round2/w15-entity-pos.json).
+
+Question: `where does this villager work?`
+
+Request `63e85a33-052c-4b0e-94a4-1202fb004438`; conversation `719a73a5-7a20-4f49-8ede-fac7916c6b3a`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/w15-job.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "inspect_entity",
+    "arguments": {
+      "id": "33333333-3333-3333-3333-333333333333"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+This librarian’s recorded job site is at **(100000, 70, 100000)** in the Overworld. That’s its claimed workplace; I haven’t verified the block there. The villager is at **(2322, 250, 2320)** [Librarian](world:entity|33333333-3333-3333-3333-333333333333).
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-entity|33333333-3333-3333-3333-333333333333",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":19328,"modelTerminalMs":"15421","toolWallMs":"44","persistMs":"1320"}.
+
+
+#### W12r - FAIL
+
+Classification: **code, prompt**. All three chests stay sealed; replies omit table IDs/seeds, and known table is reported undefined.
+
+The simple_dungeon and missing-table questions choose inspect_block; both replies say the table is not defined. The empty-table question chooses list_items, whose detail includes minecraft:empty and seed 222; reply correctly says it generates nothing but omits the exact table ID and seed. All three pending LootTable/Seed fields are unchanged afterwards. Classification includes a possible code discrepancy in the inspect_block pending-loot data (see raw payload); no retry. inspect_block explicitly labels the known minecraft:chests/simple_dungeon table as not defined while preserving its ID and seed in pendingLoot; this is a code-side status discrepancy. Reply omissions are prompt-side.
+
+Evidence: [w12r-before.json](../../build/native-readiness-live/round2/w12r-before.json).
+
+Evidence: [w12r-after.json](../../build/native-readiness-live/round2/w12r-after.json).
+
+Question: `what's in this chest?`
+
+Request `e0d82eca-fdcf-4783-b91d-f64c376c7a18`; conversation `cb66ebd4-f6ee-4149-8a89-2a84ade48f28`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/w12r-known.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "inspect_block",
+    "arguments": {
+      "place": "minecraft:overworld|1608,250,1600"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The chest at **(1608, 250, 1600)** hasn’t generated its contents yet. It has a pending loot table that the loaded data packs don’t define, so I can’t tell what items it will contain. Opening it in-game will generate the loot. [Chest](world:block|minecraft:overworld|1608,250,1600)
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1608,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":16325,"modelTerminalMs":"10558","toolWallMs":"15","persistMs":"1277"}.
+
+Question: `what's in this chest?`
+
+Request `630f24f9-b918-4b99-af31-be0c9da136c5`; conversation `344e9848-b5d3-4a1e-8049-5b13d6e88730`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/w12r-unknown.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "inspect_block",
+    "arguments": {
+      "place": "minecraft:overworld|1610,250,1600"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": null,
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The chest at (1610, 250, 1600) hasn’t generated its contents yet. It has a pending loot table that the loaded data packs don’t define, so I can’t tell what—if anything—it will contain when opened. [world:block|minecraft:overworld|1610,250,1600]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1610,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":18736,"modelTerminalMs":"12318","toolWallMs":"2","persistMs":"1453"}.
+
+Question: `what's in this chest?`
+
+Request `5fa3c940-d143-4771-b91c-45bdc9736035`; conversation `5d6ac448-b15c-4985-ba82-6dd118b997ed`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/w12r-empty.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "name": "list_items",
+    "arguments": {
+      "holder": "targeted",
+      "inventory": null,
+      "filter": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "minecraft/container's loot has not been generated yet (table minecraft:empty, seed 222, the empty table, which generates nothing); its contents are decided when it is first opened; read_loot with the container's place reads the table without opening it",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+The chest at **(1612, 250, 1600)** hasn’t generated its contents yet. Its assigned loot table is **empty**, so opening it won’t generate any loot. I can’t read a current item list until the chest is opened. [world:block|minecraft:overworld|1612,250,1600]
+```
+
+`/navigate` results:
+
+```json
+[
+  {
+    "targetId": "world-block|minecraft:overworld|1612,250,1600",
+    "result": {
+      "status": "OPENED",
+      "detail": null
+    }
+  }
+]
+```
+
+Timing: {"wallMs":19686,"modelTerminalMs":"13403","toolWallMs":"107","persistMs":"1306"}.
+
+
+#### W19 - FAIL
+
+Classification: **prompt**. No tool read; reply incorrectly says biome tags cannot be read.
+
+Question explicitly requests tags. The model uses only current-biome context, invokes no tool, and states it cannot read the biome-tag registry.
+
+Question: `what tags does this biome have?`
+
+Request `dd8678f8-855f-4178-b1f8-523e86cb5a9a`; conversation `63558d38-6e14-43cd-9527-be8bf1310ad3`; status `completed`; saved=true. [Raw response](../../build/native-readiness-live/round2/w19-tags.json).
+
+Calls (exact arguments, groups, coverage/detail and continuation):
+
+```json
+[]
+```
+
+Verbatim reply:
+
+```text
+You’re in **minecraft:plains**, but I can’t read this pack’s biome-tag registry, so I can’t give you a reliable list of its tags. Mods and datapacks can change them; a vanilla list wouldn’t necessarily describe your world.
+```
+
+`/navigate` results (none; see assessment):
+
+```json
+[]
+```
+
+Timing: {"wallMs":19294,"modelTerminalMs":"13374","toolWallMs":"0","persistMs":"1184"}.

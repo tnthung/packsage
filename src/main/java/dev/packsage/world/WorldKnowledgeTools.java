@@ -631,7 +631,7 @@ final class WorldKnowledgeTools {
             payload.put("canRun", new Evidence.JsonBoolean(summary.canUse()));
             payload.put("usage", strings(summary.usage()));
             payload.put("redirect", summary.redirect() == null ? new Evidence.JsonNull() : WorldTools.text(summary.redirect()));
-            payload.put("note", WorldTools.text("PackSage does not run commands"));
+            payload.put("note", WorldTools.text("Discovery only; use run_command for player-requested actions"));
             records.add(WorldTools.evidence(request.scope(), "command|" + summary.name(), Evidence.RecordKind.OTHER, "/" + summary.name(),
                     payload, Evidence.Coverage.COMPLETE, null));
         }
@@ -660,7 +660,7 @@ final class WorldKnowledgeTools {
         payload.put("argumentsBounded", new Evidence.JsonBoolean(detail.argumentsBounded()));
         payload.put("redirect", detail.redirect() == null ? new Evidence.JsonNull() : WorldTools.text(detail.redirect()));
         payload.put("playerPermissionLevel", WorldTools.number(permission));
-        payload.put("note", WorldTools.text("PackSage does not run commands"));
+        payload.put("note", WorldTools.text("Discovery only; use run_command for player-requested actions"));
         var coverage = more ? Evidence.Coverage.PARTIAL : Evidence.Coverage.COMPLETE;
         return WorldPaging.result(List.of(WorldTools.evidence(request.scope(), "command|" + detail.path(), Evidence.RecordKind.OTHER,
                 "/" + detail.path(), payload, coverage, null)), coverage,
@@ -686,7 +686,7 @@ final class WorldKnowledgeTools {
                 : new LinkedHashMap<>(result.records().getFirst().payload().values());
         payload.put("path", WorldTools.text(handle.substring(8)));
         payload.put("cursor", WorldTools.text(result.nextCursor()));
-        payload.put("note", WorldTools.text("PackSage does not run commands"));
+        payload.put("note", WorldTools.text("Discovery only; use run_command for player-requested actions"));
         payload.put("detail", WorldTools.text(result.detail() + "; continue with read_command using this path and cursor"));
         return WorldTools.evidence(scope, handle, Evidence.RecordKind.OTHER, "/" + handle.substring(8), payload, Evidence.Coverage.PARTIAL, null);
     }

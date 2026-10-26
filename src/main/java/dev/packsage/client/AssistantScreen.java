@@ -39,6 +39,7 @@ public final class AssistantScreen extends Screen {
     private static final int ACTIVITY_ARGUMENTS_DISPLAY_LIMIT = 2_048;
     private static final Gson ACTIVITY_ARGUMENTS_JSON = new GsonBuilder().serializeNulls().setPrettyPrinting().create();
     private final ChatActions actions;
+    private final CommandConfirmationPanel commandConfirmation;
     private final PackSageSettings settings;
     private ChatContracts.View view;
     private boolean awaitingRequestView;
@@ -112,6 +113,7 @@ public final class AssistantScreen extends Screen {
     public AssistantScreen(ChatActions actions, Component title) {
         super(title);
         this.actions = Objects.requireNonNull(actions);
+        commandConfirmation = new CommandConfirmationPanel(actions);
         this.settings = actions.settings();
         this.view = actions.view();
     }
@@ -179,6 +181,7 @@ public final class AssistantScreen extends Screen {
         int contentOrigin = contentTop + 8;
         int y = contentOrigin - scrollOffset;
         y = drawConversation(graphics, y, contentBottom, mouseX, mouseY);
+        y = commandConfirmation.render(graphics, font, readableLeft + 26, y, Math.max(1, readableWidth - 26), contentTop, contentBottom);
         graphics.disableScissor();
         updateContentMetrics(y + scrollOffset - contentTop + 4, contentBottom - contentTop);
         drawComposer(graphics, mouseX, mouseY);
@@ -1285,6 +1288,7 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (commandConfirmation.mouseClicked(mouseX, mouseY, button)) return true;
         if (button == 2 && picker == null) {
             int controlY = Math.max(0, height - 32);
             if (mouseX >= 40 && mouseX < 60 && mouseY >= controlY && mouseY < controlY + 20) {

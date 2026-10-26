@@ -1077,7 +1077,8 @@ public final class RequestController {
                     request.answer.toString(), List.copyOf(request.partialReplay), persisted.context(), evidence.sources(),
                     evidence.navigationTargets(),
                     new ChatContracts.Outcome(ChatContracts.OutcomeStatus.CANCELLED, detail), 0, request.sentAt,
-                    List.copyOf(request.activities.values()), List.copyOf(request.steeringMessages));
+                    List.copyOf(request.activities.values()), List.copyOf(request.steeringMessages), null,
+                    request.answer.isEmpty() ? null : Instant.now());
             if (request.submission.replacing() == null) updateVisibleTurn(request, target, turn);
             persist(request, target, turn, persisted.screenshotBytes());
         }, executor);

@@ -86,6 +86,19 @@ class RecipePlannerTest {
         assertEquals(Evidence.Outcome.PARTIAL, result.outcome());
         assertTrue(result.records().get(0).recipePayload().outputs().stream().allMatch(output -> output.quantity() == null || output.quantity() > 0));
         assertTrue(result.records().stream().anyMatch(record -> record.source().provenance().contains("bounded-depth")));
+        assertTrue(result.detail().contains("bounded-depth"));
+    }
+
+    @Test
+    void partialPlanExplainsUnresolvedRawLeaves() {
+        var index = new KnowledgeIndex();
+        index.replace(new dev.packsage.knowledge.nativegame.NativeSnapshot(SCOPE, List.of(alternativeRecipe("mod:output", "mod:raw"))));
+
+        var result = new RecipePlanner(index).plan("mod:output", 2, SCOPE, 2);
+
+        assertEquals(Evidence.Outcome.PARTIAL, result.outcome());
+        assertTrue(result.detail().contains("no-recipe"));
+        assertTrue(result.detail().contains("mod:raw"));
     }
 
     @Test

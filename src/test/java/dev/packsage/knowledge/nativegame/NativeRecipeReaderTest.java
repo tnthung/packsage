@@ -278,6 +278,28 @@ class NativeRecipeReaderTest {
         var shape = (Evidence.JsonObject) record.payload().values().get("shape");
         assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(3)), shape.values().get("width"));
         assertEquals(new Evidence.JsonNumber(java.math.BigDecimal.valueOf(3)), shape.values().get("height"));
+        assertEquals(1, record.recipePayload().inputs().getFirst().alternatives().getFirst().quantity());
+        assertEquals(Evidence.Consumption.CONSUMED, record.recipePayload().inputs().getFirst().alternatives().getFirst().consumption());
+    }
+
+    @Test
+    void customRecipeSubclassHasUnknownConsumption() {
+        var shapeless = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                new ItemStack(Items.STICK), NonNullList.of(Ingredient.EMPTY, Ingredient.of(Items.OAK_PLANKS))) {
+        };
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:modded"), shapeless),
+                registries, ITEMS, null, SCOPE, null);
+        assertEquals(Evidence.DecodingStatus.UNKNOWN, record.recipePayload().decodingStatus());
+        assertEquals(Evidence.Consumption.UNKNOWN, record.recipePayload().inputs().getFirst().alternatives().getFirst().consumption());
+    }
+
+    @Test
+    void vanillaRecipeSlotQuantityIsOneEvenWhenItemValueStackHasMore() {
+        var shapeless = new net.minecraft.world.item.crafting.ShapelessRecipe("", net.minecraft.world.item.crafting.CraftingBookCategory.MISC,
+                new ItemStack(Items.STICK), NonNullList.of(Ingredient.EMPTY, Ingredient.of(new ItemStack(Items.OAK_PLANKS, 4))));
+        var record = NativeSnapshot.copyRecipe(new RecipeHolder<>(net.minecraft.resources.ResourceLocation.parse("test:stacked"), shapeless),
+                registries, ITEMS, null, SCOPE, null);
+        assertEquals(1, record.recipePayload().inputs().getFirst().alternatives().getFirst().quantity());
     }
 
     @Test

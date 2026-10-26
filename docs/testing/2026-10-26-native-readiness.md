@@ -105,3 +105,16 @@ Install the current `feat/packsage-v2`. `GET /prompt` must show the candidate 9 
 | W18r | W18 with `/resourcepacks` | the pack's Speed description is returned; disable it afterwards |
 | P9/J7r | Copy every jar in the instance's mods folder except packsage into the server's mods folder, start it, join with `/server/connect` and ask the three P9/J7 questions | the progress, statistics and journal tools report unavailable, and the replies say so |
 | N2 | With candidate 10 set: report a build, move it, recall it, and ask one plain question | as N1 |
+
+## Round 5
+
+Install the current `feat/packsage-v2`. No developer override is used in this round.
+
+| Id | Steps | Pass when |
+|---|---|---|
+| D3 | `GET /prompt` | `text` is null; `effectiveText` equals `build/prompt-candidates/candidate-11.txt` byte for byte |
+| A3r2 | "what do I need to make a beacon from scratch?" | obsidian and the other recipe-less materials are said to be obtained, not crafted; the expansion follows the returned batches |
+| M5r2 | M5 again, then `/world/leave` and read the `PackSage journal:` summary | overflowed 0; record `slowest tick`, `slowest hook` and `world start and stop`. The gameplay slowest tick should be under 1,000 us; if not, the named hook is the evidence for a fix |
+| J8r2 | J8r again | as in round 4 |
+| N3 | Report, move and recall a build; a plain question; a "what did I do today?" journal question | as N1, and "today" follows playerLocalTime |
+| A1r3 | One A1 question | as in round 3 |

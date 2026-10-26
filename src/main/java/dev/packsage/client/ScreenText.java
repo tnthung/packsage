@@ -6,6 +6,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.packsage.chat.ChatContracts;
+import dev.packsage.chat.PackSageSettings;
+import dev.packsage.client.recipe.RecipeCardModel;
+import dev.packsage.client.recipe.RecipeCardModels;
 import dev.packsage.knowledge.Evidence;
 import dev.packsage.model.ModelBackend;
 import net.minecraft.network.chat.Component;
@@ -47,7 +50,12 @@ final class ScreenText {
     private static final Pattern HASH_SUFFIX = Pattern.compile("#\\d+$");
 
     record InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code,
-                      Evidence.Source source, String externalUrl) {
+                      Evidence.Source source, String externalUrl, RecipeCardModel resultCard, String itemId) {
+        InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code,
+                   Evidence.Source source, String externalUrl) {
+            this(text, target, color, bold, code, source, externalUrl, null, null);
+        }
+
         InlineSpan(String text, Evidence.NavigationTarget target, int color, boolean bold, boolean code) {
             this(text, target, color, bold, code, null, null);
         }
@@ -63,7 +71,11 @@ final class ScreenText {
         }
     }
 
-    record InlineLine(List<InlineSpan> spans, boolean quote) {
+    record InlineLine(List<InlineSpan> spans, boolean quote, RecipeCardModel card) {
+        InlineLine(List<InlineSpan> spans, boolean quote) {
+            this(spans, quote, null);
+        }
+
         InlineLine(List<InlineSpan> spans) {
             this(spans, false);
         }
@@ -230,6 +242,13 @@ final class ScreenText {
     static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets,
                                         List<ModelBackend.UrlCitation> webCitations,
                                         List<Evidence.Source> sources, Map<Evidence.Source, String> sourceLabels) {
+        return inlineLines(text, targets, webCitations, sources, sourceLabels, null, Map.of());
+    }
+
+    static List<InlineLine> inlineLines(String text, List<Evidence.NavigationTarget> targets,
+                                        List<ModelBackend.UrlCitation> webCitations,
+                                        List<Evidence.Source> sources, Map<Evidence.Source, String> sourceLabels,
+                                        PackSageSettings.Verbosity verbosity, Map<Evidence.Source, RecipeCardModel> cards) {
         List<InlineLine> lines = new ArrayList<>();
         String[] rawLines = text.split("\\r?\\n", -1);
         int absolute = 0;
@@ -274,20 +293,83 @@ final class ScreenText {
                 boolean table = line.trim().startsWith("|");
                 if (table && isTableSeparator(line)) continue;
                 if (table && lineIndex + 1 < rawLines.length && isTableSeparator(rawLines[lineIndex + 1])) bold = true;
-                inlineSpans(line, lineOffset, bold, targets, webCitations, sources, sourceLabels, spans);
+                inlineSpans(line, lineOffset, bold, targets, webCitations, sources, sourceLabels, verbosity, spans);
                 if (table) {
                     for (int index = 0; index < spans.size(); index++) {
                         InlineSpan span = spans.get(index);
                         if (span.target() == null && !span.code()) {
                             spans.set(index, new InlineSpan(span.text().replace("|", CELL_GAP), span.target(), span.color(), span.bold(), false,
-                                    span.source(), span.externalUrl()));
+                                    span.source(), span.externalUrl(), span.resultCard(), span.itemId()));
                         }
                     }
                 }
             }
-            lines.add(new InlineLine(spans.isEmpty() ? List.of(new InlineSpan("", null, TEXT_COLOR, false, false)) : spans, quote));
+            RecipeCardModel card = null;
+            if (!inCode && verbosity != null && verbosity != PackSageSettings.Verbosity.CONCISE) {
+                var citations = spans.stream().filter(span -> span.source() != null).toList();
+                if (citations.size() == 1) {
+                    Evidence.Source source = citations.getFirst().source();
+                    String reference = source.providerId() + ":" + source.sourceHandle();
+                    String trimmed = rawLine.trim();
+                    if ((trimmed.equals("[" + reference + "]")
+                            || trimmed.equals("\uE200cite\uE202" + reference + "\uE201")
+                            || trimmed.matches("\\[[^\\]\\r\\n]+\\]\\(" + Pattern.quote(reference) + "\\)"))
+                            && spans.stream().allMatch(span -> span == citations.getFirst()
+                            || span.source() == null && span.target() == null && span.externalUrl() == null
+                            && span.itemId() == null && span.text().isBlank())) card = cards.get(source);
+                }
+            }
+            if (verbosity == PackSageSettings.Verbosity.CONCISE) {
+                for (int index = 0; index < spans.size(); index++) {
+                    InlineSpan span = spans.get(index);
+                    if (span.source() != null && cards.containsKey(span.source())) {
+                        spans.set(index, new InlineSpan(span.text(), span.target(), span.color(), span.bold(), span.code(),
+                                span.source(), span.externalUrl(), cards.get(span.source()), span.itemId()));
+                    }
+                }
+            }
+            lines.add(new InlineLine(spans.isEmpty() ? List.of(new InlineSpan("", null, TEXT_COLOR, false, false)) : spans, quote, card));
         }
         return lines;
+    }
+
+    static Map<Evidence.Source, RecipeCardModel> recipeCards(ChatContracts.Turn turn) {
+        // Only native recipe and plan records can become cards; skip parsing tool results otherwise.
+        Map<String, List<Evidence.Source>> candidates = turn.sources().stream().filter(source -> source.providerId().equals("native"))
+                .collect(Collectors.groupingBy(source -> source.providerId() + ":" + source.sourceHandle()));
+        if (candidates.isEmpty()) return Map.of();
+        Gson gson = new Gson();
+        Map<Evidence.Source, RecipeCardModel> cards = new java.util.HashMap<>();
+        for (ModelBackend.InputItem item : turn.replayItems()) {
+            if (!(item instanceof ModelBackend.ToolResult result) || result.error()) continue;
+            try {
+                JsonArray records = JsonParser.parseString(result.serializedResult()).getAsJsonObject().getAsJsonArray("records");
+                if (records == null) continue;
+                for (JsonElement value : records) {
+                    try {
+                        JsonObject record = value.getAsJsonObject();
+                        JsonObject observed = record.getAsJsonObject("source");
+                        if (observed == null) continue;
+                        String provider = string(observed, "providerId");
+                        String handle = string(observed, "sourceHandle");
+                        String reference = string(record, "reference");
+                        if (handle != null && handle.startsWith("ref:") && reference != null
+                                && provider != null && reference.startsWith(provider + ":")) handle = reference.substring(provider.length() + 1);
+                        for (Evidence.Source source : candidates.getOrDefault(provider + ":" + handle, List.of())) {
+                            if (!source.observedAt().toString().equals(string(observed, "observedAt"))
+                                    || source.observedGeneration() != observed.get("observedGeneration").getAsLong()
+                                    || !gson.toJsonTree(source.scope()).equals(observed.get("scope"))) continue;
+                            RecipeCardModels.fromRecord(record).ifPresent(card -> cards.put(source, card));
+                        }
+                    } catch (RuntimeException ignored) {
+                        // A malformed record cannot be matched to a source.
+                    }
+                }
+            } catch (RuntimeException ignored) {
+                // Malformed or older tool results do not supply trustworthy records.
+            }
+        }
+        return Map.copyOf(cards);
     }
 
     static Map<Evidence.Source, String> sourceLabels(ChatContracts.Turn turn) {
@@ -364,7 +446,7 @@ final class ScreenText {
     private static void inlineSpans(String text, int absoluteStart, boolean inheritedBold,
                                     List<Evidence.NavigationTarget> targets, List<ModelBackend.UrlCitation> citations,
                                     List<Evidence.Source> sources, Map<Evidence.Source, String> sourceLabels,
-                                    List<InlineSpan> spans) {
+                                    PackSageSettings.Verbosity verbosity, List<InlineSpan> spans) {
         StringBuilder plain = new StringBuilder();
         boolean bold = inheritedBold;
         boolean strong = false;
@@ -399,7 +481,7 @@ final class ScreenText {
                 if (target != null) {
                     int firstSpan = spans.size();
                     inlineSpans(text.substring(index, citation.endIndex() - absoluteStart), absoluteStart + index,
-                            bold, targets, List.of(), sources, sourceLabels, spans);
+                            bold, targets, List.of(), sources, sourceLabels, verbosity, spans);
                     if (spans.subList(firstSpan, spans.size()).stream().map(InlineSpan::target).noneMatch(target::equals)) {
                         spans.add(new InlineSpan(citation.title() == null || citation.title().isBlank() ? "Source" : citation.title(),
                                 target, ModernUi.TEXT, false, false));
@@ -468,6 +550,13 @@ final class ScreenText {
                 if (close > index && closeUrl > close + 2) {
                     int end = closeUrl + 1;
                     String url = text.substring(close + 2, closeUrl);
+                    if (verbosity != null && url.startsWith("item:") && url.length() > 5) {
+                        flushInline(spans, plain, bold, code);
+                        spans.add(new InlineSpan(text.substring(index + 1, close), null, TEXT_COLOR, bold, false,
+                                null, null, null, url.substring(5)));
+                        index = end;
+                        continue;
+                    }
                     Matcher localReference = CITATION_MARKER.matcher("[" + url + "]");
                     if (localReference.matches()) {
                         flushInline(spans, plain, bold, code);

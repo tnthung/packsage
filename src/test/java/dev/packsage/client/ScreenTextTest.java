@@ -814,4 +814,147 @@ class ScreenTextTest {
                 "world-entity|3f1c2a4e-0000-4000-8000-000000000001");
         assertEquals("Show in world: 3f1c2a4e-0000-4000-8000-000000000001", ScreenText.navigationLabel(mob));
     }
+    private Evidence.Source recipeSource(String handle, long second) {
+        return new Evidence.Source(SCOPE, "native", "1", handle, 1, java.time.Instant.ofEpochSecond(second),
+                Evidence.Activity.ACTIVE, Evidence.Coverage.COMPLETE, Evidence.Authority.LOADED, List.of());
+    }
+
+    private JsonObject recipeRecord(Evidence.Source source, String output) {
+        var record = com.google.gson.JsonParser.parseString("""
+                {"reference":"native:test","payload":{"inputs":[],"outputs":[{"type":"item",
+                "comparisonIdentity":"minecraft:OUTPUT","components":{},"quantity":1}],
+                "constraints":["recipeType=minecraft:stonecutting"],"decodingStatus":"VERIFIED"}}
+                """.replace("OUTPUT", output)).getAsJsonObject();
+        record.addProperty("reference", source.providerId() + ":" + source.sourceHandle());
+        var observed = new JsonObject();
+        observed.addProperty("providerId", source.providerId());
+        observed.addProperty("sourceHandle", source.sourceHandle());
+        observed.addProperty("observedGeneration", source.observedGeneration());
+        observed.add("scope", new Gson().toJsonTree(source.scope()));
+        record.add("source", observed);
+        record.getAsJsonObject("source").addProperty("observedAt", source.observedAt().toString());
+        return record;
+    }
+
+    private ChatContracts.Turn recipeTurn(List<Evidence.Source> sources, JsonObject... records) {
+        var result = new JsonObject();
+        var values = new JsonArray();
+        for (var record : records) values.add(record);
+        result.add("records", values);
+        return new ChatContracts.Turn(new ChatContracts.RequestId("recipes"), "question", "answer",
+                List.of(new ModelBackend.ToolResult("recipes", result.toString(), false)),
+                new ChatContracts.Context("{}", null, SCOPE), sources,
+                new ChatContracts.Outcome(ChatContracts.OutcomeStatus.COMPLETED, null), 1);
+    }
+
+    @Test
+    void recipeCitationsFollowStoredVerbosityAndPlacement() {
+        var source = recipeSource("minecraft:stone", 0);
+        var turn = recipeTurn(List.of(source), recipeRecord(source, "stone"));
+        var cards = ScreenText.recipeCards(turn);
+        var card = cards.get(source);
+        assertTrue(card != null);
+        for (var verbosity : List.of(dev.packsage.chat.PackSageSettings.Verbosity.NORMAL,
+                dev.packsage.chat.PackSageSettings.Verbosity.DETAILED)) {
+            var standalone = ScreenText.inlineLines("  [native:minecraft:stone]  ", List.of(), List.of(), turn.sources(),
+                    java.util.Map.of(), verbosity, cards).getFirst();
+            assertEquals(card, standalone.card());
+            assertEquals(source, standalone.spans().stream().filter(span -> span.source() != null).findFirst().orElseThrow().source());
+            var inline = ScreenText.inlineLines("Make [native:minecraft:stone].", List.of(), List.of(), turn.sources(),
+                    java.util.Map.of(), verbosity, cards).getFirst();
+            assertEquals(null, inline.card());
+            assertEquals(null, inline.spans().stream().filter(span -> span.source() != null).findFirst().orElseThrow().resultCard());
+        }
+        for (String text : List.of("[native:minecraft:stone]", "Make [native:minecraft:stone].")) {
+            var line = ScreenText.inlineLines(text, List.of(), List.of(), turn.sources(), java.util.Map.of(),
+                    dev.packsage.chat.PackSageSettings.Verbosity.CONCISE, cards).getFirst();
+            assertEquals(null, line.card());
+            assertEquals(card, line.spans().stream().filter(span -> span.source() != null).findFirst().orElseThrow().resultCard());
+        }
+    }
+
+    @Test
+    void itemLinksAndLegacyTurnsKeepTheirDisplaySemantics() {
+        var source = recipeSource("minecraft:stone", 0);
+        var turn = recipeTurn(List.of(source), recipeRecord(source, "stone"));
+        var cards = ScreenText.recipeCards(turn);
+        for (var verbosity : List.of(dev.packsage.chat.PackSageSettings.Verbosity.NORMAL,
+                dev.packsage.chat.PackSageSettings.Verbosity.DETAILED, dev.packsage.chat.PackSageSettings.Verbosity.CONCISE)) {
+            var span = ScreenText.inlineLines("[Stone](item:minecraft:stone)", List.of(), List.of(), turn.sources(),
+                    java.util.Map.of(), verbosity, cards).getFirst().spans().getFirst();
+            assertEquals("Stone", span.text());
+            assertEquals("minecraft:stone", span.itemId());
+        }
+        var lines = ScreenText.inlineLines("[native:minecraft:stone]\n[Stone](item:minecraft:stone)", List.of(), List.of(),
+                turn.sources(), java.util.Map.of(), null, cards);
+        assertEquals(null, lines.getFirst().card());
+        assertEquals(null, lines.getFirst().spans().getFirst().resultCard());
+        assertEquals("[Stone](item:minecraft:stone)", lines.get(1).spans().getFirst().text());
+        assertEquals(null, lines.get(1).spans().getFirst().itemId());
+    }
+
+    @Test
+    void groupedAndCanonicalizedAliasCitationsUseSameCard() {
+        var source = recipeSource("minecraft:stone", 0);
+        var turn = recipeTurn(List.of(source), recipeRecord(source, "stone"));
+        var cards = ScreenText.recipeCards(turn);
+        // ReferenceAliasBackend expands ref aliases to these canonical forms before storing an answer.
+        for (String text : List.of("[native:minecraft:stone]", "[Stone](native:minecraft:stone)",
+                "\uE200cite\uE202native:minecraft:stone\uE201")) {
+            var line = ScreenText.inlineLines(text, List.of(), List.of(), turn.sources(), java.util.Map.of(),
+                    dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, cards).getFirst();
+            assertEquals(cards.get(source), line.card());
+        }
+        var multi = ScreenText.inlineLines("\uE200cite\uE202native:minecraft:stone\uE202native:minecraft:stone\uE201",
+                List.of(), List.of(), turn.sources(), java.util.Map.of(), dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, cards).getFirst();
+        assertEquals(null, multi.card());
+    }
+
+    @Test
+    void duplicateRecordsMatchTheCitedObservation() {
+        var first = recipeSource("minecraft:stone", 0);
+        var second = recipeSource("minecraft:stone", 1);
+        var turn = recipeTurn(List.of(first, second), recipeRecord(second, "diamond"), recipeRecord(first, "stone"));
+        var cards = ScreenText.recipeCards(turn);
+        assertEquals("minecraft:stone", cards.get(first).slots().getLast().stacks().getFirst().identity());
+        assertEquals("minecraft:diamond", cards.get(second).slots().getLast().stacks().getFirst().identity());
+        var line = ScreenText.inlineLines("[native:minecraft:stone]", List.of(), List.of(), turn.sources(), java.util.Map.of(),
+                dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, cards).getFirst();
+        assertEquals(cards.get(second), line.card());
+    }
+
+    @Test
+    void planCitationUsesPlanPayloadAndRejectsMismatchedObservations() {
+        var source = recipeSource("plan|minecraft:stone|1|3|0|minecraft:stone", 0);
+        var record = recipeRecord(source, "diamond");
+        var bad = recipeRecord(source, "dirt");
+        bad.getAsJsonObject("source").addProperty("observedGeneration", 2);
+        var turn = recipeTurn(List.of(source), record, bad);
+        assertEquals("minecraft:diamond", ScreenText.recipeCards(turn).get(source).slots().getLast().stacks().getFirst().identity());
+    }
+
+    @Test
+    void cardRequiresTheEntireRawLineToBeOneCitation() {
+        var source = recipeSource("minecraft:stone", 0);
+        var turn = recipeTurn(List.of(source), recipeRecord(source, "stone"));
+        var cards = ScreenText.recipeCards(turn);
+        for (String text : List.of("# [native:minecraft:stone]", "> [native:minecraft:stone]",
+                "**[native:minecraft:stone]**", "[ref:e36be868.1.1f] [native:minecraft:stone]")) {
+            assertEquals(null, ScreenText.inlineLines(text, List.of(), List.of(), turn.sources(), java.util.Map.of(),
+                    dev.packsage.chat.PackSageSettings.Verbosity.NORMAL, cards).getFirst().card(), text);
+        }
+    }
+
+    @Test
+    void aliasedReplayHandlesBindOnlyWhenTheirSourceIdentityIsKnown() {
+        var source = recipeSource("minecraft:stone", 0);
+        var record = recipeRecord(source, "stone");
+        record.getAsJsonObject("source").addProperty("sourceHandle", "ref:12345678.1.1");
+        var turn = recipeTurn(List.of(source), record);
+        assertTrue(ScreenText.recipeCards(turn).containsKey(source));
+        record.addProperty("reference", "ref:12345678.1.1");
+        assertTrue(ScreenText.recipeCards(recipeTurn(List.of(source), record)).isEmpty());
+        var alias = recipeSource("ref:12345678.1.1", 0);
+        assertTrue(ScreenText.recipeCards(recipeTurn(List.of(alias), record)).containsKey(alias));
+    }
 }

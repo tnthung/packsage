@@ -16,8 +16,13 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 - [x] Minecraft — journal startup/SQLite, fresh break/death evidence, deposits with chest coordinates/links and portal/advancement times (J0/W2/J4/J5). Recording start/gaps are honestly qualified in candidate reads; journal startup recovery passed live. J4's deposits-only answer is correct under the controller ruling.
 - [x] Minecraft — bulk run search: 2,000 player sand breaks merge into one run; TNT explosion and break runs appear with working links (M5 completed subchecks).
-- [ ] Minecraft — complete journal performance: M5 NOT RUN overall because world-close hook <1 ms / overflow=0 summary was not captured; broader event families, exceptional menu ownership and final-burst/rapid-rejoin flush remain unverified.
-- [ ] Minecraft — multiplayer journal/note unavailability: J7 NOT RUN; installed client rejects vanilla localhost, so a NeoForge dedicated server is needed.
+- [x] Minecraft — M5 bulk performance: native readiness round 8 recorded overflowed 0, failed 0 and 0 slow ticks after the first 200; the controller amended the criterion to steady state after a ten-second warm-up.
+- [x] Minecraft — multiplayer journal/note unavailability: J7 passed on a NeoForge 21.1.202 dedicated server with the instance's mods (round 4).
+- [x] Minecraft — event families: placement, kills, deaths, profession changes, curing, zombie conversion, trades and structure entry (round 1 J10, round 6/7 J10r), and raids start/finish/outcome (round 1 J11).
+- [x] Minecraft — withdrawal journaling and mount (donkey) menu ownership (round 4 J8r, round 6 J8r3 journal pass) and the disconnected-menu session (round 3 J9).
+- [ ] Minecraft — J8 withdrawal reply compliance: the reply omits the donkey amounts and coordinates although the journal is correct. Recorded failure.
+- [x] Minecraft — flush on immediate exit and rapid Save-and-Quit/rejoin (round 3 J13).
+- [x] Minecraft — note anchors, other-dimension links, forget/delete with links unavailable, questions not saved, and first tool-using chat origin on notes (round 1 J12/J14, round 2 J12r/N1, round 4 N2, round 5 N3).
 
 ### Silent notes and persistent recall (v2)
 
@@ -34,14 +39,15 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### Held, offhand and item facts (v2)
 
-- [ ] Minecraft — fresh holder-summary evidence rereads, including incomplete-inventory coverage: implemented with automated regressions; installed acceptance pending.
+- [x] Minecraft — fresh holder-summary evidence rereads (native readiness W16; [acceptance record](../validation/2026-10-25-v2-acceptance.md)). Incomplete-inventory coverage is covered by automated regressions.
 - [x] Minecraft — held sword eligibility/exclusions, empty-hand response, four-piece armor eligibility and offhand Luck facts found by tooltip search (C1/C4/W3).
-- [ ] Minecraft — every component/fingerprint/potion variant, other missing-holder cases and legacy inventory/storage handle rereads: implemented, complete installed coverage not captured.
+- [x] Minecraft — item component and potion variants and stale handle rereads (native readiness round 1 W9; [acceptance record](../validation/2026-10-25-v2-acceptance.md)).
 
 ### Open-menu reading (v2)
 
 - [x] Minecraft — opened crafting-grid inputs with output preview excluded (C2).
-- [ ] Minecraft — other menu types, modded-menu PARTIAL behavior and menu-close path staleness: not exercised by C2.
+- [x] Minecraft — menu-close path staleness (W10) and the opened mount menu path (W11r) passed in native readiness rounds 1 and 4.
+- [ ] Minecraft — modded-menu PARTIAL behavior: not exercised live.
 
 ### Targeted and ridden holders (v2)
 
@@ -55,49 +61,51 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 ### Villager trades (v2)
 
 - [x] Minecraft — stationary librarian offers/prices/item distinctions and never-opened librarian not-generated reads twice, then ordinary trade opening (C5 corrected fixture). The natural-job fixture already had offers and is not the no-generation proof.
-- [ ] Minecraft — wandering-trader live acceptance and installed bounded-inspector payload/PARTIAL checks remain open; offer-cap, oversized-record and retained-small-fact automated regressions pass in the [world review fixes](../validation/2026-10-26-world-review-fixes.md).
+- [x] Minecraft — wandering trader and master librarian full offers payload with shared item facts, offers payload reduced from about 220 KB to 25 KB (native readiness round 3 D1 ruling; offer-cap, oversized-record and retained-small-fact automated regressions also pass in the [world review fixes](../validation/2026-10-26-world-review-fixes.md)).
 
 ### Loot tables (v2)
 
 - [x] Minecraft — zombie common/conditional rare drops read from its loot definition, without rolling (C6).
-- [ ] Minecraft — pending-container table/seed without unpacking, unknown/empty tables and broader loot variants: installed acceptance not captured.
+- [x] Minecraft — pending-container loot table/seed without unpacking, and undefined/empty tables (native readiness round 4 W12r3 controller ruling).
 
 ### Structure locating and place markers (v2)
 
 - [x] Minecraft — fresh village predicted/visited found results with coordinates, unchanged region listing and saved place link after full restart (C7). Nether column visibility/lifetime passes after the depth-test fix at distance 12 (L1); earlier Overworld distance-8 clamp/expiry passes (L2), and fixed-build Overworld visibility passes at 12.
-- [ ] Minecraft — biome id/tag sampling/continuation and different-dimension place handling: broader installed acceptance not captured.
+- [x] Minecraft — biome id/tag sampling/continuation (round 1 W13) and tag locate (round 3 W19r); the Overworld fortress question has no invented link (E8).
 
 ### Command discovery and usage (v2)
 
 - [x] Minecraft — cheats-off /fill usage/argument types/permissions from read_command, without execution (C8).
-- [ ] Minecraft — broader search_commands discovery/continuation and snapshot caching/performance follow-ups remain open.
+- [x] Minecraft — search_commands discovery/continuation (W14). Snapshot caching is not pursued: no live timing issue appeared in W14 or C8; revisit only if timing evidence appears.
 
 ### Progress and statistics (v2)
 
 - [ ] Minecraft — installed byte-aware progress/statistics pages with safe long-text truncation and exact continuation after delivered records; automated wire and completed-snapshot regressions pass in the [world review fixes](../validation/2026-10-26-world-review-fixes.md).
 - [x] Minecraft — installed public-node advancement reference snapshots with bounded root/sibling processing and hidden-alias ordering; [20,000-node automated regressions pass](../validation/2026-10-26-world-review-fixes.md), and installed rounds 3–4 listed all seven trees with correct counts and paged the 2,000-entry tree exactly once to COMPLETE.
-- [ ] Minecraft — fresh progress-tree evidence rereads with current counts and removed-tree refusal: implemented with automated regressions; installed acceptance pending.
+- [x] Minecraft — fresh progress-tree evidence rereads with current counts and removed-tree refusal (native readiness W16; [acceptance record](../validation/2026-10-25-v2-acceptance.md)).
 - [ ] Minecraft — installed large-counter pacing and changing-counter retry checks after the bounded traversal fix; [automated batch-count and restart regressions pass](../validation/2026-10-26-world-review-fixes.md).
 - [x] Minecraft — per-criterion missing biome names, available goals, anonymous hidden entries after the P5 fix, visible-tab links and restart reopening (P1/P5/P7/P8). Q11 confirms invisible tabs stay source-only.
 - [x] Minecraft — exact mined counts, walking in blocks, explicit never-mined zero, play time and sampled 2,000-advancement performance (P2/P3/P4/P6/P10).
-- [ ] Minecraft — multiplayer progress/statistics unavailability: P9 NOT RUN, requires a NeoForge dedicated server. Broader interrupted/missing-destination/unit branches remain unexercised live.
-- [ ] PackSage — offered-tool removal and historical quest-source UI audit: P11 NOT RUN, logs show tool count without names and JSONL has no definitions. W7/P8 separately pass historical chest/advancement link reopening.
+- [x] Minecraft — multiplayer progress/statistics unavailability: P9 passed on a NeoForge 21.1.202 dedicated server with the instance's mods (native readiness round 4). The progress acquisition-budget continuation branch and some interrupted/missing-destination/unit branches are automated-only and cannot be set up live.
+- [x] PackSage — offered-tool removal audit: P11 passed (request_built lists 28 tools, no read_progress); W7/P8 separately pass historical chest/advancement link reopening.
 
 ### Whole-policy prompt, citations and timing (v2)
 
-- [ ] PackSage — saved v1 provider citations bind recorded sources and targets; removed providers return unavailable without substitution: automated store/render/navigation regressions pass; installed acceptance pending.
+- [x] PackSage — saved v1/legacy provider citations render with unavailable destinations (native readiness round 3 W17; [acceptance record](../validation/2026-10-25-v2-acceptance.md)). Automated store/render/navigation regressions also pass.
+- [ ] PackSage — A3 reply compliance: the from-scratch beacon reply does not say obsidian is obtained, although the plan detail is correct. Recorded failure.
+- [x] PackSage — offered tool names (P11): request_built lists 28 tools and no read_progress (native readiness round 3 C1r). Final review is in progress (Astra rereview 12); readiness is not claimed.
 - [x] PackSage — six live prompt rounds, C6 promoted byte-for-byte and effectively 14/14 under Q8a/Q8b note-action ruling; installed default verified with override cleared. Whole-set armor, continued storage, grounded farm diagnosis, silent notes and supported Minecraft recipe/plan answers pass (W2/W3/W5/J6/E2). Provider citation fixes pass installed E5 scans and sampled UI checks.
 - [x] PackSage — every located thing has text coordinates: E6 PASS with prompt candidate 8, including the targeted W8 mule (installed recheck R2).
-- [ ] PackSage — Part B's unscored unsupported fortress link and changed-radius cursor reuse remain prompt follow-ups.
+- [x] PackSage — Part B prompt observations: the Overworld fortress question has no invented link (E8) and locate continuation keeps its arguments (E9); installed default prompt is candidate 11 (D3/D4).
 - [x] PackSage — safe tool receipt/submission/summary logs distinguish backend and tool wall time (E7), and independent effect/attribute reads overlap (E4).
 
 ### Developer prompt persistence (v2)
 
-- [ ] PackSage — all settings saves use one asynchronous writer and bridge/developer prompts publish before persistence: stalled-writer client saves, generation ordering, stale copies, timeout consistency and shutdown flushing regressions pass; installed acceptance pending.
+- [x] PackSage — all settings saves use one asynchronous writer and bridge/developer prompts publish before persistence: stalled-writer client saves, generation ordering, stale copies, timeout consistency and shutdown flushing regressions pass; installed acceptance passed for the settings writer/screen saves and the shutdown flush (native readiness round 3 U2; [acceptance record](../validation/2026-10-25-v2-acceptance.md)).
 
 ### Inventory and equipment inspection
 
-- [ ] Minecraft — opened-path entity-menu checks (implemented; automated checks pass; installed acceptance pending: the opened target was not exercised for donkey or mule screens, and the reachability re-test again used the targeted path; see the [completion record](../validation/2026-10-21-minecraft-adapter-completion.md) and the [validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)). Targeted, ridden and mount-switch fixtures passed.
+- [x] Minecraft — opened-path entity-menu checks: the opened mount (donkey) menu path passed in native readiness round 4 (W11r) on top of the targeted, ridden and mount-switch fixtures ([acceptance record](../validation/2026-10-25-v2-acceptance.md); earlier [completion record](../validation/2026-10-21-minecraft-adapter-completion.md) and [validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — stored quantities that exclude recipe previews; installed acceptance passed: the assistant read `opened` for the crafting and stonecutter menus and the output preview was not counted ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 
 ### Held and selected item facts
@@ -118,7 +126,7 @@ Minecraft remains in this adapter-status group because full coverage and accepta
 
 ### Effect descriptions from language keys
 
-- [ ] Minecraft — effect `description` from `<descriptionId>.description` keys, otherwise `descriptionStatus` `not_provided`, `bounded` or `unknown` (implemented; automated checks pass; installed acceptance covers only the description-absent case, and the present case needs a pack with description text, for example ATM10; see the [validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
+- [x] Minecraft — effect `description` from `<descriptionId>.description` keys, otherwise `descriptionStatus` `not_provided`, `bounded` or `unknown`; installed acceptance passed for the absent case and, via a resource pack with description text, the present case (native readiness round 4 W18r; [acceptance record](../validation/2026-10-25-v2-acceptance.md)).
 
 ### Player attribute values and modifier sources
 
@@ -175,6 +183,7 @@ Entry and page opening, including after a full restart, is accepted for Modonomi
 
 - [x] Minecraft — localized potion-name matching and empty-page progress; installed acceptance passed: the potion was searched by name, the empty page was continued and the localized transformation was found in 2 recipe searches ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
 - [x] Minecraft — planner brewing batch presentation; installed acceptance passed: `plan_recipe` was called and the reply stated the batch semantics and derived totals under a stated grouping ([validation record](../validation/2026-10-21-minecraft-adapter-reachability.md)).
+- [x] Minecraft — plan_recipe routes reach every loaded recipe (beacon, enchanting table, oak planks) with concrete PARTIAL details, intermediate expansion and smithing inputs (A1r/A3 plan detail/W20/W21, native readiness rounds 3–8; [acceptance record](../validation/2026-10-25-v2-acceptance.md)).
 - [ ] Actually Additions — investigate the native laser recipe read that returned no inputs.
 - [ ] PackSage planner — investigate the empty Powah partial plans, then add other verified transformation semantics to bounded route planning.
 

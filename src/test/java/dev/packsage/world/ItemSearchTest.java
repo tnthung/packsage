@@ -296,17 +296,17 @@ class ItemSearchTest {
         holders.add(holder(512, reader.box(new ItemStack(Items.IRON_INGOT))));
         var first = run(new ItemSearch(registry(reader), holders, IRON, true, null));
 
-        var state = WorldTools.continuation(holders.stream().map(Map.Entry::getKey).toList(), first.nextCursor());
+        var state = WorldItemTools.continuation(holders.stream().map(Map.Entry::getKey).toList(), first.nextCursor());
 
         assertEquals(List.of(holders.get(511).getKey(), holders.get(512).getKey()), state.roots());
         assertEquals(1, state.ordinal());
         assertNull(state.gather());
-        assertEquals("0.1", WorldTools.resumedCursor(state, true));
-        var second = run(new ItemSearch(registry(reader), holders.subList(511, 513), IRON, true, WorldTools.resumedCursor(state, true)));
+        assertEquals("0.1", WorldItemTools.resumedCursor(state, true));
+        var second = run(new ItemSearch(registry(reader), holders.subList(511, 513), IRON, true, WorldItemTools.resumedCursor(state, true)));
         assertEquals(2, second.items().get(0).count(), "the nested box and holder 512, without holder 511's own ingot again");
-        assertNull(WorldTools.resumedCursor(state, false), "when the first root is gone, the next one starts fresh");
-        assertEquals(List.of(holders.get(3).getKey()), WorldTools.continuation(holders.subList(0, 4).stream().map(Map.Entry::getKey).toList(), "3").roots());
-        assertEquals(0, WorldTools.continuation(holders.subList(0, 4).stream().map(Map.Entry::getKey).toList(), "3").ordinal());
+        assertNull(WorldItemTools.resumedCursor(state, false), "when the first root is gone, the next one starts fresh");
+        assertEquals(List.of(holders.get(3).getKey()), WorldItemTools.continuation(holders.subList(0, 4).stream().map(Map.Entry::getKey).toList(), "3").roots());
+        assertEquals(0, WorldItemTools.continuation(holders.subList(0, 4).stream().map(Map.Entry::getKey).toList(), "3").ordinal());
     }
 
     @Test

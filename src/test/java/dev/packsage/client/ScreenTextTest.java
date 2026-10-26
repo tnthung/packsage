@@ -237,6 +237,10 @@ class ScreenTextTest {
         assertEquals(target, named.target());
         assertEquals("[note]", ScreenText.inlineLines("[journal:note:n12345678]", List.of()).getFirst().spans().getFirst().text());
         assertEquals("[journal]", ScreenText.inlineLines("[journal:event:2]", List.of()).getFirst().spans().getFirst().text());
+        for (var marker : List.of("[command:run|8f0c6b4e]", "[game_state:snapshot]")) {
+            assertFalse(ScreenText.inlineLines(marker, List.of()).getFirst().spans().getFirst().text().contains("|"), marker);
+            assertFalse(ScreenText.inlineLines(marker, List.of()).getFirst().spans().getFirst().text().contains(":"), marker);
+        }
         assertEquals("Show", ScreenText.navigationVerb(target));
         assertEquals("Show in world: minecraft:overworld|10,64,-3", ScreenText.navigationLabel(target));
         assertEquals("Show noted place", ScreenText.navigationLabel(new Evidence.NavigationTarget(SCOPE, "journal", "note:n12345678",

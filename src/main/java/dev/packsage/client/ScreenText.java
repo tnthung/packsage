@@ -31,7 +31,7 @@ final class ScreenText {
     private static final String CELL_GAP = "   ";
     // Saved answers retain their providers even when the corresponding adapter is no longer registered.
     // When updating AssistantScreen.ADAPTERS, retain those citation provider ids here for saved answers.
-    static final List<String> CITATION_PROVIDERS = List.of("native", "config", "history", "world", "progress", "journal",
+    static final List<String> CITATION_PROVIDERS = List.of("native", "config", "history", "world", "progress", "journal", "command", "game_state",
             "jei", "ftb_quests", "patchouli", "modonomicon", "guideme", "immersiveengineering",
             "actuallyadditions", "relics", "artifacts", "ponder", "curios");
     private static final Pattern CITATION_MARKER = Pattern.compile("\\[(" + String.join("|", CITATION_PROVIDERS) + "):([^\\]\\s]+)\\]");

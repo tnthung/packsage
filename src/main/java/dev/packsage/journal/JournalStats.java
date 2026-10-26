@@ -42,6 +42,10 @@ public final class JournalStats {
     private final LongAdder worldStartStopNanos = new LongAdder();
     private long slowestHookNanos;
     private String slowestHook = "none";
+    private long gameplayHooks;
+    private long slowestHookIndex;
+    private final LongAdder ticks = new LongAdder();
+    private final LongAdder slowTicks = new LongAdder();
 
     /** Adds one hook's running time to the current tick. */
     public void hookNanos(long nanos) {
@@ -53,9 +57,11 @@ public final class JournalStats {
     public void hookNanos(String kind, long nanos) {
         hookNanos(nanos);
         synchronized (this) {
+            gameplayHooks++;
             if (nanos > slowestHookNanos) {
                 slowestHookNanos = nanos;
                 slowestHook = kind;
+                slowestHookIndex = gameplayHooks;
             }
         }
     }
@@ -70,6 +76,8 @@ public final class JournalStats {
     public void endTick() {
         var nanos = tickHookNanos.sumThenReset();
         maxHookNanosPerTick.accumulateAndGet(nanos, Math::max);
+        ticks.increment();
+        if (nanos >= 1_000_000) slowTicks.increment();
     }
 
     public long failedEvents() {
@@ -112,6 +120,7 @@ public final class JournalStats {
     }
 
     private synchronized String slowestHookText() {
-        return ", slowest hook " + slowestHook + " " + slowestHookNanos / 1_000 + " us";
+        return ", ticks at or over 1 ms " + slowTicks.sum() + " of " + ticks.sum() + ", slowest hook " + slowestHook + " " + slowestHookNanos / 1_000
+                + " us (gameplay hook " + slowestHookIndex + " of " + gameplayHooks + ")";
     }
 }

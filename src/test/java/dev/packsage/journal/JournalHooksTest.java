@@ -169,7 +169,8 @@ class JournalHooksTest {
         assertEquals(600_000, stats.maxHookNanosPerTick.get());
         var summary = stats.summary();
         assertTrue(summary.contains("slowest tick 600 us"), summary);
-        assertTrue(summary.contains("slowest hook Detonate 400 us"), summary);
+        assertTrue(summary.contains("slowest hook Detonate 400 us (gameplay hook 2 of 2)"), summary);
+        assertTrue(summary.contains("ticks at or over 1 ms 0 of 1"), summary);
         assertTrue(summary.contains("world start and stop 5 ms"), summary);
         assertTrue(summary.contains("hooks 5 ms total"), summary);
     }

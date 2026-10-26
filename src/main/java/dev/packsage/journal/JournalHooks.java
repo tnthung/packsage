@@ -108,6 +108,8 @@ public final class JournalHooks {
         long opening = System.nanoTime();
         journal.open(server.getWorldPath(LevelResource.ROOT).resolve("packsage").resolve("journal.db"),
                 overworld::getGameTime);
+        // Load the event classes the first gameplay hooks use now, so their first call does not pay for it.
+        JournalEvents.broken(new JournalEvents.Stamp(0, 0, "warmup"), "warmup", "warmup", "minecraft:air", 0, 0, 0);
         session.openingNanos += System.nanoTime() - opening;
     }
 

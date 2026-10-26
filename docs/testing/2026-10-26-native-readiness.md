@@ -118,3 +118,15 @@ Install the current `feat/packsage-v2`. No developer override is used in this ro
 | J8r2 | J8r again | as in round 4 |
 | N3 | Report, move and recall a build; a plain question; a "what did I do today?" journal question | as N1, and "today" follows playerLocalTime |
 | A1r3 | One A1 question | as in round 3 |
+
+## Round 6
+
+Install the current `feat/packsage-v2`, with no override.
+
+| Id | Steps | Pass when |
+|---|---|---|
+| D4 | `GET /prompt` | candidate 11 byte for byte, `text` null |
+| M5r3 | M5 again, then `/world/leave` and read the `PackSage journal:` summary | overflowed 0; slowest tick under 1,000 us; record `slowest hook` |
+| J8r3 | J8r with the mount opened through `/player/open` and `openInventory` while not riding | deposit and withdrawal journaled with the donkey's link and coordinates |
+| A3r3 | "what do I need to make a beacon from scratch?" | recorded either way; the plan detail lists the recipe-less materials |
+| J10r | Change a villager's profession: break its job site, place another workstation and wait about a minute | the profession change is journaled |

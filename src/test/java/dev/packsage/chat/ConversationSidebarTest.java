@@ -22,6 +22,32 @@ class ConversationSidebarTest {
     Path root;
 
     @Test
+    void otherWorldRowsWithValidSummariesNeverOpenConversationFiles() throws Exception {
+        var world = new ChatContracts.WorldIdentity("world", "World");
+        var other = new ChatContracts.WorldIdentity("other", "Other");
+        var store = new ConversationStore(root, Runnable::run);
+        store.newConversation(world).toCompletableFuture().join();
+        var foreign = store.newConversation(other).toCompletableFuture().join();
+        Path file = store.conversationPath(other, foreign.id());
+        Path summaryFile = file.resolveSibling(file.getFileName().toString().replace(".jsonl", ".summary.json"));
+        var legacy = com.google.gson.JsonParser.parseString(Files.readString(summaryFile)).getAsJsonObject();
+        legacy.remove("label");
+        Files.writeString(summaryFile, legacy.toString());
+        Path recordingFile = root.resolve("other-rows.jfr");
+        try (var recording = new Recording()) {
+            recording.enable("jdk.FileRead").withThreshold(Duration.ZERO);
+            recording.start();
+            var page = store.sessionPage(world, true, 0, 2).toCompletableFuture().join();
+            assertEquals(2, page.sessions().size());
+            assertTrue(page.sessions().stream().anyMatch(session -> session.world().equals(other)));
+            recording.stop();
+            recording.dump(recordingFile);
+        }
+        assertTrue(RecordingFile.readAllEvents(recordingFile).stream().filter(event -> event.getEventType().getName().equals("jdk.FileRead"))
+                .map(event -> event.getString("path")).filter(java.util.Objects::nonNull).noneMatch(path -> path.endsWith(".jsonl")));
+    }
+
+    @Test
     void openingReadsOnlyNewestNSummariesAndShowMoreReadsTenNewSummariesWithoutTurns() throws Exception {
         var world = new ChatContracts.WorldIdentity("world", "World");
         var scope = new Evidence.Scope("world", "resources", "player", "runtime", 0);

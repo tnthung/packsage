@@ -589,16 +589,8 @@ public final class ConversationStore {
                 for (int index = offset; index < end; index++) {
                     Path file = files.get(index).getKey();
                     if (!safePath(file)) continue;
-                    ChatContracts.WorldIdentity world = currentWorld;
-                    if (!file.getParent().equals(worldDirectory(currentWorld))) {
-                        try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-                            JsonObject header = JsonParser.parseString(reader.readLine()).getAsJsonObject();
-                            if (!"conversation".equals(header.get("type").getAsString())) continue;
-                            world = new ChatContracts.WorldIdentity(header.get("world").getAsString(),
-                                    header.has("label") ? header.get("label").getAsString() : header.get("world").getAsString());
-                        }
-                    }
-                    ChatContracts.SessionSummary summary = readSummary(file, world, false);
+                    ChatContracts.SessionSummary summary = readSummary(file,
+                            file.getParent().equals(worldDirectory(currentWorld)) ? currentWorld : null, false);
                     if (summary != null) summaries.add(summary);
                 }
                 return new SessionPage(summaries, end < files.size(), end);
@@ -647,7 +639,8 @@ public final class ConversationStore {
                 JsonObject saved = JsonParser.parseString(Files.readString(summaryFile, StandardCharsets.UTF_8)).getAsJsonObject();
                 saved.get("title").getAsString();
                 saved.get("lastMessage").getAsString();
-                if (saved.get("world").getAsString().equals(world.worldOrServer())
+                if ((world == null || saved.get("world").getAsString().equals(world.worldOrServer()))
+                        && file.getParent().getFileName().toString().endsWith("-" + digest(saved.get("world").getAsString()))
                         && (safeName(saved.get("id").getAsString()) + "-" + digest(saved.get("id").getAsString()) + ".jsonl")
                         .equals(file.getFileName().toString())
                         && saved.get("size").getAsLong() == Files.size(file)
@@ -658,6 +651,10 @@ public final class ConversationStore {
             if (!loadTurns) {
                 try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
                     JsonObject header = JsonParser.parseString(reader.readLine()).getAsJsonObject();
+                    if (!"conversation".equals(header.get("type").getAsString())
+                            || world != null && !world.worldOrServer().equals(header.get("world").getAsString())) return null;
+                    if (world == null) world = new ChatContracts.WorldIdentity(header.get("world").getAsString(),
+                            header.has("label") ? header.get("label").getAsString() : header.get("world").getAsString());
                     String id = header.get("id").getAsString();
                     if (!(safeName(id) + "-" + digest(id) + ".jsonl").equals(file.getFileName().toString())) return null;
                     return new ChatContracts.SessionSummary(world, id, "Saved chat", "", Instant.ofEpochMilli(modifiedAt(file)));
@@ -667,6 +664,9 @@ public final class ConversationStore {
             if (conversation == null) return null;
             value = writeSummary(file, conversation);
         }
+        if (world == null) world = new ChatContracts.WorldIdentity(value.get("world").getAsString(),
+                value.has("label") ? value.get("label").getAsString()
+                        : file.getParent().getFileName().toString().replaceFirst("-[0-9a-f]{16}$", "").replace('_', ' '));
         CompletionState state = readCompletionState(file);
         String completed = value.has("latestCompletedRequestId") ? value.get("latestCompletedRequestId").getAsString() : null;
         return new ChatContracts.SessionSummary(world, value.get("id").getAsString(), value.get("title").getAsString(),
@@ -678,6 +678,7 @@ public final class ConversationStore {
     private JsonObject writeSummary(Path file, ChatContracts.Conversation conversation) throws IOException {
         JsonObject value = new JsonObject();
         value.addProperty("world", conversation.world().worldOrServer());
+        value.addProperty("label", conversation.world().readableLabel());
         value.addProperty("id", conversation.id());
         String title = conversation.turns().isEmpty() ? "New chat" : conversation.turns().getFirst().question();
         String preview = conversation.turns().isEmpty() ? "" : conversation.turns().getLast().answer();

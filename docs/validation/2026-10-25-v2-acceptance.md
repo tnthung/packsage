@@ -42074,3 +42074,284 @@ Local tester errors and bridge-only limitations are retained in [tester-notes.js
 - **F4: prompt compliance recorded, permission subcheck NOT RUN.** "op me" got a username question instead of `op @s`. The test world has cheats on, so the player is not level 0. The no-elevation guarantee rests on the unit tests that build the source from the server player.
 - **B1: the beam passes near and far.** Through-terrain visibility could not be judged without desktop control.
 - **Candidate 13** is promoted to the default (dabbe5b). The installed default is checked at the next install.
+
+
+## Chat follow-up recheck
+
+Date: 2026-10-26. Short HTTP-only recheck of the installed chat changes through [the debug bridge](../testing/2026-10-25-debug-bridge.md). D6 and R2 pass; V2 fails the detailed-answer requirement; U3's sent-time subcheck passes while expanded-row labels are NOT RUN; O1's five opening timings are recorded below. Each of the four questions was submitted exactly once in a new conversation, with no prompt override or retry to obtain a pass.
+
+### Setup and scope
+
+Checkout: feat/packsage-v2 at becc3ba3659c2a2289bdad6660de5f1c2619efed. Installed packsage.jar SHA-256 before and after: **CD26FC9C0222F391D1A1210DAB39E5EC5007D844498A4C6C4EAE6555B46FD72B**. Bridge pid 35512 stayed unchanged. The first GET /state poll found PackSage Adapter Filter Live Test running and unpaused; no waiting, world transition or process restart was needed. No computer-use tools, mouse/keyboard input, source edits, build, reinstall or worktree operations were used. Only this validation file is included in the commit; raw responses, request bodies, timings, saved turns and the two bridge screenshots remain under build/feedback-live/recheck/. [state-poll.jsonl](../../build/feedback-live/recheck/state-poll.jsonl), [state-initial.json](../../build/feedback-live/recheck/state-initial.json), [installed-initial.json](../../build/feedback-live/recheck/installed-initial.json), [installed-final.json](../../build/feedback-live/recheck/installed-final.json), [bridge-identity.json](../../build/feedback-live/recheck/bridge-identity.json).
+
+GET /prompt returned text=null and effectiveText byte-for-byte equal to candidate-13.txt: 23,439 UTF-8 bytes; SHA-256 4a206150663ed84b35cbb2f539ffcb2fe4753da3ed881502f3ae9a7f390eb232. No POST /prompt was made. Initial settings were commandConfirmation=always, verbosity=normal, showChatsFromOtherSessions=false. The four requests used screenshot=false and webSearch=false; runtime timing records retain GPT-6-Sol, medium effort and automatic search. All four completed and were saved, all copied saved replies match the bridge replies, and seven native tool calls returned error=false. [D6-prompt.json](../../build/feedback-live/recheck/D6-prompt.json), [D6-check.json](../../build/feedback-live/recheck/D6-check.json), [settings-initial.json](../../build/feedback-live/recheck/settings-initial.json), [request-summary.json](../../build/feedback-live/recheck/request-summary.json), [observations.json](../../build/feedback-live/recheck/observations.json), [http.jsonl](../../build/feedback-live/recheck/http.jsonl).
+
+### Result summary
+
+| Check | Result | Observation |
+|---|---|---|
+| D6 | PASS | Override null; effective prompt exactly candidate 13, before and after. |
+| V2 | FAIL - prompt | Concise, normal and detailed differ (32 / 38 / 100 whitespace-delimited words after citation removal), but detailed omits the requested material-source walkthrough and alternatives. Core recipe/grid facts agree with returned records. |
+| R2 | PASS | Always mode waits for Run; bridge decision executes /time set day, setting 1000. Reopened reply renders the command citation as a source chip. |
+| U3 | Sent time PASS; expanded labels NOT RUN | Assistant timestamp is visible below its bubble. Activity group remains collapsed; Tool / Parameter / Result / Elapsed labels require a prohibited click. |
+| O1 | Timings recorded | Five selected-chat opens: 1811, 1831, 1802, 1753 and 1784 ms; each returns open=true and is confirmed as AssistantScreen. |
+
+### Passing checks and checks not run
+
+#### D6 - PASS
+
+The initial and final prompt checks both have textIsNull=true and effectiveTextEqualsCandidate13=true. The comparison encodes effectiveText as UTF-8 and compares it with the candidate file's actual bytes, without newline or whitespace normalization. [D6-check.json](../../build/feedback-live/recheck/D6-check.json), [prompt-final-check.json](../../build/feedback-live/recheck/prompt-final-check.json).
+
+#### R2 - PASS
+
+POST /settings kept commandConfirmation=always and verbosity=normal. Before the question, doDaylightCycle was temporarily frozen and dayTime=436637 captured. The exact question set the time to day produced one pending confirmation: id 73ec53c4-20a6-4550-8a18-2811d285d8b9, request 60a00168-c773-4016-8a9b-5b9adff8ab68, command /time set day. POST /commands/decide with that id and run=true returned decided=true. The saved tool result reports COMPLETE, executed as the player; GET /state then reports dayTime=1000. [R2-settings.json](../../build/feedback-live/recheck/R2-settings.json), [time-freeze.json](../../build/feedback-live/recheck/time-freeze.json), [time-before-R2.json](../../build/feedback-live/recheck/time-before-R2.json), [R2-pending-3.json](../../build/feedback-live/recheck/R2-pending-3.json), [R2-decide.json](../../build/feedback-live/recheck/R2-decide.json), [R2-state-after.json](../../build/feedback-live/recheck/R2-state-after.json).
+
+The same completed conversation e4c715a4-6fd0-48c8-821c-548baf386844 was closed and reopened through POST /chat-screen {open:true, conversationId:...}. The bridge screenshot visibly shows Done—the time is set to day. and a rounded Source: Run|7f7e7a2b-11b9-462d-a8b1-c91a2dbd2c0b chip beneath it. The raw [command:run|...] syntax is absent from the rendered reply. The retained raw reply still contains its original citation, so this specifically verifies rendering after reopening. No chip click or navigation action was requested. [R2-reopen.json](../../build/feedback-live/recheck/R2-reopen.json), [R2-reopened-state.json](../../build/feedback-live/recheck/R2-reopened-state.json), [R2-reopened.png](../../build/feedback-live/recheck/R2-reopened.png), [R2.json](../../build/feedback-live/recheck/R2.json).
+
+#### U3 - sent time PASS; expanded labels NOT RUN - bridge capability limitation
+
+The open, completed V2-concise conversation is captured in [U3-collapsed.png](../../build/feedback-live/recheck/U3-collapsed.png). Its assistant sent time is visible as Oct 26, 21:54 below the response bubble, matching assistantSentAt=2026-10-26T13:54:46.845712Z in the saved turn. The activity disclosure reads 3 steps (done); the underlying completed tool is plan_recipe. No tool row is expanded. The documented bridge provides screen selection and screenshots but no activity/row expansion operation, so expanding would require a mouse click. Under the explicit no-computer-use restriction, expansion and visual confirmation of Tool / Parameter / Result / Elapsed labels are **NOT RUN**. Their absence from this collapsed capture is not classified as a rendering failure. [U3-screenshot.json](../../build/feedback-live/recheck/U3-screenshot.json), [V2-concise-saved.jsonl](../../build/feedback-live/recheck/V2-concise-saved.jsonl), [V2-concise-summary.json](../../build/feedback-live/recheck/V2-concise-summary.json), [observations.json](../../build/feedback-live/recheck/observations.json).
+
+#### O1 - five opening timings recorded
+
+Each trial first closes the chat, then measures POST /chat-screen {open:true, conversationId:7730f3ed-121c-49ff-8001-8c7b3f0ccd43} through its parsed open=true response. A subsequent GET /state confirms AssistantScreen and paused=false. These are HTTP/selection timings, including saved-conversation selection; no frame-paint instrumentation or one-frame claim is made. All five trials are retained, without selecting a best attempt. [O1-timings.json](../../build/feedback-live/recheck/O1-timings.json).
+
+| Trial | Open response (ms) | Open plus state confirmation (ms) | Confirmed screen |
+|---|---:|---:|---|
+| 1 | 1811 | 1824 | AssistantScreen |
+| 2 | 1831 | 1843 | AssistantScreen |
+| 3 | 1802 | 1816 | AssistantScreen |
+| 4 | 1753 | 1764 | AssistantScreen |
+| 5 | 1784 | 1796 | AssistantScreen |
+
+Range: 1753-1831 ms; median 1802 ms; mean 1796.2 ms. Each trial's exact close/open arguments, response, HTTP timing and state are retained as O1-N-close.json, O1-N-open.json, O1-N-open-http.json and O1-N-state.json. The final open conversation is visibly populated in the U3 capture.
+
+### Failures
+
+#### V2 - FAIL - prompt
+
+The three verbosity settings were successfully applied before their respective fresh-chat submissions, and normal was restored immediately after detailed. Concise gives one short sentence with the amounts and placement. Normal adds a 3x3 grid and sand/red-sand smelting. Detailed expands to 100 words with the recipe table, a glass source and a Nether Star uncertainty caveat, but it does not walk through acquiring each material, omits an obsidian source, and gives no fuller alternative acquisition path. It therefore fails the explicitly requested detailed walkthrough despite clear length/content differences and correct core recipe facts. No question was resubmitted. [V2-concise.json](../../build/feedback-live/recheck/V2-concise.json), [V2-normal.json](../../build/feedback-live/recheck/V2-normal.json), [V2-detailed.json](../../build/feedback-live/recheck/V2-detailed.json), [V2-restore-normal.json](../../build/feedback-live/recheck/V2-restore-normal.json).
+
+The loaded shaped recipe verifies 5 glass, 1 Nether Star and 3 obsidian in the shown arrangement; its glass recipe accepts sand or red sand. Detailed's Wither read returns an empty loot table, and its obsidian recipe search returns zero records with PARTIAL coverage. The answer expresses uncertainty rather than claiming that no Nether Star source exists. Neither an empty table nor the partial zero-match search establishes complete acquisition coverage; the requested material guidance remains missing. All native plan/loot records used here are nonnavigable and navigationTargets is empty, so no /navigate calls or recipe-viewer acceptance are credited. [V2-detailed-summary.json](../../build/feedback-live/recheck/V2-detailed-summary.json), [V2-detailed.json](../../build/feedback-live/recheck/V2-detailed.json).
+
+### Per-question evidence
+
+#### V2-concise
+
+Question: "how do I make a beacon?"
+
+Request cf54bf2a-30ed-4b5b-a0b4-d1444e5e0806; conversation 7730f3ed-121c-49ff-8001-8c7b3f0ccd43; status completed; saved=true; copied saved reply matches=true. [V2-concise.json](../../build/feedback-live/recheck/V2-concise.json), [V2-concise-input.json](../../build/feedback-live/recheck/V2-concise-input.json), [V2-concise-submission.json](../../build/feedback-live/recheck/V2-concise-submission.json), [V2-concise-saved.jsonl](../../build/feedback-live/recheck/V2-concise-saved.jsonl).
+
+Calls (exact arguments, group, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_hZrrTw5jpo39xJ8Qr2Q7iDDb",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:beacon",
+      "quantity": 1,
+      "depth": 2
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "source-coverage=PARTIAL:naturesaura:altar/sand; constraint=catalysts=unknown:naturesaura:altar/sand; constraint=remainders=unknown:naturesaura:altar/sand; decoding-status=UNKNOWN:naturesaura:altar/sand; bounded-depth:minecraft:sand; materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:red_sand, minecraft:nether_star, minecraft:obsidian]",
+    "recordCount": 3,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+To craft a beacon, put **5 glass** across the top row and on either side of the middle row, a **Nether Star** in the center, and **3 obsidian** across the bottom row. [native:plan|minecraft:beacon|1|2|0|minecraft:beacon]
+```
+
+Timing (ms): model terminal 14577, tools 43, persistence 24; saved duration 14577. navigationTargets=[]; no navigation request. [V2-concise-summary.json](../../build/feedback-live/recheck/V2-concise-summary.json).
+
+#### V2-normal
+
+Question: "how do I make a beacon?"
+
+Request 26362f14-1503-4d13-8b6d-e92df73c70d6; conversation af26b954-b302-432f-9cb5-314bbf914054; status completed; saved=true; copied saved reply matches=true. [V2-normal.json](../../build/feedback-live/recheck/V2-normal.json), [V2-normal-input.json](../../build/feedback-live/recheck/V2-normal-input.json), [V2-normal-submission.json](../../build/feedback-live/recheck/V2-normal-submission.json), [V2-normal-saved.jsonl](../../build/feedback-live/recheck/V2-normal-saved.jsonl).
+
+Calls (exact arguments, group, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_zVHK5S4nyLoF6qKXeje4IeTy",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:beacon",
+      "quantity": 1,
+      "depth": 2
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "source-coverage=PARTIAL:naturesaura:altar/sand; constraint=catalysts=unknown:naturesaura:altar/sand; constraint=remainders=unknown:naturesaura:altar/sand; decoding-status=UNKNOWN:naturesaura:altar/sand; bounded-depth:minecraft:sand; materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:red_sand, minecraft:nether_star, minecraft:obsidian]",
+    "recordCount": 3,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_zSRNsgDbsy2yYRV7s1qED8e9",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": "minecraft:wither",
+      "place": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "this table drops nothing",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+````text
+Craft a beacon in a **3×3 crafting table** with **5 glass, 1 Nether Star, and 3 obsidian**: [native:plan|minecraft:beacon|1|2|0|minecraft:beacon]
+
+```text
+Glass     Glass        Glass
+Glass     Nether Star  Glass
+Obsidian  Obsidian     Obsidian
+```
+
+If you need glass, smelt sand or red sand. [native:plan|minecraft:beacon|1|2|1|minecraft:glass]
+````
+
+Timing (ms): model terminal 26110, tools 34, persistence 20; saved duration 26110. navigationTargets=[]; no navigation request. [V2-normal-summary.json](../../build/feedback-live/recheck/V2-normal-summary.json).
+
+#### V2-detailed
+
+Question: "how do I make a beacon?"
+
+Request 244badc2-a05e-44d5-b934-29ba951101aa; conversation 7a816456-a3ef-4b6d-943b-641fd9404e4c; status completed; saved=true; copied saved reply matches=true. [V2-detailed.json](../../build/feedback-live/recheck/V2-detailed.json), [V2-detailed-input.json](../../build/feedback-live/recheck/V2-detailed-input.json), [V2-detailed-submission.json](../../build/feedback-live/recheck/V2-detailed-submission.json), [V2-detailed-saved.jsonl](../../build/feedback-live/recheck/V2-detailed-saved.jsonl).
+
+Calls (exact arguments, group, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_Tny3sYdPKGt4KKHpGPPhsCvc",
+    "name": "plan_recipe",
+    "arguments": {
+      "identity": "minecraft:beacon",
+      "quantity": 1,
+      "depth": 3
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "source-coverage=PARTIAL:naturesaura:altar/sand; constraint=catalysts=unknown:naturesaura:altar/sand; constraint=remainders=unknown:naturesaura:altar/sand; decoding-status=UNKNOWN:naturesaura:altar/sand; materials with no recipe found, though a capped, unreadable or computed-result recipe could still make them=[minecraft:red_sand, minecraft:nether_star, minecraft:obsidian]",
+    "recordCount": 3,
+    "nextCursor": null
+  },
+  {
+    "group": "2",
+    "callId": "call_ANxYkNn2GcXvN6VmVbpk0ty1",
+    "name": "read_loot",
+    "arguments": {
+      "table": null,
+      "block": null,
+      "entity": "minecraft:wither",
+      "place": null,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "this table drops nothing",
+    "recordCount": 1,
+    "nextCursor": null
+  },
+  {
+    "group": "3",
+    "callId": "call_ocqlM7V9ioipKkJEUVfbLezX",
+    "name": "search_recipe",
+    "arguments": {
+      "filter": {
+        "text": null,
+        "outputItem": "minecraft:obsidian",
+        "provider": null
+      },
+      "limit": 16,
+      "cursor": null
+    },
+    "error": false,
+    "coverage": "PARTIAL",
+    "detail": "native: scanned=0-1820 of 1820 (ordinary recipes 1539, brewing candidates 281); phase=brewing; matches=0",
+    "recordCount": 0,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+To craft **one beacon**, put these in a crafting table:
+
+| Glass | Glass | Glass |
+|---|---|---|
+| Glass | Nether Star | Glass |
+| Obsidian | Obsidian | Obsidian |
+
+That’s **5 glass, 1 Nether Star, and 3 obsidian**. The loaded recipe confirms both the amounts and the positions. [native:plan|minecraft:beacon|1|3|0|minecraft:beacon]
+
+You can smelt **5 sand or red sand into the 5 glass**. [native:plan|minecraft:beacon|1|3|1|minecraft:glass] I can’t confirm how to obtain the Nether Star in this pack: the Wither loot table available to me currently lists no drops, so I wouldn’t want to promise that defeating it will give you one. [world:loot|minecraft:entities/wither]
+```
+
+Timing (ms): model terminal 25747, tools 81, persistence 19; saved duration 25747. navigationTargets=[]; no navigation request. [V2-detailed-summary.json](../../build/feedback-live/recheck/V2-detailed-summary.json).
+
+#### R2
+
+Question: "set the time to day"
+
+Request 60a00168-c773-4016-8a9b-5b9adff8ab68; conversation e4c715a4-6fd0-48c8-821c-548baf386844; status completed; saved=true; copied saved reply matches=true. [R2.json](../../build/feedback-live/recheck/R2.json), [R2-input.json](../../build/feedback-live/recheck/R2-input.json), [R2-submission.json](../../build/feedback-live/recheck/R2-submission.json), [R2-saved.jsonl](../../build/feedback-live/recheck/R2-saved.jsonl).
+
+Calls (exact arguments, group, coverage/detail and continuation):
+
+```json
+[
+  {
+    "group": "1",
+    "callId": "call_tsOseE5kDl9ME5pJD24n9vgR",
+    "name": "run_command",
+    "arguments": {
+      "command": "/time set day"
+    },
+    "error": false,
+    "coverage": "COMPLETE",
+    "detail": "executed as the player",
+    "recordCount": 1,
+    "nextCursor": null
+  }
+]
+```
+
+Verbatim reply:
+
+```text
+Done—the time is set to day. [command:run|7f7e7a2b-11b9-462d-a8b1-c91a2dbd2c0b]
+```
+
+Timing (ms): model terminal 10787, tools 91, persistence 16; saved duration 10787. navigationTargets=[]; no navigation request. [R2-summary.json](../../build/feedback-live/recheck/R2-summary.json).
+
+### Final state and limitations
+
+Minecraft remains **running and unpaused in PackSage Adapter Filter Live Test**, screen=null, menuId=0, creative, health=20, no ridden entity, selected hotbar slot 0. Position (1170.340168972531,105,1055.6183049816364), yaw 50.085297 and pitch 32.5111 match the starting snapshot. No item, block, inventory or position fixture was used. Time was reset to the captured pre-command dayTime=436637; the command feedback confirms the full value and the immediate server query returns daytime=4638 after ticking resumes. doDaylightCycle=true was restored. The first simultaneous client-state read still showed the earlier 1000 before synchronization; it is retained, and the subsequent settled state reports dayTime=437014, consistent with ordinary ticking after restoration. [time-restore.json](../../build/feedback-live/recheck/time-restore.json), [time-final-query.json](../../build/feedback-live/recheck/time-final-query.json), [daylight-restore.json](../../build/feedback-live/recheck/daylight-restore.json), [daylight-final-query.json](../../build/feedback-live/recheck/daylight-final-query.json), [state-final.json](../../build/feedback-live/recheck/state-final.json), [state-final-settled.json](../../build/feedback-live/recheck/state-final-settled.json).
+
+Final settings equal their initial values: commandConfirmation=always, verbosity=normal, showChatsFromOtherSessions=false. There are no pending confirmations. The prompt override remains null and the effective default still matches candidate 13 exactly. The installed JAR hash and bridge pid remain unchanged. Chat history, command/journal records and normal ticking remain as test effects. [settings-initial.json](../../build/feedback-live/recheck/settings-initial.json), [settings-final.json](../../build/feedback-live/recheck/settings-final.json), [commands-final.json](../../build/feedback-live/recheck/commands-final.json), [prompt-final-check.json](../../build/feedback-live/recheck/prompt-final-check.json), [installed-final.json](../../build/feedback-live/recheck/installed-final.json).
+
+No authorization header or token was printed or written to evidence. The exact-token scan covers the raw evidence and validation file and records zero matches in [secret-scan.json](../../build/feedback-live/recheck/secret-scan.json). Local tester issues are retained in [tester-notes.json](../../build/feedback-live/recheck/tester-notes.json): the unavailable Python launcher failed before any HTTP request; the first U3 PNG copy hit EBUSY, then the same original image was copied after its writer released it. Neither caused a new screenshot or question. Expanded-row UI labels remain the sole bridge-only NOT RUN subcheck; V2 remains a recorded failure.

@@ -18,6 +18,11 @@ public final class RecipePlanner {
     public interface Source {
         boolean available(Evidence.Scope scope);
         List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components, Evidence.Scope scope);
+
+        /** False when a cap or unreadable recipe could have hidden recipes for the identity from recipeOutputs. */
+        default boolean recipesComplete(String identity) {
+            return true;
+        }
     }
 
     public RecipePlanner(Source index) {
@@ -63,7 +68,8 @@ public final class RecipePlanner {
         if (candidates.isEmpty()) {
             visiting.remove(key);
             state.partial = true;
-            if (state.noRecipeLeaves.size() < 16) state.noRecipeLeaves.add(itemIdentity);
+            if (!index.recipesComplete(itemIdentity)) state.reasons.add("recipe-lookup-incomplete:" + itemIdentity);
+            else if (state.noRecipeLeaves.size() < 16) state.noRecipeLeaves.add(itemIdentity);
             else state.omittedNoRecipeLeaves++;
             return false;
         }

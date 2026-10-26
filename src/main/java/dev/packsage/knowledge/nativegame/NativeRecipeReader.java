@@ -127,6 +127,7 @@ final class NativeRecipeReader {
         for (RecipeHolder<?> holder : recipes) {
             if (scanned++ == MAX_PLAN_INDEX) {
                 result.reasons.add("native-recipe-index-cap=" + MAX_PLAN_INDEX);
+                result.indexIncomplete = true;
                 break;
             }
             try {
@@ -142,6 +143,7 @@ final class NativeRecipeReader {
                                 itemRegistry, registries, result.reasons, expandedTags));
             } catch (RuntimeException unreadableOutput) {
                 result.reasons.add("native-recipe-output-unreadable");
+                result.indexIncomplete = true;
             }
         }
         NativeBrewingReader.indexPlanCandidates(brewing, registries, itemRegistry, scope, result);
@@ -223,12 +225,16 @@ final class NativeRecipeReader {
         private final Map<String, List<Evidence.Record>> copied = new LinkedHashMap<>();
         private int copies;
         private int dynamicOutputs;
+        private boolean indexIncomplete;
+        private final Set<String> incomplete = new java.util.HashSet<>();
 
         private PlanSource(Evidence.Scope scope) {
             this.scope = scope;
         }
 
         @Override public boolean available(Evidence.Scope requestedScope) { return scope.equals(requestedScope); }
+
+        @Override public boolean recipesComplete(String identity) { return !indexIncomplete && !incomplete.contains(identity); }
 
         @Override
         public List<Evidence.Record> recipeOutputs(String identity, Evidence.JsonObject components, Evidence.Scope requestedScope) {
@@ -243,15 +249,19 @@ final class NativeRecipeReader {
                 for (var candidate : indexed) {
                     if (copies == MAX_PLAN_COPIES) {
                         reasons.add("native-recipe-copy-cap=" + MAX_PLAN_COPIES);
+                        incomplete.add(key);
                         break;
                     }
                     copies++;
                     try {
                         var record = candidate.get();
-                        if (record == null) reasons.add("native-recipe-copy-unreadable=" + key);
-                        else records.add(record);
+                        if (record == null) {
+                            reasons.add("native-recipe-copy-unreadable=" + key);
+                            incomplete.add(key);
+                        } else records.add(record);
                     } catch (RuntimeException unreadableRecipe) {
                         reasons.add("native-recipe-copy-unreadable=" + key);
+                        incomplete.add(key);
                     }
                 }
                 return List.copyOf(records);

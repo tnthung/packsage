@@ -4,6 +4,14 @@
 
 ### 2026-10-26
 
+- Chat follow-ups from play testing:
+  - **Opening speed:** on the real chat data, opening a chat dropped from about 2.9 s to 0.19 s. The selected chat no longer waits behind the sidebar.
+  - **Sidebar:** it lists only the newest chats, up to the "Sessions before Show more" setting, and each "Show more" loads 10 more. Chats you have not opened load only their summary.
+  - **Other sessions:** the toggle moved into Settings.
+  - **Answers:** they use the same bubble as player messages and show the time they were sent.
+  - **Tool rows:** expanded, they read Tool, Parameter, Result (or Error) and Elapsed, in µs, ms or s.
+  - **Answer detail:** the Concise and Detailed instructions are stronger.
+  - **Citations:** command and game state citations render as source chips.
 - Player feedback features, with automated checks passing and installed checks pending:
   - **Commands:** the assistant can run a command you ask for with run_command, at your own permission level. A Command confirmation setting chooses Always (default), Risky commands or Direct; confirmation shows the exact command with Run and Cancel in the chat.
   - **Timing:** each answer shows its total time, and tool rows expand to each call's result summary and duration.

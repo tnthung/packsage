@@ -205,7 +205,9 @@ class AssistantSettingsScreenTest {
     void accountControlUsesTheCurrentAuthenticationStateAndBackHasBoundedHitArea() {
         FakeActions actions = new FakeActions();
         AtomicInteger returned = new AtomicInteger();
-        var screen = new AssistantSettingsScreen(PackSageSettings.defaults(), temporaryDirectory.resolve("settings.properties"),
+        var settings = PackSageSettings.defaults();
+        var path = temporaryDirectory.resolve("settings.properties");
+        var screen = new AssistantSettingsScreen(settings, path,
                 Component.literal("Settings"), actions, returned::incrementAndGet);
         screen.width = 512;
         screen.height = 240;
@@ -222,6 +224,7 @@ class AssistantSettingsScreenTest {
         assertEquals(0, returned.get());
         assertTrue(screen.mouseClicked(layout.left() + 10, 20, 0));
         assertEquals(1, returned.get());
+        settings.flushAndClose(path).join();
     }
 
     @Test

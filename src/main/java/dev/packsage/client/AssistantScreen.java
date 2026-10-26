@@ -1288,7 +1288,7 @@ public final class AssistantScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (commandConfirmation.mouseClicked(mouseX, mouseY, button)) return true;
+        if (picker == null && commandConfirmation.mouseClicked(mouseX, mouseY, button)) return true;
         if (button == 2 && picker == null) {
             int controlY = Math.max(0, height - 32);
             if (mouseX >= 40 && mouseX < 60 && mouseY >= controlY && mouseY < controlY + 20) {

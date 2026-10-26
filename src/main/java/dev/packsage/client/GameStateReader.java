@@ -53,7 +53,7 @@ public final class GameStateReader implements Toolbox {
         this(sections -> client.submit(() -> capture(client, sections)).thenCompose(snapshot -> withLocalDifficulty(client, snapshot)));
     }
 
-    /** Reads local difficulty on the integrated server thread from an already loaded chunk, never loading one. */
+    /** Reads local difficulty on the integrated server thread from an already loaded chunk, never loading one; after two seconds it stays unavailable. */
     private static CompletionStage<Snapshot> withLocalDifficulty(Minecraft client, Snapshot snapshot) {
         var values = snapshot.values();
         if (!(values.remove(DIFFICULTY_AT) instanceof JsonObject at) || !(values.get("light_and_environment") instanceof JsonObject environment)) {
@@ -75,7 +75,7 @@ public final class GameStateReader implements Toolbox {
             local.addProperty("effective", difficulty.getEffectiveDifficulty());
             local.addProperty("specialMultiplier", difficulty.getSpecialMultiplier());
             return local;
-        }).handle((local, failure) -> {
+        }).completeOnTimeout(null, 2, java.util.concurrent.TimeUnit.SECONDS).handle((local, failure) -> {
             if (local != null) environment.add("localDifficulty", local);
             return new Snapshot(snapshot.multiplayer(), values);
         });

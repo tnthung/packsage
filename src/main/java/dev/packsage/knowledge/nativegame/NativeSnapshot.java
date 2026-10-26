@@ -152,7 +152,7 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                 for (Ingredient.Value value : ingredient.getValues()) {
                     if (value instanceof Ingredient.ItemValue itemValue) {
                         var stack = itemValue.item();
-                        alternatives.add(new Evidence.RecipeAlternative("item", itemIdentity(stack, itemRegistry), componentPayload(stack, registries),
+                        alternatives.add(new Evidence.RecipeAlternative("item", itemIdentity(stack, itemRegistry), componentPayload(stack, registries, constraints),
                                 1, knownRecipe ? Evidence.Consumption.CONSUMED : Evidence.Consumption.UNKNOWN));
                         itemAlternatives++;
                         if (craftingRecipe && stack.hasCraftingRemainingItem()) ingredientRemainders.add(stack.getCraftingRemainingItem());
@@ -180,7 +180,7 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                     var remainder = ingredientRemainders.getFirst();
                     if (ingredientRemainders.stream().allMatch(stack -> ItemStack.isSameItemSameComponents(stack, remainder)
                             && stack.getCount() == remainder.getCount())) {
-                        remainders.add(new Evidence.RecipeOutput("item", itemIdentity(remainder, itemRegistry), componentPayload(remainder, registries),
+                        remainders.add(new Evidence.RecipeOutput("item", itemIdentity(remainder, itemRegistry), componentPayload(remainder, registries, constraints),
                                 remainder.getCount()));
                     } else ambiguousRemainders = true;
                 } else if (!ingredientRemainders.isEmpty()) ambiguousRemainders = true;
@@ -189,8 +189,10 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
         }
         var outputs = output.isEmpty() ? List.of(new Evidence.RecipeOutput("unknown", "unknown:output:" + holder.id(),
                 new Evidence.JsonObject(Map.of()), null)) : List.of(new Evidence.RecipeOutput("item", itemIdentity(output, itemRegistry),
-                componentPayload(output, registries), output.getCount()));
+                componentPayload(output, registries, constraints), output.getCount()));
         if (output.isEmpty()) decoding = Evidence.DecodingStatus.PARTIAL;
+        if (constraints.contains("components=unknown:stack-encoding-failed") && decoding == Evidence.DecodingStatus.VERIFIED)
+            decoding = Evidence.DecodingStatus.PARTIAL;
         if (ambiguousRemainders && decoding == Evidence.DecodingStatus.VERIFIED) decoding = Evidence.DecodingStatus.PARTIAL;
         constraints.add("recipeType=" + recipe.getType());
         constraints.add("serializer=" + recipe.getSerializer());
@@ -341,7 +343,15 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
     }
 
     static Evidence.JsonObject componentPayload(ItemStack stack, net.minecraft.core.HolderLookup.Provider registries) {
+        return componentPayload(stack, registries, null);
+    }
+
+    private static Evidence.JsonObject componentPayload(ItemStack stack, net.minecraft.core.HolderLookup.Provider registries,
+                                                         List<String> constraints) {
         var encoded = codecJson(ItemStack.CODEC, stack, registries);
+        if (encoded.values().containsKey("encoding") && constraints != null
+                && !constraints.contains("components=unknown:stack-encoding-failed"))
+            constraints.add("components=unknown:stack-encoding-failed");
         var components = encoded.values().get("components");
         return components instanceof Evidence.JsonObject object ? object : new Evidence.JsonObject(Map.of());
     }
@@ -355,7 +365,8 @@ public record NativeSnapshot(Evidence.Scope scope, List<Evidence.Record> records
                                                       net.minecraft.core.HolderLookup.Provider registries) {
         try {
             var encoded = codec.encodeStart(registries.createSerializationContext(JsonOps.INSTANCE), value).result().orElse(null);
-            return encoded != null && encoded.isJsonObject() ? (Evidence.JsonObject) jsonValue(encoded) : new Evidence.JsonObject(Map.of());
+            return encoded != null && encoded.isJsonObject() ? (Evidence.JsonObject) jsonValue(encoded)
+                    : new Evidence.JsonObject(Map.of("encoding", new Evidence.JsonString("unknown")));
         } catch (RuntimeException ignored) {
             return new Evidence.JsonObject(Map.of("encoding", new Evidence.JsonString("unknown")));
         }

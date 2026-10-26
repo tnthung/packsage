@@ -90,16 +90,21 @@ class DebugBridgeTest {
                 {"GET", "/state", ""}, {"POST", "/command", "{\"command\":\"time set day\"}"},
                 {"POST", "/player/look", "{\"yaw\":30,\"pitch\":10}"},
                 {"POST", "/player/break", "{\"x\":1,\"y\":2,\"z\":3}"},
-                {"POST", "/player/open", "{\"entity\":\"uuid\"}"},
+                {"POST", "/player/open", "{\"entity\":\"uuid\",\"openInventory\":true}"},
                 {"POST", "/player/menu/move", "{\"slot\":3,\"shift\":true}"},
                 {"POST", "/player/menu/close", ""}, {"POST", "/chat", "{\"question\":\"hello\"}"},
                 {"GET", "/chat/req-1", ""}, {"GET", "/prompt", ""}, {"POST", "/prompt", "{\"text\":null}"},
                 {"POST", "/navigate", "{\"requestId\":\"req-1\",\"targetId\":\"target-1\"}"},
-                {"POST", "/screenshot", "{\"hideGui\":true}"}, {"POST", "/chat-screen", "{\"open\":true}"}
+                {"POST", "/screenshot", "{\"hideGui\":true}"}, {"POST", "/chat-screen", "{\"open\":true}"},
+                {"POST", "/world/leave", ""}, {"POST", "/world/open", "{\"save\":\"Fixture World\"}"},
+                {"POST", "/server/connect", "{\"address\":\"127.0.0.1:25565\"}"},
+                {"POST", "/screen/open", "{\"screen\":\"adapters\"}"},
+                {"POST", "/resourcepacks", "{\"enable\":[\"file/Example\"],\"disable\":[]}"},
+                {"POST", "/game/quit", ""}
         };
         for (String[] request : requests) {
             var response = router.route(new DebugHttp.Request(request[0], request[1], Map.of("authorization", "Bearer secret"), request[2]));
-            assertEquals(200, response.status(), request[1]);
+            assertEquals(request[1].equals("/game/quit") ? 202 : 200, response.status(), request[1]);
             if (!request[2].isEmpty()) assertEquals(JsonParser.parseString(request[2]), response.body());
         }
         assertEquals(java.util.List.of(DebugRouter.Operation.values()), seen);
@@ -116,10 +121,48 @@ class DebugBridgeTest {
                 {"/chat", "{\"question\":\"hello\",\"screenshot\":1}"}, {"/chat", "{\"question\":\"hello\",\"webSearch\":null}"},
                 {"/player/look", "{\"yaw\":3}"}, {"/player/break", "{\"x\":1.5,\"y\":2,\"z\":3}"},
                 {"/player/menu/move", "{\"slot\":-1}"}, {"/screenshot", "{\"hideGui\":1}"},
-                {"/chat-screen", "{\"open\":\"true\"}"} }) {
+                {"/chat-screen", "{\"open\":\"true\"}"},
+                {"/player/open", "{\"entity\":\"uuid\",\"openInventory\":\"true\"}"},
+                {"/player/open", "{\"x\":1,\"y\":2,\"z\":3,\"openInventory\":true}"},
+                {"/world/open", "{}"}, {"/world/open", "{\"save\":\"../outside\"}"},
+                {"/server/connect", "{\"address\":false}"},
+                {"/screen/open", "{}"}, {"/screen/open", "{\"screen\":\"unknown\"}"},
+                {"/screen/open", "{\"screen\":\"settings\",\"conversationId\":\"saved\"}"},
+                {"/resourcepacks", "{}"},
+                {"/resourcepacks", "{\"enable\":[\"other/Example\"],\"disable\":[]}"},
+                {"/resourcepacks", "{\"enable\":[\"file/Example\"],\"disable\":[\"file/Example\"]}"} }) {
             assertEquals(400, router.route(new DebugHttp.Request("POST", request[0], Map.of("authorization", "Bearer secret"), request[1])).status(), request[0] + request[1]);
         }
+        assertEquals(405, router.route(new DebugHttp.Request("GET", "/world/leave", Map.of("authorization", "Bearer secret"), "")).status());
+        assertEquals(405, router.route(new DebugHttp.Request("GET", "/game/quit", Map.of("authorization", "Bearer secret"), "")).status());
         assertEquals(413, router.route(new DebugHttp.Request("POST", "/chat", Map.of("authorization", "Bearer secret"), "x".repeat(1048577))).status());
+    }
+
+    @Test
+    void savedChatScreenAcceptsAnOptionalConversationId() {
+        var router = new DebugRouter("secret", (operation, body) -> body);
+        var response = router.route(new DebugHttp.Request("POST", "/chat-screen", Map.of("authorization", "Bearer secret"),
+                "{\"open\":true,\"conversationId\":\"saved\"}"));
+        assertEquals(200, response.status());
+        assertEquals("saved", response.body().get("conversationId").getAsString());
+        response = router.route(new DebugHttp.Request("POST", "/screen/open", Map.of("authorization", "Bearer secret"),
+                "{\"screen\":\"chat\",\"conversationId\":\"saved\"}"));
+        assertEquals(200, response.status());
+        assertEquals("saved", response.body().get("conversationId").getAsString());
+    }
+
+    @Test
+    void gameQuitSchedulesShutdownOnlyAfterAcceptedResponseIsSent() {
+        var stopped = new java.util.concurrent.atomic.AtomicBoolean();
+        var router = new DebugRouter("secret", new DebugRouter.Game() {
+            @Override public JsonObject execute(DebugRouter.Operation operation, JsonObject body) { return new JsonObject(); }
+            @Override public void afterResponse(DebugRouter.Operation operation) { stopped.set(true); }
+        });
+        var response = router.route(new DebugHttp.Request("POST", "/game/quit", Map.of("authorization", "Bearer secret"), ""));
+        assertEquals(202, response.status());
+        assertFalse(stopped.get());
+        response.afterSend().run();
+        assertTrue(stopped.get());
     }
 
     @Test

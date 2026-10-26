@@ -141,9 +141,12 @@ public final class DebugBridge implements AutoCloseable {
                 response = DebugHttp.error(408, "Request read timeout");
             }
             byte[] body = response.body().toString().getBytes(StandardCharsets.UTF_8);
-            socket.getOutputStream().write(("HTTP/1.1 " + response.status() + " Result\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: "
+            var output = socket.getOutputStream();
+            output.write(("HTTP/1.1 " + response.status() + " Result\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: "
                     + body.length + "\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
-            socket.getOutputStream().write(body);
+            output.write(body);
+            output.flush();
+            response.afterSend().run();
         } catch (IOException ignored) {
         } finally {
             connections.remove(socket);

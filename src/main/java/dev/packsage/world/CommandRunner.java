@@ -64,9 +64,7 @@ public final class CommandRunner {
             return server.submit(() -> {
                 if (!active.getAsBoolean() || server.isStopped()) return new Execution(false,
                         "request cancelled or world closed", null, List.of(), false, false);
-                // ServerWork is pumped while paused for reads. Commands deliberately do not use that queue.
-                if (server.isPaused()) return new Execution(false, "world is paused; unpause before running the command",
-                        null, List.of(), false, false);
+                // The integrated server runs queued tasks while the chat keeps the world paused, so the command applies now.
                 var player = server.getPlayerList().getPlayer(playerId);
                 if (player == null) return new Execution(false, "player left the world", null, List.of(), false, false);
                 return capture(command, player.createCommandSourceStack(), server.getCommands()::performPrefixedCommand);

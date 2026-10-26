@@ -1,7 +1,9 @@
 package dev.packsage.client;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
 final class ModernUi {
@@ -24,6 +26,17 @@ final class ModernUi {
     private static final ResourceLocation SURFACE_OUTLINE = ResourceLocation.fromNamespaceAndPath("packsage", "surface-outline");
 
     private ModernUi() { }
+
+    /** A text button: the surface with its label centered both ways. Hit testing stays with the caller. */
+    static void button(GuiGraphics graphics, Font font, String label, int left, int top, int width, int height, int fill, int textColor) {
+        surface(graphics, left, top, left + width, top + height, fill);
+        Component text = Component.literal(label).withStyle(style -> style.withFont(FONT));
+        graphics.drawString(font, text, left + (width - font.width(text)) / 2, top + (height - font.lineHeight) / 2 + 1, textColor, false);
+    }
+
+    static boolean hovered(int mouseX, int mouseY, int left, int top, int width, int height) {
+        return mouseX >= left && mouseX < left + width && mouseY >= top && mouseY < top + height;
+    }
 
     static void surface(GuiGraphics graphics, int left, int top, int right, int bottom, int color) {
         if (right <= left || bottom <= top) return;

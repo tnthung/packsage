@@ -50,8 +50,7 @@ public final class DeveloperSettingsScreen extends Screen {
         graphics.fill(0, 0, width, height, ModernUi.BACKGROUND);
         int panelWidth = Math.max(1, Math.min(720, width - 32));
         int left = (width - panelWidth) / 2;
-        ModernUi.surface(graphics, left, 12, left + 52, 32, ModernUi.SURFACE);
-        graphics.drawString(font, Component.literal("Back").withStyle(style -> style.withFont(ModernUi.FONT)), left + 10, 19, ModernUi.TEXT, false);
+        ModernUi.button(graphics, font, "Back", left, 12, 52, 20, ModernUi.SURFACE, ModernUi.TEXT);
         graphics.drawString(font, Component.literal("Developer settings").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)), left + 64, 19, ModernUi.TEXT, false);
         super.render(graphics, mouseX, mouseY, partialTick);
         int buttonsY = height - 36;
@@ -60,10 +59,8 @@ public final class DeveloperSettingsScreen extends Screen {
         int[] buttonWidths = {available * 46 / 100, available * 27 / 100, available - available * 46 / 100 - available * 27 / 100 - 16};
         int x = left + 12;
         for (int i = 0; i < labels.length; i++) {
-            ModernUi.surface(graphics, x, buttonsY, x + buttonWidths[i], buttonsY + 22,
-                    mouseX >= x && mouseX < x + buttonWidths[i] && mouseY >= buttonsY && mouseY < buttonsY + 22
-                            ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
-            graphics.drawString(font, Component.literal(labels[i]).withStyle(style -> style.withFont(ModernUi.FONT)), x + 8, buttonsY + 7, ModernUi.TEXT, false);
+            ModernUi.button(graphics, font, labels[i], x, buttonsY, buttonWidths[i], 22,
+                    ModernUi.hovered(mouseX, mouseY, x, buttonsY, buttonWidths[i], 22) ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE, ModernUi.TEXT);
             x += buttonWidths[i] + 8;
         }
         if (error != null) graphics.drawString(font, Component.literal(error).withStyle(style -> style.withFont(ModernUi.FONT)), left + 12, height - 50, ModernUi.DANGER, false);

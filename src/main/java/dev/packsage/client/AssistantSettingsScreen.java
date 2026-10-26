@@ -183,16 +183,12 @@ public final class AssistantSettingsScreen extends Screen {
         if (actions != null) {
             int buttonX = layout.width() >= 340 ? layout.accountLeft() + layout.accountWidth() - 92 : layout.accountLeft() + 12;
             int buttonY = layout.accountTop() + (layout.width() >= 340 ? (layout.accountHeight() - 20) / 2 : 44);
-            ModernUi.surface(graphics, buttonX, buttonY, buttonX + 80, buttonY + 20,
-                    mouseX >= buttonX && mouseX < buttonX + 80 && mouseY >= buttonY && mouseY < buttonY + 20
-                            ? ModernUi.SURFACE_HOVER : ModernUi.BACKGROUND);
-            Component label = Component.literal(switch (signIn) {
+            ModernUi.button(graphics, font, switch (signIn) {
                         case SIGNED_IN -> "Sign out";
                         case SIGNING_IN -> "Cancel sign-in";
                         default -> "Sign in";
-                    }).withStyle(style -> style.withFont(ModernUi.FONT));
-            graphics.drawString(font, label, buttonX + (80 - font.width(label)) / 2,
-                    buttonY + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+                    }, buttonX, buttonY, 80, 20,
+                    ModernUi.hovered(mouseX, mouseY, buttonX, buttonY, 80, 20) ? ModernUi.SURFACE_HOVER : ModernUi.BACKGROUND, ModernUi.TEXT);
         }
         graphics.drawString(font, Component.literal("Behavior").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
                 x, layout.behaviorTop() - 20, ModernUi.TEXT, false);

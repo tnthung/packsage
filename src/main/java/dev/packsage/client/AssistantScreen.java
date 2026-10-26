@@ -426,12 +426,9 @@ public final class AssistantScreen extends Screen {
                     for (int index = 0; index < 2; index++) {
                         int buttonWidth = Math.max(1, Math.min(54, (sidebarWidth - 42) / 2));
                         int x = 18 + index * (buttonWidth + 6);
-                        ModernUi.surface(graphics, x, row.top() + 15, x + buttonWidth, row.top() + 32,
-                                mouseX >= x && mouseX < x + buttonWidth && mouseY >= row.top() + 15 && mouseY < row.top() + 32
-                                        ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
-                        Component label = Component.literal(index == 0 ? "Delete" : "Cancel").withStyle(style -> style.withFont(ModernUi.FONT));
-                        graphics.drawString(font, label, x + (buttonWidth - font.width(label)) / 2,
-                                row.top() + 15 + (17 - font.lineHeight) / 2 + 1, index == 0 ? ModernUi.DANGER : ModernUi.TEXT, false);
+                        ModernUi.button(graphics, font, index == 0 ? "Delete" : "Cancel", x, row.top() + 15, buttonWidth, 17,
+                                ModernUi.hovered(mouseX, mouseY, x, row.top() + 15, buttonWidth, 17) ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE,
+                                index == 0 ? ModernUi.DANGER : ModernUi.TEXT);
                     }
                     continue;
                 }
@@ -899,18 +896,12 @@ public final class AssistantScreen extends Screen {
                 y + 6 + index * ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.MUTED, false);
         int actionLeft = stacked ? readableLeft + readableWidth - 34 - (editable ? 38 : 0) : left + font.width(count) + 8;
         int actionY = y + 2 + (stacked ? lines.size() * ModernUi.MESSAGE_LINE_HEIGHT + 4 : 0);
-        ModernUi.surface(graphics, actionLeft, actionY, actionLeft + 34, actionY + 16,
-                mouseX >= actionLeft && mouseX < actionLeft + 34 && mouseY >= actionY && mouseY < actionY + 16 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
-        Component copy = Component.literal("Copy").withStyle(style -> style.withFont(ModernUi.FONT));
-        graphics.drawString(font, copy, actionLeft + (34 - font.width(copy)) / 2,
-                actionY + (16 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        ModernUi.button(graphics, font, "Copy", actionLeft, actionY, 34, 16,
+                ModernUi.hovered(mouseX, mouseY, actionLeft, actionY, 34, 16) ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE, ModernUi.TEXT);
         messageActions.add(new MessageAction(turn, user, false, actionLeft, actionY, 34));
         if (editable) {
-            ModernUi.surface(graphics, actionLeft + 40, actionY, actionLeft + 72, actionY + 16,
-                    mouseX >= actionLeft + 40 && mouseX < actionLeft + 72 && mouseY >= actionY && mouseY < actionY + 16 ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
-            Component edit = Component.literal("Edit").withStyle(style -> style.withFont(ModernUi.FONT));
-            graphics.drawString(font, edit, actionLeft + 40 + (32 - font.width(edit)) / 2,
-                    actionY + (16 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+            ModernUi.button(graphics, font, "Edit", actionLeft + 40, actionY, 32, 16,
+                    ModernUi.hovered(mouseX, mouseY, actionLeft + 40, actionY, 32, 16) ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE, ModernUi.TEXT);
             messageActions.add(new MessageAction(turn, true, true, actionLeft + 40, actionY, 32));
         }
         return actionY + 20;

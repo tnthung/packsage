@@ -45,12 +45,8 @@ final class CommandConfirmationPanel {
                     row.left() + 8, row.top() + 21, ModernUi.MUTED, false);
             for (int i = 0; i < row.lines().size(); i++) graphics.drawString(font, row.lines().get(i), row.left() + 8,
                     row.top() + 36 + i * ModernUi.MESSAGE_LINE_HEIGHT, ModernUi.TEXT, false);
-            ModernUi.surface(graphics, row.left() + 8, row.buttonsY(), row.left() + 64, row.buttonsY() + 20, ModernUi.ACCENT_DARK);
-            ModernUi.surface(graphics, row.left() + 72, row.buttonsY(), row.left() + 136, row.buttonsY() + 20, ModernUi.SURFACE_HOVER);
-            graphics.drawString(font, Component.literal("Run").withStyle(style -> style.withFont(ModernUi.FONT)),
-                    row.left() + 22, row.buttonsY() + 6, ModernUi.TEXT, false);
-            graphics.drawString(font, Component.literal("Cancel").withStyle(style -> style.withFont(ModernUi.FONT)),
-                    row.left() + 82, row.buttonsY() + 6, ModernUi.TEXT, false);
+            ModernUi.button(graphics, font, "Run", row.left() + 8, row.buttonsY(), 56, 20, ModernUi.ACCENT_DARK, ModernUi.TEXT);
+            ModernUi.button(graphics, font, "Cancel", row.left() + 72, row.buttonsY(), 64, 20, ModernUi.SURFACE_HOVER, ModernUi.TEXT);
         }
         return rows.isEmpty() ? top : rows.getLast().buttonsY() + 32;
     }

@@ -18,7 +18,7 @@ import java.util.Objects;
 
 public final class AssistantSettingsScreen extends Screen {
     record Layout(int left, int width, int top, int bottom, int accountTop, int accountHeight, int accountLeft, int accountWidth,
-                  int behaviorTop, int shortcutTop, int historyTop,
+                  int behaviorTop, int shortcutTop, int verbosityTop, int historyTop,
                   boolean historyStacked, int contentHeight) { }
 
     private final PackSageSettings settings;
@@ -102,12 +102,14 @@ public final class AssistantSettingsScreen extends Screen {
         int behaviorTop = y;
         y += 72 + 26;
         int shortcutTop = y;
-        y += 46 + 6;
+        y += 46 + 26;
+        int verbosityTop = y;
+        y += 72 + 6;
         int historyTop = y;
         boolean stacked = rowWidth < 280;
         y += stacked ? 112 : 68;
         Layout result = new Layout(left, panelWidth, 50, Math.max(51, height - 12), accountTop, accountHeight, left + 16, rowWidth,
-                behaviorTop, shortcutTop, historyTop, stacked, y + scrollOffset - 50);
+                behaviorTop, shortcutTop, verbosityTop, historyTop, stacked, y + scrollOffset - 50);
         if (turnsEditor != null) {
             int fieldWidth = result.historyStacked() ? rowWidth : (rowWidth - 16) / 2;
             int tokensX = result.historyStacked() ? left + 16 : left + 16 + fieldWidth + 16;
@@ -222,6 +224,23 @@ public final class AssistantSettingsScreen extends Screen {
                             .withStyle(style -> style.withFont(ModernUi.FONT)),
                     x + 24, y + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
         }
+        graphics.drawString(font, Component.literal("Answer detail").withStyle(style -> style.withFont(ModernUi.BOLD_FONT)),
+                x, layout.verbosityTop() - 20, ModernUi.TEXT, false);
+        for (int index = 0; index < 3; index++) {
+            PackSageSettings.Verbosity level = PackSageSettings.Verbosity.values()[index];
+            int y = layout.verbosityTop() + index * 26;
+            boolean selected = settings.verbosity() == level;
+            ModernUi.surface(graphics, x, y, x + rowWidth, y + 20,
+                    selected ? ModernUi.ACCENT_DARK
+                            : mouseX >= x && mouseX < x + rowWidth && mouseY >= y && mouseY < y + 20
+                            ? ModernUi.SURFACE_HOVER : ModernUi.SURFACE);
+            graphics.blit(ResourceLocation.fromNamespaceAndPath("packsage", "textures/gui/icons/"
+                            + (selected ? "radio-button" : "circle") + ".png"),
+                    x + 5, y + (20 - 12) / 2, 12, 12, 0f, 0f, 64, 64, 64, 64);
+            graphics.drawString(font, Component.literal(index == 0 ? "Concise" : index == 1 ? "Normal" : "Detailed")
+                            .withStyle(style -> style.withFont(ModernUi.FONT)),
+                    x + 24, y + (20 - font.lineHeight) / 2 + 1, ModernUi.TEXT, false);
+        }
         int fieldWidth = layout.historyStacked() ? rowWidth : (rowWidth - 16) / 2;
         int tokensX = layout.historyStacked() ? x : x + fieldWidth + 16;
         int tokensY = layout.historyTop() + (layout.historyStacked() ? 40 : 0);
@@ -323,6 +342,13 @@ public final class AssistantSettingsScreen extends Screen {
             if (mouseY >= layout.shortcutTop() + 26 && mouseY < layout.shortcutTop() + 46) {
                 settings.setSendShortcut(PackSageSettings.SendShortcut.CTRL_ENTER);
                 return true;
+            }
+            for (int index = 0; index < 3; index++) {
+                int y = layout.verbosityTop() + index * 26;
+                if (mouseY >= y && mouseY < y + 20) {
+                    settings.setVerbosity(PackSageSettings.Verbosity.values()[index]);
+                    return true;
+                }
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);

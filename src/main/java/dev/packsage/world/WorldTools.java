@@ -586,6 +586,8 @@ public final class WorldTools implements KnowledgeProvider {
             value.put("label", text(info.label()));
             value.put("slots", number(info.slots()));
             value.put("role", text(info.role().name().toLowerCase(java.util.Locale.ROOT)));
+            if (info.pendingLoot() != null) value.put("pendingLoot", text(info.pendingLoot()
+                    + "; generated when first opened; read_loot with this place reads the table without opening it"));
             return (Evidence.JsonValue) new Evidence.JsonObject(value);
         }).toList());
     }

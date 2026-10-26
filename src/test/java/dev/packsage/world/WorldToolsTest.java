@@ -1009,10 +1009,10 @@ class WorldToolsTest {
     @Test
     void aSectionWhoseLootIsNotGeneratedClaimsNoEmptySlotsAndSaysWhy() {
         var notes = new java.util.LinkedHashSet<String>();
-        var pending = new InventoryInfo(new InventoryId("minecraft", "container"), "Container", 27, SlotRole.STORAGE, "minecraft:chests/simple_dungeon");
+        var pending = new InventoryInfo(new InventoryId("minecraft", "container"), "Container", 27, SlotRole.STORAGE, "table minecraft:chests/simple_dungeon, seed 12345");
         assertEquals(new WorldItemTools.InventorySummary(pending, null), WorldItemTools.inventorySummary(pending, 0, notes));
-        assertEquals(java.util.List.of("minecraft/container's loot has not been generated yet (table minecraft:chests/simple_dungeon); "
-                + "its contents are decided when it is first opened"), java.util.List.copyOf(notes));
+        assertEquals(java.util.List.of("minecraft/container's loot has not been generated yet (table minecraft:chests/simple_dungeon, seed 12345); "
+                + "its contents are decided when it is first opened; read_loot with the container's place reads the table without opening it"), java.util.List.copyOf(notes));
 
         notes.clear();
         var main = new InventoryInfo(new InventoryId("minecraft", "main"), "Main inventory", 36, SlotRole.STORAGE);

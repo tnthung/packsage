@@ -402,8 +402,8 @@ final class WorldItemTools {
      */
     static InventorySummary inventorySummary(InventoryInfo info, int occupied, Set<String> notes) {
         if (info.pendingLoot() != null) {
-            notes.add(info.id().text() + "'s loot has not been generated yet (table " + info.pendingLoot()
-                    + "); its contents are decided when it is first opened");
+            notes.add(info.id().text() + "'s loot has not been generated yet (" + info.pendingLoot()
+                    + "); its contents are decided when it is first opened; read_loot with the container's place reads the table without opening it");
             return new InventorySummary(info, null);
         }
         return new InventorySummary(info, info.slots() >= 0 ? info.slots() - occupied : null);
